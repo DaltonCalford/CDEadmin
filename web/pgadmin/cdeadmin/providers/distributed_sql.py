@@ -54,6 +54,10 @@ def optional_rows(cursor, source, parameters=()):
         cursor.execute(source, parameters)
         return list(cursor.fetchall())
     except Exception:
+        try:
+            cursor.connection.rollback()
+        except Exception:
+            pass
         return []
 
 
@@ -301,10 +305,22 @@ def postgresql_catalog(connection, request, engine_name, extras=None):
         for row in databases:
             item = resource('database', [], row[0], generation)
             values[item['resource_id']] = item
+        schemas = optional_rows(
+            cursor,
+            'SELECT schema_name FROM information_schema.schemata '
+            'WHERE schema_name NOT IN '
+            "('pg_catalog', 'information_schema', 'crdb_internal') "
+            'ORDER BY 1',
+        )
+        for row in schemas:
+            item = resource('schema', [], row[0], generation)
+            values[item['resource_id']] = item
         relations = optional_rows(
             cursor,
             'SELECT table_schema, table_name, table_type '
-            'FROM information_schema.tables ORDER BY 1, 2',
+            'FROM information_schema.tables WHERE table_schema NOT IN '
+            "('pg_catalog', 'information_schema', 'crdb_internal') "
+            'ORDER BY 1, 2',
         )
         for schema, name, table_type in relations:
             schema_item = resource('schema', [], schema, generation)
@@ -318,7 +334,10 @@ def postgresql_catalog(connection, request, engine_name, extras=None):
         columns = optional_rows(
             cursor,
             'SELECT table_schema, table_name, column_name, data_type, '
-            'is_nullable FROM information_schema.columns ORDER BY 1, 2, 3',
+            'is_nullable FROM information_schema.columns '
+            'WHERE table_schema NOT IN '
+            "('pg_catalog', 'information_schema', 'crdb_internal') "
+            'ORDER BY 1, 2, 3',
         )
         for schema, table, name, data_type, nullable in columns:
             item = resource('column', [schema, table], name, generation, {
@@ -328,7 +347,9 @@ def postgresql_catalog(connection, request, engine_name, extras=None):
         indexes = optional_rows(
             cursor,
             'SELECT schemaname, tablename, indexname, indexdef '
-            'FROM pg_catalog.pg_indexes ORDER BY 1, 2, 3',
+            'FROM pg_catalog.pg_indexes WHERE schemaname NOT IN '
+            "('pg_catalog', 'information_schema', 'crdb_internal') "
+            'ORDER BY 1, 2, 3',
         )
         for schema, table, name, definition in indexes:
             item = resource('index', [schema, table], name, generation, {

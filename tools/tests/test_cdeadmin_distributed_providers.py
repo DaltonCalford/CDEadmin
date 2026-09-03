@@ -51,6 +51,7 @@ from pgadmin.cdeadmin.providers.distributed_sql import (  # noqa: E402
     _initialize_mysql_connection,
     _initialize_postgresql_connection,
     mysql_route,
+    optional_rows,
     postgresql_route,
     resource,
 )
@@ -128,6 +129,9 @@ from pgadmin.cdeadmin.sdk import (  # noqa: E402
     RelationalDBAPIClient,
     RelationalClientConfig,
     RelationalClientError,
+)
+from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
+    catalog_for_engine, enrich_engine_experience,
 )
 
 
@@ -317,6 +321,46 @@ class _IgniteClient:
 
 
 class DistributedProviderTests(unittest.TestCase):
+
+    def test_cockroach_relational_object_contract_is_structurally_complete(
+            self):
+        catalog = enrich_engine_experience(COCKROACH_ADMIN.catalog(
+            catalog_for_engine('cockroachdb')
+        ))
+        coverage = catalog['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        concepts = {
+            item['concept_id']: item
+            for family in coverage['families']
+            for item in family['concepts']
+        }
+        self.assertEqual(
+            'not_applicable', concepts['domains']['declared_status']
+        )
+        self.assertEqual(
+            'not_applicable',
+            concepts['extensions_and_plugins']['declared_status'],
+        )
+        self.assertEqual(
+            ['cluster'],
+            concepts['servers']['catalog_resource_kinds'],
+        )
+        self.assertEqual(
+            ['zone-config'],
+            concepts['tablespaces_and_filespaces'][
+                'catalog_resource_kinds'],
+        )
+        self.assertEqual(
+            ['create', 'drop', 'inspect'],
+            concepts['procedures']['operation_obligations']['procedure'],
+        )
+        self.assertIn(
+            'pause',
+            concepts['jobs_and_events'][
+                'operation_obligations']['schedule'],
+        )
 
     def test_ignite_control_plane_is_typed_and_control_sh_compiled(self):
         keys = {
@@ -2221,6 +2265,74 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertNotIn('secret-canary', source['preview_source'])
         self.assertFalse(VITESS_ADMIN.supports('user', 'create'))
         self.assertTrue(VITESS_ADMIN.supports('user', 'inspect'))
+
+    def test_cockroach_relational_admin_compiles_native_object_syntax(self):
+        route = {'host': '127.0.0.1', 'port': 26257}
+        index = COCKROACH_ADMIN.plan({
+            'resource_kind': 'index', 'operation_id': 'create',
+            'draft': {
+                'name': 'widgets_value_idx', 'parent': 'public',
+                'table': 'public.widgets', 'columns': ['value'],
+                'unique': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE INDEX "widgets_value_idx" ON '
+            '"public"."widgets" ("value")',
+            index['provider_payload']['compiled']['statements'][0]['source'],
+        )
+        trigger = COCKROACH_ADMIN.plan({
+            'resource_kind': 'trigger', 'operation_id': 'create',
+            'draft': {
+                'name': 'widgets_trigger', 'parent': 'public',
+                'table': 'public.widgets', 'timing': 'AFTER',
+                'events': ['INSERT'],
+                'body': (
+                    'FOR EACH ROW EXECUTE FUNCTION public.on_widget()'
+                ),
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE TRIGGER "widgets_trigger" AFTER INSERT ON '
+            '"public"."widgets" FOR EACH ROW EXECUTE FUNCTION '
+            'public.on_widget()',
+            trigger['provider_payload']['compiled']['statements'][0][
+                'source'],
+        )
+        constraint = COCKROACH_ADMIN.plan({
+            'resource_kind': 'constraint', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_id': 'constraint:public:widgets:value_unique',
+                'display_name': 'value_unique',
+                'display_path': ['public', 'widgets', 'value_unique'],
+                'extensions': {'cockroachdb': {'native': {
+                    'constraint_type': 'UNIQUE',
+                }}},
+            },
+            'draft': {'confirmation': 'drop-constraint'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'DROP INDEX "public"."value_unique" CASCADE',
+            constraint['provider_payload']['compiled']['statements'][0][
+                'source'],
+        )
+
+    def test_optional_catalog_query_rolls_back_before_next_probe(self):
+        connection = SimpleNamespace(rollbacks=0)
+        connection.rollback = lambda: setattr(
+            connection, 'rollbacks', connection.rollbacks + 1
+        )
+        cursor = SimpleNamespace(connection=connection)
+
+        def fail(_source, _parameters):
+            raise RuntimeError('optional catalog is unavailable')
+
+        cursor.execute = fail
+        self.assertEqual([], optional_rows(cursor, 'SELECT unavailable'))
+        self.assertEqual(1, connection.rollbacks)
 
     def test_distributed_sql_grid_discovers_wire_family_primary_keys(self):
         mysql_connection = _Connection()

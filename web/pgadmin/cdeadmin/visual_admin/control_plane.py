@@ -21,6 +21,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from .requirements import EXPERIENCE_REQUIREMENTS
+
 
 CONTROL_PLANE_PERMISSIONS = frozenset({
     'topology_admin', 'security_admin', 'backup_admin', 'restore_admin',
@@ -199,6 +201,33 @@ class ControlPlaneCatalog:
                 )
             else:
                 resource.setdefault('operations', []).append(descriptor)
+        declarations = value.get('concept_declarations', {})
+        for family_id, concepts in declarations.items():
+            requirements = EXPERIENCE_REQUIREMENTS.get(family_id, {})
+            if not isinstance(concepts, dict):
+                continue
+            for concept_id, declaration in concepts.items():
+                if not isinstance(declaration, dict):
+                    continue
+                requirement = requirements.get(concept_id, {})
+                candidates = set(requirement.get('resource_kinds', ()))
+                candidates.update(declaration.get('resource_kinds', ()))
+                obligations = declaration.setdefault(
+                    'operation_obligations', {}
+                )
+                mutable = False
+                for operation in self._operations.values():
+                    if operation.resource_kind not in candidates:
+                        continue
+                    current = obligations.setdefault(
+                        operation.resource_kind, []
+                    )
+                    if operation.operation_id not in current:
+                        current.append(operation.operation_id)
+                        current.sort()
+                    mutable = mutable or operation.mutation_class != 'read'
+                if mutable and declaration.get('status') == 'read_only':
+                    declaration['status'] = 'supported'
         value['distributed_control_plane_contract'] = (
             'cdeadmin.distributed-control-plane.v1'
         )

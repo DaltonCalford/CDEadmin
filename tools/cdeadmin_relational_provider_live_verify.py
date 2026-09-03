@@ -56,6 +56,10 @@ from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     PROFILE as DUCKDB_PROFILE,
     create_provider as create_duckdb_provider,
 )
+from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
+    PROFILE as COCKROACHDB_PROFILE,
+    create_provider as create_cockroachdb_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -76,6 +80,7 @@ CATEGORIES = (
     'admin', 'security', 'fault',
 )
 PROFILES = {
+    'cockroachdb': COCKROACHDB_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -84,12 +89,14 @@ PROFILES = {
 }
 
 PROVIDER_FACTORIES = {
+    'cockroachdb': create_cockroachdb_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
 }
 
 TARGET_ADAPTERS = {
+    'cockroachdb': 'cockroachdb-postgresql-wire-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -275,6 +282,8 @@ def _relational_editor_evidence(provider, request, engine):
         parent = None
     elif engine in {'mysql', 'mariadb'}:
         parent = str(route['database'])
+    elif engine == 'cockroachdb':
+        parent = 'public'
     else:
         parent = 'main'
     if qualification is None:
@@ -384,6 +393,13 @@ def _relational_editor_evidence(provider, request, engine):
         ):
             resources = provider.list_resources(request)
             column = _target(resources, 'column', 'editor_note')
+            if column is not None and provider.client.supports_admin_operation(
+                    'column', 'alter'):
+                attempt(
+                    'column.alter', 'column', 'alter', {
+                        'properties': {'set_default': '9'},
+                    }, column,
+                )
             if column is not None and attempt(
                 'column.rename', 'column', 'rename', {
                     'new_name': 'editor_comment',
@@ -420,7 +436,12 @@ def _relational_editor_evidence(provider, request, engine):
                             'query': (
                                 'SELECT ID FROM QUALIFICATION'
                                 if engine == 'firebird' else
-                                'SELECT id FROM qualification'
+                                (
+                                    'SELECT id, value + 0 AS value '
+                                    'FROM qualification'
+                                    if engine == 'cockroachdb' else
+                                    'SELECT id FROM qualification'
+                                )
                             ),
                         }, view,
                     )
@@ -730,6 +751,215 @@ def _relational_editor_evidence(provider, request, engine):
                             'confirmation': 'drop-live-editor-plugin',
                         }, plugin,
                     )
+
+    if engine == 'cockroachdb' and qualification is not None:
+        if attempt(
+            'constraint.create', 'constraint', 'create', {
+                'name': 'cde_editor_unique', 'table': qualified_table,
+                'properties': {
+                    'kind': 'UNIQUE', 'columns': [value_column],
+                },
+            },
+        ):
+            constraint = inspect_created(
+                'constraint.inspect-created', 'constraint',
+                'cde_editor_unique',
+            )
+            if constraint is not None:
+                attempt(
+                    'constraint.drop', 'constraint', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-constraint',
+                    }, constraint,
+                )
+
+        if attempt(
+            'schema.create', 'schema', 'create', {
+                'name': 'cde_editor_schema',
+            },
+        ):
+            schema = inspect_created(
+                'schema.inspect-created', 'schema', 'cde_editor_schema'
+            )
+            if schema is not None and attempt(
+                'schema.alter', 'schema', 'alter', {
+                    'properties': {'rename_to': 'cde_editor_schema_renamed'},
+                }, schema,
+            ):
+                schema = inspect_created(
+                    'schema.inspect-renamed', 'schema',
+                    'cde_editor_schema_renamed',
+                )
+            if schema is not None:
+                attempt(
+                    'schema.drop', 'schema', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-schema',
+                    }, schema,
+                )
+
+        if attempt(
+            'sequence.create', 'sequence', 'create', {
+                'name': 'cde_editor_sequence', 'parent': 'public',
+                'start': 1, 'increment': 1, 'cycle': False,
+            },
+        ):
+            sequence = inspect_created(
+                'sequence.inspect-created', 'sequence',
+                'cde_editor_sequence',
+            )
+            if sequence is not None:
+                attempt(
+                    'sequence.alter', 'sequence', 'alter', {
+                        'restart': 10, 'increment': 2,
+                    }, sequence,
+                )
+                if attempt(
+                    'sequence.rename', 'sequence', 'rename', {
+                        'new_name': 'cde_editor_sequence_renamed',
+                    }, sequence,
+                ):
+                    sequence = inspect_created(
+                        'sequence.inspect-renamed', 'sequence',
+                        'cde_editor_sequence_renamed',
+                    )
+                if sequence is not None:
+                    attempt(
+                        'sequence.drop', 'sequence', 'drop', {
+                            'cascade': False,
+                            'confirmation': 'drop-live-editor-sequence',
+                        }, sequence,
+                    )
+
+        routine_drafts = (
+            ('function', 'INTEGER', "LANGUAGE SQL AS 'SELECT 1'"),
+            ('procedure', '', "LANGUAGE SQL AS 'SELECT 1'"),
+        )
+        for kind, returns, body in routine_drafts:
+            name = f'cde_editor_{kind}'
+            if attempt(
+                f'{kind}.create', kind, 'create', {
+                    'name': name, 'parent': 'public', 'parameters': [],
+                    'return_parameters': [], 'returns': returns,
+                    'body': body,
+                },
+            ):
+                routine = inspect_created(f'{kind}.inspect', kind, name)
+                if routine is not None:
+                    attempt(
+                        f'{kind}.drop', kind, 'drop', {
+                            'cascade': False,
+                            'confirmation': f'drop-live-editor-{kind}',
+                        }, routine,
+                    )
+
+        helper_name = 'cde_editor_trigger_function'
+        helper = None
+        if attempt(
+            'trigger.helper.create', 'function', 'create', {
+                'name': helper_name, 'parent': 'public', 'parameters': [],
+                'return_parameters': [], 'returns': 'TRIGGER',
+                'body': (
+                    "LANGUAGE PLPGSQL AS 'BEGIN RETURN NEW; END'"
+                ),
+            },
+        ):
+            helper = inspect_created(
+                'trigger.helper.inspect', 'function', helper_name
+            )
+        if helper is not None and attempt(
+            'trigger.create', 'trigger', 'create', {
+                'name': 'cde_editor_trigger', 'parent': 'public',
+                'table': qualified_table, 'timing': 'AFTER',
+                'events': ['INSERT'], 'active': True, 'position': 0,
+                'body': (
+                    'FOR EACH ROW EXECUTE FUNCTION '
+                    'public.cde_editor_trigger_function()'
+                ),
+            },
+        ):
+            trigger = inspect_created(
+                'trigger.inspect', 'trigger', 'cde_editor_trigger'
+            )
+            if trigger is not None:
+                attempt(
+                    'trigger.drop', 'trigger', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-trigger',
+                    }, trigger,
+                )
+        if helper is not None:
+            attempt(
+                'trigger.helper.drop', 'function', 'drop', {
+                    'cascade': False,
+                    'confirmation': 'drop-live-editor-trigger-helper',
+                }, helper,
+            )
+
+        role = None
+        if attempt(
+            'role.create', 'role', 'create', {'name': 'cde_editor_role'},
+        ):
+            role = inspect_created(
+                'role.inspect-created', 'role', 'cde_editor_role'
+            )
+        if role is not None:
+            attempt(
+                'role.alter', 'role', 'alter', {
+                    'properties': {'with': 'LOGIN'},
+                }, role,
+            )
+            privilege_target = next((
+                item for item in provider.list_resources(request)
+                if item.get('resource_kind') == 'privilege'
+            ), None)
+            grant_draft = {
+                'principal': 'cde_editor_role', 'object_type': 'TABLE',
+                'object_name': qualified_table, 'privileges': ['SELECT'],
+                'grant_option': False,
+            }
+            if attempt(
+                'privilege.grant', 'privilege', 'grant', grant_draft,
+                privilege_target,
+            ):
+                attempt(
+                    'privilege.revoke', 'privilege', 'revoke', {
+                        key: value for key, value in grant_draft.items()
+                        if key != 'grant_option'
+                    } | {'confirmation': 'revoke-live-editor-grant'},
+                    privilege_target,
+                )
+            attempt(
+                'role.drop', 'role', 'drop', {
+                    'cascade': False,
+                    'confirmation': 'drop-live-editor-role',
+                }, role,
+            )
+
+        user = None
+        if attempt(
+            'user.create', 'user', 'create', {
+                'name': 'cde_editor_user',
+                'password': secrets.token_urlsafe(24), 'active': True,
+                'administrator': False,
+            },
+        ):
+            user = inspect_created(
+                'user.inspect-created', 'user', 'cde_editor_user'
+            )
+        if user is not None:
+            attempt(
+                'user.alter', 'user', 'alter', {
+                    'password': secrets.token_urlsafe(24), 'active': False,
+                    'administrator': False,
+                }, user,
+            )
+            attempt(
+                'user.drop', 'user', 'drop', {
+                    'cascade': False,
+                    'confirmation': 'drop-live-editor-user',
+                }, user,
+            )
 
     if engine == 'firebird' and qualification is not None:
         if attempt(
@@ -1134,16 +1364,28 @@ def _relational_editor_evidence(provider, request, engine):
             'name': 'cde_editor_database',
         },
     )
-    if database_created and engine in {'mysql', 'mariadb'}:
+    if database_created and engine in {'cockroachdb', 'mysql', 'mariadb'}:
         database = inspect_created(
             'database.inspect-created', 'database', 'cde_editor_database'
         )
         if database is not None:
-            attempt(
+            if engine in {'mysql', 'mariadb'}:
+                attempt(
+                    'database.alter', 'database', 'alter', {
+                        'character_set': 'utf8mb4',
+                    }, database,
+                )
+            elif attempt(
                 'database.alter', 'database', 'alter', {
-                    'character_set': 'utf8mb4',
+                    'properties': {
+                        'rename_to': 'cde_editor_database_renamed',
+                    },
                 }, database,
-            )
+            ):
+                database = inspect_created(
+                    'database.inspect-renamed', 'database',
+                    'cde_editor_database_renamed',
+                )
             attempt(
                 'database.drop', 'database', 'drop', {
                     'cascade': False,
@@ -1346,6 +1588,125 @@ class _TemporaryAccount:
                     pass
         finally:
             cursor.close()
+            connection.close()
+            self.connection = None
+            self.password = ''
+
+
+class _CockroachDBAccount:
+    """Provision one password-authenticated account through a client cert."""
+
+    def __init__(self, host, port, ca_cert, client_cert, client_key):
+        suffix = secrets.token_hex(6)
+        self.host = host
+        self.port = port
+        self.ca_cert = str(Path(ca_cert).resolve())
+        self.client_cert = str(Path(client_cert).resolve())
+        self.client_key = str(Path(client_key).resolve())
+        self.username = f'cde_live_{suffix}'
+        self.database = f'cde_live_{suffix}'
+        self.password = secrets.token_urlsafe(32)
+        self.connection = None
+        self.created = False
+
+    @property
+    def route_options(self):
+        return {
+            'sslmode': 'verify-full',
+            'sslrootcert': self.ca_cert,
+            'options': '-c statement_timeout=5000',
+        }
+
+    def _admin_connect(self):
+        import psycopg
+
+        return psycopg.connect(
+            host=self.host,
+            port=self.port,
+            user='root',
+            dbname='defaultdb',
+            sslmode='verify-full',
+            sslrootcert=self.ca_cert,
+            sslcert=self.client_cert,
+            sslkey=self.client_key,
+            connect_timeout=10,
+            options='-c statement_timeout=10000',
+            autocommit=True,
+        )
+
+    def create(self):
+        from psycopg import sql
+
+        self.connection = self._admin_connect()
+        try:
+            self.connection.execute(
+                sql.SQL('CREATE DATABASE {}').format(
+                    sql.Identifier(self.database)
+                )
+            )
+            self.connection.execute(
+                sql.SQL('CREATE USER {} WITH PASSWORD {}').format(
+                    sql.Identifier(self.username), sql.Placeholder()
+                ),
+                (self.password,),
+            )
+            self.connection.execute(
+                sql.SQL('GRANT admin TO {} WITH ADMIN OPTION').format(
+                    sql.Identifier(self.username)
+                )
+            )
+            self.connection.execute(
+                sql.SQL(
+                    'CREATE TABLE {}.public.qualification '
+                    '(id INTEGER NOT NULL PRIMARY KEY, '
+                    'value INTEGER NOT NULL) PARTITION BY LIST (id) '
+                    '(PARTITION cde_one VALUES IN (1), '
+                    'PARTITION cde_two VALUES IN (2))'
+                ).format(sql.Identifier(self.database))
+            )
+            self.connection.execute(
+                sql.SQL(
+                    'INSERT INTO {}.public.qualification VALUES (1, 42)'
+                ).format(sql.Identifier(self.database))
+            )
+            self.created = True
+        except Exception:
+            self.drop()
+            raise
+
+    def drop(self):
+        from psycopg import sql
+
+        connection = self.connection
+        if connection is None:
+            try:
+                connection = self._admin_connect()
+            except Exception:
+                self.password = ''
+                return
+        try:
+            for statement in (
+                sql.SQL('DROP USER IF EXISTS cde_editor_user'),
+                sql.SQL('DROP ROLE IF EXISTS cde_editor_role'),
+                sql.SQL(
+                    'DROP DATABASE IF EXISTS cde_editor_database CASCADE'
+                ),
+                sql.SQL(
+                    'DROP DATABASE IF EXISTS '
+                    'cde_editor_database_renamed CASCADE'
+                ),
+                sql.SQL('DROP DATABASE IF EXISTS {} CASCADE').format(
+                    sql.Identifier(self.database)
+                ),
+                sql.SQL('DROP USER IF EXISTS {}').format(
+                    sql.Identifier(self.username)
+                ),
+            ):
+                try:
+                    connection.execute(statement)
+                except Exception:
+                    pass
+        finally:
             connection.close()
             self.connection = None
             self.password = ''
@@ -1862,6 +2223,7 @@ def verify(engine, host, port, socket_path=None, account=None):
             'principal_reference': 'cdeadmin-live-qualifier',
             'connection_timeout': 10,
         }
+        route.update(getattr(account, 'route_options', {}))
         if engine == 'firebird':
             route['role'] = 'RDB$ADMIN'
         request = {
@@ -1894,7 +2256,7 @@ def verify(engine, host, port, socket_path=None, account=None):
         categories['language_api'] = 'passed'
 
         session = provider.open_session(request)
-        marker = '%s' if engine == 'mysql' else '?'
+        marker = '%s' if engine in {'cockroachdb', 'mysql'} else '?'
         source = f'SELECT {marker} AS value'
         if engine == 'firebird':
             source = (
@@ -1912,7 +2274,7 @@ def verify(engine, host, port, socket_path=None, account=None):
 
         _semantic_payload(provider, session, engine)
         categories['semantic_query'] = 'passed'
-        if engine in {'firebird', 'mysql', 'mariadb'}:
+        if engine in {'cockroachdb', 'firebird', 'mysql', 'mariadb'}:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is
             # required by Firebird metadata dependencies and also prevents
@@ -1980,7 +2342,10 @@ def verify(engine, host, port, socket_path=None, account=None):
             provider.close()
         account.drop()
 
-    passed = all(value == 'passed' for value in categories.values())
+    passed = (
+        all(value == 'passed' for value in categories.values()) and
+        not object_evidence.get('operation_failures')
+    )
     return {
         'schema': 'cdeadmin.relational-provider-live-verification.v1',
         'engine_id': engine,
@@ -2006,6 +2371,9 @@ def main():
     parser.add_argument('--admin-user', default='SYSDBA')
     parser.add_argument('--admin-password-env')
     parser.add_argument('--database')
+    parser.add_argument('--tls-ca')
+    parser.add_argument('--tls-client-cert')
+    parser.add_argument('--tls-client-key')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument(
         '--object-output', type=Path,
@@ -2029,6 +2397,21 @@ def main():
         account = _FirebirdAccount(
             args.host, args.port, args.database,
             args.admin_user, admin_password,
+        )
+        result = verify(
+            args.engine, args.host, args.port, account=account
+        )
+    elif args.engine == 'cockroachdb':
+        if args.port is None or not all((
+            args.tls_ca, args.tls_client_cert, args.tls_client_key,
+        )):
+            parser.error(
+                '--port, --tls-ca, --tls-client-cert, and '
+                '--tls-client-key are required for CockroachDB'
+            )
+        account = _CockroachDBAccount(
+            args.host, args.port, args.tls_ca,
+            args.tls_client_cert, args.tls_client_key,
         )
         result = verify(
             args.engine, args.host, args.port, account=account

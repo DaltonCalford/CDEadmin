@@ -628,7 +628,7 @@ class RelationalAdministration:
                         'password', 'plugin', 'administrator', 'active'
                     ) if key in value and value[key] not in {None, ''}
                 }
-            elif kind == 'role':
+            elif kind == 'role' and self.dialect.engine_id == 'firebird':
                 value['changes'] = {
                     key: value.pop(key)
                     for key in (
@@ -1330,9 +1330,12 @@ class RelationalAdministration:
             table_name = self._qualified(table)
             if self.dialect.engine_id == 'sqlite':
                 table_name = self._quote(table[-1])
-            elif self.dialect.engine_id in {
-                'duckdb', 'firebird', 'mysql', 'mariadb',
-            }:
+            elif (
+                self.dialect.sql_family == 'postgresql' or
+                self.dialect.engine_id in {
+                    'duckdb', 'firebird', 'mysql', 'mariadb',
+                }
+            ):
                 index_name = self._quote(name)
             source = (
                 f'CREATE {unique}INDEX {index_name} ON '
@@ -1386,11 +1389,18 @@ class RelationalAdministration:
             ]
         elif kind == 'user':
             source, preview = self._create_user(name, options)
-            return [{
+            statements = [{
                 'source': source,
                 'preview_source': preview,
                 'parameters': (),
             }]
+            if self.dialect.engine_id == 'cockroachdb' and options.get(
+                    'administrator'):
+                statements.append({
+                    'source': f'GRANT admin TO {self._quote(name)}',
+                    'parameters': (),
+                })
+            return statements
         elif kind == 'role':
             role = (
                 self._quote(name)
@@ -1552,7 +1562,13 @@ class RelationalAdministration:
                 f'{self._constraint_definition(item)}'
             )
         elif kind in {'trigger', 'procedure', 'function', 'package'}:
-            source = self._programmable_create(kind, qualified, draft, options)
+            object_name = qualified
+            if kind == 'trigger' and (
+                    self.dialect.sql_family == 'postgresql'):
+                object_name = self._quote(name)
+            source = self._programmable_create(
+                kind, object_name, draft, options
+            )
         else:
             definition = self._safe_definition(draft.get('definition'))
             source = f'CREATE {self._keyword(kind)} {qualified}'
@@ -1568,14 +1584,42 @@ class RelationalAdministration:
         if not isinstance(changes, Mapping):
             raise RelationalClientError('alter changes must be an object')
         if kind == 'user':
-            source, preview = self._alter_user(
-                request['target_resource'], changes
-            )
-            return [{
-                'source': source,
-                'preview_source': preview,
-                'parameters': (),
-            }]
+            user_changes = dict(changes)
+            administrator = user_changes.pop('administrator', None)
+            statements = []
+            if user_changes:
+                source, preview = self._alter_user(
+                    request['target_resource'], user_changes
+                )
+                statements.append({
+                    'source': source,
+                    'preview_source': preview,
+                    'parameters': (),
+                })
+            if self.dialect.engine_id == 'cockroachdb' and (
+                    administrator is not None):
+                verb = 'GRANT' if administrator else 'REVOKE'
+                preposition = 'TO' if administrator else 'FROM'
+                name = request['target_resource'].get('display_name')
+                statements.append({
+                    'source': (
+                        f'{verb} admin {preposition} {self._quote(name)}'
+                    ),
+                    'parameters': (),
+                })
+            elif administrator is not None:
+                user_changes['administrator'] = administrator
+                source, preview = self._alter_user(
+                    request['target_resource'], user_changes
+                )
+                statements = [{
+                    'source': source,
+                    'preview_source': preview,
+                    'parameters': (),
+                }]
+            if not statements:
+                raise RelationalClientError('user alteration has no changes')
+            return statements
         if kind == 'database' and self.dialect.sql_family == 'mysql':
             clauses = []
             if changes.get('character_set'):
@@ -1791,8 +1835,11 @@ class RelationalAdministration:
             ]
         if kind == 'view':
             query = self._query_body(draft.get('definition'))
+            command = 'ALTER VIEW'
+            if self.dialect.sql_family == 'postgresql':
+                command = 'CREATE OR REPLACE VIEW'
             return [{
-                'source': f'ALTER VIEW {target} AS {query}',
+                'source': f'{command} {target} AS {query}',
                 'parameters': (),
             }]
         if kind == 'event' and self.dialect.engine_id in {
@@ -1884,6 +1931,20 @@ class RelationalAdministration:
                     'table alteration has no structured changes'
                 )
             return statements
+        if kind == 'column':
+            path = self._target_path(request['target_resource'])
+            table = self._qualified(path[:-1])
+            column = self._quote(path[-1])
+            definition = self._safe_definition(draft.get('definition'))
+            if not definition:
+                definition = self._changes_fragment(changes)
+            return [{
+                'source': (
+                    f'ALTER TABLE {table} ALTER COLUMN {column} '
+                    f'{definition}'
+                ),
+                'parameters': (),
+            }]
         definition = self._safe_definition(draft.get('definition'))
         if not definition:
             definition = self._changes_fragment(changes)
@@ -1993,6 +2054,21 @@ class RelationalAdministration:
             keyword = self._keyword(kind)
             if kind == 'column' and self.dialect.engine_id == 'firebird':
                 keyword = ''
+            if kind == 'constraint' and (
+                    self.dialect.engine_id == 'cockroachdb'):
+                extensions = request['target_resource'].get(
+                    'extensions', {}
+                )
+                native = extensions.get('cockroachdb', {}).get('native', {})
+                constraint_type = str(
+                    native.get('constraint_type', '')
+                ).upper()
+                if constraint_type in {'PRIMARY KEY', 'UNIQUE'}:
+                    index = self._qualified((*path[:-2], path[-1]))
+                    return {
+                        'source': f'DROP INDEX {index} CASCADE',
+                        'parameters': (),
+                    }
             return {
                 'source': (
                     f'ALTER TABLE {table} DROP {keyword} '
@@ -2007,8 +2083,10 @@ class RelationalAdministration:
                     f'DROP INDEX {self._quote(path[-1])} ON '
                     f'{self._qualified(path[:-1])}'
                 )
-            elif self.dialect.engine_id in {'duckdb', 'sqlite'} and (
-                    len(path) >= 3):
+            elif (
+                self.dialect.sql_family == 'postgresql' or
+                self.dialect.engine_id in {'duckdb', 'sqlite'}
+            ) and len(path) >= 3:
                 source = 'DROP INDEX ' + self._qualified(
                     (*path[:-2], path[-1])
                 )
@@ -2021,6 +2099,14 @@ class RelationalAdministration:
             path = self._target_path(request['target_resource'])
             target = self._qualified((*path[:-2], path[-1]))
             return {'source': f'DROP TRIGGER {target}', 'parameters': ()}
+        if kind == 'trigger' and self.dialect.sql_family == 'postgresql':
+            path = self._target_path(request['target_resource'])
+            trigger = self._quote(path[-1])
+            table = self._qualified(path[:-1])
+            return {
+                'source': f'DROP TRIGGER {trigger} ON {table}',
+                'parameters': (),
+            }
         if kind in {'virtual-table', 'fts-table'} and (
             self.dialect.engine_id == 'sqlite'
         ):
@@ -2381,7 +2467,7 @@ class RelationalAdministration:
                 f'CREATE USER {user} PASSWORD {self._literal(password)}'
             )
             preview = f'CREATE USER {user} PASSWORD <redacted>'
-            if options.get('administrator'):
+            if options.get('administrator') and engine != 'cockroachdb':
                 source += ' SUPERUSER'
                 preview += ' SUPERUSER'
             if options.get('active') is False:

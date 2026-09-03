@@ -35,9 +35,9 @@ PROFILE = PilotProfile(
     (
         'cluster', 'node', 'locality', 'database', 'schema', 'table',
         'column', 'index', 'constraint', 'sequence', 'view',
-        'materialized-view', 'type', 'function', 'user', 'role',
-        'privilege', 'range', 'zone-config', 'job', 'schedule',
-        'changefeed',
+        'materialized-view', 'type', 'function', 'procedure', 'trigger',
+        'partition', 'user', 'role', 'privilege', 'range',
+        'zone-config', 'job', 'schedule', 'changefeed',
     ),
     ('cockroach-sql', 'node-status', 'debug-zip', 'backup-restore'),
     semantic_sql_dialect={
@@ -49,8 +49,24 @@ PROFILE = PilotProfile(
 
 _BASE_ADMINISTRATION = sql_administration('cockroachdb', 'postgresql', (
     'node', 'locality', 'range', 'zone-config', 'job', 'schedule',
-    'changefeed', 'materialized-view', 'type', 'function',
+    'changefeed', 'materialized-view', 'type', 'partition',
 ))
+_COCKROACH_SUPPORTED = dict(_BASE_ADMINISTRATION.dialect.supported)
+for _kind in ('function', 'procedure', 'trigger'):
+    _COCKROACH_SUPPORTED[_kind] = frozenset({
+        'inspect', 'create', 'drop',
+    })
+_COCKROACH_DIALECT = replace(
+    _BASE_ADMINISTRATION.dialect,
+    supported=_COCKROACH_SUPPORTED,
+    not_applicable_concepts=frozenset({
+        'domains', 'extensions_and_plugins',
+    }),
+    concept_resource_kinds={
+        'servers': ('cluster',),
+        'tablespaces_and_filespaces': ('zone-config',),
+    },
+)
 
 
 def _choice(field_id, label, values, **options):
@@ -988,7 +1004,7 @@ def _post_validate_control_plane(client, request):
 
 
 ADMINISTRATION = DistributedSQLControlPlane(
-    replace(_BASE_ADMINISTRATION.dialect), CONTROL_OPERATIONS,
+    _COCKROACH_DIALECT, CONTROL_OPERATIONS,
     _compile_control_plane, inspector=_inspect_control_plane,
     canceller=_cancel_control_plane,
     post_validator=_post_validate_control_plane,
@@ -1004,8 +1020,109 @@ def _version(row):
     return match.group(1)
 
 
-def _extras(cursor, _request, generation):
+def _extras(cursor, request, generation):
     values = []
+    for schema, table, name, constraint_type in optional_rows(
+        cursor,
+        'SELECT constraint_schema, table_name, constraint_name, '
+        'constraint_type FROM information_schema.table_constraints '
+        'WHERE constraint_schema NOT IN '
+        "('pg_catalog', 'information_schema', 'crdb_internal') "
+        'ORDER BY 1, 2, 3',
+    ):
+        values.append(resource(
+            'constraint', [schema, table], name, generation,
+            {'constraint_type': str(constraint_type)},
+        ))
+    for schema, name in optional_rows(
+        cursor,
+        'SELECT sequence_schema, sequence_name '
+        'FROM information_schema.sequences ORDER BY 1, 2',
+    ):
+        values.append(resource('sequence', [schema], name, generation))
+    for schema, name in optional_rows(
+        cursor,
+        'SELECT schemaname, matviewname FROM pg_catalog.pg_matviews '
+        'ORDER BY 1, 2',
+    ):
+        values.append(resource(
+            'materialized-view', [schema], name, generation
+        ))
+    for schema, name, type_kind in optional_rows(
+        cursor,
+        'SELECT n.nspname, t.typname, t.typtype '
+        'FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n '
+        'ON n.oid = t.typnamespace WHERE t.typisdefined '
+        "AND n.nspname NOT IN ('pg_catalog', 'information_schema') "
+        "AND t.typtype IN ('c', 'd', 'e') ORDER BY 1, 2",
+    ):
+        values.append(resource(
+            'type', [schema], name, generation,
+            {'type_kind': str(type_kind)},
+        ))
+    for schema, name, routine_kind in optional_rows(
+        cursor,
+        'SELECT n.nspname, p.proname, p.prokind '
+        'FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n '
+        'ON n.oid = p.pronamespace '
+        "WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') "
+        "AND p.prokind IN ('f', 'p') ORDER BY 1, 2",
+    ):
+        kind = 'procedure' if str(routine_kind) == 'p' else 'function'
+        values.append(resource(kind, [schema], name, generation))
+    for schema, table, name in optional_rows(
+        cursor,
+        'SELECT event_object_schema, event_object_table, trigger_name '
+        'FROM information_schema.triggers WHERE event_object_schema NOT IN '
+        "('pg_catalog', 'information_schema', 'crdb_internal') "
+        'ORDER BY 1, 2, 3',
+    ):
+        values.append(resource(
+            'trigger', [schema, table], name, generation
+        ))
+    route = request.get('route') or {}
+    database = route.get('database')
+    partition_rows = []
+    if isinstance(database, str) and re.fullmatch(
+            r'[A-Za-z_][A-Za-z0-9_$-]{0,255}', database):
+        partition_rows = optional_rows(
+            cursor,
+            f'SHOW PARTITIONS FROM DATABASE {_quote(database)}',
+        )
+    for database_name, table, name, parent, columns, index, value, *_ in (
+            partition_rows):
+        values.append(resource(
+            'partition', [database_name, table, index], name, generation, {
+                'parent_name': None if parent is None else str(parent),
+                'column_names': None if columns is None else str(columns),
+                'partition_value': None if value is None else str(value),
+            },
+        ))
+    for name, can_login in optional_rows(
+        cursor,
+        'SELECT rolname, rolcanlogin FROM pg_catalog.pg_roles '
+        'ORDER BY rolname',
+    ):
+        values.append(resource('role', [], name, generation, {
+            'can_login': bool(can_login),
+        }))
+        if can_login:
+            values.append(resource('user', [], name, generation, {
+                'can_login': True,
+            }))
+    for grantee, schema, table, privilege in optional_rows(
+        cursor,
+        'SELECT grantee, table_schema, table_name, privilege_type '
+        'FROM information_schema.table_privileges '
+        'WHERE table_schema NOT IN '
+        "('pg_catalog', 'information_schema', 'crdb_internal') "
+        'ORDER BY 1, 2, 3, 4',
+    ):
+        display_name = f'{grantee}:{privilege}:{schema}.{table}'
+        values.append(resource(
+            'privilege', [schema, table, str(grantee)], display_name,
+            generation, {'privilege_type': str(privilege)},
+        ))
     for node_id, address, locality in optional_rows(
         cursor,
         'SELECT node_id, address, locality '
