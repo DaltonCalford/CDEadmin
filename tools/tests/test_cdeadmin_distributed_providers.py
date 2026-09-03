@@ -907,6 +907,7 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertTrue({'start', 'continue', 'abort'}.issubset(operations))
 
     def test_dolt_visual_catalog_exposes_exact_relational_objects(self):
+        self.assertIn('remote', DOLT.resource_kinds)
         catalog = DOLT_ADMIN.catalog(catalog_for_engine('dolt'))
         objects = {
             item['resource_kind']: item for item in catalog['objects']

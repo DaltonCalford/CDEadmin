@@ -511,7 +511,7 @@ class ActualEnginePilotProvider:
             kind not in common_virtual
         ):
             raise PilotProviderError(
-                'client returned an unadmitted resource kind'
+                f'client returned unadmitted resource kind {kind!r}'
             )
         resource_id = _required(native.get('resource_id'), 'resource_id')
         name = _required(native.get('display_name'), 'display_name')

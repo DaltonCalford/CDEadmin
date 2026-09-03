@@ -30,8 +30,8 @@ PROFILE = PilotProfile(
     (
         'cluster', 'database', 'table', 'column', 'index', 'constraint',
         'view', 'procedure', 'trigger', 'event', 'branch', 'tag', 'commit',
-        'working-set', 'merge', 'rebase', 'conflict', 'backup', 'user', 'role',
-        'privilege',
+        'remote', 'working-set', 'merge', 'rebase', 'conflict', 'backup',
+        'user', 'role', 'privilege',
     ),
     ('dolt-sql', 'dolt-log', 'dolt-diff', 'dolt-backup'),
     semantic_sql_dialect={

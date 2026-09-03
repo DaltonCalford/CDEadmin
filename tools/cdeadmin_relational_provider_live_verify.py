@@ -1415,6 +1415,136 @@ def _relational_editor_evidence(provider, request, engine):
     )
 
 
+def _dolt_repository_editor_evidence(provider, request, database):
+    """Exercise reversible Dolt backup/restore and remote editor controls."""
+    route = request['route']
+    passed = {}
+    failures = {}
+    suffix = database.removeprefix('cde_live_')
+    backup_name = f'cde_backup_{suffix}'
+    remote_name = f'cde_remote_{suffix}'
+    restored_database = f'cde_restore_{suffix}'
+    backup_url = f'file:///tmp/{backup_name}'
+    remote_url = f'file:///var/lib/dolt/{restored_database}'
+
+    def record(kind, operation):
+        passed.setdefault(kind, set()).add(operation)
+
+    def target(kind, name, path=None):
+        display_path = list(path or [name])
+        return {
+            'resource_id': ':'.join([kind, *display_path]),
+            'resource_kind': kind,
+            'display_name': name,
+            'display_path': display_path,
+            'authority_path': [*display_path[:-1], kind, display_path[-1]],
+            'generation': request['capability_generation'],
+        }
+
+    def apply(label, kind, operation, draft, resource=None):
+        try:
+            _apply_editor(
+                provider, route, kind, operation, draft, target=resource
+            )
+            record(kind, operation)
+            return True
+        except Exception as exc:
+            failures[label] = f'{type(exc).__name__}: {exc}'
+            return False
+
+    working_set = target('working-set', 'current')
+    database_target = target('database', database)
+    restored_target = target('database', restored_database)
+    backup_target = target('backup', backup_name)
+    remote_target = target('remote', remote_name)
+    qualification = target(
+        'table', 'qualification', [database, 'qualification']
+    )
+    backup_created = False
+    restore_created = False
+    remote_created = False
+    try:
+        apply(
+            'working-set.baseline', 'working-set', 'commit', {
+                'message': 'CDEadmin object gate baseline',
+                'stage_all': True, 'allow_empty': True,
+            }, working_set,
+        )
+        backup_created = apply(
+            'backup.create', 'backup', 'create', {
+                'name': backup_name, 'url': backup_url,
+            },
+        )
+        if backup_created:
+            apply(
+                'backup.sync', 'backup', 'sync', {}, backup_target
+            )
+            restore_created = apply(
+                'database.restore_backup', 'database', 'restore_backup', {
+                    'url': backup_url,
+                    'new_database_name': restored_database,
+                    'force': False,
+                }, database_target,
+            )
+        if restore_created:
+            remote_created = apply(
+                'remote.create', 'remote', 'create', {
+                    'name': remote_name, 'url': remote_url,
+                },
+            )
+        if remote_created:
+            try:
+                resources = provider.list_resources(request)
+                remote = _target(resources, 'remote', remote_name)
+                if remote is None:
+                    raise RuntimeError(
+                        'created Dolt remote was not discovered'
+                    )
+                provider.inspect_resource({
+                    **request, 'resource_id': remote['resource_id'],
+                })
+                record('remote', 'inspect')
+            except Exception as exc:
+                failures['remote.inspect'] = f'{type(exc).__name__}: {exc}'
+            if apply(
+                'table.remote-fixture', 'table', 'insert', {
+                    'values': {'id': 3, 'value': 9}, 'options': {},
+                }, qualification,
+            ):
+                apply(
+                    'working-set.remote-fixture', 'working-set', 'commit', {
+                        'message': 'CDEadmin object gate remote update',
+                        'stage_all': True, 'allow_empty': False,
+                    }, working_set,
+                )
+            apply(
+                'remote.push', 'remote', 'push', {
+                    'refspec': 'main', 'set_upstream': False,
+                }, remote_target,
+            )
+            apply('remote.fetch', 'remote', 'fetch', {}, remote_target)
+            apply(
+                'remote.pull', 'remote', 'pull', {'branch': 'main'},
+                remote_target,
+            )
+    finally:
+        if remote_created:
+            apply('remote.drop', 'remote', 'drop', {}, remote_target)
+        if backup_created:
+            apply('backup.drop', 'backup', 'drop', {}, backup_target)
+        if restore_created:
+            apply(
+                'database.restore-cleanup', 'database', 'drop', {
+                    'cascade': False,
+                    'confirmation': restored_database,
+                }, restored_target,
+            )
+    return _object_operation_evidence(
+        provider, passed, 'dolt', scope='repository-editor-operations',
+        failures=failures,
+    )
+
+
 def _context(profile):
     endpoint_id = str(uuid.uuid5(
         uuid.NAMESPACE_URL,
@@ -1426,7 +1556,9 @@ def _context(profile):
 
     permissions = frozenset({
         *profile.required_permissions, 'secret_read', 'data_read',
-        'data_write', 'administer', 'execute',
+        'data_write', 'administer', 'execute', 'backup_admin',
+        'restore_admin', 'topology_admin', 'maintenance_admin',
+        'replication_admin',
     })
     return EndpointContext(
         endpoint_id=endpoint_id,
@@ -1457,6 +1589,11 @@ def _permissions(context, secret_service):
         'data_write': {'endpoint', 'resource'},
         'administer': {'endpoint', 'resource'},
         'execute': {'endpoint'},
+        'backup_admin': {'endpoint', 'resource'},
+        'restore_admin': {'endpoint', 'resource'},
+        'topology_admin': {'endpoint', 'resource'},
+        'maintenance_admin': {'endpoint', 'resource'},
+        'replication_admin': {'endpoint', 'resource'},
     }
     grants = {
         name: PermissionGrant(name, frozenset(values))
@@ -2247,6 +2384,11 @@ def verify(engine, host, port, socket_path=None, account=None):
             'connection_timeout': 10,
         }
         route.update(getattr(account, 'route_options', {}))
+        if engine == 'dolt':
+            route.update({
+                'remote_url_allowlist': ['file:///var/lib/dolt/'],
+                'backup_url_allowlist': ['file:///tmp/'],
+            })
         if engine == 'firebird':
             route['role'] = 'RDB$ADMIN'
         request = {
@@ -2316,6 +2458,13 @@ def verify(engine, host, port, socket_path=None, account=None):
                     provider, request, engine
                 ),
             )
+            if engine == 'dolt':
+                object_evidence = _merge_object_evidence(
+                    object_evidence,
+                    _dolt_repository_editor_evidence(
+                        provider, request, account.database
+                    ),
+                )
             session = provider.open_session(request)
 
         transaction = provider.describe_transaction(session)
