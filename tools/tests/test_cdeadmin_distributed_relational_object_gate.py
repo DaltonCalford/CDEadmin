@@ -113,6 +113,30 @@ class DistributedRelationalObjectGateTests(unittest.TestCase):
                 'not_applicable', concepts[concept_id]['declared_status']
             )
 
+    def test_yugabytedb_ysql_declaration_is_exact_and_complete(self):
+        coverage = audit()['engines']['yugabytedb']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        self.assertEqual(
+            ['relational'],
+            [family['family_id'] for family in coverage['families']],
+        )
+        concepts = {
+            concept['concept_id']: concept
+            for family in coverage['families']
+            for concept in family['concepts']
+        }
+        for concept_id in (
+            'materialized_views', 'domains', 'types', 'functions',
+            'procedures', 'triggers', 'extensions_and_plugins',
+            'partitions', 'tablespaces_and_filespaces',
+        ):
+            self.assertIn(
+                concepts[concept_id]['declared_status'],
+                {'supported', 'read_only'},
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

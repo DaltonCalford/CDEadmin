@@ -595,6 +595,8 @@ class RelationalAdministration:
                 'type_kind', 'base_type', 'enum_values', 'fields',
                 'expression', 'table_macro', 'secret_type', 'scope',
                 'storage', 'persistent', 'module', 'library', 'database',
+                'with_data', 'replica_placement', 'schema', 'version',
+                'cascade',
             ):
                 if key in value:
                     options[key] = value.pop(key)
@@ -818,7 +820,10 @@ class RelationalAdministration:
                 fields.append(self._field(
                     'data_type', 'Base data type', 'text', True
                 ))
-                if self.dialect.engine_id == 'firebird':
+                if (
+                    self.dialect.engine_id == 'firebird' or
+                    self.dialect.sql_family == 'postgresql'
+                ):
                     fields.extend((
                         self._field(
                             'default', 'Default expression', 'text'
@@ -1455,7 +1460,10 @@ class RelationalAdministration:
         elif kind == 'domain':
             data_type = self._safe_fragment(options.get('data_type'), 'type')
             source = f'CREATE DOMAIN {qualified} AS {data_type}'
-            if self.dialect.engine_id == 'firebird':
+            if (
+                self.dialect.engine_id == 'firebird' or
+                self.dialect.sql_family == 'postgresql'
+            ):
                 if options.get('default') not in {None, ''}:
                     source += ' DEFAULT ' + self._safe_fragment(
                         options['default'], 'domain default'

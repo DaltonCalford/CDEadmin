@@ -199,7 +199,9 @@ ENGINE_EXPERIENCE_FAMILIES = {
     'tikv': ('key_value',),
     'vitess': ('relational',),
     'xtdb': ('document', 'relational'),
-    'yugabytedb': ('relational', 'wide_column'),
+    # This catalog is the YSQL profile. YCQL is a separately registered
+    # provider and must not borrow object claims from the PostgreSQL wire.
+    'yugabytedb': ('relational',),
 }
 
 
@@ -214,7 +216,15 @@ def concept_coverage_for_engine(engine):
     blocking_missing_count = 0
     live_evidence_missing_count = 0
     live_operation_missing_count = 0
-    for family_id in ENGINE_EXPERIENCE_FAMILIES[engine_id]:
+    family_ids = engine.get(
+        'experience_families', ENGINE_EXPERIENCE_FAMILIES[engine_id]
+    )
+    if (
+        not isinstance(family_ids, (list, tuple)) or not family_ids or
+        any(item not in EXPERIENCE_REQUIREMENTS for item in family_ids)
+    ):
+        family_ids = ENGINE_EXPERIENCE_FAMILIES[engine_id]
+    for family_id in family_ids:
         concepts = []
         family_declarations = declarations.get(family_id, {})
         for concept_id, requirement in EXPERIENCE_REQUIREMENTS[

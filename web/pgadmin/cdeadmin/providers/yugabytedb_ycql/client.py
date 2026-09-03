@@ -18,6 +18,8 @@ import re
 from collections.abc import Mapping
 from urllib.request import Request, urlopen
 
+from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
+
 from ..cql_native import CassandraClient, CassandraClientError
 
 
@@ -346,7 +348,44 @@ class YugabyteDBYCQLClient(CassandraClient):
         }
 
     def visual_admin_catalog(self, catalog):
-        result = super().visual_admin_catalog(catalog)
+        # YSQL and YCQL share a runtime family but not an object model. Start
+        # from the wide-column experience pack rather than adapting the YSQL
+        # PostgreSQL-wire catalog supplied by the common provider facade.
+        ycql_catalog = catalog_for_engine('cassandra')
+        ycql_catalog.update({
+            'engine_id': 'yugabytedb',
+            'engine_name': 'YugabyteDB YCQL',
+            'reference_profile': '2025.2.2.2',
+            'model_family': 'distributed-wide-column',
+            'experience_families': ['wide_column'],
+            'concept_declarations': {
+                'wide_column': {
+                    'keyspaces': {'status': 'supported'},
+                    'tables': {'status': 'supported'},
+                    'columns': {'status': 'supported'},
+                    'types': {'status': 'supported'},
+                    'materialized_views': {
+                        'status': 'not_applicable',
+                        'reason': (
+                            'YCQL does not expose Cassandra materialized '
+                            'views in the exact provider profile.'
+                        ),
+                    },
+                    'replication_and_compaction': {
+                        'status': 'supported',
+                        'external_surface': (
+                            'cdeadmin.yugabytedb.control-plane'
+                        ),
+                        'reason': (
+                            'YugabyteDB owns replication and compaction at '
+                            'the shared cluster control plane, not as YCQL '
+                            'schema statements.'
+                        ),
+                    },
+                },
+            },
+        })
+        result = super().visual_admin_catalog(ycql_catalog)
         result['objects'] = [
             item for item in result.get('objects', [])
             if item['resource_kind'] in self.RESOURCE_KINDS

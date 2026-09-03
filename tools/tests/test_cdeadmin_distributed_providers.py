@@ -547,6 +547,80 @@ class DistributedProviderTests(unittest.TestCase):
             }),
         )
 
+    def test_yugabytedb_ysql_native_object_forms_compile_typed_sql(self):
+        route = {'host': '127.0.0.1', 'port': 5433, 'database': 'app'}
+        materialized = YUGABYTEDB_ADMIN.plan({
+            'resource_kind': 'materialized-view', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'summary', 'parent': 'public',
+                'query': 'SELECT id FROM public.orders',
+                'with_data': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE MATERIALIZED VIEW "public"."summary" AS '
+            'SELECT id FROM public.orders WITH NO DATA',
+            materialized['provider_payload']['compiled']['statements'][0][
+                'source'
+            ],
+        )
+        enum_type = YUGABYTEDB_ADMIN.plan({
+            'resource_kind': 'type', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'mood', 'parent': 'public', 'type_kind': 'ENUM',
+                'enum_values': ['calm', 'busy'], 'fields': [],
+            },
+            '_provider_route': route,
+        })
+        self.assertIn(
+            "CREATE TYPE \"public\".\"mood\" AS ENUM ('calm', 'busy')",
+            enum_type['provider_payload']['compiled']['statements'][0][
+                'source'
+            ],
+        )
+        placement = YUGABYTEDB_ADMIN.plan({
+            'resource_kind': 'tablespace', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'canada',
+                'replica_placement': {
+                    'num_replicas': 1,
+                    'placement_blocks': [{
+                        'cloud': 'cloud1', 'region': 'datacenter1',
+                        'zone': 'rack1', 'min_num_replicas': 1,
+                    }],
+                },
+            },
+            '_provider_route': route,
+        })
+        source = placement['provider_payload']['compiled']['statements'][0][
+            'source'
+        ]
+        self.assertIn('CREATE TABLESPACE "canada" WITH', source)
+        self.assertIn('replica_placement=', source)
+
+    def test_yugabytedb_ysql_tablespace_rejects_untyped_placement(self):
+        with self.assertRaisesRegex(
+            RelationalClientError, 'replica placement is incomplete'
+        ):
+            YUGABYTEDB_ADMIN.plan({
+                'resource_kind': 'tablespace', 'operation_id': 'create',
+                'target_resource': None,
+                'draft': {
+                    'name': 'unsafe',
+                    'replica_placement': {
+                        'num_replicas': 0, 'placement_blocks': [],
+                    },
+                },
+                '_provider_route': {
+                    'host': '127.0.0.1', 'port': 5433,
+                    'database': 'app',
+                },
+            })
+
     def test_vitess_control_plane_is_typed_and_cli_compiled(self):
         keys = {
             (item.resource_kind, item.operation_id)

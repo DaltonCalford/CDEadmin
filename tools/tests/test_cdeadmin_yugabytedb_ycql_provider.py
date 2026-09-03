@@ -426,6 +426,16 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
             'yugabytedb-ycql-structured-planner',
             descriptor['native_planner'],
         )
+        self.assertEqual(['wide_column'], descriptor['experience_families'])
+        self.assertEqual(
+            {'wide_column'}, set(descriptor['concept_declarations'])
+        )
+        self.assertEqual(
+            'not_applicable',
+            descriptor['concept_declarations']['wide_column'][
+                'materialized_views'
+            ]['status'],
+        )
         table = next(
             item for item in descriptor['objects']
             if item['resource_kind'] == 'table'

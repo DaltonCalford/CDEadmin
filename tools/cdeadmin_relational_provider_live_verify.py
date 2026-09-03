@@ -72,6 +72,10 @@ from pgadmin.cdeadmin.providers.vitess.provider import (  # noqa: E402
     PROFILE as VITESS_PROFILE,
     create_provider as create_vitess_provider,
 )
+from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
+    PROFILE as YUGABYTEDB_PROFILE,
+    create_provider as create_yugabytedb_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -96,6 +100,7 @@ PROFILES = {
     'dolt': DOLT_PROFILE,
     'tidb': TIDB_PROFILE,
     'vitess': VITESS_PROFILE,
+    'yugabytedb': YUGABYTEDB_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -108,6 +113,7 @@ PROVIDER_FACTORIES = {
     'dolt': create_dolt_provider,
     'tidb': create_tidb_provider,
     'vitess': create_vitess_provider,
+    'yugabytedb': create_yugabytedb_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
@@ -118,6 +124,7 @@ TARGET_ADAPTERS = {
     'dolt': 'dolt-mysql-wire-client',
     'tidb': 'tidb-mysql-wire-client',
     'vitess': 'vitess-mysql-wire-client',
+    'yugabytedb': 'ysql-postgresql-wire-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -303,7 +310,7 @@ def _relational_editor_evidence(provider, request, engine):
         parent = None
     elif engine in {'mysql', 'mariadb', 'dolt', 'tidb', 'vitess'}:
         parent = str(route['database'])
-    elif engine == 'cockroachdb':
+    elif engine in {'cockroachdb', 'yugabytedb'}:
         parent = 'public'
     else:
         parent = 'main'
@@ -465,7 +472,9 @@ def _relational_editor_evidence(provider, request, engine):
                                 (
                                     'SELECT id, value + 0 AS value '
                                     'FROM qualification'
-                                    if engine == 'cockroachdb' else
+                                    if engine in {
+                                        'cockroachdb', 'yugabytedb',
+                                    } else
                                     'SELECT id FROM qualification'
                                 )
                             ),
@@ -819,12 +828,16 @@ def _relational_editor_evidence(provider, request, engine):
                         }, sequence,
                     )
 
-    if engine == 'cockroachdb' and qualification is not None:
+    if engine in {'cockroachdb', 'yugabytedb'} and (
+            qualification is not None):
         if attempt(
             'constraint.create', 'constraint', 'create', {
                 'name': 'cde_editor_unique', 'table': qualified_table,
                 'properties': {
-                    'kind': 'UNIQUE', 'columns': [value_column],
+                    'kind': 'UNIQUE', 'columns': (
+                        [id_column, value_column]
+                        if engine == 'yugabytedb' else [value_column]
+                    ),
                 },
             },
         ):
@@ -1027,6 +1040,146 @@ def _relational_editor_evidence(provider, request, engine):
                     'confirmation': 'drop-live-editor-user',
                 }, user,
             )
+
+    if engine == 'yugabytedb' and qualification is not None:
+        if attempt(
+            'materialized-view.create', 'materialized-view', 'create', {
+                'name': 'cde_editor_materialized_view', 'parent': 'public',
+                'query': 'SELECT id, value FROM public.qualification',
+                'with_data': True,
+            },
+        ):
+            materialized = inspect_created(
+                'materialized-view.inspect', 'materialized-view',
+                'cde_editor_materialized_view',
+            )
+            if materialized is not None and attempt(
+                'materialized-view.rename', 'materialized-view', 'rename', {
+                    'new_name': 'cde_editor_materialized_view_renamed',
+                }, materialized,
+            ):
+                materialized = inspect_created(
+                    'materialized-view.inspect-renamed',
+                    'materialized-view',
+                    'cde_editor_materialized_view_renamed',
+                )
+            if materialized is not None:
+                attempt(
+                    'materialized-view.drop', 'materialized-view', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-materialized-view',
+                    }, materialized,
+                )
+
+        if attempt(
+            'domain.create', 'domain', 'create', {
+                'name': 'cde_editor_domain', 'parent': 'public',
+                'data_type': 'INTEGER', 'default': '1',
+                'not_null': False, 'check': 'VALUE > 0',
+            },
+        ):
+            domain = inspect_created(
+                'domain.inspect', 'domain', 'cde_editor_domain'
+            )
+            if domain is not None and attempt(
+                'domain.rename', 'domain', 'rename', {
+                    'new_name': 'cde_editor_domain_renamed',
+                }, domain,
+            ):
+                domain = inspect_created(
+                    'domain.inspect-renamed', 'domain',
+                    'cde_editor_domain_renamed',
+                )
+            if domain is not None:
+                attempt(
+                    'domain.drop', 'domain', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-domain',
+                    }, domain,
+                )
+
+        if attempt(
+            'type.create', 'type', 'create', {
+                'name': 'cde_editor_type', 'parent': 'public',
+                'type_kind': 'ENUM', 'enum_values': ['one', 'two'],
+                'fields': [],
+            },
+        ):
+            user_type = inspect_created(
+                'type.inspect', 'type', 'cde_editor_type'
+            )
+            if user_type is not None and attempt(
+                'type.rename', 'type', 'rename', {
+                    'new_name': 'cde_editor_type_renamed',
+                }, user_type,
+            ):
+                user_type = inspect_created(
+                    'type.inspect-renamed', 'type',
+                    'cde_editor_type_renamed',
+                )
+            if user_type is not None:
+                attempt(
+                    'type.drop', 'type', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-type',
+                    }, user_type,
+                )
+
+        if attempt(
+            'extension.create', 'extension', 'create', {
+                'name': 'pgcrypto', 'schema': '', 'version': '',
+                'cascade': False,
+            },
+        ):
+            extension = inspect_created(
+                'extension.inspect-created', 'extension', 'pgcrypto'
+            )
+            if extension is not None:
+                attempt(
+                    'extension.drop', 'extension', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-extension',
+                    }, extension,
+                )
+
+        placement = {
+            'num_replicas': 1,
+            'placement_blocks': [{
+                'cloud': 'cloud1', 'region': 'datacenter1',
+                'zone': 'rack1', 'min_num_replicas': 1,
+            }],
+        }
+        if attempt(
+            'tablespace.create', 'tablespace', 'create', {
+                'name': 'cde_editor_tablespace',
+                'replica_placement': placement,
+            },
+        ):
+            tablespace = inspect_created(
+                'tablespace.inspect', 'tablespace',
+                'cde_editor_tablespace',
+            )
+            if (
+                tablespace is not None and
+                provider.client.supports_admin_operation(
+                    'tablespace', 'rename'
+                ) and attempt(
+                    'tablespace.rename', 'tablespace', 'rename', {
+                        'new_name': 'cde_editor_tablespace_renamed',
+                    }, tablespace,
+                )
+            ):
+                tablespace = inspect_created(
+                    'tablespace.inspect-renamed', 'tablespace',
+                    'cde_editor_tablespace_renamed',
+                )
+            if tablespace is not None:
+                attempt(
+                    'tablespace.drop', 'tablespace', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-tablespace',
+                    }, tablespace,
+                )
 
     if engine == 'firebird' and qualification is not None:
         if attempt(
@@ -1434,7 +1587,7 @@ def _relational_editor_evidence(provider, request, engine):
             },
         )
     if database_created and engine in {
-        'cockroachdb', 'mysql', 'mariadb', 'dolt', 'tidb',
+        'cockroachdb', 'yugabytedb', 'mysql', 'mariadb', 'dolt', 'tidb',
     }:
         database = inspect_created(
             'database.inspect-created', 'database', 'cde_editor_database'
@@ -1446,7 +1599,7 @@ def _relational_editor_evidence(provider, request, engine):
                         'character_set': 'utf8mb4',
                     }, database,
                 )
-            elif engine == 'cockroachdb' and attempt(
+            elif engine in {'cockroachdb', 'yugabytedb'} and attempt(
                 'database.alter', 'database', 'alter', {
                     'properties': {
                         'rename_to': 'cde_editor_database_renamed',
@@ -2050,6 +2203,94 @@ class _CockroachDBAccount:
             self.password = ''
 
 
+class _YugabyteDBAccount:
+    """Create a disposable YSQL database through the local superuser."""
+
+    def __init__(self, host, port, admin_user='yugabyte'):
+        self.host = host
+        self.port = port
+        self.username = admin_user
+        self.database = f'cde_live_{secrets.token_hex(6)}'
+        self.password = ''
+        self.connection = None
+        # YSQL follows PostgreSQL's requirement that CREATE DATABASE execute
+        # outside a transaction block. The exact qualification route uses an
+        # explicit autocommit session default for administration operations.
+        self.route_options = {'autocommit': True}
+
+    def _connect(self, database='yugabyte'):
+        import psycopg
+
+        return psycopg.connect(
+            host=self.host, port=self.port, user=self.username,
+            dbname=database, connect_timeout=10, autocommit=True,
+        )
+
+    def create(self):
+        self.connection = self._connect()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(f'CREATE DATABASE "{self.database}"')
+        except Exception:
+            self.drop()
+            raise
+        finally:
+            cursor.close()
+        database_connection = self._connect(self.database)
+        cursor = database_connection.cursor()
+        try:
+            cursor.execute(
+                'CREATE TABLE public.qualification '
+                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL) '
+                'PARTITION BY RANGE (id)'
+            )
+            cursor.execute(
+                'CREATE TABLE public.qualification_low PARTITION OF '
+                'public.qualification FOR VALUES FROM (MINVALUE) TO (1000)'
+            )
+            cursor.execute(
+                'INSERT INTO public.qualification VALUES (1, 42)'
+            )
+        except Exception:
+            self.drop()
+            raise
+        finally:
+            cursor.close()
+            database_connection.close()
+
+    def drop(self):
+        connection = self.connection
+        if connection is None:
+            try:
+                connection = self._connect()
+            except Exception:
+                return
+        cursor = connection.cursor()
+        try:
+            statements = (
+                'DROP TABLESPACE IF EXISTS cde_editor_tablespace',
+                'DROP TABLESPACE IF EXISTS cde_editor_tablespace_renamed',
+                'DROP DATABASE IF EXISTS cde_editor_database WITH (FORCE)',
+                'DROP DATABASE IF EXISTS cde_editor_database_renamed '
+                'WITH (FORCE)',
+                f'DROP DATABASE IF EXISTS "{self.database}" WITH (FORCE)',
+                'DROP ROLE IF EXISTS cde_editor_user',
+                'DROP ROLE IF EXISTS cde_editor_role',
+            )
+            for statement in statements:
+                try:
+                    cursor.execute(statement)
+                except Exception:
+                    # Cleanup is best-effort per global object so a failed
+                    # optional editor case cannot strand later runs.
+                    pass
+        finally:
+            cursor.close()
+            connection.close()
+            self.connection = None
+            self.password = ''
+
+
 class _FirebirdAccount:
     def __init__(self, host, port, database, admin_user, admin_password):
         suffix = secrets.token_hex(6).upper()
@@ -2604,7 +2845,8 @@ def verify(engine, host, port, socket_path=None, account=None):
         marker = (
             '%s'
             if engine in {
-                'cockroachdb', 'mysql', 'dolt', 'tidb', 'vitess',
+                'cockroachdb', 'yugabytedb', 'mysql', 'dolt', 'tidb',
+                'vitess',
             } else '?'
         )
         source = f'SELECT {marker} AS value'
@@ -2625,8 +2867,8 @@ def verify(engine, host, port, socket_path=None, account=None):
         _semantic_payload(provider, session, engine)
         categories['semantic_query'] = 'passed'
         if engine in {
-            'cockroachdb', 'firebird', 'mysql', 'mariadb', 'dolt', 'tidb',
-            'vitess',
+            'cockroachdb', 'yugabytedb', 'firebird', 'mysql', 'mariadb',
+            'dolt', 'tidb', 'vitess',
         }:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is
@@ -2783,6 +3025,15 @@ def main():
         account = _VitessAccount(
             args.host, args.port, args.http_port,
             database=args.database or 'test_keyspace',
+        )
+        result = verify(
+            args.engine, args.host, args.port, account=account
+        )
+    elif args.engine == 'yugabytedb':
+        if args.port is None:
+            parser.error('--port is required for YugabyteDB YSQL')
+        account = _YugabyteDBAccount(
+            args.host, args.port, admin_user=args.admin_user,
         )
         result = verify(
             args.engine, args.host, args.port, account=account
