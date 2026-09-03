@@ -1870,7 +1870,7 @@ class DistributedProviderTests(unittest.TestCase):
         }))
         self.assertIn('view', VITESS.resource_kinds)
         self.assertEqual(
-            frozenset({'inspect'}),
+            frozenset({'inspect', 'create', 'alter', 'drop'}),
             VITESS_ADMIN.dialect.supported['view'],
         )
         self.assertEqual(
@@ -2073,6 +2073,58 @@ class DistributedProviderTests(unittest.TestCase):
         )
         self.assertIn("`table`='lookup.names'", source['source'])
         self.assertIn('`autocommit`=true', source['source'])
+
+        sequence = VITESS_ADMIN.plan({
+            'resource_kind': 'sequence', 'operation_id': 'create',
+            'draft': {
+                'name': 'widget_seq', 'parent': 'sequence_keyspace',
+                'start': 100, 'cache': 50,
+            },
+            '_provider_route': {
+                'host': '127.0.0.1', 'database': 'sequence_keyspace',
+            },
+        })['provider_payload']['compiled']['statements']
+        self.assertEqual(3, len(sequence))
+        self.assertIn("COMMENT 'vitess_sequence'", sequence[0]['source'])
+        self.assertEqual((100, 50), tuple(sequence[1]['parameters']))
+        self.assertEqual(
+            'ALTER VSCHEMA ADD SEQUENCE '
+            '`sequence_keyspace`.`widget_seq`',
+            sequence[2]['source'],
+        )
+        altered = VITESS_ADMIN.plan({
+            'resource_kind': 'sequence', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'sequence', 'display_name': 'widget_seq',
+                'display_path': ['sequence_keyspace', 'widget_seq'],
+            },
+            'draft': {'restart': 500, 'cache': 25},
+            '_provider_route': {
+                'host': '127.0.0.1', 'database': 'sequence_keyspace',
+            },
+        })['provider_payload']['compiled']['statements'][0]
+        self.assertEqual(
+            'UPDATE `sequence_keyspace`.`widget_seq` '
+            'SET next_id = %s, cache = %s WHERE id = 0',
+            altered['source'],
+        )
+        self.assertEqual((500, 25), tuple(altered['parameters']))
+        self.assertFalse(VITESS_ADMIN.supports('sequence', 'rename'))
+
+        index = VITESS_ADMIN.plan({
+            'resource_kind': 'index', 'operation_id': 'create',
+            'draft': {
+                'name': 'widgets_value_idx', 'parent': 'inventory',
+                'table': 'inventory.widgets', 'columns': ['value'],
+                'unique': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE INDEX `widgets_value_idx` ON '
+            '`inventory`.`widgets` (`value`)',
+            index['provider_payload']['compiled']['statements'][0]['source'],
+        )
 
     def test_version_parsers_require_engine_specific_identity(self):
         self.assertEqual(

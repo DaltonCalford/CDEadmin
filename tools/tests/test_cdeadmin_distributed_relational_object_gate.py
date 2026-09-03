@@ -85,6 +85,34 @@ class DistributedRelationalObjectGateTests(unittest.TestCase):
                 'not_applicable', concepts[concept_id]['declared_status']
             )
 
+    def test_vitess_declaration_is_exact_and_complete(self):
+        result = audit()
+        coverage = result['engines']['vitess']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        concepts = {
+            concept['concept_id']: concept
+            for family in coverage['families']
+            for concept in family['concepts']
+        }
+        for concept_id in (
+            'databases', 'schemas', 'views', 'sequences', 'partitions',
+            'replication_objects', 'jobs_and_events',
+        ):
+            self.assertIn(
+                concepts[concept_id]['declared_status'],
+                {'supported', 'read_only'},
+            )
+        for concept_id in (
+            'materialized_views', 'domains', 'types', 'functions',
+            'procedures', 'triggers', 'roles_and_grants',
+            'extensions_and_plugins', 'tablespaces_and_filespaces',
+        ):
+            self.assertEqual(
+                'not_applicable', concepts[concept_id]['declared_status']
+            )
+
 
 if __name__ == '__main__':
     unittest.main()

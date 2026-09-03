@@ -39,8 +39,9 @@ PROFILE = PilotProfile(
     (
         'cluster', 'cell', 'keyspace', 'shard', 'tablet', 'vtgate',
         'vttablet', 'vschema', 'database', 'table', 'view', 'column', 'index',
-        'vindex', 'routing-rule', 'workflow', 'vreplication-stream',
-        'materialize', 'online-ddl', 'backup', 'user', 'role', 'privilege',
+        'constraint', 'partition', 'sequence', 'vindex', 'routing-rule',
+        'workflow', 'vreplication-stream', 'replica', 'materialize',
+        'online-ddl', 'backup', 'user',
     ),
     ('mysql-client', 'vtctldclient', 'vtadmin', 'backup-restore'),
     semantic_sql_dialect={
@@ -115,6 +116,34 @@ class VitessAdministration(RelationalAdministration):
         return result
 
     def _form(self, kind, operation):
+        if kind == 'sequence' and operation == 'create':
+            return {
+                'form_id': 'sequence.create',
+                'title': 'Create Vitess sequence',
+                'fields': [
+                    self._field('name', 'Name', 'text', True),
+                    self._field(
+                        'parent', 'Unsharded keyspace', 'text', True,
+                        'Vitess sequence backing tables must be in an '
+                        'unsharded keyspace.',
+                    ),
+                    self._field(
+                        'start', 'Next value', 'number', False, default=1,
+                    ),
+                    self._field(
+                        'cache', 'Cache size', 'number', False, default=1000,
+                    ),
+                ],
+            }
+        if kind == 'sequence' and operation == 'alter':
+            return {
+                'form_id': 'sequence.alter',
+                'title': 'Alter Vitess sequence state',
+                'fields': [
+                    self._field('restart', 'Next value', 'number'),
+                    self._field('cache', 'Cache size', 'number'),
+                ],
+            }
         if kind == 'vindex' and operation == 'create':
             return {
                 'form_id': 'vindex.create',
@@ -169,14 +198,20 @@ class VitessAdministration(RelationalAdministration):
 
     def _normalize_draft(self, kind, operation, draft):
         value = super()._normalize_draft(kind, operation, draft)
-        if operation == 'create' and kind in {'table', 'vindex'}:
+        if operation == 'create' and kind in {
+            'table', 'vindex', 'sequence',
+        }:
             options = value['options']
             for key in (
                 'register_in_vschema', 'vindex_name', 'vindex_columns',
-                'vindex_type', 'vindex_parameters', 'parameters',
+                'vindex_type', 'vindex_parameters', 'parameters', 'cache',
             ):
                 if key in value:
                     options[key] = value.pop(key)
+        elif operation == 'alter' and kind == 'sequence':
+            changes = value.setdefault('changes', {})
+            if 'cache' in value and value['cache'] not in {None, ''}:
+                changes['cache'] = value.pop('cache')
         return value
 
     def _compile(self, request):
@@ -211,6 +246,37 @@ class VitessAdministration(RelationalAdministration):
             )
             source += self._vindex_parameters(options.get('parameters'))
             return [{'source': source, 'parameters': ()}]
+        if kind == 'sequence':
+            name = self._identifier(draft['name'])
+            qualified = self._new_object_name(name, options)
+            start = self._integer(options.get('start', 1), 'start')
+            cache = self._integer(options.get('cache', 1000), 'cache')
+            if cache < 1:
+                raise RelationalClientError(
+                    'Vitess sequence cache must be positive'
+                )
+            return [
+                {
+                    'source': (
+                        f'CREATE TABLE {qualified} '
+                        '(id INT NOT NULL, next_id BIGINT NOT NULL, '
+                        'cache BIGINT NOT NULL, PRIMARY KEY (id)) '
+                        "COMMENT 'vitess_sequence'"
+                    ),
+                    'parameters': (),
+                },
+                {
+                    'source': (
+                        f'INSERT INTO {qualified} (id, next_id, cache) '
+                        'VALUES (0, %s, %s)'
+                    ),
+                    'parameters': (start, cache),
+                },
+                {
+                    'source': f'ALTER VSCHEMA ADD SEQUENCE {qualified}',
+                    'parameters': (),
+                },
+            ]
         statements = super()._compile_create(request)
         if kind != 'table' or not options.get(
             'register_in_vschema', True
@@ -229,13 +295,95 @@ class VitessAdministration(RelationalAdministration):
         statements.append({'source': source, 'parameters': ()})
         return statements
 
+    def _compile_alter(self, request):
+        if request['resource_kind'] != 'sequence':
+            return super()._compile_alter(request)
+        target = self._qualified(
+            self._target_path(request['target_resource'])
+        )
+        changes = request['draft'].get('changes')
+        if not isinstance(changes, Mapping):
+            raise RelationalClientError('alter changes must be an object')
+        assignments = []
+        parameters = []
+        if 'restart' in changes:
+            assignments.append('next_id = %s')
+            parameters.append(self._integer(changes['restart'], 'restart'))
+        if 'cache' in changes:
+            cache = self._integer(changes['cache'], 'cache')
+            if cache < 1:
+                raise RelationalClientError(
+                    'Vitess sequence cache must be positive'
+                )
+            assignments.append('cache = %s')
+            parameters.append(cache)
+        if not assignments:
+            raise RelationalClientError(
+                'Vitess sequence alteration has no structured changes'
+            )
+        return [{
+            'source': (
+                f'UPDATE {target} SET {", ".join(assignments)} WHERE id = 0'
+            ),
+            'parameters': tuple(parameters),
+        }]
+
     def _compile_drop(self, request):
+        if request['resource_kind'] == 'sequence':
+            path = self._target_path(request['target_resource'])
+            self._require_target_keyspace(request, path)
+            target = self._qualified(path)
+            return [
+                {
+                    'source': f'ALTER VSCHEMA DROP SEQUENCE {target}',
+                    'parameters': (),
+                },
+                {
+                    'source': f'DROP TABLE {target}',
+                    'parameters': (),
+                },
+            ]
         if request['resource_kind'] == 'vindex':
             path = self._target_path(request['target_resource'])
             self._require_target_keyspace(request, path)
             name = self._quote(path[-1])
             return {
                 'source': f'ALTER VSCHEMA DROP VINDEX {name}',
+                'parameters': (),
+            }
+        if request['resource_kind'] == 'view':
+            target = self._qualified(
+                self._target_path(request['target_resource'])
+            )
+            return {
+                'source': f'DROP VIEW IF EXISTS {target}',
+                'parameters': (),
+            }
+        if request['resource_kind'] == 'constraint':
+            target_resource = request['target_resource']
+            path = self._target_path(target_resource)
+            table = self._qualified(path[:-1])
+            native = target_resource.get('extensions', {}).get(
+                'vitess', {}
+            ).get('native', {})
+            constraint_type = str(
+                native.get('constraint_type', '')
+            ).upper()
+            name = self._quote(path[-1])
+            if constraint_type == 'PRIMARY KEY':
+                clause = 'DROP PRIMARY KEY'
+            elif constraint_type == 'UNIQUE':
+                clause = f'DROP INDEX {name}'
+            elif constraint_type == 'FOREIGN KEY':
+                clause = f'DROP FOREIGN KEY {name}'
+            elif constraint_type == 'CHECK':
+                clause = f'DROP CHECK {name}'
+            else:
+                raise RelationalClientError(
+                    'Vitess constraint type is unavailable'
+                )
+            return {
+                'source': f'ALTER TABLE {table} {clause}',
                 'parameters': (),
             }
         return super()._compile_drop(request)
@@ -278,10 +426,37 @@ class VitessAdministration(RelationalAdministration):
 
 
 _VITESS_SUPPORTED = dict(_BASE_ADMINISTRATION.dialect.supported)
+for _kind in ('database', 'schema', 'role', 'privilege'):
+    _VITESS_SUPPORTED.pop(_kind, None)
+_VITESS_SUPPORTED['table'] = frozenset({
+    'inspect', 'create', 'alter', 'drop', 'insert', 'update', 'delete',
+})
+_VITESS_SUPPORTED['view'] = frozenset({
+    'inspect', 'create', 'alter', 'drop',
+})
+_VITESS_SUPPORTED['sequence'] = frozenset({
+    'inspect', 'create', 'alter', 'drop',
+})
 _VITESS_SUPPORTED['vindex'] = frozenset({'inspect', 'create', 'drop'})
+_VITESS_SUPPORTED['partition'] = frozenset({'inspect'})
+_VITESS_SUPPORTED['replica'] = frozenset({'inspect'})
 _VITESS_DIALECT = replace(
     _BASE_ADMINISTRATION.dialect,
     supported=_VITESS_SUPPORTED,
+    not_applicable_concepts=frozenset({
+        'materialized_views', 'domains', 'types', 'functions', 'procedures',
+        'triggers', 'roles_and_grants', 'extensions_and_plugins',
+        'tablespaces_and_filespaces',
+    }),
+    concept_resource_kinds={
+        'servers': ('cluster',),
+        'databases': ('keyspace',),
+        'schemas': ('keyspace',),
+        'replication_objects': (
+            'replica', 'workflow', 'vreplication-stream', 'materialize',
+        ),
+        'jobs_and_events': ('online-ddl',),
+    },
 )
 _CONTROL_ADMINISTRATION = DistributedSQLControlPlane(
     _VITESS_DIALECT, CONTROL_OPERATIONS, compile_action,
@@ -447,19 +622,44 @@ class VitessDBAPIClient(RelationalDBAPIClient):
                 self._forget_and_close(connection)
 
 
-def _extras(cursor, _request, generation):
+def _keyspace_name(schema, keyspaces):
+    value = str(schema)
+    if value in keyspaces:
+        return value
+    if value.startswith('vt_') and value[3:] in keyspaces:
+        return value[3:]
+    return None
+
+
+def _extras(cursor, _request, generation, keyspaces=None):
+    keyspaces = set(keyspaces or ())
     values = [resource('vtgate', [], 'connected-vtgate', generation)]
-    commands = (
-        ('keyspace', 'SHOW VITESS_KEYSPACES'),
-        ('shard', 'SHOW VITESS_SHARDS'),
-        ('tablet', 'SHOW VITESS_TABLETS'),
-    )
-    for kind, source in commands:
-        for row in optional_rows(cursor, source):
-            name = row[0]
-            values.append(resource(kind, [], name, generation, {
-                'details': [str(item) for item in row[1:]],
-            }))
+    for row in optional_rows(cursor, 'SHOW VITESS_KEYSPACES'):
+        name = str(row[0])
+        keyspaces.add(name)
+        values.append(resource('keyspace', [], name, generation))
+    for row in optional_rows(cursor, 'SHOW VITESS_SHARDS'):
+        name = str(row[0])
+        parent = name.split('/', 1)[0] if '/' in name else ''
+        values.append(resource('shard', [parent] if parent else [], name,
+                               generation))
+    for row in optional_rows(cursor, 'SHOW VITESS_TABLETS'):
+        cell, keyspace, shard, tablet_type, state, alias, *details = row
+        native = {
+            'cell': str(cell), 'keyspace': str(keyspace),
+            'shard': str(shard), 'tablet_type': str(tablet_type),
+            'state': str(state),
+            'details': [str(item) for item in details],
+        }
+        values.append(resource(
+            'cell', [], cell, generation, {'topology_source': 'tablet'}
+        ))
+        values.append(resource(
+            'tablet', [keyspace, shard], alias, generation, native
+        ))
+        values.append(resource(
+            'vttablet', [keyspace, shard], alias, generation, native
+        ))
     route = _request.get('route') or _request.get('_provider_route') or {}
     current_keyspace = str(route.get('database') or '').split(
         ':', 1
@@ -474,7 +674,111 @@ def _extras(cursor, _request, generation):
             'parameters': str(parameters),
             'owner': str(owner),
         }))
+    constraints = optional_rows(
+        cursor,
+        'SELECT CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, '
+        'CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS '
+        'ORDER BY 1, 2, 3',
+    )
+    for schema, table, name, constraint_type in constraints:
+        keyspace = _keyspace_name(schema, keyspaces)
+        if keyspace is None:
+            continue
+        values.append(resource(
+            'constraint', [keyspace, table], name, generation, {
+                'constraint_type': str(constraint_type),
+            }
+        ))
+    partitions = optional_rows(
+        cursor,
+        'SELECT TABLE_SCHEMA, TABLE_NAME, PARTITION_NAME, '
+        'PARTITION_METHOD, PARTITION_EXPRESSION, PARTITION_DESCRIPTION '
+        'FROM information_schema.PARTITIONS '
+        'WHERE PARTITION_NAME IS NOT NULL ORDER BY 1, 2, 3',
+    )
+    for schema, table, name, method, expression, description in partitions:
+        keyspace = _keyspace_name(schema, keyspaces)
+        if keyspace is None:
+            continue
+        values.append(resource(
+            'partition', [keyspace, table], name, generation, {
+                'method': str(method), 'expression': str(expression),
+                'description': str(description),
+            }
+        ))
+    sequences = optional_rows(
+        cursor,
+        'SELECT TABLE_SCHEMA, TABLE_NAME FROM information_schema.TABLES '
+        "WHERE TABLE_COMMENT = 'vitess_sequence' ORDER BY 1, 2",
+    )
+    for schema, name in sequences:
+        keyspace = _keyspace_name(schema, keyspaces)
+        if keyspace is not None:
+            values.append(resource(
+                'sequence', [keyspace], name, generation, {
+                    'backing_table': True,
+                }
+            ))
+    for row in optional_rows(cursor, 'SHOW VITESS_REPLICATION_STATUS'):
+        keyspace, shard, tablet_type, alias, hostname, source, health, (
+            lag), throttler = row
+        values.append(resource(
+            'replica', [keyspace, shard], alias, generation, {
+                'tablet_type': str(tablet_type), 'hostname': str(hostname),
+                'replication_source': str(source),
+                'replication_health': str(health),
+                'replication_lag': str(lag),
+                'throttler_status': str(throttler),
+            }
+        ))
+    for row in optional_rows(cursor, 'SHOW VITESS_MIGRATIONS'):
+        if len(row) < 17:
+            continue
+        migration = str(row[1])
+        values.append(resource(
+            'online-ddl', [row[2]], migration, generation, {
+                'shard': str(row[3]), 'table': str(row[5]),
+                'statement': str(row[6]), 'strategy': str(row[7]),
+                'status': str(row[16]),
+            }
+        ))
     return values
+
+
+def _catalog(connection, request):
+    """Normalize physical ``vt_`` schemas to routed Vitess keyspaces."""
+    generation = str(request.get('capability_generation') or 'current')
+    cursor = connection.cursor()
+    try:
+        keyspaces = {
+            str(row[0])
+            for row in optional_rows(cursor, 'SHOW VITESS_KEYSPACES')
+        }
+    finally:
+        cursor.close()
+    values = {}
+    for item in mysql_catalog(connection, request, 'Vitess'):
+        if item['resource_kind'] == 'cluster':
+            values[item['resource_id']] = item
+            continue
+        path = item.get('display_path') or []
+        if not path:
+            continue
+        keyspace = _keyspace_name(path[0], keyspaces)
+        if keyspace is None or item['resource_kind'] == 'database':
+            continue
+        normalized = resource(
+            item['resource_kind'], [keyspace, *path[1:-1]], path[-1],
+            generation, item.get('native'),
+        )
+        values[normalized['resource_id']] = normalized
+    cursor = connection.cursor()
+    try:
+        for item in _extras(cursor, request, generation, keyspaces):
+            values[item['resource_id']] = item
+    finally:
+        cursor.close()
+    return list(values.values())
 
 
 class VitessProvider(ActualEnginePilotProvider):
@@ -492,9 +796,7 @@ def create_provider(context, permissions, client=None):
             wire='mysql',
             version_query='SELECT 1',
             version_parser=_version,
-            metadata_reader=lambda connection, request: mysql_catalog(
-                connection, request, 'Vitess', _extras
-            ),
+            metadata_reader=_catalog,
             administration=ADMINISTRATION,
             client_class=VitessDBAPIClient,
         ),

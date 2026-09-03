@@ -1348,7 +1348,7 @@ class RelationalAdministration:
                 self.dialect.sql_family == 'postgresql' or
                 self.dialect.engine_id in {
                     'duckdb', 'firebird', 'mysql', 'mariadb', 'dolt',
-                    'tidb',
+                    'tidb', 'vitess',
                 }
             ):
                 index_name = self._quote(name)

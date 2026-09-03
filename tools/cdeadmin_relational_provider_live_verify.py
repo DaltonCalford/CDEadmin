@@ -68,6 +68,10 @@ from pgadmin.cdeadmin.providers.tidb.provider import (  # noqa: E402
     PROFILE as TIDB_PROFILE,
     create_provider as create_tidb_provider,
 )
+from pgadmin.cdeadmin.providers.vitess.provider import (  # noqa: E402
+    PROFILE as VITESS_PROFILE,
+    create_provider as create_vitess_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -91,6 +95,7 @@ PROFILES = {
     'cockroachdb': COCKROACHDB_PROFILE,
     'dolt': DOLT_PROFILE,
     'tidb': TIDB_PROFILE,
+    'vitess': VITESS_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -102,6 +107,7 @@ PROVIDER_FACTORIES = {
     'cockroachdb': create_cockroachdb_provider,
     'dolt': create_dolt_provider,
     'tidb': create_tidb_provider,
+    'vitess': create_vitess_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
@@ -111,6 +117,7 @@ TARGET_ADAPTERS = {
     'cockroachdb': 'cockroachdb-postgresql-wire-client',
     'dolt': 'dolt-mysql-wire-client',
     'tidb': 'tidb-mysql-wire-client',
+    'vitess': 'vitess-mysql-wire-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -294,7 +301,7 @@ def _relational_editor_evidence(provider, request, engine):
     )
     if engine == 'firebird':
         parent = None
-    elif engine in {'mysql', 'mariadb', 'dolt', 'tidb'}:
+    elif engine in {'mysql', 'mariadb', 'dolt', 'tidb', 'vitess'}:
         parent = str(route['database'])
     elif engine == 'cockroachdb':
         parent = 'public'
@@ -360,6 +367,11 @@ def _relational_editor_evidence(provider, request, engine):
                 {'name': 'value', 'type': 'INTEGER', 'nullable': True},
             ],
             'constraints': [],
+            **({
+                'register_in_vschema': True,
+                'vindex_name': 'xxhash',
+                'vindex_columns': ['id'],
+            } if engine == 'vitess' else {}),
         },
     )
     if created:
@@ -511,7 +523,7 @@ def _relational_editor_evidence(provider, request, engine):
                 )
 
     if engine in {
-        'mysql', 'mariadb', 'dolt', 'tidb',
+        'mysql', 'mariadb', 'dolt', 'tidb', 'vitess',
     } and qualification is not None:
         if attempt(
             'constraint.create', 'constraint', 'create', {
@@ -554,9 +566,9 @@ def _relational_editor_evidence(provider, request, engine):
                 )
 
         routines = []
-        if engine != 'tidb':
+        if engine not in {'tidb', 'vitess'}:
             routines.append(('procedure', '', 'BEGIN SELECT 1; END'))
-        if engine not in {'dolt', 'tidb'}:
+        if engine not in {'dolt', 'tidb', 'vitess'}:
             routines.append(
                 ('function', 'INTEGER', 'DETERMINISTIC RETURN 1')
             )
@@ -608,7 +620,9 @@ def _relational_editor_evidence(provider, request, engine):
         if engine in {'mysql', 'dolt'}:
             role_draft['members'] = [f'{route["user"]}@%']
         role = None
-        if attempt('role.create', 'role', 'create', role_draft):
+        if provider.client.supports_admin_operation(
+                'role', 'create') and attempt(
+                    'role.create', 'role', 'create', role_draft):
             role = inspect_created(
                 'role.inspect', 'role',
                 f'{role_name}@%'
@@ -617,7 +631,8 @@ def _relational_editor_evidence(provider, request, engine):
 
         user_name = 'cde_editor_user'
         user = None
-        if attempt(
+        if provider.client.supports_admin_operation(
+                'user', 'create') and attempt(
             'user.create', 'user', 'create', {
                 'name': user_name, 'host': '%',
                 'password': secrets.token_urlsafe(24),
@@ -1411,11 +1426,13 @@ def _relational_editor_evidence(provider, request, engine):
             },
         )
 
-    database_created = attempt(
-        'database.create', 'database', 'create', {
-            'name': 'cde_editor_database',
-        },
-    )
+    database_created = False
+    if provider.client.supports_admin_operation('database', 'create'):
+        database_created = attempt(
+            'database.create', 'database', 'create', {
+                'name': 'cde_editor_database',
+            },
+        )
     if database_created and engine in {
         'cockroachdb', 'mysql', 'mariadb', 'dolt', 'tidb',
     }:
@@ -1783,6 +1800,130 @@ class _TemporaryAccount:
                     # Cleanup is best-effort per object so one missing optional
                     # qualification fixture cannot strand the account/database.
                     pass
+        finally:
+            cursor.close()
+            connection.close()
+            self.connection = None
+            self.password = ''
+
+
+class _VitessAccount:
+    """Seed an existing exact Vitess topology without SQL account DDL."""
+
+    def __init__(self, host, port, http_port, database='test_keyspace'):
+        self.host = host
+        self.port = port
+        self.http_port = http_port
+        self.username = 'root'
+        self.database = database
+        self.password = ''
+        self.connection = None
+        self.route_options = {
+            'vtgate_http_host': host,
+            'vtgate_http_port': http_port,
+            'vtgate_http_tls_mode': 'disable',
+            # VTGate DDL is authoritative at statement completion. Keeping
+            # qualification administration in autocommit mode prevents a
+            # redundant COMMIT from obscuring a successful sharded DDL
+            # response (notably CREATE VIEW).
+            'autocommit': True,
+        }
+
+    def _connect(self):
+        import mysql.connector
+
+        return mysql.connector.connect(
+            host=self.host, port=self.port, user=self.username,
+            database=self.database, connection_timeout=10,
+            autocommit=True,
+        )
+
+    @staticmethod
+    def _ignore(cursor, source):
+        try:
+            cursor.execute(source)
+        except Exception:
+            pass
+
+    def create(self):
+        self.connection = self._connect()
+        cursor = self.connection.cursor()
+        try:
+            self._ignore(cursor, 'ALTER VSCHEMA DROP TABLE qualification')
+            self._ignore(
+                cursor,
+                f'DROP TABLE IF EXISTS `{self.database}`.`qualification`',
+            )
+            cursor.execute(
+                f'CREATE TABLE `{self.database}`.`qualification` '
+                '(id BIGINT NOT NULL PRIMARY KEY, value BIGINT NOT NULL) '
+                'PARTITION BY HASH(id) PARTITIONS 2'
+            )
+            cursor.execute(
+                'ALTER VSCHEMA ON `qualification` '
+                'ADD VINDEX `xxhash` (`id`)'
+            )
+            cursor.execute(
+                f'INSERT INTO `{self.database}`.`qualification` '
+                '(id, value) VALUES (1, 42)'
+            )
+        except Exception:
+            self.drop()
+            raise
+        finally:
+            cursor.close()
+
+    def drop(self):
+        connection = self.connection
+        if connection is None:
+            try:
+                connection = self._connect()
+            except Exception:
+                return
+        cursor = connection.cursor()
+        try:
+            # DROP VIEW through a keyspace target is not consistently fanned
+            # out by VTGate 23.0.3. Cleanup is test-fixture administration,
+            # so address each primary shard explicitly and leave no stale
+            # view that could make a later provider run ambiguous.
+            shards = []
+            try:
+                cursor.execute('SHOW VITESS_SHARDS')
+                shards = [
+                    str(row[0]).split('/', 1)[1]
+                    for row in cursor.fetchall()
+                    if str(row[0]).startswith(f'{self.database}/')
+                ]
+            except Exception:
+                pass
+            for shard in shards:
+                shard_connection = None
+                shard_cursor = None
+                try:
+                    import mysql.connector
+
+                    shard_connection = mysql.connector.connect(
+                        host=self.host, port=self.port, user=self.username,
+                        database=(
+                            f'{self.database}:{shard}@primary'
+                        ),
+                        connection_timeout=10, autocommit=True,
+                    )
+                    shard_cursor = shard_connection.cursor()
+                    self._ignore(
+                        shard_cursor,
+                        'DROP VIEW IF EXISTS cde_editor_view',
+                    )
+                finally:
+                    if shard_cursor is not None:
+                        shard_cursor.close()
+                    if shard_connection is not None:
+                        shard_connection.close()
+            self._ignore(cursor, 'ALTER VSCHEMA DROP TABLE qualification')
+            self._ignore(
+                cursor,
+                f'DROP TABLE IF EXISTS `{self.database}`.`qualification`',
+            )
         finally:
             cursor.close()
             connection.close()
@@ -2393,21 +2534,22 @@ def verify(engine, host, port, socket_path=None, account=None):
     }
     try:
         account.create()
-        secret_service.register_resolver(
-            'live.ephemeral',
-            lambda *_args: account.password.encode('utf-8'),
-        )
-        secret_service.register_reference(SecretReference(
-            reference_id=reference_id,
-            endpoint_id=context.endpoint_id,
-            endpoint_mode=context.mode,
-            secret_kind='database_password',
-            storage_kind='ephemeral_test_account',
-            resolver_id='live.ephemeral',
-            locator=f'ephemeral:{engine}:qualification',
-            allowed_purposes=frozenset({'connect'}),
-            authority_scope='legacy_engine_auth',
-        ))
+        if account.password:
+            secret_service.register_resolver(
+                'live.ephemeral',
+                lambda *_args: account.password.encode('utf-8'),
+            )
+            secret_service.register_reference(SecretReference(
+                reference_id=reference_id,
+                endpoint_id=context.endpoint_id,
+                endpoint_mode=context.mode,
+                secret_kind='database_password',
+                storage_kind='ephemeral_test_account',
+                resolver_id='live.ephemeral',
+                locator=f'ephemeral:{engine}:qualification',
+                allowed_purposes=frozenset({'connect'}),
+                authority_scope='legacy_engine_auth',
+            ))
         factory = PROVIDER_FACTORIES.get(engine, create_provider)
         provider = factory(context, _permissions(context, secret_service))
         route = {
@@ -2416,10 +2558,11 @@ def verify(engine, host, port, socket_path=None, account=None):
             'port': port,
             'user': account.username,
             'database': account.database,
-            'credential_reference_id': reference_id,
             'principal_reference': 'cdeadmin-live-qualifier',
             'connection_timeout': 10,
         }
+        if account.password:
+            route['credential_reference_id'] = reference_id
         route.update(getattr(account, 'route_options', {}))
         if engine == 'dolt':
             route.update({
@@ -2460,7 +2603,9 @@ def verify(engine, host, port, socket_path=None, account=None):
         session = provider.open_session(request)
         marker = (
             '%s'
-            if engine in {'cockroachdb', 'mysql', 'dolt', 'tidb'} else '?'
+            if engine in {
+                'cockroachdb', 'mysql', 'dolt', 'tidb', 'vitess',
+            } else '?'
         )
         source = f'SELECT {marker} AS value'
         if engine == 'firebird':
@@ -2481,6 +2626,7 @@ def verify(engine, host, port, socket_path=None, account=None):
         categories['semantic_query'] = 'passed'
         if engine in {
             'cockroachdb', 'firebird', 'mysql', 'mariadb', 'dolt', 'tidb',
+            'vitess',
         }:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is
@@ -2588,6 +2734,7 @@ def main():
     parser.add_argument('--tls-ca')
     parser.add_argument('--tls-client-cert')
     parser.add_argument('--tls-client-key')
+    parser.add_argument('--http-port', type=int)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument(
         '--object-output', type=Path,
@@ -2626,6 +2773,16 @@ def main():
         account = _CockroachDBAccount(
             args.host, args.port, args.tls_ca,
             args.tls_client_cert, args.tls_client_key,
+        )
+        result = verify(
+            args.engine, args.host, args.port, account=account
+        )
+    elif args.engine == 'vitess':
+        if args.port is None or args.http_port is None:
+            parser.error('--port and --http-port are required for Vitess')
+        account = _VitessAccount(
+            args.host, args.port, args.http_port,
+            database=args.database or 'test_keyspace',
         )
         result = verify(
             args.engine, args.host, args.port, account=account
