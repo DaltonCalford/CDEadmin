@@ -1348,6 +1348,7 @@ class RelationalAdministration:
                 self.dialect.sql_family == 'postgresql' or
                 self.dialect.engine_id in {
                     'duckdb', 'firebird', 'mysql', 'mariadb', 'dolt',
+                    'tidb',
                 }
             ):
                 index_name = self._quote(name)
@@ -1852,7 +1853,7 @@ class RelationalAdministration:
             command = 'ALTER VIEW'
             if (
                 self.dialect.sql_family == 'postgresql' or
-                self.dialect.engine_id == 'dolt'
+                self.dialect.engine_id in {'dolt', 'tidb'}
             ):
                 command = 'CREATE OR REPLACE VIEW'
             return [{

@@ -49,6 +49,25 @@ _BASE_ADMINISTRATION = sql_administration('tidb', 'mysql', (
     'node', 'partition', 'placement-policy', 'resource-group',
     'tiflash-replica', 'job', 'changefeed', 'backup',
 ))
+_TIDB_SUPPORTED = dict(_BASE_ADMINISTRATION.dialect.supported)
+_TIDB_SUPPORTED.pop('schema')
+_TIDB_SUPPORTED['sequence'] = frozenset({
+    'inspect', 'create', 'alter', 'drop',
+})
+_TIDB_SUPPORTED['role'] = frozenset({'inspect', 'create', 'drop'})
+_TIDB_DIALECT = replace(
+    _BASE_ADMINISTRATION.dialect,
+    supported=_TIDB_SUPPORTED,
+    not_applicable_concepts=frozenset({
+        'materialized_views', 'domains', 'types', 'functions', 'procedures',
+        'triggers', 'extensions_and_plugins',
+        'tablespaces_and_filespaces',
+    }),
+    concept_resource_kinds={
+        'servers': ('cluster',),
+        'schemas': ('database',),
+    },
+)
 
 
 def _choice(field_id, label, values, **options):
@@ -929,7 +948,7 @@ def _post_validate_control_plane(client, request):
 
 
 ADMINISTRATION = DistributedSQLControlPlane(
-    replace(_BASE_ADMINISTRATION.dialect), CONTROL_OPERATIONS,
+    _TIDB_DIALECT, CONTROL_OPERATIONS,
     _compile_control_plane, inspector=_inspect_control_plane,
     canceller=_cancel_control_plane,
     post_validator=_post_validate_control_plane,
@@ -949,6 +968,109 @@ def _version(row):
 
 def _extras(cursor, _request, generation):
     values = []
+    for name, character_set, collation in optional_rows(
+        cursor,
+        'SELECT SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, '
+        'DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA '
+        'ORDER BY SCHEMA_NAME',
+    ):
+        values.append(resource('database', [], name, generation, {
+            'default_character_set': str(character_set),
+            'default_collation': str(collation),
+        }))
+    for database, table, name, constraint_type in optional_rows(
+        cursor,
+        'SELECT TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, CONSTRAINT_TYPE '
+        'FROM information_schema.TABLE_CONSTRAINTS ORDER BY 1, 2, 3',
+    ):
+        values.append(resource(
+            'constraint', [database, table], name, generation,
+            {'constraint_type': str(constraint_type)},
+        ))
+    sequence_rows = optional_rows(
+        cursor,
+        'SELECT SEQUENCE_SCHEMA, SEQUENCE_NAME, CACHE, CACHE_VALUE, CYCLE, '
+        'INCREMENT, MAX_VALUE, MIN_VALUE, START '
+        'FROM information_schema.SEQUENCES ORDER BY 1, 2',
+    )
+    for database, name, cache, cache_value, cycle, increment, maximum, \
+            minimum, start in sequence_rows:
+        values.append(resource('sequence', [database], name, generation, {
+            'cache': bool(cache), 'cache_value': cache_value,
+            'cycle': bool(cycle), 'increment': increment,
+            'maximum': maximum, 'minimum': minimum, 'start': start,
+        }))
+    for database, table, name, method, expression in optional_rows(
+        cursor,
+        'SELECT TABLE_SCHEMA, TABLE_NAME, PARTITION_NAME, PARTITION_METHOD, '
+        'PARTITION_EXPRESSION FROM information_schema.PARTITIONS '
+        'WHERE PARTITION_NAME IS NOT NULL ORDER BY 1, 2, 3',
+    ):
+        values.append(resource('partition', [database, table], name,
+                               generation, {
+            'method': str(method), 'expression': str(expression),
+        }))
+    tiflash_rows = optional_rows(
+        cursor,
+        'SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_ID, REPLICA_COUNT, '
+        'LOCATION_LABELS, AVAILABLE, PROGRESS '
+        'FROM information_schema.TIFLASH_REPLICA ORDER BY 1, 2',
+    )
+    for database, table, table_id, count, labels, available, progress in \
+            tiflash_rows:
+        values.append(resource(
+            'tiflash-replica', [database, table], table_id, generation, {
+                'replica_count': count, 'location_labels': str(labels),
+                'available': bool(available), 'progress': progress,
+            },
+        ))
+    for row in optional_rows(cursor, 'ADMIN SHOW DDL JOBS 100'):
+        if not row:
+            continue
+        values.append(resource('job', [], row[0], generation, {
+            'database': str(row[1]), 'table': str(row[2]),
+            'job_type': str(row[3]), 'schema_state': str(row[4]),
+            'state': str(row[11]) if len(row) > 11 else '',
+        }))
+    roles = set()
+    for user, host in optional_rows(
+        cursor,
+        'SELECT DISTINCT FROM_USER, FROM_HOST FROM mysql.role_edges '
+        'ORDER BY 1, 2',
+    ):
+        account = (str(user), str(host))
+        roles.add(account)
+        values.append(resource(
+            'role', [], f'{account[0]}@{account[1]}', generation,
+        ))
+    accounts = optional_rows(
+        cursor,
+        'SELECT User, Host, account_locked, authentication_string '
+        'FROM mysql.user ORDER BY 1, 2',
+    )
+    for user, host, locked, authentication in accounts:
+        account = (str(user), str(host))
+        is_role = (
+            str(locked).upper() == 'Y' and not str(authentication or '')
+        )
+        if is_role and account not in roles:
+            roles.add(account)
+            values.append(resource(
+                'role', [], f'{account[0]}@{account[1]}', generation,
+            ))
+        elif account not in roles:
+            values.append(resource(
+                'user', [], f'{account[0]}@{account[1]}', generation,
+                {'account_locked': str(locked)},
+            ))
+    for grantee, privilege in optional_rows(
+        cursor,
+        'SELECT GRANTEE, PRIVILEGE_TYPE '
+        'FROM information_schema.USER_PRIVILEGES ORDER BY 1, 2',
+    ):
+        values.append(resource(
+            'privilege', [grantee], privilege, generation,
+        ))
     for component, instance, status_address, version in optional_rows(
         cursor,
         'SELECT TYPE, INSTANCE, STATUS_ADDRESS, VERSION '

@@ -64,6 +64,10 @@ from pgadmin.cdeadmin.providers.dolt.provider import (  # noqa: E402
     PROFILE as DOLT_PROFILE,
     create_provider as create_dolt_provider,
 )
+from pgadmin.cdeadmin.providers.tidb.provider import (  # noqa: E402
+    PROFILE as TIDB_PROFILE,
+    create_provider as create_tidb_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -86,6 +90,7 @@ CATEGORIES = (
 PROFILES = {
     'cockroachdb': COCKROACHDB_PROFILE,
     'dolt': DOLT_PROFILE,
+    'tidb': TIDB_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -96,6 +101,7 @@ PROFILES = {
 PROVIDER_FACTORIES = {
     'cockroachdb': create_cockroachdb_provider,
     'dolt': create_dolt_provider,
+    'tidb': create_tidb_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
@@ -104,6 +110,7 @@ PROVIDER_FACTORIES = {
 TARGET_ADAPTERS = {
     'cockroachdb': 'cockroachdb-postgresql-wire-client',
     'dolt': 'dolt-mysql-wire-client',
+    'tidb': 'tidb-mysql-wire-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -287,7 +294,7 @@ def _relational_editor_evidence(provider, request, engine):
     )
     if engine == 'firebird':
         parent = None
-    elif engine in {'mysql', 'mariadb', 'dolt'}:
+    elif engine in {'mysql', 'mariadb', 'dolt', 'tidb'}:
         parent = str(route['database'])
     elif engine == 'cockroachdb':
         parent = 'public'
@@ -503,7 +510,9 @@ def _relational_editor_evidence(provider, request, engine):
                     }, trigger,
                 )
 
-    if engine in {'mysql', 'mariadb', 'dolt'} and qualification is not None:
+    if engine in {
+        'mysql', 'mariadb', 'dolt', 'tidb',
+    } and qualification is not None:
         if attempt(
             'constraint.create', 'constraint', 'create', {
                 'name': 'cde_editor_unique', 'table': qualified_table,
@@ -524,7 +533,8 @@ def _relational_editor_evidence(provider, request, engine):
                     }, constraint,
                 )
 
-        if attempt(
+        if provider.client.supports_admin_operation(
+                'trigger', 'create') and attempt(
             'trigger.create', 'trigger', 'create', {
                 'name': 'cde_editor_trigger', 'parent': parent,
                 'table': qualified_table, 'timing': 'BEFORE',
@@ -543,8 +553,10 @@ def _relational_editor_evidence(provider, request, engine):
                     }, trigger,
                 )
 
-        routines = [('procedure', '', 'BEGIN SELECT 1; END')]
-        if engine != 'dolt':
+        routines = []
+        if engine != 'tidb':
+            routines.append(('procedure', '', 'BEGIN SELECT 1; END'))
+        if engine not in {'dolt', 'tidb'}:
             routines.append(
                 ('function', 'INTEGER', 'DETERMINISTIC RETURN 1')
             )
@@ -566,7 +578,8 @@ def _relational_editor_evidence(provider, request, engine):
                         }, routine,
                     )
 
-        if attempt(
+        if provider.client.supports_admin_operation(
+                'event', 'create') and attempt(
             'event.create', 'event', 'create', {
                 'name': 'cde_editor_event', 'parent': parent,
                 'schedule': 'EVERY 1 DAY', 'preserve': True,
@@ -599,7 +612,7 @@ def _relational_editor_evidence(provider, request, engine):
             role = inspect_created(
                 'role.inspect', 'role',
                 f'{role_name}@%'
-                if engine in {'mysql', 'dolt'} else role_name,
+                if engine in {'mysql', 'dolt', 'tidb'} else role_name,
             )
 
         user_name = 'cde_editor_user'
@@ -765,6 +778,30 @@ def _relational_editor_evidence(provider, request, engine):
                             'cascade': False,
                             'confirmation': 'drop-live-editor-plugin',
                         }, plugin,
+                    )
+
+    if engine == 'tidb' and qualification is not None:
+        if attempt(
+            'sequence.create', 'sequence', 'create', {
+                'name': 'cde_editor_sequence', 'parent': parent,
+                'start': 1, 'increment': 1, 'cycle': False,
+            },
+        ):
+            sequence = inspect_created(
+                'sequence.inspect', 'sequence', 'cde_editor_sequence'
+            )
+            if sequence is not None:
+                attempt(
+                    'sequence.alter', 'sequence', 'alter', {
+                        'restart': 10, 'increment': 2,
+                    }, sequence,
+                )
+                if sequence is not None:
+                    attempt(
+                        'sequence.drop', 'sequence', 'drop', {
+                            'cascade': False,
+                            'confirmation': 'drop-live-editor-sequence',
+                        }, sequence,
                     )
 
     if engine == 'cockroachdb' and qualification is not None:
@@ -1380,13 +1417,13 @@ def _relational_editor_evidence(provider, request, engine):
         },
     )
     if database_created and engine in {
-        'cockroachdb', 'mysql', 'mariadb', 'dolt',
+        'cockroachdb', 'mysql', 'mariadb', 'dolt', 'tidb',
     }:
         database = inspect_created(
             'database.inspect-created', 'database', 'cde_editor_database'
         )
         if database is not None:
-            if engine in {'mysql', 'mariadb'}:
+            if engine in {'mysql', 'mariadb', 'tidb'}:
                 attempt(
                     'database.alter', 'database', 'alter', {
                         'character_set': 'utf8mb4',
@@ -1639,7 +1676,7 @@ class _TemporaryAccount:
 
     @property
     def marker(self):
-        return '%s' if self.engine in {'mysql', 'dolt'} else '?'
+        return '%s' if self.engine in {'mysql', 'dolt', 'tidb'} else '?'
 
     @property
     def quoted_database(self):
@@ -1652,7 +1689,7 @@ class _TemporaryAccount:
             if self.socket_path else
             {'host': self.host, 'port': self.port}
         )
-        if self.engine in {'mysql', 'dolt'}:
+        if self.engine in {'mysql', 'dolt', 'tidb'}:
             import mysql.connector
             return mysql.connector.connect(
                 user='root', autocommit=True, **transport,
@@ -1670,7 +1707,7 @@ class _TemporaryAccount:
             cursor.execute(f'CREATE DATABASE {database}')
             partition = (
                 ' PARTITION BY HASH(id) PARTITIONS 2'
-                if self.engine in {'mysql', 'mariadb'} else ''
+                if self.engine in {'mysql', 'mariadb', 'tidb'} else ''
             )
             cursor.execute(
                 f'CREATE TABLE {database}.qualification '
@@ -2422,7 +2459,8 @@ def verify(engine, host, port, socket_path=None, account=None):
 
         session = provider.open_session(request)
         marker = (
-            '%s' if engine in {'cockroachdb', 'mysql', 'dolt'} else '?'
+            '%s'
+            if engine in {'cockroachdb', 'mysql', 'dolt', 'tidb'} else '?'
         )
         source = f'SELECT {marker} AS value'
         if engine == 'firebird':
@@ -2442,7 +2480,7 @@ def verify(engine, host, port, socket_path=None, account=None):
         _semantic_payload(provider, session, engine)
         categories['semantic_query'] = 'passed'
         if engine in {
-            'cockroachdb', 'firebird', 'mysql', 'mariadb', 'dolt',
+            'cockroachdb', 'firebird', 'mysql', 'mariadb', 'dolt', 'tidb',
         }:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is

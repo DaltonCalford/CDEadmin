@@ -2351,6 +2351,39 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertFalse(VITESS_ADMIN.supports('user', 'create'))
         self.assertTrue(VITESS_ADMIN.supports('user', 'inspect'))
 
+    def test_tidb_relational_admin_compiles_native_object_syntax(self):
+        route = {'host': '127.0.0.1', 'port': 4000}
+        index = TIDB_ADMIN.plan({
+            'resource_kind': 'index', 'operation_id': 'create',
+            'draft': {
+                'name': 'widgets_value_idx', 'parent': 'app',
+                'table': 'app.widgets', 'columns': ['value'],
+                'unique': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE INDEX `widgets_value_idx` ON '
+            '`app`.`widgets` (`value`)',
+            index['provider_payload']['compiled']['statements'][0]['source'],
+        )
+        view = TIDB_ADMIN.plan({
+            'resource_kind': 'view', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'view', 'display_name': 'active_widgets',
+                'display_path': ['app', 'active_widgets'],
+            },
+            'draft': {'query': 'SELECT id FROM widgets'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE OR REPLACE VIEW `app`.`active_widgets` AS '
+            'SELECT id FROM widgets',
+            view['provider_payload']['compiled']['statements'][0]['source'],
+        )
+        self.assertTrue(TIDB_ADMIN.supports('sequence', 'alter'))
+        self.assertFalse(TIDB_ADMIN.supports('sequence', 'rename'))
+
     def test_cockroach_relational_admin_compiles_native_object_syntax(self):
         route = {'host': '127.0.0.1', 'port': 26257}
         index = COCKROACH_ADMIN.plan({
