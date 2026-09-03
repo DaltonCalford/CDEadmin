@@ -228,6 +228,7 @@
     {
       "engine_id": "dolt", "engine_name": "Dolt", "reference_profile": "1.86.6", "model_family": "versioned-relational",
       "objects": [
+        {"resource_kind": "cluster", "title": "Dolt SQL server", "operation_profile": "topology"},
         {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
@@ -235,6 +236,8 @@
         {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
         {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
         {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "event", "title": "Scheduled event", "operation_profile": "definition"},
         {"resource_kind": "branch", "title": "Branch", "operation_profile": "namespace"},
         {"resource_kind": "tag", "title": "Tag", "operation_profile": "definition"},
         {"resource_kind": "commit", "title": "Commit", "operation_profile": "read_only"},

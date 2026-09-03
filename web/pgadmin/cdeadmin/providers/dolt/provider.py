@@ -29,7 +29,7 @@ PROFILE = PilotProfile(
     'dolt-sql-and-version-control-native', 'tabular',
     (
         'cluster', 'database', 'table', 'column', 'index', 'constraint',
-        'view', 'procedure', 'branch', 'tag', 'commit', 'remote',
+        'view', 'procedure', 'trigger', 'event', 'branch', 'tag', 'commit',
         'working-set', 'merge', 'rebase', 'conflict', 'backup', 'user', 'role',
         'privilege',
     ),
@@ -42,9 +42,34 @@ PROFILE = PilotProfile(
 
 
 _BASE_ADMINISTRATION = sql_administration('dolt', 'mysql', (
-    'procedure', 'branch', 'tag', 'commit', 'remote', 'working-set',
+    'branch', 'tag', 'commit', 'remote', 'working-set',
     'merge', 'rebase', 'conflict', 'backup',
 ))
+_DOLT_SUPPORTED = dict(_BASE_ADMINISTRATION.dialect.supported)
+_DOLT_SUPPORTED.pop('schema')
+_DOLT_SUPPORTED.pop('sequence')
+_DOLT_SUPPORTED['database'] = frozenset({'inspect', 'create', 'drop'})
+_DOLT_SUPPORTED['procedure'] = frozenset({'inspect', 'create', 'drop'})
+_DOLT_SUPPORTED['trigger'] = frozenset({'inspect', 'create', 'drop'})
+_DOLT_SUPPORTED['event'] = frozenset({
+    'inspect', 'create', 'alter', 'drop',
+})
+_DOLT_SUPPORTED['role'] = frozenset({'inspect', 'create', 'drop'})
+_DOLT_DIALECT = replace(
+    _BASE_ADMINISTRATION.dialect,
+    supported=_DOLT_SUPPORTED,
+    not_applicable_concepts=frozenset({
+        'materialized_views', 'domains', 'types', 'sequences', 'functions',
+        'extensions_and_plugins', 'partitions',
+        'tablespaces_and_filespaces',
+    }),
+    concept_resource_kinds={
+        'servers': ('cluster',),
+        'schemas': ('database',),
+        'replication_objects': ('remote',),
+        'jobs_and_events': ('event',),
+    },
+)
 
 
 def _choice(field_id, label, values, **options):
@@ -679,8 +704,8 @@ def _inspect_control_plane(client, request):
     if kind == 'conflict':
         return _query_once(
             client, route,
-            'SELECT table_name, num_conflicts FROM dolt_conflicts '
-            'WHERE table_name = %s', (name,),
+            'SELECT `table`, num_conflicts FROM dolt_conflicts '
+            'WHERE `table` = %s', (name,),
         )
     if kind == 'working-set':
         if operation == 'commit':
@@ -770,7 +795,7 @@ def _post_validate_control_plane(client, request):
 
 
 ADMINISTRATION = DistributedSQLControlPlane(
-    replace(_BASE_ADMINISTRATION.dialect), CONTROL_OPERATIONS,
+    _DOLT_DIALECT, CONTROL_OPERATIONS,
     _compile_control_plane, inspector=_inspect_control_plane,
     canceller=_cancel_control_plane,
     post_validator=_post_validate_control_plane,
@@ -787,6 +812,97 @@ def _version(row):
 
 def _extras(cursor, _request, generation):
     values = []
+    for name, character_set, collation in optional_rows(
+        cursor,
+        'SELECT SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, '
+        'DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA '
+        'ORDER BY SCHEMA_NAME',
+    ):
+        values.append(resource('database', [], name, generation, {
+            'default_character_set': str(character_set),
+            'default_collation': str(collation),
+        }))
+    relational_objects = (
+        (
+            'constraint',
+            'SELECT TABLE_SCHEMA, TABLE_NAME, CONSTRAINT_NAME, '
+            'CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS '
+            'ORDER BY 1, 2, 3',
+        ),
+        (
+            'trigger',
+            'SELECT TRIGGER_SCHEMA, EVENT_OBJECT_TABLE, TRIGGER_NAME, '
+            'ACTION_TIMING, EVENT_MANIPULATION '
+            'FROM information_schema.TRIGGERS ORDER BY 1, 2, 3',
+        ),
+    )
+    for kind, source in relational_objects:
+        for database, parent, name, *details in optional_rows(cursor, source):
+            values.append(resource(
+                kind, [database, parent], name, generation,
+                {'details': [
+                    None if item is None else str(item)
+                    for item in details
+                ]},
+            ))
+    for database, name, routine_type, data_type in optional_rows(
+        cursor,
+        'SELECT ROUTINE_SCHEMA, ROUTINE_NAME, ROUTINE_TYPE, DATA_TYPE '
+        'FROM information_schema.ROUTINES ORDER BY 1, 2',
+    ):
+        if str(routine_type).upper() == 'PROCEDURE':
+            values.append(resource('procedure', [database], name, generation, {
+                'routine_type': 'PROCEDURE', 'data_type': str(data_type),
+            }))
+    for database, name, status, event_type in optional_rows(
+        cursor,
+        'SELECT EVENT_SCHEMA, EVENT_NAME, STATUS, EVENT_TYPE '
+        'FROM information_schema.EVENTS ORDER BY 1, 2',
+    ):
+        values.append(resource('event', [database], name, generation, {
+            'status': str(status), 'event_type': str(event_type),
+        }))
+    roles = set()
+    for user, host in optional_rows(
+        cursor,
+        'SELECT DISTINCT FROM_USER, FROM_HOST FROM mysql.role_edges '
+        'ORDER BY 1, 2',
+    ):
+        account = (str(user), str(host))
+        roles.add(account)
+        values.append(resource(
+            'role', [], f'{account[0]}@{account[1]}', generation,
+        ))
+    accounts = optional_rows(
+        cursor,
+        'SELECT User, Host, account_locked, authentication_string '
+        'FROM mysql.user ORDER BY 1, 2',
+    )
+    for user, host, locked, authentication in accounts:
+        account = (str(user), str(host))
+        # Dolt implements MySQL roles as locked, passwordless accounts. This
+        # also preserves unassigned roles, which have no mysql.role_edges row.
+        is_role = (
+            str(locked).upper() == 'Y' and not str(authentication or '')
+        )
+        if is_role and account not in roles:
+            roles.add(account)
+            values.append(resource(
+                'role', [], f'{account[0]}@{account[1]}', generation,
+            ))
+        elif account not in roles:
+            values.append(resource(
+                'user', [], f'{account[0]}@{account[1]}', generation,
+                {'account_locked': str(locked)},
+            ))
+    for grantee, privilege in optional_rows(
+        cursor,
+        'SELECT GRANTEE, PRIVILEGE_TYPE '
+        'FROM information_schema.USER_PRIVILEGES ORDER BY 1, 2',
+    ):
+        values.append(resource(
+            'privilege', [grantee], privilege, generation,
+        ))
     tables = (
         ('branch', 'SELECT name, hash, latest_committer, latest_commit_date '
          'FROM dolt_branches ORDER BY name'),
@@ -807,8 +923,8 @@ def _extras(cursor, _request, generation):
             }))
     for table_name, conflicts in optional_rows(
         cursor,
-        'SELECT table_name, num_conflicts FROM dolt_conflicts '
-        'ORDER BY table_name',
+        'SELECT `table`, num_conflicts FROM dolt_conflicts '
+        'ORDER BY `table`',
     ):
         values.append(resource('conflict', [], table_name, generation, {
             'count': int(conflicts),

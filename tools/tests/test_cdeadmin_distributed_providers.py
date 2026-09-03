@@ -906,6 +906,90 @@ class DistributedProviderTests(unittest.TestCase):
         }
         self.assertTrue({'start', 'continue', 'abort'}.issubset(operations))
 
+    def test_dolt_visual_catalog_exposes_exact_relational_objects(self):
+        catalog = DOLT_ADMIN.catalog(catalog_for_engine('dolt'))
+        objects = {
+            item['resource_kind']: item for item in catalog['objects']
+        }
+        self.assertIn('trigger', objects)
+        self.assertIn('event', objects)
+        self.assertEqual(
+            {'inspect', 'create', 'drop'},
+            DOLT_ADMIN.dialect.supported['trigger'],
+        )
+        self.assertEqual(
+            {'inspect', 'create', 'alter', 'drop'},
+            DOLT_ADMIN.dialect.supported['event'],
+        )
+        declarations = catalog['concept_declarations']['relational']
+        self.assertEqual('not_applicable', declarations['functions']['status'])
+        self.assertEqual('not_applicable', declarations['sequences']['status'])
+
+    def test_dolt_event_editor_compiles_native_mysql_event_sql(self):
+        plan = DOLT_ADMIN.plan({
+            'resource_kind': 'event', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'nightly_commit', 'parent': 'inventory',
+                'schedule': 'EVERY 1 DAY', 'preserve': True,
+                'enabled': False, 'body': 'CALL DOLT_COMMIT()',
+            },
+            '_provider_route': {'host': '127.0.0.1', 'port': 3306},
+        })
+        statement = plan['provider_payload']['compiled']['statements'][0]
+        self.assertEqual(
+            'CREATE EVENT `inventory`.`nightly_commit` ON SCHEDULE '
+            'EVERY 1 DAY ON COMPLETION PRESERVE DISABLE DO '
+            'CALL DOLT_COMMIT()',
+            statement['source'],
+        )
+
+    def test_dolt_index_view_and_account_edits_use_supported_syntax(self):
+        route = {'host': '127.0.0.1', 'port': 3306, 'database': 'inventory'}
+        index = DOLT_ADMIN.plan({
+            'resource_kind': 'index', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'by_value', 'parent': 'inventory',
+                'table': 'inventory.items', 'columns': ['value'],
+                'unique': False,
+            },
+            '_provider_route': route,
+        })['provider_payload']['compiled']['statements'][0]['source']
+        self.assertEqual(
+            'CREATE INDEX `by_value` ON `inventory`.`items` (`value`)',
+            index,
+        )
+        view = DOLT_ADMIN.plan({
+            'resource_kind': 'view', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_id': 'view:inventory:current_items',
+                'resource_kind': 'view',
+                'display_name': 'current_items',
+                'display_path': ['inventory', 'current_items'],
+            },
+            'draft': {'query': 'SELECT id FROM items'},
+            '_provider_route': route,
+        })['provider_payload']['compiled']['statements'][0]['source']
+        self.assertEqual(
+            'CREATE OR REPLACE VIEW `inventory`.`current_items` AS '
+            'SELECT id FROM items',
+            view,
+        )
+        user = DOLT_ADMIN.plan({
+            'resource_kind': 'user', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_id': 'user:reader@%', 'resource_kind': 'user',
+                'display_name': 'reader@%', 'display_path': ['reader@%'],
+            },
+            'draft': {'password': 'replacement-secret'},
+            '_provider_route': route,
+        })['provider_payload']['compiled']['statements'][0]
+        self.assertEqual(
+            "ALTER USER 'reader'@'%' IDENTIFIED BY <redacted>",
+            user['preview_source'],
+        )
+
     def test_dolt_branch_transform_and_revert_are_parameterized(self):
         target = {
             'resource_id': 'branch:feature/old',

@@ -760,7 +760,9 @@ class RelationalAdministration:
                     'system_privileges', 'System privileges', 'json', False,
                     'Array of Firebird system privilege names.', [],
                 ))
-            elif kind == 'role' and self.dialect.engine_id == 'mysql':
+            elif kind == 'role' and self.dialect.engine_id in {
+                'mysql', 'dolt',
+            }:
                 fields.append(self._field(
                     'members', 'Initial members', 'json', False,
                     'Account names that receive this role. MySQL persists '
@@ -911,7 +913,7 @@ class RelationalAdministration:
                     'message', 'Exception message', 'text', True
                 ))
             elif kind == 'event' and self.dialect.engine_id in {
-                'mysql', 'mariadb',
+                'mysql', 'mariadb', 'dolt',
             }:
                 fields.extend((
                     self._field(
@@ -988,7 +990,7 @@ class RelationalAdministration:
                     self._field('columns', 'Module columns', 'json', True),
                 ))
             elif kind == 'user':
-                fields.extend((
+                user_fields = [
                     self._field('host', 'Host', 'text', False,
                                 default='%'),
                     self._field(
@@ -996,12 +998,20 @@ class RelationalAdministration:
                         'The value is redacted from validation and plans.',
                         sensitive=True,
                     ),
-                    self._field('plugin', 'Authentication plugin', 'text'),
-                    self._field('active', 'Account active', 'boolean',
-                                default=True),
-                    self._field('administrator', 'Administrator', 'boolean',
-                                default=False),
-                ))
+                ]
+                if self.dialect.engine_id != 'dolt':
+                    user_fields.extend((
+                        self._field(
+                            'plugin', 'Authentication plugin', 'text'
+                        ),
+                        self._field('active', 'Account active', 'boolean',
+                                    default=True),
+                        self._field(
+                            'administrator', 'Administrator', 'boolean',
+                            default=False,
+                        ),
+                    ))
+                fields.extend(user_fields)
             elif kind not in {'database', 'schema', 'role'}:
                 fields.append(self._field(
                     'properties', 'Object properties', 'json', False,
@@ -1041,20 +1051,24 @@ class RelationalAdministration:
                 ],
             }
         if operation == 'alter' and kind == 'user':
-            return {
-                'form_id': 'user.alter', 'title': 'Alter user',
-                'fields': [
-                    self._field(
-                        'password', 'New password', 'password', False,
-                        'Leave blank to retain the current password.',
-                        sensitive=True,
-                    ),
+            fields = [
+                self._field(
+                    'password', 'New password', 'password', False,
+                    'Leave blank to retain the current password.',
+                    sensitive=True,
+                ),
+            ]
+            if self.dialect.engine_id != 'dolt':
+                fields.extend((
                     self._field('plugin', 'Authentication plugin', 'text'),
                     self._field('active', 'Account active', 'boolean',
                                 default=True),
                     self._field('administrator', 'Administrator', 'boolean',
                                 default=False),
-                ],
+                ))
+            return {
+                'form_id': 'user.alter', 'title': 'Alter user',
+                'fields': fields,
             }
         if operation == 'alter' and kind == 'role' and (
             self.dialect.engine_id == 'firebird'
@@ -1142,7 +1156,7 @@ class RelationalAdministration:
                 )],
             }
         if operation == 'alter' and kind == 'event' and (
-            self.dialect.engine_id in {'mysql', 'mariadb'}
+            self.dialect.engine_id in {'mysql', 'mariadb', 'dolt'}
         ):
             return {
                 'form_id': 'event.alter', 'title': 'Alter event',
@@ -1333,7 +1347,7 @@ class RelationalAdministration:
             elif (
                 self.dialect.sql_family == 'postgresql' or
                 self.dialect.engine_id in {
-                    'duckdb', 'firebird', 'mysql', 'mariadb',
+                    'duckdb', 'firebird', 'mysql', 'mariadb', 'dolt',
                 }
             ):
                 index_name = self._quote(name)
@@ -1415,7 +1429,7 @@ class RelationalAdministration:
                 )
             members = options.get('members') or []
             if members:
-                if self.dialect.engine_id != 'mysql':
+                if self.dialect.engine_id not in {'mysql', 'dolt'}:
                     raise RelationalClientError(
                         'initial role members are unavailable for this engine'
                     )
@@ -1457,7 +1471,7 @@ class RelationalAdministration:
                 f'CREATE EXCEPTION {qualified} {self._literal(message)}'
             )
         elif kind == 'event' and self.dialect.engine_id in {
-            'mysql', 'mariadb',
+            'mysql', 'mariadb', 'dolt',
         }:
             schedule = self._safe_fragment(
                 options.get('schedule'), 'event schedule'
@@ -1836,14 +1850,17 @@ class RelationalAdministration:
         if kind == 'view':
             query = self._query_body(draft.get('definition'))
             command = 'ALTER VIEW'
-            if self.dialect.sql_family == 'postgresql':
+            if (
+                self.dialect.sql_family == 'postgresql' or
+                self.dialect.engine_id == 'dolt'
+            ):
                 command = 'CREATE OR REPLACE VIEW'
             return [{
                 'source': f'{command} {target} AS {query}',
                 'parameters': (),
             }]
         if kind == 'event' and self.dialect.engine_id in {
-            'mysql', 'mariadb',
+            'mysql', 'mariadb', 'dolt',
         }:
             clauses = []
             if changes.get('schedule'):

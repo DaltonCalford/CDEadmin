@@ -60,6 +60,10 @@ from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
     PROFILE as COCKROACHDB_PROFILE,
     create_provider as create_cockroachdb_provider,
 )
+from pgadmin.cdeadmin.providers.dolt.provider import (  # noqa: E402
+    PROFILE as DOLT_PROFILE,
+    create_provider as create_dolt_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -81,6 +85,7 @@ CATEGORIES = (
 )
 PROFILES = {
     'cockroachdb': COCKROACHDB_PROFILE,
+    'dolt': DOLT_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -90,6 +95,7 @@ PROFILES = {
 
 PROVIDER_FACTORIES = {
     'cockroachdb': create_cockroachdb_provider,
+    'dolt': create_dolt_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
@@ -97,6 +103,7 @@ PROVIDER_FACTORIES = {
 
 TARGET_ADAPTERS = {
     'cockroachdb': 'cockroachdb-postgresql-wire-client',
+    'dolt': 'dolt-mysql-wire-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -280,7 +287,7 @@ def _relational_editor_evidence(provider, request, engine):
     )
     if engine == 'firebird':
         parent = None
-    elif engine in {'mysql', 'mariadb'}:
+    elif engine in {'mysql', 'mariadb', 'dolt'}:
         parent = str(route['database'])
     elif engine == 'cockroachdb':
         parent = 'public'
@@ -496,7 +503,7 @@ def _relational_editor_evidence(provider, request, engine):
                     }, trigger,
                 )
 
-    if engine in {'mysql', 'mariadb'} and qualification is not None:
+    if engine in {'mysql', 'mariadb', 'dolt'} and qualification is not None:
         if attempt(
             'constraint.create', 'constraint', 'create', {
                 'name': 'cde_editor_unique', 'table': qualified_table,
@@ -536,10 +543,12 @@ def _relational_editor_evidence(provider, request, engine):
                     }, trigger,
                 )
 
-        for kind, returns, body in (
-            ('procedure', '', 'BEGIN SELECT 1; END'),
-            ('function', 'INTEGER', 'DETERMINISTIC RETURN 1'),
-        ):
+        routines = [('procedure', '', 'BEGIN SELECT 1; END')]
+        if engine != 'dolt':
+            routines.append(
+                ('function', 'INTEGER', 'DETERMINISTIC RETURN 1')
+            )
+        for kind, returns, body in routines:
             name = f'cde_editor_{kind}'
             if attempt(
                 f'{kind}.create', kind, 'create', {
@@ -583,13 +592,14 @@ def _relational_editor_evidence(provider, request, engine):
 
         role_name = 'cde_editor_role'
         role_draft = {'name': role_name}
-        if engine == 'mysql':
+        if engine in {'mysql', 'dolt'}:
             role_draft['members'] = [f'{route["user"]}@%']
         role = None
         if attempt('role.create', 'role', 'create', role_draft):
             role = inspect_created(
                 'role.inspect', 'role',
-                f'{role_name}@%' if engine == 'mysql' else role_name,
+                f'{role_name}@%'
+                if engine in {'mysql', 'dolt'} else role_name,
             )
 
         user_name = 'cde_editor_user'
@@ -597,8 +607,10 @@ def _relational_editor_evidence(provider, request, engine):
         if attempt(
             'user.create', 'user', 'create', {
                 'name': user_name, 'host': '%',
-                'password': secrets.token_urlsafe(24), 'active': True,
-                'administrator': False,
+                'password': secrets.token_urlsafe(24),
+                **({} if engine == 'dolt' else {
+                    'active': True, 'administrator': False,
+                }),
             },
         ):
             user = inspect_created(
@@ -607,8 +619,10 @@ def _relational_editor_evidence(provider, request, engine):
         if user is not None:
             attempt(
                 'user.alter', 'user', 'alter', {
-                    'password': secrets.token_urlsafe(24), 'active': False,
-                    'administrator': False,
+                    'password': secrets.token_urlsafe(24),
+                    **({} if engine == 'dolt' else {
+                        'active': False, 'administrator': False,
+                    }),
                 }, user,
             )
             grant_draft = {
@@ -631,7 +645,8 @@ def _relational_editor_evidence(provider, request, engine):
                     } | {'confirmation': 'revoke-live-editor-grant'},
                     privilege_target,
                 )
-            if attempt(
+            if provider.client.supports_admin_operation(
+                    'user', 'rename') and attempt(
                 'user.rename', 'user', 'rename', {
                     'new_name': 'cde_editor_user_renamed',
                 }, user,
@@ -1364,7 +1379,9 @@ def _relational_editor_evidence(provider, request, engine):
             'name': 'cde_editor_database',
         },
     )
-    if database_created and engine in {'cockroachdb', 'mysql', 'mariadb'}:
+    if database_created and engine in {
+        'cockroachdb', 'mysql', 'mariadb', 'dolt',
+    }:
         database = inspect_created(
             'database.inspect-created', 'database', 'cde_editor_database'
         )
@@ -1375,7 +1392,7 @@ def _relational_editor_evidence(provider, request, engine):
                         'character_set': 'utf8mb4',
                     }, database,
                 )
-            elif attempt(
+            elif engine == 'cockroachdb' and attempt(
                 'database.alter', 'database', 'alter', {
                     'properties': {
                         'rename_to': 'cde_editor_database_renamed',
@@ -1485,7 +1502,7 @@ class _TemporaryAccount:
 
     @property
     def marker(self):
-        return '%s' if self.engine == 'mysql' else '?'
+        return '%s' if self.engine in {'mysql', 'dolt'} else '?'
 
     @property
     def quoted_database(self):
@@ -1498,7 +1515,7 @@ class _TemporaryAccount:
             if self.socket_path else
             {'host': self.host, 'port': self.port}
         )
-        if self.engine == 'mysql':
+        if self.engine in {'mysql', 'dolt'}:
             import mysql.connector
             return mysql.connector.connect(
                 user='root', autocommit=True, **transport,
@@ -1514,10 +1531,14 @@ class _TemporaryAccount:
         database = self.quoted_database
         try:
             cursor.execute(f'CREATE DATABASE {database}')
+            partition = (
+                ' PARTITION BY HASH(id) PARTITIONS 2'
+                if self.engine in {'mysql', 'mariadb'} else ''
+            )
             cursor.execute(
                 f'CREATE TABLE {database}.qualification '
-                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL) '
-                'PARTITION BY HASH(id) PARTITIONS 2'
+                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL)'
+                f'{partition}'
             )
             cursor.execute(
                 f'INSERT INTO {database}.qualification VALUES (1, 42)'
@@ -1538,7 +1559,7 @@ class _TemporaryAccount:
                     "SOURCE_HOST='127.0.0.1', SOURCE_USER='nobody', "
                     "SOURCE_PORT=1 FOR CHANNEL 'cdeadmin_qualification'"
                 )
-            else:
+            elif self.engine == 'mariadb':
                 cursor.execute(
                     "CHANGE MASTER 'cdeadmin_qualification' TO "
                     "MASTER_HOST='127.0.0.1', MASTER_USER='nobody', "
@@ -1569,11 +1590,13 @@ class _TemporaryAccount:
                 cleanup = [
                     "RESET REPLICA ALL FOR CHANNEL 'cdeadmin_qualification'"
                 ]
-            else:
+            elif self.engine == 'mariadb':
                 cleanup = [
                     "RESET REPLICA 'cdeadmin_qualification' ALL",
                     'DROP SERVER IF EXISTS cdeadmin_qualification',
                 ]
+            else:
+                cleanup = []
             cleanup.extend((
                 f"DROP USER IF EXISTS '{self.username}'@"
                 f"'{self.account_host}'",
@@ -2256,7 +2279,9 @@ def verify(engine, host, port, socket_path=None, account=None):
         categories['language_api'] = 'passed'
 
         session = provider.open_session(request)
-        marker = '%s' if engine in {'cockroachdb', 'mysql'} else '?'
+        marker = (
+            '%s' if engine in {'cockroachdb', 'mysql', 'dolt'} else '?'
+        )
         source = f'SELECT {marker} AS value'
         if engine == 'firebird':
             source = (
@@ -2274,7 +2299,9 @@ def verify(engine, host, port, socket_path=None, account=None):
 
         _semantic_payload(provider, session, engine)
         categories['semantic_query'] = 'passed'
-        if engine in {'cockroachdb', 'firebird', 'mysql', 'mariadb'}:
+        if engine in {
+            'cockroachdb', 'firebird', 'mysql', 'mariadb', 'dolt',
+        }:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is
             # required by Firebird metadata dependencies and also prevents
