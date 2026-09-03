@@ -1,0 +1,48 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.cockroachdb", "provider_version": "0.1.0", "profile_id": "cockroachdb-native", "profile_version": "26.1.3", "evidence_reference": "cde-distributed:cockroachdb-native-live:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["cockroachdb"], "target_adapter_ids": ["postgresql-wire-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "CockroachDB 26.1.3",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 26257,
+    "default": false,
+    "target_adapter_version": "psycopg-3.3.4",
+    "connection_fields": [
+      {"field_id": "cockroach_path", "route_key": "cockroach_path", "label": "cockroach executable", "control": "file", "group": "CockroachDB control plane"},
+      {"field_id": "cockroach_certs_dir", "route_key": "cockroach_certs_dir", "label": "CLI certificate directory", "control": "text", "group": "CockroachDB control plane", "help": "Required for secure native CLI administration."},
+      {"field_id": "cockroach_insecure", "route_key": "cockroach_insecure", "label": "Use insecure CLI transport", "control": "boolean", "group": "CockroachDB control plane", "default": false},
+      {"field_id": "cockroach_cluster_name", "route_key": "cockroach_cluster_name", "label": "Cluster name", "control": "text", "group": "CockroachDB control plane"},
+      {"field_id": "cockroach_cli_timeout_seconds", "route_key": "cockroach_cli_timeout_seconds", "label": "CLI timeout (seconds)", "control": "number", "group": "CockroachDB control plane", "default": 120, "minimum": 1, "maximum": 3600},
+      {"field_id": "backup_destination_allowlist", "route_key": "backup_destination_allowlist", "label": "Backup URI allowlist", "control": "text", "group": "CockroachDB recovery", "help": "Comma-separated admitted URI prefixes."},
+      {"field_id": "changefeed_sink_allowlist", "route_key": "changefeed_sink_allowlist", "label": "Changefeed sink URI allowlist", "control": "text", "group": "CockroachDB replication", "help": "Comma-separated admitted URI prefixes."}
+    ]
+  },
+  "provenance": {"purpose": "CockroachDB exact-profile distributed provider", "protocol": "postgresql_wire", "client_state": "psycopg_3.3.4_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+}

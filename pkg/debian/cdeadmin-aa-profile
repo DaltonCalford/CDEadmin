@@ -1,0 +1,11 @@
+# This profile allows everything and only exists to give the application a
+# CDEadmin label instead of "unconfined".
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile cdeadmin /usr/cdeadmin/bin/cdeadmin flags=(unconfined) {
+  userns,
+
+  include if exists <local/cdeadmin>
+}

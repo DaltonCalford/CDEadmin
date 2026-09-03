@@ -1,0 +1,163 @@
+{
+  "schema": "cdeadmin.upstream-acceptance-catalog.v1",
+  "catalog_version": "1.0.0",
+  "candidate_protocol_version": "1.0.0",
+  "reference_corpus": "tools/cdeadmin_reference_corpus.json",
+  "differential_scenarios": "tools/tests/fixtures/cdeadmin_parity/scenario_catalog.json",
+  "authority_invariants": {
+    "engine_execution": "sblr_and_internal_procedures_only",
+    "object_identity": "uuid_backed",
+    "transaction_authority": "scratchbird_mga",
+    "finality_source": "durable_transaction_inventory",
+    "driver_finality_authority": false,
+    "donor_or_embedded_substitute": false,
+    "unknown_finality_remains_unknown": true,
+    "automatic_replay": false
+  },
+  "execution_policy": {
+    "qualifying_candidate_class": "live_upstream_candidate",
+    "qualifying_backend": "scratchbird_native_live",
+    "required_donor_transport": "actual_donor_listener",
+    "fixture_status": "fixture_observed",
+    "fixture_counts_as_pass": false,
+    "fixture_can_promote": false,
+    "embedded_backend": "forbidden",
+    "donor_backend_substitute": "forbidden",
+    "source_modification_required": false,
+    "evidence_maximum_age_days": 30
+  },
+  "contracts": {
+    "driver_platform": {"dependency": "D2_DRIVER", "search_key": "DRIVER-CORE-PLATFORM-CONTRACT"},
+    "driver_auth": {"dependency": "D2_DRIVER", "search_key": "DRIVER-CORE-AUTH-NEGOTIATION-AND-BOOTSTRAP-CONTRACT"},
+    "navigator": {"dependency": "D3_CDE", "search_key": "SB_SPEC_STRUCTURE_TREE_AND_NAVIGATOR_CONFORMANCE"},
+    "typed_results": {"dependency": "D3_CDE", "search_key": "PARSER-SERVER-TYPED-RESULT-CURSOR-CLOSURE-V1"},
+    "mga_driver": {"dependency": "D2_DRIVER", "search_key": "DRIVER-CORE-MGA-AWARE-SESSION-AND-TRANSACTION-BEHAVIOR"},
+    "operation_receipt": {"dependency": "D3_CDE", "search_key": "SB-MGA-MGMT-SBLR-CONFORMANCE"},
+    "donor_emulation": {"dependency": "D5_EMULATION", "search_key": "SB_SPEC_COMPAT_DONOR_CAPABILITY_NORMALIZATION_AUTHORITY"}
+  },
+  "suites": [
+    {
+      "suite_id": "corrected_driver_package_api_provenance",
+      "owner_contract": "driver_platform",
+      "promotes": ["scratchbird.driver.corrected_candidate"],
+      "cases": [
+        {"case_id": "driver.package.canonical_metadata", "operation": "inspect_package", "assertions": ["package_name_exact", "version_canonical", "python_floor_declared"]},
+        {"case_id": "driver.package.signed_artifact", "operation": "inspect_package", "assertions": ["artifact_digest_exact", "signature_verified", "signer_identity_exact"]},
+        {"case_id": "driver.package.sbom", "operation": "inspect_package", "assertions": ["sbom_present", "dependency_versions_exact", "vulnerability_policy_evidence"]},
+        {"case_id": "driver.api.public_exports", "operation": "inspect_public_api", "assertions": ["public_api_manifest_exact", "no_private_field_contract", "consumer_adapter_factory_public"]},
+        {"case_id": "driver.api.consumer_manifest", "operation": "inspect_public_api", "assertions": ["consumer_contract_1_0_0", "adapter_version_admitted", "all_consumer_methods_callable"]},
+        {"case_id": "driver.api.diagnostics_redaction", "operation": "inspect_public_api", "assertions": ["diagnostic_vector_public", "secrets_redacted", "occurrence_identity_public"]},
+        {"case_id": "driver.api.transaction_snapshot", "operation": "inspect_public_api", "assertions": ["immutable_transaction_snapshot_public", "mga_authority_declared", "unknown_finality_public"]},
+        {"case_id": "driver.provenance.release_packet", "operation": "inspect_provenance", "assertions": ["source_digest_exact", "build_digest_exact", "conformance_packet_exact"]}
+      ]
+    },
+    {
+      "suite_id": "direct_and_manager_proxy_routes",
+      "owner_contract": "driver_auth",
+      "promotes": ["scratchbird.route.direct_native", "scratchbird.route.manager_proxy"],
+      "cases": [
+        {"case_id": "route.direct.preflight", "operation": "probe_route", "assertions": ["direct_listener_exact", "tls_binding_exact", "auth_methods_negotiated"]},
+        {"case_id": "route.direct.staged_auth", "operation": "probe_route", "assertions": ["auth_not_guessed", "continuation_supported", "secret_not_echoed"]},
+        {"case_id": "route.direct.attach", "operation": "probe_route", "assertions": ["session_identity_opaque", "initial_mga_boundary_present", "capability_vector_current"]},
+        {"case_id": "route.direct.execute", "operation": "probe_route", "assertions": ["native_execution_admitted", "occurrence_identity_present", "typed_result_returned"]},
+        {"case_id": "route.direct.cancel", "operation": "probe_route", "assertions": ["occurrence_cancel_exact", "transport_outcome_reported", "finality_not_inferred"]},
+        {"case_id": "route.manager.preflight", "operation": "probe_route", "assertions": ["manager_identity_exact", "tls_binding_exact", "target_selection_required"]},
+        {"case_id": "route.manager.staged_auth", "operation": "probe_route", "assertions": ["manager_auth_distinct", "continuation_supported", "secret_not_echoed"]},
+        {"case_id": "route.manager.managed_attach", "operation": "probe_route", "assertions": ["managed_target_exact", "native_session_attached", "initial_mga_boundary_present"]},
+        {"case_id": "route.manager.execute", "operation": "probe_route", "assertions": ["native_execution_admitted", "route_identity_preserved", "typed_result_returned"]},
+        {"case_id": "route.cross_route.equivalence", "operation": "probe_route", "assertions": ["authorization_equivalent", "capabilities_equivalent", "mga_semantics_equivalent"]}
+      ]
+    },
+    {
+      "suite_id": "navigator_authorization_uuid_generation",
+      "owner_contract": "navigator",
+      "promotes": ["scratchbird.navigator.native"],
+      "cases": [
+        {"case_id": "navigator.authorized.roots", "operation": "observe_navigator", "assertions": ["authorized_roots_present", "physical_and_management_separate", "display_path_not_authority"]},
+        {"case_id": "navigator.hidden.non_disclosure", "operation": "observe_navigator", "assertions": ["hidden_objects_absent", "hidden_counts_absent", "hidden_names_absent"]},
+        {"case_id": "navigator.identity.uuid", "operation": "observe_navigator", "assertions": ["object_uuid_present", "no_synthetic_path_identity", "kind_uuid_consistent"]},
+        {"case_id": "navigator.generation.current", "operation": "observe_navigator", "assertions": ["catalog_generation_present", "security_generation_present", "capability_generation_present"]},
+        {"case_id": "navigator.generation.stale", "operation": "observe_navigator", "assertions": ["stale_request_refused", "current_generation_reported", "no_stale_cache_reuse"]},
+        {"case_id": "navigator.pagination", "operation": "observe_navigator", "assertions": ["page_identity_stable", "generation_bound_cursor", "bounded_page_size"]},
+        {"case_id": "navigator.virtual_groups", "operation": "observe_navigator", "assertions": ["virtual_group_labeled", "no_mutation_authority", "empty_groups_filtered"]},
+        {"case_id": "navigator.cross_session.isolation", "operation": "observe_navigator", "assertions": ["principal_scope_preserved", "endpoint_scope_preserved", "cache_not_shared_across_policy"]}
+      ]
+    },
+    {
+      "suite_id": "typed_results_cursors_backpressure",
+      "owner_contract": "typed_results",
+      "promotes": ["scratchbird.results.typed_cursor_stream"],
+      "cases": [
+        {"case_id": "result.scalar.roundtrip", "operation": "observe_result", "assertions": ["type_ids_exact", "nullability_exact", "values_lossless"]},
+        {"case_id": "result.composite.roundtrip", "operation": "observe_result", "assertions": ["arrays_structures_exact", "domains_preserved", "unknown_types_typed"]},
+        {"case_id": "cursor.lifecycle", "operation": "observe_result", "assertions": ["cursor_identity_opaque", "open_page_close_ordered", "closed_cursor_refused"]},
+        {"case_id": "cursor.backpressure", "operation": "observe_result", "assertions": ["window_bounded", "producer_pauses", "consumer_resume_exact"]},
+        {"case_id": "result.multiple_sets", "operation": "observe_result", "assertions": ["set_boundaries_typed", "descriptors_per_set", "terminal_state_exact"]},
+        {"case_id": "result.lob_stream", "operation": "observe_result", "assertions": ["lob_not_unbounded", "chunk_identity_ordered", "close_releases_stream"]},
+        {"case_id": "cursor.cancel_during_fetch", "operation": "observe_result", "assertions": ["occurrence_cancel_exact", "continuation_invalidated", "transaction_finality_not_inferred"]},
+        {"case_id": "result.resource_limits", "operation": "observe_result", "assertions": ["row_limit_enforced", "byte_limit_enforced", "limit_diagnostic_typed"]}
+      ]
+    },
+    {
+      "suite_id": "mga_transaction_boundaries_and_finality",
+      "owner_contract": "mga_driver",
+      "promotes": ["scratchbird.transaction.mga_presentation"],
+      "transaction_sensitive": true,
+      "cases": [
+        {"case_id": "mga.initial_boundary", "operation": "observe_transaction", "assertions": ["initial_boundary_active", "transaction_identity_opaque", "snapshot_present"]},
+        {"case_id": "mga.begin.settings", "operation": "observe_transaction", "assertions": ["already_in_transaction", "settings_staged_or_replaced", "no_idle_transaction_state"]},
+        {"case_id": "mga.savepoint.create", "operation": "observe_transaction", "assertions": ["savepoint_transaction_local", "same_transaction_identity", "savepoint_identity_exact"]},
+        {"case_id": "mga.savepoint.rollback", "operation": "observe_transaction", "assertions": ["partial_versions_hidden", "outer_work_visible_to_transaction", "boundary_not_replaced"]},
+        {"case_id": "mga.savepoint.release", "operation": "observe_transaction", "assertions": ["savepoint_retired", "transaction_remains_active", "released_savepoint_refused"]},
+        {"case_id": "mga.commit.replacement", "operation": "observe_transaction", "assertions": ["old_boundary_committed", "durable_inventory_evidence", "replacement_boundary_immediate"]},
+        {"case_id": "mga.rollback.replacement", "operation": "observe_transaction", "assertions": ["old_boundary_rolled_back", "versions_non_visible", "replacement_boundary_immediate"]},
+        {"case_id": "mga.autocommit.success", "operation": "observe_transaction", "assertions": ["statement_in_mga_boundary", "commit_evidence_exact", "replacement_consumed"]},
+        {"case_id": "mga.autocommit.failure", "operation": "observe_transaction", "assertions": ["failed_boundary_rolled_back", "replacement_not_rolled_back", "error_preserved"]},
+        {"case_id": "mga.prepare.replacement", "operation": "observe_transaction", "assertions": ["durable_prepared_state", "prepared_identity_exact", "replacement_boundary_immediate"]},
+        {"case_id": "mga.unknown_finality", "operation": "observe_transaction", "assertions": ["unknown_remains_unknown", "authoritative_resolution_required", "no_time_or_uuid_inference"]},
+        {"case_id": "mga.replay.refusal", "operation": "observe_transaction", "assertions": ["no_hidden_transaction_replay", "side_effect_replay_refused", "caller_control_required"]}
+      ]
+    },
+    {
+      "suite_id": "operation_lifecycle_receipt_topology_scope",
+      "owner_contract": "operation_receipt",
+      "promotes": ["scratchbird.operations.receipts"],
+      "cases": [
+        {"case_id": "operation.receipt.accepted", "operation": "observe_operation", "assertions": ["operation_id_opaque", "correlation_id_preserved", "accepted_not_success"]},
+        {"case_id": "operation.lifecycle.running", "operation": "observe_operation", "assertions": ["state_transition_monotonic", "progress_bounded", "endpoint_identity_preserved"]},
+        {"case_id": "operation.lifecycle.terminal", "operation": "observe_operation", "assertions": ["terminal_receipt_exact", "diagnostics_attached", "result_reference_typed"]},
+        {"case_id": "operation.correlation", "operation": "observe_operation", "assertions": ["request_operation_occurrence_distinct", "correlation_stable", "no_cross_endpoint_collision"]},
+        {"case_id": "operation.cancel", "operation": "observe_operation", "assertions": ["cancel_request_receipted", "cancel_outcome_distinct", "transaction_finality_not_inferred"]},
+        {"case_id": "operation.topology.scope", "operation": "observe_operation", "assertions": ["topology_scope_explicit", "target_generation_exact", "route_does_not_expand_scope"]},
+        {"case_id": "operation.topology.cross_endpoint", "operation": "observe_operation", "assertions": ["cross_endpoint_result_refused", "identity_not_rebound", "origin_evidence_retained"]},
+        {"case_id": "operation.topology.stale", "operation": "observe_operation", "assertions": ["stale_generation_refused", "current_generation_reported", "no_implicit_retarget"]}
+      ]
+    }
+  ],
+  "differential_suite": {
+    "suite_id": "exact_donor_listener_differential",
+    "owner_contract": "donor_emulation",
+    "case_id_template": "donor.{engine_id}.{scenario_id}",
+    "operation": "observe_differential",
+    "profile_count": 25,
+    "scenario_cell_count": 154,
+    "promotes_template": "scratchbird.emulation.{engine_id}.{reference_profile}",
+    "assertions": [
+      "exact_reference_profile",
+      "actual_donor_listener",
+      "scratchbird_emulation_listener",
+      "typed_observations_compared",
+      "semantic_delta_policy_applied",
+      "no_embedded_or_donor_substitute",
+      "authority_boundaries_preserved"
+    ]
+  },
+  "promotion_policy": {
+    "source": "current_qualifying_case_evidence_only",
+    "all_capability_cases_must_pass": true,
+    "blocked_refused_skipped_or_unknown_promotes": false,
+    "fixture_evidence_promotes": false,
+    "stale_evidence_promotes": false,
+    "manual_override": false
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin.parity-ledger.v1",
+  "title": "CDEadmin feature/disposition/delta/evidence ledger",
+  "type": "object",
+  "required": [
+    "schema", "ledger_id", "scenario_catalog", "profile_scopes",
+    "defaults", "results", "evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "cdeadmin.parity-ledger.v1"},
+    "ledger_id": {"type": "string", "minLength": 1},
+    "scenario_catalog": {"type": "string", "minLength": 1},
+    "profile_scopes": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["engine_id", "reference_profile"],
+        "additionalProperties": false,
+        "properties": {
+          "engine_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+          "reference_profile": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "required": ["reference_outcome", "scratchbird_emulation_outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "reference_outcome": {"const": "not_run"},
+        "scratchbird_emulation_outcome": {"const": "not_run"}
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "engine_id", "reference_profile", "scenario_id", "reference",
+          "scratchbird_emulation"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "engine_id": {"type": "string"},
+          "reference_profile": {"type": "string"},
+          "scenario_id": {"type": "string"},
+          "reference": {"$ref": "#/$defs/side"},
+          "scratchbird_emulation": {"$ref": "#/$defs/side"},
+          "semantic_delta": {"$ref": "#/$defs/delta"}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "cdeadmin.parity-evidence.v1"}
+    }
+  },
+  "$defs": {
+    "side": {
+      "type": "object",
+      "required": ["outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {"type": "string"},
+        "observation": {"type": "object"},
+        "evidence_id": {"type": "string"}
+      }
+    },
+    "delta": {
+      "type": "object",
+      "required": ["class", "bound", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "class": {"type": "string"},
+        "bound": {},
+        "detail": {"type": "string"}
+      }
+    }
+  }
+}

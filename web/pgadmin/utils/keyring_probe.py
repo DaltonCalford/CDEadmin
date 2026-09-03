@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -52,7 +52,7 @@ _PROBE_SCRIPT = (
     "        print('0')\n"
     "    else:\n"
     "        keyring.get_password(\n"
-    "            'pgAdmin4', 'entry_to_check_keyring_access')\n"
+    "            'CDEadmin', 'entry_to_check_keyring_access')\n"
     "        print('1')\n"
     "        print(name)\n"
     "except Exception:\n"

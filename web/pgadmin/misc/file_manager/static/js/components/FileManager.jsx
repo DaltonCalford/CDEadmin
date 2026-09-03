@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -396,7 +396,7 @@ export class FileManagerUtils {
     return new Promise((resolve) => {
       this.params.modal.confirm(
         gettext('Reload file?'),
-        gettext('The file has been modified by another program. Do you want to reload it and lose changes made in pgAdmin?'),
+        gettext('The file has been modified by another program. Do you want to reload it and lose changes made in CDEadmin?'),
         function () {
           resolve({
             loadFile: true,

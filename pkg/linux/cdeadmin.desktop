@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=CDEadmin
+Exec=/usr/cdeadmin/bin/cdeadmin
+Icon=cdeadmin
+Type=Application
+Categories=Development;Database;
+MimeType=text/html
+Comment=Multi-engine and multi-model database administration
+Keywords=database;db;sql;nosql;graph;analytics;query;administration;development;

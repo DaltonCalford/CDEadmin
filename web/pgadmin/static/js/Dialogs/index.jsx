@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -11,6 +11,7 @@ import pgAdmin from 'sources/pgadmin';
 import ConnectServerContent from './ConnectServerContent';
 import url_for from 'sources/url_for';
 import gettext from 'sources/gettext';
+import current_user from 'pgadmin.user_management.current_user';
 
 import getApiInstance from '../api_instance';
 import MasterPasswordContent from './MasterPasswordContent';
@@ -22,6 +23,7 @@ import RenameTabContent from './RenameTabContent';
 import { BROWSER_PANELS } from '../../../browser/static/js/constants';
 import ErrorBoundary from '../helpers/ErrorBoundary';
 import QuickSearch from '../QuickSearch';
+import ProviderWorkspaceContent from './ProviderWorkspaceContent';
 
 // This functions is used to show the connect server password dialog.
 export function showServerPassword() {
@@ -67,6 +69,53 @@ export function showServerPassword() {
       />
     );
   }, {id: 'id-connect-server'});
+}
+
+// Verify a provider-managed endpoint without entering PostgreSQL connect code.
+export function showEndpointVerification(
+  title, nodeObj, nodeData, treeNodeInfo, itemNodeData, onSuccess, onFailure,
+) {
+  const prompt = {
+    prompt_password: true,
+    prompt_tunnel_password: false,
+    username: nodeData.username,
+    server_label: nodeData.label || nodeData._label,
+    allow_save_password: current_user.allow_save_password,
+    errmsg: null,
+  };
+  pgAdmin.Browser.notifier.showModal(title, (onClose) => (
+    <ConnectServerContent
+      closeModal={onClose}
+      data={prompt}
+      onOK={(formData) => {
+        const api = getApiInstance();
+        const endpointUrl = nodeObj.generate_url(
+          itemNodeData, 'verify_endpoint', nodeData, true
+        );
+        api.post(endpointUrl, formData)
+          .then((res) => {
+            onClose();
+            onSuccess?.(res.data, nodeData, treeNodeInfo, itemNodeData);
+          })
+          .catch((error) => onFailure?.(error));
+      }}
+    />
+  ), {id: 'id-verify-endpoint'});
+}
+
+export function showProviderWorkspace(
+  title, nodeObj, nodeData, itemNodeData, initialTab='resources',
+) {
+  const endpointUrl = nodeObj.generate_url(
+    itemNodeData, 'cde_workspace', nodeData, true
+  );
+  pgAdmin.Browser.notifier.showModal(title, (onClose) => (
+    <ProviderWorkspaceContent
+      closeModal={onClose}
+      endpointUrl={endpointUrl}
+      initialTab={initialTab}
+    />
+  ), {id: 'id-provider-workspace', width: 1100, height: 720});
 }
 
 function masterPassCallbacks(masterpass_callback_queue) {
@@ -228,7 +277,7 @@ export function showChangeServerPassword() {
 }
 
 export function showChangeUserPassword(url) {
-  const title = gettext('Change pgAdmin User Password');
+  const title = gettext('Change CDEadmin User Password');
   pgAdmin.Browser.notifier.showModal(title, (onClose) => {
     return <ChangePasswordContent
       getInitData={()=>{

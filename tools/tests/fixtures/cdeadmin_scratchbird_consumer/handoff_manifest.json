@@ -1,0 +1,37 @@
+{
+  "schema": "cdeadmin.scratchbird-driver-adapter-manifest.v1",
+  "adapter_id": "cdeadmin.scratchbird.fixture-adapter",
+  "adapter_version": "1.0.0",
+  "consumer_contract_version": "1.0.0",
+  "provider_mode": "scratchbird_native",
+  "handoff_state": "pending_upstream_handoff",
+  "production": false,
+  "network_enabled": false,
+  "authentication_enabled": false,
+  "execution_enabled": false,
+  "driver_package_import": null,
+  "methods": [
+    "validate_configuration",
+    "connect",
+    "authenticate",
+    "close_connection",
+    "capabilities",
+    "navigate",
+    "execute",
+    "open_cursor",
+    "close_cursor",
+    "read_results",
+    "diagnostics",
+    "cancel",
+    "transaction_presentation"
+  ],
+  "authority_invariants": {
+    "engine_execution": "sblr_and_internal_procedures_only",
+    "internal_identity": "uuid_backed",
+    "transaction_authority": "scratchbird_mga",
+    "finality_source": "durable_transaction_inventory",
+    "driver_is_finality_authority": false,
+    "consumer_interprets_finality": false,
+    "cancellation_implies_rollback": false
+  }
+}

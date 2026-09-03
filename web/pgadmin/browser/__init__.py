@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -946,7 +946,7 @@ if hasattr(config, 'SECURITY_CHANGEABLE') and config.SECURITY_CHANGEABLE:
 
         return make_json_response(
             success=1,
-            info=gettext('pgAdmin user password changed successfully')
+            info=gettext('CDEadmin user password changed successfully')
         )
 
 # Only register route if SECURITY_RECOVERABLE is set to True

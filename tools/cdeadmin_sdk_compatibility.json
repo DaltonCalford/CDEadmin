@@ -1,0 +1,39 @@
+{
+  "schema": "cdeadmin.provider-sdk-compatibility-matrix.v1",
+  "contract_major": 1,
+  "contract_versions": [
+    {
+      "contract_version": "1.1.0",
+      "role": "current",
+      "expected": "compatible"
+    },
+    {
+      "contract_version": "1.0.0",
+      "role": "previous",
+      "expected": "compatible"
+    },
+    {
+      "contract_version": "2.0.0",
+      "role": "unsupported-major",
+      "expected": "rejected"
+    }
+  ],
+  "bindings": [
+    {
+      "binding": "python",
+      "artifact": "web/pgadmin/cdeadmin/contracts/v1/generated.py",
+      "runtime": "web/pgadmin/cdeadmin/contracts/v1/runtime.py"
+    },
+    {
+      "binding": "typescript",
+      "artifact": "web/pgadmin/cdeadmin/static/js/contracts/v1/generated.ts",
+      "runtime": "jest-structural-consumer"
+    }
+  ],
+  "compatibility_policy": {
+    "same_major": "additive-fields-and-open-enums-preserved",
+    "unknown_executable_capability": "deny",
+    "unsupported_major": "reject",
+    "transaction_presentation": "provider-native-opaque"
+  }
+}

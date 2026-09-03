@@ -1,11 +1,18 @@
 {
-  "name": "pgadmin4",
-  "description": "pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.",
-  "repository": "https://github.com/postgres/pgadmin4.git",
-  "author": "pgAdmin Development Team (https://www.pgadmin.org/)",
+  "name": "cdeadmin",
+  "productName": "CDEadmin",
+  "description": "CDEadmin multi-engine and multi-model database administration desktop runtime.",
+  "private": true,
+  "author": "CDEadmin contributors; derived from the pgAdmin Development Team's pgAdmin 4",
+  "cdeadminFork": {
+    "upstream": "pgAdmin 4",
+    "upstreamVersion": "9.17",
+    "relationship": "independent hard fork",
+    "upstreamSource": "https://github.com/pgadmin-org/pgadmin4"
+  },
   "license": "PostgreSQL",
   "type": "module",
-  "main": "src/js/pgadmin.js",
+  "main": "src/js/cdeadmin.js",
   "scripts": {
     "start": "electron .",
     "linter": "yarn run eslint -c .eslintrc.js ."

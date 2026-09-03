@@ -1,0 +1,38 @@
+{
+  "schema": "cdeadmin.actual-engine-executors.v1",
+  "executor_contract": {
+    "runtime_identity": "returns exact engine, profile, and runtime artifact digest",
+    "execute_scenario": "accepts scenario operation keys and returns typed provider-native observation",
+    "transaction_authority": "provider_native_opaque",
+    "common_finality_interpretation": false,
+    "source_packet_access": "read_only"
+  },
+  "default_state": "blocked_exact_runtime_not_admitted",
+  "executors": [
+    {"engine_id": "apache_ignite", "reference_profile": "2.17.0", "adapter_id": "apache_ignite_2_17", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "cassandra", "reference_profile": "5.0.8", "adapter_id": "cassandra_5_0", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "clickhouse", "reference_profile": "25.12.10.7-stable", "adapter_id": "clickhouse_25_12", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "cockroachdb", "reference_profile": "26.1.3", "adapter_id": "cockroachdb_26_1", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "dolt", "reference_profile": "1.86.6", "adapter_id": "dolt_1_86", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "duckdb", "reference_profile": "1.5.2", "adapter_id": "duckdb_1_5", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "firebird", "reference_profile": "5.0.4", "adapter_id": "firebird_5_0", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "foundationdb", "reference_profile": "7.3.77", "adapter_id": "foundationdb_7_3", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "immudb", "reference_profile": "1.11.0", "adapter_id": "immudb_1_11", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "influxdb", "reference_profile": "3.9.0", "adapter_id": "influxdb_3_9", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "mariadb", "reference_profile": "12.2.2", "adapter_id": "mariadb_12_2", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "milvus", "reference_profile": "2.6.5", "adapter_id": "milvus_2_6", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "mongodb", "reference_profile": "8.2.6", "adapter_id": "mongodb_8_2", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "mysql", "reference_profile": "9.7.0", "adapter_id": "mysql_9_7", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "neo4j", "reference_profile": "2026.04.0", "adapter_id": "neo4j_2026_04", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "opensearch", "reference_profile": "3.6.0", "adapter_id": "opensearch_3_6", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "opensearch_sql_ppl", "reference_profile": "3.6.0-sql-ppl", "adapter_id": "opensearch_sql_ppl_3_6", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "postgresql", "reference_profile": "18.3", "adapter_id": "postgresql_18_3", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "redis", "reference_profile": "8.6.2", "adapter_id": "redis_8_6", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "sqlite", "reference_profile": "3.53.0", "adapter_id": "sqlite_3_53", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "tidb", "reference_profile": "8.5.6", "adapter_id": "tidb_8_5", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "tikv", "reference_profile": "8.5.6", "adapter_id": "tikv_8_5", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "vitess", "reference_profile": "23.0.3", "adapter_id": "vitess_23_0", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "xtdb", "reference_profile": "2.1.0", "adapter_id": "xtdb_2_1", "state": "blocked_exact_runtime_not_admitted"},
+    {"engine_id": "yugabytedb", "reference_profile": "2025.2.2.2", "adapter_id": "yugabytedb_2025_2", "state": "blocked_exact_runtime_not_admitted"}
+  ]
+}

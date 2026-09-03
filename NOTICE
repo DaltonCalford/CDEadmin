@@ -1,0 +1,37 @@
+CDEadmin hard-fork notice and upstream attribution
+==================================================
+
+CDEadmin is an independent hard fork of pgAdmin 4, based on pgAdmin 4 9.17.
+CDEadmin is a separate multi-engine, multi-model database administration product and is not pgAdmin 4. It is not affiliated with or endorsed by the pgAdmin Development Team.
+
+The upstream pgAdmin 4 code is Copyright (C) 2013 - 2026, The pgAdmin Development Team and is distributed under the PostgreSQL Licence. CDEadmin
+continues to be distributed under the PostgreSQL Licence. The repository
+LICENSE file, upstream copyright headers, source history, and applicable
+third-party notices are retained and must be included in derived
+distributions.
+
+CDEadmin modifications are copyright their respective contributors.
+
+Major divergences from the upstream project include a provider-driven engine
+architecture, native ScratchBird support, management of independent reference
+engines, relational and non-relational administration, multi-model query
+workspaces, analytic semantic models and cubes, and distributed-system
+control-plane administration. ScratchBird emulation endpoints are deliberately
+treated like the corresponding native engine rather than as a special product
+mode.
+
+The active product name and visual identity are CDEadmin. Legacy identifiers
+such as the Python package `pgadmin`, JavaScript object `pgAdmin`, environment
+prefix `PGADMIN_`, and launcher `pgAdmin4.py` are retained only where changing
+them would break upstream API, configuration, migration, extension, or build
+compatibility. They do not identify the product shown to users. New
+CDEadmin-owned code must use CDEadmin names.
+
+The pgAdmin name and artwork are not CDEadmin product assets. PostgreSQL and
+the names of supported database engines are used only to identify supported
+technologies and their engine-specific administration surfaces. Their owners
+retain all rights in their names and marks.
+
+CDEadmin signing identities and update channels are independent and remain
+unassigned. A CDEadmin release is not yet approved until product, legal,
+security, and release-engineering controls are completed.

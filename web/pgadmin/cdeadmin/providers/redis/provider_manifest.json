@@ -1,0 +1,48 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.redis", "provider_version": "0.1.0", "profile_id": "redis-native", "profile_version": "8.6.2", "evidence_reference": "cde-redis-provider:redis-8.10.1-full-matrix:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["redis"], "target_adapter_ids": ["resp-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "Redis 8.6+",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 6379,
+    "default": false,
+    "target_adapter_version": "redis-py-6.4.0",
+    "connection_fields": [
+      {"field_id": "topology_mode", "route_key": "topology_mode", "label": "Topology", "control": "select", "group": "Redis topology", "default": "standalone", "options": [{"value": "standalone", "label": "Standalone or replica"}, {"value": "sentinel", "label": "Sentinel"}, {"value": "cluster", "label": "Redis Cluster"}]},
+      {"field_id": "contact_points", "route_key": "contact_points", "label": "Additional hosts (host:port, comma separated)", "control": "text", "group": "Redis topology"},
+      {"field_id": "sentinel_service", "route_key": "sentinel_service", "label": "Sentinel service name", "control": "text", "group": "Redis topology"},
+      {"field_id": "database", "route_key": "database", "label": "Logical database", "control": "number", "group": "Redis database", "default": 0, "minimum": 0, "maximum": 65535},
+      {"field_id": "username", "route_key": "username", "label": "ACL username", "control": "text", "group": "Redis authentication"},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "Redis TLS", "default": "disabled", "options": [{"value": "disabled", "label": "Disabled"}, {"value": "system-ca", "label": "System CA validation"}, {"value": "self-signed", "label": "Self-signed certificate"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "Redis TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "Redis TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "Redis TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "Redis timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "socket_timeout", "route_key": "socket_timeout", "label": "Command timeout (seconds)", "control": "number", "group": "Redis timeouts", "default": 30, "minimum": 1, "maximum": 600},
+      {"field_id": "health_check_interval", "route_key": "health_check_interval", "label": "Health-check interval (seconds)", "control": "number", "group": "Redis pool", "default": 30, "minimum": 0, "maximum": 300},
+      {"field_id": "client_name", "route_key": "client_name", "label": "Client name", "control": "text", "group": "Redis advanced", "default": "CDEadmin"},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "Redis operational tools"}
+    ]
+  },
+  "provenance": {"purpose": "Redis 8.6.2 reference profile supporting Redis >=8.6.0", "protocol": "resp", "client_state": "redis_py_6.4.0_verified", "runtime_state": "redis_8.10.1_full_topology_matrix_verified", "activation_gate": "passed", "live_evidence_reference": "cde-redis-live:redis-8.10.1:full-topology-matrix:20260902"}
+}

@@ -19,7 +19,7 @@
         our processes.
     -->
     <key>com.apple.security.application-groups</key>
-    <string>%TEAMID%.org.pgadmin.pgadmin4</string>
+    <string>%TEAMID%.org.scratchbird.cdeadmin</string>
 
     <!--
         We have no need for JIT on x86_64, but Electron won't start without it

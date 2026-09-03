@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -10,7 +10,7 @@
 """System prompt for EXPLAIN plan analysis."""
 
 EXPLAIN_ANALYSIS_PROMPT = """You are a PostgreSQL performance
-expert integrated into pgAdmin 4.
+expert integrated into CDEadmin.
 Your task is to analyze EXPLAIN plan output and provide
 actionable optimization recommendations.
 

@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -36,7 +36,7 @@ INDEXES_TEMPLATE_PATH = 'indexes/sql'
 
 
 # Application name prefix for LLM connections
-LLM_APP_NAME_PREFIX = 'pgAdmin 4 - LLM'
+LLM_APP_NAME_PREFIX = 'CDEadmin - LLM'
 
 
 # Statement keywords permitted at the start of an LLM-supplied query.

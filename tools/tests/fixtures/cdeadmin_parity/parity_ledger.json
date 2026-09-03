@@ -1,0 +1,38 @@
+{
+  "schema": "cdeadmin.parity-ledger.v1",
+  "ledger_id": "cdeadmin-parity-ledger-initial-v1",
+  "scenario_catalog": "tools/tests/fixtures/cdeadmin_parity/scenario_catalog.json",
+  "profile_scopes": [
+    {"engine_id": "apache_ignite", "reference_profile": "2.17.0"},
+    {"engine_id": "cassandra", "reference_profile": "5.0.8"},
+    {"engine_id": "clickhouse", "reference_profile": "25.12.10.7-stable"},
+    {"engine_id": "cockroachdb", "reference_profile": "26.1.3"},
+    {"engine_id": "dolt", "reference_profile": "1.86.6"},
+    {"engine_id": "duckdb", "reference_profile": "1.5.2"},
+    {"engine_id": "firebird", "reference_profile": "5.0.4"},
+    {"engine_id": "foundationdb", "reference_profile": "7.3.77"},
+    {"engine_id": "immudb", "reference_profile": "1.11.0"},
+    {"engine_id": "influxdb", "reference_profile": "3.9.0"},
+    {"engine_id": "mariadb", "reference_profile": "12.2.2"},
+    {"engine_id": "milvus", "reference_profile": "2.6.5"},
+    {"engine_id": "mongodb", "reference_profile": "8.2.6"},
+    {"engine_id": "mysql", "reference_profile": "9.7.0"},
+    {"engine_id": "neo4j", "reference_profile": "2026.04.0"},
+    {"engine_id": "opensearch", "reference_profile": "3.6.0"},
+    {"engine_id": "opensearch_sql_ppl", "reference_profile": "3.6.0-sql-ppl"},
+    {"engine_id": "postgresql", "reference_profile": "18.3"},
+    {"engine_id": "redis", "reference_profile": "8.6.2"},
+    {"engine_id": "sqlite", "reference_profile": "3.53.0"},
+    {"engine_id": "tidb", "reference_profile": "8.5.6"},
+    {"engine_id": "tikv", "reference_profile": "8.5.6"},
+    {"engine_id": "vitess", "reference_profile": "23.0.3"},
+    {"engine_id": "xtdb", "reference_profile": "2.1.0"},
+    {"engine_id": "yugabytedb", "reference_profile": "2025.2.2.2"}
+  ],
+  "defaults": {
+    "reference_outcome": "not_run",
+    "scratchbird_emulation_outcome": "not_run"
+  },
+  "results": [],
+  "evidence": []
+}

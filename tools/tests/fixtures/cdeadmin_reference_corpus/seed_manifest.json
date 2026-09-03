@@ -1,0 +1,31 @@
+{
+  "schema": "cdeadmin.seed-manifest.v1",
+  "classification": "public_synthetic_non_sensitive",
+  "adapter_policy": "model-neutral seeds only; engine-specific loaders belong to the parity runner",
+  "files": [
+    {
+      "path": "baseline_seed.json",
+      "sha256": "138e90690cba7af0b9612a241adf691b6b4efa4d36256b0c114c908ae03bf823",
+      "fixture_sets": [
+        "relational_core",
+        "document_wide_column",
+        "graph",
+        "vector",
+        "timeseries",
+        "search",
+        "key_value",
+        "distributed_consistency",
+        "versioned_data",
+        "analytic_columnar"
+      ]
+    }
+  ],
+  "prohibited_content": [
+    "credentials",
+    "tokens",
+    "personal_data",
+    "customer_data",
+    "proprietary_donor_data",
+    "absolute_local_paths"
+  ]
+}

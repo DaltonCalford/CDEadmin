@@ -38,9 +38,9 @@ echo "Creating preinst script..."
 cat << EOF > "${SERVERROOT}/DEBIAN/preinst"
 #!/bin/sh
 
-rm -rf /usr/pgadmin4/venv
-if [ -d /usr/pgadmin4/web ]; then
-  cd /usr/pgadmin4/web && rm -rf \$(ls -A -I config_local.py)
+rm -rf /usr/cdeadmin/venv
+if [ -d /usr/cdeadmin/web ]; then
+  cd /usr/cdeadmin/web && rm -rf \$(ls -A -I config_local.py)
 fi
 EOF
 
@@ -54,8 +54,8 @@ Section: database
 Priority: optional
 Depends: ${PYTHON_BINARY}, libpq5 (>= 11.0), libgssapi-krb5-2, python-dbus | python3-dbus
 Recommends: postgresql-client | postgresql-client-15 | postgresql-client-14 | postgresql-client-13 | postgresql-client-12 | postgresql-client-11 | postgresql-client-10
-Maintainer: pgAdmin Development Team <pgadmin-hackers@postgresql.org>
-Description: The core server package for pgAdmin. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+Maintainer: CDEadmin contributors <cdeadmin@localhost>
+Description: The CDEadmin server for provider-driven multi-engine and multi-model database administration.
 EOF
 
 # Build the Debian package for the server
@@ -76,20 +76,20 @@ OS_VERSION=$(grep "^VERSION_ID=" /etc/os-release | awk -F "=" '{ print $2 }' | s
 
 if [ "${OS_ID}" == 'ubuntu' ] && [ "${OS_VERSION}" -ge "24" ]; then
   cat << EOF > "${DESKTOPROOT}/DEBIAN/conffiles"
-/etc/apparmor.d/pgadmin4
+/etc/apparmor.d/cdeadmin
 EOF
 
   mkdir -p "${DESKTOPROOT}/etc/apparmor.d"
-  cp "${SOURCEDIR}/pkg/debian/pgadmin4-aa-profile" "${DESKTOPROOT}/etc/apparmor.d/pgadmin4"
+  cp "${SOURCEDIR}/pkg/debian/cdeadmin-aa-profile" "${DESKTOPROOT}/etc/apparmor.d/cdeadmin"
 
   cat << EOF > "${DESKTOPROOT}/DEBIAN/postinst"
 #!/bin/sh
 
-echo "Load apparmor pgAdmin profile..."
+echo "Load AppArmor CDEadmin profile..."
 if command -v apparmor_parser >/dev/null 2>&1; then
-  apparmor_parser -r /etc/apparmor.d/pgadmin4
+  apparmor_parser -r /etc/apparmor.d/cdeadmin
 else
-  echo "Warning: apparmor_parser not found, skipping profile load. pgAdmin desktop may not work on Ubuntu 24+ with userns restrictions."
+  echo "Warning: apparmor_parser not found; CDEadmin desktop may not work on Ubuntu 24+ with userns restrictions."
 fi
 EOF
   chmod 755 "${DESKTOPROOT}/DEBIAN/postinst"
@@ -102,8 +102,8 @@ Architecture: ${OS_ARCH}
 Section: database
 Priority: optional
 Depends: ${APP_NAME}-server (= ${APP_LONG_VERSION}), libatomic1, xdg-utils, python-dbus | python3-dbus
-Maintainer: pgAdmin Development Team <pgadmin-hackers@postgresql.org>
-Description: The desktop user interface for pgAdmin. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+Maintainer: CDEadmin contributors <cdeadmin@localhost>
+Description: The CDEadmin desktop interface for multi-engine and multi-model database administration.
 EOF
 
 # Build the Debian package for the desktop
@@ -119,7 +119,7 @@ echo "Creating the web package..."
 mkdir "${WEBROOT}/DEBIAN"
 
 cat << EOF > "${WEBROOT}/DEBIAN/conffiles"
-/etc/apache2/conf-available/pgadmin4.conf
+/etc/apache2/conf-available/cdeadmin.conf
 EOF
 
 cat << EOF > "${WEBROOT}/DEBIAN/control"
@@ -129,12 +129,12 @@ Architecture: all
 Section: database
 Priority: optional
 Depends: ${APP_NAME}-server (= ${APP_LONG_VERSION}), apache2, libapache2-mod-wsgi-py3
-Maintainer: pgAdmin Development Team <pgadmin-hackers@postgresql.org>
-Description: The web interface for pgAdmin, hosted under Apache HTTPD. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+Maintainer: CDEadmin contributors <cdeadmin@localhost>
+Description: The CDEadmin multi-engine web interface, hosted under Apache HTTPD.
 EOF
 
 mkdir -p "${WEBROOT}/etc/apache2/conf-available"
-cp "${SOURCEDIR}/pkg/debian/pgadmin4.conf" "${WEBROOT}/etc/apache2/conf-available"
+cp "${SOURCEDIR}/pkg/debian/cdeadmin.conf" "${WEBROOT}/etc/apache2/conf-available"
 
 # Build the Debian package for the web
 chmod -R u+rwX,go+rX,go-w "${WEBROOT}"
@@ -155,8 +155,8 @@ Architecture: all
 Section: database
 Priority: optional
 Depends: ${APP_NAME}-server (= ${APP_LONG_VERSION}), ${APP_NAME}-desktop (= ${APP_LONG_VERSION}), ${APP_NAME}-web (= ${APP_LONG_VERSION})
-Maintainer: pgAdmin Development Team <pgadmin-hackers@postgresql.org>
-Description: Installs all required components to run pgAdmin in desktop and web modes. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+Maintainer: CDEadmin contributors <cdeadmin@localhost>
+Description: Installs all required components to run CDEadmin in desktop and web modes.
 EOF
 
 # Build the Debian meta package

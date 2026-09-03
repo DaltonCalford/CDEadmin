@@ -1,13 +1,13 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
 
-"""Implements pgAdmin4 User validity."""
+"""Implement CDEadmin user validity in the legacy package namespace."""
 
 from functools import wraps
 from flask_security import login_required

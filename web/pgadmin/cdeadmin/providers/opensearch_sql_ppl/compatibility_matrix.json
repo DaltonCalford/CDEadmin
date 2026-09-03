@@ -1,0 +1,16 @@
+{
+  "schema": "cdeadmin.opensearch-sql-ppl-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.opensearch_sql_ppl",
+  "reference_profile": "3.6.0-sql-ppl",
+  "required_identities": {"opensearch": "3.6.0", "opensearch-sql": "3.6.0.0"},
+  "capabilities": {
+    "native": ["sql", "ppl", "jdbc_json_results", "parameters", "datasource_administration", "language_settings"],
+    "explicitly_unavailable": ["multi_request_transactions", "automatic_query_replay", "saved_query_server_object"],
+    "saved_query_note": "Saved queries are a client/workspace concern unless a separately qualified Dashboards service is configured"
+  },
+  "live_qualification": [
+    {"deployment": "disposable_single_node_plaintext_http", "server_version": "3.6.0", "plugin_version": "3.6.0.0", "status": "passed", "evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["authenticated_requests", "verified_tls", "restart", "controlled_disconnect_fault", "external_data_sources"]
+}

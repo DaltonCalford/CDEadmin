@@ -1,0 +1,51 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.tidb", "provider_version": "0.1.0", "profile_id": "tidb-native", "profile_version": "8.5.6", "evidence_reference": "cde-distributed:tidb-native-live:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["tidb"], "target_adapter_ids": ["mysql-wire-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "TiDB 8.5.6",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 4000,
+    "default": false,
+    "target_adapter_version": "mysql-connector-python-26.7.0",
+    "connection_fields": [
+      {"field_id": "br_path", "route_key": "br_path", "label": "BR executable", "control": "file", "group": "TiDB recovery"},
+      {"field_id": "br_pd_addresses", "route_key": "br_pd_addresses", "label": "BR PD addresses", "control": "text", "group": "TiDB recovery", "help": "Comma-separated PD host:port addresses."},
+      {"field_id": "br_storage_allowlist", "route_key": "br_storage_allowlist", "label": "BR storage URI allowlist", "control": "text", "group": "TiDB recovery", "help": "Comma-separated admitted storage URI prefixes."},
+      {"field_id": "br_ca", "route_key": "br_ca", "label": "BR CA file", "control": "file", "group": "TiDB recovery TLS"},
+      {"field_id": "br_cert", "route_key": "br_cert", "label": "BR certificate file", "control": "file", "group": "TiDB recovery TLS"},
+      {"field_id": "br_key", "route_key": "br_key", "label": "BR private-key file", "control": "file", "group": "TiDB recovery TLS", "sensitive": true},
+      {"field_id": "br_timeout_seconds", "route_key": "br_timeout_seconds", "label": "BR timeout (seconds)", "control": "number", "group": "TiDB recovery", "default": 3600, "minimum": 1, "maximum": 86400}
+      ,{"field_id": "ticdc_path", "route_key": "ticdc_path", "label": "TiCDC executable", "control": "file", "group": "TiDB change data capture"}
+      ,{"field_id": "ticdc_server", "route_key": "ticdc_server", "label": "TiCDC coordinator URL", "control": "text", "group": "TiDB change data capture", "help": "Exact http(s) URL including the TiCDC coordinator port."}
+      ,{"field_id": "ticdc_sink_allowlist", "route_key": "ticdc_sink_allowlist", "label": "TiCDC sink URI allowlist", "control": "text", "group": "TiDB change data capture", "help": "Comma-separated admitted sink URI prefixes."}
+      ,{"field_id": "ticdc_timeout_seconds", "route_key": "ticdc_timeout_seconds", "label": "TiCDC timeout (seconds)", "control": "number", "group": "TiDB change data capture", "default": 120, "minimum": 1, "maximum": 86400}
+    ]
+  },
+  "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+}

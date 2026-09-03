@@ -1,0 +1,30 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.vitess", "provider_version": "0.1.0", "profile_id": "vitess-native", "profile_version": "23.0.3", "evidence_reference": "cde-distributed:vitess-native-live:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["vitess"], "target_adapter_ids": ["vtgate-mysql-wire-client"]},
+  "extension_schema": null,
+  "registration": {"display_name": "Vitess 23.0.3", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "default_port": 15306, "default": false, "target_adapter_version": "mysql-connector-python-26.7.0", "connection_fields": [{"field_id": "vtgate_http_host", "route_key": "vtgate_http_host", "label": "VTGate HTTP host", "control": "text", "group": "Vitess identity"}, {"field_id": "vtgate_http_port", "route_key": "vtgate_http_port", "label": "VTGate HTTP port", "control": "number", "group": "Vitess identity", "default": 15001, "minimum": 1, "maximum": 65535}, {"field_id": "vtgate_http_tls_mode", "route_key": "vtgate_http_tls_mode", "label": "VTGate HTTP TLS mode", "control": "select", "group": "Vitess identity", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]}, {"field_id": "vtgate_http_ca_file", "route_key": "vtgate_http_ca_file", "label": "VTGate HTTP CA file", "control": "text", "group": "Vitess identity"}, {"field_id": "vtctldclient_path", "route_key": "vtctldclient_path", "label": "vtctldclient executable", "control": "file", "group": "Vitess control plane"}, {"field_id": "vtctld_server", "route_key": "vtctld_server", "label": "VTctld gRPC address", "control": "text", "group": "Vitess control plane"}]},
+  "provenance": {"purpose": "Vitess exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+}

@@ -1,0 +1,508 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdeadmin.invalid/contracts/v1/contract.schema.json",
+  "title": "CDEadmin Provider Contract v1",
+  "description": "Engine-neutral envelopes. Provider semantics remain provider-owned.",
+  "contract_version": "1.1.0",
+  "x-cdeadmin-supported-contract-versions": {
+    "current": "1.1.0",
+    "previous": ["1.0.0"]
+  },
+  "x-cdeadmin-compatibility": {
+    "unknown_fields": "preserve",
+    "unknown_enums": "preserve_but_do_not_activate",
+    "unknown_read_capabilities": "display_only",
+    "unknown_mutating_capabilities": "deny",
+    "major_version": "reject_if_unsupported",
+    "minor_version": "accept_additive_changes",
+    "transaction_payload": "provider_native_opaque"
+  },
+  "x-cdeadmin-provider-interfaces": {
+    "EndpointProvider": {
+      "validate_endpoint": ["Endpoint", "Diagnostic"],
+      "discover_endpoint": ["Endpoint", "Endpoint"]
+    },
+    "EndpointValidator": {
+      "validate_configuration": ["Endpoint", "array:Diagnostic"]
+    },
+    "ProtocolProvider": {
+      "negotiate_protocol": ["Endpoint", "Session"]
+    },
+    "EmbeddedRuntimeProvider": {
+      "open_runtime": ["Endpoint", "Session"]
+    },
+    "CompatibilityProfileProvider": {
+      "describe_compatibility": ["Endpoint", "array:Parity"]
+    },
+    "CapabilityProvider": {
+      "get_capabilities": ["Endpoint", "array:Capability"]
+    },
+    "ResourceProvider": {
+      "list_resources": ["Resource", "array:Resource"],
+      "inspect_resource": ["Resource", "Resource"]
+    },
+    "MetadataProvider": {
+      "describe_metadata": ["Resource", "Resource"]
+    },
+    "MutationProvider": {
+      "mutate_resource": ["Operation", "Operation"]
+    },
+    "LanguageProvider": {
+      "describe_language": ["Endpoint", "array:Resource"]
+    },
+    "CompletionProvider": {
+      "complete": ["Execution", "Result"]
+    },
+    "ExplainProvider": {
+      "explain": ["Execution", "Result"]
+    },
+    "SessionProvider": {
+      "open_session": ["Endpoint", "Session"],
+      "describe_transaction": ["Session", "TransactionPresentation"]
+    },
+    "TransactionPresentationProvider": {
+      "describe_transaction": ["Session", "TransactionPresentation"]
+    },
+    "ExecutionProvider": {
+      "execute": ["Execution", "Operation"],
+      "cancel": ["Operation", "Operation"]
+    },
+    "ResultProvider": {
+      "describe_result": ["Operation", "Result"]
+    },
+    "ResultRenderer": {
+      "select_renderer": ["Result", "Resource"]
+    },
+    "DiagnosticProvider": {
+      "translate_diagnostic": ["Diagnostic", "Diagnostic"]
+    },
+    "EventProvider": {
+      "get_events": ["Operation", "array:Event"]
+    },
+    "OperationProvider": {
+      "get_operation": ["Operation", "Operation"]
+    },
+    "ParityEvidenceProvider": {
+      "get_evidence": ["Parity", "Evidence"]
+    },
+    "ObservabilityProvider": {
+      "observe": ["Endpoint", "array:Event"]
+    },
+    "SecurityProvider": {
+      "describe_security": ["Resource", "Resource"]
+    },
+    "TopologyProvider": {
+      "describe_topology": ["Endpoint", "array:Resource"]
+    },
+    "DataMovementProvider": {
+      "move_data": ["Operation", "Operation"]
+    },
+    "ToolProvider": {
+      "list_tools": ["Endpoint", "array:Resource"]
+    },
+    "ModelProvider": {
+      "describe_model": ["Resource", "Resource"]
+    },
+    "ModelDesignerProvider": {
+      "validate_design": ["Resource", "array:Diagnostic"]
+    },
+    "SemanticLayerProvider": {
+      "describe_semantics": ["Resource", "Resource"]
+    },
+    "AnalyticalQueryProvider": {
+      "execute_analysis": ["Execution", "Operation"]
+    },
+    "PipelineProvider": {
+      "describe_pipeline": ["Resource", "Resource"]
+    },
+    "MaterializationProvider": {
+      "refresh_materialization": ["Operation", "Operation"]
+    },
+    "VisualizationProvider": {
+      "describe_visualization": ["Result", "Resource"]
+    },
+    "ModelConversionProvider": {
+      "describe_conversion": ["Resource", "Parity"]
+    },
+    "DistributedControlProvider": {
+      "control_operation": ["Operation", "Operation"]
+    }
+  },
+  "$defs": {
+    "EnvelopeIdentity": {
+      "type": "object",
+      "description": "Versioned provenance carried by every exchange envelope.",
+      "required": [
+        "contract_version",
+        "provider_id",
+        "provider_version",
+        "profile_id",
+        "profile_version",
+        "evidence_reference"
+      ],
+      "properties": {
+        "contract_version": {"type": "string"},
+        "provider_id": {"type": "string"},
+        "provider_version": {"type": "string"},
+        "profile_id": {"type": "string"},
+        "profile_version": {"type": "string"},
+        "evidence_reference": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "ProviderPermission": {
+      "type": "object",
+      "required": ["permission_id", "granted", "scope"],
+      "properties": {
+        "permission_id": {
+          "type": "string",
+          "x-known-values": [
+            "network", "filesystem", "embedded_runtime", "secret_read",
+            "data_read", "data_write", "administer", "execute",
+            "topology_admin", "security_admin", "backup_admin",
+            "restore_admin", "replication_admin", "maintenance_admin",
+            "upgrade_admin"
+          ]
+        },
+        "granted": {"type": "boolean"},
+        "scope": {"type": "array", "items": {"type": "string"}},
+        "reason": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "ProviderManifest": {
+      "type": "object",
+      "required": [
+        "identity", "package_type", "sdk_compatibility", "support_state",
+        "enabled", "fixture", "production_registration", "contracts",
+        "permissions"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "package_type": {
+          "type": "string",
+          "x-known-values": ["engine", "model", "connector"]
+        },
+        "sdk_compatibility": {
+          "type": "object",
+          "required": ["minimum", "maximum_exclusive"],
+          "properties": {
+            "minimum": {"type": "string"},
+            "maximum_exclusive": {"type": "string"}
+          },
+          "additionalProperties": true
+        },
+        "support_state": {
+          "type": "string",
+          "x-known-values": [
+            "implemented", "compatibility_mapped", "connector_managed",
+            "experimental", "deferred", "unsupported"
+          ]
+        },
+        "enabled": {"type": "boolean"},
+        "fixture": {"type": "boolean"},
+        "production_registration": {"type": "boolean"},
+        "contracts": {"type": "array", "items": {"type": "string"}},
+        "permissions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ProviderPermission"}
+        },
+        "required_permissions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "composition": {
+          "type": "object",
+          "required": ["experience_families", "target_adapter_ids"],
+          "properties": {
+            "experience_families": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "target_adapter_ids": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          },
+          "additionalProperties": true
+        },
+        "extension_schema": {"type": ["string", "null"]},
+        "provenance": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Endpoint": {
+      "type": "object",
+      "required": [
+        "identity", "endpoint_id", "mode", "declared_runtime",
+        "verified_runtime", "route", "capability_generation"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "endpoint_id": {"type": "string"},
+        "mode": {
+          "type": "string",
+          "x-known-values": [
+            "legacy_native", "scratchbird_native"
+          ]
+        },
+        "declared_runtime": {"type": "object", "additionalProperties": true},
+        "verified_runtime": {"type": ["object", "null"], "additionalProperties": true},
+        "route": {"type": "object", "additionalProperties": true},
+        "capability_generation": {"type": "string"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Capability": {
+      "type": "object",
+      "required": [
+        "identity", "capability_id", "support_state", "mutation_class",
+        "enabled", "required_permissions", "scope"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "capability_id": {"type": "string"},
+        "support_state": {
+          "type": "string",
+          "x-known-values": [
+            "implemented", "compatibility_mapped", "connector_managed",
+            "experimental", "deferred", "unsupported"
+          ]
+        },
+        "mutation_class": {
+          "type": "string",
+          "x-known-values": ["none", "read", "write", "admin", "destructive"]
+        },
+        "enabled": {"type": "boolean"},
+        "required_permissions": {
+          "type": "array", "items": {"type": "string"}
+        },
+        "scope": {"type": "array", "items": {"type": "string"}},
+        "limits": {"type": "object", "additionalProperties": true},
+        "refusal_diagnostic": {"$ref": "#/$defs/Diagnostic"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Resource": {
+      "type": "object",
+      "required": [
+        "identity", "endpoint_id", "resource_id", "identity_kind",
+        "resource_kind", "model_family", "display_name", "authority_path",
+        "is_virtual", "generation", "capability_ids"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "endpoint_id": {"type": "string"},
+        "resource_id": {"type": "string", "description": "Opaque provider authority ID."},
+        "identity_kind": {"type": "string"},
+        "resource_kind": {"type": "string"},
+        "model_family": {"type": "string"},
+        "display_name": {"type": "string"},
+        "parent_resource_id": {"type": ["string", "null"]},
+        "display_path": {"type": "array", "items": {"type": "string"}},
+        "authority_path": {"type": "array", "items": {"type": "string"}},
+        "is_virtual": {"type": "boolean"},
+        "generation": {"type": "string"},
+        "capability_ids": {"type": "array", "items": {"type": "string"}},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Session": {
+      "type": "object",
+      "required": [
+        "identity", "session_id", "endpoint_id", "route_id",
+        "principal_reference", "language_profile", "transaction_model",
+        "provider_state", "occurrence_id"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "session_id": {"type": "string"},
+        "endpoint_id": {"type": "string"},
+        "route_id": {"type": "string"},
+        "principal_reference": {"type": "string"},
+        "language_profile": {"type": "string"},
+        "transaction_model": {"type": "string"},
+        "provider_state": {"type": "object", "additionalProperties": true},
+        "occurrence_id": {"type": "string"},
+        "limits": {"type": "object", "additionalProperties": true},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "TransactionPresentation": {
+      "type": "object",
+      "description": "Opaque provider-native transaction and finality presentation; common code must not infer transitions.",
+      "required": [
+        "identity", "session_id", "transaction_model", "provider_payload",
+        "authority_reference"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "session_id": {"type": "string"},
+        "transaction_model": {"type": "string"},
+        "provider_payload": {
+          "type": "object",
+          "description": "Provider-native opaque state, boundary, occurrence and finality data.",
+          "additionalProperties": true
+        },
+        "authority_reference": {"type": "string"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Execution": {
+      "type": "object",
+      "required": [
+        "identity", "execution_id", "session_id", "language_profile",
+        "source", "parameters", "deadline", "output_policy"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "execution_id": {"type": "string"},
+        "session_id": {"type": "string"},
+        "language_profile": {"type": "string"},
+        "source": {"type": "string"},
+        "parameters": {"type": "object", "additionalProperties": true},
+        "deadline": {"type": ["string", "null"]},
+        "output_policy": {"type": "object", "additionalProperties": true},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Result": {
+      "type": "object",
+      "required": [
+        "identity", "result_id", "execution_id", "result_kind", "schema",
+        "stream_reference", "complete"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "result_id": {"type": "string"},
+        "execution_id": {"type": "string"},
+        "result_kind": {
+          "type": "string",
+          "x-known-values": [
+            "tabular", "document", "graph", "key_value", "time_series",
+            "vector", "search", "spatial", "columnar", "wide_column", "cellset",
+            "scalar", "binary", "plan", "operation_receipt"
+          ]
+        },
+        "schema": {"type": "object", "additionalProperties": true},
+        "stream_reference": {"type": ["string", "null"]},
+        "complete": {"type": "boolean"},
+        "continuation": {"type": ["string", "null"]},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Diagnostic": {
+      "type": "object",
+      "required": [
+        "identity", "diagnostic_id", "severity", "code", "message",
+        "retryable", "details"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "diagnostic_id": {"type": "string"},
+        "severity": {
+          "type": "string",
+          "x-known-values": ["info", "warning", "error", "fatal", "unknown"]
+        },
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "retryable": {"type": "boolean"},
+        "details": {"type": "object", "additionalProperties": true},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Event": {
+      "type": "object",
+      "required": [
+        "identity", "event_id", "event_kind", "occurred_at", "sequence",
+        "subject_id", "payload"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "event_id": {"type": "string"},
+        "event_kind": {"type": "string"},
+        "occurred_at": {"type": "string"},
+        "sequence": {"type": "integer"},
+        "subject_id": {"type": "string"},
+        "payload": {"type": "object", "additionalProperties": true},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Operation": {
+      "type": "object",
+      "required": [
+        "identity", "operation_id", "operation_kind", "target_resource_id",
+        "capability_id", "risk_class", "provider_state", "terminal",
+        "provider_receipt"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "operation_id": {"type": "string"},
+        "operation_kind": {"type": "string"},
+        "target_resource_id": {"type": ["string", "null"]},
+        "capability_id": {"type": "string"},
+        "risk_class": {
+          "type": "string",
+          "x-known-values": ["read", "write", "admin", "destructive", "unknown"]
+        },
+        "provider_state": {"type": "object", "additionalProperties": true},
+        "terminal": {"type": "boolean"},
+        "provider_receipt": {"type": ["object", "null"], "additionalProperties": true},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Evidence": {
+      "type": "object",
+      "required": [
+        "identity", "evidence_id", "evidence_kind", "subject_id",
+        "collected_at", "expires_at", "digest", "location"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "evidence_id": {"type": "string"},
+        "evidence_kind": {"type": "string"},
+        "subject_id": {"type": "string"},
+        "collected_at": {"type": "string"},
+        "expires_at": {"type": ["string", "null"]},
+        "digest": {"type": "string"},
+        "location": {"type": "string"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    },
+    "Parity": {
+      "type": "object",
+      "required": [
+        "identity", "parity_id", "feature_id", "reference_profile",
+        "disposition", "semantic_deltas", "evidence_ids", "current"
+      ],
+      "properties": {
+        "identity": {"$ref": "#/$defs/EnvelopeIdentity"},
+        "parity_id": {"type": "string"},
+        "feature_id": {"type": "string"},
+        "reference_profile": {"type": "string"},
+        "disposition": {
+          "type": "string",
+          "x-known-values": [
+            "native", "mapped", "bounded_emulation", "refused", "deferred"
+          ]
+        },
+        "semantic_deltas": {"type": "array", "items": {"type": "string"}},
+        "evidence_ids": {"type": "array", "items": {"type": "string"}},
+        "current": {"type": "boolean"},
+        "extensions": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": true
+    }
+  }
+}

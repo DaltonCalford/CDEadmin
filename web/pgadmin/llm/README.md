@@ -1,6 +1,6 @@
-# pgAdmin LLM Integration
+# CDEadmin LLM Integration
 
-This module provides AI/LLM functionality for pgAdmin, including database security analysis, performance reports, and design reviews powered by large language models.
+This module provides AI/LLM functionality for CDEadmin, including database security analysis, performance reports, and design reviews powered by large language models.
 
 ## Features
 
@@ -30,7 +30,7 @@ If API keys are not found, the LLM features will be gracefully disabled.
 
 ### Python Tests
 
-The Python test suite uses pgAdmin's existing test framework based on `BaseTestGenerator` with the scenarios pattern.
+The Python test suite uses CDEadmin's existing test framework based on `BaseTestGenerator` with the scenarios pattern.
 
 Run all LLM tests:
 ```bash
@@ -82,7 +82,7 @@ Test files:
 
 ## Usage
 
-Access AI reports through the pgAdmin browser tree:
+Access AI reports through the CDEadmin browser tree:
 1. Right-click on a server, database, or schema
 2. Select "AI Analysis" submenu
 3. Choose report type (Security, Performance, or Design)

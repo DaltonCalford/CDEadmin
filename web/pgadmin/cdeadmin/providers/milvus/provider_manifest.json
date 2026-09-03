@@ -1,0 +1,28 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.milvus", "provider_version": "0.1.0", "profile_id": "milvus-native", "profile_version": "2.6.5", "evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["milvus"], "target_adapter_ids": ["pymilvus-grpc-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "Milvus 2.6.5", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 19530, "default": false, "target_adapter_version": "pymilvus-2.6.x",
+    "connection_fields": [
+      {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "Milvus database", "default": "default"},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "Milvus authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}]},
+      {"field_id": "consistency_level", "route_key": "consistency_level", "label": "Consistency level", "control": "select", "group": "Milvus query", "default": "Bounded", "options": [{"value": "Strong", "label": "Strong"}, {"value": "Bounded", "label": "Bounded staleness"}, {"value": "Session", "label": "Session"}, {"value": "Eventually", "label": "Eventually"}, {"value": "Customized", "label": "Customized"}]},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "Milvus TLS", "default": "disable", "options": [{"value": "disable", "label": "Plaintext"}, {"value": "require", "label": "TLS"}, {"value": "verify-ca", "label": "TLS with CA verification"}, {"value": "verify-full", "label": "TLS with CA and hostname verification"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "Milvus TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "Milvus TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "Milvus TLS"},
+      {"field_id": "server_name", "route_key": "server_name", "label": "TLS server name", "control": "text", "group": "Milvus TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "Milvus timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "operation_timeout", "route_key": "operation_timeout", "label": "Operation timeout (seconds)", "control": "number", "group": "Milvus timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "Milvus safety", "default": false}
+    ]
+  },
+  "provenance": {"purpose": "Milvus 2.6.5 exact-profile implementation", "protocol": "grpc", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "milvus_2.6.5_standalone_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178"}
+}

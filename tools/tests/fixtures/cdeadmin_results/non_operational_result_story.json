@@ -1,0 +1,118 @@
+{
+  "story_id": "cdeadmin-multi-model-result-fixtures",
+  "production": false,
+  "cdeadmin_fixture": {
+    "non_production": true,
+    "execution_enabled": false,
+    "label": "NON-PRODUCTION RESULT FIXTURES"
+  },
+  "results": [
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "document-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-document", "execution_id": "fixture-only", "result_kind": "document", "schema": {"document_type": "synthetic"}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.document", "renderer_id": "cdeadmin.result.document.fixture", "component_reference": "cdeadmin/results/DocumentFixture",
+        "records": [{"_id": "doc-1", "name": "Ada", "password": "fixture-secret"}, {"_id": "doc-2", "name": "Grace", "nested": {"token": "fixture-token"}}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": ["password"]}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "graph-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-graph", "execution_id": "fixture-only", "result_kind": "graph", "schema": {"record_kinds": ["vertex", "edge"]}, "stream_reference": null, "complete": false, "continuation": "opaque-fixture-graph-continuation", "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.graph", "renderer_id": "cdeadmin.result.graph.fixture", "component_reference": "cdeadmin/results/GraphFixture",
+        "records": [{"kind": "vertex", "id": "v1", "labels": ["Person"], "properties": {"name": "Ada"}}, {"kind": "vertex", "id": "v2", "labels": ["Person"], "properties": {"name": "Grace"}}, {"kind": "edge", "id": "e1", "from": "v1", "to": "v2", "label": "KNOWS"}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "kv-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-key-value", "execution_id": "fixture-only", "result_kind": "key_value", "schema": {"ordered": true, "history": true}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.key-value", "renderer_id": "cdeadmin.result.key-value.fixture", "component_reference": "cdeadmin/results/KeyValueFixture",
+        "records": [{"key": "app/config", "value": "v2", "version": 2}, {"key": "app/config", "value": "v1", "version": 1}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": false, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "time-series-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-time-series", "execution_id": "fixture-only", "result_kind": "time_series", "schema": {"time_field": "time", "value_fields": ["temperature"]}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.time-series", "renderer_id": "cdeadmin.result.time-series.fixture", "component_reference": "cdeadmin/results/TimeSeriesFixture",
+        "records": [{"time": "2026-08-31T12:00:00Z", "temperature": 21.5, "tags": {"site": "north"}}, {"time": "2026-08-31T12:01:00Z", "temperature": 21.7, "tags": {"site": "north"}}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "stride", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "vector-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-vector", "execution_id": "fixture-only", "result_kind": "vector", "schema": {"metric": "cosine", "dimensions": 3}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.vector", "renderer_id": "cdeadmin.result.vector.fixture", "component_reference": "cdeadmin/results/VectorFixture",
+        "records": [{"id": "item-1", "distance": 0.02, "vector": [0.1, 0.2, 0.3]}, {"id": "item-2", "distance": 0.08, "vector": [0.2, 0.1, 0.4]}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "search-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-search", "execution_id": "fixture-only", "result_kind": "search", "schema": {"score": "float", "highlights": true}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.search", "renderer_id": "cdeadmin.result.search.fixture", "component_reference": "cdeadmin/results/SearchFixture",
+        "records": [{"id": "doc-7", "score": 9.2, "highlights": ["matched term"]}, {"id": "doc-3", "score": 8.8, "highlights": ["another match"]}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "spatial-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-spatial", "execution_id": "fixture-only", "result_kind": "spatial", "schema": {"encoding": "GeoJSON", "crs": "EPSG:4326"}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.spatial", "renderer_id": "cdeadmin.result.spatial.fixture", "component_reference": "cdeadmin/results/SpatialFixture",
+        "records": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [-75.6972, 45.4215]}, "properties": {"name": "Ottawa"}}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "columnar-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-prep-080:fixture"},
+        "result_id": "fixture-columnar", "execution_id": "fixture-only", "result_kind": "columnar", "schema": {"columns": [{"name": "id", "logical_type": "integer"}, {"name": "amount", "logical_type": "decimal"}], "batch_format": "synthetic-columnar-fixture"}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.columnar", "renderer_id": "cdeadmin.result.columnar.fixture", "component_reference": "cdeadmin/results/ColumnarFixture",
+        "records": [{"batch": 0, "columns": {"id": [1, 2], "amount": ["10.25", "20.50"]}, "row_count": 2}],
+        "limits": {"max_records": 100, "max_page_size": 25, "max_record_bytes": 65536, "max_descriptor_bytes": 1048576}, "sampling": {"mode": "head", "limit": 100},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 100, "max_bytes": 1048576, "redact_keys": []}, "worker_policy": {"required": true, "timeout_seconds": 2.0}
+      }
+    },
+    {
+      "result": {
+        "identity": {"contract_version": "1.0.0", "provider_id": "fixture.cdeadmin.results", "provider_version": "0.0.0-fixture", "profile_id": "cellset-fixture", "profile_version": "0.0.0-fixture", "evidence_reference": "cde-semantic-models-v1:cellset-fixture"},
+        "result_id": "fixture-cellset-unsupported", "execution_id": "fixture-only", "result_kind": "cellset", "schema": {"axes": {"rows": ["region"], "columns": [], "pages": []}, "levels": ["region"], "measures": ["revenue"], "formats": {"revenue": "$0.00"}}, "stream_reference": null, "complete": true, "continuation": null, "extensions": {"cdeadmin_fixture": {"non_production": true, "cellset_contract": "1.0.0"}}
+      },
+      "descriptor": {
+        "descriptor_version": "1.0.0", "capability_id": "fixture.result.cellset.pivot", "renderer_id": "cdeadmin.result.cellset.pivot", "component_reference": "cdeadmin/results/CubePivotView", "records": [{"coordinates": {"region": "North"}, "measures": {"revenue": 42.5}}],
+        "limits": {"max_records": 1, "max_page_size": 1, "max_record_bytes": 1024, "max_descriptor_bytes": 4096}, "sampling": {"mode": "head", "limit": 1},
+        "export_policy": {"enabled": true, "formats": ["json"], "max_records": 1, "max_bytes": 1024, "redact_keys": []}, "worker_policy": {"required": false, "timeout_seconds": 2.0}
+      }
+    }
+  ]
+}

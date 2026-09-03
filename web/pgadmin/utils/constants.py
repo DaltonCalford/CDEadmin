@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -144,8 +144,8 @@ ACCESS_DENIED_MESSAGE = gettext(
     "Access denied: You’re having limited access. You’re not allowed to "
     "Rename, Delete or Create any files/folders")
 
-KEY_RING_SERVICE_NAME = 'pgAdmin4'
-KEY_RING_USER_NAME = 'pgadmin4-master-password'
+KEY_RING_SERVICE_NAME = 'CDEadmin'
+KEY_RING_USER_NAME = 'cdeadmin-master-password'
 KEY_RING_USERNAME_FORMAT = KEY_RING_SERVICE_NAME + '-{0}-{1}'
 KEY_RING_TUNNEL_FORMAT = KEY_RING_SERVICE_NAME + '-tunnel-{0}-{1}'
 KEY_RING_DESKTOP_USER = KEY_RING_SERVICE_NAME + '-desktop-user-{0}'

@@ -1,0 +1,49 @@
+name: CDEadmin analytic client matrix
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  analytic-provider-contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+        python-version: ['3.10', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install analytic provider dependencies
+        run: >-
+          python -m pip install
+          "pymilvus==2.6.5"
+          "pycodestyle==2.14.0"
+      - name: Run analytic and shared provider contracts
+        run: >-
+          python -m unittest -v
+          tools.tests.test_cdeadmin_analytic_providers
+          tools.tests.test_cdeadmin_actual_engine_pilots
+          tools.tests.test_cdeadmin_endpoint_registration
+          tools.tests.test_cdeadmin_result_renderers
+      - name: Check analytic provider Python style
+        run: >-
+          python -m pycodestyle
+          web/pgadmin/cdeadmin/transports/analytics_http.py
+          web/pgadmin/cdeadmin/providers/influxdb
+          web/pgadmin/cdeadmin/providers/milvus
+          web/pgadmin/cdeadmin/providers/opensearch
+          web/pgadmin/cdeadmin/providers/opensearch_sql_ppl
+          tools/cdeadmin_analytic_live_gate.py
+          tools/tests/test_cdeadmin_analytic_providers.py

@@ -1,0 +1,90 @@
+{
+  "schema": "cdeadmin.actual-engine-pilots.v1",
+  "package": "CDE-PREP-150",
+  "as_of": "2026-09-02",
+  "activation_rule": "production activation requires an approved client, a live runtime satisfying the provider version policy, and passed live category suites",
+  "suite_categories": ["resource", "language_api", "result", "transaction", "admin", "security", "fault"],
+  "pilots": [
+    {
+      "order": 1, "engine_id": "postgresql", "exact_profile": "18.3", "provider_id": "org.pgadmin.postgresql", "profile_id": "postgresql-native", "protocol_id": "postgresql_wire",
+      "provider_state": "production_preservation_provider", "client_state": "selected_installed", "runtime_state": "exact_runtime_not_available", "unit_suite": "passed", "live_suite": "not_run",
+      "manifest": "postgresql/provider_manifest.json", "source_packet": "postgresql/18.3", "source_manifest_sha256": "09b3577659b7f118df4c1b882cb5c15008afd02b927398c7473c91b5fea33414", "source_archive_sha256": "d95663fbbf3a80f81a9d98d895266bdcb74ba274bcc04ef6d76630a72dee016f"
+    },
+    {
+      "order": 2, "engine_id": "mysql", "exact_profile": "9.7.0", "provider_id": "org.cdeadmin.mysql", "profile_id": "mysql-native", "protocol_id": "mysql_wire",
+      "provider_state": "production_experimental_provider", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mysql-9.7.0:20260901",
+      "manifest": "mysql_family/mysql_provider_manifest.json", "source_packet": "mysql/9.7.0", "source_manifest_sha256": "596a23c057efacf41426f0c2f1513025a0da54fe9dd068d3db7914a8c71c3dc0", "source_archive_sha256": "e86ceeea6d1e075fb1461daf79dd4bf789c10f09a0cb7fa6a51245fcb231dee8"
+    },
+    {
+      "order": 2, "engine_id": "mariadb", "exact_profile": "12.2.2", "provider_id": "org.cdeadmin.mariadb", "profile_id": "mariadb-native", "protocol_id": "mysql_wire",
+      "provider_state": "production_experimental_provider", "client_state": "mariadb_1.1.14_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mariadb-12.2.2:20260901",
+      "manifest": "mysql_family/mariadb_provider_manifest.json", "source_packet": "mariadb/12.2.2", "source_manifest_sha256": "930d5a8d316fe9a4404c86f70340302e015d84d157621d7baab0b00d7de14eb7", "source_archive_sha256": "fe82fe2e9af98dfcad8c0266a283ca349b78fd46989fff0d5e1ffca644b514bd"
+    },
+    {
+      "order": 3, "engine_id": "mongodb", "exact_profile": "8.2.6", "provider_id": "org.cdeadmin.mongodb", "profile_id": "mongodb-native", "protocol_id": "mongodb_wire",
+      "provider_state": "production_experimental_provider", "client_state": "pymongo_4.17.0_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-mongodb-live:mongodb-8.2.6:20260901",
+      "manifest": "mongodb/provider_manifest.json", "source_packet": "mongodb/8.2.6", "source_manifest_sha256": "a4c368234ac72398e99b46198ae3dcd5acfa4b0da83ee791dfbd42190875e327", "source_archive_sha256": "a9ace7e055c926ad35a1144ac652f32e8e66e6f900fcc85bbc6cb585505853e7"
+    },
+    {
+      "order": 4, "engine_id": "neo4j", "exact_profile": "2026.04.0", "provider_id": "org.cdeadmin.neo4j", "profile_id": "neo4j-native", "protocol_id": "bolt",
+      "provider_state": "production_experimental_provider", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified", "qualification_scope": "community", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-neo4j-live:neo4j-2026.04.0-community:20260901",
+      "manifest": "neo4j/provider_manifest.json", "source_packet": "neo4j/2026.04.0", "source_manifest_sha256": "e9a3136eda5ef7e0d136cd313d75687b5ef5404936795f44089cf9625cdeab61", "source_archive_sha256": "3715dc68863a34b7db5309a8b14c2bd43f74ac99016d8d04d72742a6b15be633"
+    },
+    {
+      "order": 5, "engine_id": "cassandra", "exact_profile": "5.0.8", "provider_id": "org.cdeadmin.cassandra", "profile_id": "cassandra-native", "protocol_id": "cql",
+      "provider_state": "production_experimental_provider", "client_state": "cassandra_driver_3.30.1_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-cassandra-live:cassandra-5.0.8:20260902",
+      "manifest": "cassandra/provider_manifest.json", "source_packet": "cassandra/5.0.8", "source_manifest_sha256": "d27b769a58d6d464f2a7d0cf586a1f3543b67cc6d32a2145b181e17331837f90", "source_archive_sha256": "d378d59b5f539dd69c4d3c284bb7e8c767dc255090b11acf3f4722e0833af24c"
+    },
+    {
+      "order": 6, "engine_id": "redis", "exact_profile": "8.6.2", "provider_id": "org.cdeadmin.redis", "profile_id": "redis-native", "protocol_id": "resp",
+      "provider_state": "production_experimental_provider", "client_state": "redis_py_6.4.0_verified", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed",
+      "minimum_supported_version": "8.6.0", "verified_runtime_version": "8.10.1", "live_evidence_reference": "cde-redis-live:redis-8.10.1:full-topology-matrix:20260902",
+      "manifest": "redis/provider_manifest.json", "source_packet": "redis/8.6.2", "source_manifest_sha256": "e0a383c2eca7bfab1fb3fb35d6f313f4ddee414d20bd813fb380a18a2ce36a07", "source_archive_sha256": "cef021615ec4aef355a824cf933702be5def36e37ca1e9b99ab1cc5599f1748f"
+    },
+    {
+      "order": 7, "engine_id": "xtdb", "exact_profile": "2.1.0", "provider_id": "org.cdeadmin.xtdb", "profile_id": "xtdb-native", "protocol_id": "postgresql_wire",
+      "provider_state": "production_experimental_provider", "client_state": "psycopg_c_3.3.4_verified", "runtime_state": "verified", "qualification_scope": "standalone_plaintext", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-xtdb-live:xtdb-2.1.0:standalone:20260902", "verified_runtime_image_digest": "sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816",
+      "manifest": "xtdb/provider_manifest.json", "source_packet": "xtdb/2.1.0", "source_manifest_sha256": "83c4ea6d790b8902824f3ec3497911c7e0b8a850e88eaac1d245e93da89ea8c2", "source_archive_sha256": "4ba339f7de62d03db7ca88cd13b2cb106284e1500dbd64588e3f55d43058f83a"
+    },
+    {
+      "order": 5, "engine_id": "clickhouse", "exact_profile": "25.12.10.7-stable", "provider_id": "org.cdeadmin.clickhouse", "profile_id": "clickhouse-native", "protocol_id": "http_json",
+      "provider_state": "production_experimental_provider", "client_state": "python_stdlib_http_json_verified", "runtime_state": "verified", "qualification_scope": "standalone_plaintext_http", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902", "verified_runtime_image_digest": "sha256:59efe7d83b1e13c2e439a80adcce1fad186489d69a55d4b763102280a359a4cc",
+      "manifest": "clickhouse/provider_manifest.json", "source_packet": "clickhouse/25.12.10.7-stable", "source_manifest_sha256": "7800057ced986997645fa88121c6cb13bdca5cabc6e3abcc007799a139ecf40c", "source_archive_sha256": "f4fa2becea8d30c36388d3a237482bc67740aa9abcb28d99e48506d46e702068"
+    },
+    {
+      "order": 6, "engine_id": "influxdb", "exact_profile": "3.9.0", "provider_id": "org.cdeadmin.influxdb", "profile_id": "influxdb-native", "protocol_id": "http_json",
+      "provider_state": "production_experimental_provider", "client_state": "python_stdlib_http_json_verified", "runtime_state": "verified", "qualification_scope": "core_memory_plaintext_http", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "verified_runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab",
+      "manifest": "influxdb/provider_manifest.json", "source_packet": "influxdb/3.9.0", "source_manifest_sha256": "d92d674575b96ef18852c95b1ecbde9325526fe5bbe16947eff7f9610eb11f83", "source_archive_sha256": "23b8a555c6f302da03e7342bd922868a1ff7eeea53537598ef3945c412a47df0"
+    },
+    {
+      "order": 7, "engine_id": "milvus", "exact_profile": "2.6.5", "provider_id": "org.cdeadmin.milvus", "profile_id": "milvus-native", "protocol_id": "grpc",
+      "provider_state": "production_experimental_provider", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "verified", "qualification_scope": "standalone_plaintext_grpc", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "verified_runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178",
+      "manifest": "milvus/provider_manifest.json", "source_packet": "milvus/2.6.5", "source_manifest_sha256": "f7b614744d71cf660083eea40144a52b3d8b13449849d7566e5f55b00feee150", "source_archive_sha256": "6b5b6550cc46c66f2e7ae0f42f7387e9cfa312a66a14e45ad16a8aff7208566c"
+    },
+    {
+      "order": 8, "engine_id": "opensearch", "exact_profile": "3.6.0", "provider_id": "org.cdeadmin.opensearch", "profile_id": "opensearch-native", "protocol_id": "http_json",
+      "provider_state": "production_experimental_provider", "client_state": "python_stdlib_http_json_verified", "runtime_state": "verified", "qualification_scope": "single_node_plaintext_http", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-analytic-live:opensearch-3.6.0:http-json:20260902", "verified_runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d",
+      "manifest": "opensearch/provider_manifest.json", "source_packet": "opensearch/3.6.0", "source_manifest_sha256": "749534c32ee72538f99403e8a6ffbd8aba11cb9397ffd28d75fa61f3808fcf68", "source_archive_sha256": "49dc7d3f7f9099d242ac4594d621a011f405a1af12c294dd87ec4fa3a9c460ac"
+    },
+    {
+      "order": 9, "engine_id": "opensearch_sql_ppl", "exact_profile": "3.6.0-sql-ppl", "provider_id": "org.cdeadmin.opensearch_sql_ppl", "profile_id": "opensearch-sql-ppl", "protocol_id": "http_json",
+      "provider_state": "production_experimental_provider", "client_state": "python_stdlib_http_json_verified", "runtime_state": "verified", "qualification_scope": "opensearch_3.6.0_sql_plugin_3.6.0.0_plaintext_http", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902", "verified_runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d",
+      "manifest": "opensearch_sql_ppl/provider_manifest.json", "source_packet": "opensearch_sql_ppl/3.6.0", "source_manifest_sha256": "4e57b0ad58808201714ace873ac65641be14c1ec6afe785440fb277615b87264", "source_archive_sha256": "f49c4df68470236e76cc792b9bbacbec6210a449775f0248d805af2216a3876d"
+    },
+    {
+      "order": 6, "engine_id": "duckdb", "exact_profile": "1.5.2", "provider_id": "org.cdeadmin.duckdb", "profile_id": "duckdb-native", "protocol_id": "embedded_duckdb",
+      "provider_state": "production_experimental_provider", "client_state": "duckdb_1.5.2_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:duckdb-1.5.2:20260901",
+      "manifest": "duckdb/provider_manifest.json", "source_packet": "duckdb/1.5.2", "source_manifest_sha256": "361f6228960e3f9f1fc69acff66931823b92917e25b7206c87e5a288b15c8d54", "source_archive_sha256": "6d8612fc87115cf4d3512a934ada5d1669db29378b4cc8e226fdfa8f5c537385"
+    },
+    {
+      "order": 7, "engine_id": "firebird", "exact_profile": "5.0.4", "provider_id": "org.cdeadmin.firebird", "profile_id": "firebird-native", "protocol_id": "firebird_wire",
+      "provider_state": "production_experimental_provider", "client_state": "firebird_driver_1.10.11_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901",
+      "manifest": "firebird/provider_manifest.json", "source_packet": "firebird/5.0.4", "source_manifest_sha256": "a90056fdab91a7ba24ec842d8c9a9718b648af630c18c3bd5745d6e67307a73a", "source_archive_sha256": "5041b97b480c9fe241c92ad0adf89e36faad0a8f0e21f1371dfbcc96a6f38e12"
+    },
+    {
+      "order": 8, "engine_id": "sqlite", "exact_profile": "3.53.0", "provider_id": "org.cdeadmin.sqlite", "profile_id": "sqlite-native", "protocol_id": "embedded_sqlite",
+      "provider_state": "production_experimental_provider", "client_state": "python_dbapi_private_sqlite_3.53.0", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:sqlite-3.53.0:20260901",
+      "manifest": "sqlite/provider_manifest.json", "source_packet": "sqlite/3.53.0", "source_manifest_sha256": "599564292d3091620c23c8127ae83d4461561d39f551c51e1b3c87192f8be2fe", "source_archive_sha256": "fbc30cdbfcfa42c78fe7bddd3fd37ab8995369a31d39097a5d0633296c0b6e65"
+    }
+  ]
+}

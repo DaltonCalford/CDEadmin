@@ -1,0 +1,68 @@
+{
+  "schema": "cdeadmin.sanitized-baseline-seed.v1",
+  "dataset_id": "cdeadmin-public-synthetic-baseline-1",
+  "classification": "public_synthetic_non_sensitive",
+  "contains_credentials": false,
+  "contains_personal_data": false,
+  "contains_proprietary_data": false,
+  "fixture_sets": {
+    "relational_core": {
+      "accounts": [
+        {"account_id": 1, "label": "alpha", "region": "north", "balance": "12.50"},
+        {"account_id": 2, "label": "beta", "region": "south", "balance": "-3.25"},
+        {"account_id": 3, "label": "gamma", "region": null, "balance": "0.00"}
+      ],
+      "events": [
+        {"event_id": 101, "account_id": 1, "kind": "open", "ordinal": 1},
+        {"event_id": 102, "account_id": 1, "kind": "adjust", "ordinal": 2},
+        {"event_id": 103, "account_id": 2, "kind": "open", "ordinal": 1}
+      ]
+    },
+    "document_wide_column": [
+      {"partition": "north", "key": "doc-1", "tags": ["blue", "round"], "payload": {"active": true, "score": 7}},
+      {"partition": "south", "key": "doc-2", "tags": [], "payload": {"active": false, "score": 0}}
+    ],
+    "graph": {
+      "nodes": [
+        {"id": "n1", "labels": ["Place"], "properties": {"name": "Alpha"}},
+        {"id": "n2", "labels": ["Place"], "properties": {"name": "Beta"}},
+        {"id": "n3", "labels": ["Place"], "properties": {"name": "Gamma"}}
+      ],
+      "edges": [
+        {"id": "e1", "from": "n1", "to": "n2", "type": "LINKS", "properties": {"weight": 2}},
+        {"id": "e2", "from": "n2", "to": "n3", "type": "LINKS", "properties": {"weight": 5}}
+      ]
+    },
+    "vector": [
+      {"id": "v1", "embedding": [1.0, 0.0, 0.0], "label": "axis-x"},
+      {"id": "v2", "embedding": [0.0, 1.0, 0.0], "label": "axis-y"},
+      {"id": "v3", "embedding": [0.5, 0.5, 0.0], "label": "midpoint"}
+    ],
+    "timeseries": [
+      {"series": "sensor-a", "timestamp": "2026-01-01T00:00:00Z", "value": 10.0, "quality": "ok"},
+      {"series": "sensor-a", "timestamp": "2026-01-01T00:01:00Z", "value": 11.5, "quality": "ok"},
+      {"series": "sensor-b", "timestamp": "2026-01-01T00:00:00Z", "value": null, "quality": "missing"}
+    ],
+    "search": [
+      {"id": "s1", "title": "Blue circle", "body": "A synthetic blue circle for exact search checks."},
+      {"id": "s2", "title": "Red square", "body": "A synthetic red square for phrase and ranking checks."}
+    ],
+    "key_value": [
+      {"key": "plain:one", "type": "string", "value": "alpha"},
+      {"key": "counter:one", "type": "integer", "value": 7},
+      {"key": "set:one", "type": "set", "value": ["a", "b"]}
+    ],
+    "distributed_consistency": [
+      {"operation_id": "op-1", "key": "shared", "writer": "node-a", "sequence": 1, "value": "first"},
+      {"operation_id": "op-2", "key": "shared", "writer": "node-b", "sequence": 2, "value": "second"}
+    ],
+    "versioned_data": [
+      {"entity": "item-1", "valid_from": "2026-01-01T00:00:00Z", "valid_to": "2026-02-01T00:00:00Z", "value": "old"},
+      {"entity": "item-1", "valid_from": "2026-02-01T00:00:00Z", "valid_to": null, "value": "current"}
+    ],
+    "analytic_columnar": [
+      {"dimension_a": "north", "dimension_b": "blue", "measure_count": 2, "measure_total": 12.5},
+      {"dimension_a": "south", "dimension_b": "red", "measure_count": 1, "measure_total": -3.25}
+    ]
+  }
+}

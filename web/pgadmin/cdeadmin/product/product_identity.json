@@ -1,0 +1,197 @@
+{
+  "identity_version": "1.1.0",
+  "product": {
+    "display_name": "CDEadmin",
+    "short_name": "cdeadmin",
+    "version": "0.1.0-dev",
+    "description": "Multi-engine administration and development environment for ScratchBird and independently managed database engines.",
+    "identity_status": "hard-fork",
+    "forked_from": {
+      "product": "pgAdmin 4",
+      "version": "9.17",
+      "relationship": "independent hard fork"
+    },
+    "release_ready": false,
+    "approval_required_from": [
+      "product-owner",
+      "legal",
+      "release-engineering",
+      "security"
+    ]
+  },
+  "namespaces": {
+    "cdeadmin": {
+      "common": {
+        "configuration": "cdeadmin/config",
+        "data": "cdeadmin/data",
+        "cache": "cdeadmin/cache",
+        "logs": "cdeadmin/logs",
+        "runtime": "cdeadmin/runtime",
+        "sessions": "cdeadmin/sessions",
+        "cookie": "cdeadmin_session",
+        "database": "cdeadmin.db",
+        "environment": "CDEADMIN_",
+        "desktop_store": "cdeadmin-runtime",
+        "keyring": "cdeadmin"
+      },
+      "linux_desktop": {
+        "configuration": "${XDG_CONFIG_HOME:-$HOME/.config}/cdeadmin",
+        "data": "${XDG_DATA_HOME:-$HOME/.local/share}/cdeadmin",
+        "cache": "${XDG_CACHE_HOME:-$HOME/.cache}/cdeadmin",
+        "logs": "${XDG_STATE_HOME:-$HOME/.local/state}/cdeadmin/log",
+        "runtime": "${XDG_RUNTIME_DIR}/cdeadmin"
+      },
+      "linux_server": {
+        "configuration": "/etc/cdeadmin",
+        "data": "/var/lib/cdeadmin",
+        "cache": "/var/cache/cdeadmin",
+        "logs": "/var/log/cdeadmin",
+        "runtime": "/run/cdeadmin"
+      },
+      "macos": {
+        "configuration": "$HOME/Library/Application Support/CDEadmin/config",
+        "data": "$HOME/Library/Application Support/CDEadmin",
+        "cache": "$HOME/Library/Caches/CDEadmin",
+        "logs": "$HOME/Library/Logs/CDEadmin",
+        "runtime": "$TMPDIR/cdeadmin"
+      },
+      "windows": {
+        "configuration": "%APPDATA%\\CDEadmin",
+        "data": "%APPDATA%\\CDEadmin",
+        "cache": "%LOCALAPPDATA%\\CDEadmin\\Cache",
+        "logs": "%LOCALAPPDATA%\\CDEadmin\\Logs",
+        "runtime": "%LOCALAPPDATA%\\CDEadmin\\Runtime"
+      },
+      "container": {
+        "configuration": "/cdeadmin/config",
+        "data": "/var/lib/cdeadmin",
+        "cache": "/var/cache/cdeadmin",
+        "logs": "/var/log/cdeadmin",
+        "runtime": "/run/cdeadmin"
+      }
+    },
+    "pgadmin": {
+      "common": {
+        "configuration": "pgadmin/config",
+        "data": "pgadmin/data",
+        "cache": "pgadmin/cache",
+        "logs": "pgadmin/logs",
+        "runtime": "pgadmin/runtime",
+        "sessions": "pgadmin/sessions",
+        "cookie": "pga4_session",
+        "database": "pgadmin4.db",
+        "environment": "PGADMIN_",
+        "desktop_store": "pgadmin4-runtime",
+        "keyring": "pgadmin4"
+      },
+      "linux_desktop": {
+        "configuration": "$HOME/.pgadmin",
+        "data": "$HOME/.pgadmin",
+        "cache": "$HOME/.pgadmin/cache",
+        "logs": "$HOME/.pgadmin/pgadmin4.log",
+        "runtime": "$HOME/.pgadmin/sessions"
+      },
+      "linux_server": {
+        "configuration": "/etc/pgadmin",
+        "data": "/var/lib/pgadmin",
+        "cache": "/var/cache/pgadmin",
+        "logs": "/var/log/pgadmin",
+        "runtime": "/run/pgadmin"
+      },
+      "macos": {
+        "configuration": "$HOME/Library/Application Support/pgAdmin",
+        "data": "$HOME/Library/Application Support/pgAdmin",
+        "cache": "$HOME/Library/Caches/pgAdmin",
+        "logs": "$HOME/Library/Logs/pgAdmin",
+        "runtime": "$TMPDIR/pgadmin"
+      },
+      "windows": {
+        "configuration": "%APPDATA%\\pgAdmin",
+        "data": "%APPDATA%\\pgAdmin",
+        "cache": "%LOCALAPPDATA%\\pgAdmin\\Cache",
+        "logs": "%LOCALAPPDATA%\\pgAdmin\\Logs",
+        "runtime": "%LOCALAPPDATA%\\pgAdmin\\Runtime"
+      },
+      "container": {
+        "configuration": "/pgadmin4",
+        "data": "/var/lib/pgadmin",
+        "cache": "/var/cache/pgadmin",
+        "logs": "/var/log/pgadmin",
+        "runtime": "/run/pgadmin"
+      }
+    }
+  },
+  "packaging": {
+    "selected_delivery_modes": [
+      "source",
+      "python",
+      "linux-deb",
+      "linux-rpm",
+      "linux-desktop",
+      "macos",
+      "windows",
+      "container",
+      "helm",
+      "web-service"
+    ],
+    "identifiers": {
+      "python_distribution": "cdeadmin",
+      "linux_package": "cdeadmin",
+      "linux_desktop_file": "cdeadmin.desktop",
+      "linux_executable": "cdeadmin",
+      "macos_bundle_id": "org.scratchbird.cdeadmin",
+      "macos_application": "CDEadmin.app",
+      "windows_application_id": "ScratchBird.CDEadmin",
+      "windows_executable": "CDEadmin.exe",
+      "container_repository": "cdeadmin",
+      "container_user": "cdeadmin",
+      "helm_chart": "cdeadmin",
+      "kubernetes_application": "cdeadmin",
+      "system_service": "cdeadmin",
+      "web_mount": "/cdeadmin"
+    }
+  },
+  "coexistence": {
+    "default_server_port": 5051,
+    "import_only": true,
+    "mutate_pgadmin_profile": false,
+    "shared_secret_store": false,
+    "shared_update_state": false,
+    "shared_database": false
+  },
+  "update_channel": {
+    "enabled": false,
+    "channel_id": "cdeadmin",
+    "artifact_prefix": "cdeadmin",
+    "feed_url": null,
+    "metadata_key_id": "UNASSIGNED-CDEADMIN-UPDATE-METADATA",
+    "reuse_pgadmin_feed": false
+  },
+  "signing": {
+    "linux_repository": {
+      "status": "unassigned",
+      "key_id": "UNASSIGNED-CDEADMIN-LINUX-REPOSITORY",
+      "reuse_upstream_key": false
+    },
+    "macos_application": {
+      "status": "unassigned",
+      "key_id": "UNASSIGNED-CDEADMIN-MACOS-APPLICATION",
+      "reuse_upstream_key": false
+    },
+    "windows_authenticode": {
+      "status": "unassigned",
+      "key_id": "UNASSIGNED-CDEADMIN-WINDOWS-AUTHENTICODE",
+      "reuse_upstream_key": false
+    },
+    "container_provenance": {
+      "status": "unassigned",
+      "key_id": "UNASSIGNED-CDEADMIN-CONTAINER-PROVENANCE",
+      "reuse_upstream_key": false
+    },
+    "update_metadata": {
+      "status": "unassigned",
+      "key_id": "UNASSIGNED-CDEADMIN-UPDATE-METADATA",
+      "reuse_upstream_key": false
+    }
+  }
+}

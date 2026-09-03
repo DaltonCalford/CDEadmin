@@ -1,0 +1,15 @@
+{
+  "schema": "cdeadmin.milvus-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.milvus",
+  "reference_profile": "2.6.5",
+  "client": {"package": "pymilvus", "required_line": "2.6.x", "verified_version": "2.6.5", "state": "selected_installed"},
+  "capabilities": {
+    "native": ["vector_search", "hybrid_search", "scalar_query", "databases", "collections", "partitions", "vector_indexes", "aliases", "load_release", "compaction", "resource_groups", "rbac"],
+    "explicitly_unavailable": ["standalone_field_mutation", "multi_operation_transactions", "automatic_mutation_retry"]
+  },
+  "live_qualification": [
+    {"deployment": "disposable_standalone_plaintext_grpc", "server_version": "2.6.5", "status": "passed", "evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["authenticated_rbac", "verified_tls", "restart", "controlled_disconnect_fault", "distributed_cluster"]
+}

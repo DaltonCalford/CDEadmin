@@ -1,0 +1,46 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.xtdb", "provider_version": "0.1.0", "profile_id": "xtdb-native", "profile_version": "2.1.0", "evidence_reference": "cde-xtdb-live:xtdb-2.1.0:standalone:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["xtdb"], "target_adapter_ids": ["psycopg-xtdb-pgwire-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "XTDB 2.1.0",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 5432,
+    "default": false,
+    "target_adapter_version": "psycopg-c-3.3.4",
+    "connection_fields": [
+      {"field_id": "database", "route_key": "database", "label": "XTDB database", "control": "text", "group": "XTDB database", "default": "xtdb"},
+      {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "XTDB authentication", "default": "xtdb"},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "XTDB TLS", "default": "disable", "options": [{"value": "disable", "label": "Disabled"}, {"value": "require", "label": "Encrypted without CA verification"}, {"value": "verify-ca", "label": "Verify certificate authority"}, {"value": "verify-full", "label": "Verify authority and hostname"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "XTDB TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "XTDB TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "XTDB TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "XTDB timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "statement_timeout", "route_key": "statement_timeout", "label": "Statement timeout (seconds)", "control": "number", "group": "XTDB timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "application_name", "route_key": "application_name", "label": "Application name", "control": "text", "group": "XTDB session", "default": "CDEadmin"},
+      {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "XTDB session", "default": false},
+      {"field_id": "healthz_url", "route_key": "healthz_url", "label": "Health endpoint base URL", "control": "text", "group": "XTDB monitoring", "default": "http://127.0.0.1:8080"},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Snapshot/tool workspace", "control": "text", "group": "XTDB operational tools"}
+    ]
+  },
+  "provenance": {"purpose": "XTDB 2.1.0 exact-profile implementation", "protocol": "postgresql_wire", "client_state": "psycopg_c_3.3.4_verified", "runtime_state": "xtdb_2.1.0_standalone_verified", "activation_gate": "passed", "live_evidence_reference": "cde-xtdb-live:xtdb-2.1.0:standalone:20260902", "runtime_image_digest": "sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816"}
+}

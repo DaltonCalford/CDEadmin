@@ -1,17 +1,19 @@
 .. _contributions:
 
 **************************************
-`pgAdmin Project Contributions`:index:
+`CDEadmin Project Contributions`:index:
 **************************************
 
-pgAdmin is an open-source project that invites you to get involved in the
-development process.  For more information about contributing to the pgAdmin
-project, contact the developers on the pgAdmin mailing list
-pgadmin-hackers@postgresql.org to discuss any ideas you might have for
-enhancements or bug fixes.
+CDEadmin is an open-source project. Its public repository, issue tracker,
+mailing list and security-reporting address have not yet been assigned. Until
+those project-owned channels exist, contributions are coordinated in the
+current development workspace. Do not send CDEadmin defects, proposals or
+security reports to the upstream pgAdmin project.
 
 In the following sections, you'll find detailed information about the
-development process used to develop, improve, and maintain the pgAdmin client.
+development process used to develop, improve, and maintain CDEadmin. Some
+workflow chapters are inherited and may still describe upstream mechanics;
+they are guidance only until CDEadmin project infrastructure is assigned.
 
 .. toctree::
    
@@ -21,4 +23,3 @@ development process used to develop, improve, and maintain the pgAdmin client.
    code_snippets
    code_review
    translations
-

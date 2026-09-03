@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin.parity-evidence.v1",
+  "title": "CDEadmin content-addressed parity evidence",
+  "type": "object",
+  "required": [
+    "evidence_id", "engine_id", "reference_profile", "scenario_id",
+    "side", "observed_at", "expires_at", "digests", "evidence_digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "evidence_id": {"type": "string", "pattern": "^[a-zA-Z0-9_.:-]+$"},
+    "engine_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "reference_profile": {"type": "string", "minLength": 1},
+    "scenario_id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "side": {"enum": ["reference", "scratchbird_emulation"]},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "digests": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+    },
+    "runtime_identity": {
+      "type": "object",
+      "required": ["engine_id", "reference_profile", "runtime_artifact_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "engine_id": {"type": "string"},
+        "reference_profile": {"type": "string"},
+        "runtime_artifact_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      }
+    },
+    "scratchbird_authority": {
+      "type": "object",
+      "required": ["authority_class", "execution_boundary", "finality_source"],
+      "additionalProperties": false,
+      "properties": {
+        "authority_class": {"const": "scratchbird_mga"},
+        "execution_boundary": {"const": "engine_sblr_uuid"},
+        "finality_source": {"const": "durable_transaction_inventory"}
+      }
+    },
+    "evidence_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

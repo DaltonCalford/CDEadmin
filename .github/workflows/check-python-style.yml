@@ -23,6 +23,8 @@ jobs:
         run: |
           sudo pip install --upgrade pip
           sudo pip install pycodestyle
+          sudo pip install "coverage==7.*"
+          sudo pip install "SQLAlchemy==2.*" "Flask-Migrate==4.*"
 
       - name: Check the documentation
         run: pycodestyle --config=.pycodestyle docs/
@@ -35,3 +37,126 @@ jobs:
 
       - name: Check the tools
         run: pycodestyle --config=.pycodestyle tools/
+
+      - name: Check CDEadmin architecture boundaries
+        run: make cdeadmin-architecture-gate
+
+      - name: Check CDEadmin generated provider contracts
+        run: make cdeadmin-contracts-check
+
+      - name: Test CDEadmin endpoint persistence migration
+        run: make cdeadmin-endpoint-persistence-test
+
+      - name: Test CDEadmin provider registry and endpoint context
+        run: make cdeadmin-provider-registry-test
+
+      - name: Test preserved PostgreSQL provider
+        run: make cdeadmin-postgresql-provider-test
+
+      - name: Test MongoDB provider and provider-owned tool authority
+        run: make cdeadmin-mongodb-provider-test
+
+      - name: Test CDEadmin resource graph and common explorer
+        run: make cdeadmin-resource-explorer-test
+
+      - name: Test CDEadmin Data Studio extraction
+        run: make cdeadmin-data-studio-test
+
+      - name: Test CDEadmin result descriptors and renderers
+        run: make cdeadmin-result-renderer-test
+
+      - name: Test CDEadmin operation, event and evidence bus
+        run: make cdeadmin-operation-bus-test
+
+      - name: Test CDEadmin security, secret and mode isolation
+        run: make cdeadmin-security-isolation-test
+
+      - name: Test CDEadmin contract fixtures and fault isolation
+        run: make cdeadmin-quality-infrastructure-test
+
+      - name: Test CDEadmin product identity and package coexistence
+        run: make cdeadmin-product-identity-test
+
+      - name: Check CDEadmin branding, notices and delivery-mode plan
+        run: make cdeadmin-product-identity-check
+
+      - name: Report CDEadmin product-identity coverage
+        run: make cdeadmin-product-identity-coverage
+
+      - name: Test non-mutating pgAdmin profile migration
+        run: make cdeadmin-profile-migration-test
+
+      - name: Report CDEadmin profile-migration coverage
+        run: make cdeadmin-profile-migration-coverage
+
+      - name: Test CDEadmin protocol and embedded-runtime foundations
+        run: make cdeadmin-transport-foundations-test
+
+      - name: Check CDEadmin protocol boundary policy
+        run: make cdeadmin-transport-gate
+
+      - name: Report CDEadmin protocol foundation coverage
+        run: make cdeadmin-transport-coverage
+
+      - name: Test CDEadmin actual-engine provider pilots
+        run: make cdeadmin-actual-engine-pilots-test
+
+      - name: Check CDEadmin actual-engine activation policy
+        run: make cdeadmin-actual-engine-gate
+
+      - name: Report CDEadmin actual-engine pilot coverage
+        run: make cdeadmin-actual-engine-coverage
+
+      - name: Test CDEadmin exact reference-corpus controls
+        run: make cdeadmin-reference-corpus-test
+
+      - name: Check CDEadmin reference-corpus admission policy
+        run: make cdeadmin-reference-corpus-gate
+
+      - name: Report CDEadmin reference-corpus tool coverage
+        run: make cdeadmin-reference-corpus-coverage
+
+      - name: Test CDEadmin parity ledger and differential runner
+        run: make cdeadmin-parity-test
+
+      - name: Check CDEadmin parity accounting policy
+        run: make cdeadmin-parity-gate
+
+      - name: Report CDEadmin parity-runner coverage
+        run: make cdeadmin-parity-coverage
+
+      - name: Test native CDE and model workspace fixture shells
+        run: make cdeadmin-workspace-shell-test
+
+      - name: Check native CDE workspace shell safety and accessibility
+        run: make cdeadmin-workspace-shell-gate
+
+      - name: Report native CDE workspace shell coverage
+        run: make cdeadmin-workspace-shell-coverage
+
+      - name: Test native ScratchBird consumer and driver handoff
+        run: make cdeadmin-scratchbird-consumer-test
+
+      - name: Check native ScratchBird consumer boundary
+        run: make cdeadmin-scratchbird-consumer-gate
+
+      - name: Report native ScratchBird consumer coverage
+        run: make cdeadmin-scratchbird-consumer-coverage
+
+      - name: Test upstream acceptance suites and candidate runner
+        run: make cdeadmin-upstream-acceptance-test
+
+      - name: Check upstream acceptance suite definitions
+        run: make cdeadmin-upstream-acceptance-gate
+
+      - name: Report upstream acceptance-runner coverage
+        run: make cdeadmin-upstream-acceptance-coverage
+
+      - name: Check CDEadmin startup and performance budgets
+        run: make cdeadmin-quality-gate
+
+      - name: Report CDEadmin quality-tool coverage
+        run: make cdeadmin-quality-coverage
+
+      - name: Test all CDEadmin preparation tooling
+        run: make cdeadmin-baseline-test

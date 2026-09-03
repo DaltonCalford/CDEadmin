@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>pgAdmin 4 Runtime Configuration</title>
-  <link rel="stylesheet" href="../css/pgadmin-desktop.css"/>
+  <title>CDEadmin Runtime Configuration</title>
+  <link rel="stylesheet" href="../css/cdeadmin-desktop.css"/>
 </head>
 <body>
   <div class="content">
@@ -13,7 +13,7 @@
       <div class="card-header">Fixed Port</div>
       <div class="card-body">
         <div class="form-group">
-          <span>By default, pgAdmin uses a random port number to ensure it can always run successfully. If you need to use a predictable port number, you can set one here. Note that if the port is already in use, the application will be unable to start.</span>
+          <span>By default, CDEadmin uses a random port number to ensure it can always run successfully. If you need to use a predictable port number, you can set one here. Note that if the port is already in use, the application will be unable to start.</span>
         </div>
         <div class="form-group mt-4">
           <div class="mr-3 form-group">
@@ -23,7 +23,7 @@
           </div>
           <div class="form-group">
             <label class="mr-1" for="portNo">Port Number</label>
-            <input type="number" class="form-input" id="portNo" min="1025" max="65535" value="5050" style="min-width: 100px;">
+            <input type="number" class="form-input" id="portNo" min="1025" max="65535" value="5051" style="min-width: 100px;">
           </div>
         </div>
       </div>
@@ -32,7 +32,7 @@
       <div class="card-header">Connection Timeout</div>
       <div class="card-body">
         <div class="form-group">
-          <span>Connection Timeout will define how long to wait for the pgAdmin server to start before throwing an error. By default, pgAdmin will wait for 90 seconds.
+          <span>Connection Timeout will define how long to wait for the CDEadmin server to start before throwing an error. By default, CDEadmin will wait for 90 seconds.
           </span>
         </div>
         <div class="form-group mt-4">
@@ -94,7 +94,7 @@
       const result = await window.electronUI.showMessageBox({
         'type': 'question',
         'title': 'Confirmation',
-        'message': "pgAdmin 4 must be restarted for changes to take effect.\n\n Do you want to quit the application?",
+        'message': "CDEadmin must be restarted for changes to take effect.\n\n Do you want to quit the application?",
         'buttons': [
             'Yes',
             'No'

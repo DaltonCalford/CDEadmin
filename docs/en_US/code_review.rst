@@ -59,6 +59,6 @@ review process for any changes submitted for inclusion in pgAdmin.
 
 * Ensure the change is fully functional, and works! If you wish to send a
   work in progress (WIP) change that is not intended for commit, instead of
-  submitting a Pull Request, send either as a link to a repository fork or a
-  patch to the pgadmin-hackers@postgresql.org mailing list, clearly stating
-  that it's a WIP, and noting what does or does not yet work.
+  submitting a Pull Request, publish it through the designated CDEadmin review
+  channel as a work in progress, clearly stating what does and does not yet
+  work. Do not send CDEadmin work to upstream pgAdmin channels.

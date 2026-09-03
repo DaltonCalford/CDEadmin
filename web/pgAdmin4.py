@@ -1,15 +1,17 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
 
-"""This is the main application entry point for pgAdmin 4. If running on
-a webserver, this will provide the WSGI interface, otherwise, we're going
-to start a web server."""
+"""Inherited CDEadmin implementation entry point.
+
+The module name is retained for import and deployment compatibility with the
+pgAdmin 4 base. New launchers should use :mod:`CDEadmin`.
+"""
 
 import sys
 if sys.version_info <= (3, 9):

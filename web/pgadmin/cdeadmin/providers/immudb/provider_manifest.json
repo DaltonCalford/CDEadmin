@@ -1,0 +1,61 @@
+{
+  "identity": {
+    "contract_version": "1.1.0",
+    "provider_id": "org.cdeadmin.immudb",
+    "provider_version": "0.1.0",
+    "profile_id": "immudb-native",
+    "profile_version": "1.11.0",
+    "evidence_reference": "cde-distributed:immudb-1.11.0:control-plane:20260902"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {
+    "experience_families": ["immudb"],
+    "target_adapter_ids": ["postgresql-wire-client"]
+  },
+  "extension_schema": null,
+  "registration": {
+    "display_name": "immudb 1.11.0",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": true,
+    "default_port": 5432,
+    "default": false,
+    "target_adapter_version": "psycopg-3.3.4",
+    "connection_fields": [
+      {"field_id": "web_host", "route_key": "web_host", "label": "Native API host", "control": "text", "group": "immudb native API"},
+      {"field_id": "web_port", "route_key": "web_port", "label": "Native API port", "control": "number", "group": "immudb native API", "default": 8080, "minimum": 1, "maximum": 65535},
+      {"field_id": "web_tls_mode", "route_key": "web_tls_mode", "label": "Native API TLS mode", "control": "select", "group": "immudb native API", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
+      {"field_id": "web_ca_file", "route_key": "web_ca_file", "label": "Native API CA file", "control": "file", "group": "immudb native API TLS"},
+      {"field_id": "web_timeout", "route_key": "web_timeout", "label": "Native API timeout (seconds)", "control": "number", "group": "immudb native API", "default": 30, "minimum": 1, "maximum": 300}
+    ]
+  },
+  "provenance": {
+    "purpose": "immudb exact-profile immutable multi-model provider",
+    "protocol": "postgresql_wire_plus_native_rest",
+    "client_state": "psycopg_3.3.4_installed",
+    "runtime_state": "exact_runtime_verified",
+    "activation_gate": "passed"
+  }
+}

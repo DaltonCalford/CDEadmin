@@ -22,6 +22,7 @@ const webpackAliasToJestModules = ()=>{
   ret['^pgadmin.browser.translations$'] = '<rootDir>/regression/javascript/fake_translations';
   ret['^pgadmin.user_management.current_user$'] = '<rootDir>/regression/javascript/fake_current_user';
   ret['^pgadmin.server.supported_servers$'] = '<rootDir>/regression/javascript/fake_supported_servers';
+  ret['^pgadmin.cdeadmin.endpoint_profiles$'] = '<rootDir>/regression/javascript/fake_endpoint_profiles';
 
   const sources = ret['^sources/(.*)$'];
   delete ret['^sources/(.*)$'];

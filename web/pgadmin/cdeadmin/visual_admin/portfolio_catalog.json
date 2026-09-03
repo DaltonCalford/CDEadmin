@@ -1,0 +1,811 @@
+{
+  "schema": "cdeadmin.visual-admin.catalog.v1",
+  "catalog_version": "1.1.0",
+  "forms": {
+    "inspect": {
+      "title": "Inspect",
+      "fields": []
+    },
+    "create": {
+      "title": "Create",
+      "fields": [
+        {"field_id": "name", "label": "Name", "control": "text", "required": true, "max_length": 1024},
+        {"field_id": "definition", "label": "Native definition", "control": "code", "required": false},
+        {"field_id": "options", "label": "Engine-specific options", "control": "json", "required": false, "default": {}}
+      ]
+    },
+    "alter": {
+      "title": "Alter",
+      "fields": [
+        {"field_id": "changes", "label": "Requested changes", "control": "json", "required": true},
+        {"field_id": "definition", "label": "Replacement native definition", "control": "code", "required": false},
+        {"field_id": "online", "label": "Request online operation", "control": "boolean", "required": false, "default": false}
+      ]
+    },
+    "rename": {
+      "title": "Rename",
+      "fields": [
+        {"field_id": "new_name", "label": "New name", "control": "text", "required": true, "max_length": 1024}
+      ]
+    },
+    "drop": {
+      "title": "Drop",
+      "fields": [
+        {"field_id": "cascade", "label": "Include dependent objects when supported", "control": "boolean", "required": false, "default": false},
+        {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": true, "max_length": 1024}
+      ]
+    },
+    "data_insert": {
+      "title": "Insert data",
+      "fields": [
+        {"field_id": "values", "label": "Values/document/record", "control": "json", "required": true},
+        {"field_id": "options", "label": "Native write options", "control": "json", "required": false, "default": {}}
+      ]
+    },
+    "data_update": {
+      "title": "Update data",
+      "fields": [
+        {"field_id": "selector", "label": "Provider-native row/document/key selector", "control": "json", "required": true},
+        {"field_id": "changes", "label": "Changed values", "control": "json", "required": true},
+        {"field_id": "concurrency_token", "label": "Concurrency token", "control": "text", "required": false}
+      ]
+    },
+    "data_delete": {
+      "title": "Delete data",
+      "fields": [
+        {"field_id": "selector", "label": "Provider-native row/document/key selector", "control": "json", "required": true},
+        {"field_id": "concurrency_token", "label": "Concurrency token", "control": "text", "required": false},
+        {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": true}
+      ]
+    },
+    "grant": {
+      "title": "Grant",
+      "fields": [
+        {"field_id": "principal", "label": "Principal", "control": "text", "required": true},
+        {"field_id": "privileges", "label": "Privileges/capabilities", "control": "json", "required": true},
+        {"field_id": "options", "label": "Native grant options", "control": "json", "required": false, "default": {}}
+      ]
+    },
+    "revoke": {
+      "title": "Revoke",
+      "fields": [
+        {"field_id": "principal", "label": "Principal", "control": "text", "required": true},
+        {"field_id": "privileges", "label": "Privileges/capabilities", "control": "json", "required": true},
+        {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": true}
+      ]
+    },
+    "execute": {
+      "title": "Run provider operation",
+      "fields": [
+        {"field_id": "action", "label": "Native action", "control": "text", "required": true},
+        {"field_id": "arguments", "label": "Native action arguments", "control": "json", "required": false, "default": {}},
+        {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": false}
+      ]
+    }
+  },
+  "operation_profiles": {
+    "read_only": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true}
+    ],
+    "namespace": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create", "mutation_class": "admin", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter", "mutation_class": "admin", "form_id": "alter", "target_required": true},
+      {"operation_id": "rename", "title": "Rename", "mutation_class": "admin", "form_id": "rename", "target_required": true},
+      {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
+    ],
+    "definition": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create", "mutation_class": "write", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter", "mutation_class": "write", "form_id": "alter", "target_required": true},
+      {"operation_id": "rename", "title": "Rename", "mutation_class": "write", "form_id": "rename", "target_required": true},
+      {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
+    ],
+    "data_container": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create", "mutation_class": "write", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter", "mutation_class": "write", "form_id": "alter", "target_required": true},
+      {"operation_id": "rename", "title": "Rename", "mutation_class": "write", "form_id": "rename", "target_required": true},
+      {"operation_id": "insert", "title": "Insert", "mutation_class": "write", "form_id": "data_insert", "target_required": true},
+      {"operation_id": "update", "title": "Update", "mutation_class": "write", "form_id": "data_update", "target_required": true},
+      {"operation_id": "delete", "title": "Delete", "mutation_class": "destructive", "form_id": "data_delete", "target_required": true, "confirmation_required": true},
+      {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
+    ],
+    "data_item": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "insert", "title": "Insert", "mutation_class": "write", "form_id": "data_insert", "target_required": false},
+      {"operation_id": "update", "title": "Update", "mutation_class": "write", "form_id": "data_update", "target_required": true},
+      {"operation_id": "delete", "title": "Delete", "mutation_class": "destructive", "form_id": "data_delete", "target_required": true, "confirmation_required": true}
+    ],
+    "security": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create", "mutation_class": "admin", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter", "mutation_class": "admin", "form_id": "alter", "target_required": true},
+      {"operation_id": "rename", "title": "Rename", "mutation_class": "admin", "form_id": "rename", "target_required": true},
+      {"operation_id": "grant", "title": "Grant", "mutation_class": "admin", "form_id": "grant", "target_required": true},
+      {"operation_id": "revoke", "title": "Revoke", "mutation_class": "admin", "form_id": "revoke", "target_required": true},
+      {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
+    ],
+    "topology": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "alter", "title": "Change configuration", "mutation_class": "admin", "form_id": "alter", "target_required": true},
+      {"operation_id": "execute", "title": "Run operation", "mutation_class": "admin", "form_id": "execute", "target_required": true, "confirmation_required": true}
+    ],
+    "operational": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "execute", "title": "Run operation", "mutation_class": "admin", "form_id": "execute", "target_required": true, "confirmation_required": true}
+    ]
+  },
+  "engines": [
+    {
+      "engine_id": "apache_ignite", "engine_name": "Apache Ignite", "reference_profile": "2.17.0", "model_family": "distributed",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "baseline-topology", "title": "Baseline topology", "operation_profile": "topology"},
+        {"resource_kind": "sql-schema", "title": "SQL schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "cache", "title": "Cache", "operation_profile": "data_container"},
+        {"resource_kind": "cache-template", "title": "Cache template", "operation_profile": "definition"},
+        {"resource_kind": "data-region", "title": "Data region", "operation_profile": "topology"},
+        {"resource_kind": "compute-task", "title": "Compute task", "operation_profile": "operational"},
+        {"resource_kind": "service", "title": "Service", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "cassandra", "engine_name": "Cassandra", "reference_profile": "5.0.8", "model_family": "wide-column",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "datacenter", "title": "Datacenter", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "keyspace", "title": "Keyspace", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "user-defined-type", "title": "User-defined type", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "aggregate", "title": "Aggregate", "operation_profile": "definition"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "permission", "title": "Permission", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "clickhouse", "engine_name": "ClickHouse", "reference_profile": "25.12.10.7-stable", "model_family": "columnar-analytic",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "replica", "title": "Replica", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "dictionary", "title": "Dictionary", "operation_profile": "data_container"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "projection", "title": "Projection", "operation_profile": "definition"},
+        {"resource_kind": "data-skipping-index", "title": "Data-skipping index", "operation_profile": "definition"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "quota", "title": "Quota", "operation_profile": "security"},
+        {"resource_kind": "settings-profile", "title": "Settings profile", "operation_profile": "security"},
+        {"resource_kind": "row-policy", "title": "Row policy", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "cockroachdb", "engine_name": "CockroachDB", "reference_profile": "26.1.3", "model_family": "distributed-relational",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "locality", "title": "Locality", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "range", "title": "Range", "operation_profile": "topology"},
+        {"resource_kind": "zone-config", "title": "Zone configuration", "operation_profile": "topology"},
+        {"resource_kind": "job", "title": "Job", "operation_profile": "operational"},
+        {"resource_kind": "schedule", "title": "Schedule", "operation_profile": "operational"},
+        {"resource_kind": "changefeed", "title": "Changefeed", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "dolt", "engine_name": "Dolt", "reference_profile": "1.86.6", "model_family": "versioned-relational",
+      "objects": [
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "branch", "title": "Branch", "operation_profile": "namespace"},
+        {"resource_kind": "tag", "title": "Tag", "operation_profile": "definition"},
+        {"resource_kind": "commit", "title": "Commit", "operation_profile": "read_only"},
+        {"resource_kind": "remote", "title": "Remote", "operation_profile": "definition"},
+        {"resource_kind": "working-set", "title": "Working set", "operation_profile": "data_container"},
+        {"resource_kind": "merge", "title": "Merge", "operation_profile": "operational"},
+        {"resource_kind": "rebase", "title": "Rebase", "operation_profile": "operational"},
+        {"resource_kind": "conflict", "title": "Conflict", "operation_profile": "data_item"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "duckdb", "engine_name": "DuckDB", "reference_profile": "1.5.2", "model_family": "embedded-analytic-relational",
+      "objects": [
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "attached-database", "title": "Attached database", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "macro", "title": "Macro", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "secret", "title": "Secret reference", "operation_profile": "security"},
+        {"resource_kind": "extension", "title": "Extension", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "firebird", "engine_name": "Firebird", "reference_profile": "5.0.4", "model_family": "relational-mga",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "domain", "title": "Domain", "operation_profile": "definition"},
+        {"resource_kind": "sequence", "title": "Sequence/generator", "operation_profile": "definition"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "package", "title": "Package", "operation_profile": "definition"},
+        {"resource_kind": "exception", "title": "Exception", "operation_profile": "definition"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "character-set", "title": "Character set", "operation_profile": "read_only"},
+        {"resource_kind": "collation", "title": "Collation", "operation_profile": "definition"},
+        {"resource_kind": "external-function", "title": "External function/filter", "operation_profile": "definition"},
+        {"resource_kind": "service-operation", "title": "Service operation", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "foundationdb", "engine_name": "FoundationDB", "reference_profile": "7.3.77", "model_family": "ordered-key-value",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "coordinator", "title": "Coordinator", "operation_profile": "topology"},
+        {"resource_kind": "process", "title": "Process", "operation_profile": "topology"},
+        {"resource_kind": "configuration", "title": "Cluster configuration", "operation_profile": "topology"},
+        {"resource_kind": "tenant", "title": "Tenant", "operation_profile": "namespace"},
+        {"resource_kind": "directory", "title": "Directory", "operation_profile": "namespace"},
+        {"resource_kind": "subspace", "title": "Subspace", "operation_profile": "namespace"},
+        {"resource_kind": "key-range", "title": "Key range", "operation_profile": "data_container"},
+        {"resource_kind": "key", "title": "Key/value", "operation_profile": "data_item"},
+        {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "read_only"},
+        {"resource_kind": "watch", "title": "Watch", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "immudb", "engine_name": "immudb", "reference_profile": "1.11.0", "model_family": "immutable-multimodel",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "replica", "title": "Replica", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "SQL table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "key", "title": "Key/value", "operation_profile": "data_item"},
+        {"resource_kind": "collection", "title": "Document collection", "operation_profile": "data_container"},
+        {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
+        {"resource_kind": "revision", "title": "Revision/history", "operation_profile": "read_only"},
+        {"resource_kind": "proof", "title": "Cryptographic proof", "operation_profile": "read_only"},
+        {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "read_only"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "permission", "title": "Permission", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "influxdb", "engine_name": "InfluxDB", "reference_profile": "3.9.0", "model_family": "time-series-analytic",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table/measurement", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "tag", "title": "Tag", "operation_profile": "definition"},
+        {"resource_kind": "field", "title": "Field", "operation_profile": "definition"},
+        {"resource_kind": "retention-policy", "title": "Retention policy", "operation_profile": "definition"},
+        {"resource_kind": "last-cache", "title": "Last value cache", "operation_profile": "definition"},
+        {"resource_kind": "distinct-cache", "title": "Distinct value cache", "operation_profile": "definition"},
+        {"resource_kind": "token", "title": "API token reference", "operation_profile": "security"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "operational"},
+        {"resource_kind": "plugin", "title": "Plugin", "operation_profile": "operational"},
+        {"resource_kind": "processing-engine", "title": "Processing engine", "operation_profile": "operational"},
+        {"resource_kind": "compaction", "title": "Compaction", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "mariadb", "engine_name": "MariaDB", "reference_profile": "12.2.2", "model_family": "relational",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "event", "title": "Event", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "package", "title": "Package", "operation_profile": "definition"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "operational"},
+        {"resource_kind": "tablespace", "title": "Tablespace", "operation_profile": "namespace"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
+        {"resource_kind": "server-link", "title": "Remote server", "operation_profile": "definition"}
+      ]
+    },
+    {
+      "engine_id": "milvus", "engine_name": "Milvus", "reference_profile": "2.6.5", "model_family": "vector-analytic",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "collection", "title": "Collection", "operation_profile": "data_container"},
+        {"resource_kind": "field", "title": "Field", "operation_profile": "definition"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "data_container"},
+        {"resource_kind": "vector-index", "title": "Vector index", "operation_profile": "definition"},
+        {"resource_kind": "alias", "title": "Alias", "operation_profile": "definition"},
+        {"resource_kind": "load-state", "title": "Load/release state", "operation_profile": "operational"},
+        {"resource_kind": "compaction", "title": "Compaction", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "credential", "title": "Credential reference", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "mongodb", "engine_name": "MongoDB", "reference_profile": "8.2.6", "model_family": "document",
+      "objects": [
+        {"resource_kind": "deployment", "title": "Deployment", "operation_profile": "topology"},
+        {"resource_kind": "replica-set", "title": "Replica set", "operation_profile": "topology"},
+        {"resource_kind": "shard", "title": "Shard", "operation_profile": "topology"},
+        {"resource_kind": "router", "title": "Router", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "collection", "title": "Collection", "operation_profile": "data_container"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "validator", "title": "Schema validator", "operation_profile": "definition"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "zone", "title": "Shard zone", "operation_profile": "topology"},
+        {"resource_kind": "balancer", "title": "Balancer", "operation_profile": "operational"},
+        {"resource_kind": "change-stream", "title": "Change stream", "operation_profile": "operational"},
+        {"resource_kind": "profiling", "title": "Database profiler", "operation_profile": "operational"},
+        {"resource_kind": "current-operation", "title": "Current operation", "operation_profile": "operational"},
+        {"resource_kind": "server-log", "title": "Server log", "operation_profile": "read_only"},
+        {"resource_kind": "statistics", "title": "Statistics and performance", "operation_profile": "read_only"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"},
+        {"resource_kind": "import", "title": "Import", "operation_profile": "operational"},
+        {"resource_kind": "export", "title": "Export", "operation_profile": "operational"},
+        {"resource_kind": "shell", "title": "MongoDB Shell", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "mysql", "engine_name": "MySQL", "reference_profile": "9.7.0", "model_family": "relational",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "event", "title": "Event", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "operational"},
+        {"resource_kind": "tablespace", "title": "Tablespace", "operation_profile": "namespace"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
+        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"}
+      ]
+    },
+    {
+      "engine_id": "neo4j", "engine_name": "Neo4j", "reference_profile": "2026.04.0", "model_family": "graph",
+      "objects": [
+        {"resource_kind": "dbms", "title": "DBMS", "operation_profile": "topology"},
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "composite-database", "title": "Composite database", "operation_profile": "namespace"},
+        {"resource_kind": "alias", "title": "Database alias", "operation_profile": "definition"},
+        {"resource_kind": "graph", "title": "Graph", "operation_profile": "data_container"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "data_item"},
+        {"resource_kind": "label", "title": "Label", "operation_profile": "definition"},
+        {"resource_kind": "relationship", "title": "Relationship", "operation_profile": "data_item"},
+        {"resource_kind": "relationship-type", "title": "Relationship type", "operation_profile": "definition"},
+        {"resource_kind": "property", "title": "Property", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "operational"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "read_only"},
+        {"resource_kind": "setting", "title": "Setting", "operation_profile": "read_only"},
+        {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "operational"},
+        {"resource_kind": "query", "title": "Query", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"},
+        {"resource_kind": "import", "title": "Import", "operation_profile": "operational"},
+        {"resource_kind": "export", "title": "Export", "operation_profile": "operational"},
+        {"resource_kind": "shell", "title": "Cypher shell", "operation_profile": "operational"},
+        {"resource_kind": "consistency-check", "title": "Consistency check", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "opensearch", "engine_name": "OpenSearch", "reference_profile": "3.6.0", "model_family": "search-analytic",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "data_container"},
+        {"resource_kind": "index-template", "title": "Index template", "operation_profile": "definition"},
+        {"resource_kind": "component-template", "title": "Component template", "operation_profile": "definition"},
+        {"resource_kind": "data-stream", "title": "Data stream", "operation_profile": "data_container"},
+        {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
+        {"resource_kind": "mapping", "title": "Mapping", "operation_profile": "definition"},
+        {"resource_kind": "field", "title": "Field", "operation_profile": "definition"},
+        {"resource_kind": "analyzer", "title": "Analyzer", "operation_profile": "definition"},
+        {"resource_kind": "normalizer", "title": "Normalizer", "operation_profile": "definition"},
+        {"resource_kind": "tokenizer", "title": "Tokenizer", "operation_profile": "definition"},
+        {"resource_kind": "ingest-pipeline", "title": "Ingest pipeline", "operation_profile": "definition"},
+        {"resource_kind": "script", "title": "Script", "operation_profile": "definition"},
+        {"resource_kind": "alias", "title": "Alias", "operation_profile": "definition"},
+        {"resource_kind": "repository", "title": "Snapshot repository", "operation_profile": "operational"},
+        {"resource_kind": "snapshot", "title": "Snapshot", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "role-mapping", "title": "Role mapping", "operation_profile": "security"},
+        {"resource_kind": "tenant", "title": "Tenant", "operation_profile": "security"},
+        {"resource_kind": "policy", "title": "Lifecycle/security policy", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "opensearch_sql_ppl", "engine_name": "OpenSearch SQL/PPL", "reference_profile": "3.6.0-sql-ppl", "model_family": "search-language",
+      "objects": [
+        {"resource_kind": "catalog", "title": "Catalog", "operation_profile": "read_only"},
+        {"resource_kind": "data-source", "title": "Data source", "operation_profile": "definition"},
+        {"resource_kind": "query", "title": "SQL/PPL query", "operation_profile": "operational"},
+        {"resource_kind": "saved-query", "title": "Saved query", "operation_profile": "definition"},
+        {"resource_kind": "prepared-query", "title": "Prepared query", "operation_profile": "operational"},
+        {"resource_kind": "language-settings", "title": "Language settings", "operation_profile": "definition"}
+      ]
+    },
+    {
+      "engine_id": "postgresql", "engine_name": "PostgreSQL", "reference_profile": "18.3", "model_family": "relational",
+      "objects": [
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "domain", "title": "Domain", "operation_profile": "definition"},
+        {"resource_kind": "collation", "title": "Collation", "operation_profile": "definition"},
+        {"resource_kind": "conversion", "title": "Conversion", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "aggregate", "title": "Aggregate", "operation_profile": "definition"},
+        {"resource_kind": "operator", "title": "Operator", "operation_profile": "definition"},
+        {"resource_kind": "operator-class", "title": "Operator class", "operation_profile": "definition"},
+        {"resource_kind": "operator-family", "title": "Operator family", "operation_profile": "definition"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "rule", "title": "Rule", "operation_profile": "definition"},
+        {"resource_kind": "row-policy", "title": "Row security policy", "operation_profile": "security"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "data_container"},
+        {"resource_kind": "foreign-data-wrapper", "title": "Foreign data wrapper", "operation_profile": "definition"},
+        {"resource_kind": "foreign-server", "title": "Foreign server", "operation_profile": "definition"},
+        {"resource_kind": "user-mapping", "title": "User mapping", "operation_profile": "security"},
+        {"resource_kind": "foreign-table", "title": "Foreign table", "operation_profile": "data_container"},
+        {"resource_kind": "extension", "title": "Extension", "operation_profile": "operational"},
+        {"resource_kind": "event-trigger", "title": "Event trigger", "operation_profile": "definition"},
+        {"resource_kind": "publication", "title": "Publication", "operation_profile": "definition"},
+        {"resource_kind": "subscription", "title": "Subscription", "operation_profile": "topology"},
+        {"resource_kind": "tablespace", "title": "Tablespace", "operation_profile": "namespace"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "language", "title": "Procedural language", "operation_profile": "definition"},
+        {"resource_kind": "cast", "title": "Cast", "operation_profile": "definition"}
+      ]
+    },
+    {
+      "engine_id": "redis", "engine_name": "Redis", "reference_profile": "8.6.2", "model_family": "data-structure-key-value",
+      "objects": [
+        {"resource_kind": "deployment", "title": "Deployment", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "replica", "title": "Replica", "operation_profile": "topology"},
+        {"resource_kind": "sentinel", "title": "Sentinel service", "operation_profile": "topology"},
+        {"resource_kind": "cluster-slot", "title": "Cluster slot", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Logical database", "operation_profile": "namespace"},
+        {"resource_kind": "key", "title": "Key", "operation_profile": "data_item"},
+        {"resource_kind": "string", "title": "String", "operation_profile": "data_container"},
+        {"resource_kind": "hash", "title": "Hash", "operation_profile": "data_container"},
+        {"resource_kind": "list", "title": "List", "operation_profile": "data_container"},
+        {"resource_kind": "set", "title": "Set", "operation_profile": "data_container"},
+        {"resource_kind": "sorted-set", "title": "Sorted set", "operation_profile": "data_container"},
+        {"resource_kind": "stream", "title": "Stream", "operation_profile": "data_container"},
+        {"resource_kind": "geospatial", "title": "Geospatial index", "operation_profile": "data_container"},
+        {"resource_kind": "bitmap", "title": "Bitmap", "operation_profile": "data_container"},
+        {"resource_kind": "hyperloglog", "title": "HyperLogLog", "operation_profile": "data_container"},
+        {"resource_kind": "vector-set", "title": "Vector set", "operation_profile": "data_container"},
+        {"resource_kind": "consumer-group", "title": "Consumer group", "operation_profile": "definition"},
+        {"resource_kind": "consumer", "title": "Consumer", "operation_profile": "definition"},
+        {"resource_kind": "pubsub-channel", "title": "Pub/Sub channel", "operation_profile": "operational"},
+        {"resource_kind": "function-library", "title": "Function library", "operation_profile": "definition"},
+        {"resource_kind": "script", "title": "Lua script", "operation_profile": "definition"},
+        {"resource_kind": "acl-user", "title": "ACL user", "operation_profile": "security"},
+        {"resource_kind": "module", "title": "Module", "operation_profile": "operational"},
+        {"resource_kind": "ttl", "title": "Expiry/TTL", "operation_profile": "definition"},
+        {"resource_kind": "transaction", "title": "MULTI/EXEC transaction", "operation_profile": "operational"},
+        {"resource_kind": "pipeline", "title": "Non-transactional pipeline", "operation_profile": "operational"},
+        {"resource_kind": "persistence", "title": "Persistence", "operation_profile": "topology"},
+        {"resource_kind": "configuration", "title": "Configuration", "operation_profile": "topology"},
+        {"resource_kind": "client", "title": "Client connection", "operation_profile": "topology"},
+        {"resource_kind": "slow-log", "title": "Slow log", "operation_profile": "operational"},
+        {"resource_kind": "latency", "title": "Latency monitor", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"},
+        {"resource_kind": "import", "title": "Import", "operation_profile": "operational"},
+        {"resource_kind": "export", "title": "Export", "operation_profile": "operational"},
+        {"resource_kind": "shell", "title": "redis-cli", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "sqlite", "engine_name": "SQLite", "reference_profile": "3.53.0", "model_family": "embedded-relational",
+      "objects": [
+        {"resource_kind": "database", "title": "Database file", "operation_profile": "namespace"},
+        {"resource_kind": "attached-database", "title": "Attached database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "virtual-table", "title": "Virtual table", "operation_profile": "data_container"},
+        {"resource_kind": "fts-table", "title": "Full-text search table", "operation_profile": "data_container"},
+        {"resource_kind": "pragma", "title": "PRAGMA setting", "operation_profile": "definition"},
+        {"resource_kind": "extension", "title": "Extension", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "tidb", "engine_name": "TiDB", "reference_profile": "8.5.6", "model_family": "distributed-relational",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "partition", "title": "Partition", "operation_profile": "data_container"},
+        {"resource_kind": "placement-policy", "title": "Placement policy", "operation_profile": "topology"},
+        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"},
+        {"resource_kind": "tiflash-replica", "title": "TiFlash replica", "operation_profile": "topology"},
+        {"resource_kind": "job", "title": "DDL/background job", "operation_profile": "operational"},
+        {"resource_kind": "changefeed", "title": "TiCDC changefeed", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "tikv", "engine_name": "TiKV", "reference_profile": "8.5.6", "model_family": "distributed-key-value",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "store", "title": "Store", "operation_profile": "topology"},
+        {"resource_kind": "region", "title": "Region", "operation_profile": "topology"},
+        {"resource_kind": "peer", "title": "Peer", "operation_profile": "topology"},
+        {"resource_kind": "keyspace", "title": "Keyspace", "operation_profile": "namespace"},
+        {"resource_kind": "key-range", "title": "Key range", "operation_profile": "data_container"},
+        {"resource_kind": "raw-key", "title": "Raw key/value", "operation_profile": "data_item"},
+        {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "read_only"},
+        {"resource_kind": "lock", "title": "Lock", "operation_profile": "read_only"},
+        {"resource_kind": "placement-rule", "title": "Placement rule", "operation_profile": "topology"},
+        {"resource_kind": "scheduler", "title": "Scheduler", "operation_profile": "topology"},
+        {"resource_kind": "configuration", "title": "Configuration", "operation_profile": "topology"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"},
+        {"resource_kind": "import-job", "title": "Import job", "operation_profile": "operational"},
+        {"resource_kind": "coprocessor", "title": "Coprocessor", "operation_profile": "operational"}
+      ]
+    },
+    {
+      "engine_id": "vitess", "engine_name": "Vitess", "reference_profile": "23.0.3", "model_family": "distributed-relational",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "cell", "title": "Cell", "operation_profile": "topology"},
+        {"resource_kind": "keyspace", "title": "Keyspace", "operation_profile": "namespace"},
+        {"resource_kind": "shard", "title": "Shard", "operation_profile": "topology"},
+        {"resource_kind": "tablet", "title": "Tablet", "operation_profile": "topology"},
+        {"resource_kind": "vtgate", "title": "VTGate", "operation_profile": "topology"},
+        {"resource_kind": "vttablet", "title": "VTTablet", "operation_profile": "topology"},
+        {"resource_kind": "vschema", "title": "VSchema", "operation_profile": "definition"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "read_only"},
+        {"resource_kind": "vindex", "title": "Vindex", "operation_profile": "definition"},
+        {"resource_kind": "routing-rule", "title": "Routing rule", "operation_profile": "topology"},
+        {"resource_kind": "workflow", "title": "Workflow", "operation_profile": "operational"},
+        {"resource_kind": "vreplication-stream", "title": "VReplication stream", "operation_profile": "operational"},
+        {"resource_kind": "materialize", "title": "Materialization", "operation_profile": "operational"},
+        {"resource_kind": "online-ddl", "title": "Online DDL", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User/ACL", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "xtdb", "engine_name": "XTDB", "reference_profile": "2.1.0", "model_family": "bitemporal-document-relational",
+      "objects": [
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
+        {"resource_kind": "entity", "title": "Entity", "operation_profile": "data_item"},
+        {"resource_kind": "valid-time", "title": "Valid-time history", "operation_profile": "read_only"},
+        {"resource_kind": "system-time", "title": "System-time history", "operation_profile": "read_only"},
+        {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "read_only"},
+        {"resource_kind": "transaction-log", "title": "Transaction log", "operation_profile": "read_only"},
+        {"resource_kind": "health", "title": "Health and block maintenance", "operation_profile": "operational"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "module", "title": "Module", "operation_profile": "operational"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"}
+      ]
+    },
+    {
+      "engine_id": "yugabytedb", "engine_name": "YugabyteDB", "reference_profile": "2025.2.2.2", "model_family": "distributed-multimodel-relational",
+      "objects": [
+        {"resource_kind": "universe", "title": "Universe", "operation_profile": "topology"},
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "region", "title": "Region", "operation_profile": "topology"},
+        {"resource_kind": "zone", "title": "Zone", "operation_profile": "topology"},
+        {"resource_kind": "database", "title": "YSQL database", "operation_profile": "namespace"},
+        {"resource_kind": "keyspace", "title": "YCQL keyspace", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "tablet", "title": "Tablet", "operation_profile": "topology"},
+        {"resource_kind": "tserver", "title": "Tablet server", "operation_profile": "topology"},
+        {"resource_kind": "master", "title": "Master", "operation_profile": "topology"},
+        {"resource_kind": "placement-policy", "title": "Placement policy", "operation_profile": "topology"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "changefeed", "title": "CDC stream", "operation_profile": "operational"},
+        {"resource_kind": "snapshot", "title": "Snapshot", "operation_profile": "operational"},
+        {"resource_kind": "schedule", "title": "Snapshot schedule", "operation_profile": "operational"},
+        {"resource_kind": "xcluster-replication", "title": "xCluster replication", "operation_profile": "topology"}
+      ]
+    },
+    {
+      "engine_id": "scratchbird", "engine_name": "ScratchBird CDE", "reference_profile": "0.1.0", "model_family": "convergent-multimodel", "experience_type": "native-engine",
+      "objects": [
+        {"resource_kind": "cde-application", "title": "CDE application", "operation_profile": "topology"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
+        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
+        {"resource_kind": "manager", "title": "Manager", "operation_profile": "topology"},
+        {"resource_kind": "listener", "title": "Listener", "operation_profile": "topology"},
+        {"resource_kind": "parser-profile", "title": "Parser profile", "operation_profile": "definition"},
+        {"resource_kind": "parser-worker", "title": "Parser worker", "operation_profile": "topology"},
+        {"resource_kind": "agent", "title": "Agent", "operation_profile": "topology"},
+        {"resource_kind": "group", "title": "Group", "operation_profile": "topology"},
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
+        {"resource_kind": "route", "title": "Route", "operation_profile": "topology"},
+        {"resource_kind": "provider", "title": "Provider", "operation_profile": "definition"},
+        {"resource_kind": "capability", "title": "Capability", "operation_profile": "read_only"},
+        {"resource_kind": "compatibility-profile", "title": "Compatibility profile", "operation_profile": "definition"},
+        {"resource_kind": "session", "title": "Session", "operation_profile": "operational"},
+        {"resource_kind": "request", "title": "Request", "operation_profile": "operational"},
+        {"resource_kind": "execution", "title": "Execution", "operation_profile": "operational"},
+        {"resource_kind": "job", "title": "Job", "operation_profile": "operational"},
+        {"resource_kind": "stream", "title": "Stream", "operation_profile": "operational"},
+        {"resource_kind": "transaction", "title": "MGA transaction", "operation_profile": "read_only"},
+        {"resource_kind": "snapshot", "title": "MGA snapshot", "operation_profile": "read_only"},
+        {"resource_kind": "savepoint", "title": "Savepoint", "operation_profile": "read_only"},
+        {"resource_kind": "filespace", "title": "Filespace", "operation_profile": "topology"},
+        {"resource_kind": "filespace-snapshot", "title": "Filespace snapshot", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "Backup", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "Restore", "operation_profile": "operational"},
+        {"resource_kind": "migration", "title": "Migration", "operation_profile": "operational"},
+        {"resource_kind": "database", "title": "Node database", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
+        {"resource_kind": "table", "title": "Relational table", "operation_profile": "data_container"},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
+        {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
+        {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
+        {"resource_kind": "domain", "title": "Domain", "operation_profile": "definition"},
+        {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
+        {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
+        {"resource_kind": "document-collection", "title": "Document collection", "operation_profile": "data_container"},
+        {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
+        {"resource_kind": "graph", "title": "Graph", "operation_profile": "data_container"},
+        {"resource_kind": "graph-node", "title": "Graph node", "operation_profile": "data_item"},
+        {"resource_kind": "node-label", "title": "Node label", "operation_profile": "definition"},
+        {"resource_kind": "graph-edge", "title": "Graph edge", "operation_profile": "data_item"},
+        {"resource_kind": "edge-type", "title": "Edge type", "operation_profile": "definition"},
+        {"resource_kind": "vector-collection", "title": "Vector collection", "operation_profile": "data_container"},
+        {"resource_kind": "vector-index", "title": "Vector index", "operation_profile": "definition"},
+        {"resource_kind": "time-series", "title": "Time-series measurement", "operation_profile": "data_container"},
+        {"resource_kind": "search-index", "title": "Search index", "operation_profile": "data_container"},
+        {"resource_kind": "cube", "title": "Analytical cube", "operation_profile": "data_container"},
+        {"resource_kind": "dimension", "title": "Dimension", "operation_profile": "definition"},
+        {"resource_kind": "hierarchy", "title": "Hierarchy", "operation_profile": "definition"},
+        {"resource_kind": "level", "title": "Level", "operation_profile": "definition"},
+        {"resource_kind": "metric", "title": "Metric", "operation_profile": "definition"},
+        {"resource_kind": "materialization", "title": "Materialization", "operation_profile": "operational"},
+        {"resource_kind": "pipeline", "title": "Pipeline", "operation_profile": "operational"},
+        {"resource_kind": "connector", "title": "Connector", "operation_profile": "topology"},
+        {"resource_kind": "principal", "title": "Principal", "operation_profile": "security"},
+        {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
+        {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "security-policy", "title": "Security policy", "operation_profile": "security"},
+        {"resource_kind": "audit-policy", "title": "Audit policy", "operation_profile": "security"}
+      ]
+    }
+  ]
+}

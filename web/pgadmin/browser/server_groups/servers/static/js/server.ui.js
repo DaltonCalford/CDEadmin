@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -12,6 +12,7 @@ import _ from 'lodash';
 import BaseUISchema from 'sources/SchemaView/base_schema.ui';
 import pgAdmin from 'sources/pgadmin';
 import {default as supportedServers} from 'pgadmin.server.supported_servers';
+import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
 import current_user from 'pgadmin.user_management.current_user';
 import { isEmptyString } from 'sources/validators';
 import VariableSchema from './variable.ui';
@@ -188,6 +189,8 @@ export default class ServerSchema extends BaseUISchema {
       username: current_user.name,
       role: null,
       connect_now: true,
+      cde_verify_now: false,
+      cde_profile_id: endpointProfiles.defaultProfile.profile_id,
       password: undefined,
       save_password: false,
       db_res: undefined,
@@ -237,6 +240,46 @@ export default class ServerSchema extends BaseUISchema {
     return this.isConnected(state) || this.isShared(state);
   }
 
+  isProviderEndpoint(state) {
+    return endpointProfiles.get(state.cde_profile_id)?.workflow ===
+      'provider_endpoint';
+  }
+
+  isEmbeddedEndpoint(state) {
+    return endpointProfiles.get(state.cde_profile_id)?.route_kind ===
+      'embedded_file';
+  }
+
+  providerConnectionFields() {
+    const fields = new Map();
+    endpointProfiles.profiles.forEach((profile) => {
+      (profile.connection_fields || []).forEach((field) => {
+        const id = `cde_route_${field.field_id}`;
+        const current = fields.get(id) || {...field, id, profileIds: []};
+        current.profileIds.push(profile.profile_id);
+        fields.set(id, current);
+      });
+    });
+    return [...fields.values()].map((field) => ({
+      id: field.id,
+      label: gettext(field.label),
+      type: field.control === 'boolean' ? 'switch' :
+        field.control === 'number' ? 'int' : field.control,
+      group: gettext(field.group || 'Advanced connection'),
+      mode: ['properties', 'edit', 'create'],
+      deps: ['cde_profile_id'],
+      visible: (state) => field.profileIds.includes(state.cde_profile_id),
+      noEmpty: Boolean(field.required),
+      min: field.minimum,
+      max: field.maximum,
+      options: field.options,
+      helpMessage: field.help || undefined,
+      controlProps: field.control === 'file' ? {
+        dialogType: 'select_file', supportedTypes: ['*'],
+      } : field.control === 'select' ? {allowClear: false} : undefined,
+    }));
+  }
+
   get baseFields() {
     let obj = this;
     return [
@@ -253,6 +296,31 @@ export default class ServerSchema extends BaseUISchema {
         mode: ['create', 'edit'],
         controlProps: { allowClear: false },
         disabled: obj.isShared,
+      },
+      {
+        id: 'cde_profile_id', label: gettext('Engine profile'), type: 'select',
+        options: endpointProfiles.options, controlProps: {allowClear: false},
+        mode: ['properties', 'create'], noEmpty: true,
+        depChange: (state) => {
+          const profile = endpointProfiles.get(state.cde_profile_id);
+          if (!profile || !obj.isNew(state)) {
+            return {};
+          }
+          const providerEndpoint = profile.workflow === 'provider_endpoint';
+          return {
+            port: profile.default_port,
+            connect_now: !providerEndpoint,
+            cde_verify_now: providerEndpoint,
+            service: providerEndpoint ? null : state.service,
+            role: providerEndpoint ? null : state.role,
+            kerberos_conn: providerEndpoint ? false : state.kerberos_conn,
+            use_ssh_tunnel: providerEndpoint ? false : state.use_ssh_tunnel,
+            ...(profile.connection_fields || []).reduce((values, field) => ({
+              ...values,
+              [`cde_route_${field.field_id}`]: field.default ?? null,
+            }), {}),
+          };
+        },
       },
       {
         id: 'server_owner', label: gettext('Shared Server Owner'), type: 'text', mode: ['properties'],
@@ -286,7 +354,14 @@ export default class ServerSchema extends BaseUISchema {
       },
       {
         id: 'connect_now', label: gettext('Connect now?'), type: 'switch',
-        group: null, mode: ['create'],
+        group: null, mode: ['create'], deps: ['cde_profile_id'],
+        visible: (state) => !obj.isProviderEndpoint(state),
+      },
+      {
+        id: 'cde_verify_now', label: gettext('Verify endpoint now?'),
+        type: 'switch', group: null, mode: ['create'],
+        deps: ['cde_profile_id'],
+        visible: (state) => obj.isProviderEndpoint(state),
       },
       {
         id: 'shared', label: gettext('Shared?'), type: 'switch',
@@ -334,6 +409,8 @@ export default class ServerSchema extends BaseUISchema {
       }, {
         id: 'host', label: gettext('Host name/address'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], disabled: obj.isShared,
+        deps: ['cde_profile_id'],
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         depChange: (state)=>{
           if(obj.origData.host != state.host && !obj.isNew(state) && state.connected){
             obj.informText = gettext(
@@ -347,6 +424,8 @@ export default class ServerSchema extends BaseUISchema {
       {
         id: 'port', label: gettext('Port'), type: 'int', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], min: 1, max: 65535, disabled: obj.isShared,
+        deps: ['cde_profile_id'],
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         depChange: (state)=>{
           if(obj.origData.port != state.port && !obj.isNew(state) && state.connected){
             obj.informText = gettext(
@@ -357,12 +436,14 @@ export default class ServerSchema extends BaseUISchema {
           }
         }
       },{
-        id: 'db', label: gettext('Maintenance database'), type: 'text', group: gettext('Connection'),
+        id: 'db', label: gettext('Database / file'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnectedOrShared,
         noEmpty: true,
       },{
         id: 'username', label: gettext('Username'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'],
+        deps: ['cde_profile_id'],
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         depChange: (state)=>{
           if(obj.origData.username != state.username && !obj.isNew(state) && state.connected){
             obj.informText = gettext(
@@ -385,7 +466,8 @@ export default class ServerSchema extends BaseUISchema {
         id: 'password', label: gettext('Password'), type: 'password',
         group: gettext('Connection'),
         mode: ['create', 'edit'],
-        deps: ['kerberos_conn', 'save_password'],
+        deps: ['kerberos_conn', 'save_password', 'cde_profile_id'],
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         controlProps: {
           maxLength: null,
           autoComplete: 'new-password'
@@ -400,14 +482,17 @@ export default class ServerSchema extends BaseUISchema {
       },{
         id: 'save_password', label: gettext('Save password?'),
         type: 'switch', group: gettext('Connection'), mode: ['create', 'edit'],
-        deps: ['kerberos_conn'],
+        deps: ['kerberos_conn', 'cde_profile_id'],
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         readonly: function(state) {
           return state.connected;
         },
         disabled: function(state) {
           return !current_user.allow_save_password || state.kerberos_conn;
         },
-      },{
+      },
+      ...obj.providerConnectionFields(),
+      {
         id: 'role', label: gettext('Role'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnected,
       },{
@@ -609,6 +694,16 @@ export default class ServerSchema extends BaseUISchema {
       return true;
     } else {
       setError('gid', null);
+    }
+
+    if (this.isEmbeddedEndpoint(state)) {
+      _.each(['host', 'username', 'port'], (item) => setError(item, null));
+      if (isEmptyString(state.db)) {
+        setError('db', gettext('Database file must be specified.'));
+        return true;
+      }
+      setError('db', null);
+      return false;
     }
 
     if (isEmptyString(state.service)) {

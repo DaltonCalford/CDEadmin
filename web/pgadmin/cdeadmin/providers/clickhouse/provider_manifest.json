@@ -1,0 +1,29 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.clickhouse", "provider_version": "0.1.0", "profile_id": "clickhouse-native", "profile_version": "25.12.10.7-stable", "evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["clickhouse"], "target_adapter_ids": ["stdlib-clickhouse-http-json-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "ClickHouse 25.12.10.7", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": true, "default_port": 8123, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_fields": [
+      {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "ClickHouse database", "default": "default"},
+      {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "ClickHouse authentication", "default": "default"},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "ClickHouse TLS", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "ClickHouse TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "ClickHouse TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "ClickHouse TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "ClickHouse timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "statement_timeout", "route_key": "statement_timeout", "label": "Statement timeout (seconds)", "control": "number", "group": "ClickHouse timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "ClickHouse session", "default": false},
+      {"field_id": "session_id", "route_key": "session_id", "label": "HTTP session identifier", "control": "text", "group": "ClickHouse session"},
+      {"field_id": "quota_key", "route_key": "quota_key", "label": "Quota key", "control": "text", "group": "ClickHouse session"},
+      {"field_id": "role", "route_key": "role", "label": "Initial role", "control": "text", "group": "ClickHouse security"}
+    ]
+  },
+  "provenance": {"purpose": "ClickHouse 25.12.10.7 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "clickhouse_25.12.10.7_standalone_verified", "activation_gate": "passed", "live_evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902", "runtime_image_digest": "sha256:59efe7d83b1e13c2e439a80adcce1fad186489d69a55d4b763102280a359a4cc"}
+}

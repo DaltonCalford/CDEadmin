@@ -1,0 +1,61 @@
+{
+  "schema": "cdeadmin.parity-policy.v1",
+  "active_corpus_authority": "exact_release_packet_root_supplied_by_operator",
+  "reference_target_mode": "legacy_native",
+  "scratchbird_emulation_execution": "disabled_pending_handoff",
+  "reference_runtime_admission": "exact_profile_and_content_addressed_runtime_required",
+  "evidence": {
+    "maximum_age_days": 30,
+    "required_digest_fields": [
+      "corpus_inventory",
+      "source_archive",
+      "runtime_artifact",
+      "client",
+      "provider",
+      "scenario_catalog",
+      "scenario",
+      "fixture_manifest",
+      "comparator"
+    ],
+    "expiry_result": "release_blocked",
+    "wrong_version_result": "release_blocked",
+    "mutable_location_aliases": false
+  },
+  "outcomes": {
+    "reference": ["not_run", "observed", "expected_refusal", "unexpected_refusal", "error"],
+    "scratchbird_emulation": ["not_run", "equivalent", "acceptable_delta", "refused", "deferred", "mismatch", "error"]
+  },
+  "implemented_parity_outcomes": ["equivalent", "acceptable_delta"],
+  "non_parity_outcomes": ["not_run", "refused", "deferred", "mismatch", "error", "expected_refusal", "unexpected_refusal"],
+  "delta_classes": {
+    "numeric_tolerance": {"requires_bound": true, "counts_as_parity": true},
+    "timestamp_precision": {"requires_bound": true, "counts_as_parity": true},
+    "unordered_collection": {"requires_bound": false, "counts_as_parity": true},
+    "collation_order": {"requires_bound": true, "counts_as_parity": true},
+    "score_tolerance": {"requires_bound": true, "counts_as_parity": true},
+    "implementation_defined": {"requires_bound": true, "counts_as_parity": false},
+    "manual_review": {"requires_bound": true, "counts_as_parity": false}
+  },
+  "refusal_policy": {
+    "expected_refusal_is_accounted": true,
+    "expected_refusal_counts_as_implemented_parity": false,
+    "unexpected_refusal_counts_as_implemented_parity": false,
+    "refusal_requires_typed_diagnostic": true
+  },
+  "scratchbird_transaction_authority": {
+    "authority_class": "scratchbird_mga",
+    "execution_boundary": "engine_sblr_uuid",
+    "finality_source": "durable_transaction_inventory",
+    "common_runner_interprets_finality": false,
+    "parser_or_driver_authority": false,
+    "savepoints_allocate_independent_authority": false
+  },
+  "release_gate": {
+    "requires_all_reference_cells_observed": true,
+    "requires_all_scratchbird_cells_assessed": true,
+    "requires_current_evidence": true,
+    "requires_exact_runtime_identity": true,
+    "requires_all_semantic_deltas_bounded": true,
+    "refusals_satisfy_feature_parity": false
+  }
+}

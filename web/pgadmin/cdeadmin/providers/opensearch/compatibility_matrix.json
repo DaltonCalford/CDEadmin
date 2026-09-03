@@ -1,0 +1,15 @@
+{
+  "schema": "cdeadmin.opensearch-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.opensearch",
+  "reference_profile": "3.6.0",
+  "capabilities": {
+    "native": ["query_dsl", "search_hits", "indices", "mappings", "templates", "data_streams", "documents", "analysis", "pipelines", "aliases", "snapshots", "security_plugin", "ism_policies"],
+    "native_optional": ["security_plugin", "ism_plugin"],
+    "explicitly_unavailable": ["multi_request_transactions", "automatic_mutation_retry"]
+  },
+  "live_qualification": [
+    {"deployment": "disposable_single_node_plaintext_http", "server_version": "3.6.0", "status": "passed", "evidence_reference": "cde-analytic-live:opensearch-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["security_plugin_authentication", "verified_tls", "restart", "controlled_disconnect_fault", "multi_node_cluster"]
+}

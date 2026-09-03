@@ -59,19 +59,18 @@ cat << EOF > "${BUILDROOT}/server.spec"
 Name:		${APP_NAME}-server
 Version:	${RPM_VERSION}
 Release:	1%{?dist}
-Summary:	The core server package for pgAdmin.
+Summary:	The CDEadmin multi-engine administration server.
 License:	PostgreSQL
-URL:		https://www.pgadmin.org/
 
 Requires:	${PYTHON_BINARY}, libpq5, krb5-libs
 
 %description
-The core server package for pgAdmin. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+The CDEadmin server for provider-driven multi-engine and multi-model database administration. Derived from pgAdmin 4 under the PostgreSQL Licence.
 
 %pre
-rm -rf /usr/pgadmin4/venv
-if [ -d /usr/pgadmin4/web ]; then
-  cd /usr/pgadmin4/web && rm -rf \$(ls -A -I config_local.py)
+rm -rf /usr/cdeadmin/venv
+if [ -d /usr/cdeadmin/web ]; then
+  cd /usr/cdeadmin/web && rm -rf \$(ls -A -I config_local.py)
 fi
 
 %build
@@ -81,8 +80,8 @@ cp -rfa %{pga_build_root}/server/* \${RPM_BUILD_ROOT}
 
 %files
 %defattr(-,root,root,755)
-%dir /usr/pgadmin4
-/usr/pgadmin4/*
+%dir /usr/cdeadmin
+/usr/cdeadmin/*
 EOF
 
 # Build the Redhat package for the server
@@ -106,13 +105,12 @@ cat << EOF > "${BUILDROOT}/desktop.spec"
 Name:		${APP_NAME}-desktop
 Version:	${RPM_VERSION}
 Release:	1%{?dist}
-Summary:	The desktop user interface for pgAdmin.
+Summary:	The CDEadmin desktop user interface.
 License:	PostgreSQL
-URL:		https://www.pgadmin.org/
 Requires:	${APP_NAME}-server = ${RPM_VERSION}, libatomic, xdg-utils
 
 %description
-The desktop user interface for pgAdmin. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+The CDEadmin desktop interface for multi-engine and multi-model database administration.
 
 %build
 
@@ -124,15 +122,15 @@ cp -rfa %{pga_build_root}/desktop/* \${RPM_BUILD_ROOT}
 
 %files
 %defattr(-,root,root,755)
-%attr(755,root,root) /usr/pgadmin4/bin/pgadmin4
-/usr/pgadmin4/bin/*
+%attr(755,root,root) /usr/cdeadmin/bin/cdeadmin
+/usr/cdeadmin/bin/*
 /usr/share/icons/hicolor/128x128/apps/*
 /usr/share/icons/hicolor/64x64/apps/*
 /usr/share/icons/hicolor/48x48/apps/*
 /usr/share/icons/hicolor/32x32/apps/*
 /usr/share/icons/hicolor/16x16/apps/*
 /usr/share/applications/*
-/usr/pgadmin4/sbom-desktop.json
+/usr/cdeadmin/sbom-desktop.json
 EOF
 
 
@@ -160,13 +158,12 @@ Name:		${APP_NAME}-web
 Version:	${RPM_VERSION}
 Release:	1%{?dist}
 BuildArch:	noarch
-Summary:	The web interface for pgAdmin, hosted under Apache HTTPD.
+Summary:	The CDEadmin web interface, hosted under Apache HTTPD.
 License:	PostgreSQL
-URL:		https://www.pgadmin.org/
 Requires:	${APP_NAME}-server = ${RPM_VERSION}, httpd, ${PYTHON_BINARY_WITHOUT_DOTS}-mod_wsgi, policycoreutils-python-utils
 
 %description
-The web interface for pgAdmin, hosted under Apache HTTPD. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+The CDEadmin provider-driven multi-engine web interface, hosted under Apache HTTPD.
 
 %build
 
@@ -175,13 +172,13 @@ cp -rfa %{pga_build_root}/web/* \${RPM_BUILD_ROOT}
 
 %files
 %defattr(-,root,root,755)
-/usr/pgadmin4/bin/*
+/usr/cdeadmin/bin/*
 %config(noreplace) /etc/httpd/conf.d/*
-/usr/pgadmin4/sbom-web.json
+/usr/cdeadmin/sbom-web.json
 EOF
 
 mkdir -p "${WEBROOT}/etc/httpd/conf.d"
-cp "${SOURCEDIR}/pkg/redhat/pgadmin4.conf" "${WEBROOT}/etc/httpd/conf.d"
+cp "${SOURCEDIR}/pkg/redhat/cdeadmin.conf" "${WEBROOT}/etc/httpd/conf.d"
 
 # Build the Redhat package for the web
 rpmbuild --define "pga_build_root ${BUILDROOT}" -bb "${BUILDROOT}/web.spec"
@@ -206,13 +203,12 @@ Name:		${APP_NAME}
 Version:	${RPM_VERSION}
 Release:	1%{?dist}
 BuildArch:	noarch
-Summary:	Installs all required components to run pgAdmin in desktop and web modes.
+Summary:	Installs all CDEadmin desktop and web components.
 License:	PostgreSQL
-URL:		https://www.pgadmin.org/
 Requires:	${APP_NAME}-server = ${RPM_VERSION}, ${APP_NAME}-desktop = ${RPM_VERSION}, ${APP_NAME}-web = ${RPM_VERSION}
 
 %description
-Installs all required components to run pgAdmin in desktop and web modes. pgAdmin is the most popular and feature rich Open Source administration and development platform for PostgreSQL, the most advanced Open Source database in the world.
+Installs all required components to run CDEadmin in desktop and web modes.
 
 %build
 

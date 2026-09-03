@@ -1,0 +1,10 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.firebird", "provider_version": "0.1.0", "profile_id": "firebird-native", "profile_version": "5.0.4", "evidence_reference": "cde-rel-040:firebird-provider-20260901"},
+  "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["network", "secret_read"], "composition": {"experience_families": ["firebird"], "target_adapter_ids": ["firebird-wire-client"]}, "extension_schema": null,
+  "registration": {"display_name": "Firebird 5.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": true, "default_port": 3050, "default": false, "target_adapter_version": "firebird-driver-1.10.11"},
+  "provenance": {"purpose": "CDE-REL-040 Firebird exact-profile provider", "protocol": "firebird_wire", "client_state": "firebird-driver_1.10.11_installed", "rejected_client": "firebird-driver 2.0.3 conflicts with the shared application protobuf dependency set", "runtime_state": "exact_provider_live_verified", "activation_gate": "passed", "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901"}
+}

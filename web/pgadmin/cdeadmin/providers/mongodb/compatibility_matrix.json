@@ -1,0 +1,43 @@
+{
+  "schema": "cdeadmin.mongodb-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.mongodb",
+  "provider_version": "0.1.0",
+  "protocol": "mongodb_wire",
+  "endpoint_implementation_policy": "protocol_identity_only",
+  "reference_profile": {
+    "server_version": "8.2.6",
+    "driver": "pymongo",
+    "driver_version": "4.17.0",
+    "status": "qualified"
+  },
+  "qualified_deployments": [
+    {
+      "deployment": "authenticated_replica_set",
+      "server_version": "8.2.6",
+      "status": "passed"
+    },
+    {
+      "deployment": "sharded_cluster",
+      "server_version": "8.2.6",
+      "status": "passed"
+    },
+    {
+      "deployment": "tls_required_authenticated_server",
+      "server_version": "8.2.6",
+      "status": "passed"
+    }
+  ],
+  "client_platforms": [
+    {"platform": "linux", "contract_suite": "passed", "live_suite": "passed"},
+    {"platform": "macos", "contract_suite": "ci_required", "live_suite": "not_run"},
+    {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
+  ],
+  "patch_policy": {
+    "qualified_versions": ["8.2.6"],
+    "later_patch_releases": "require_unchanged_suite_pass_before_claim"
+  },
+  "required_categories": [
+    "resource", "language_api", "result", "transaction", "admin",
+    "security", "fault", "topology", "tls", "tooling"
+  ]
+}

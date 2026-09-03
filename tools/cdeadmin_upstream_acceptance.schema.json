@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdeadmin.invalid/schemas/upstream-acceptance-catalog-v1.json",
+  "title": "CDEadmin upstream acceptance catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "catalog_version", "candidate_protocol_version",
+    "reference_corpus", "differential_scenarios", "authority_invariants",
+    "execution_policy", "contracts", "suites", "differential_suite",
+    "promotion_policy"
+  ],
+  "properties": {
+    "schema": {"const": "cdeadmin.upstream-acceptance-catalog.v1"},
+    "catalog_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "candidate_protocol_version": {"const": "1.0.0"},
+    "reference_corpus": {"type": "string"},
+    "differential_scenarios": {"type": "string"},
+    "authority_invariants": {"type": "object"},
+    "execution_policy": {"type": "object"},
+    "contracts": {"type": "object", "minProperties": 7},
+    "suites": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "object"}},
+    "differential_suite": {"type": "object"},
+    "promotion_policy": {"type": "object"}
+  }
+}

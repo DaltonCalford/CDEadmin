@@ -1,0 +1,329 @@
+{
+  "schema": "cdeadmin.golden-dto-corpus.v1",
+  "contract_versions": ["1.1.0", "1.0.0"],
+  "entries": [
+    {
+      "case": "identity-open-extension",
+      "contract": "EnvelopeIdentity",
+      "payload": {
+        "contract_version": "1.1.0",
+        "provider_id": "org.cdeadmin.golden",
+        "provider_version": "1.0.0",
+        "profile_id": "golden-native",
+        "profile_version": "1.0.0",
+        "evidence_reference": "evidence:golden:identity",
+        "future_identity": {"generation": 1}
+      }
+    },
+    {
+      "case": "permission-denied-by-default",
+      "contract": "ProviderPermission",
+      "payload": {
+        "permission_id": "network",
+        "granted": false,
+        "scope": [],
+        "reason": "golden fixture has no external authority",
+        "future_permission": "preserved"
+      }
+    },
+    {
+      "case": "non-production-provider-manifest",
+      "contract": "ProviderManifest",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:manifest"
+        },
+        "package_type": "engine",
+        "sdk_compatibility": {
+          "minimum": "1.0.0",
+          "maximum_exclusive": "2.0.0"
+        },
+        "support_state": "experimental",
+        "enabled": true,
+        "fixture": false,
+        "production_registration": false,
+        "contracts": ["EndpointProvider"],
+        "permissions": [
+          {"permission_id": "network", "granted": false, "scope": []}
+        ],
+        "provenance": {"purpose": "golden DTO validation only"},
+        "future_manifest": {"preserve": true}
+      }
+    },
+    {
+      "case": "unverified-endpoint",
+      "contract": "Endpoint",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:endpoint"
+        },
+        "endpoint_id": "00000000-0000-4000-8000-000000000110",
+        "mode": "legacy_native",
+        "declared_runtime": {"family": "golden"},
+        "verified_runtime": null,
+        "route": {"route_reference": "route:golden"},
+        "capability_generation": "generation:one",
+        "extensions": {"future_endpoint": "preserved"}
+      }
+    },
+    {
+      "case": "read-capability",
+      "contract": "Capability",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:capability"
+        },
+        "capability_id": "resource.inspect",
+        "support_state": "experimental",
+        "mutation_class": "read",
+        "enabled": true,
+        "required_permissions": ["data_read"],
+        "scope": ["resource"],
+        "limits": {"page_size": 50},
+        "extensions": {"future_capability": "preserved"}
+      }
+    },
+    {
+      "case": "opaque-resource-identity",
+      "contract": "Resource",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:resource"
+        },
+        "endpoint_id": "00000000-0000-4000-8000-000000000110",
+        "resource_id": "opaque:golden:resource",
+        "identity_kind": "provider_native",
+        "resource_kind": "collection",
+        "model_family": "document",
+        "display_name": "Golden collection",
+        "parent_resource_id": null,
+        "display_path": ["Golden collection"],
+        "authority_path": ["opaque:golden:resource"],
+        "is_virtual": false,
+        "generation": "generation:one",
+        "capability_ids": ["resource.inspect"],
+        "extensions": {"future_resource": "preserved"}
+      }
+    },
+    {
+      "case": "provider-owned-session-state",
+      "contract": "Session",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:session"
+        },
+        "session_id": "session:golden",
+        "endpoint_id": "00000000-0000-4000-8000-000000000110",
+        "route_id": "route:golden",
+        "principal_reference": "principal:golden",
+        "language_profile": "golden-query",
+        "transaction_model": "provider-native",
+        "provider_state": {"opaque_session_reference": "session-state:one"},
+        "occurrence_id": "occurrence:session:one",
+        "extensions": {"future_session": "preserved"}
+      }
+    },
+    {
+      "case": "opaque-transaction-presentation",
+      "contract": "TransactionPresentation",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:transaction"
+        },
+        "session_id": "session:golden",
+        "transaction_model": "provider-native",
+        "provider_payload": {
+          "opaque_engine_evidence": {
+            "reference": "engine-evidence:transaction:one",
+            "presentation": "provider-defined"
+          }
+        },
+        "authority_reference": "engine-authority:transaction:one",
+        "extensions": {"future_transaction_presentation": "preserved"}
+      }
+    },
+    {
+      "case": "bounded-execution-request",
+      "contract": "Execution",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:execution"
+        },
+        "execution_id": "execution:golden",
+        "session_id": "session:golden",
+        "language_profile": "golden-query",
+        "source": "fixture-only-source",
+        "parameters": {"parameter_reference": "parameters:golden"},
+        "deadline": null,
+        "output_policy": {"maximum_records": 50},
+        "extensions": {"future_execution": "preserved"}
+      }
+    },
+    {
+      "case": "complete-tabular-result",
+      "contract": "Result",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:result"
+        },
+        "result_id": "result:golden",
+        "execution_id": "execution:golden",
+        "result_kind": "tabular",
+        "schema": {"columns": [{"name": "value", "type": "text"}]},
+        "stream_reference": null,
+        "complete": true,
+        "continuation": null,
+        "extensions": {"future_result": "preserved"}
+      }
+    },
+    {
+      "case": "controlled-diagnostic",
+      "contract": "Diagnostic",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:diagnostic"
+        },
+        "diagnostic_id": "diagnostic:golden",
+        "severity": "info",
+        "code": "CDE_GOLDEN_FIXTURE",
+        "message": "Test-only structural diagnostic",
+        "retryable": false,
+        "details": {"fixture": true},
+        "extensions": {"future_diagnostic": "preserved"}
+      }
+    },
+    {
+      "case": "sequenced-provider-event",
+      "contract": "Event",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:event"
+        },
+        "event_id": "event:golden:one",
+        "event_kind": "fixture.observed",
+        "occurred_at": "2026-08-31T00:00:00Z",
+        "sequence": 1,
+        "subject_id": "subject:golden",
+        "payload": {"provider_occurrence": "occurrence:one"},
+        "extensions": {"future_event": "preserved"}
+      }
+    },
+    {
+      "case": "nonterminal-provider-operation",
+      "contract": "Operation",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:operation"
+        },
+        "operation_id": "operation:golden",
+        "operation_kind": "fixture-observation",
+        "target_resource_id": "opaque:golden:resource",
+        "capability_id": "resource.inspect",
+        "risk_class": "read",
+        "provider_state": {"opaque_operation_reference": "state:one"},
+        "terminal": false,
+        "provider_receipt": null,
+        "extensions": {"future_operation": "preserved"}
+      }
+    },
+    {
+      "case": "digest-addressed-evidence",
+      "contract": "Evidence",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:evidence"
+        },
+        "evidence_id": "evidence:golden:one",
+        "evidence_kind": "fixture-contract",
+        "subject_id": "subject:golden",
+        "collected_at": "2026-08-31T00:00:00Z",
+        "expires_at": null,
+        "digest": "sha256:golden-fixture-digest",
+        "location": "evidence-location:golden",
+        "extensions": {"future_evidence": "preserved"}
+      }
+    },
+    {
+      "case": "evidence-scoped-parity",
+      "contract": "Parity",
+      "payload": {
+        "identity": {
+          "contract_version": "1.1.0",
+          "provider_id": "org.cdeadmin.golden",
+          "provider_version": "1.0.0",
+          "profile_id": "golden-native",
+          "profile_version": "1.0.0",
+          "evidence_reference": "evidence:golden:parity"
+        },
+        "parity_id": "parity:golden",
+        "feature_id": "fixture-only-feature",
+        "reference_profile": "golden-reference",
+        "disposition": "experimental",
+        "semantic_deltas": ["fixture has no operational behavior"],
+        "evidence_ids": ["evidence:golden:one"],
+        "current": true,
+        "extensions": {"future_parity": "preserved"}
+      }
+    }
+  ]
+}

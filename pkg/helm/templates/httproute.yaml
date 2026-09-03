@@ -5,7 +5,7 @@
 apiVersion: {{ .Values.httpRoute.apiVersion | default "gateway.networking.k8s.io/v1" }}
 kind: HTTPRoute
 metadata:
-  name: {{ template "pgadmin4.fullname" . }}
+  name: {{ template "cdeadmin.fullname" . }}
   {{- with .Values.commonLabels }}
   labels: {{ . | toYaml | nindent 4 }}
   {{- end }}
@@ -32,7 +32,7 @@ spec:
       backendRefs:
         - group: ''
           kind: Service
-          name: {{ template "pgadmin4.fullname" . }}
+          name: {{ template "cdeadmin.fullname" . }}
           port: {{ .Values.service.port }}
           weight: 1
   {{- end }}

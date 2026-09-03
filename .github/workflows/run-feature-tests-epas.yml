@@ -153,6 +153,9 @@ jobs:
           yarn install
           yarn run bundle
 
+      - name: Check CDEadmin production bundle regression budget
+        run: make cdeadmin-bundle-regression-gate
+
       - name: Run the tests
         run: |
           . venv/bin/activate

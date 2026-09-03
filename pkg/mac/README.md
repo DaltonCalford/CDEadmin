@@ -1,4 +1,9 @@
-# pgAdmin macOS Builds
+# CDEadmin macOS Builds
+
+CDEadmin is an independent hard fork of pgAdmin 4 9.17. See the repository
+`NOTICE` and `LICENSE` files for upstream attribution and licence terms.
+The `PGADMIN_*` build variables below are retained compatibility interfaces;
+they do not identify the product.
 
 ## Required Packages
 
@@ -31,11 +36,11 @@ Either build the sources or get them from macports or similar:
    *notarization.conf* and set the values accordingly. Note that notarization
    will fail if the code isn't signed.
    
-4. To build only DMG file, go to pgAdmin4 source root directory and execute:
+4. To build only DMG file, go to CDEadmin source root directory and execute:
 
        make appbundle
 
-   To build both DMG and ZIP files, go to pgAdmin4 source root directory and execute:
+   To build both DMG and ZIP files, go to CDEadmin source root directory and execute:
 
        make appbundle BUILD_OPTS="--zip"
        

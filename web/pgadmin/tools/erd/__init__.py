@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -432,7 +432,7 @@ class ERDModule(PgAdminModule):
             -1,
             category_label=PREF_LABEL_OPTIONS,
             help_str=gettext(
-                'The maximum depth pgAdmin should traverse to find '
+                'The maximum depth CDEadmin should traverse to find '
                 'related tables when generating an ERD for a table. '
                 'Use -1 for no limit.'
             )

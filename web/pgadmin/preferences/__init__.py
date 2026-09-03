@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -73,7 +73,7 @@ def script():
 @blueprint.route("/<module>/<preference>", endpoint='get_by_name')
 @pga_login_required
 def preferences(module=None, preference=None):
-    """Fetch all/or requested preferences of pgAdmin IV."""
+    """Fetch all or selected CDEadmin preferences."""
 
     if module is not None and preference is not None:
         try:

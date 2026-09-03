@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-# Setup pgadmin4 in server mode
+# Set up CDEadmin in server mode.
 #
 
 if [ "$EUID" -ne 0 ]
@@ -20,7 +20,7 @@ IS_SUSE=0
 UNAME=$(uname -a)
 
 # Get the distro from the environment
-if [ "${PGADMIN_PLATFORM_TYPE}" == "" ]; then
+if [ "${CDEADMIN_PLATFORM_TYPE:-${PGADMIN_PLATFORM_TYPE:-}}" == "" ]; then
     if [ -f /etc/redhat-release ]; then
         PLATFORM_TYPE=redhat
     elif [[ ${UNAME} =~ "Ubuntu" ]] || [[ ${UNAME} =~ "Debian" ]] || [ -f /etc/apt/sources.list ]; then
@@ -31,34 +31,34 @@ if [ "${PGADMIN_PLATFORM_TYPE}" == "" ]; then
             PLATFORM_TYPE=suse
         fi
     else
-        echo "Failed to detect the platform. This may mean you're running on a Linux distribution that isn't supported by pgAdmin."
-        echo "Please set the PGADMIN_PLATFORM_TYPE environment variable to one of 'redhat' or 'debian' and try again."
+        echo "Failed to detect the platform. This Linux distribution may not be supported by CDEadmin."
+        echo "Set CDEADMIN_PLATFORM_TYPE to 'redhat' or 'debian' and try again."
         exit 1
     fi
 else
-    PLATFORM_TYPE=${PGADMIN_PLATFORM_TYPE}
+    PLATFORM_TYPE=${CDEADMIN_PLATFORM_TYPE:-${PGADMIN_PLATFORM_TYPE}}
 fi
 
 case ${PLATFORM_TYPE} in
     redhat)
-        echo "Setting up pgAdmin 4 in web mode on a Redhat based platform..."
+        echo "Setting up CDEadmin in web mode on a Red Hat based platform..."
         IS_REDHAT=1
         APACHE=httpd
         ;;
 
     debian)
-        echo "Setting up pgAdmin 4 in web mode on a Debian based platform..."
+        echo "Setting up CDEadmin in web mode on a Debian based platform..."
         IS_DEBIAN=1
         APACHE=apache2
         ;;
     suse)
-        echo "Setting up pgAdmin 4 in web mode on a SUSE based platform..."
+        echo "Setting up CDEadmin in web mode on a SUSE based platform..."
         IS_SUSE=1
         APACHE=apache2
         ;;
 
     *)
-        echo "Invalid value for the PGADMIN_PLATFORM_TYPE environment variable. Please set it to one of 'redhat' or 'debian' and try again."
+        echo "Invalid CDEADMIN_PLATFORM_TYPE. Set it to 'redhat', 'debian', or 'suse'."
         exit 1
         ;;
 esac
@@ -72,7 +72,7 @@ fi
 
 # Run setup script first:
 echo "Creating configuration database..."
-if ! /usr/pgadmin4/venv/bin/python3 /usr/pgadmin4/web/setup.py setup-db;
+if ! /usr/cdeadmin/venv/bin/python3 /usr/cdeadmin/web/setup.py setup-db;
 then
 	echo "Error setting up server mode. Please examine the output above."
 	exit 1
@@ -80,14 +80,14 @@ fi
 
 # Create and own directories:
 echo "Creating storage and log directories..."
-mkdir -p /var/log/pgadmin /var/lib/pgadmin
+mkdir -p /var/log/cdeadmin /var/lib/cdeadmin
 
 if [ ${IS_REDHAT} == 1 ]; then
-    chown apache: /var/log/pgadmin /var/lib/pgadmin -R
+    chown apache: /var/log/cdeadmin /var/lib/cdeadmin -R
 elif [ ${IS_SUSE} == 1 ]; then
-    chown wwwrun: /var/log/pgadmin /var/lib/pgadmin -R
+    chown wwwrun: /var/log/cdeadmin /var/lib/cdeadmin -R
 else
-    chown www-data: /var/log/pgadmin /var/lib/pgadmin -R
+    chown www-data: /var/log/cdeadmin /var/lib/cdeadmin -R
 fi
 
 # Set SELinux up:
@@ -96,10 +96,10 @@ if [ ${IS_REDHAT} == 1 ]; then
     setsebool -P httpd_tmp_exec 1 1> /dev/null
     setsebool -P httpd_can_network_connect 1 1> /dev/null
     setsebool -P httpd_can_network_connect_db 1 1> /dev/null
-    semanage fcontext -a -t httpd_var_lib_t '/var/lib/pgadmin(/.*)?' 1> /dev/null
-    restorecon -R -v /var/lib/pgadmin 1> /dev/null
-    semanage fcontext -a -t httpd_log_t '/var/log/pgadmin(/.*)?' 1> /dev/null
-    restorecon -R -v /var/log/pgadmin 1> /dev/null
+    semanage fcontext -a -t httpd_var_lib_t '/var/lib/cdeadmin(/.*)?' 1> /dev/null
+    restorecon -R -v /var/lib/cdeadmin 1> /dev/null
+    semanage fcontext -a -t httpd_log_t '/var/log/cdeadmin(/.*)?' 1> /dev/null
+    restorecon -R -v /var/log/cdeadmin 1> /dev/null
 fi
 
 # Setup Apache on Debian/Ubuntu
@@ -107,13 +107,13 @@ if [ ${IS_DEBIAN} == 1 ]; then
     if [ ${AUTOMATED} == 1 ]; then
 	      RESPONSE=Y
     else
-        read -r -p "We can now configure the Apache Web server for you. This involves enabling the wsgi module and configuring the pgAdmin 4 application to mount at /pgadmin4. Do you wish to continue (y/n)? " RESPONSE
+        read -r -p "Configure Apache and mount CDEadmin at /cdeadmin (y/n)? " RESPONSE
     fi
 
     case ${RESPONSE} in
         y|Y )
             /usr/sbin/a2enmod wsgi 1> /dev/null
-            /usr/sbin/a2enconf pgadmin4 1> /dev/null
+            /usr/sbin/a2enconf cdeadmin 1> /dev/null
             ;;
         * )
             exit 1;;
@@ -124,7 +124,7 @@ if pgrep ${APACHE} > /dev/null; then
     if [ ${AUTOMATED} == 1 ]; then
         RESPONSE=Y
     else
-        read -r -p "The Apache web server is running and must be restarted for the pgAdmin 4 installation to complete. Continue (y/n)? " RESPONSE
+        read -r -p "Apache must be restarted to complete the CDEadmin installation. Continue (y/n)? " RESPONSE
     fi
 
     case ${RESPONSE} in
@@ -139,7 +139,7 @@ if pgrep ${APACHE} > /dev/null; then
             if ! ${COMMAND}; then
                 echo "Error restarting ${APACHE}. Please check the systemd logs"
             else
-                echo "Apache successfully restarted. You can now start using pgAdmin 4 in web mode at http://127.0.0.1/pgadmin4"
+                echo "Apache successfully restarted. CDEadmin is available at http://127.0.0.1/cdeadmin"
             fi;;
         * ) 
             exit 1;;
@@ -148,7 +148,7 @@ else
     if [ ${AUTOMATED} == 1 ]; then
         RESPONSE=Y
     else
-        read -r -p "The Apache web server is not running. We can enable and start the web server for you to finish pgAdmin 4 installation. Continue (y/n)? " RESPONSE
+        read -r -p "Apache is not running. Enable and start it to finish CDEadmin installation (y/n)? " RESPONSE
     fi
 
     case ${RESPONSE} in
@@ -163,7 +163,7 @@ else
                 echo "Error starting ${APACHE}. Please check the systemd logs"
             else
                 echo "Apache successfully started."
-                echo "You can now start using pgAdmin 4 in web mode at http://127.0.0.1/pgadmin4"
+                echo "CDEadmin is available at http://127.0.0.1/cdeadmin"
             fi;;
         * ) 
             exit 1;;

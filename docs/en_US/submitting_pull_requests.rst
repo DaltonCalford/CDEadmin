@@ -4,35 +4,32 @@
 `Submitting Pull Requests`:index:
 *********************************
 
-Before developing a feature or bug fix for pgAdmin you should always contact
-the developers on the mailing list pgadmin-hackers@postgresql.org to discuss
-your plans. This ensures that others know what you are doing and can then
-avoid duplicating your work, and in the case of large changes, gives the
-community the chance to discuss and refine your ideas before investing too
-much time writing code that may later be rejected.
+Before developing a feature or bug fix for CDEadmin, coordinate it through the
+project's current workplan and review process. Public issue, contribution and
+security-reporting channels are not yet assigned. Do not submit CDEadmin work
+to the upstream pgAdmin project.
 
 You should always develop changes against a checkout of the source code from
 the GIT source code repository, and not a release tarball. This ensures that
 you're working with the latest code on the branch and makes it easier to
 generate Pull Requests correctly.
 
-As of September 2022, the pgAdmin source repository can found at
-https://github.com/pgadmin-org/pgadmin4. A typical workflow for a relatively
-simple change might look as follows:
+Use the active CDEadmin repository remote. A typical workflow for a relatively
+simple change is:
 
-1. Visit the pgAdmin 4 project on GitHub, and click the *Fork* button to create
-   your own development repository in your GitHub account.
+1. Create a personal fork or feature branch from the active CDEadmin
+   repository.
 
 2.  Checkout a local copy of the source code with a command like:
 
    .. code-block:: bash
 
-      $ git clone https://github.com/<your GitHub username>/pgadmin4.git
+      $ git clone <CDEadmin-repository-URL> cdeadmin
 
 3. Develop and test your change in your local development environment.
 
 4. Review your changes and check them thoroughly to ensure they meet the
-   pgAdmin :doc:`coding_standards`, and review them against the
+   CDEadmin :doc:`coding_standards`, and review them against the
    :doc:`code_review` to minimise the chances of them being rejected.
 
 5. Once you're happy with your change, commit it with a suitable message.
@@ -41,8 +38,7 @@ simple change might look as follows:
 
 6. Push your changes to your fork of the repository.
 
-7. Back in GitHub, create a new Pull Request against the *pgadmin-org/pgadmin4*
-   *master* branch.
+7. Create a Pull Request against the designated CDEadmin integration branch.
 
    .. note::
       Each Pull Request should encompass a single bug fix or feature as a single
@@ -56,10 +52,10 @@ simple change might look as follows:
    significant time on it.
 
 For more complex changes, you may wish to use a *Feature Branch* in your fork
-of the pgAdmin repository, and use that to create the Pull Request.
+of the CDEadmin repository, and use that to create the Pull Request.
 
 .. note::
    This is a simple example of a workflow. You may choose to use other
    tools such as the `GitHub CLI <https://cli.github.com>`_ instead; documenting
-   such tools and workflows is outside the scope of the pgAdmin documentation
+   such tools and workflows is outside the scope of the CDEadmin documentation
    however.

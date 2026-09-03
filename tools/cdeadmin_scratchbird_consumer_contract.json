@@ -1,0 +1,74 @@
+{
+  "schema": "cdeadmin.scratchbird-consumer-contract.v1",
+  "contract_version": "1.0.0",
+  "adapter_manifest_schema": "cdeadmin.scratchbird-driver-adapter-manifest.v1",
+  "response_schema": "cdeadmin.scratchbird-response.v1",
+  "provider_mode": "scratchbird_native",
+  "adapter_version_policy": {
+    "minimum": "1.0.0",
+    "maximum_exclusive": "2.0.0",
+    "consumer_contract_match": "exact",
+    "unknown_or_malformed": "fail_closed",
+    "mutable_aliases_allowed": false
+  },
+  "methods": [
+    "validate_configuration",
+    "connect",
+    "authenticate",
+    "close_connection",
+    "capabilities",
+    "navigate",
+    "execute",
+    "open_cursor",
+    "close_cursor",
+    "read_results",
+    "diagnostics",
+    "cancel",
+    "transaction_presentation"
+  ],
+  "method_contracts": {
+    "validate_configuration": {"surface": "configuration", "side_effect": "none"},
+    "connect": {"surface": "connection", "side_effect": "transport"},
+    "authenticate": {"surface": "connection", "side_effect": "authentication"},
+    "close_connection": {"surface": "connection", "side_effect": "transport"},
+    "capabilities": {"surface": "capability_evidence", "side_effect": "read"},
+    "navigate": {"surface": "navigator", "side_effect": "read"},
+    "execute": {"surface": "execution", "side_effect": "server_admitted"},
+    "open_cursor": {"surface": "cursor", "side_effect": "server_admitted"},
+    "close_cursor": {"surface": "cursor", "side_effect": "server_admitted"},
+    "read_results": {"surface": "typed_results", "side_effect": "read"},
+    "diagnostics": {"surface": "diagnostics", "side_effect": "read"},
+    "cancel": {"surface": "occurrence_cancellation", "side_effect": "server_admitted"},
+    "transaction_presentation": {"surface": "transaction_presentation", "side_effect": "read"}
+  },
+  "identity_policy": {
+    "request_id": "required_opaque",
+    "connection_id": "opaque_server_or_driver_identity",
+    "operation_id": "opaque_occurrence_identity",
+    "cursor_id": "opaque_server_or_driver_identity",
+    "object_identity": "uuid_backed",
+    "raw_driver_handles_exposed": false
+  },
+  "secret_policy": {
+    "credentials_are_ephemeral_inputs": true,
+    "raw_secrets_in_responses": false,
+    "raw_secrets_in_diagnostics": false,
+    "raw_secrets_in_evidence": false
+  },
+  "authority_invariants": {
+    "engine_execution": "sblr_and_internal_procedures_only",
+    "internal_identity": "uuid_backed",
+    "transaction_authority": "scratchbird_mga",
+    "finality_source": "durable_transaction_inventory",
+    "driver_is_finality_authority": false,
+    "consumer_interprets_finality": false,
+    "cancellation_implies_rollback": false
+  },
+  "transaction_policy": {
+    "presentation_only": true,
+    "control_methods_exposed": false,
+    "always_active_boundary_rendered": true,
+    "unknown_finality_remains_unknown": true,
+    "automatic_replay": false
+  }
+}

@@ -1,9 +1,9 @@
-#define MyAppName "pgAdmin 4"
+#define MyAppName "CDEadmin"
 #define MyAppVersion MYAPP_VERSION
-#define MyAppPublisher "The pgAdmin Development Team"
-#define MyAppURL "www.pgadmin.org"
-#define MyAppExeName "pgAdmin4.exe"
-#define MyAppID "C14F64E7-DCB9-4DE1-8560-16F08FCFF64E"
+#define MyAppPublisher "CDEadmin contributors"
+#define MyAppURL ""
+#define MyAppExeName "CDEadmin.exe"
+#define MyAppID "ScratchBird.CDEadmin"
 #define MyAppFullVersion MYAPP_FULLVERSION
 #define MyAppArchitecturesMode "x64"
 #define MyAppVCDist MYAPP_VCDIST
@@ -24,8 +24,8 @@ DefaultGroupName={#MyAppName}
 DisableWelcomePage=no
 DisableProgramGroupPage=auto
 LicenseFile=Resources\license.rtf
-OutputBaseFilename=pgadmin4-setup
-SetupIconFile=Resources\pgAdmin4.ico
+OutputBaseFilename=cdeadmin-setup
+SetupIconFile=Resources\CDEadmin.ico
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -36,7 +36,7 @@ ArchitecturesInstallIn64BitMode={#MyAppArchitecturesMode}
 AllowNoIcons=yes
 WizardImageFile=sidebar.bmp
 MinVersion={#MinimumWindowsVer}
-SignTool=pgAdminSigntool
+; A CDEadmin-specific SignTool must be supplied by release engineering.
 SignedUninstaller=yes
 CloseApplications=yes
 
@@ -53,7 +53,7 @@ english.NewerVersionExists=A newer version of {#MyAppName}
 english.InvalidPath={#MyAppInvalidPath}
 
 [Icons]
-Name: {group}\{#MyAppName}; Filename: {app}\runtime\{#MyAppExeName}; IconFilename: {app}\pgAdmin4.ico; WorkingDir: {app}\runtime;
+Name: {group}\{#MyAppName}; Filename: {app}\runtime\{#MyAppExeName}; IconFilename: {app}\CDEadmin.ico; WorkingDir: {app}\runtime;
 
 [Files]
 Source: "..\..\win-build\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs;

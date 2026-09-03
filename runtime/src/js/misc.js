@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -13,7 +13,7 @@ import net from 'net';
 import {platform} from 'os';
 import { app, session } from 'electron';
 
-let pgadminServerProcess = null;
+let cdeadminServerProcess = null;
 
 // This function is used to check whether directory is present or not
 // if not present then create it recursively
@@ -30,27 +30,27 @@ const insideFlatpak = () => {
 // This function is used to get the python executable path
 // based on the platform. Use this for deployment.
 export const getAppPaths = (basePath) => {
-  let pythonPath, pgadminFile;
+  let pythonPath, cdeadminFile;
   switch (platform()) {
   case 'win32':
     pythonPath = '../../../../../python/python.exe';
-    pgadminFile = '../../../../../web/pgAdmin4.py';
+    cdeadminFile = '../../../../../web/CDEadmin.py';
     break;
   case 'darwin':
     pythonPath = '../../../../Frameworks/Python.framework/Versions/Current/bin/python3';
-    pgadminFile = '../../../web/pgAdmin4.py';
+    cdeadminFile = '../../../web/CDEadmin.py';
     break;
   case 'linux':
     pythonPath = '../../../../../venv/bin/python3';
-    pgadminFile = '../../../../../web/pgAdmin4.py';
+    cdeadminFile = '../../../../../web/CDEadmin.py';
     if (insideFlatpak()) {
       pythonPath = '/usr/bin/python';
-      pgadminFile = '/app/pgAdmin4/web/pgAdmin4.py';
-      return [pythonPath, pgadminFile];
+      cdeadminFile = '/app/CDEadmin/web/CDEadmin.py';
+      return [pythonPath, cdeadminFile];
     }
     break;
   default:
-    pgadminFile = '../../../web/pgAdmin4.py';
+    cdeadminFile = '../../../web/CDEadmin.py';
     if (platform().startsWith('win')) {
       pythonPath = '../python/python.exe';
     } else {
@@ -58,7 +58,7 @@ export const getAppPaths = (basePath) => {
     }
   }
 
-  return [path.join(basePath, pythonPath), path.join(basePath, pgadminFile)];
+  return [path.join(basePath, pythonPath), path.join(basePath, cdeadminFile)];
 };
 
 // This function is used to get the [local] app data path
@@ -96,7 +96,10 @@ export const getAvailablePort = (fixedPort) => {
 };
 
 // Get the app data folder path
-const serverLogFile = path.join(getLocalAppDataPath(), 'pgadmin4.' + (new Date()).getTime().toString() + '.log');
+const serverLogFile = path.join(
+  getLocalAppDataPath(),
+  'cdeadmin.' + (new Date()).getTime().toString() + '.log',
+);
 
 // This function is used to read the file and return the content
 export const readServerLog = () => {
@@ -126,9 +129,9 @@ const removeLogFile = () => {
   }
 };
 
-// This function used to set the object of pgAdmin server process.
+// Store the CDEadmin server-process object.
 export const setProcessObject = (processObject) => {
-  pgadminServerProcess = processObject;
+  cdeadminServerProcess = processObject;
 };
 
 // This function is used to get the server log file.
@@ -142,10 +145,10 @@ export const cleanupAndQuitApp = () => {
   // Remove the server log file on exit
   removeLogFile();
 
-  // Killing pgAdmin4 server process if application quits
-  if (pgadminServerProcess != null) {
+  // Stop the CDEadmin server process when the application quits.
+  if (cdeadminServerProcess != null) {
     try {
-      process.kill(pgadminServerProcess.pid);
+      process.kill(cdeadminServerProcess.pid);
     }
     catch (e) {
       console.warn('Failed to kill server process.', e);

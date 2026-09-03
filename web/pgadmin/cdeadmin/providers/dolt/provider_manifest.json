@@ -1,0 +1,30 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.dolt", "provider_version": "0.1.0", "profile_id": "dolt-native", "profile_version": "1.86.6", "evidence_reference": "cde-distributed:dolt-native-live:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["dolt"], "target_adapter_ids": ["mysql-wire-client"]},
+  "extension_schema": null,
+  "registration": {"display_name": "Dolt 1.86.6", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "default_port": 3306, "default": false, "target_adapter_version": "mysql-connector-python-26.7.0", "connection_fields": [{"field_id": "remote_url_allowlist", "route_key": "remote_url_allowlist", "label": "Remote URL allowlist", "control": "text", "group": "Dolt replication", "help": "Comma-separated admitted remote URL prefixes."}, {"field_id": "backup_url_allowlist", "route_key": "backup_url_allowlist", "label": "Backup URL allowlist", "control": "text", "group": "Dolt recovery", "help": "Comma-separated admitted backup URL prefixes."}]},
+  "provenance": {"purpose": "Dolt exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+}

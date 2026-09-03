@@ -1,0 +1,498 @@
+##########################################################################
+#
+# CDEadmin - Multi-engine Database Administration
+#
+# Copyright (C) 2013 - 2026, The pgAdmin Development Team
+# This software is released under the PostgreSQL Licence
+#
+##########################################################################
+
+"""MongoDB document provider, driver, and administration tests."""
+
+from __future__ import annotations
+
+import json
+import sys
+import unittest
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
+
+ROOT = Path(__file__).resolve().parents[2]
+WEB = ROOT / 'web'
+if str(WEB) not in sys.path:
+    sys.path.insert(0, str(WEB))
+if 'pgadmin' not in sys.modules:
+    package = ModuleType('pgadmin')
+    package.__path__ = [str(WEB / 'pgadmin')]
+    sys.modules['pgadmin'] = package
+
+from pgadmin.cdeadmin.providers.mongodb.client import (  # noqa: E402
+    MongoDBClient,
+    MongoDBClientError,
+)
+from pgadmin.cdeadmin.providers.mongodb.provider import (  # noqa: E402
+    MongoDBPilotProvider,
+    PROFILE,
+)
+
+
+class SecretLease:
+    def __init__(self, value):
+        self.value = bytearray(value)
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        for offset in range(len(self.value)):
+            self.value[offset] = 0
+        self.closed = True
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
+class Cursor:
+    def __init__(self, documents):
+        self.documents = list(documents)
+        self.index = 0
+
+    def sort(self, _sort):
+        return self
+
+    def skip(self, count):
+        self.documents = self.documents[count:]
+        return self
+
+    def limit(self, count):
+        self.documents = self.documents[:count]
+        return self
+
+    def batch_size(self, _count):
+        return self
+
+    def close(self):
+        return None
+
+    def try_next(self):
+        if not self.documents:
+            return None
+        return self.documents.pop(0)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.index >= len(self.documents):
+            raise StopIteration
+        value = self.documents[self.index]
+        self.index += 1
+        return value
+
+
+class Collection:
+    def __init__(self, documents=None):
+        self.documents = list(documents or [])
+
+    def find(self, *_args, **_kwargs):
+        return Cursor(self.documents)
+
+    def aggregate(self, _pipeline, **_kwargs):
+        return Cursor(self.documents)
+
+    def watch(self, **_kwargs):
+        value = Cursor(self.documents)
+        value.resume_token = {'token': 1}
+        return value
+
+    def count_documents(self, _selector, **_kwargs):
+        return len(self.documents)
+
+    def insert_many(self, documents, **_kwargs):
+        self.documents.extend(documents)
+        return SimpleNamespace(acknowledged=True)
+
+    @staticmethod
+    def list_indexes():
+        return [{'name': '_id_', 'key': {'_id': 1}, 'v': 2}]
+
+
+class Database:
+    def __init__(self, name, client):
+        self.name = name
+        self.client = client
+        self.collections = {
+            'widgets': Collection([{'_id': 1, 'name': 'first'}]),
+        }
+
+    def __getitem__(self, name):
+        return self.collections.setdefault(name, Collection())
+
+    def command(self, command, **_kwargs):
+        name = command if isinstance(command, str) else next(iter(command))
+        if name == 'ping':
+            return {'ok': 1.0}
+        if name == 'buildInfo':
+            return {
+                'version': '8.2.6',
+                'gitVersion': '5d25c835745d06f712320b6cdae9d50b7b43663e',
+            }
+        if name == 'hello':
+            return {
+                'setName': 'cdeadmin-rs', 'maxWireVersion': 27,
+                'minWireVersion': 0,
+            }
+        if name == 'connectionStatus':
+            return {'authInfo': {
+                'authenticatedUsers': [{'user': 'operator', 'db': 'admin'}],
+                'authenticatedUserRoles': [],
+                'authenticatedUserPrivileges': [],
+            }}
+        if name == 'usersInfo':
+            return {'users': []}
+        if name == 'rolesInfo':
+            return {'roles': []}
+        return {'ok': 1.0, 'command': name}
+
+    @staticmethod
+    def list_collections():
+        return [{
+            'name': 'widgets', 'type': 'collection',
+            'options': {'validator': {'name': {'$type': 'string'}}},
+        }]
+
+
+class DriverSession:
+    in_transaction = False
+    has_ended = False
+    session_id = {'id': b'opaque-session'}
+
+    def end_session(self):
+        self.has_ended = True
+
+
+class DriverClient:
+    def __init__(self, **arguments):
+        self.arguments = arguments
+        self.databases = {}
+        self.admin = self['admin']
+        self.closed = False
+
+    def __getitem__(self, name):
+        return self.databases.setdefault(name, Database(name, self))
+
+    def start_session(self):
+        return DriverSession()
+
+    @staticmethod
+    def list_database_names():
+        return ['admin', 'qualification']
+
+    def close(self):
+        self.closed = True
+
+
+class Permissions:
+    @staticmethod
+    def require(_permission, _scope='endpoint'):
+        return None
+
+    @staticmethod
+    def allows(_permission, _scope='endpoint'):
+        return True
+
+
+def client(connector=DriverClient, secret_acquirer=None):
+    module = SimpleNamespace(MongoClient=connector)
+    return MongoDBClient(secret_acquirer=secret_acquirer, module=module)
+
+
+def context():
+    return SimpleNamespace(
+        endpoint_id='endpoint', mode='legacy_native',
+        runtime_verification_state='verified',
+        verified_runtime_family='mongodb',
+        declared_runtime_family='mongodb',
+        effective_permissions=frozenset({
+            'data_read', 'data_write', 'administer', 'execute', 'network',
+        }),
+        session_namespace='session', cache_namespace='cache',
+    )
+
+
+class MongoDBProviderTests(unittest.TestCase):
+
+    def test_compatibility_matrix_keeps_exact_claims_fail_closed(self):
+        matrix = json.loads((
+            WEB / 'pgadmin/cdeadmin/providers/mongodb/'
+            'compatibility_matrix.json'
+        ).read_text(encoding='utf-8'))
+        self.assertEqual('8.2.6', matrix['reference_profile'][
+            'server_version'
+        ])
+        self.assertEqual('4.17.0', matrix['reference_profile'][
+            'driver_version'
+        ])
+        self.assertEqual(
+            ['8.2.6'], matrix['patch_policy']['qualified_versions']
+        )
+        platforms = {
+            item['platform']: item for item in matrix['client_platforms']
+        }
+        self.assertEqual({'linux', 'macos', 'windows'}, set(platforms))
+        self.assertEqual('not_run', platforms['windows']['live_suite'])
+        self.assertEqual('not_run', platforms['macos']['live_suite'])
+
+    def test_profile_selects_document_language_and_production_renderer(self):
+        self.assertEqual('application/json', PROFILE.language_mime_type)
+        self.assertEqual('document', PROFILE.result_renderer_kind)
+        self.assertEqual(
+            'cdeadmin.result.document.tree', PROFILE.result_renderer_id
+        )
+        self.assertEqual('documents', PROFILE.result_records_field)
+        self.assertEqual(25, len(PROFILE.resource_kinds))
+
+    def test_exact_runtime_and_structured_route_are_driver_owned(self):
+        created = []
+
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            created.append(value)
+            return value
+
+        value = client(connector)
+        identity = value.runtime_identity({'route': {
+            'host': '127.0.0.1', 'port': 27017,
+            'database': 'qualification', 'route_id': 'one',
+            'user': 'operator', 'connection_timeout': 9,
+        }})
+        self.assertEqual('8.2.6', identity['version'])
+        self.assertEqual(27, identity['native']['max_wire_version'])
+        self.assertEqual('127.0.0.1', created[0].arguments['host'])
+        self.assertEqual('operator', created[0].arguments['username'])
+        self.assertEqual('qualification', created[0].arguments['authSource'])
+        self.assertEqual(9000, created[0].arguments['connectTimeoutMS'])
+        self.assertNotIn('route_id', created[0].arguments)
+        self.assertTrue(created[0].closed)
+
+        for route in (
+            {'uri': 'mongodb://user:password@example.invalid'},
+            {'host': 'localhost', 'password': 'inline'},
+        ):
+            with self.assertRaisesRegex(
+                MongoDBClientError, 'unknown fields'
+            ):
+                value.runtime_identity({'route': route})
+
+    def test_secret_is_leased_only_for_connector_and_failures_redact_it(self):
+        observed = {}
+        leases = []
+
+        def acquire(reference, principal, purpose, expected_kind):
+            observed['acquisition'] = (
+                reference, principal, purpose, expected_kind
+            )
+            lease = SecretLease(b'mongodb-password-canary')
+            leases.append(lease)
+            return lease
+
+        def connector(**arguments):
+            observed['password'] = arguments.pop('password')
+            observed['keys'] = frozenset(arguments)
+            return DriverClient(**arguments)
+
+        value = client(connector, acquire)
+        handle = value.open_session({'route': {
+            'host': 'localhost', 'username': 'operator',
+            'auth_source': 'admin',
+            'credential_reference_id': 'secret-one',
+            'principal_reference': 'principal-one',
+        }})
+        self.assertEqual('mongodb-password-canary', observed['password'])
+        self.assertEqual(
+            ('secret-one', 'principal-one', 'connect',
+             'database_password'),
+            observed['acquisition'],
+        )
+        self.assertTrue(leases[0].closed)
+        self.assertEqual({0}, set(leases[0].value))
+        self.assertNotIn('credential_reference_id', observed['keys'])
+        value.close()
+        self.assertTrue(handle.closed)
+
+    def test_json_query_results_preserve_extended_json_and_are_bounded(self):
+        value = client()
+        handle = value.open_session({'route': {
+            'host': 'localhost', 'database': 'qualification',
+        }})
+        token = value.execute(handle, {'source': json.dumps({
+            'operation': 'find', 'database': 'qualification',
+            'collection': 'widgets', 'filter': {}, 'limit': 10,
+        })})
+        result = value.describe_result(token)
+        self.assertEqual('document', result['result_kind'])
+        self.assertEqual(
+            {'$numberInt': '1'},
+            result['payload']['documents'][0]['_id'],
+        )
+        self.assertFalse(value.cancel(token))
+        transaction = value.describe_transaction(handle)
+        self.assertTrue(transaction['driver_observation_only'])
+        self.assertFalse(
+            transaction['finality_interpreted_by_common_code']
+        )
+        with self.assertRaisesRegex(MongoDBClientError, 'read-only'):
+            value.execute(handle, {'source': json.dumps({
+                'operation': 'command', 'database': 'qualification',
+                'command': {'dropDatabase': 1},
+            })})
+        value.close()
+
+    def test_resource_discovery_includes_document_native_objects(self):
+        value = client()
+        resources = value.list_resources({'route': {
+            'host': 'localhost', 'database': 'qualification',
+        }})
+        kinds = {item['resource_kind'] for item in resources}
+        self.assertTrue({
+            'deployment', 'replica-set', 'database', 'collection',
+            'validator', 'index', 'change-stream',
+        }.issubset(kinds))
+        collection = next(
+            item for item in resources
+            if item['resource_kind'] == 'collection' and
+            item['native']['database'] == 'qualification'
+        )
+        self.assertEqual(
+            'qualification', collection['native']['database']
+        )
+
+    def test_visual_catalog_and_plan_are_provider_owned_and_redacted(self):
+        value = client()
+        provider = MongoDBPilotProvider(context(), Permissions(), value)
+        descriptor = provider.visual_admin_descriptor()
+        document = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'document'
+        )
+        insert = next(
+            item for item in document['operations']
+            if item['operation_id'] == 'insert'
+        )
+        self.assertTrue(insert['target_required'])
+        self.assertEqual(['collection'], insert['target_resource_kinds'])
+        self.assertTrue(insert['native_supported'])
+        self.assertTrue(next(
+            operation for item in descriptor['objects']
+            if item['resource_kind'] == 'replica-set'
+            for operation in item['operations']
+            if operation['operation_id'] == 'alter'
+        )['native_supported'])
+
+        target = {
+            'resource_kind': 'collection',
+            'extensions': {'mongodb': {'native': {
+                'database': 'qualification', 'collection': 'widgets',
+            }}},
+        }
+        plan = provider.plan_visual_admin({
+            'resource_kind': 'document', 'operation_id': 'insert',
+            'target_resource': target,
+            'draft': {'values': {'name': 'planned'}, 'options': {}},
+            '_provider_route': {
+                'host': 'localhost', 'database': 'qualification',
+            },
+        })
+        self.assertEqual('ready', plan['state'])
+        self.assertNotIn('_provider_route', str(plan))
+        self.assertEqual(
+            'pymongo', plan['command_preview']['driver']
+        )
+
+    def test_advanced_route_streaming_and_change_stream_cancellation(self):
+        created = []
+
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            value['qualification'].collections['widgets'] = Collection([
+                {'_id': 1, 'optional': 'one'}, {'_id': 2}, {'_id': 3},
+            ])
+            created.append(value)
+            return value
+
+        value = client(connector)
+        handle = value.open_session({'route': {
+            'host': 'localhost', 'database': 'qualification',
+            'auth_source': 'admin', 'replica_set': 'cdeadmin-rs',
+            'direct_connection': False, 'tls': True,
+            'tls_ca_file': '/tmp/ca.pem',
+            'tls_certificate_key_file': '/tmp/client.pem',
+            'connect_timeout_ms': 7000,
+            'server_selection_timeout_ms': 8000,
+            'socket_timeout_ms': 9000,
+        }})
+        self.assertEqual('admin', created[0].arguments['authSource'])
+        self.assertEqual('cdeadmin-rs', created[0].arguments['replicaSet'])
+        self.assertTrue(created[0].arguments['tls'])
+        token = value.execute(handle, {'source': json.dumps({
+            'operation': 'find', 'database': 'qualification',
+            'collection': 'widgets', 'batch_size': 2,
+            'max_documents': 3,
+        })})
+        first = value.describe_result(token)
+        self.assertEqual(2, len(first['payload']['documents']))
+        self.assertFalse(first['complete'])
+        second = value.describe_result(token)
+        self.assertEqual(1, len(second['payload']['documents']))
+        self.assertTrue(second['complete'])
+
+        stream = value.execute(handle, {'source': json.dumps({
+            'operation': 'watch', 'database': 'qualification',
+            'collection': 'widgets', 'batch_size': 2,
+        })})
+        watched = value.describe_result(stream)
+        self.assertTrue(watched['payload']['live'])
+        self.assertIsNotNone(watched['payload']['resume_token'])
+        self.assertTrue(value.cancel(stream))
+
+    def test_document_pages_use_opaque_continuations_and_schema_sampling(self):
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            value['qualification'].collections['widgets'] = Collection([
+                {'_id': 1, 'optional': 'one'}, {'_id': 2}, {'_id': 3},
+            ])
+            return value
+
+        value = client(connector)
+        target = {
+            'resource_kind': 'collection',
+            'native': {
+                'database': 'qualification', 'collection': 'widgets',
+                'options': {},
+            },
+        }
+        request = {
+            'target_resource': target, 'limit': 2,
+            '_provider_route': {
+                'host': 'localhost', 'database': 'qualification',
+            },
+            'filter': {}, 'projection': {}, 'sort': [],
+        }
+        first = value.read_admin_rows(request)
+        self.assertFalse(first['complete'])
+        self.assertTrue(first['continuation'])
+        optional = next(
+            item for item in first['schema_sample']['fields']
+            if item['path'] == 'optional'
+        )
+        self.assertEqual(1, optional['missing_count'])
+        second = value.read_admin_rows({
+            **request, 'continuation': first['continuation'],
+        })
+        self.assertTrue(second['complete'])
+
+
+if __name__ == '__main__':
+    unittest.main()

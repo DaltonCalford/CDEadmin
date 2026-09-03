@@ -1,0 +1,57 @@
+{
+  "schema": "cdeadmin.neo4j-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.neo4j",
+  "provider_version": "0.1.0",
+  "protocol": "bolt",
+  "endpoint_implementation_policy": "protocol_identity_only",
+  "reference_profile": {
+    "server_version": "2026.04.0",
+    "driver": "neo4j",
+    "driver_version": "6.3.0",
+    "status": "qualified_community_surface"
+  },
+  "qualified_deployments": [
+    {
+      "deployment": "authenticated_community_routed_bolt",
+      "server_version": "2026.04.0",
+      "status": "passed"
+    },
+    {
+      "deployment": "authenticated_community_direct_bolt",
+      "server_version": "2026.04.0",
+      "status": "passed"
+    },
+    {
+      "deployment": "tls_self_signed_routed",
+      "server_version": "2026.04.0",
+      "status": "passed"
+    },
+    {
+      "deployment": "tls_ca_validated_routed_and_direct",
+      "server_version": "2026.04.0",
+      "status": "passed"
+    },
+    {
+      "deployment": "offline_dump_and_consistency_check",
+      "server_version": "2026.04.0",
+      "status": "passed"
+    }
+  ],
+  "edition_scope": {
+    "community": "qualified",
+    "enterprise_database_security_topology_backup": "not_qualified"
+  },
+  "client_platforms": [
+    {"platform": "linux", "contract_suite": "passed", "live_suite": "passed"},
+    {"platform": "macos", "contract_suite": "ci_required", "live_suite": "not_run"},
+    {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
+  ],
+  "patch_policy": {
+    "qualified_versions": ["2026.04.0"],
+    "later_patch_releases": "require_unchanged_suite_pass_before_claim"
+  },
+  "required_categories": [
+    "resource", "cypher", "graph_result", "transaction", "graph_crud",
+    "schema", "security", "database", "topology", "tls", "tooling"
+  ]
+}

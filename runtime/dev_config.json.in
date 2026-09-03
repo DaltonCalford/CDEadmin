@@ -1,4 +1,4 @@
 {
     "pythonPath": "C:/Python38/python.exe",
-    "pgadminFile": "../web/pgAdmin4.py"
+    "cdeadminFile": "../web/CDEadmin.py"
 }

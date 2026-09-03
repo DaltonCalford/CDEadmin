@@ -1,0 +1,279 @@
+{
+  "schema": "cdeadmin.workspace-shell-catalog.v1",
+  "fixture_policy": {
+    "production": false,
+    "persistent_label": "NON-PRODUCTION CDE WORKSPACE FIXTURE",
+    "activation": "fixture_only",
+    "network_enabled": false,
+    "authentication_enabled": false,
+    "execution_enabled": false,
+    "live_provider_evidence": null,
+    "production_evidence_requirements": [
+      "qualified_scratchbird_provider",
+      "exact_cde_runtime_identity",
+      "compatible_python_driver_handoff",
+      "current_capability_evidence",
+      "permission_and_redaction_contract"
+    ]
+  },
+  "accessibility_policy": {
+    "persistent_fixture_label": true,
+    "color_independent_states": true,
+    "reduced_motion_safe": true,
+    "keyboard_reachable_status": true,
+    "hidden_resources_not_announced": true
+  },
+  "authority_invariants": {
+    "engine_execution": "sblr_and_internal_procedures_only",
+    "internal_identity": "uuid_backed_no_synthesized_paths",
+    "transaction_authority": "scratchbird_mga_engine_owned",
+    "transaction_finality_source": "durable_transaction_inventory",
+    "workspace_authority": "read_only_projection_never_authority",
+    "parser_authority": "dialect_to_sblr_no_engine_sql_execution",
+    "agent_runtime": "database_owned_server_runtime_only",
+    "unknown_behavior": "fail_closed"
+  },
+  "authoritative_search_keys": [
+    "CDE-DOS-KERNEL-RUNTIME-CONTRACT",
+    "CDE-DOS-NODE-GROUP-CLUSTER-INTEGRATION",
+    "CDE-DOS-RUNTIME-OBJECT-MODEL",
+    "CDE-DOS-CAPABILITY-ABI",
+    "CDE-DOS-SCHEDULING-RESOURCE-CONTRACT",
+    "CDE-DOS-FILESPACE-PROVIDER-MODEL",
+    "CDE-DOS-SERVICE-SUPERVISION",
+    "CDE-DOS-POLICY-ACTIVATION-CONTRACT",
+    "CDE-DOS-SECURITY-ISOLATION",
+    "CDE-DOS-BOOT-LIFECYCLE",
+    "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION",
+    "AGH_005_AGENT_SHOW_SYS_SURFACES",
+    "ARCH-DD-PHASE-5-POLICY-SECURITY-AUDIT",
+    "CDSSV-DOCUMENT",
+    "CDSSV-FULL-TEXT-SEARCH",
+    "CDSSV-SPATIAL",
+    "CDSSV-VECTOR",
+    "CGTC-GRAPH",
+    "CGTC-TIME-SERIES",
+    "CGTC-COLUMNAR-OLAP-WRAPPERS"
+  ],
+  "state_presentations": {
+    "unavailable": {
+      "diagnostic_code": "CDEADMIN.WORKSPACE.UNAVAILABLE",
+      "title": "Workspace unavailable",
+      "message": "The endpoint does not provide current evidence for this capability.",
+      "role": "status", "aria_live": "polite", "focus_target": "status",
+      "recovery_kind": "none"
+    },
+    "deferred": {
+      "diagnostic_code": "CDEADMIN.WORKSPACE.DEFERRED",
+      "title": "Capability deferred",
+      "message": "The provider explicitly defers this capability for the selected release profile.",
+      "role": "status", "aria_live": "polite", "focus_target": "status",
+      "recovery_kind": "review_profile"
+    },
+    "permission_filtered": {
+      "diagnostic_code": "CDEADMIN.WORKSPACE.PERMISSION_FILTERED",
+      "title": "Content filtered by permission",
+      "message": "The visible projection is limited without disclosing hidden resource identities.",
+      "role": "status", "aria_live": "polite", "focus_target": "status",
+      "recovery_kind": "request_access"
+    },
+    "stale": {
+      "diagnostic_code": "CDEADMIN.WORKSPACE.STALE",
+      "title": "Evidence is stale",
+      "message": "The cached generation cannot be used until the provider supplies current evidence.",
+      "role": "alert", "aria_live": "assertive", "focus_target": "status",
+      "recovery_kind": "revalidate"
+    },
+    "unknown": {
+      "diagnostic_code": "CDEADMIN.WORKSPACE.UNKNOWN",
+      "title": "Capability state unknown",
+      "message": "CDEadmin cannot prove identity, authority, permission, or lifecycle state and has failed closed.",
+      "role": "alert", "aria_live": "assertive", "focus_target": "status",
+      "recovery_kind": "inspect_diagnostic"
+    }
+  },
+  "workspaces": [
+    {
+      "workspace_id": "cde.topology", "title": "CDE Topology", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.topology.inspect",
+      "authority_refs": ["CDE-DOS-NODE-GROUP-CLUSTER-INTEGRATION"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["environment_summary", "node_map", "group_members", "cluster_membership"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "topology.inspect", "label": "Inspect topology", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE topology workspace", "heading_level": 2, "status_region_id": "cde-topology-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.runtime", "title": "Runtime Objects", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.runtime.inspect",
+      "authority_refs": ["CDE-DOS-RUNTIME-OBJECT-MODEL", "CDE-DOS-SERVICE-SUPERVISION"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["runtime_tree", "lifecycle", "resource_grants", "dependency_generation"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["runtime.cancel", "runtime.restart"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE runtime object workspace", "heading_level": 2, "status_region_id": "cde-runtime-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.filespace", "title": "Filespaces", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.filespace.inspect",
+      "authority_refs": ["CDE-DOS-FILESPACE-PROVIDER-MODEL", "CDE-DOS-BOOT-LIFECYCLE"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["service_dispositions", "capacity", "page_management", "provider_health"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["filespace.attach", "filespace.detach", "filespace.resize"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE filespace workspace", "heading_level": 2, "status_region_id": "cde-filespace-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.parser", "title": "Parser Profiles", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.parser.inspect",
+      "authority_refs": ["CDE-DOS-CAPABILITY-ABI", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["profile_inventory", "language_resources", "sblr_boundary", "diagnostics"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "parser.inspect", "label": "Inspect parser profile", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE parser profile workspace", "heading_level": 2, "status_region_id": "cde-parser-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.policy", "title": "Policy", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.policy.inspect",
+      "authority_refs": ["CDE-DOS-POLICY-ACTIVATION-CONTRACT"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["effective_policy", "override_chain", "activation_records", "impact_explanation"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["policy.activate", "policy.rollback"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE policy workspace", "heading_level": 2, "status_region_id": "cde-policy-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.security", "title": "Security", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.security.inspect",
+      "authority_refs": ["CDE-DOS-SECURITY-ISOLATION", "ARCH-DD-PHASE-5-POLICY-SECURITY-AUDIT"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["effective_principal", "capability_grants", "redaction_policy", "audit_projection"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "security.explain", "label": "Explain effective access", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE security workspace", "heading_level": 2, "status_region_id": "cde-security-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.agents", "title": "Agents", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.agents.inspect",
+      "authority_refs": ["AGH_005_AGENT_SHOW_SYS_SURFACES", "CDE-DOS-SERVICE-SUPERVISION"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["agent_inventory", "lifecycle", "metric_dependencies", "evidence_projection"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["agent.enable", "agent.disable", "agent.invoke"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE agent workspace", "heading_level": 2, "status_region_id": "cde-agents-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.observability", "title": "Observability", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.observability.inspect",
+      "authority_refs": ["CDE-DOS-SCHEDULING-RESOURCE-CONTRACT", "ARCH-DD-PHASE-5-POLICY-SECURITY-AUDIT"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["metrics_catalog", "resource_pressure", "health", "redacted_diagnostics"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "observability.inspect", "label": "Inspect observations", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE observability workspace", "heading_level": 2, "status_region_id": "cde-observability-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.operations", "title": "Operations", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.operations.inspect",
+      "authority_refs": ["CDE-DOS-CAPABILITY-ABI", "CDE-DOS-RUNTIME-OBJECT-MODEL"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["operation_inventory", "lifecycle", "completion_receipts", "diagnostics"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["operation.cancel", "operation.retry"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE operations workspace", "heading_level": 2, "status_region_id": "cde-operations-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "cde.evidence", "title": "Evidence", "category": "control_plane", "model_family": null,
+      "required_capability": "scratchbird.cde.evidence.inspect",
+      "authority_refs": ["CDE-DOS-CAPABILITY-ABI", "ARCH-DD-PHASE-5-POLICY-SECURITY-AUDIT"],
+      "delivery_state": "shell_only", "current_state": "unavailable",
+      "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["evidence_inventory", "digest_chain", "redaction", "retention"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "evidence.inspect", "label": "Inspect evidence", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "CDE evidence workspace", "heading_level": 2, "status_region_id": "cde-evidence-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.document", "title": "Document Inspector", "category": "model", "model_family": "document",
+      "required_capability": "scratchbird.model.document.inspect", "authority_refs": ["CDSSV-DOCUMENT", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["tree", "raw_document", "path_metadata", "indexes"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "document.inspect", "label": "Inspect document", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Document inspector workspace", "heading_level": 2, "status_region_id": "model-document-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.graph", "title": "Graph Inspector", "category": "model", "model_family": "graph",
+      "required_capability": "scratchbird.model.graph.inspect", "authority_refs": ["CGTC-GRAPH", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["topology", "vertex_properties", "edge_properties", "path_summary"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["graph.expand", "graph.query"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Graph inspector workspace", "heading_level": 2, "status_region_id": "model-graph-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.key_value", "title": "Key/Value Inspector", "category": "model", "model_family": "key_value",
+      "required_capability": "scratchbird.model.key_value.inspect", "authority_refs": ["CDE-DOS-CAPABILITY-ABI", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["key_browser", "typed_value", "version_history", "expiry_metadata"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "key_value.inspect", "label": "Inspect key", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Key value inspector workspace", "heading_level": 2, "status_region_id": "model-key-value-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.time_series", "title": "Time-Series Inspector", "category": "model", "model_family": "time_series",
+      "required_capability": "scratchbird.model.time_series.inspect", "authority_refs": ["CGTC-TIME-SERIES", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["series_chart", "accessible_table", "tag_metadata", "retention_profile"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["time_series.query", "time_series.retention_change"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Time series inspector workspace", "heading_level": 2, "status_region_id": "model-time-series-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.vector", "title": "Vector Inspector", "category": "model", "model_family": "vector",
+      "required_capability": "scratchbird.model.vector.inspect", "authority_refs": ["CDSSV-VECTOR", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["embedding_metadata", "dimensions", "distance_profile", "index_metadata"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "vector.inspect", "label": "Inspect vector metadata", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Vector inspector workspace", "heading_level": 2, "status_region_id": "model-vector-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.search", "title": "Search Inspector", "category": "model", "model_family": "search",
+      "required_capability": "scratchbird.model.search.inspect", "authority_refs": ["CDSSV-FULL-TEXT-SEARCH", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["hit_list", "score_explanation", "highlights", "index_metadata"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["search.query", "search.reindex"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Search inspector workspace", "heading_level": 2, "status_region_id": "model-search-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.spatial", "title": "Spatial Inspector", "category": "model", "model_family": "spatial",
+      "required_capability": "scratchbird.model.spatial.inspect", "authority_refs": ["CDSSV-SPATIAL", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["map_placeholder", "accessible_feature_table", "crs_metadata", "index_metadata"],
+      "missing_capability_behavior": "disable", "actions": [{"action_id": "spatial.inspect", "label": "Inspect spatial metadata", "mutation_class": "read", "enabled": false, "disabled_reason": "CDEADMIN.WORKSPACE.UNAVAILABLE"}], "removed_action_ids": [],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Spatial inspector workspace", "heading_level": 2, "status_region_id": "model-spatial-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    },
+    {
+      "workspace_id": "model.columnar", "title": "Columnar Inspector", "category": "model", "model_family": "columnar",
+      "required_capability": "scratchbird.model.columnar.inspect", "authority_refs": ["CGTC-COLUMNAR-OLAP-WRAPPERS", "SBSQL-SHOW-DESCRIBE-OBJECT-INSPECTION"],
+      "delivery_state": "shell_only", "current_state": "unavailable", "supported_states": ["unavailable", "deferred", "permission_filtered", "stale", "unknown"],
+      "resource_binding": null, "authority_path": null, "runtime_identity": null,
+      "views": ["batch_summary", "column_schema", "statistics", "zone_metadata"],
+      "missing_capability_behavior": "remove", "actions": [], "removed_action_ids": ["columnar.query", "columnar.optimize"],
+      "accessibility": {"landmark_role": "region", "accessible_name": "Columnar inspector workspace", "heading_level": 2, "status_region_id": "model-columnar-status", "keyboard_order": ["heading", "status", "views", "guidance"]}
+    }
+  ]
+}

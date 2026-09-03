@@ -1,0 +1,20 @@
+{
+  "schema": "cdeadmin.influxdb-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.influxdb",
+  "reference_profile": "3.9.0",
+  "query_languages": ["sql", "influxql"],
+  "protocols": {
+    "http_json": {"state": "qualified_exact_runtime"},
+    "arrow_flight": {"state": "deferred_unqualified", "activation_separate": true}
+  },
+  "capabilities": {
+    "native": ["ping_identity", "sql", "influxql", "line_protocol_write", "database_configuration", "table_configuration", "token_metadata_and_revocation", "last_value_caches", "distinct_value_caches", "processing_engine"],
+    "explicitly_unavailable": ["row_update", "row_delete", "multi_request_transactions", "named_admin_token_creation_without_a_secure_secret_sink"],
+    "reason": "InfluxDB 3.9 public HTTP API does not provide relational row mutation or a common transaction block"
+  },
+  "live_qualification": [
+    {"deployment": "disposable_core_memory_plaintext_http", "server_version": "3.9.0", "status": "passed", "evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["authenticated_token", "verified_tls", "restart", "controlled_disconnect_fault", "arrow_flight"]
+}

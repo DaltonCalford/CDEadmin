@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" role="img" aria-label="CDEadmin">
+  <rect width="720" height="300" rx="24" fill="#e9f8ff"/>
+  <g transform="translate(70 72)" fill="none" stroke="#214d67" stroke-width="9">
+    <ellipse cx="75" cy="34" rx="62" ry="25"/>
+    <path d="M13 34v90c0 14 28 25 62 25s62-11 62-25V34"/>
+    <path d="M13 79c0 14 28 25 62 25s62-11 62-25"/>
+    <circle cx="175" cy="34" r="13" fill="#56c5d0"/>
+    <circle cx="175" cy="124" r="13" fill="#56c5d0"/>
+    <path d="M137 53l27-14M137 105l27 14"/>
+  </g>
+  <text x="285" y="145" fill="#214d67" font-family="sans-serif" font-size="70" font-weight="700">CDEadmin</text>
+  <text x="289" y="185" fill="#334" font-family="sans-serif" font-size="23">multi-engine • multi-model</text>
+</svg>

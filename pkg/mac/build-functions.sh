@@ -269,33 +269,32 @@ _complete_bundle() {
     cp Info.plist.in "${BUNDLE_DIR}/Contents/Info.plist"
     sed -i '' "s/%APPNAME%/${APP_NAME}/g" "${BUNDLE_DIR}/Contents/Info.plist"
     sed -i '' "s/%APPVER%/${APP_LONG_VERSION}/g" "${BUNDLE_DIR}/Contents/Info.plist"
-    sed -i '' "s/%APPID%/org.pgadmin.pgadmin4/g" "${BUNDLE_DIR}/Contents/Info.plist"
+    sed -i '' "s/%APPID%/org.scratchbird.cdeadmin/g" "${BUNDLE_DIR}/Contents/Info.plist"
 
     # Rename helper execs and Update the plist
     for helper_exec in "Electron Helper" "Electron Helper (Renderer)" "Electron Helper (Plugin)" "Electron Helper (GPU)"
     do
-        pgadmin_exec=${helper_exec//Electron/pgAdmin 4}
-        mv "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app/Contents/MacOS/${helper_exec}" "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app/Contents/MacOS/${pgadmin_exec}"
-        mv "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app" "${BUNDLE_DIR}/Contents/Frameworks/${pgadmin_exec}.app"
+        cdeadmin_exec=${helper_exec//Electron/CDEadmin}
+        mv "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app/Contents/MacOS/${helper_exec}" "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app/Contents/MacOS/${cdeadmin_exec}"
+        mv "${BUNDLE_DIR}/Contents/Frameworks/${helper_exec}.app" "${BUNDLE_DIR}/Contents/Frameworks/${cdeadmin_exec}.app"
 
-        info_plist="${BUNDLE_DIR}/Contents/Frameworks/${pgadmin_exec}.app/Contents/Info.plist"
+        info_plist="${BUNDLE_DIR}/Contents/Frameworks/${cdeadmin_exec}.app/Contents/Info.plist"
         cp Info.plist-helper.in "${info_plist}"
-        sed -i '' "s/%APPNAME%/${pgadmin_exec}/g" "${info_plist}"
+        sed -i '' "s/%APPNAME%/${cdeadmin_exec}/g" "${info_plist}"
         sed -i '' "s/%APPVER%/${APP_LONG_VERSION}/g" "${info_plist}"
-        sed -i '' "s/%APPID%/org.pgadmin.pgadmin4.helper/g" "${info_plist}"
+        sed -i '' "s/%APPID%/org.scratchbird.cdeadmin.helper/g" "${info_plist}"
     done
 
     # PkgInfo
-    echo APPLPGA4 > "${BUNDLE_DIR}/Contents/PkgInfo"
+    echo APPLCDEA > "${BUNDLE_DIR}/Contents/PkgInfo"
 
     # Icon
-    cp pgAdmin4.icns "${BUNDLE_DIR}/Contents/Resources/app.icns"
+    cp cdeadmin.icns "${BUNDLE_DIR}/Contents/Resources/app.icns"
 
     # Rename the executable
     mv "${BUNDLE_DIR}/Contents/MacOS/Electron" "${BUNDLE_DIR}/Contents/MacOS/${APP_NAME}"
 
     # Rename the app in package.json so the menu looks as it should
-    sed -i '' "s/\"name\": \"pgadmin4\"/\"name\": \"${APP_NAME}\"/g" "${BUNDLE_DIR}/Contents/Resources/app/package.json"
 
     # Import the dependencies, and rewrite any library references
         _fixup_imports "${BUNDLE_DIR}"
@@ -345,7 +344,7 @@ _complete_bundle() {
     # copy the web directory to the bundle as it is required by runtime
     cp -r "${SOURCE_DIR}/web" "${BUNDLE_DIR}/Contents/Resources/"
     cd "${BUNDLE_DIR}/Contents/Resources/web" || exit
-    rm -f pgadmin4.db config_local.*
+    rm -f cdeadmin.db config_local.*
     rm -rf jest.config.js babel.* package.json .yarn* yarn* .editorconfig .eslint* node_modules/ regression/ tools/ pgadmin/static/js/generated/.cache
     find . -name "tests" -type d -print0 | xargs -0 rm -rf
     find . -name "feature_tests" -type d -print0 | xargs -0 rm -rf
@@ -363,6 +362,7 @@ _complete_bundle() {
 
     # License files
     cp -r "${SOURCE_DIR}/LICENSE" "${BUNDLE_DIR}/Contents/"
+    cp -r "${SOURCE_DIR}/NOTICE" "${BUNDLE_DIR}/Contents/"
 
     # Remove the .pyc files if any
     find "${BUNDLE_DIR}" -name "*.pyc" -print0 | xargs -0 rm -f
@@ -566,7 +566,7 @@ _codesign_binaries() {
         codesign --deep --force --verify --verbose --timestamp \
                  --options runtime \
                  --entitlements "${BUILD_ROOT}/entitlements.plist" \
-                 -i org.pgadmin.pgadmin4 \
+                 -i org.scratchbird.cdeadmin \
                  --sign "${DEVELOPER_ID}" \
                  "$i"
     done
@@ -576,7 +576,7 @@ _codesign_binaries() {
         codesign --deep --force --verify --verbose --timestamp \
                  --options runtime \
                  --entitlements "${BUILD_ROOT}/entitlements.plist" \
-                 -i org.pgadmin.pgadmin4 \
+                 -i org.scratchbird.cdeadmin \
                  --sign "${DEVELOPER_ID}" \
                  {} \;
 }
@@ -591,7 +591,7 @@ _codesign_bundle() {
     codesign --deep --force --verify --verbose --timestamp \
              --options runtime \
              --entitlements "${BUILD_ROOT}/entitlements.plist" \
-             -i org.pgadmin.pgadmin4 \
+             -i org.scratchbird.cdeadmin \
              --sign "${DEVELOPER_ID}" \
              "${BUNDLE_DIR}"
 
@@ -603,7 +603,7 @@ _create_zip() {
     ZIP_NAME="${DMG_NAME%.dmg}.zip"
     echo "ZIP_NAME: ${ZIP_NAME}"
 
-    echo "Compressing pgAdmin 4.app in bundle dir into ${ZIP_NAME}..."
+    echo "Compressing CDEadmin.app in bundle dir into ${ZIP_NAME}..."
     ditto -c -k --sequesterRsrc --keepParent "${BUNDLE_DIR}" "${ZIP_NAME}"
 
     if [ $? -ne 0 ]; then
@@ -623,7 +623,7 @@ _create_dmg() {
 
     "${BUILD_ROOT}/create-dmg/create-dmg" \
         --volname "${APP_NAME}" \
-        --volicon "${SCRIPT_DIR}/dmg-icon.icns" \
+        --volicon "${SCRIPT_DIR}/cdeadmin-dmg.icns" \
         --eula "${SCRIPT_DIR}/licence.rtf" \
         --background "${SCRIPT_DIR}/dmg-background.png" \
         --app-drop-link 600 220 \
@@ -648,7 +648,7 @@ _codesign_dmg() {
     echo Signing disk image...
     codesign --force --verify --verbose --timestamp \
              --options runtime \
-             -i org.pgadmin.pgadmin4 \
+             -i org.scratchbird.cdeadmin \
              --sign "${DEVELOPER_ID}" \
              "${DMG_NAME}"
 }

@@ -1,0 +1,27 @@
+{
+  "schema": "cdeadmin.xtdb-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.xtdb",
+  "provider_version": "0.1.0",
+  "protocol": "postgresql_wire",
+  "endpoint_implementation_policy": "protocol_and_xt_version_identity_only",
+  "reference_profile": {"server_version": "2.1.0", "driver": "psycopg-c", "driver_version": "3.3.4", "status": "qualified"},
+  "qualified_surfaces": [
+    {"surface": "postgresql_wire_sql", "status": "passed_standalone"},
+    {"surface": "http_transit_xtql", "status": "not_claimed_client_unqualified"},
+    {"surface": "arrow_flight", "status": "not_claimed_client_unqualified"}
+  ],
+  "capability_boundaries": {
+    "native": ["xtdb_sql", "schemaless_documents", "valid_time", "system_time", "snapshot_and_await_tokens", "attach_detach_database", "user_table_authentication"],
+    "explicitly_unavailable": ["postgresql_ddl", "postgresql_roles_and_grants", "manual_index_ddl", "datalog_2_1", "xtql_over_psycopg"]
+  },
+  "client_platforms": [
+    {"platform": "linux", "contract_suite": "passed", "live_suite": "passed_standalone"},
+    {"platform": "macos", "contract_suite": "ci_required", "live_suite": "not_run"},
+    {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
+  ],
+  "qualified_deployments": [
+    {"deployment": "disposable_standalone_plaintext", "server_version": "2.1.0", "status": "passed", "evidence_reference": "cde-xtdb-live:xtdb-2.1.0:standalone:20260902"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["password_authentication", "verified_tls", "restart", "controlled_disconnect_fault", "distributed_topology", "read_only_port"]
+}

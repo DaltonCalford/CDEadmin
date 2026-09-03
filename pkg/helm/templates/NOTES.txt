@@ -1,10 +1,10 @@
-Thanks for using PgAdmin4 Helm Chart :)
+Thanks for using CDEadmin Helm Chart :)
 
-Image: {{ template "pgadmin4.image" . }}
+Image: {{ template "cdeadmin.image" . }}
 
 Credentials:
   Email: {{ .Values.auth.email }}
-  Password: {{ printf "kubectl get secret %s -n %s -o jsonpath='{.data.%s}' | base64 -d" (include "pgadmin4.fullname" .) .Release.Namespace .Values.auth.passwordKey }}
+  Password: {{ printf "kubectl get secret %s -n %s -o jsonpath='{.data.%s}' | base64 -d" (include "cdeadmin.fullname" .) .Release.Namespace .Values.auth.passwordKey }}
 
 Ingress: {{ ternary (tpl .Values.ingress.hostname .) "DISABLED" .Values.ingress.enabled }}
 

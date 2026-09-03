@@ -1,18 +1,21 @@
-# pgAdmin Docker Container Builds
+# CDEadmin Docker Container Builds
+
+CDEadmin is an independent hard fork of pgAdmin 4 9.17. See the repository
+`NOTICE` and `LICENSE` files for upstream attribution and licence terms.
 
 This directory contains the files required to create a docker container running
-pgAdmin.
+CDEadmin.
 
 ## Building
 
-From the top level directory of the pgAdmin source tree, simply run:
+From the top level directory of the CDEadmin source tree, simply run:
 
     docker build .
 
 You can also run *make docker*, which will call *docker build .* but also tag
 the image like:
 
-    pgadmin4 pgadmin4:latest pgadmin4:4 pgadmin4:4.12
+    cdeadmin:latest cdeadmin:0.1 cdeadmin:0.1.0-dev
 
 ### WARNING 
 

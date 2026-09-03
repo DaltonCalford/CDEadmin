@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -25,7 +25,7 @@ from pgadmin.llm.utils import get_max_tool_iterations
 
 # Default system prompt for database assistant
 DEFAULT_SYSTEM_PROMPT = (
-    "You are a PostgreSQL database assistant integrated into pgAdmin 4. "
+    "You are a PostgreSQL database assistant integrated into CDEadmin. "
     "You have access to tools that allow you to query the database and "
     "inspect its schema.\n\n"
     "When helping users:\n"

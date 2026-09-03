@@ -1,0 +1,56 @@
+{
+  "schema": "cdeadmin.quality-policy.v1",
+  "baseline_id": "pgadmin4-9.17-bc58657d3d3a-20260831",
+  "source_budget_revision": "cde-distributed-control-plane-20260902",
+  "production_provider_roots": [
+    "web/pgadmin/cdeadmin/providers"
+  ],
+  "production_scan_roots": [
+    "web/pgadmin/cdeadmin"
+  ],
+  "fixture_provider": "tools/tests/fixtures/cdeadmin_contracts/fixture/provider.py",
+  "forbidden_fixture_imports": [
+    "aiohttp",
+    "httpx",
+    "requests",
+    "socket",
+    "urllib"
+  ],
+  "golden_corpus": "tools/tests/fixtures/cdeadmin_contracts/golden_dto_corpus.json",
+  "compatibility_matrix": "tools/cdeadmin_sdk_compatibility.json",
+  "contract_schema": "web/pgadmin/cdeadmin/contracts/v1/contract.schema.json",
+  "contract_runtime": "web/pgadmin/cdeadmin/contracts/v1/runtime.py",
+  "source_budgets": {
+    "production_cdeadmin_bytes_baseline": 1276252,
+    "production_cdeadmin_bytes_maximum": 2200000,
+    "frontend_cdeadmin_bytes_maximum": 12000
+  },
+  "built_bundle": {
+    "roots": [
+      "web/pgadmin/static/js/generated",
+      "web/pgadmin/static/css/generated"
+    ],
+    "baseline_bytes": 34664870,
+    "maximum_bytes": 38131357
+  },
+  "startup": {
+    "route_count": 1365,
+    "wall_seconds_maximum": 8.0,
+    "max_rss_kib_maximum": 240000,
+    "required_extensions": [
+      "cdeadmin_provider_registry",
+      "cdeadmin_security_service",
+      "cdeadmin_endpoint_service",
+      "cdeadmin_resource_explorer",
+      "cdeadmin_data_studio",
+      "cdeadmin_result_service",
+      "cdeadmin_semantic_model_service",
+      "cdeadmin_operation_bus",
+      "cdeadmin_provider_workspace"
+    ]
+  },
+  "contract_benchmark": {
+    "iterations": 5000,
+    "wall_seconds_maximum": 1.5
+  }
+}

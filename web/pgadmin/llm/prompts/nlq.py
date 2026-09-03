@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -10,7 +10,7 @@
 """System prompt for Natural Language to SQL translation."""
 
 NLQ_SYSTEM_PROMPT = """You are a PostgreSQL SQL expert \
-integrated into pgAdmin 4.
+integrated into CDEadmin.
 Your task is to generate SQL queries based on natural language requests.
 
 You have access to tools for inspecting the database. ALWAYS use \

@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "pgadmin4.fullname" . }}
+  name: {{ template "cdeadmin.fullname" . }}
   {{- with .Values.commonLabels }}
   labels: {{ . | toYaml | nindent 4 }}
   {{- end }}
@@ -21,14 +21,14 @@ spec:
   {{- end }}
   selector:
     matchLabels:
-      app: {{ default "pgadmin4" .Values.commonLabels.app }}
+      app: {{ default "cdeadmin" .Values.commonLabels.app }}
         {{- with omit .Values.commonLabels "app" }}
         {{- . | toYaml | nindent 6 }}
         {{- end }}
   template:
     metadata:
       labels:
-        app: {{ default "pgadmin4" .Values.commonLabels.app }}
+        app: {{ default "cdeadmin" .Values.commonLabels.app }}
         {{- with omit .Values.commonLabels "app" }}
         {{- . | toYaml | nindent 8 }}
         {{- end }}
@@ -54,7 +54,7 @@ spec:
       {{- if or .Values.global.imagePullSecrets .Values.image.pullSecrets }}
       imagePullSecrets: {{- concat .Values.global.imagePullSecrets .Values.image.pullSecrets | toYaml | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ template "pgadmin4.serviceAccountName" . }}
+      serviceAccountName: {{ template "cdeadmin.serviceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       {{- if .Values.podSecurityContext.enabled }}
       securityContext: {{- include "renderSecurityContext" (dict "securityContext" .Values.podSecurityContext "context" .) | nindent 8 }}
@@ -66,12 +66,12 @@ spec:
       {{- if .Values.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ .Values.persistence.existingClaim | default (include "pgadmin4.fullname" .) }}
+            claimName: {{ .Values.persistence.existingClaim | default (include "cdeadmin.fullname" .) }}
       {{- end }}
       {{- if .Values.config_local.enabled }}
         - name: config-local
           secret:
-            secretName: {{ default (printf "%s-config" (include "pgadmin4.fullname" .)) .Values.config_local.existingSecret }}
+            secretName: {{ default (printf "%s-config" (include "cdeadmin.fullname" .)) .Values.config_local.existingSecret }}
             items:
               - key: {{ .Values.config_local.configKey }}
                 path: {{ .Values.config_local.configKey }}
@@ -79,7 +79,7 @@ spec:
       {{- if .Values.serverDefinitions.enabled }}
         - name: server-definitions
           configMap:
-            name: {{ template "pgadmin4.fullname" . }}-server-definitions
+            name: {{ template "cdeadmin.fullname" . }}-server-definitions
             items:
               - key: servers.json
                 path: servers.json
@@ -87,7 +87,7 @@ spec:
       {{- if .Values.preferences.enabled }}
         - name: preferences
           configMap:
-            name: {{ template "pgadmin4.fullname" . }}-preferences
+            name: {{ template "cdeadmin.fullname" . }}-preferences
             items:
               - key: preferences.json
                 path: preferences.json
@@ -96,11 +96,11 @@ spec:
       {{- . | toYaml | nindent 8 }}
       {{- end }}
       containers:
-        - name: pgadmin4
+        - name: cdeadmin
           {{- if .Values.containerSecurityContext.enabled }}
           securityContext: {{- include "renderSecurityContext" (dict "securityContext" .Values.containerSecurityContext "context" .) | nindent 12 }}
           {{- end }}
-          image: {{ template "pgadmin4.image" . }}
+          image: {{ template "cdeadmin.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
@@ -119,7 +119,7 @@ spec:
             - name: PGADMIN_DEFAULT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ default (include "pgadmin4.fullname" .) .Values.auth.existingSecret }}
+                  name: {{ default (include "cdeadmin.fullname" .) .Values.auth.existingSecret }}
                   key: {{ .Values.auth.passwordKey }}
             - name: PGADMIN_LISTEN_PORT
               value: {{ .Values.containerPort | quote }}
@@ -129,7 +129,7 @@ spec:
           {{- tpl (. | toYaml) $ | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - mountPath: /var/lib/pgadmin
+            - mountPath: /var/lib/cdeadmin
               {{- if .Values.persistence.enabled }}
               name: data
               {{- else }}
@@ -137,7 +137,7 @@ spec:
               subPath: data
               {{- end }}
             - name: empty-dir
-              mountPath: /pgadmin4/config_distro.py
+              mountPath: /cdeadmin/config_distro.py
               subPath: config_distro.py
             - name: empty-dir
               mountPath: /usr/local/bin/python3
@@ -146,21 +146,21 @@ spec:
               mountPath: /tmp
               subPath: tmp
             - name: empty-dir
-              mountPath: /var/log/pgadmin
+              mountPath: /var/log/cdeadmin
               subPath: logs
               {{- if .Values.config_local.enabled }}
             - name: config-local
-              mountPath: /pgadmin4/config_local.py
+              mountPath: /cdeadmin/config_local.py
               subPath: {{ .Values.config_local.configKey }}
               {{- end }}
               {{- if .Values.serverDefinitions.enabled }}
             - name: server-definitions
-              mountPath: /pgadmin4/servers.json
+              mountPath: /cdeadmin/servers.json
               subPath: servers.json
               {{- end }}
               {{- if .Values.preferences.enabled }}
             - name: preferences
-              mountPath: /pgadmin4/preferences.json
+              mountPath: /cdeadmin/preferences.json
               subPath: preferences.json
               {{- end }}
               {{- with .Values.extraVolumeMounts }}
@@ -177,10 +177,10 @@ spec:
           {{- end }}
       initContainers:
         - name: modify-config-distro-py-permissions
-          image: {{ template "pgadmin4.image" . }}
+          image: {{ template "cdeadmin.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["sh", "-x", "-c"]
-          args: ['cp /pgadmin4/config_distro.py . && chmod 777 config_distro.py']
+          args: ['cp /cdeadmin/config_distro.py . && chmod 777 config_distro.py']
           workingDir: /emptyDir
           volumeMounts:
             - name: empty-dir
@@ -196,7 +196,7 @@ spec:
           securityContext: {{- include "renderSecurityContext" (dict "securityContext" .Values.containerSecurityContext "context" .) | nindent 12 }}
           {{- end }}
         - name: unset-python3-cli-net-cap
-          image: {{ template "pgadmin4.image" . }}
+          image: {{ template "cdeadmin.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["sh", "-x", "-c"]
           args: ['ls /venv/bin/python3.* | sort -V -r | head -n 1 | xargs -i cp {} python3']

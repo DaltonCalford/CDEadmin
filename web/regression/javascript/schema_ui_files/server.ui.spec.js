@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -83,5 +83,39 @@ describe('ServerSchema', ()=>{
 
     state.tunnel_keep_alive = 0;
     expect(schemaObj.validate(state, setError)).toBe(false);
+  });
+
+  it('separates provider verification from PostgreSQL connect', ()=>{
+    expect(schemaObj.isProviderEndpoint({
+      cde_profile_id: 'postgresql-native',
+    })).toBe(false);
+    expect(schemaObj.isProviderEndpoint({
+      cde_profile_id: 'qualified-native',
+    })).toBe(true);
+    expect(schemaObj.isEmbeddedEndpoint({
+      cde_profile_id: 'embedded-native',
+    })).toBe(true);
+  });
+
+  it('builds provider-declared select connection fields', ()=>{
+    const field = schemaObj.providerConnectionFields().find(
+      (item) => item.id === 'cde_route_tls_mode'
+    );
+    expect(field.type).toBe('select');
+    expect(field.controlProps).toEqual({allowClear: false});
+    expect(field.options).toEqual([
+      {value: 'disabled', label: 'Disabled'},
+      {value: 'system-ca', label: 'System CA validation'},
+    ]);
+    expect(field.visible({cde_profile_id: 'qualified-native'})).toBe(true);
+    expect(field.visible({cde_profile_id: 'postgresql-native'})).toBe(false);
+  });
+
+  it('validates an embedded database without network fields', ()=>{
+    const state = {
+      gid: 1, cde_profile_id: 'embedded-native',
+      db: '/srv/cdeadmin/data/example.sqlite',
+    };
+    expect(schemaObj.validate(state, jest.fn())).toBe(false);
   });
 });

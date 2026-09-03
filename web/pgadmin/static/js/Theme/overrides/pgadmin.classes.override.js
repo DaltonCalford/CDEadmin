@@ -13,7 +13,7 @@ export default function pgadminOverride(theme) {
       verticalAlign: 'middle',
       height: '1.3em',
     },
-    '.dashboard-pg-doc': {
+    '.dashboard-cdeadmin-doc': {
       backgroundImage: theme.otherVars.dashboardPgDoc,
       display: 'inline-block',
       width: '50px',

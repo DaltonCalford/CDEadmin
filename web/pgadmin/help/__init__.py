@@ -1,13 +1,13 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
 
-"""A blueprint module implementing the pgAdmin help system."""
+"""A blueprint module implementing the CDEadmin help system."""
 from flask import url_for
 from flask_babel import gettext
 from pgadmin.utils import PgAdminModule
@@ -36,19 +36,20 @@ class HelpModule(PgAdminModule):
                      icon='fa fa-question',
                      url=url_for('help.static', filename='index.html')),
 
-            MenuItem(name='mnu_pgadmin_website',
-                     label=gettext('pgAdmin Website'),
+            MenuItem(name='mnu_upstream_pgadmin_website',
+                     label=gettext('Upstream pgAdmin Project'),
                      priority=200,
                      target='pgadmin_website',
                      icon='fa fa-external-link-alt',
                      url='https://www.pgadmin.org/'),
 
-            MenuItem(name='mnu_postgresql_website',
-                     label=gettext('PostgreSQL Website'),
+            MenuItem(name='mnu_cdeadmin_fork_status',
+                     label=gettext('CDEadmin Hard-fork Status'),
                      priority=300,
-                     target='postgres_website',
-                     icon='fa fa-external-link-alt',
-                     url='https://www.postgresql.org/')]}
+                     target='cdeadmin_status',
+                     icon='fa fa-info-circle',
+                     url=url_for('help.static',
+                                 filename='cdeadmin_hard_fork.html'))]}
 
     def register_preferences(self):
         """

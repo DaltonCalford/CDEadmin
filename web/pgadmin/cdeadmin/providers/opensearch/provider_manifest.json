@@ -1,0 +1,27 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.opensearch", "provider_version": "0.1.0", "profile_id": "opensearch-native", "profile_version": "3.6.0", "evidence_reference": "cde-analytic-live:opensearch-3.6.0:http-json:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["opensearch"], "target_adapter_ids": ["stdlib-opensearch-http-json-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "OpenSearch 3.6.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 9200, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_fields": [
+      {"field_id": "index", "route_key": "index", "label": "Default index", "control": "text", "group": "OpenSearch query"},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "OpenSearch authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}, {"value": "bearer", "label": "Bearer token reference"}]},
+      {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "OpenSearch authentication"},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "OpenSearch TLS", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "OpenSearch TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "OpenSearch TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "OpenSearch TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "OpenSearch timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "statement_timeout", "route_key": "statement_timeout", "label": "Request timeout (seconds)", "control": "number", "group": "OpenSearch timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "OpenSearch safety", "default": false}
+    ]
+  },
+  "provenance": {"purpose": "OpenSearch 3.6.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "opensearch_3.6.0_standalone_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:opensearch-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
+}

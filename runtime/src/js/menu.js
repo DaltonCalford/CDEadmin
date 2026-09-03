@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -31,8 +31,8 @@ function convertShortcutToAccelerator({ control, meta, shift, alt, key } = {}) {
 }
 
 // Binds click events to all menu and submenu items recursively.
-function bindMenuClicks(pgadminMenus, pgAdminMainScreen) {
-  return pgadminMenus.map((menuItem) => ({
+function bindMenuClicks(applicationMenus, cdeadminMainScreen) {
+  return applicationMenus.map((menuItem) => ({
     ...menuItem,
     submenu: menuItem.submenu?.map((subMenuItem) => {
       const smName = `${menuItem.name}_${subMenuItem.name}`;
@@ -43,10 +43,10 @@ function bindMenuClicks(pgadminMenus, pgAdminMainScreen) {
           if(event?.triggeredByAccelerator) {
             // We will ignore the click event if it is triggered by an accelerator.
             // We use accelerator to only show the shortcut title in the menu.
-            // The actual shortcut is already handled by pgAdmin.
+            // The actual shortcut is already handled by CDEadmin.
             return;
           }
-          pgAdminMainScreen.webContents.send('menu-click', smName);
+          cdeadminMainScreen.webContents.send('menu-click', smName);
         },
         submenu: subMenuItem.submenu?.map((deeperSubMenuItem) => ({
           ...deeperSubMenuItem,
@@ -55,10 +55,10 @@ function bindMenuClicks(pgadminMenus, pgAdminMainScreen) {
             if(event?.triggeredByAccelerator) {
               // We will ignore the click event if it is triggered by an accelerator.
               // We use accelerator to only show the shortcut title in the menu.
-              // The actual shortcut is already handled by pgAdmin.
+              // The actual shortcut is already handled by CDEadmin.
               return;
             }
-            pgAdminMainScreen.webContents.send('menu-click', `${smName}_${deeperSubMenuItem.name}`);
+            cdeadminMainScreen.webContents.send('menu-click', `${smName}_${deeperSubMenuItem.name}`);
           },
         })),
       };
@@ -99,9 +99,9 @@ function handleAutoUpdateMenu(menuFile, configStore, callbacks) {
   }
 }
 
-// Remove About pgAdmin 4 from help menu and add it to the top of menuFile submenu.
-function moveAboutMenuToTop(pgadminMenus, menuFile) {
-  const helpMenu = pgadminMenus.find((menu) => menu.name == 'help');
+// Put About CDEadmin in the platform-native application-menu location.
+function moveAboutMenuToTop(applicationMenus, menuFile) {
+  const helpMenu = applicationMenus.find((menu) => menu.name == 'help');
   if (!helpMenu) return;
   const aboutItem = helpMenu.submenu.find((item) => item.name === 'mnu_about');
   if (!aboutItem) return;
@@ -112,17 +112,17 @@ function moveAboutMenuToTop(pgadminMenus, menuFile) {
 
 // Builds the application menu template and binds menu click events.
 // Handles platform-specific menu structure and dynamic menu items.
-function buildMenu(pgadminMenus, pgAdminMainScreen, configStore, callbacks) {
+function buildMenu(applicationMenus, cdeadminMainScreen, configStore, callbacks) {
   const template = [];
 
-  pgadminMenus = bindMenuClicks(pgadminMenus, pgAdminMainScreen);
+  applicationMenus = bindMenuClicks(applicationMenus, cdeadminMainScreen);
 
-  let menuFile = pgadminMenus.shift();
+  let menuFile = applicationMenus.shift();
 
   // macOS-specific menu modifications
   if (isMac) {
     handleAutoUpdateMenu(menuFile, configStore, callbacks);
-    moveAboutMenuToTop(pgadminMenus, menuFile);
+    moveAboutMenuToTop(applicationMenus, menuFile);
   }
 
   template.push({
@@ -150,7 +150,7 @@ function buildMenu(pgadminMenus, pgAdminMainScreen, configStore, callbacks) {
   }
 
   // push all except help
-  template.push(...pgadminMenus.slice(0, -1));
+  template.push(...applicationMenus.slice(0, -1));
 
   template.push(
     { role: 'editMenu' },
@@ -175,37 +175,37 @@ function buildMenu(pgadminMenus, pgAdminMainScreen, configStore, callbacks) {
     { role: 'windowMenu' },
   );
 
-  template.push(pgadminMenus[pgadminMenus.length - 1]);
+  template.push(applicationMenus[applicationMenus.length - 1]);
 
   return Menu.buildFromTemplate(template);
 }
 
-function buildAndSetMenus(menus, pgAdminMainScreen, configStore, callbacks={}) {
-  mainMenu = buildMenu(menus, pgAdminMainScreen, configStore, callbacks);
+function buildAndSetMenus(menus, cdeadminMainScreen, configStore, callbacks={}) {
+  mainMenu = buildMenu(menus, cdeadminMainScreen, configStore, callbacks);
   if(isMac) {
     Menu.setApplicationMenu(mainMenu);
   } else {
-    pgAdminMainScreen.setMenu(mainMenu);
+    cdeadminMainScreen.setMenu(mainMenu);
   }
 }
 
-export function refreshMenus(pgAdminMainScreen, configStore, callbacks={}) {
+export function refreshMenus(cdeadminMainScreen, configStore, callbacks={}) {
   // cachedMenus is only populated once the renderer sends its menu definition
   // via the 'setMenus' IPC. A refresh can be triggered before that happens
   // (e.g. an auto-update event, or the window being closed while the UI is
   // still loading). In that case there are no menus to rebuild, so bail out
   // to avoid dereferencing an undefined menu list.
   if (!cachedMenus) return;
-  buildAndSetMenus(cachedMenus, pgAdminMainScreen, configStore, callbacks);
+  buildAndSetMenus(cachedMenus, cdeadminMainScreen, configStore, callbacks);
 }
 
-export function setupMenu(pgAdminMainScreen, configStore, callbacks={}) {
+export function setupMenu(cdeadminMainScreen, configStore, callbacks={}) {
   ipcMain.on('setMenus', (event, menus)=>{
     // this is important because the shortcuts are registered multiple times
     // when the menu is set multiple times using accelerators.
     globalShortcut.unregisterAll();
     cachedMenus = menus; //It will be used later for refreshing the menus
-    buildAndSetMenus(menus, pgAdminMainScreen, configStore, callbacks);
+    buildAndSetMenus(menus, cdeadminMainScreen, configStore, callbacks);
 
     ipcMain.on('enable-disable-menu-items', (event, menu, menuItem)=>{
       const menuItemObj = mainMenu.getMenuItemById(menuItem?.id);

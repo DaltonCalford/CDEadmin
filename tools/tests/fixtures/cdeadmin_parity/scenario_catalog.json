@@ -1,0 +1,136 @@
+{
+  "schema": "cdeadmin.scenario-catalog.v1",
+  "catalog_id": "cdeadmin-cross-model-reference-v1",
+  "fixture_manifest": "tools/tests/fixtures/cdeadmin_reference_corpus/seed_manifest.json",
+  "scenarios": [
+    {
+      "scenario_id": "relational_projection", "feature_id": "query.relational.projection",
+      "model": "relational", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "relational.project_accounts", "arguments": {"fields": ["account_id", "label", "balance"]}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "table"}
+    },
+    {
+      "scenario_id": "relational_null_ordering", "feature_id": "query.relational.null_ordering",
+      "model": "relational", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "relational.order_nullable_region", "arguments": {"direction": "ascending"}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "table"}
+    },
+    {
+      "scenario_id": "document_nested_filter", "feature_id": "query.document.nested_filter",
+      "model": "document", "fixture_set": "document_wide_column",
+      "applies_to": ["cassandra", "milvus", "mongodb", "opensearch", "opensearch_sql_ppl", "xtdb", "yugabytedb"],
+      "operations": [{"operation_key": "document.filter_nested_score", "arguments": {"minimum": 1}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "document"}
+    },
+    {
+      "scenario_id": "graph_weighted_path", "feature_id": "query.graph.weighted_path",
+      "model": "graph", "fixture_set": "graph", "applies_to": ["neo4j"],
+      "operations": [{"operation_key": "graph.path_between", "arguments": {"from": "n1", "to": "n3"}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "graph"}
+    },
+    {
+      "scenario_id": "vector_nearest_neighbors", "feature_id": "query.vector.knn",
+      "model": "vector", "fixture_set": "vector",
+      "applies_to": ["milvus", "neo4j", "opensearch", "redis"],
+      "operations": [{"operation_key": "vector.nearest_neighbors", "arguments": {"query": [0.75, 0.25, 0.0], "limit": 2}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "vector"}
+    },
+    {
+      "scenario_id": "timeseries_window", "feature_id": "query.timeseries.window",
+      "model": "timeseries", "fixture_set": "timeseries",
+      "applies_to": ["clickhouse", "influxdb", "redis"],
+      "operations": [{"operation_key": "timeseries.window_average", "arguments": {"window_seconds": 60}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "timeseries"}
+    },
+    {
+      "scenario_id": "search_phrase_ranking", "feature_id": "query.search.phrase_ranking",
+      "model": "search", "fixture_set": "search",
+      "applies_to": ["opensearch", "opensearch_sql_ppl"],
+      "operations": [{"operation_key": "search.phrase", "arguments": {"phrase": "synthetic red square"}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "search"}
+    },
+    {
+      "scenario_id": "key_value_compare_exchange", "feature_id": "mutation.key_value.compare_exchange",
+      "model": "key_value", "fixture_set": "key_value",
+      "applies_to": ["foundationdb", "immudb", "redis", "tikv"],
+      "operations": [{"operation_key": "key_value.observe_compare_exchange", "arguments": {"key": "counter:one", "expected": 7, "replacement": 8}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "state"},
+      "transaction_observation": {"reference_authority": "provider_native_opaque", "scratchbird_authority": "scratchbird_engine_mga", "common_runner_interprets_finality": false}
+    },
+    {
+      "scenario_id": "distributed_conflict_visibility", "feature_id": "transaction.distributed.conflict_visibility",
+      "model": "distributed", "fixture_set": "distributed_consistency",
+      "applies_to": ["apache_ignite", "cassandra", "cockroachdb", "foundationdb", "tidb", "tikv", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "distributed.observe_conflict_resolution", "arguments": {"key": "shared"}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "state"},
+      "transaction_observation": {"reference_authority": "provider_native_opaque", "scratchbird_authority": "scratchbird_engine_mga", "common_runner_interprets_finality": false}
+    },
+    {
+      "scenario_id": "versioned_snapshot", "feature_id": "query.versioned.snapshot",
+      "model": "versioned", "fixture_set": "versioned_data",
+      "applies_to": ["dolt", "immudb", "xtdb"],
+      "operations": [{"operation_key": "versioned.read_snapshot", "arguments": {"at": "2026-01-15T00:00:00Z"}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "document"}
+    },
+    {
+      "scenario_id": "columnar_grouped_aggregate", "feature_id": "query.columnar.grouped_aggregate",
+      "model": "columnar", "fixture_set": "analytic_columnar",
+      "applies_to": ["clickhouse", "duckdb", "influxdb"],
+      "operations": [{"operation_key": "columnar.grouped_total", "arguments": {"dimensions": ["dimension_a"]}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "table"}
+    },
+    {
+      "scenario_id": "transaction_rollback_visibility", "feature_id": "transaction.rollback.visibility",
+      "model": "relational", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "transaction.observe_rollback_visibility", "arguments": {"account_id": 1}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "state"},
+      "transaction_observation": {"reference_authority": "provider_native_opaque", "scratchbird_authority": "scratchbird_engine_mga", "common_runner_interprets_finality": false}
+    },
+    {
+      "scenario_id": "transaction_savepoint_scope", "feature_id": "transaction.savepoint.local_scope",
+      "model": "relational", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "transaction.observe_savepoint_scope", "arguments": {"account_id": 2}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "state"},
+      "transaction_observation": {"reference_authority": "provider_native_opaque", "scratchbird_authority": "scratchbird_engine_mga", "common_runner_interprets_finality": false}
+    },
+    {
+      "scenario_id": "metadata_roundtrip", "feature_id": "metadata.object.roundtrip",
+      "model": "metadata", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "metadata.describe_accounts", "arguments": {}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "metadata"}
+    },
+    {
+      "scenario_id": "typed_invalid_operation", "feature_id": "diagnostic.typed.invalid_operation",
+      "model": "diagnostic", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "diagnostic.invoke_invalid_operation", "arguments": {}}],
+      "expected_reference": {"disposition": "expected_refusal", "observation_kind": "diagnostic", "diagnostic_code": "invalid_operation"}
+    },
+    {
+      "scenario_id": "security_destructive_refusal", "feature_id": "security.destructive.refusal",
+      "model": "security", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "security.request_disallowed_destructive_action", "arguments": {"scope": "fixture_namespace"}}],
+      "expected_reference": {"disposition": "expected_refusal", "observation_kind": "diagnostic", "diagnostic_code": "operation_not_permitted"}
+    },
+    {
+      "scenario_id": "document_metadata", "feature_id": "metadata.document.collection",
+      "model": "metadata", "fixture_set": "document_wide_column",
+      "applies_to": ["cassandra", "milvus", "mongodb", "opensearch", "opensearch_sql_ppl", "xtdb", "yugabytedb"],
+      "operations": [{"operation_key": "metadata.describe_document_collection", "arguments": {}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "metadata"}
+    },
+    {
+      "scenario_id": "cross_model_typed_scalar", "feature_id": "query.cross_model.typed_scalar",
+      "model": "metadata", "fixture_set": "relational_core",
+      "applies_to": ["apache_ignite", "clickhouse", "cockroachdb", "dolt", "duckdb", "firebird", "mariadb", "mysql", "opensearch_sql_ppl", "postgresql", "sqlite", "tidb", "vitess", "yugabytedb"],
+      "operations": [{"operation_key": "metadata.read_typed_capability_count", "arguments": {}}],
+      "expected_reference": {"disposition": "observe", "observation_kind": "scalar"}
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "cdeadmin.workspace-shell-story-manifest.v1",
+  "catalog": "tools/cdeadmin_workspace_shells.json",
+  "persistent_label": "NON-PRODUCTION CDE WORKSPACE FIXTURE",
+  "production": false,
+  "execution_enabled": false,
+  "workspace_ids": [
+    "cde.topology", "cde.runtime", "cde.filespace", "cde.parser",
+    "cde.policy", "cde.security", "cde.agents", "cde.observability",
+    "cde.operations", "cde.evidence", "model.document", "model.graph",
+    "model.key_value", "model.time_series", "model.vector", "model.search",
+    "model.spatial", "model.columnar"
+  ],
+  "states": [
+    "unavailable", "deferred", "permission_filtered", "stale", "unknown"
+  ],
+  "story_count": 90
+}

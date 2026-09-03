@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -8,6 +8,8 @@
 ##########################################################################
 
 import json
+import hashlib
+import os
 from collections import OrderedDict
 import pgadmin.browser.server_groups as sg
 from flask import render_template, request, make_response, jsonify, \
@@ -46,6 +48,27 @@ from pgadmin.utils.preferences import Preferences
 from .... import socketio as sio
 from pgadmin.utils import get_complete_file_path
 from pgadmin.settings.utils import with_object_filters
+from pgadmin.cdeadmin.endpoints import (
+    EndpointRegistrationError,
+    registration_profile,
+    registration_profile_for_endpoint,
+    registration_profiles,
+    provider_route_form_values,
+    provider_route_options,
+    service_for_app as endpoint_service_for_app,
+)
+from pgadmin.cdeadmin.core import (
+    ProviderPermissionError, ProviderUnavailableError,
+)
+from pgadmin.cdeadmin.data_studio import DataStudioError
+from pgadmin.cdeadmin.resources import ResourceGraphError
+from pgadmin.cdeadmin.results import ResultRegistryError
+from pgadmin.cdeadmin.semantic_models import SemanticModelError
+from pgadmin.cdeadmin.visual_admin import VisualAdminError
+from pgadmin.cdeadmin.workspace import (
+    ProviderWorkspaceError,
+    service_for_app as provider_workspace_for_app,
+)
 from pgadmin.utils.server_access import get_server, \
     get_user_server_query, get_server_group
 
@@ -63,6 +86,13 @@ def _is_non_owner(server):
     """True if the server is shared and the current user is not
     the owner.  Centralises the check used in 15+ places."""
     return server.shared and server.user_id != current_user.id
+
+
+def _cde_registration(server):
+    endpoint = getattr(server, 'endpoint_profile', None)
+    if endpoint is None:
+        return registration_profile()
+    return registration_profile_for_endpoint(endpoint)
 
 
 def has_any(data, keys):
@@ -554,12 +584,17 @@ class ServerNode(PGChildNodeView):
         'dependent': [{'get': 'dependents'}],
         'children': [{'get': 'children'}],
         'supported_servers.js': [{}, {}, {'get': 'supported_servers'}],
+        'endpoint_profiles.js': [{}, {}, {'get': 'endpoint_profiles'}],
         'reload':
             [{'get': 'reload_configuration'}],
         'restore_point':
             [{'post': 'create_restore_point'}],
         'connect': [{
             'get': 'connect_status', 'post': 'connect', 'delete': 'disconnect'
+        }],
+        'verify_endpoint': [{'post': 'verify_endpoint'}],
+        'cde_workspace': [{
+            'get': 'cde_workspace', 'post': 'cde_workspace'
         }],
         'change_password': [{'post': 'change_password'}],
         'wal_replay': [{
@@ -569,6 +604,63 @@ class ServerNode(PGChildNodeView):
         'clear_saved_password': [{'put': 'clear_saved_password'}],
         'clear_sshtunnel_password': [{'put': 'clear_sshtunnel_password'}],
     })
+
+    def children(self, gid, sid):
+        """Route provider endpoints to the common Resource Explorer."""
+        server = get_server(sid)
+        if server is not None and (
+            _cde_registration(server)['workflow'] == 'provider_endpoint'
+        ):
+            if _is_non_owner(server):
+                return forbidden(errormsg=gettext(
+                    'Only the endpoint owner can browse its resources.'
+                ))
+            try:
+                workspace = provider_workspace_for_app(
+                    current_app
+                ).bootstrap(server)
+            except EndpointRegistrationError as exc:
+                return make_json_response(
+                    status=409, success=0, errormsg=str(exc)
+                )
+            except Exception:
+                current_app.logger.exception(
+                    'CDEadmin resource tree request failed'
+                )
+                return make_json_response(
+                    status=502,
+                    success=0,
+                    errormsg=gettext(
+                        'The endpoint provider did not return resources.'
+                    ),
+                )
+            nodes = []
+            for resource in workspace['resource_page']['items']:
+                resource_id = resource['resource_id']
+                node_id = hashlib.sha256(
+                    resource_id.encode('utf-8')
+                ).hexdigest()[:24]
+                display_path = resource.get('display_path') or []
+                nodes.append({
+                    'id': f'cde_resource_{node_id}',
+                    'label': ' / '.join(display_path) or resource[
+                        'display_name'
+                    ],
+                    'icon': 'icon-server',
+                    'inode': False,
+                    '_type': 'cde_resource',
+                    '_id': node_id,
+                    '_pid': sid,
+                    'module': 'pgadmin.node.server',
+                    'cde_resource_id': resource_id,
+                    'cde_resource_kind': resource['resource_kind'],
+                    'cde_authority_path': resource['authority_path'],
+                    'cde_endpoint': True,
+                })
+            return make_json_response(
+                data=sorted(nodes, key=lambda item: item['label'])
+            )
+        return super().children(gid=gid, sid=sid)
 
     def update_connection_parameter(self, data, server, sharedserver=None):
         """
@@ -660,6 +752,10 @@ class ServerNode(PGChildNodeView):
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
             connected = conn.connected()
+            profile = _cde_registration(server)
+            provider_endpoint = profile['workflow'] == 'provider_endpoint'
+            if provider_endpoint:
+                connected = False
             errmsg = None
             in_recovery = None
             wal_paused = None
@@ -694,6 +790,13 @@ class ServerNode(PGChildNodeView):
                     errmsg=errmsg,
                     username=server.username,
                     shared=server.shared,
+                    cde_profile_id=profile['profile_id'],
+                    cde_endpoint=provider_endpoint,
+                    runtime_verification_state=(
+                        server.endpoint_profile.runtime_identity.
+                        verification_state
+                        if provider_endpoint else 'legacy'
+                    ),
                     is_kerberos_conn=bool(server.kerberos_conn),
                     gss_authenticated=manager.gss_authenticated,
                     description=server.comment,
@@ -730,6 +833,10 @@ class ServerNode(PGChildNodeView):
         manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(server.id)
         conn = manager.connection()
         connected = conn.connected()
+        profile = _cde_registration(server)
+        provider_endpoint = profile['workflow'] == 'provider_endpoint'
+        if provider_endpoint:
+            connected = False
         errmsg = None
         in_recovery = None
         wal_paused = None
@@ -768,6 +875,12 @@ class ServerNode(PGChildNodeView):
                 if server.tunnel_password is not None else False,
                 errmsg=errmsg,
                 shared=server.shared,
+                cde_profile_id=profile['profile_id'],
+                cde_endpoint=provider_endpoint,
+                runtime_verification_state=(
+                    server.endpoint_profile.runtime_identity.verification_state
+                    if provider_endpoint else 'legacy'
+                ),
                 username=server.username,
                 is_kerberos_conn=bool(server.kerberos_conn),
                 gss_authenticated=manager.gss_authenticated,
@@ -902,6 +1015,32 @@ class ServerNode(PGChildNodeView):
         data = request.form if request.form else json.loads(
             request.data
         )
+        endpoint_registration = _cde_registration(server)
+        provider_endpoint = (
+            endpoint_registration['workflow'] == 'provider_endpoint'
+        )
+        embedded_endpoint = (
+            endpoint_registration.get('route_kind') == 'embedded_file'
+        )
+        route_fields_changed = any(
+            key.startswith('cde_route_') for key in data
+        )
+        requested_profile = data.get('cde_profile_id')
+        if requested_profile is not None and (
+            requested_profile != endpoint_registration['profile_id']
+        ):
+            return bad_request(errormsg=gettext(
+                'An endpoint engine profile cannot be changed after '
+                'registration.'
+            ))
+        if provider_endpoint and any((
+            data.get('service'), data.get('use_ssh_tunnel'),
+            data.get('shared'),
+        )):
+            return bad_request(errormsg=gettext(
+                'Provider endpoints do not yet admit service, SSH tunnel, '
+                'or shared-server registration.'
+            ))
 
         if 'db_res' in data and isinstance(data['db_res'], list):
             data['db_res'] = ','.join(data['db_res'])
@@ -933,7 +1072,7 @@ class ServerNode(PGChildNodeView):
         idx = self._set_valid_attr_value(gid, data, config_param_map, server,
                                          sharedserver)
 
-        if idx == 0:
+        if idx == 0 and not route_fields_changed:
             return make_json_response(
                 success=0,
                 errormsg=gettext('No parameters were changed.')
@@ -942,6 +1081,60 @@ class ServerNode(PGChildNodeView):
         # tags is JSON type, sqlalchemy sometimes will not detect change
         if 'tags' in data:
             flag_modified(sharedserver or server, 'tags')
+
+        if provider_endpoint:
+            route = min(
+                server.endpoint_profile.routes,
+                key=lambda item: item.priority,
+                default=None,
+            )
+            if route is None:
+                return make_json_response(
+                    success=0,
+                    errormsg=gettext('Endpoint route is unavailable.')
+                )
+            try:
+                existing_route = json.loads(route.configuration)
+            except (TypeError, ValueError):
+                existing_route = {}
+            connection_timeout = (server.connection_params or {}).get(
+                'connect_timeout', 10
+            )
+            if embedded_endpoint:
+                database = os.path.realpath(server.maintenance_db)
+                route_value = {
+                    'database': database,
+                    'filesystem_root': os.path.dirname(database),
+                    'database_create_root': os.path.dirname(database),
+                }
+            else:
+                try:
+                    route_value = provider_route_options(
+                        endpoint_registration, data, existing_route
+                    )
+                except EndpointRegistrationError as exc:
+                    db.session.rollback()
+                    return bad_request(errormsg=str(exc))
+                route_value.update({
+                    'host': server.host,
+                    'port': server.port,
+                    'user': server.username,
+                    'database': server.maintenance_db,
+                    'connection_timeout': connection_timeout,
+                })
+            route.configuration = json.dumps(
+                route_value, sort_keys=True, separators=(',', ':')
+            )
+            if any(
+                field in data
+                for field in (
+                    'host', 'port', 'username', 'db', 'password',
+                    'connection_params',
+                )
+            ) or route_fields_changed:
+                server.endpoint_profile.runtime_identity.verification_state = (
+                    'stale'
+                )
 
         try:
             db.session.commit()
@@ -974,6 +1167,12 @@ class ServerNode(PGChildNodeView):
                 True,
                 self.node_type,
                 connected=connected,
+                cde_profile_id=endpoint_registration['profile_id'],
+                cde_endpoint=provider_endpoint,
+                runtime_verification_state=(
+                    server.endpoint_profile.runtime_identity.verification_state
+                    if provider_endpoint else 'legacy'
+                ),
                 shared=server.shared,
                 user_id=server.user_id,
                 user=manager.user_info if connected else None,
@@ -1079,6 +1278,10 @@ class ServerNode(PGChildNodeView):
             manager = driver.connection_manager(server.id)
             conn = manager.connection()
             connected = conn.connected()
+            profile = _cde_registration(server)
+            provider_endpoint = profile['workflow'] == 'provider_endpoint'
+            if provider_endpoint:
+                connected = False
 
             res.append({
                 'id': server.id,
@@ -1093,7 +1296,16 @@ class ServerNode(PGChildNodeView):
                 'role': server.role,
                 'connected': connected,
                 'version': manager.ver,
-                'server_type': manager.server_type if connected else 'pg',
+                'server_type': (
+                    profile['experience_family'] if provider_endpoint
+                    else manager.server_type if connected else 'pg'
+                ),
+                'cde_profile_id': profile['profile_id'],
+                'cde_endpoint': provider_endpoint,
+                'runtime_verification_state': (
+                    server.endpoint_profile.runtime_identity.verification_state
+                    if provider_endpoint else 'legacy'
+                ),
                 'db_res': get_db_restriction(server.db_res_type, server.db_res)
             })
 
@@ -1123,6 +1335,10 @@ class ServerNode(PGChildNodeView):
         manager = driver.connection_manager(sid)
         conn = manager.connection()
         connected = conn.connected()
+        profile = _cde_registration(server)
+        provider_endpoint = profile['workflow'] == 'provider_endpoint'
+        if provider_endpoint:
+            connected = False
 
         # Get updated connection string to show on UI, if user change host,
         # port and user when server is connected
@@ -1163,7 +1379,7 @@ class ServerNode(PGChildNodeView):
             'host': server.host,
             'port': server.port,
             'db': server.maintenance_db,
-            'password': server.password,
+            'password': None if provider_endpoint else server.password,
             'save_password': server.save_password,
             'shared': server.shared if config.SERVER_MODE else None,
             'shared_username': server.shared_username
@@ -1175,7 +1391,16 @@ class ServerNode(PGChildNodeView):
             'role': server.role,
             'connected': connected,
             'version': manager.ver,
-            'server_type': manager.server_type if connected else 'pg',
+            'server_type': (
+                profile['experience_family'] if provider_endpoint
+                else manager.server_type if connected else 'pg'
+            ),
+            'cde_profile_id': profile['profile_id'],
+            'cde_endpoint': provider_endpoint,
+            'runtime_verification_state': (
+                server.endpoint_profile.runtime_identity.verification_state
+                if provider_endpoint else 'legacy'
+            ),
             'bgcolor': server.bgcolor,
             'fgcolor': server.fgcolor,
             'db_res': get_db_restriction(server.db_res_type, server.db_res),
@@ -1203,6 +1428,21 @@ class ServerNode(PGChildNodeView):
             'tags': tags,
             'post_connection_sql': server.post_connection_sql,
         }
+
+        if provider_endpoint:
+            route_model = min(
+                server.endpoint_profile.routes,
+                key=lambda item: item.priority,
+                default=None,
+            )
+            if route_model is not None:
+                try:
+                    route_value = json.loads(route_model.configuration)
+                except (TypeError, ValueError):
+                    route_value = {}
+                response.update(provider_route_form_values(
+                    profile, route_value
+                ))
 
         return ajax_response(response)
 
@@ -1237,6 +1477,27 @@ class ServerNode(PGChildNodeView):
             request.data
         )
 
+        try:
+            endpoint_registration = registration_profile(
+                data.get('cde_profile_id')
+            )
+        except EndpointRegistrationError as exc:
+            return bad_request(errormsg=str(exc))
+        provider_endpoint = (
+            endpoint_registration['workflow'] == 'provider_endpoint'
+        )
+        embedded_endpoint = (
+            endpoint_registration.get('route_kind') == 'embedded_file'
+        )
+        if provider_endpoint and any((
+            data.get('service'), data.get('use_ssh_tunnel'),
+            data.get('shared'),
+        )):
+            return bad_request(errormsg=gettext(
+                'Provider endpoints do not yet admit service, SSH tunnel, '
+                'or shared-server registration.'
+            ))
+
         # Loop through data and if found any value is blank string then
         # convert it to None as after porting into React, from frontend
         # '' blank string is coming as a value instead of null.
@@ -1244,19 +1505,29 @@ class ServerNode(PGChildNodeView):
             if data[item] == '':
                 data[item] = None
 
+        if embedded_endpoint and (
+            not isinstance(data.get('db'), str) or
+            not os.path.isabs(data['db'])
+        ):
+            return bad_request(errormsg=gettext(
+                'An embedded endpoint requires an absolute database file.'
+            ))
+
         # Get enc key
         crypt_key_present, crypt_key = get_crypt_key()
         if not crypt_key_present:
             raise CryptKeyMissing
 
         # Some fields can be provided with service file so they are optional
-        if 'service' in data and not data['service']:
+        if provider_endpoint and not embedded_endpoint:
+            required_args.extend(['host', 'port', 'username'])
+        elif 'service' in data and not data['service']:
             required_args.extend([
                 'host',
                 'port',
                 'username',
-                'role'
             ])
+            required_args.append('role')
         for arg in required_args:
             if arg not in data:
                 return make_json_response(
@@ -1309,7 +1580,10 @@ class ServerNode(PGChildNodeView):
                 host=data.get('host', None),
                 port=data.get('port'),
                 maintenance_db=data.get('db', None),
-                username=data.get('username'),
+                username=(
+                    'embedded-process' if embedded_endpoint
+                    else data.get('username')
+                ),
                 save_password=1 if data.get('save_password', False) and
                 config.ALLOW_SAVE_PASSWORD else 0,
                 comment=data.get('comment', None),
@@ -1339,15 +1613,76 @@ class ServerNode(PGChildNodeView):
                 tags=data.get('tags', None),
                 post_connection_sql=data.get('post_connection_sql', None)
             )
+            if provider_endpoint:
+                if embedded_endpoint:
+                    database = os.path.realpath(data.get('db'))
+                    route_configuration = {
+                        'database': database,
+                        'filesystem_root': os.path.dirname(database),
+                        'database_create_root': os.path.dirname(database),
+                    }
+                else:
+                    route_configuration = {
+                        'host': data.get('host'),
+                        'port': data.get('port'),
+                        'user': data.get('username'),
+                        'database': data.get('db'),
+                        'connection_timeout': connection_params.get(
+                            'connect_timeout', 10
+                        ),
+                    }
+                    route_configuration = provider_route_options(
+                        endpoint_registration, data, route_configuration
+                    )
+                server._cde_endpoint_registration = endpoint_registration
+                server._cde_endpoint_route_configuration = (
+                    route_configuration
+                )
+                if data.get('save_password') and data.get('password'):
+                    server.password = encrypt(data['password'], crypt_key)
             db.session.add(server)
             db.session.commit()
             connected = False
+            verification = None
             user = None
             manager = None
             replication_type = None
             tunnel_password_saved = False
 
-            if 'connect_now' in data and data['connect_now']:
+            if provider_endpoint and data.get('cde_verify_now'):
+                transient_password = (
+                    None if server.password is not None
+                    else data.get('password')
+                )
+                endpoint_requires_secret = (
+                    endpoint_registration['requires_secret'] or
+                    route_configuration.get('auth_kind') in {
+                        'basic', 'bearer'
+                    }
+                )
+                if endpoint_requires_secret and (
+                    not transient_password and server.password is None
+                ):
+                    db.session.delete(server)
+                    db.session.commit()
+                    return make_json_response(
+                        status=401,
+                        success=0,
+                        errormsg=gettext(
+                            'A password is required to verify this endpoint.'
+                        )
+                    )
+                try:
+                    verification = endpoint_service_for_app(
+                        current_app
+                    ).verify_server(server, transient_password)
+                except EndpointRegistrationError as exc:
+                    db.session.delete(server)
+                    db.session.commit()
+                    return make_json_response(
+                        status=401, success=0, errormsg=str(exc)
+                    )
+            elif not provider_endpoint and data.get('connect_now'):
                 manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(
                     server.id)
                 manager.update(server)
@@ -1431,10 +1766,19 @@ class ServerNode(PGChildNodeView):
                     is_password_saved=bool(server.save_password),
                     is_tunnel_password_saved=tunnel_password_saved,
                     user_id=server.user_id,
-                    tags=data.get('tags', None)
+                    tags=data.get('tags', None),
+                    cde_profile_id=endpoint_registration['profile_id'],
+                    cde_endpoint=provider_endpoint,
+                    runtime_verification_state=(
+                        verification['verification_state']
+                        if verification else 'unverified'
+                    )
                 )
             )
 
+        except EndpointRegistrationError as exc:
+            db.session.rollback()
+            return bad_request(errormsg=str(exc))
         except Exception as e:
             if server:
                 db.session.delete(server)
@@ -1501,6 +1845,186 @@ class ServerNode(PGChildNodeView):
             200, {'Content-Type': MIMETYPE_APP_JS}
         )
 
+    def endpoint_profiles(self, **kwargs):
+        """Return manifest-driven active endpoint registration profiles."""
+        profiles = registration_profiles()
+        return make_response(
+            render_template(
+                'servers/endpoint_profiles.js', profiles=profiles
+            ),
+            200, {'Content-Type': MIMETYPE_APP_JS}
+        )
+
+    @permissions_required(AllPermissionTypes.object_register_server)
+    @pga_login_required
+    def verify_endpoint(self, gid, sid):
+        """Verify a provider endpoint without invoking PostgreSQL drivers."""
+        server = get_server(sid)
+        if server is None:
+            return bad_request(self.not_found_error_msg())
+        if _is_non_owner(server):
+            return forbidden(errormsg=gettext(
+                'Only the endpoint owner can verify its credentials.'
+            ))
+        profile = _cde_registration(server)
+        if profile['workflow'] != 'provider_endpoint':
+            return bad_request(gettext(
+                'The selected registration uses the preserved PostgreSQL '
+                'connection path.'
+            ))
+        if not profile['available']:
+            return bad_request(gettext(
+                'The endpoint provider profile is not currently available.'
+            ))
+        data = request.form if request.form else (
+            json.loads(request.data) if request.data else {}
+        )
+        password = data.get('password') or None
+        try:
+            verification = endpoint_service_for_app(
+                current_app
+            ).verify_server(server, password)
+        except EndpointRegistrationError as exc:
+            return make_json_response(
+                status=401, success=0, errormsg=str(exc)
+            )
+        if password and data.get('save_password'):
+            crypt_key_present, crypt_key = get_crypt_key()
+            if not crypt_key_present:
+                raise CryptKeyMissing
+            if config.ALLOW_SAVE_PASSWORD:
+                server.password = encrypt(password, crypt_key)
+                server.save_password = 1
+                db.session.commit()
+        return make_json_response(
+            data={
+                **verification,
+                'runtime_verification_state': 'verified',
+                'is_password_saved': bool(server.save_password),
+            },
+            info=gettext('Endpoint profile verification succeeded.')
+        )
+
+    @pga_login_required
+    def cde_workspace(self, gid, sid):
+        """Serve a verified provider endpoint without PostgreSQL routing."""
+        server = get_server(sid)
+        if server is None:
+            return bad_request(self.not_found_error_msg())
+        if _is_non_owner(server):
+            return forbidden(errormsg=gettext(
+                'Only the endpoint owner can open its workspace.'
+            ))
+        profile = _cde_registration(server)
+        if profile['workflow'] not in {
+            'provider_endpoint', 'legacy_preserved',
+        }:
+            return bad_request(gettext(
+                'This endpoint has no shared CDEadmin workspace.'
+            ))
+        service = provider_workspace_for_app(current_app)
+        try:
+            if request.method == 'GET':
+                payload = service.bootstrap(server)
+            else:
+                data = request.get_json(silent=True) or {}
+                action = data.get('action')
+                if action == 'open_session':
+                    payload = service.open_session(
+                        server, data.get('language_profile')
+                    )
+                elif action == 'execute':
+                    payload = service.execute(
+                        server,
+                        data.get('session_id'),
+                        data.get('source'),
+                        data.get('parameters'),
+                    )
+                elif action == 'poll':
+                    payload = service.poll(
+                        server, data.get('occurrence_id')
+                    )
+                elif action == 'cancel':
+                    payload = service.cancel(
+                        server, data.get('occurrence_id')
+                    )
+                elif action == 'transaction':
+                    payload = service.transaction(
+                        server, data.get('session_id')
+                    )
+                elif action == 'visual_admin_validate':
+                    payload = service.validate_visual_admin(
+                        server, data.get('request')
+                    )
+                elif action == 'visual_admin_plan':
+                    payload = service.plan_visual_admin(
+                        server, data.get('request')
+                    )
+                elif action == 'visual_admin_apply':
+                    payload = service.apply_visual_admin(
+                        server, data.get('request')
+                    )
+                elif action == 'visual_admin_rows':
+                    payload = service.read_visual_admin_rows(
+                        server, data.get('request')
+                    )
+                elif action == 'visual_admin_rows_cancel':
+                    payload = service.cancel_visual_admin_rows(
+                        server, data.get('request')
+                    )
+                elif isinstance(action, str) and action.startswith(
+                    'visual_admin_operation_'
+                ):
+                    payload = service.visual_admin_operation_action(
+                        server, action, data.get('request') or {}
+                    )
+                elif isinstance(action, str) and action.startswith(
+                    'semantic_'
+                ):
+                    payload = service.semantic_model_action(
+                        server, action, data.get('request') or {}
+                    )
+                else:
+                    raise ProviderWorkspaceError(
+                        'workspace action is unavailable'
+                    )
+        except EndpointRegistrationError as exc:
+            return make_json_response(
+                status=409, success=0, errormsg=str(exc)
+            )
+        except (
+            ProviderWorkspaceError,
+            ProviderPermissionError,
+            ProviderUnavailableError,
+            DataStudioError,
+            ResourceGraphError,
+            ResultRegistryError,
+            VisualAdminError,
+            SemanticModelError,
+        ):
+            current_app.logger.exception(
+                'CDEadmin provider workspace request failed'
+            )
+            return make_json_response(
+                status=400,
+                success=0,
+                errormsg=gettext(
+                    'The provider workspace request could not be completed.'
+                ),
+            )
+        except Exception:
+            current_app.logger.exception(
+                'CDEadmin provider workspace adapter failed'
+            )
+            return make_json_response(
+                status=502,
+                success=0,
+                errormsg=gettext(
+                    'The endpoint provider did not complete the request.'
+                ),
+            )
+        return make_json_response(data=payload)
+
     def connect_status(self, gid, sid):
         """Check and return the connection status."""
         server = get_server(sid)
@@ -1509,6 +2033,17 @@ class ServerNode(PGChildNodeView):
                 status=410, success=0,
                 errormsg=self.not_found_error_msg()
             )
+        profile = _cde_registration(server)
+        if profile['workflow'] == 'provider_endpoint':
+            runtime = server.endpoint_profile.runtime_identity
+            return make_json_response(data={
+                'connected': False,
+                'cde_endpoint': True,
+                'cde_profile_id': profile['profile_id'],
+                'runtime_verification_state': runtime.verification_state,
+                'verified_runtime_family': runtime.verified_runtime_family,
+                'verified_runtime_version': runtime.verified_runtime_version,
+            })
         manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(sid)
         conn = manager.connection()
         connected = conn.connected()
@@ -1581,6 +2116,12 @@ class ServerNode(PGChildNodeView):
 
         if server is None:
             return bad_request(self.not_found_error_msg())
+
+        if _cde_registration(server)['workflow'] == 'provider_endpoint':
+            return bad_request(gettext(
+                'Provider endpoints must use the CDEadmin endpoint '
+                'verification and workspace path.'
+            ))
 
         shared_server = None
         if _is_non_owner(server):

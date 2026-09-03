@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -105,7 +105,7 @@ class MiscModule(PgAdminModule):
                 'creatable': False,
             },
             help_str=gettext(
-                'Choose the layout that suits you best. pgAdmin offers two '
+                'Choose the layout that suits you best. CDEadmin offers two '
                 'options: the Classic layout, a longstanding and familiar '
                 'design, and the Workspace layout, which provides distraction '
                 'free dedicated areas for the Query Tool, PSQL, and Schema '
@@ -133,7 +133,7 @@ class MiscModule(PgAdminModule):
             'boolean', True,
             category_label=PREF_LABEL_USER_INTERFACE,
             help_str=gettext(
-                'If set to True, pgAdmin will save the state of opened tools'
+                'If set to True, CDEadmin will save the state of opened tools'
                 ' (such as Query Tool, PSQL, Schema Diff, and ERD), including'
                 ' any unsaved data. This data will be automatically restored'
                 ' in the event of an unexpected shutdown or browser refresh.'

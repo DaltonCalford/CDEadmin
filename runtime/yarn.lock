@@ -315,6 +315,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cdeadmin@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "cdeadmin@workspace:."
+  dependencies:
+    "@eslint/js": "npm:^10.0.1"
+    axios: "npm:^1.19.0"
+    electron: "npm:^43.4.0"
+    electron-context-menu: "npm:^4.1.2"
+    electron-store: "npm:^11.0.2"
+    eslint: "npm:^10.8.1"
+    eslint-plugin-unused-imports: "npm:^4.4.1"
+    globals: "npm:^17.11.0"
+  languageName: unknown
+  linkType: soft
+
 "cli-truncate@npm:^4.0.0":
   version: 4.0.0
   resolution: "cli-truncate@npm:4.0.0"
@@ -1125,21 +1140,6 @@ __metadata:
   checksum: 10c0/748c43efd5a569c039d7a00a03b58eecd1d75f3999f5a28303d75f521288df4823bc057d8784eb72358b2895a05f29a070bc9f1f17d28226cc4e62494cc58c4c
   languageName: node
   linkType: hard
-
-"pgadmin4@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "pgadmin4@workspace:."
-  dependencies:
-    "@eslint/js": "npm:^10.0.1"
-    axios: "npm:^1.19.0"
-    electron: "npm:^43.4.0"
-    electron-context-menu: "npm:^4.1.2"
-    electron-store: "npm:^11.0.2"
-    eslint: "npm:^10.8.1"
-    eslint-plugin-unused-imports: "npm:^4.4.1"
-    globals: "npm:^17.11.0"
-  languageName: unknown
-  linkType: soft
 
 "prelude-ls@npm:^1.2.1":
   version: 1.2.1

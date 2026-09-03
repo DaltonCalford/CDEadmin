@@ -1,0 +1,39 @@
+{
+  "story_id": "scratchbird-data-studio-non-operational",
+  "production": false,
+  "cdeadmin_fixture": {
+    "non_production": true,
+    "execution_enabled": false,
+    "label": "NON-PRODUCTION SCRATCHBIRD FIXTURE"
+  },
+  "sessions": [
+    {
+      "identity": {
+        "contract_version": "1.0.0",
+        "provider_id": "fixture.scratchbird.unregistered",
+        "provider_version": "0.0.0-fixture",
+        "profile_id": "scratchbird-native-fixture",
+        "profile_version": "0.0.0-fixture",
+        "evidence_reference": "cde-prep-070:non-operational-fixture"
+      },
+      "session_id": "scratchbird-fixture-session",
+      "endpoint_id": "67d1bafe-82b5-5ab1-b67c-3b69222021fa",
+      "route_id": "fixture-only",
+      "principal_reference": "fixture-only",
+      "language_profile": "scratchbird-sql-fixture",
+      "transaction_model": "scratchbird-mga-opaque-fixture",
+      "provider_state": {
+        "fixture": true,
+        "operational": false
+      },
+      "occurrence_id": "fixture-occurrence",
+      "limits": {},
+      "extensions": {
+        "cdeadmin_fixture": {
+          "non_production": true,
+          "execution_enabled": false
+        }
+      }
+    }
+  ]
+}

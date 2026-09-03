@@ -1,6 +1,6 @@
 #########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -56,28 +56,24 @@ sys.path.append(path)
 import config
 
 setup(
-    name='pgadmin4',
+    name='cdeadmin',
 
-    version=config.APP_VERSION,
+    version='0.1.0.dev0',
 
-    description='PostgreSQL Tools',
-    long_description='pgAdmin is the most popular and feature rich Open '
-                     'Source administration and development platform for '
-                     'PostgreSQL, the most advanced Open Source database in '
-                     'the world.\n\npgAdmin may be used on Linux, Unix, '
-                     'macOS and Windows to manage PostgreSQL and EDB '
-                     'Advanced Server 10 and above.',
+    description='Multi-engine and multi-model database administration',
+    long_description='CDEadmin is an independent hard fork of pgAdmin 4 '
+                     '9.17. It provides provider-driven administration for '
+                     'ScratchBird and independent relational, non-relational, '
+                     'analytic, and distributed database engines. Upstream '
+                     'pgAdmin copyright and attribution are retained.',
 
-    url='https://www.pgadmin.org/',
-
-    author='The pgAdmin Development Team',
-    author_email='pgadmin-hackers@postgresql.org',
+    author='CDEadmin contributors',
 
     license='PostgreSQL Licence',
 
     # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 3 - Alpha',
 
         # Supported programming languages
         'Programming Language :: Python :: 3.9',
@@ -88,7 +84,7 @@ setup(
         'Programming Language :: Python :: 3.14'
     ],
 
-    keywords='pgadmin4,postgresql,postgres',
+    keywords='cdeadmin,scratchbird,database,administration,multi-engine',
 
     packages=["pgadmin4"],
 
@@ -101,8 +97,8 @@ setup(
     },
 
     entry_points={
-        'console_scripts': ['pgadmin4=pgadmin4.pgAdmin4:main',
-                            'pgadmin4-cli=pgadmin4.setup:main'],
+        'console_scripts': ['cdeadmin=pgadmin4.CDEadmin:main',
+                            'cdeadmin-cli=pgadmin4.setup:main'],
     },
 
 )

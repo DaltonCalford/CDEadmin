@@ -1,7 +1,12 @@
-﻿# pgAdmin Windows Builds
+﻿# CDEadmin Windows Builds
 
 These notes describe how to setup a Windows development/build environment for
-pgAdmin. Only 64 bit builds are supported from v4.30 onwards, however 32 bit
+CDEadmin. CDEadmin is an independent hard fork of pgAdmin 4 9.17; see the
+repository `NOTICE` and `LICENSE` files for upstream attribution and licence
+terms. The `PGADMIN_*` build variables below are retained compatibility
+interfaces and do not identify the product.
+
+Only 64 bit builds are supported from v4.30 onwards, however 32 bit
 builds may still work with suitable adjustments.
 
 ## Installing build requirements
@@ -171,29 +176,29 @@ native SSPI instead.
 
 ## Setting up a dev environment
 
-This section describes the steps to setup and run pgAdmin for the first time in
+This section describes the steps to setup and run CDEadmin for the first time in
 a development environment. You do not need to complete this section if you just
 want to build an installer.
 
 1. Check out the source code:
 
-        git clone https://github.com/pgadmin-org/pgadmin4.git
+        git clone <CDEadmin-repository-URL> cdeadmin
 
 2. Install and build the JS dependencies:
 
-        cd pgadmin4\web
+        cd cdeadmin\web
         yarn install
         yarn run bundle
 
 3. Create a virtual env:
 
-        cd pgadmin4
+        cd cdeadmin
         python -m venv venv
         pip install -r web\regression\requirements.txt
         pip install sphinx
         pip install sphinxcontrib-youtube
 
-You should now be able to run the pgAdmin Python application, or build the
+You should now be able to run the CDEadmin Python application, or build the
 desktop runtime.
 
 ## Building an installer

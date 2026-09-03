@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin.workspace-shell-catalog.v1",
+  "title": "CDEadmin non-production workspace shell catalog",
+  "type": "object",
+  "required": [
+    "schema", "fixture_policy", "accessibility_policy", "authority_invariants",
+    "authoritative_search_keys", "state_presentations", "workspaces"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "cdeadmin.workspace-shell-catalog.v1"},
+    "fixture_policy": {
+      "type": "object",
+      "required": [
+        "production", "persistent_label", "activation",
+        "network_enabled", "authentication_enabled", "execution_enabled",
+        "live_provider_evidence", "production_evidence_requirements"
+      ]
+    },
+    "accessibility_policy": {
+      "type": "object",
+      "required": [
+        "persistent_fixture_label", "color_independent_states",
+        "reduced_motion_safe", "keyboard_reachable_status",
+        "hidden_resources_not_announced"
+      ]
+    },
+    "authority_invariants": {"type": "object"},
+    "authoritative_search_keys": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "state_presentations": {
+      "type": "object",
+      "required": [
+        "unavailable", "deferred", "permission_filtered", "stale",
+        "unknown"
+      ]
+    },
+    "workspaces": {
+      "type": "array", "minItems": 18,
+      "items": {
+        "type": "object",
+        "required": [
+          "workspace_id", "title", "category", "model_family",
+          "required_capability", "authority_refs", "delivery_state",
+          "current_state", "supported_states", "resource_binding",
+          "authority_path", "runtime_identity", "views",
+          "missing_capability_behavior", "actions", "removed_action_ids",
+          "accessibility"
+        ]
+      }
+    }
+  }
+}

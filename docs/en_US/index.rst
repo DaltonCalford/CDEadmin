@@ -1,21 +1,23 @@
-*********
-pgAdmin 4
-*********
+********
+CDEadmin
+********
 
-.. image:: images/logo-right-128.png
-    :align: right
-    :alt: pgAdmin Logo
+Welcome to CDEadmin, an independent hard fork of pgAdmin 4 9.17. CDEadmin is
+a provider-driven, multi-engine and multi-model administration environment for
+ScratchBird and independently managed database platforms. PostgreSQL remains
+a supported engine, but it is not the global product identity.
 
-Welcome to pgAdmin 4. pgAdmin is the leading Open Source management tool for
-Postgres, the world's most advanced Open Source database.  pgAdmin 4 is designed
-to meet the needs of both novice and experienced Postgres users alike, providing
-a powerful graphical interface that simplifies the creation, maintenance and use
-of database objects.
+The inherited PostgreSQL administration chapters remain useful for the
+PostgreSQL provider. Other providers expose their own objects, forms, query
+languages and workspaces according to capability. See :doc:`cdeadmin_hard_fork`
+for the fork relationship, major divergences, compatibility names and full
+upstream attribution.
 
 .. toctree::
    :maxdepth: 2
 
    getting_started
+   cdeadmin_hard_fork
    external_database
    connecting
    managing_cluster_objects

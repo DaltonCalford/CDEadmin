@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -12,8 +12,9 @@ import gettext from 'sources/gettext';
 import _ from 'lodash';
 import PropTypes from 'prop-types';
 import pgAdmin from 'sources/pgadmin';
-import PgAdminLogo from './PgAdminLogo';
+import CDEadminLogo from './CDEadminLogo';
 import { Link } from '@mui/material';
+import url_for from 'sources/url_for';
 
 
 const Root = styled('div')(({theme}) => ({
@@ -153,15 +154,15 @@ export default function WelcomeDashboard({ pgBrowser }) {
               <div className='WelcomeDashboard-cardHeader'>{gettext('Welcome')}</div>
               <div className='WelcomeDashboard-cardBody'>
                 <div className='WelcomeDashboard-welcomeLogo'>
-                  <PgAdminLogo />
+                  <CDEadminLogo />
                 </div>
                 <h4>
-                  {gettext('Feature rich')} | {gettext('Maximises PostgreSQL')}{' '}
+                  {gettext('Multi-engine')} | {gettext('Multi-model')}{' '}
                   | {gettext('Open Source')}{' '}
                 </h4>
                 <p>
                   {gettext(
-                    'pgAdmin is an Open Source administration and management tool for the PostgreSQL database. It includes a graphical administration interface, an SQL query tool, a procedural code debugger and much more. The tool is designed to answer the needs of developers, DBAs and system administrators alike.'
+                    'CDEadmin is an independent hard fork of pgAdmin 4 for administering ScratchBird and independently managed database engines. Its provider-driven workspaces support relational, document, graph, key-value, analytic and distributed data systems without treating an emulated endpoint differently from its native counterpart.'
                   )}
                 </p>
               </div>
@@ -194,7 +195,7 @@ export default function WelcomeDashboard({ pgBrowser }) {
                           aria-hidden="true"
                         ></span>
                       </div>
-                      {gettext('Configure pgAdmin')}
+                      {gettext('Configure CDEadmin')}
                     </Link>
                   </div>
                 </div>
@@ -210,34 +211,34 @@ export default function WelcomeDashboard({ pgBrowser }) {
                 <div className='WelcomeDashboard-rowContent'>
                   <div className='WelcomeDashboard-gettingStartedLink'>
                     <a
-                      href="https://www.postgresql.org/docs"
-                      target="postgres_help"
+                      href={url_for('help.static', {filename: 'index.html'})}
+                      target="cdeadmin_help"
                       className='WelcomeDashboard-link'
                     >
                       <div className='WelcomeDashboard-dashboardIcon'>
                         <span
-                          className="fa fa-4x dashboard-pg-doc"
+                          className="fa fa-4x dashboard-cdeadmin-doc"
                           aria-hidden="true"
                         ></span>
                       </div>
-                      {gettext('PostgreSQL Documentation')}
+                      {gettext('CDEadmin Documentation')}
                     </a>
                   </div>
                   <div className='WelcomeDashboard-gettingStartedLink'>
-                    <a href="https://www.pgadmin.org" target="pgadmin_website" className='WelcomeDashboard-link'>
+                    <a href="https://www.pgadmin.org" target="upstream_pgadmin" className='WelcomeDashboard-link'>
                       <div className='WelcomeDashboard-dashboardIcon'>
                         <span
                           className="fa fa-4x fa-globe"
                           aria-hidden="true"
                         ></span>
                       </div>
-                      {gettext('pgAdmin Website')}
+                      {gettext('Upstream pgAdmin Project')}
                     </a>
                   </div>
                   <div className='WelcomeDashboard-gettingStartedLink'>
                     <a
-                      href="https://planet.postgresql.org"
-                      target="planet_website"
+                      href={url_for('help.static', {filename: 'cdeadmin_hard_fork.html'})}
+                      target="cdeadmin_status"
                       className='WelcomeDashboard-link'
                     >
                       <div className='WelcomeDashboard-dashboardIcon'>
@@ -246,13 +247,13 @@ export default function WelcomeDashboard({ pgBrowser }) {
                           aria-hidden="true"
                         ></span>
                       </div>
-                      {gettext('Planet PostgreSQL')}
+                      {gettext('Hard-fork Status')}
                     </a>
                   </div>
                   <div className='WelcomeDashboard-gettingStartedLink'>
                     <a
-                      href="https://www.postgresql.org/community"
-                      target="postgres_website"
+                      href={url_for('help.static', {filename: 'licence.html'})}
+                      target="cdeadmin_licence"
                       className='WelcomeDashboard-link'
                     >
                       <div className='WelcomeDashboard-dashboardIcon'>
@@ -261,7 +262,7 @@ export default function WelcomeDashboard({ pgBrowser }) {
                           aria-hidden="true"
                         ></span>
                       </div>
-                      {gettext('Community Support')}
+                      {gettext('Licence and Attribution')}
                     </a>
                   </div>
                 </div>

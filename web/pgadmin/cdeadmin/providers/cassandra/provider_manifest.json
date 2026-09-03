@@ -1,0 +1,46 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.cassandra", "provider_version": "0.1.0", "profile_id": "cassandra-native", "profile_version": "5.0.8", "evidence_reference": "cde-cassandra-provider:offline-implementation:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["cassandra"], "target_adapter_ids": ["cql-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "Apache Cassandra 5.0.8",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 9042,
+    "default": false,
+    "target_adapter_version": "cassandra-driver-3.30.1",
+    "connection_fields": [
+      {"field_id": "contact_points", "route_key": "contact_points", "label": "Additional contact points (comma separated)", "control": "text", "group": "Cassandra topology", "help": "Host is always the first contact point."},
+      {"field_id": "local_dc", "route_key": "local_dc", "label": "Local datacenter", "control": "text", "group": "Cassandra topology"},
+      {"field_id": "keyspace", "route_key": "keyspace", "label": "Initial keyspace", "control": "text", "group": "Cassandra session"},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "Cassandra TLS", "default": "disabled", "options": [{"value": "disabled", "label": "Disabled"}, {"value": "system-ca", "label": "System CA validation"}, {"value": "self-signed", "label": "Self-signed certificate"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "TLS certificate authority file", "control": "file", "group": "Cassandra TLS", "help": "Optional for driver system-store validation and required for system-CA cqlsh execution."},
+      {"field_id": "compression", "route_key": "compression", "label": "Native protocol compression", "control": "select", "group": "Cassandra protocol", "default": "none", "options": [{"value": "none", "label": "None"}, {"value": "lz4", "label": "LZ4"}, {"value": "snappy", "label": "Snappy"}]},
+      {"field_id": "consistency", "route_key": "consistency", "label": "Default consistency", "control": "select", "group": "Cassandra consistency", "default": "LOCAL_ONE", "options": [{"value": "ANY", "label": "ANY"}, {"value": "ONE", "label": "ONE"}, {"value": "TWO", "label": "TWO"}, {"value": "THREE", "label": "THREE"}, {"value": "QUORUM", "label": "QUORUM"}, {"value": "ALL", "label": "ALL"}, {"value": "LOCAL_QUORUM", "label": "LOCAL_QUORUM"}, {"value": "EACH_QUORUM", "label": "EACH_QUORUM"}, {"value": "LOCAL_ONE", "label": "LOCAL_ONE"}]},
+      {"field_id": "serial_consistency", "route_key": "serial_consistency", "label": "Serial consistency", "control": "select", "group": "Cassandra consistency", "default": "LOCAL_SERIAL", "options": [{"value": "SERIAL", "label": "SERIAL"}, {"value": "LOCAL_SERIAL", "label": "LOCAL_SERIAL"}]},
+      {"field_id": "request_timeout", "route_key": "request_timeout", "label": "Request timeout (seconds)", "control": "number", "group": "Cassandra timeouts", "default": 30, "minimum": 1, "maximum": 600},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "Cassandra timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "jmx_port", "route_key": "jmx_port", "label": "JMX administration port", "control": "number", "group": "Cassandra operational tools", "default": 7199, "minimum": 1, "maximum": 65535},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Administration tool workspace", "control": "text", "group": "Cassandra operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
+    ]
+  },
+  "provenance": {"purpose": "Cassandra 5.0.8 exact-profile implementation", "protocol": "cql", "client_state": "cassandra_driver_3.30.1_installed", "runtime_state": "verified", "activation_gate": "passed", "live_evidence_reference": "cde-cassandra-live:cassandra-5.0.8:20260902"}
+}

@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -21,8 +21,10 @@ things:
 from flask_babel import gettext
 from flask_security import UserMixin, RoleMixin
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import event
 from sqlalchemy.ext.mutable import MutableDict
 import sqlalchemy.types as types
+import json
 import uuid
 import config
 
@@ -34,7 +36,7 @@ import config
 #
 ##########################################################################
 
-SCHEMA_VERSION = 52
+SCHEMA_VERSION = 55
 
 ##########################################################################
 #
@@ -50,6 +52,7 @@ db = SQLAlchemy(
 
 USER_ID = 'user.id'
 SERVER_ID = 'server.id'
+ENDPOINT_ID = 'cde_endpoint.id'
 CASCADE_STR = "all, delete-orphan"
 
 
@@ -304,7 +307,7 @@ class Server(db.Model, UserScopedMixin):
         db.Integer(),
         db.CheckConstraint('port >= 1 AND port <= 65534'),
         nullable=False)
-    maintenance_db = db.Column(db.String(64), nullable=True)
+    maintenance_db = db.Column(db.String(1024), nullable=True)
     username = db.Column(db.String(64), nullable=False)
     password = db.Column(PgAdminDbBinaryString())
     save_password = db.Column(
@@ -360,6 +363,12 @@ class Server(db.Model, UserScopedMixin):
         nullable=False, default=0
     )
     post_connection_sql = db.Column(db.String(), nullable=True)
+    endpoint_profile = db.relationship(
+        'EndpointProfile',
+        back_populates='legacy_server',
+        uselist=False,
+        cascade=CASCADE_STR
+    )
 
     def clone(self):
         d = dict(self.__dict__)
@@ -500,7 +509,7 @@ class ApplicationState(db.Model, UserScopedMixin):
     __tablename__ = 'application_state'
     uid = db.Column(db.Integer(), db.ForeignKey(USER_ID), nullable=False,
                     primary_key=True)
-    id = db.Column(db.Integer(),nullable=False,primary_key=True)
+    id = db.Column(db.Integer(), nullable=False, primary_key=True)
     connection_info = db.Column(MutableDict.as_mutable(types.JSON))
     tool_data = db.Column(PgAdminDbBinaryString())
 
@@ -606,6 +615,489 @@ class SharedServer(db.Model, UserScopedMixin):
     )
     tags = db.Column(types.JSON)
     post_connection_sql = db.Column(db.String(), nullable=True)
+    endpoint_profile = db.relationship(
+        'EndpointProfile',
+        back_populates='legacy_shared_server',
+        uselist=False,
+        cascade=CASCADE_STR
+    )
+
+
+class EndpointProfile(db.Model):
+    """Additive multi-engine identity for a registered endpoint."""
+    __tablename__ = 'cde_endpoint'
+    __table_args__ = (
+        db.CheckConstraint(
+            "endpoint_mode IN ('legacy_native', 'scratchbird_native')",
+            name='ck_cde_endpoint_mode'
+        ),
+        db.CheckConstraint(
+            '(legacy_server_id IS NOT NULL AND '
+            'legacy_shared_server_id IS NULL) OR '
+            '(legacy_server_id IS NULL)',
+            name='ck_cde_endpoint_legacy_source'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(USER_ID), nullable=True)
+    legacy_server_id = db.Column(
+        db.Integer,
+        db.ForeignKey(SERVER_ID, ondelete='CASCADE'),
+        nullable=True,
+        unique=True
+    )
+    legacy_shared_server_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sharedserver.id', ondelete='CASCADE'),
+        nullable=True,
+        unique=True
+    )
+    experience_family = db.Column(db.String(128), nullable=False)
+    endpoint_mode = db.Column(db.String(40), nullable=False)
+    provider_id = db.Column(db.String(128), nullable=False)
+    provider_version = db.Column(db.String(64), nullable=True)
+    profile_id = db.Column(db.String(128), nullable=False)
+    profile_version = db.Column(db.String(64), nullable=True)
+    profile_generation = db.Column(db.String(64), nullable=True)
+    target_adapter_id = db.Column(db.String(128), nullable=False)
+    target_adapter_version = db.Column(db.String(64), nullable=True)
+    pool_namespace = db.Column(
+        db.String(36), nullable=False, unique=True
+    )
+    session_namespace = db.Column(
+        db.String(36), nullable=False, unique=True
+    )
+    cache_namespace = db.Column(
+        db.String(36), nullable=False, unique=True
+    )
+    diagnostic_namespace = db.Column(
+        db.String(36), nullable=False, unique=True
+    )
+    created_from = db.Column(db.String(32), nullable=False)
+
+    legacy_server = db.relationship(
+        'Server', back_populates='endpoint_profile'
+    )
+    legacy_shared_server = db.relationship(
+        'SharedServer', back_populates='endpoint_profile'
+    )
+    runtime_identity = db.relationship(
+        'EndpointRuntimeIdentity',
+        back_populates='endpoint',
+        uselist=False,
+        cascade=CASCADE_STR
+    )
+    routes = db.relationship(
+        'EndpointRoute', back_populates='endpoint', cascade=CASCADE_STR
+    )
+    secret_references = db.relationship(
+        'EndpointSecretReference',
+        back_populates='endpoint',
+        cascade=CASCADE_STR
+    )
+    tls_profile = db.relationship(
+        'EndpointTLSProfile',
+        back_populates='endpoint',
+        uselist=False,
+        cascade=CASCADE_STR
+    )
+    evidence_snapshots = db.relationship(
+        'EndpointEvidenceSnapshot',
+        back_populates='endpoint',
+        cascade=CASCADE_STR
+    )
+    extension_profile = db.relationship(
+        'EndpointExtensionProfile',
+        back_populates='endpoint',
+        uselist=False,
+        cascade=CASCADE_STR
+    )
+    semantic_models = db.relationship(
+        'SemanticModelDefinition',
+        back_populates='endpoint',
+        cascade=CASCADE_STR
+    )
+
+
+class SemanticModelDefinition(db.Model):
+    """Current endpoint-scoped semantic model definition."""
+    __tablename__ = 'cde_semantic_model'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'endpoint_id', 'name',
+            name='uq_cde_semantic_model_name'
+        ),
+        db.CheckConstraint(
+            "status IN ('draft', 'published', 'archived')",
+            name='ck_cde_semantic_model_status'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    endpoint_id = db.Column(
+        db.String(36), db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    name = db.Column(db.String(256), nullable=False)
+    status = db.Column(db.String(16), nullable=False, default='draft')
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    __mapper_args__ = {
+        'version_id_col': revision,
+        'version_id_generator': False,
+    }
+    definition = db.Column(db.Text(), nullable=False)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    updated_at = db.Column(db.DateTime(), nullable=False)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='semantic_models'
+    )
+    revisions = db.relationship(
+        'SemanticModelRevision', back_populates='model',
+        cascade=CASCADE_STR
+    )
+
+
+class SemanticModelRevision(db.Model):
+    """Immutable semantic-model revision snapshot."""
+    __tablename__ = 'cde_semantic_model_revision'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'model_id', 'revision', name='uq_cde_semantic_model_revision'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    model_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_semantic_model.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    revision = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(16), nullable=False)
+    definition = db.Column(db.Text(), nullable=False)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    model = db.relationship(
+        'SemanticModelDefinition', back_populates='revisions'
+    )
+
+
+class EndpointRuntimeIdentity(db.Model):
+    """Declared target and separately verified runtime identity."""
+    __tablename__ = 'cde_endpoint_runtime_identity'
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        primary_key=True
+    )
+    declared_runtime_family = db.Column(db.String(128), nullable=False)
+    declared_runtime_version = db.Column(db.String(64), nullable=True)
+    verified_runtime_family = db.Column(db.String(128), nullable=True)
+    verified_runtime_version = db.Column(db.String(64), nullable=True)
+    verification_state = db.Column(db.String(32), nullable=False)
+    verified_at = db.Column(db.DateTime(), nullable=True)
+    verification_evidence_reference = db.Column(
+        db.String(256), nullable=True
+    )
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='runtime_identity'
+    )
+
+
+class EndpointRoute(db.Model):
+    """Provider-owned route reference without embedded credentials."""
+    __tablename__ = 'cde_endpoint_route'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'endpoint_id', 'priority', name='uq_cde_endpoint_route_priority'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    route_kind = db.Column(db.String(64), nullable=False)
+    route_reference = db.Column(db.String(256), nullable=False)
+    priority = db.Column(db.Integer(), nullable=False)
+    configuration = db.Column(db.Text(), nullable=False, default='{}')
+    endpoint = db.relationship('EndpointProfile', back_populates='routes')
+
+
+class EndpointSecretReference(db.Model):
+    """Opaque reference to a protected secret owned outside endpoint JSON."""
+    __tablename__ = 'cde_endpoint_secret_reference'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'endpoint_id', 'secret_kind',
+            name='uq_cde_endpoint_secret_kind'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    secret_kind = db.Column(db.String(64), nullable=False)
+    storage_kind = db.Column(db.String(64), nullable=False)
+    secret_reference = db.Column(db.String(256), nullable=False)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='secret_references'
+    )
+
+
+class EndpointTLSProfile(db.Model):
+    """TLS configuration reference with no copied paths or secret material."""
+    __tablename__ = 'cde_endpoint_tls_profile'
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        primary_key=True
+    )
+    tls_mode = db.Column(db.String(64), nullable=False)
+    configuration_reference = db.Column(db.String(256), nullable=False)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='tls_profile'
+    )
+
+
+class EndpointEvidenceSnapshot(db.Model):
+    """Evidence reference and redacted migration state for an endpoint."""
+    __tablename__ = 'cde_endpoint_evidence_snapshot'
+    id = db.Column(db.String(36), primary_key=True)
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    evidence_kind = db.Column(db.String(64), nullable=False)
+    evidence_reference = db.Column(db.String(256), nullable=False)
+    snapshot_data = db.Column(db.Text(), nullable=False)
+    expires_at = db.Column(db.DateTime(), nullable=True)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='evidence_snapshots'
+    )
+
+
+class EndpointExtensionProfile(db.Model):
+    """Namespaced provider extension data governed by a schema reference."""
+    __tablename__ = 'cde_endpoint_extension_profile'
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        primary_key=True
+    )
+    schema_reference = db.Column(db.String(256), nullable=False)
+    profile_data = db.Column(db.Text(), nullable=False, default='{}')
+    redaction_state = db.Column(db.String(64), nullable=False)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='extension_profile'
+    )
+
+
+class ProfileMigrationRun(db.Model, UserScopedMixin):
+    """Consent receipt and rollback marker for a profile import."""
+    __tablename__ = 'cde_profile_migration_run'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'source_profile_id', 'migration_version',
+            name='uq_cde_profile_migration_source'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID), nullable=False
+    )
+    source_profile_id = db.Column(db.String(64), nullable=False)
+    source_snapshot_sha256 = db.Column(db.String(64), nullable=False)
+    source_schema_version = db.Column(db.Integer(), nullable=True)
+    migration_version = db.Column(db.String(32), nullable=False)
+    selected_categories = db.Column(db.Text(), nullable=False)
+    status = db.Column(db.String(32), nullable=False)
+    consent_reference = db.Column(db.String(256), nullable=False)
+    summary = db.Column(db.Text(), nullable=False, default='{}')
+    incompatibility_report = db.Column(
+        db.Text(), nullable=False, default='{}'
+    )
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    completed_at = db.Column(db.DateTime(), nullable=True)
+    rolled_back_at = db.Column(db.DateTime(), nullable=True)
+    items = db.relationship(
+        'ProfileMigrationItem', back_populates='run', cascade=CASCADE_STR
+    )
+
+
+class ProfileMigrationItem(db.Model, UserScopedMixin):
+    """Idempotency and target-ownership marker for one imported item."""
+    __tablename__ = 'cde_profile_migration_item'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'source_profile_id', 'item_kind', 'source_key',
+            name='uq_cde_profile_migration_item_source'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    run_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_profile_migration_run.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID), nullable=False
+    )
+    source_profile_id = db.Column(db.String(64), nullable=False)
+    item_kind = db.Column(db.String(64), nullable=False)
+    source_key = db.Column(db.String(256), nullable=False)
+    item_fingerprint = db.Column(db.String(64), nullable=False)
+    target_reference = db.Column(db.String(256), nullable=False)
+    created_target = db.Column(db.Boolean(), nullable=False, default=False)
+    status = db.Column(db.String(32), nullable=False)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    rolled_back_at = db.Column(db.DateTime(), nullable=True)
+    run = db.relationship('ProfileMigrationRun', back_populates='items')
+
+
+def _create_legacy_endpoint(connection, source_kind, source):
+    """Create additive endpoint records for a new legacy registration."""
+    endpoint_id = str(uuid.uuid4())
+    endpoint_uuid = uuid.UUID(endpoint_id)
+    endpoint_mode = 'legacy_native'
+
+    def child_id(kind):
+        return str(uuid.uuid5(endpoint_uuid, kind))
+
+    def namespace_id(purpose):
+        return child_id(f'namespace:{endpoint_mode}:{purpose}')
+
+    source_reference = f'{source_kind}:{source.id}'
+    registration = getattr(source, '_cde_endpoint_registration', None)
+    route_configuration = getattr(
+        source, '_cde_endpoint_route_configuration', {}
+    )
+    if registration is None:
+        registration = {
+            'experience_family': 'postgresql',
+            'provider_id': 'org.pgadmin.postgresql',
+            'provider_version': None,
+            'profile_id': 'postgresql-unverified-registration',
+            'profile_version': None,
+            'target_adapter_id': 'legacy-pgadmin-server',
+            'target_adapter_version': None,
+        }
+        created_from = f'legacy_{source_kind}_create'
+    else:
+        created_from = f'cde_{source_kind}_create'
+    legacy_ids = {
+        'legacy_server_id': None,
+        'legacy_shared_server_id': None,
+    }
+    legacy_ids[
+        'legacy_server_id'
+        if source_kind == 'server' else 'legacy_shared_server_id'
+    ] = source.id
+    connection.execute(EndpointProfile.__table__.insert().values(
+        id=endpoint_id,
+        user_id=source.user_id,
+        experience_family=registration['experience_family'],
+        endpoint_mode=endpoint_mode,
+        provider_id=registration['provider_id'],
+        provider_version=registration['provider_version'],
+        profile_id=registration['profile_id'],
+        profile_version=registration['profile_version'],
+        profile_generation=None,
+        target_adapter_id=registration['target_adapter_id'],
+        target_adapter_version=registration['target_adapter_version'],
+        pool_namespace=namespace_id('pool'),
+        session_namespace=namespace_id('session'),
+        cache_namespace=namespace_id('cache'),
+        diagnostic_namespace=namespace_id('diagnostic'),
+        created_from=created_from,
+        **legacy_ids
+    ))
+    connection.execute(EndpointRuntimeIdentity.__table__.insert().values(
+        endpoint_id=endpoint_id,
+        declared_runtime_family=registration['experience_family'],
+        declared_runtime_version=registration['profile_version'],
+        verified_runtime_family=None,
+        verified_runtime_version=None,
+        verification_state='unverified',
+        verified_at=None,
+        verification_evidence_reference=None,
+    ))
+    connection.execute(EndpointRoute.__table__.insert().values(
+        id=child_id('route:0'),
+        endpoint_id=endpoint_id,
+        route_kind=registration.get('route_kind', 'legacy_registration'),
+        route_reference=source_reference,
+        priority=0,
+        configuration=json.dumps(
+            route_configuration, sort_keys=True, separators=(',', ':')
+        ),
+    ))
+    primary_secret_kind = (
+        'api_token'
+        if route_configuration.get('auth_kind') == 'bearer'
+        else 'database_password'
+    )
+    secret_columns = (
+        (primary_secret_kind, 'password'),
+        ('tunnel_password', 'tunnel_password'),
+    )
+    if registration.get(
+        'supports_secret', registration.get('requires_secret', True)
+    ):
+        connection.execute(EndpointSecretReference.__table__.insert(), [
+            {
+                'id': child_id(f'secret-reference:{secret_kind}'),
+                'endpoint_id': endpoint_id,
+                'secret_kind': secret_kind,
+                'storage_kind': 'legacy_protected_column',
+                'secret_reference': f'{source_reference}:{column}',
+            }
+            for secret_kind, column in secret_columns
+        ])
+    connection.execute(EndpointTLSProfile.__table__.insert().values(
+        endpoint_id=endpoint_id,
+        tls_mode='legacy_inherited',
+        configuration_reference=f'{source_reference}:connection_params',
+    ))
+    connection.execute(EndpointEvidenceSnapshot.__table__.insert().values(
+        id=child_id('evidence:registration'),
+        endpoint_id=endpoint_id,
+        evidence_kind='registration_snapshot',
+        evidence_reference='cdeadmin:endpoint-registration:v1',
+        snapshot_data=json.dumps({
+            'legacy_id': source.id,
+            'legacy_kind': source_kind,
+            'profile_id': registration['profile_id'],
+            'runtime_verification': 'unverified',
+        }, sort_keys=True, separators=(',', ':')),
+        expires_at=None,
+    ))
+    connection.execute(EndpointExtensionProfile.__table__.insert().values(
+        endpoint_id=endpoint_id,
+        schema_reference='cdeadmin.endpoint.extensions.v1',
+        profile_data='{}',
+        redaction_state='no_legacy_payload_copied',
+    ))
+
+
+@event.listens_for(Server, 'after_insert')
+def _create_server_endpoint(mapper, connection, source):
+    """Ensure every newly registered Server receives endpoint identity."""
+    _create_legacy_endpoint(connection, 'server', source)
+
+
+@event.listens_for(SharedServer, 'after_insert')
+def _create_shared_server_endpoint(mapper, connection, source):
+    """Ensure every per-user SharedServer receives endpoint identity."""
+    _create_legacy_endpoint(connection, 'sharedserver', source)
 
 
 class Macros(db.Model):

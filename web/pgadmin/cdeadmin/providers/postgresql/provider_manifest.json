@@ -1,0 +1,61 @@
+{
+  "identity": {
+    "contract_version": "1.0.0",
+    "provider_id": "org.pgadmin.postgresql",
+    "provider_version": "9.17.0",
+    "profile_id": "postgresql-native",
+    "profile_version": "18.3",
+    "evidence_reference": "cde-prep-050:postgresql-preservation-20260831"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {
+    "minimum": "1.0.0",
+    "maximum_exclusive": "2.0.0"
+  },
+  "support_state": "implemented",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": [
+    "EndpointProvider",
+    "ResourceProvider",
+    "SessionProvider",
+    "ExecutionProvider",
+    "ResultProvider",
+    "ResultRenderer",
+    "DiagnosticProvider",
+    "OperationProvider",
+    "ToolProvider",
+    "SemanticLayerProvider",
+    "AnalyticalQueryProvider"
+  ],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": false, "scope": []},
+    {"permission_id": "embedded_runtime", "granted": false, "scope": []}
+  ],
+  "required_permissions": ["network"],
+  "composition": {
+    "experience_families": ["postgresql"],
+    "target_adapter_ids": ["legacy-pgadmin-server"]
+  },
+  "extension_schema": null,
+  "registration": {
+    "display_name": "PostgreSQL",
+    "workflow": "legacy_preserved",
+    "default_port": 5432,
+    "default": true,
+    "target_adapter_version": "9.17.0"
+  },
+  "provenance": {
+    "purpose": "CDE-PREP-050 preserved PostgreSQL behavior adapter",
+    "catalog_authority": "web/pgadmin/browser/server_groups/servers/databases",
+    "driver_authority": "web/pgadmin/utils/driver/psycopg3",
+    "transaction_authority": "PostgreSQL provider-native behavior"
+  }
+}

@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -145,6 +145,7 @@ let webpackShimConfig = {
     'pgadmin.preferences': path.join(__dirname, './pgadmin/preferences/static/js/'),
     'pgadmin.settings': path.join(__dirname, './pgadmin/settings/static/js/settings'),
     'pgadmin.server.supported_servers': path.join(__dirname, '/browser/server/supported_servers'),
+    'pgadmin.cdeadmin.endpoint_profiles': path.join(__dirname, '/browser/server/endpoint_profiles'),
     'pgadmin.tables.js': path.join(__dirname, './pgadmin/browser/server_groups/servers/databases/schemas/tables/static/js/'),
     'pgadmin.tools.backup': path.join(__dirname, './pgadmin/tools/backup/static/js/backup'),
     'pgadmin.tools.debugger': path.join(__dirname, './pgadmin/tools/debugger/static/js/'),
@@ -171,7 +172,8 @@ let webpackShimConfig = {
     'pgadmin.browser.endpoints',
     'pgadmin.browser.messages',
     'pgadmin.browser.utils',
-    'pgadmin.server.supported_servers'
+    'pgadmin.server.supported_servers',
+    'pgadmin.cdeadmin.endpoint_profiles'
   ],
   // Define list of pgAdmin common libraries to bundle them separately
   // into commons JS from app.bundle.js

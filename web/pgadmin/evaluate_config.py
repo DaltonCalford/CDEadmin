@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -103,6 +103,7 @@ def evaluate_and_patch_config(config: dict) -> dict:
     # of DATA_DIR is user defined
     data_dir_dependent_settings = \
         ['LOG_FILE', 'SQLITE_PATH', 'SESSION_DB_PATH',
+         'CDEADMIN_OPERATION_STORE_PATH',
          'AZURE_CREDENTIAL_CACHE_DIR', 'KERBEROS_CCACHE_DIR', 'STORAGE_DIR']
 
     if 'DATA_DIR' in custom_config_settings:

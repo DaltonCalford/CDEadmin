@@ -8,7 +8,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- To set pgAdmin4 shortcut icon in browser -->
+    <!-- CDEadmin shortcut icon -->
     <link rel="shortcut icon" href="{{ url_for('redirects.favicon') }}"/>
     <style>
         .pg-sp-container {
@@ -66,6 +66,7 @@
                     'pgadmin.browser.endpoints': "{{ url_for('browser.index') }}" + "js/endpoints",
                     'pgadmin.browser.messages': "{{ url_for('browser.index') }}" + "js/messages",
                     'pgadmin.server.supported_servers': "{{ url_for('browser.index') }}" + "server/supported_servers",
+                    'pgadmin.cdeadmin.endpoint_profiles': "{{ url_for('browser.index') }}" + "server/endpoint_profiles",
                     'pgadmin.user_management.current_user': "{{ url_for('user_management.index') }}" + "current_user",
                     'translations': "{{ url_for('tools.index') }}" + "translations",
                     'security.pages': "{{ url_for('static', filename='js/generated/security.pages') }}"

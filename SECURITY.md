@@ -1,13 +1,22 @@
-# Security Policy
+# CDEadmin Security Policy
+
+CDEadmin is an independent hard fork of pgAdmin 4 9.17. It is not affiliated
+with or endorsed by the pgAdmin Development Team. Do not send CDEadmin security
+reports to pgAdmin security or support channels.
 
 ## Supported Versions
 
-Only the latest version receives security updates. Users are encouraged to upgrade to the latest stable release.
+No CDEadmin version is currently approved as a stable production release.
+Supported-version and security-maintenance commitments will be published before
+the first approved release.
 
 
 ## Reporting a Vulnerability
 
-We take security seriously and appreciate your efforts to responsibly disclose vulnerabilities. If you believe you have found a vulnerability, please follow the guidelines below to submit a report.
+The CDEadmin project-owned private security contact is not yet assigned. Until
+it is, record findings only in the authorized private development workspace or
+private review channel; do not place undisclosed vulnerabilities in a public
+issue tracker. This missing channel is a release blocker.
 
 ### **What to Include in Your Report**
 To help us quickly understand and address the issue, please include the following sections in your report:
@@ -45,10 +54,10 @@ To help us quickly understand and address the issue, please include the followin
 
 
 ### **What to Expect**
-- **Acknowledgement**: You will receive an acknowledgement of your report within **48 hours**.
-- **Timeline**: We will provide a timeline for investigating and addressing the issue.
-- **Updates**: You will receive regular updates on the progress of the vulnerability resolution.
-- **CVE ID**: If the vulnerability is confirmed, we will request a CVE ID to acknowledge the issue officially and include it in the release notes.
+
+Response-time, update and CVE-coordination commitments are not yet published.
+They must be established with the project-owned security channel before a
+production release is approved.
 
 
 ### **Out of Scope**
@@ -79,4 +88,5 @@ We deeply appreciate the efforts of security researchers and users who help us i
 
 ## Contact
 
-For any questions or concerns regarding security, please contact us at `security@pgadmin.org`.
+The CDEadmin security contact is unassigned. The upstream
+`security@pgadmin.org` address is not a CDEadmin contact.

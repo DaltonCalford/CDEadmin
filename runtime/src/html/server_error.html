@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Fatal Error</title>
-  <link rel="stylesheet" href="../css/pgadmin-desktop.css"/>
+  <link rel="stylesheet" href="../css/cdeadmin-desktop.css"/>
 </head>
 <style>
   .header {
@@ -19,7 +19,7 @@
 </style>
 <body>
   <div class="content">
-    <div class="header" id="server_error_label">The pgAdmin 4 server could not be contacted:</div>
+    <div class="header" id="server_error_label">The CDEadmin server could not be contacted:</div>
     <textarea class="form-input" id="server_error_log" style="min-width: 750px; min-height: 300px;resize: none;" readonly></textarea>
   </div>
   <div class="footer">
@@ -30,7 +30,7 @@
   </div>
   <script>
     window.onload = async function() {
-      document.getElementById('server_error_label').innerHTML = 'The pgAdmin 4 server could not be contacted:';
+      document.getElementById('server_error_label').innerHTML = 'The CDEadmin server could not be contacted:';
       document.getElementById('server_error_log').innerHTML = await window.electronUI.readServerLog();
       document.getElementById('btnConfigure').addEventListener('click', function() {
         window.electronUI.openConfigure();

@@ -1,6 +1,6 @@
 ########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -31,12 +31,12 @@ RUN apk add --no-cache \
     yarn \
     zlib-dev
 
-# Create the /pgadmin4 directory and copy the source into it
-COPY web /pgadmin4/web
-WORKDIR /pgadmin4/web
+# Create the CDEadmin build directory and copy the source into it.
+COPY web /cdeadmin/web
+WORKDIR /cdeadmin/web
 
 # Build the JS vendor code in the app-builder, and then remove the vendor source.
-RUN --mount=type=bind,source=.git,target=/pgadmin4/.git \
+RUN --mount=type=bind,source=.git,target=/cdeadmin/.git \
     --mount=type=tmpfs,target=node_modules \
     --mount=type=tmpfs,target=pgadmin/static/js/generated/.cache \
     export CPPFLAGS="-DPNG_ARM_NEON_OPT=0" && \
@@ -89,17 +89,17 @@ RUN /venv/bin/python3 -m pip install --no-cache-dir sphinxcontrib-youtube
 
 # Copy the docs from the local tree. Explicitly remove any existing builds that
 # may be present
-COPY docs /pgadmin4/docs
-COPY web /pgadmin4/web
-RUN rm -rf /pgadmin4/docs/en_US/_build
+COPY docs /cdeadmin/docs
+COPY web /cdeadmin/web
+RUN rm -rf /cdeadmin/docs/en_US/_build
 
 # Build the docs
-RUN LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 /venv/bin/sphinx-build /pgadmin4/docs/en_US /pgadmin4/docs/en_US/_build/html
+RUN LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 /venv/bin/sphinx-build /cdeadmin/docs/en_US /cdeadmin/docs/en_US/_build/html
 
 # Cleanup unwanted files
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/.doctrees
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/_sources
-RUN rm -rf /pgadmin4/docs/en_US/_build/html/_static/*.png
+RUN rm -rf /cdeadmin/docs/en_US/_build/html/.doctrees
+RUN rm -rf /cdeadmin/docs/en_US/_build/html/_sources
+RUN rm -rf /cdeadmin/docs/en_US/_build/html/_static/*.png
 
 #########################################################################
 # Create additional builders to get all of the PostgreSQL utilities
@@ -179,40 +179,39 @@ RUN ln -s libpq.so.5.18 /usr/lib/libpq.so.5 && \
     ln -s libpq.so.5.18 /usr/lib/libpq.so && \
     ln -s liblz4.so.1.10.0 /usr/lib/liblz4.so.1
 
-WORKDIR /pgadmin4
-ENV PYTHONPATH=/pgadmin4
+WORKDIR /cdeadmin
+ENV PYTHONPATH=/cdeadmin
 
 # Copy in the code and docs
-COPY --from=app-builder /pgadmin4/web /pgadmin4
-COPY --from=docs-builder /pgadmin4/docs/en_US/_build/html/ /pgadmin4/docs
-COPY pkg/docker/run_pgadmin.py pkg/docker/gunicorn_config.py /pgadmin4/
+COPY --from=app-builder /cdeadmin/web /cdeadmin
+COPY --from=docs-builder /cdeadmin/docs/en_US/_build/html/ /cdeadmin/docs
+COPY pkg/docker/run_cdeadmin.py pkg/docker/gunicorn_config.py /cdeadmin/
 COPY pkg/docker/entrypoint.sh /entrypoint.sh
 
 # License files
-COPY LICENSE /pgadmin4/LICENSE
+COPY LICENSE NOTICE /cdeadmin/
 
 # Configure everything in one RUN step
 RUN /venv/bin/python3 -m pip install --no-cache-dir gunicorn==23.0.0 && \
     find / -type d -name '__pycache__' -exec rm -rf {} + && \
-    useradd -r -u 5050 -g root -s /sbin/nologin pgadmin && \
-    mkdir -p /run/pgadmin /var/lib/pgadmin && \
-    chown pgadmin:root /run/pgadmin /var/lib/pgadmin && \
-    chmod g=u /run/pgadmin /var/lib/pgadmin && \
-    touch /pgadmin4/config_distro.py && \
-    chown pgadmin:root /pgadmin4/config_distro.py && \
-    chmod g=u /pgadmin4/config_distro.py && \
+    useradd -r -u 5050 -g root -s /sbin/nologin cdeadmin && \
+    mkdir -p /run/cdeadmin /var/lib/cdeadmin && \
+    chown cdeadmin:root /run/cdeadmin /var/lib/cdeadmin && \
+    chmod g=u /run/cdeadmin /var/lib/cdeadmin && \
+    touch /cdeadmin/config_distro.py && \
+    chown cdeadmin:root /cdeadmin/config_distro.py && \
+    chmod g=u /cdeadmin/config_distro.py && \
     chmod g=u /etc/passwd && \
     PYBIN="$(ls /usr/local/bin/python3.[0-9][0-9] 2>/dev/null | head -n1)" && \
     cp "$PYBIN" /usr/local/bin/python3-cap && \
     setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/python3-cap && \
     ln -s /usr/local/bin/python3-cap /venv/bin/python3-cap && \
-    echo "pgadmin ALL = NOPASSWD: /usr/sbin/postfix start" > /etc/sudoers.d/postfix && \
-    echo "pgadminr ALL = NOPASSWD: /usr/sbin/postfix start" >> /etc/sudoers.d/postfix
+    echo "cdeadmin ALL = NOPASSWD: /usr/sbin/postfix start" > /etc/sudoers.d/postfix
 
 USER 5050
 
 # Finish up
-VOLUME /var/lib/pgadmin
+VOLUME /var/lib/cdeadmin
 EXPOSE 80 443
 
 ENTRYPOINT ["/entrypoint.sh"]

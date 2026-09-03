@@ -1,13 +1,15 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
 #
 ##########################################################################
 
-"""The main pgAdmin module. This handles the application initialisation tasks,
+"""The CDEadmin application module in the legacy ``pgadmin`` namespace.
+
+This handles the application initialisation tasks,
 such as setup of logging, dynamic loading of modules etc."""
 import logging
 import os
@@ -582,7 +584,32 @@ def create_app(app_name=None):
     ##########################################################################
     # Load all available server drivers
     ##########################################################################
+    from pgadmin.cdeadmin.core import init_app as init_cdeadmin
+    from pgadmin.cdeadmin.data_studio import init_app as init_cde_data_studio
+    from pgadmin.cdeadmin.endpoints import init_app as init_cde_endpoints
+    from pgadmin.cdeadmin.operations import init_app as init_cde_operations
+    from pgadmin.cdeadmin.providers import register_builtin_providers
+    from pgadmin.cdeadmin.resources import init_app as init_cde_resources
+    from pgadmin.cdeadmin.results import init_app as init_cde_results
+    from pgadmin.cdeadmin.security import init_app as init_cde_security
+    from pgadmin.cdeadmin.semantic_models import (
+        init_app as init_cde_semantic_models,
+    )
+    from pgadmin.cdeadmin.workspace import init_app as init_cde_workspace
+    cde_security = init_cde_security(app)
+    cde_registry = init_cdeadmin(app, cde_security.secrets)
     driver.init_app(app)
+    register_builtin_providers(cde_registry)
+    cde_endpoints = init_cde_endpoints(app, cde_registry, cde_security)
+    cde_operations = init_cde_operations(app)
+    cde_resources = init_cde_resources(app, cde_registry, cde_security)
+    cde_results = init_cde_results(app, cde_registry)
+    cde_studio = init_cde_data_studio(app, cde_registry, cde_results)
+    cde_semantic_models = init_cde_semantic_models(app)
+    init_cde_workspace(
+        app, cde_endpoints, cde_resources, cde_studio, cde_results,
+        cde_semantic_models, cde_operations,
+    )
     authenticate.init_app(app)
     heartbeat.init_app(app)
 

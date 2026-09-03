@@ -1,0 +1,34 @@
+{
+  "identity": {
+    "contract_version": "1.0.0",
+    "provider_id": "org.cdeadmin.fixture.non_operational",
+    "provider_version": "1.0.0",
+    "profile_id": "fixture-only",
+    "profile_version": "1.0.0",
+    "evidence_reference": "cde-prep-020:fixture-structural-contract"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {
+    "minimum": "1.0.0",
+    "maximum_exclusive": "2.0.0"
+  },
+  "support_state": "deferred",
+  "enabled": false,
+  "fixture": true,
+  "production_registration": false,
+  "contracts": ["EndpointProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": false, "scope": []},
+    {"permission_id": "filesystem", "granted": false, "scope": []},
+    {"permission_id": "embedded_runtime", "granted": false, "scope": []},
+    {"permission_id": "secret_read", "granted": false, "scope": []},
+    {"permission_id": "data_read", "granted": false, "scope": []},
+    {"permission_id": "data_write", "granted": false, "scope": []},
+    {"permission_id": "administer", "granted": false, "scope": []},
+    {"permission_id": "execute", "granted": false, "scope": []}
+  ],
+  "extension_schema": null,
+  "provenance": {
+    "purpose": "Non-network, non-operational structural test fixture."
+  }
+}

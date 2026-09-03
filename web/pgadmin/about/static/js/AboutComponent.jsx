@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -33,6 +33,28 @@ export default function AboutComponent() {
 
   return (
     <Box sx={{ padding: '16px', height: '100%', display: 'flex',flexDirection: 'column'}} ref={containerRef}>
+      <Box sx={{marginBottom: '16px'}}>
+        <InputLabel sx={{fontWeight: 'bold', fontSize: '1.15rem'}}>
+          {aboutData.product_name}
+        </InputLabel>
+        <InputLabel>{aboutData.fork_summary}</InputLabel>
+      </Box>
+      <Grid container spacing={0} style={{marginBottom: '8px'}}>
+        <Grid size={{ lg: 3, md: 3, sm: 3, xs: 12 }}>
+          <InputLabel style={{fontWeight: 'bold'}}>{gettext('Project Status')}</InputLabel>
+        </Grid>
+        <Grid size={{ lg: 9, md: 9, sm: 9, xs: 12 }}>
+          <InputLabel>{aboutData.fork_status}</InputLabel>
+        </Grid>
+      </Grid>
+      <Grid container spacing={0} style={{marginBottom: '8px'}}>
+        <Grid size={{ lg: 3, md: 3, sm: 3, xs: 12 }}>
+          <InputLabel style={{fontWeight: 'bold'}}>{gettext('Upstream Base')}</InputLabel>
+        </Grid>
+        <Grid size={{ lg: 9, md: 9, sm: 9, xs: 12 }}>
+          <InputLabel>{aboutData.upstream_name} {aboutData.upstream_version}</InputLabel>
+        </Grid>
+      </Grid>
       <Grid container spacing={0} style={{marginBottom: '8px'}}>
         <Grid size={{ lg: 3, md: 3, sm: 3, xs: 12 }}>
           <InputLabel style={{fontWeight: 'bold'}}>{gettext('Version')}</InputLabel>
@@ -104,7 +126,7 @@ export default function AboutComponent() {
       { aboutData.config_db &&
         <Grid container spacing={0} style={{marginBottom: '8px'}}>
           <Grid size={{ lg: 3, md: 3, sm: 3, xs: 12 }}>
-            <InputLabel style={{fontWeight: 'bold'}}>{gettext('pgAdmin Database File')}</InputLabel>
+            <InputLabel style={{fontWeight: 'bold'}}>{gettext('CDEadmin Configuration Database')}</InputLabel>
           </Grid>
           <Grid size={{ lg: 9, md: 9, sm: 9, xs: 12 }}>
             <InputLabel>{aboutData.config_db}</InputLabel>
@@ -124,7 +146,7 @@ export default function AboutComponent() {
       { aboutData.settings &&
         <Box flexGrow="1" display="flex" flexDirection="column" minHeight="0">
           <Box>
-            <InputLabel style={{fontWeight: 'bold'}}>{gettext('pgAdmin Server Configuration')}</InputLabel>
+            <InputLabel style={{fontWeight: 'bold'}}>{gettext('CDEadmin Server Configuration')}</InputLabel>
           </Box>
           <Box flexGrow="1" paddingTop="1px" minHeight="0">
             <InputSQL value={aboutData.settings}
@@ -139,6 +161,10 @@ export default function AboutComponent() {
           </Box>
         </Box>
       }
+      <Box sx={{marginTop: '12px'}}>
+        <InputLabel style={{fontWeight: 'bold'}}>{gettext('Attribution and Licence')}</InputLabel>
+        <InputLabel>{aboutData.attribution}</InputLabel>
+      </Box>
     </Box>
   );
 }

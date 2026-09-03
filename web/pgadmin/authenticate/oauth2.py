@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -72,7 +72,7 @@ def warn_on_misplaced_oauth2_config(app):
 
     app.logger.warning(
         "OAuth2: the following settings are defined at the top level of the "
-        "configuration but pgAdmin reads OAuth2 provider settings only from "
+        "configuration but CDEadmin reads OAuth2 provider settings only from "
         "the OAUTH2_CONFIG list, so they are being ignored: %s. If you are "
         "configuring OAuth2 through individual PGADMIN_CONFIG_OAUTH2_* "
         "environment variables, this will not work; configure a single "
@@ -354,7 +354,7 @@ class OAuth2Authentication(BaseAuthentication):
             guidance = gettext(
                 "OAuth2 provider '%(name)s' is configured with 'openid' "
                 "in OAUTH2_SCOPE but OAUTH2_SERVER_METADATA_URL is not "
-                "set. pgAdmin needs the provider's OpenID Connect "
+                "set. CDEadmin needs the provider's OpenID Connect "
                 "discovery URL to verify the id_token. Either set "
                 "OAUTH2_SERVER_METADATA_URL to the discovery URL "
                 "(e.g. https://<issuer>/.well-known/openid-"
@@ -593,7 +593,7 @@ class OAuth2Authentication(BaseAuthentication):
             else:
                 error_msg = gettext(
                     'An email id or OAUTH2_USERNAME_CLAIM is required to '
-                    'login into pgAdmin. Please update your OAuth2 profile '
+                    'log in to CDEadmin. Please update your OAuth2 profile '
                     'for email id or set OAUTH2_USERNAME_CLAIM config '
                     'parameter.'
                 )
@@ -657,7 +657,7 @@ class OAuth2Authentication(BaseAuthentication):
 
             audit_msg = (
                 f'The authenticated user {username} is not authorized to '
-                'access pgAdmin based on OAUTH2 config. '
+                'access CDEadmin based on OAUTH2 config. '
                 'Reason: additional claims required. '
                 f'additional_claim_names={additional_claim_names}, '
                 f'profile_len={len(profile_dict)}, '

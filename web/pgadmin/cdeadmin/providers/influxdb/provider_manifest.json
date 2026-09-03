@@ -1,0 +1,27 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.influxdb", "provider_version": "0.1.0", "profile_id": "influxdb-native", "profile_version": "3.9.0", "evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902"},
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["influxdb"], "target_adapter_ids": ["stdlib-influxdb3-http-json-client"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "InfluxDB 3.9.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 8181, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_fields": [
+      {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "InfluxDB database", "default": "default"},
+      {"field_id": "query_language", "route_key": "query_language", "label": "Default query language", "control": "select", "group": "InfluxDB query", "default": "sql", "options": [{"value": "sql", "label": "SQL"}, {"value": "influxql", "label": "InfluxQL"}]},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "InfluxDB authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "bearer", "label": "Bearer token reference"}]},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "InfluxDB TLS", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "InfluxDB TLS"},
+      {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "InfluxDB TLS"},
+      {"field_id": "tls_key_file", "route_key": "tls_key_file", "label": "Client key", "control": "file", "group": "InfluxDB TLS"},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "InfluxDB timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "statement_timeout", "route_key": "statement_timeout", "label": "Query timeout (seconds)", "control": "number", "group": "InfluxDB timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "InfluxDB safety", "default": false}
+    ]
+  },
+  "provenance": {"purpose": "InfluxDB 3.9.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "influxdb_3.9.0_core_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab"}
+}

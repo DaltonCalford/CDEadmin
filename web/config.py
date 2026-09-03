@@ -2,7 +2,7 @@
 
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -32,7 +32,8 @@ CONFIG_DATABASE_CONNECTION_MAX_OVERFLOW = 100
 
 from pgadmin.utils import env, IS_WIN, fs_short_path
 from version import APP_VERSION, APP_RELEASE, APP_REVISION, APP_SUFFIX, \
-    APP_VERSION_INT
+    APP_VERSION_INT, CDEADMIN_VERSION, CDEADMIN_FORK_STATUS, \
+    UPSTREAM_PRODUCT_NAME, UPSTREAM_BASE_VERSION
 from branding import APP_NAME, APP_ICON, APP_COPYRIGHT, APP_PATH, \
     APP_WIN_PATH, APP_SHORT_NAME, APP_DEFAULT_EMAIL
 
@@ -96,7 +97,7 @@ else:
 
 # HTTP headers to search for CSRF token when it is not provided in the form.
 # Default is ['X-CSRFToken', 'X-CSRF-Token']
-WTF_CSRF_HEADERS = ['X-pgA-CSRFToken']
+WTF_CSRF_HEADERS = ['X-CDE-CSRFToken']
 
 # User ID (email address) to use for the default user in desktop mode.
 # The default should be fine here, as it's not exposed in the app.
@@ -114,7 +115,7 @@ DEFAULT_SERVER = '127.0.0.1'
 
 # The default port on which the app server will listen if not set in the
 # environment by the runtime
-DEFAULT_SERVER_PORT = 5050
+DEFAULT_SERVER_PORT = 5051
 
 # This param is used to override the default web server information about
 # the web technology and the frameworks being used in the application
@@ -342,6 +343,10 @@ CONFIG_DATABASE_URI = ''
 SQLITE_PATH = env('SQLITE_PATH') or \
     os.path.join(DATA_DIR, APP_SHORT_NAME + '.db')
 
+# Restart-safe, redacted CDEadmin operation and control-plane audit state.
+CDEADMIN_OPERATION_STORE_PATH = env('CDEADMIN_OPERATION_STORE_PATH') or \
+    os.path.join(DATA_DIR, 'cdeadmin-operations.json')
+
 # SQLITE_TIMEOUT will define how long to wait before throwing the error -
 # OperationError due to database lock. On slower system, you may need to change
 # this to some higher value.
@@ -358,7 +363,7 @@ MAX_QUERY_HIST_STORED = 20
 ##########################################################################
 # Server-side session storage path
 #
-# SESSION_DB_PATH (Default: $HOME/.pgadmin4/sessions)
+# SESSION_DB_PATH (Default: $HOME/.cdeadmin/sessions)
 ##########################################################################
 #
 # We use SQLite for server-side session storage. There will be one
@@ -372,12 +377,12 @@ MAX_QUERY_HIST_STORED = 20
 # On certain systems, you can use shared memory (tmpfs) for maximum
 # scalability, for example, on Ubuntu:
 #
-# SESSION_DB_PATH = '/run/shm/pgAdmin4_session'
+# SESSION_DB_PATH = '/run/shm/cdeadmin_session'
 #
 ##########################################################################
 SESSION_DB_PATH = os.path.join(DATA_DIR, 'sessions')
 
-SESSION_COOKIE_NAME = 'pga4_session'
+SESSION_COOKIE_NAME = 'cdeadmin_session'
 
 # Session digest method.
 # Used as the HMAC algorithm for the session cookie (signing the
@@ -435,13 +440,13 @@ GLOBALLY_DELIVERABLE = True
 ##########################################################################
 
 # Check for new versions of the application?
-UPGRADE_CHECK_ENABLED = True
+UPGRADE_CHECK_ENABLED = False
 
 # Where should we get the data from?
-UPGRADE_CHECK_URL = 'https://www.pgadmin.org/versions.json'
+UPGRADE_CHECK_URL = None
 
 # What key should we look at in the upgrade data file?
-UPGRADE_CHECK_KEY = 'pgadmin4'
+UPGRADE_CHECK_KEY = 'cdeadmin'
 
 # Which CA file should we use?
 # Default to cacert.pem in the same directory as config.py et al.
@@ -527,7 +532,7 @@ FIXED_BINARY_PATHS = {
 ##########################################################################
 
 # The default path for SQLite database for testing
-TEST_SQLITE_PATH = os.path.join(DATA_DIR, 'test_pgadmin4.db')
+TEST_SQLITE_PATH = os.path.join(DATA_DIR, 'test_cdeadmin.db')
 
 ##########################################################################
 # Allows flask application to response to the each request asynchronously
@@ -732,7 +737,7 @@ LDAP_USERNAME_ATTRIBUTE = '<User-id>'
 
 # LDAP Bind User DN Example: cn=username,dc=example,dc=com
 # Set this parameter to allow the connection to bind using a dedicated user.
-# After the connection is made, the pgadmin login user will be further
+# After the connection is made, the CDEadmin login user will be further
 # authenticated by the username and password provided
 # at the login screen.
 LDAP_BIND_USER = None
@@ -744,13 +749,13 @@ LDAP_BIND_PASSWORD = None
 # 2. Anonymous Binding
 
 # Set this parameter to allow the anonymous bind.
-# After the connection is made, the pgadmin login user will be further
+# After the connection is made, the CDEadmin login user will be further
 # authenticated by the username and password provided
 
 LDAP_ANONYMOUS_BIND = False
 
 # OR ####################
-# 3. Bind as pgAdmin user
+# 3. Bind as the CDEadmin user
 
 # BaseDN (REQUIRED)
 # AD example:
@@ -877,7 +882,7 @@ OAUTH2_CONFIG = [
         # This is useful to provide additional authorization checks
         # before allowing access.
         # Example for GitLab: allowing all maintainers teams, and a specific
-        # developers group to access pgadmin:
+        # developers group to access CDEadmin:
         # 'OAUTH2_ADDITIONAL_CLAIMS': {
         #     'https://gitlab.org/claims/groups/maintainer': [
         #           'kuberheads/applications',
@@ -938,8 +943,8 @@ MFA_ENABLED = True
 # two-authentication methods on logged-in.
 MFA_FORCE_REGISTRATION = False
 
-# pgAdmin supports Two-factor authentication by either sending an one-time code
-# to an email, or using the TOTP based application like Google Authenticator.
+# CDEadmin supports two-factor authentication by sending a one-time code to an
+# email address, or by using a TOTP application such as Google Authenticator.
 MFA_SUPPORTED_METHODS = ["email", "authenticator"]
 
 # NOTE: Please set the 'Mail server settings' to use 'email' as two-factor
@@ -947,13 +952,13 @@ MFA_SUPPORTED_METHODS = ["email", "authenticator"]
 
 # Subject for the email verification code
 # Default: <APP_NAME> - Verification Code
-# e.g.  pgAdmin 4 - Verification Code
+# e.g.  CDEadmin - Verification Code
 MFA_EMAIL_SUBJECT = None
 
 ##########################################################################
 # PSQL tool settings
 ##########################################################################
-# This will enable PSQL tool in pgAdmin when running in server mode.
+# This will enable PSQL tool in CDEadmin when running in server mode.
 # PSQL is always enabled in Desktop mode, however in server mode it is
 # disabled by default because users can run arbitrary commands on the
 # server through it.
@@ -979,9 +984,9 @@ ENABLE_BINARY_PATH_BROWSING = False
 SHARED_STORAGE = []
 
 #############################################################################
-# AUTO_DISCOVER_SERVERS setting is used to enable the pgAdmin to discover the
+# AUTO_DISCOVER_SERVERS setting is used to enable CDEadmin to discover the
 # database server automatically on the local machine.
-# When it is set to False, pgAdmin will not discover servers installed on
+# When it is set to False, CDEadmin will not discover servers installed on
 # the local machine.
 #############################################################################
 AUTO_DISCOVER_SERVERS = True
@@ -1098,7 +1103,7 @@ DOCKER_API_MODEL = ''
 # link-local addresses like 169.254.169.254 used by cloud metadata.
 #
 # Note: the loopback ``:*`` entries below let any logged-in user have
-# the pgAdmin server connect to any port on its own loopback interface.
+# the CDEadmin server connect to any port on its own loopback interface.
 # On multi-user SERVER_MODE deployments, consider replacing them with
 # the specific ports you run (e.g. ``http://localhost:11434``) to avoid
 # exposing other local services to LLM requests.

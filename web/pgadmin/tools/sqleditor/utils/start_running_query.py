@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -11,6 +11,7 @@
 
 import pickle
 import secrets
+from contextvars import copy_context
 from threading import Thread
 from flask import Response, current_app, copy_current_request_context
 from flask_babel import gettext
@@ -23,6 +24,7 @@ from pgadmin.tools.sqleditor.utils.constant_definition import TX_STATUS_IDLE, \
 from pgadmin.tools.sqleditor.utils.is_begin_required import is_begin_required
 from pgadmin.tools.sqleditor.utils.update_session_grid_transaction import \
     update_session_grid_transaction
+from pgadmin.cdeadmin.core import route_query_tool_execute
 from pgadmin.utils.ajax import make_json_response, internal_server_error
 from pgadmin.utils.driver import get_driver
 from pgadmin.utils.exception import ConnectionLost, SSHTunnelConnectionLost,\
@@ -162,8 +164,12 @@ class StartRunningQuery:
                                                     sql == 'ROLLBACK;'):
                         conn.execute_void(sql)
                     else:
-                        _, _ = conn.execute_async(
-                            sql, server_cursor=trans_obj.server_cursor)
+                        _, _ = route_query_tool_execute(
+                            app,
+                            conn,
+                            sql,
+                            server_cursor=trans_obj.server_cursor,
+                        )
                         # If the transaction aborted for some reason and
                         # Auto RollBack is True then issue a rollback
                         # to cleanup.
@@ -233,7 +239,8 @@ class QueryThread(Thread):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.app = current_app._get_current_object()
+        self.cde_context = copy_context()
 
     def run(self):
         with self.app.app_context():
-            super().run()
+            self.cde_context.run(super().run)

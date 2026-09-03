@@ -4,18 +4,18 @@
 `Menu Bar`:index:
 *****************
 
-The pgAdmin menu bar provides drop-down menus for access to options, commands,
+The CDEadmin menu bar provides drop-down menus for access to options, commands,
 and utilities. Its layout adapts based on your deployment: in Web mode,
 you will see *File*, *Object*, *Tools*, and *Help* menus. In Desktop mode,
-the *pgAdmin4* application menu replaces the standard *File* menu.
+the *CDEadmin* application menu replaces the standard *File* menu.
 Selections may be grayed out which indicates they are
-disabled for the object currently selected in the *pgAdmin* tree control.
+disabled for the object currently selected in the CDEadmin tree control.
 
 The File Menu
 *************
 
 .. image:: /images/file_menu.png
-    :alt: pgAdmin file menu bar
+    :alt: CDEadmin file menu bar
     :align: center
 
 Use the *File* menu available in web mode to access the following options:
@@ -23,31 +23,27 @@ Use the *File* menu available in web mode to access the following options:
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 | Option                  | Action                                                                                                  |
 +=========================+=========================================================================================================+
-| *Preferences*           | Click to open the :ref:`Preferences <preferences>` dialog to customize your pgAdmin settings.           |
+| *Preferences*           | Open Preferences to customize CDEadmin settings.                                                        |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 | *Reset Layout*          | If you have modified the workspace, click to restore the default layout.                                |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 
 
-The pgAdmin4 Menu
+The CDEadmin Menu
 *****************
 
-.. image:: /images/pgadmin4_menu.png
-    :alt: pgAdmin pgadmin4 menu bar
-    :align: center
-
-Use the *pgAdmin4* menu available in desktop mode to access the following options:
+Use the *CDEadmin* menu available in desktop mode to access the following options:
 
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 | Option                  | Action                                                                                                  |
 +=========================+=========================================================================================================+
-| *About pgAdmin 4*       | Provide pgadmin4 configuration information like version, mode etc.                                      |
+| *About CDEadmin*        | Show CDEadmin version, fork status, upstream base, mode, and current user.                              |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
-| *Preferences/settings*  | Click to open the :ref:`Preferences <preferences>` dialog to customize your pgAdmin settings.           |
+| *Preferences/settings*  | Open Preferences to customize CDEadmin settings.                                                        |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 | *Reset Layout*          | If you have modified the workspace, click to restore the default layout.                                |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
-| *View Logs*             | This will show current pgadmin4 logs.                                                                   |
+| *View Logs*             | Show the current CDEadmin runtime log.                                                                  |
 +-------------------------+---------------------------------------------------------------------------------------------------------+
 | *Configure runtime*     | Click to open a  window that allows to configure application port, connection timeout to launch the     |
 |                         | application. To know more about runtime menu :ref:`click here <desktop_deployment>`                     |
@@ -57,7 +53,7 @@ The Object Menu
 ***************
 
 .. image:: /images/object_menu.png
-    :alt: pgAdmin object menu bar
+    :alt: CDEadmin object menu bar
     :align: center
 
 The *Object* menu is context-sensitive. Use the *Object* menu to access the
@@ -122,7 +118,7 @@ The Tools Menu
 **************
 
 .. image:: /images/tool_menu.png
-    :alt: pgAdmin tools menu bar
+    :alt: CDEadmin tools menu bar
     :align: center
 
 Use the *Tools* menu to access the following options (in alphabetical order):
@@ -177,28 +173,15 @@ Use the *Tools* menu to access the following options (in alphabetical order):
 The Help Menu
 *************
 
-.. image:: images/help_menu.png
-    :alt: pgAdmin help menu bar
-    :align: center
+Use the *Help* menu to access:
 
-Use the options on the *Help* menu to access online help documents, or to review
-information about the pgAdmin installation (in alphabetical order):
+* *Quick Search*, which searches commands and local help articles;
+* *Online Help*, which opens the CDEadmin documentation;
+* *Upstream pgAdmin Project*, an explicit attribution link to the project from
+  which CDEadmin was forked; and
+* *CDEadmin Hard-fork Status*, which describes the fork and its major
+  divergences.
 
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| Option               | Action                                                                                                                                  |
-+======================+=========================================================================================================================================+
-| *Quick Search*       | Type your keywords in the Quick Search field. Typing at least three characters will display all the matching possibilities under Menu   |
-|                      | items and the relevant documents under Help articles. Click on the options under Menu items to perform action of particular             |
-|                      | functionality or object. Click on any of the Help articles to open the help of that topic with highlighted text in a separate window.   |
-|                      |                                                                                                                                         |
-|                      | **Note**:- If any of the option under Menu items is disabled, then it will provide information via info icon.                           |
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| *About pgAdmin 4*    | Click to open a window where you will find information about pgAdmin; this includes the current version and the current user.           |
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| *Online Help*        | Click to open documentation support for using pgAdmin utilities, tools and dialogs.                                                     |
-|                      | Navigate (in the newly opened tab?) help documents in the left browser pane or use the search bar to specify a topic.                   |
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| *pgAdmin Website*    | Click to open the *pgAdmin.org* website in a browser window.                                                                            |
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
-| *PostgreSQL Website* | Click to access the PostgreSQL core documentation hosted at the PostgreSQL site. The site also offers guides, tutorials, and resources. |
-+----------------------+-----------------------------------------------------------------------------------------------------------------------------------------+
+The *About CDEadmin* command opens a product-information window containing the
+CDEadmin version and hard-fork status, the pgAdmin 4 upstream base, a summary
+of multi-engine and multi-model changes, and the retained licence attribution.

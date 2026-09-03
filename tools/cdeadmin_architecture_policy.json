@@ -1,0 +1,696 @@
+{
+  "baseline_id": "pgadmin4-9.17-bc58657d3d3a-20260831",
+  "common_roots": [
+    "web/pgadmin/cdeadmin/contracts",
+    "web/pgadmin/cdeadmin/core",
+    "web/pgadmin/cdeadmin/domain",
+    "web/pgadmin/cdeadmin/persistence",
+    "web/pgadmin/cdeadmin/sdk",
+    "web/pgadmin/cdeadmin/services",
+    "web/pgadmin/cdeadmin/static/js/contracts",
+    "web/pgadmin/cdeadmin/static/js/core",
+    "web/pgadmin/cdeadmin/static/js/services"
+  ],
+  "frozen_revision": "bc58657d3d3ab4209cdadea6d191b632cf1572cc",
+  "legacy_global_driver": {
+    "baseline_total": 327,
+    "maximum_by_file": {
+      "web/pgadmin/__init__.py": 2,
+      "web/pgadmin/browser/__init__.py": 2,
+      "web/pgadmin/browser/collection.py": 2,
+      "web/pgadmin/browser/server_groups/servers/__init__.py": 20,
+      "web/pgadmin/browser/server_groups/servers/databases/__init__.py": 5,
+      "web/pgadmin/browser/server_groups/servers/databases/casts/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_jobs/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_programs/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_schedules/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/event_triggers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/extensions/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/foreign_servers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/foreign_servers/user_mappings/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/languages/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/publications/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/aggregates/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/catalog_objects/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/catalog_objects/columns/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/collations/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/domains/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/domains/domain_constraints/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/foreign_tables/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_configurations/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_dictionaries/__init__.py": 3,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_parsers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_templates/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/functions/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/operators/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/edbfuncs/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/edbvars/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/sequences/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/synonyms/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/columns/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/compound_triggers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/compound_triggers/tests/test_compound_triggers_put.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/__init__.py": 1,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/check_constraint/__init__.py": 4,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/exclusion_constraint/__init__.py": 4,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/foreign_key/__init__.py": 4,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/index_constraint/__init__.py": 4,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/indexes/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/row_security_policies/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/rules/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/triggers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/triggers/utils.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/utils.py": 3,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/types/__init__.py": 3,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/utils.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/views/__init__.py": 5,
+      "web/pgadmin/browser/server_groups/servers/databases/subscriptions/__init__.py": 3,
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_comment_description_sql_escaping.py": 2,
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_name_literal_sql_escaping.py": 3,
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_stats_template_regclass_cast.py": 2,
+      "web/pgadmin/browser/server_groups/servers/directories/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/pgagent/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/pgagent/schedules/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/pgagent/steps/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/pgd_replication_groups/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/pgd_replication_groups/pgd_replication_servers/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/replica_nodes/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/resource_groups/__init__.py": 2,
+      "web/pgadmin/browser/server_groups/servers/roles/__init__.py": 5,
+      "web/pgadmin/browser/server_groups/servers/tablespaces/__init__.py": 3,
+      "web/pgadmin/browser/server_groups/servers/utils.py": 5,
+      "web/pgadmin/browser/utils.py": 2,
+      "web/pgadmin/dashboard/__init__.py": 2,
+      "web/pgadmin/dashboard/precondition.py": 2,
+      "web/pgadmin/llm/__init__.py": 14,
+      "web/pgadmin/llm/tools/database.py": 3,
+      "web/pgadmin/misc/workspaces/__init__.py": 2,
+      "web/pgadmin/tools/backup/__init__.py": 6,
+      "web/pgadmin/tools/backup/tests/test_backup_create_job_unit_test.py": 2,
+      "web/pgadmin/tools/debugger/__init__.py": 16,
+      "web/pgadmin/tools/debugger/tests/test_debugger_clear_all_breakpoint.py": 2,
+      "web/pgadmin/tools/debugger/tests/test_debugger_execute_query.py": 2,
+      "web/pgadmin/tools/debugger/tests/test_debugger_poll_execution_result.py": 2,
+      "web/pgadmin/tools/debugger/tests/test_debugger_poll_result.py": 2,
+      "web/pgadmin/tools/debugger/tests/test_debugger_set_breakpoint.py": 2,
+      "web/pgadmin/tools/debugger/tests/test_start_execution_debugger.py": 2,
+      "web/pgadmin/tools/erd/__init__.py": 3,
+      "web/pgadmin/tools/grant_wizard/__init__.py": 5,
+      "web/pgadmin/tools/import_export/__init__.py": 3,
+      "web/pgadmin/tools/import_export/tests/test_import_export_create_job_unit_test.py": 3,
+      "web/pgadmin/tools/maintenance/__init__.py": 4,
+      "web/pgadmin/tools/maintenance/tests/test_maintenance_create_job_unit_test.py": 2,
+      "web/pgadmin/tools/maintenance/tests/test_maintenance_input_validation.py": 3,
+      "web/pgadmin/tools/psql/__init__.py": 3,
+      "web/pgadmin/tools/restore/__init__.py": 4,
+      "web/pgadmin/tools/restore/tests/test_restore_create_job_unit_test.py": 2,
+      "web/pgadmin/tools/schema_diff/__init__.py": 6,
+      "web/pgadmin/tools/schema_diff/compare.py": 2,
+      "web/pgadmin/tools/search_objects/utils.py": 2,
+      "web/pgadmin/tools/sqleditor/__init__.py": 19,
+      "web/pgadmin/tools/sqleditor/command.py": 8,
+      "web/pgadmin/tools/sqleditor/tests/test_view_data_templates.py": 2,
+      "web/pgadmin/tools/sqleditor/utils/query_tool_connection_check.py": 2,
+      "web/pgadmin/tools/sqleditor/utils/start_running_query.py": 2,
+      "web/pgadmin/utils/driver/psycopg3/connection.py": 1,
+      "web/pgadmin/utils/heartbeat.py": 2,
+      "web/pgadmin/utils/master_password.py": 1,
+      "web/pgadmin/utils/passexec.py": 1,
+      "web/pgadmin/utils/route.py": 1,
+      "web/pgadmin/utils/sqlautocomplete/autocomplete.py": 2,
+      "web/pgadmin/utils/tests/test_qtliteral_no_silent_unescape.py": 2,
+      "web/pgadmin/utils/tests/test_qtliteral_requires_conn.py": 2
+    },
+    "occurrence_fingerprints_by_file": {
+      "web/pgadmin/__init__.py": [
+        "6f7c08ed4b255358f9ac1242162a980ba35f366cd9bcf0dd2ac7fa0f2296a4a6",
+        "945358829254a792842749f318bcb3c221d83743a9e096c82856896491a3b1f3"
+      ],
+      "web/pgadmin/browser/__init__.py": [
+        "2bf657828f9996d31257127ee5ca0d5f4c8a092b88dfca71dfe51c41d82c1ede",
+        "c09cbe291b200e0a501d96122f04b9557db736b562d0a6573200ab4e7ba3e8b7"
+      ],
+      "web/pgadmin/browser/collection.py": [
+        "8cf35d3a1c4aefe4bec9badacd8d57978603dfb4ef73f9d078ee8fd74e27686a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/__init__.py": [
+        "148c7c5cf327545bc72b0eb009cdfe552195fdb58c12b5bc6a80eefba2771a9e",
+        "35f79fd50a984f875404e371f47a37c2ac6124430ead740996f7a2ee2d38548b",
+        "3847f61b9a080ff3339f573544ce7e0ca11a9605225605193727ab049508630b",
+        "4c7c8394e2f546d36347519783bf8a954fff113e3d3987dea001af8b34f4819b",
+        "51c635f9564d736bb55cfd3ac1e772474e17bc008f3dbf85553565604d5e3385",
+        "5c63444830c78a557a1b2edd4b820c18c03347104080cb17b6fd86f4a05a0262",
+        "691a4613d4e443c1973e3d50e3d014110ddb30b4a6a886d6981e9df916d9135a",
+        "78f0961e41165525023e3ce29a9adb44f2ff7c9ebab621744bab9568fab16f76",
+        "a71082f186a280ee6d9047a77ff15458daaadcbb53cda37851319139e3a8f329",
+        "aa6219b3bda19cef30ab23b0bab37415fec645af499a3840c176dfdacc72e235",
+        "b64a4079ff5b7b99d6d1ea6865967901a0372644c990d38a2d83df6dd4d74547",
+        "c9e49146bcce26210959f5972a32f613597eabb19c57eb5e1f69b3592df76e0e",
+        "d01982a1f7e2c12292dbc3ed609175487ff29b46699fd2135d44d87608b1e208",
+        "d301c1140f7a40ee28bcdd01e977f6079e39f0be80e74461e5f8b4a85c222766",
+        "d7d51c4c7ab79280969379a7c01e42e1cdebf2bfbfe22f7314db31456319a76c",
+        "eb14509e81ea0d98b7e049c3aa28390a1b95ff78d7ca3c946392c7fc1ea2317f",
+        "ecb78c3954b64960dbe6cd9a786c568e61f72157aa12227329f61f69316e4703",
+        "edec1a4aa40cf7d9f4854b451731d1352f7514d805914881d54968c4624f9fa9",
+        "eeec7b818d4ef3872ba93407f2dcb22de0b702977c42ad2668e800b06029d5a8",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/__init__.py": [
+        "0e50435defd63142c20bbd02f8e6dbef87e1b058aa499d251891c922fbd891de",
+        "1f2c691ee31c0edabe812c7dbf5e37e2df7e20473edd3bef9f788c2b1f3ec528",
+        "e9bf4adc96d38cd0c368eaf5970bb45d78aca4b3e8ebf0ea2a326c94027c15a0",
+        "edcf1c5f760238f659dbdfcf8008548113b2d7a99e41a7d2d0dac3a68f763a2a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/casts/__init__.py": [
+        "5686be273aa09fa94b73566e45f52cdaebe9d1b3828d1a2c9e00f70347a28605",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/__init__.py": [
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "fe8b601544c49cc2e1850d2a82c859f2b667a32600fdbba10c33f8a8f03122f7"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_jobs/__init__.py": [
+        "9ea5d8578a287cff684829cf3f470d7659f4504011d3109e4185e728815897a2",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_programs/__init__.py": [
+        "9bff8916a2f708ed36e73eda02f4553290b4bf927d7e1da1e461891f7f9ddaa6",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/dbms_job_scheduler/dbms_schedules/__init__.py": [
+        "0579f895471528a1a478d7a92967d51875d714833163cb27619b88650568eb8f",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/event_triggers/__init__.py": [
+        "855b3f2cbb7d101958299c6fe711a5e33dbe0504a41332fe0e5ec0590337d0eb",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/extensions/__init__.py": [
+        "90a737f3410155818a598696bcc41cfb82642fe9f26aa29c9dbfd88f2cd964b7",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/__init__.py": [
+        "e96cf318099e6380fd64ed2a9be0fc3d3d6789e0df5ba36fcee337f331cd924b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/foreign_servers/__init__.py": [
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "f3dd74fac11f20c38dbefe748f6246d8fd8e941fd77ffef4e98f57715050a7c4"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/foreign_data_wrappers/foreign_servers/user_mappings/__init__.py": [
+        "1e5d5bd44a910b1d21dabfb901b1b4b42984612e7200031689902147d38eaed8",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/languages/__init__.py": [
+        "34c82e614612fa580d949ca9dcdede33fe20cac5a473f3df9987419e444fc743",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/publications/__init__.py": [
+        "a3669d07d3248ba067df16d449e46b6543dfd4166910f89ea0e20564e55d0594",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/__init__.py": [
+        "041e945a5aeabc3fb4ee5f53ddac54e3f5397d04e632221bcff0c850b1f0ce88",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/aggregates/__init__.py": [
+        "40b161e45e1e4d5d9ce43b87fcff4f35bdf8aef70710d878dc5d610211809354",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/catalog_objects/__init__.py": [
+        "345fe579bf2ebf4dee2230c017272765775b926f0e24536f9f3af9acd95f4b20",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/catalog_objects/columns/__init__.py": [
+        "c07bd8fee86039e740b902c06fd0d29a5c13ad9bbed9551ba527e59549a3750f",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/collations/__init__.py": [
+        "5ea18aafc241e0675ea6d3e38bf5f9239d55235fe16096d798b89484b1d006f6",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/domains/__init__.py": [
+        "ebe16be90828d2784f3db99e5225182443f27f85f02553d1ed2a453e953217c5",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/domains/domain_constraints/__init__.py": [
+        "d3bf385654b36e218beeeddbe20b39176c5f4c9d3330cc6f47e03ff3b62b94aa",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/foreign_tables/__init__.py": [
+        "a6b917f9798b21bfac1799fa7978e9de51e9ea669c9561b2f84d4d9fd35417aa",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_configurations/__init__.py": [
+        "c7426e90f6f9a545f0cc2d283cf125fac08f43151508715ebf3139f9a8b755ca",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_dictionaries/__init__.py": [
+        "3e99e2b18a65396680fa24fd26dca988015f87f24c001688daca266c6a5701e4",
+        "c425b1cb9a348b4a74b6cc1c86fdbcbd51cd55fb45d24a68c3fcd2cce2fc0aa0",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_parsers/__init__.py": [
+        "951d57e9c1b550b10e23e95cbcdeb64f283a8147752de558f29bf538d5d800aa",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/fts_templates/__init__.py": [
+        "b1482679e713b0841960768d4c6b789673d8f089ea428f0cbdf80d7c26e99174",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/functions/__init__.py": [
+        "76afcbfa8d57c473c3ff77306464e8be81a9d513a5414c5c29eeaf69dced54dd",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/operators/__init__.py": [
+        "05b42a8fbc14a628813ba197aec62b8fb85f6919fdb06909e98504b9a590f8a7",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/__init__.py": [
+        "14e21fe497738265cce3f5722b49368eb9d26bb84b797964283065c175833a6b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/edbfuncs/__init__.py": [
+        "b096412478b1c47df4068106b3568fa0e0549b2801ad880535bf9452d80b6841",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/packages/edbvars/__init__.py": [
+        "60513d017a05cff4956abd1d8f2afbd6751d763c4d3978fa06634f47e85e6f17",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/sequences/__init__.py": [
+        "5a6685252f777d99d2d3636ddebca6751ec026193e2c665f018cd70cb21c0c0b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/synonyms/__init__.py": [
+        "b4253a10698407eb3dfcf300f6d58b88804a0ac6233f208202fc272be18d6a62",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/columns/__init__.py": [
+        "b062c88fa198b91bcc2f231b2882713add64b02d1141cc2ff52af72abbd10326",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/compound_triggers/__init__.py": [
+        "a343ee0b97269e128704fb8003788ca8b84ca5ecd9eb9c0342ef84cf62b6e4a1",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/compound_triggers/tests/test_compound_triggers_put.py": [
+        "62dad1af4e3a01f399ff5ec00ab442b6b9f28de0c1c1665d86001ddf312f7b70",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/__init__.py": [
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/check_constraint/__init__.py": [
+        "372d34fc69ab5d605afa32f9109103e066fdfad1271fe003864a0fa3acbd63a5",
+        "927007bc100e47c1131826334530672041dbfc9634418adb2781558ba21d99a9",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "fa60b8f2a40b08125c7a2ebc124d9d56580e216867a6b4beebcdadf425bbed2a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/exclusion_constraint/__init__.py": [
+        "108ad1ce29c484fe4bb37be77f1329d16af8c165ce23359d5931c3c6680bfa40",
+        "870a64e41ce09c82666b59df4854769bf4718131d683b6feca8f0680e7b96978",
+        "8ee498f0b641f4bb59f38db21c0a86af164d9f3929f109450f593dc82a07aad2",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/foreign_key/__init__.py": [
+        "394c79aa4f42eecf872f233e476bf747ce9670683692849d2bc56b9aa73b071e",
+        "dc6b54068adb7d6d90cab4c87b547962a3c34fffa75afc6f67e84d7484ebe3cb",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "f39c307cd2d61991a80e594521662ac8c154499211a46430e3fd261787bca1d8"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/constraints/index_constraint/__init__.py": [
+        "4904511268fb9893c369503b8974858c3cf5fa27120a3f5499f66bc4cd77b773",
+        "4f665b554342e7453c2dee1f0809fed7480d46e5098d51acb35d671ff96f08ce",
+        "e002f7983f2701aeadf2aca1dddf8dc05d955bce8b022d05a73fb7632a4e46e7",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/indexes/__init__.py": [
+        "eb74eca1cac5c4cddcab6d624b015c2107d2d6400cc5cb97a81b924d399d2343",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/row_security_policies/__init__.py": [
+        "9a6c251a1b0fa4adf2dbdbc2c22855d06df1625c5a17c8675415ab61a9d79d3b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/rules/__init__.py": [
+        "7797513329c3d53b6f63207d2a808591fc44ffd3f756d09cd6c65592105544b1",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/triggers/__init__.py": [
+        "8a876110d33528016e355a60e3cfc2d9fcae9c11e9777f62efbc7d5bccabcb1a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/triggers/utils.py": [
+        "1134f6ced6bb2103dcfc189c3a8741d8078e0ac2778836d2d1794e6dbc8bc0bb",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/tables/utils.py": [
+        "0ddb61b895f8c7576967aa56a644bd834a6a9397731cf17c5e38971098d1bea9",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "feeb3a67af60293b01e9ec5181564964370add30b94f0845336c02855e45c362"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/types/__init__.py": [
+        "80fa10975a4aa3e1c6bafb734877a33965b8b92aeaf1138c18bc9f7e65478051",
+        "deedb44ae51f2c9844c4b0f7ffe1b61f9dea17412a11161a161828b0f90b82eb",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/utils.py": [
+        "c7efa9a7d760a3e00abb15d84f734e8446a7faa14b8cfbda84b6867c851e9eff",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/schemas/views/__init__.py": [
+        "31f7569030ef65efabb4d5228f3b99c72d2fb3aee7a3646bab84f1e76102ca66",
+        "896b66779b6dd21f0ec0142ca06a0507237e2a05cdd2d8121903664de47e2af5",
+        "ad7aab43c3d926c99f0aea54764341d41f654ef75f4d47a4d8abe1615e9d01f8",
+        "e1375035f890d44d51900862c75ec33dc86c6be9ed6c2a126cbd4b0b648de66c",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/subscriptions/__init__.py": [
+        "a20d20932c49422cf1adb02f3376a5e395632abf5eda7a9f0fedec8bd4eda549",
+        "ce4ac4216b5cf5d170a35d9fe2a79d0c8f7dda3d0764c7b3e21fc47626ec2f36",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_comment_description_sql_escaping.py": [
+        "69469218d28d8a552230eb57910626d5346020a91926f3391e0bec5900ac628b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_name_literal_sql_escaping.py": [
+        "2197dedc8a85e89db6e74aeeeaa10b19b49d13d65daadfc5f083b2c8a634b29c",
+        "69469218d28d8a552230eb57910626d5346020a91926f3391e0bec5900ac628b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/databases/tests/test_stats_template_regclass_cast.py": [
+        "69469218d28d8a552230eb57910626d5346020a91926f3391e0bec5900ac628b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/directories/__init__.py": [
+        "9e94a8247af5ce6e385f2daf5e9ac54dc63e35f95bfb9ff0b65010f719cf8419",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/pgagent/__init__.py": [
+        "e97ead421b3b2de090a4b684c8b0f074c55824ec42699b3f36055141f9aa2d10",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/pgagent/schedules/__init__.py": [
+        "ca3c7c76fc0cbffd91cdc27b2293fbf179628fc40416d88010d354bae62826ab",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/pgagent/steps/__init__.py": [
+        "286a87d8b780e68df80fd245d61799962e32f2b095cc9237d331f0cc9e678643",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/pgd_replication_groups/__init__.py": [
+        "d2951f6fb830620cda6001cd13519cc8fc48f6d03a2d337ac661e7ab5aa63e87",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/pgd_replication_groups/pgd_replication_servers/__init__.py": [
+        "a658b7bfeadb025fa01fda2880471325dee345418b766649baba4c5239b5702e",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/replica_nodes/__init__.py": [
+        "b1ed4f66ba7f240d3a17624ed5c04764acf4bd2360b155e61ace7ba7a81d56e5",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/resource_groups/__init__.py": [
+        "e459a5fb80b96389423a5934927ec827c0fc3aabf52c37af2d0df6d37ceda3f7",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/roles/__init__.py": [
+        "68a4f53553d94ea57530ee45d9bc3a1b34a2b223dd24fc6217cc2d89da4ff43e",
+        "8990e8257f6bfa6f768d49f992388185e7128ecbbb04350a5051004d58278b46",
+        "a7c48c1c4d20b4f80d90fae5313ff5e559f2fb9baf4ee0d288edc3a769a93b14",
+        "b9c30bebf51cc7e1c7c667909f3de9e3b719dd5ba38284c8e46979704328cae4",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/tablespaces/__init__.py": [
+        "01e11ba79b30abfc88c9fd60fd9ff984023e95e0f0b61178babaf03afef02fad",
+        "197134bc1727296d6cbfd8c24b18218c4e9a6de812c2d97f3b73a192adf6f8cc",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/browser/server_groups/servers/utils.py": [
+        "1c9713411d9ddbdda653b00ba481480656aa1e2e325c18286acfdf2291dd0054",
+        "2d0f19a03f92b290ff907bcc638f8d1320b3516a542f60fa295d0b09a0525529",
+        "30c6d27a407d8722d66012e7bb17bd974a441a41912fe12d45f8e7581533b401",
+        "63683fa1a9e19dfb910d2b2531c850415bd42e04446d9a16d65415e823b8dc2b",
+        "9538c1109e14e19ebc68f89fcf5d6afe8f1f90c002744c29eeabc11f08ddcbe8"
+      ],
+      "web/pgadmin/browser/utils.py": [
+        "ec30174d0a57bdb70e0d6267b76289728a568ec0fe8fc3cc0adac8891452fe02",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/dashboard/__init__.py": [
+        "18c2929dfe349a35b662f80641bff21cf7d42c1de24979a06237ceb5959a31d8",
+        "b9b10c52cfc0e677fa6ba7aa78c5123cb07456c873ff7cbfe220f2da5ec1ebd6"
+      ],
+      "web/pgadmin/dashboard/precondition.py": [
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "f551f85ae2d051caf48d8876755e278d1d537a5f24dbb82c208ae01834d35aa7"
+      ],
+      "web/pgadmin/llm/__init__.py": [
+        "1b235cdd1dac8ee83509bb9a658a39e861d81ca47f10d2f3e4ab2be66dcf7a70",
+        "24a76009571f353c88bc25c8d67539219574e32e98d8d92c75da4a2649a16dd3",
+        "4582436f88962e6c4320f3d84c293660d3971c0ec627b327cb54d346fae5be73",
+        "778a80727d5b89842868966d7644264f254d5057b78389c851866a42991fe832",
+        "879ccf1a8fc3d64c881252f5c39c78765426eda023868f97dd3c8e019dc256c2",
+        "927fe542c0aa923e7c1042fc357630a0d1beef357e698ee776523da2f6298780",
+        "bb2d10002c6d9a1e265354533c9dd931b4519a2799a083b4439af136be553d63",
+        "c2c59b938cb234ad28e92f1c98279132bc6e255deb2059b42e1fc8271866a84a",
+        "cef46ced7ef9916b0aa9d7d4ed72a894e6d0e14336c3f5a4e4256a18d54a337e",
+        "d15bb7f47a5176adcb19e3463f63d44317a184787e180c9d2c38d0dc73be6477",
+        "e7bfd08164a968806780844470516c59efbdddc63c9244281e9d7e2629cf2174",
+        "ef74033168f8354052241e1e7215de42e1592337eafb9dd04d3284b9bfcefb69",
+        "f3dadc32113f547d90364e65912f5afd476ed7c109dc79e65b7294edec8d8d4f",
+        "fa0f75812bb900ac833ddc852a44519fa54c55ccad4925e38ee3f259be6aa4b2"
+      ],
+      "web/pgadmin/llm/tools/database.py": [
+        "3947f1c618bfdcda14550a782502b5cad751320633b529509522d3be5000fd5e",
+        "48befb6e2a7a1b2eb70a682220e4a76087730bb805723df9632d55f560ff6f22",
+        "8ac719b36ee8589cd1e607b78eeec395672ea0c68c051fffcd4857bbb0b9ba01"
+      ],
+      "web/pgadmin/misc/workspaces/__init__.py": [
+        "40a479458921c8c1410010c1de5e25e73c68bcf6810919db75bbdcb3736fdbe5",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/backup/__init__.py": [
+        "13e7742218ceb1a4fb07abffbb9212021c2879e37cec59b9eba42a50a966eb17",
+        "2ae242e8412e9af4615e34fa0130c6fc66fc2858427b229f613271b425a445f0",
+        "36ee0488849737759f550d52ad2c21f342c1559fb214a0d6f7f8bc81929a4e74",
+        "476802be33fc48316d8199c14fc97860177f7d50c7109b6c0b3b5fe7dc8266ba",
+        "a54c04a0281d519acb1b3fa4271fec41ef6a979af50d3316f400c0eea218d95a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/backup/tests/test_backup_create_job_unit_test.py": [
+        "d04bdca91c9ce7cf16984f64c731fabc63263db418ce898c656632293a39c896",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/__init__.py": [
+        "02c316971f381f3decb821b1bc6e9020831be4158e6924611739d8040f9b5003",
+        "09d261563e18f30d4b016814a9ff5dbd3c97b80b105d4701787f5c34e7083517",
+        "143f63c3d49de406d4e5d5554bf43e2115bdedcfde35fe3f96306057b367142b",
+        "29d0d412bf4dce21e4df76dd262d613d5ada2f3fa4b87a4c5c6a7ddc166ef882",
+        "3ece7a22b83b9d05e09f0af07285ad72ba0abac82bfb45ef18232bd47506ea2d",
+        "4e941dbd0517fb4a0f9cd19f8eb334f8b29fc10204923cdea4b9b0829214a970",
+        "5a9bb6544c5998f3df3f6ab015a1a52242eabe40c8338d4ed103d7626fe6225b",
+        "67d317e8d1ecbd6cd30456a10f38ead1b4ed5786b54cf0ef689f12f054e3b6d0",
+        "685dff699eb7b1c36c2b43f496ea4e880614978d99425ded3c950670f310cc48",
+        "722c70ecbd447c2938f0f8960593602dfd4d96ddecd4d24b7f9ebfc82a2f9a4b",
+        "7785ae222cc83c8de42af9d9bfd37ce7a695dfcf186b21d944dd131907b382c4",
+        "ba79171453d30190e503a4c962ac4e5591b707b40bea6c28600200f4a741413b",
+        "d950a4502717b95346869423b9aad4533020f701ad43f34803f8ae0fa573d920",
+        "e0dc8cd2efc2256bd4577e12f8224bd9d962b5c654c7e042a5e303cf21e0fdc6",
+        "ed361347ae0706b3e3f2c91df8b5a19c6658a9ab9d6daa694c3a9178ac8398d0",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_debugger_clear_all_breakpoint.py": [
+        "3a10b6b840ff049b0e4b16f7f1e60fa4f5a2fa2812589b55a9666f72e7c0c899",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_debugger_execute_query.py": [
+        "3dd9ac105467c736a91f7a76033a5e438164e0073a169da3ce5d12dcb7184cb8",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_debugger_poll_execution_result.py": [
+        "97cf4269fcc2adffbebd774ad9b1136e30d5e1963063dc6a395a6aac62fba63a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_debugger_poll_result.py": [
+        "02a4c3648891e0fb78a75956fa901bf9c61696ecf24df43b8333f608563069d1",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_debugger_set_breakpoint.py": [
+        "28a4c5cb20ebbda428c85137932e168e56052ae01384dec5290775224eb617ca",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/debugger/tests/test_start_execution_debugger.py": [
+        "15229934ee07839bddda53d6ffa8ef206764ad1a35537f88a43a54c76ae3a8c8",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/erd/__init__.py": [
+        "0b766e575024f0a5a3f7128ed7676e6baf1d425e293d4e7895ba968468e7d626",
+        "86fffe89693aa031d8d1881a90b55d45fb867f06f819b0c97abaaedee4b0dcec",
+        "ccd9dfd7bd7a3b5201dd0a30b54c5cde4ae7c06206785007c9df523d66827446"
+      ],
+      "web/pgadmin/tools/grant_wizard/__init__.py": [
+        "1331f1f1f1e512d05a9de3d4cfba8ef63bc5d095b12e4b81db010c28dca10bbb",
+        "7cafd07db6cdf15fe57ec63ab846bd61fb75987767e4b9bf8fbaf17cb8ce085c",
+        "808ed78fdb598b9564cc8fd8b627c3f97eb239bff92180ed8167f72bbfab94d3",
+        "db3297f7fb76b11dde13284942caece8cbf41536382af198bdf28356c7a8f921",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/import_export/__init__.py": [
+        "388dc3f41fe9af99acdb1cdf57e660bea2eed5ee9a89a5aa223fc6faed96ab45",
+        "a54c04a0281d519acb1b3fa4271fec41ef6a979af50d3316f400c0eea218d95a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/import_export/tests/test_import_export_create_job_unit_test.py": [
+        "5400cf72b4aa2e7d470855f0015765305652e7d213cd218c20bd8884ed6a44e8",
+        "9880e1441de4fd7d61f6d6ca25f8a7e6edb5fdb044a9b27083a8abfe3ae81692",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/maintenance/__init__.py": [
+        "5f43a18116fafd7f0050e715481308e89e3c5d6edfd33c2269e7be67f6a3f57e",
+        "a54c04a0281d519acb1b3fa4271fec41ef6a979af50d3316f400c0eea218d95a",
+        "d58e344725851b018f11869fad7bd0a95a9771de969a07ab7524543c8818af8b",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/maintenance/tests/test_maintenance_create_job_unit_test.py": [
+        "5c8fb06d14c1a90c14886f997de8e7375d031d06ee76b8ae9bb8b543a0241dba",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/maintenance/tests/test_maintenance_input_validation.py": [
+        "9c2fb6834863b164105c48ffc92549a39d28e920519b0d2a517022b5f52bc848",
+        "dfafcd0832861a8f252a4ac3f2a2a257209a7e07871328939276eb499dd8fa8d",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/psql/__init__.py": [
+        "040c389e2d6278f24909b722eba7defc3c9a7c8a42bbb754e4a96ad0795e4839",
+        "0b766e575024f0a5a3f7128ed7676e6baf1d425e293d4e7895ba968468e7d626",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/restore/__init__.py": [
+        "a54c04a0281d519acb1b3fa4271fec41ef6a979af50d3316f400c0eea218d95a",
+        "acb44729e59e84fb3bc21bbc707a9a23ccb8c9c8a4b8988b4c43d1c6894176c5",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a",
+        "f8b48ee51704c11ddfe533dcc61d892fa28d457af113acc0b08ea0660ae4df00"
+      ],
+      "web/pgadmin/tools/restore/tests/test_restore_create_job_unit_test.py": [
+        "9b748dd279248a059f76749f6ae172f4e6165b74a56bd7882d7175acd743a69a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/schema_diff/__init__.py": [
+        "02490c52f8d6469cf49cd7348d0c49e46d2b72f7b37cc06bc489da4004c511e0",
+        "1144eee1a3822707b89fd2f67239ecaffa88e5b786615c765540ce1e1f7a7517",
+        "39347a2a042116bf05fbc483becaa8a025aa97e0c85c77e2ac8a121b75eda659",
+        "5e1ba65867e60f98c12d25523b8e47f6f7df41f77cfea8ff37ff3f7c9c661bfd",
+        "ed1daa6a0f73f188db57ccd23e5752aadf79beb28be67e99df0f1a5e790173e2",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/schema_diff/compare.py": [
+        "e712d9d1db31a0d8c7bc877f405118018d70b9909b3a882bb79293b45a76e834",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/search_objects/utils.py": [
+        "833d2224a0f9bd536fc26bea68f65104b89b30d9e42c7e4585a19a55d90962e5",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/sqleditor/__init__.py": [
+        "0155d52174538d78fe2092742ab20fa87f90046bd35f7cf991c7b9a8a99cd0b0",
+        "139e6d4b3e9f9f24d7dc8f48c2059cb70f8b25f3d78436f602c5aa413a5468b8",
+        "19ca464d663386a0ccc3f391295f5c62328d3336a7b381172168fa6945b38f91",
+        "1bf1afdf5d186f736fa6e4f59d594b3fed540e15d137f4d6766d43cef74b045c",
+        "1cd6e17c7b0b7f2d63612d3078b9c485a128b6249ca6333b7ad2ccb7105c742e",
+        "3d22080ad198b58ff1f7eb07f9f7bdd0733f51de5d88bdaa87e0544eb5dc545c",
+        "40cd18e95a46d4182fcaec22f66e69b7d45a2a73281fbfaea209b5d44be26673",
+        "6a74cc4072a6dc946e101e49d805bc5b8fb38f6c34decb241c177e4b1ae95980",
+        "7eeae1f0c724c606d192f11fb454180245b1f0b305884dd60145df09a44e4515",
+        "81a103fca5219c98cac942503621f2aee4fca2324b346d5ad261bda1e2fc2a50",
+        "85446e5683b848918b8ea737847ba163c99f37bd8dff8303ee93c531dd338801",
+        "96323a236f99f83aeab376cb605b1eb89dd679a36b29560584d72e71462aeed6",
+        "9bc0d33a5e4787b66a272b7aceb092a27c024994aa36d9035b82efd92b5626e3",
+        "ccd9dfd7bd7a3b5201dd0a30b54c5cde4ae7c06206785007c9df523d66827446",
+        "d7880ad9589af832f67542c45b23485e12fb63e2aa4f9fea8628bb9a73548b89",
+        "d81d32c7397ea7cdba93d9ccbba630bd0983d7161a6d287206bb6da89040f819",
+        "ed1daa6a0f73f188db57ccd23e5752aadf79beb28be67e99df0f1a5e790173e2",
+        "ff7818be05359595532640e0e39c27107d0a3695751ef80711c443f1d865d170",
+        "ff7818be05359595532640e0e39c27107d0a3695751ef80711c443f1d865d170"
+      ],
+      "web/pgadmin/tools/sqleditor/command.py": [
+        "1f022031ed6be19fcb98c93f2dba56e477450c0e628da943c7ddd694eb754495",
+        "285039fbaee52744a8f83a5c734942a5c0b897f43d2c288c571ef001ae1345bd",
+        "4580b6d586b5718733db3d220edec77a0ed4f29aa468eb534c8ebf6010457ef9",
+        "94b969bd4206fe6eaac95ead8912c44329540a9ba8d3660a3dd8b42388f6fb94",
+        "a30ace2411c7418d09705d4a0fdb745849ae6f1f25fc502e95ce2ce8b6631e18",
+        "bcd80febc86d72d8e58acad7fba491c81f98b30b95d1459c1043fe8e17431936",
+        "eb13a6e4c485d1429b460c6d4d68a5e18f5bef6bdc7c26398e88eedadf8aa886",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/sqleditor/tests/test_view_data_templates.py": [
+        "0a2ce6f5d27dea93c7da7b6a3b6a08e3e0d435a71dbf9ceceb25d3f26c2d13e8",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/sqleditor/utils/query_tool_connection_check.py": [
+        "4639bc587879134c5bfefe19ba5274c961414fc4d8a911271e3e2eb0e9291dae",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/tools/sqleditor/utils/start_running_query.py": [
+        "3030466c181671b3826923c891836f360da8db29586be186310ffe9a680fbf1a",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/utils/driver/psycopg3/connection.py": [
+        "1cc9cdcfc8b6b5ecab83655e57d06e5f8338f636bf346d1b845faf6254b004e4"
+      ],
+      "web/pgadmin/utils/heartbeat.py": [
+        "07e8eb490e96c1b4e9bc9fa40dc2e2fc96cdea542ed5f6b66c888ee5af9e40e7",
+        "c40276103787f4a7fb59d22f71304a74c8e4db842517d13c04fee0fbdb3d004b"
+      ],
+      "web/pgadmin/utils/master_password.py": [
+        "d1a85a968c7475031999a23ff82cd99783fda49125dfcbd47371bf2227383345"
+      ],
+      "web/pgadmin/utils/passexec.py": [
+        "e671721bc5abf10d78d854acc37aeef0c8bad726e6f698fe62791a410db125ef"
+      ],
+      "web/pgadmin/utils/route.py": [
+        "c640a14d77dda2e0a8f2dbd726d66f71f69334e10f0756f293ff0ddd0c37fd6b"
+      ],
+      "web/pgadmin/utils/sqlautocomplete/autocomplete.py": [
+        "a67c72ef912a2b8d5592779966650eac2c62d351a482c3d5cf76b6b0f1a4f20e",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/utils/tests/test_qtliteral_no_silent_unescape.py": [
+        "568b998bb235665de4d5c2ef4ddbc926b3d94af1643b6dbe448f1feb5c8efaa7",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ],
+      "web/pgadmin/utils/tests/test_qtliteral_requires_conn.py": [
+        "2deeea2d6eccd1d2ec5b8bca5252157470ff12b7951084d527aa5529b9d9a350",
+        "eff31fec204b77c1c9e2e79fab18c7a92c7c5dd6c7af389b822b190fe5a8050a"
+      ]
+    },
+    "root": "web/pgadmin",
+    "token": "PG_DEFAULT_DRIVER"
+  },
+  "provider_roots": [
+    "web/pgadmin/cdeadmin/providers",
+    "web/pgadmin/cdeadmin/static/js/providers"
+  ],
+  "schema": "cdeadmin.architecture-policy.v1",
+  "support_claim_states": {
+    "compatibility_mapped": "Behavior is admitted through a named compatibility profile and evidence.",
+    "connector_managed": "Behavior and lifecycle are owned by an external connector.",
+    "deferred": "Designed or planned but not available for execution.",
+    "experimental": "Reachable production behavior with explicit limits and no stability promise.",
+    "implemented": "Reachable production behavior with current qualifying evidence.",
+    "unsupported": "Deterministically unavailable; the product must refuse the operation."
+  },
+  "test_path_parts": [
+    "regression",
+    "test",
+    "tests"
+  ]
+}

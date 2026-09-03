@@ -1,0 +1,25 @@
+{
+  "schema": "cdeadmin.clickhouse-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.clickhouse",
+  "provider_version": "0.1.0",
+  "protocol": "http_json",
+  "reference_profile": {"server_version": "25.12.10.7-stable", "runtime_version": "25.12.10.7", "client": "Python urllib.request", "status": "qualified"},
+  "qualified_surfaces": [
+    {"surface": "http_json_sql", "status": "passed_standalone_plaintext"},
+    {"surface": "native_tcp", "status": "not_claimed_client_unqualified"}
+  ],
+  "capability_boundaries": {
+    "native": ["clickhouse_sql", "columnar_results", "system_catalogs", "merge_tree_ddl", "mutations", "projections", "data_skipping_indexes", "access_control", "system_operations"],
+    "explicitly_unavailable": ["common_transaction_finality", "automatic_mutation_retry", "native_tcp_without_separate_client"]
+  },
+  "client_platforms": [
+    {"platform": "linux", "contract_suite": "passed", "live_suite": "passed_standalone"},
+    {"platform": "macos", "contract_suite": "ci_required", "live_suite": "not_run"},
+    {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
+  ],
+  "qualified_deployments": [
+    {"deployment": "disposable_standalone_plaintext_http", "server_version": "25.12.10.7", "status": "passed", "evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902", "runtime_image_digest": "sha256:59efe7d83b1e13c2e439a80adcce1fad186489d69a55d4b763102280a359a4cc"}
+  ],
+  "activation_state": "production_experimental_provider",
+  "remaining_live_boundaries": ["verified_tls", "mutual_tls", "restart", "controlled_disconnect_fault", "distributed_cluster", "native_tcp"]
+}

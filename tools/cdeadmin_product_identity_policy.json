@@ -1,0 +1,133 @@
+{
+  "policy_version": "1.1.0",
+  "identity": "web/pgadmin/cdeadmin/product/product_identity.json",
+  "identity_runtime": "web/pgadmin/cdeadmin/product/identity.py",
+  "notice": "NOTICE",
+  "smoke_plan": "tools/cdeadmin_package_smoke_plan.json",
+  "inventory_terms": [
+    "pgAdmin 4",
+    "pgAdmin",
+    "pgadmin4",
+    "PGADMIN_",
+    "www.pgadmin.org",
+    "org.pgadmin.pgadmin4"
+  ],
+  "inventory_excluded_directories": [
+    ".git",
+    ".yarn",
+    "node_modules",
+    "generated",
+    "__pycache__",
+    "build",
+    "dist",
+    "coverage"
+  ],
+  "forbidden_product_banners": [
+    "pgAdmin 4 - PostgreSQL Tools"
+  ],
+  "product_banner_scan_excluded_paths": [
+    "tools/cdeadmin_product_identity_policy.json",
+    "tools/tests/test_cdeadmin_product_identity.py"
+  ],
+  "source_anchors": [
+    {"path": "web/branding.py", "literal": "APP_NAME = 'CDEadmin'"},
+    {"path": "web/version.py", "literal": "APP_RELEASE ="},
+    {"path": "Makefile", "literal": "APP_NAME :="},
+    {"path": "runtime/src/js/cdeadmin.js", "literal": "let cdeadminMainScreen"},
+    {"path": "pkg/helm/Chart.yaml", "literal": "name: cdeadmin"}
+  ],
+  "product_surface_assertions": [
+    {
+      "path": "web/branding.py",
+      "required": ["APP_NAME = 'CDEadmin'", "APP_SHORT_NAME = 'cdeadmin'"],
+      "forbidden": ["APP_NAME = 'pgAdmin 4'", "APP_SHORT_NAME = 'pgadmin4'"]
+    },
+    {
+      "path": "web/pgadmin/dashboard/static/js/WelcomeDashboard.jsx",
+      "required": ["CDEadminLogo", "Configure CDEadmin", "independent hard fork"],
+      "forbidden": ["PgAdminLogo", "Maximises PostgreSQL", "pgAdmin Website", "Planet PostgreSQL"]
+    },
+    {
+      "path": "web/pgadmin/about/__init__.py",
+      "required": ["fork_status", "upstream_name", "fork_summary", "attribution"],
+      "forbidden": []
+    },
+    {
+      "path": "runtime/package.json",
+      "required": ["\"name\": \"cdeadmin\"", "\"productName\": \"CDEadmin\"", "\"relationship\": \"independent hard fork\""],
+      "forbidden": ["\"name\": \"pgadmin4\""]
+    },
+    {
+      "path": "web/package.json",
+      "required": ["\"name\": \"cdeadmin-web\"", "\"relationship\": \"independent hard fork\""],
+      "forbidden": ["\"name\": \"pgadmin4\""]
+    },
+    {
+      "path": "runtime/src/html/splash.html",
+      "required": ["<title>CDEadmin</title>", "cdeadmin-welcome.svg"],
+      "forbidden": ["<title>pgAdmin 4</title>", "welcome_logo.svg"]
+    },
+    {
+      "path": "Dockerfile",
+      "required": ["WORKDIR /cdeadmin", "useradd -r -u 5050 -g root -s /sbin/nologin cdeadmin", "COPY LICENSE NOTICE /cdeadmin/"],
+      "forbidden": ["WORKDIR /pgadmin4", "useradd -r -u 5050 -g root -s /sbin/nologin pgadmin"]
+    },
+    {
+      "path": "pkg/helm/Chart.yaml",
+      "required": ["name: cdeadmin", "cdeadmin.io/upstream: pgAdmin-4-9.17"],
+      "forbidden": ["name: pgadmin4-helm"]
+    },
+    {
+      "path": "pkg/linux/cdeadmin.desktop",
+      "required": ["Name=CDEadmin", "Exec=/usr/cdeadmin/bin/cdeadmin", "Icon=cdeadmin"],
+      "forbidden": ["Name=pgAdmin 4", "Comment=Management tools for PostgreSQL"]
+    },
+    {
+      "path": "README.md",
+      "required": ["# CDEadmin", "independent hard fork of pgAdmin 4 9.17", "Product identity and compatibility names"],
+      "forbidden": ["# pgAdmin 4"]
+    },
+    {
+      "path": "docs/en_US/index.rst",
+      "required": ["CDEadmin", "independent hard fork of pgAdmin 4 9.17"],
+      "forbidden": ["Welcome to pgAdmin 4", "images/logo-right-128.png"]
+    },
+    {
+      "path": "runtime/src/js/cdeadmin.js",
+      "required": ["let cdeadminMainScreen", "let cdeadminServerProcess", "cdeadmin-main", "cdeadmin_preload.js"],
+      "forbidden": ["let pgAdminMainScreen", "let pgadminServerProcess", "pgadmin-main"]
+    },
+    {
+      "path": "web/pgadmin/utils/constants.py",
+      "required": ["KEY_RING_SERVICE_NAME = 'CDEadmin'", "KEY_RING_USER_NAME = 'cdeadmin-master-password'"],
+      "forbidden": ["KEY_RING_USER_NAME = 'pgadmin4-master-password'"]
+    },
+    {
+      "path": "pkg/redhat/repo-rpm.sh",
+      "required": ["CDEADMIN_REPO_DIR is required", "CDEADMIN_PKG_KEY", "cdeadmin.repo"],
+      "forbidden": ["ftp.postgresql.org/pub/pgadmin", "PGADMIN_PKG_KEY", "pgadmin4.repo"]
+    },
+    {
+      "path": "SECURITY.md",
+      "required": ["# CDEadmin Security Policy", "not a CDEadmin contact"],
+      "forbidden": ["please contact us at `security@pgadmin.org`"]
+    }
+  ],
+  "protected_upstream_notices": [
+    "LICENSE",
+    "pkg/mac/licence.rtf",
+    "pkg/win32/Resources/license.rtf"
+  ],
+  "upstream_notice_fragments": [
+    "pgAdmin 4",
+    "Copyright (C) 2013 - 2026, The pgAdmin Development Team",
+    "Permission to use, copy, modify, and distribute"
+  ],
+  "cdeadmin_notice_fragments": [
+    "CDEadmin is an independent hard fork of pgAdmin 4",
+    "distributed under the PostgreSQL Licence",
+    "Copyright (C) 2013 - 2026, The pgAdmin Development Team",
+    "not affiliated with or endorsed by the pgAdmin Development Team",
+    "release is not yet approved"
+  ]
+}

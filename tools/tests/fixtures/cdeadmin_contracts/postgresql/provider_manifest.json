@@ -1,0 +1,43 @@
+{
+  "identity": {
+    "contract_version": "1.0.0",
+    "provider_id": "org.pgadmin.postgresql",
+    "provider_version": "0.0.0-structural-fixture",
+    "profile_id": "postgresql-native",
+    "profile_version": "18.3",
+    "evidence_reference": "cde-prep-000:pgadmin4-9.17-bc58657d3d3a-20260831"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {
+    "minimum": "1.0.0",
+    "maximum_exclusive": "2.0.0"
+  },
+  "support_state": "implemented",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": false,
+  "contracts": [
+    "EndpointProvider",
+    "CapabilityProvider",
+    "ResourceProvider",
+    "SessionProvider",
+    "ExecutionProvider",
+    "ResultProvider",
+    "DiagnosticProvider",
+    "EventProvider",
+    "OperationProvider",
+    "ParityEvidenceProvider"
+  ],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}
+  ],
+  "extension_schema": null,
+  "provenance": {
+    "purpose": "Structural contract test only; not a production provider registration."
+  }
+}

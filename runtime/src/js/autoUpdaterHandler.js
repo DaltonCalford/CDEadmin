@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -13,7 +13,7 @@ import * as misc from './misc.js';
 
 // This function stores the flags in configStore that are needed
 // for auto-update and refreshes menus
-export function updateConfigAndMenus(event, configStore, pgAdminMainScreen, menuCallbacks) {
+export function updateConfigAndMenus(event, configStore, cdeadminMainScreen, menuCallbacks) {
   const flags = {
     'update-available': { update_downloading: true },
     'update-not-available': { update_downloading: false },
@@ -23,44 +23,44 @@ export function updateConfigAndMenus(event, configStore, pgAdminMainScreen, menu
   const flag = flags[event];
   if (flag) {
     Object.entries(flag).forEach(([k, v]) => configStore.set(k, v));
-    refreshMenus(pgAdminMainScreen, configStore, menuCallbacks);
+    refreshMenus(cdeadminMainScreen, configStore, menuCallbacks);
   }
 }
 
 // This function registers autoUpdater event listeners ONCE
-function registerAutoUpdaterEvents({ pgAdminMainScreen, configStore, menuCallbacks }) {
+function registerAutoUpdaterEvents({ cdeadminMainScreen, configStore, menuCallbacks }) {
   autoUpdater.on('checking-for-update', () => {
     misc.writeServerLog('[Auto-Updater]: Checking for update.');
   });
 
   autoUpdater.on('update-available', () => {
-    updateConfigAndMenus('update-available', configStore, pgAdminMainScreen, menuCallbacks);
+    updateConfigAndMenus('update-available', configStore, cdeadminMainScreen, menuCallbacks);
     misc.writeServerLog('[Auto-Updater]: Update downloading.');
-    pgAdminMainScreen.webContents.send('notifyAppAutoUpdate', { update_downloading: true });
+    cdeadminMainScreen.webContents.send('notifyAppAutoUpdate', { update_downloading: true });
   });
 
   autoUpdater.on('update-not-available', () => {
-    updateConfigAndMenus('update-not-available', configStore, pgAdminMainScreen, menuCallbacks);
+    updateConfigAndMenus('update-not-available', configStore, cdeadminMainScreen, menuCallbacks);
     misc.writeServerLog('[Auto-Updater]: No update available.');
-    pgAdminMainScreen.webContents.send('notifyAppAutoUpdate', { no_update_available: true });
+    cdeadminMainScreen.webContents.send('notifyAppAutoUpdate', { no_update_available: true });
   });
 
   autoUpdater.on('update-downloaded', () => {
-    updateConfigAndMenus('update-downloaded', configStore, pgAdminMainScreen, menuCallbacks);
+    updateConfigAndMenus('update-downloaded', configStore, cdeadminMainScreen, menuCallbacks);
     misc.writeServerLog('[Auto-Updater]: Update downloaded.');
-    pgAdminMainScreen.webContents.send('notifyAppAutoUpdate', { update_downloaded: true });
+    cdeadminMainScreen.webContents.send('notifyAppAutoUpdate', { update_downloaded: true });
   });
 
   autoUpdater.on('error', (message) => {
-    updateConfigAndMenus('error-close', configStore, pgAdminMainScreen, menuCallbacks);
+    updateConfigAndMenus('error-close', configStore, cdeadminMainScreen, menuCallbacks);
     misc.writeServerLog(`[Auto-Updater]: ${message}`);
-    pgAdminMainScreen.webContents.send('notifyAppAutoUpdate', { error: true, errMsg: message });
+    cdeadminMainScreen.webContents.send('notifyAppAutoUpdate', { error: true, errMsg: message });
   });
 }
 
 // Handles 'sendDataForAppUpdate' IPC event: updates config, refreshes menus, triggers update check, or installs update if requested.
 function handleSendDataForAppUpdate({
-  pgAdminMainScreen,
+  cdeadminMainScreen,
   configStore,
   menuCallbacks,
   baseUrl,
@@ -73,7 +73,7 @@ function handleSendDataForAppUpdate({
       const currentFlag = configStore.get('auto_update_enabled');
       if (typeof currentFlag === 'undefined' || currentFlag !== data.check_for_updates) {
         configStore.set('auto_update_enabled', data.check_for_updates);
-        refreshMenus(pgAdminMainScreen, configStore, menuCallbacks);
+        refreshMenus(cdeadminMainScreen, configStore, menuCallbacks);
       }
     }
     // If auto-update is enabled, proceed with the update check
@@ -85,7 +85,7 @@ function handleSendDataForAppUpdate({
       data.product_name
     ) {
       const ftpUrl = encodeURIComponent(
-        `${data.auto_update_url}/pgadmin4-${data.upgrade_version}-${process.arch}.zip`,
+        `${data.auto_update_url}/cdeadmin-${data.upgrade_version}-${process.arch}.zip`,
       );
       let serverUrl = `${baseUrl}/misc/auto_update/${data.current_version_int}/${data.upgrade_version}/${data.upgrade_version_int}/${data.product_name}/${ftpUrl}/?key=${UUID}`;
 
@@ -95,8 +95,8 @@ function handleSendDataForAppUpdate({
         autoUpdater.checkForUpdates();
       } catch (err) {
         misc.writeServerLog('[Auto-Updater]: Error setting autoUpdater feed URL: ' + err.message);
-        if (pgAdminMainScreen) {
-          pgAdminMainScreen.webContents.send('notifyAppAutoUpdate', {
+        if (cdeadminMainScreen) {
+          cdeadminMainScreen.webContents.send('notifyAppAutoUpdate', {
             error: true,
             errMsg: 'Failed to check for updates. Please try again later.',
           });
@@ -112,7 +112,7 @@ function handleSendDataForAppUpdate({
 }
 
 export function setupAutoUpdater({
-  pgAdminMainScreen,
+  cdeadminMainScreen,
   configStore,
   menuCallbacks,
   baseUrl,
@@ -121,11 +121,11 @@ export function setupAutoUpdater({
 }) {
   // For now only macOS is supported for electron auto-update
   if (process.platform === 'darwin') {
-    registerAutoUpdaterEvents({ pgAdminMainScreen, configStore, menuCallbacks });
+    registerAutoUpdaterEvents({ cdeadminMainScreen, configStore, menuCallbacks });
     ipcMain.on(
       'sendDataForAppUpdate',
       handleSendDataForAppUpdate({
-        pgAdminMainScreen,
+        cdeadminMainScreen,
         configStore,
         menuCallbacks,
         baseUrl,

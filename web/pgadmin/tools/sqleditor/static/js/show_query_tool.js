@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -120,7 +120,7 @@ export function launchQueryTool(queryToolMod, transId, gridUrl, queryToolTitle, 
     pgAdmin.Browser.notifier.alert(
       gettext('Query tool launch error'),
       gettext(
-        'Please allow pop-ups for this site to perform the desired action. If the main window of pgAdmin is closed then close this window and open a new pgAdmin session.'
+        'Please allow pop-ups for this site to perform the desired action. If the main CDEadmin window is closed, close this window and open a new CDEadmin session.'
       )
     );
   }

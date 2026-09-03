@@ -1,0 +1,31 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.mongodb", "provider_version": "0.1.0", "profile_id": "mongodb-native", "profile_version": "8.2.6", "evidence_reference": "cde-prep-150:actual-engine-pilots-20260831"},
+  "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}, {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}],
+  "required_permissions": ["network", "secret_read"], "composition": {"experience_families": ["mongodb"], "target_adapter_ids": ["mongodb-wire-client"]}, "extension_schema": null,
+  "registration": {
+    "display_name": "MongoDB 8.2",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": true,
+    "default_port": 27017,
+    "default": false,
+    "target_adapter_version": "pymongo-4.17.0",
+    "connection_fields": [
+      {"field_id": "auth_source", "route_key": "auth_source", "label": "Authentication database", "control": "text", "group": "MongoDB authentication", "help": "Defaults to the selected working database."},
+      {"field_id": "replica_set", "route_key": "replica_set", "label": "Replica set", "control": "text", "group": "MongoDB topology"},
+      {"field_id": "direct_connection", "route_key": "direct_connection", "label": "Direct connection", "control": "boolean", "group": "MongoDB topology", "default": false},
+      {"field_id": "tls", "route_key": "tls", "label": "Use TLS", "control": "boolean", "group": "MongoDB TLS", "default": false},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "MongoDB TLS"},
+      {"field_id": "tls_certificate_key_file", "route_key": "tls_certificate_key_file", "label": "Client certificate and key file", "control": "file", "group": "MongoDB TLS"},
+      {"field_id": "connect_timeout_ms", "route_key": "connect_timeout_ms", "label": "Connect timeout (ms)", "control": "number", "group": "MongoDB timeouts", "default": 5000, "minimum": 100, "maximum": 120000},
+      {"field_id": "server_selection_timeout_ms", "route_key": "server_selection_timeout_ms", "label": "Server selection timeout (ms)", "control": "number", "group": "MongoDB timeouts", "default": 5000, "minimum": 100, "maximum": 120000},
+      {"field_id": "socket_timeout_ms", "route_key": "socket_timeout_ms", "label": "Socket timeout (ms)", "control": "number", "group": "MongoDB timeouts", "default": 30000, "minimum": 100, "maximum": 600000},
+      {"field_id": "appname", "route_key": "appname", "label": "Application name", "control": "text", "group": "MongoDB advanced", "default": "CDEadmin"},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "MongoDB operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
+    ]
+  },
+  "provenance": {"purpose": "CDE-PREP-150 MongoDB exact-profile pilot", "protocol": "mongodb_wire", "client_state": "pymongo_4.17.0_installed", "runtime_state": "verified", "activation_gate": "passed", "live_evidence_reference": "cde-mongodb-live:mongodb-8.2.6:20260901"}
+}

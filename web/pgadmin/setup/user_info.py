@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -46,7 +46,7 @@ def user_info_server():
         # Prompt the user for their default username and password.
         print(
             "Enter the email address and password to use for the initial "
-            "pgAdmin user account:\n"
+            "CDEadmin user account:\n"
         )
 
         # Bound the retry loop so a non-interactive caller (mocked

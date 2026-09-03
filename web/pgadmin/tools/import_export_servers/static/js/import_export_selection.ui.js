@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -67,7 +67,7 @@ export default class ImportExportSelectionSchema extends BaseUISchema {
       id: 'replace_servers',
       label: gettext('Remove all the existing servers?'),
       type: 'switch', deps: ['imp_exp'],
-      helpMessage: gettext('If this option is turned on then pgAdmin will remove all the existing database servers and then import the selected servers. This setting is applicable only while importing the servers.'),
+      helpMessage: gettext('If this option is turned on then CDEadmin will remove all the existing database servers and then import the selected servers. This setting is applicable only while importing the servers.'),
       depChange: (state)=> {
         if (state.imp_exp == 'e') {
           state.replace_servers = false;

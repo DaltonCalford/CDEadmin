@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -349,7 +349,7 @@ def does_utility_exist(file):
     if Path(config.STORAGE_DIR) == Path(file) or \
             Path(config.STORAGE_DIR) in Path(file).parents:
         error_msg = gettext("Please correct the Binary Path in the "
-                            "Preferences. pgAdmin storage directory cannot "
+                            "Preferences. CDEadmin storage directory cannot "
                             "be a utility binary directory.")
 
     if not os.path.exists(file):

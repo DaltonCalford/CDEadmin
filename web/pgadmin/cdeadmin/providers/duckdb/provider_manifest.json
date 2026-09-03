@@ -1,0 +1,10 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.duckdb", "provider_version": "0.1.0", "profile_id": "duckdb-native", "profile_version": "1.5.2", "evidence_reference": "cde-prep-150:actual-engine-pilots-20260831"},
+  "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
+  "permissions": [{"permission_id": "embedded_runtime", "granted": true, "scope": ["endpoint"]}, {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
+  "required_permissions": ["embedded_runtime", "filesystem"], "composition": {"experience_families": ["duckdb"], "target_adapter_ids": ["embedded-duckdb-helper"]}, "extension_schema": null,
+  "registration": {"display_name": "DuckDB 1.5.2", "workflow": "provider_endpoint", "route_kind": "embedded_file", "requires_secret": false, "default_port": null, "default": false, "target_adapter_version": "1.5.2"},
+  "provenance": {"purpose": "CDE-REL-020 DuckDB exact-profile provider", "protocol": "embedded_duckdb", "client_state": "duckdb_1.5.2_installed", "runtime_state": "exact_provider_live_verified", "activation_gate": "passed", "live_evidence_reference": "cde-rel-live:duckdb-1.5.2:20260901"}
+}

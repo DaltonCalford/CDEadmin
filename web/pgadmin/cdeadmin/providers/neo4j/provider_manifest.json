@@ -1,0 +1,30 @@
+{
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.neo4j", "provider_version": "0.1.0", "profile_id": "neo4j-native", "profile_version": "2026.04.0", "evidence_reference": "cde-prep-150:actual-engine-pilots-20260831"},
+  "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}, {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}],
+  "required_permissions": ["network", "secret_read"], "composition": {"experience_families": ["neo4j"], "target_adapter_ids": ["bolt-client"]}, "extension_schema": null,
+  "registration": {
+    "display_name": "Neo4j 2026.04",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": true,
+    "default_port": 7687,
+    "default": false,
+    "target_adapter_version": "neo4j-6.3.0",
+    "connection_fields": [
+      {"field_id": "routing", "route_key": "routing", "label": "Use Neo4j routing", "control": "boolean", "group": "Neo4j topology", "default": true},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "Neo4j TLS", "default": "disabled", "options": [{"value": "disabled", "label": "Disabled"}, {"value": "system-ca", "label": "System CA validation"}, {"value": "self-signed", "label": "Self-signed certificate"}]},
+      {"field_id": "connection_timeout", "route_key": "connection_timeout", "label": "Connection timeout (seconds)", "control": "number", "group": "Neo4j timeouts", "default": 30, "minimum": 1, "maximum": 600},
+      {"field_id": "connection_acquisition_timeout", "route_key": "connection_acquisition_timeout", "label": "Pool acquisition timeout (seconds)", "control": "number", "group": "Neo4j timeouts", "default": 60, "minimum": 1, "maximum": 3600},
+      {"field_id": "max_transaction_retry_time", "route_key": "max_transaction_retry_time", "label": "Driver retry time ceiling (seconds)", "control": "number", "group": "Neo4j timeouts", "default": 30, "minimum": 0, "maximum": 3600},
+      {"field_id": "max_connection_pool_size", "route_key": "max_connection_pool_size", "label": "Maximum connection pool size", "control": "number", "group": "Neo4j pool", "default": 100, "minimum": 1, "maximum": 10000},
+      {"field_id": "max_connection_lifetime", "route_key": "max_connection_lifetime", "label": "Maximum connection lifetime (seconds)", "control": "number", "group": "Neo4j pool", "default": 3600, "minimum": 1, "maximum": 86400},
+      {"field_id": "keep_alive", "route_key": "keep_alive", "label": "Use TCP keep-alive", "control": "boolean", "group": "Neo4j pool", "default": true},
+      {"field_id": "user_agent", "route_key": "user_agent", "label": "Driver user agent", "control": "text", "group": "Neo4j advanced", "default": "CDEadmin"},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Administration tool workspace", "control": "text", "group": "Neo4j operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
+    ]
+  },
+  "provenance": {"purpose": "CDE-PREP-150 Neo4j exact-profile pilot", "protocol": "bolt", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified_community", "activation_gate": "passed_community_surface", "live_evidence_reference": "cde-neo4j-live:neo4j-2026.04.0-community:20260901"}
+}

@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -32,6 +32,7 @@ class _PGCSRFProtect(CSRFProtect):
             'pgadmin.tools.translations',
             app.blueprints['redirects'],
             'pgadmin.browser.server_groups.servers.supported_servers-js',
+            'pgadmin.browser.server_groups.servers.endpoint_profiles-js',
             'pgadmin.tools.sqleditor.initialize_sqleditor',
             'pgadmin.tools.datagrid.panel',
             'pgadmin.tools.sqleditor.panel',

@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -152,7 +152,7 @@ class DatabaseSchema extends BaseUISchema {
 
   get baseFields() {
     return [{
-      id: 'gid', label: gettext('pgAdmin server group'), type: 'select',
+      id: 'gid', label: gettext('CDEadmin server group'), type: 'select',
       options: this.fieldOptions.server_groups,
       mode: ['create'],
       controlProps: { allowClear: false },

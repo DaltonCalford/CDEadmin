@@ -1,0 +1,188 @@
+{
+  "identity": {
+    "contract_version": "1.1.0",
+    "provider_id": "org.cdeadmin.tikv",
+    "provider_version": "0.1.0",
+    "profile_id": "tikv-native",
+    "profile_version": "8.5.6",
+    "evidence_reference": "cde-distributed:tikv-live:20260902"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {
+    "minimum": "1.1.0",
+    "maximum_exclusive": "2.0.0"
+  },
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": [
+    "EndpointProvider",
+    "ResourceProvider",
+    "LanguageProvider",
+    "SessionProvider",
+    "ExecutionProvider",
+    "ResultProvider",
+    "ResultRenderer",
+    "DiagnosticProvider",
+    "OperationProvider",
+    "ToolProvider",
+    "SecurityProvider"
+  ],
+  "permissions": [
+    {
+      "permission_id": "network",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "data_read",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "data_write",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "administer",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "execute",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "topology_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "security_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "backup_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "restore_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "replication_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "maintenance_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    },
+    {
+      "permission_id": "upgrade_admin",
+      "granted": true,
+      "scope": ["endpoint"]
+    }
+  ],
+  "required_permissions": [
+    "network"
+  ],
+  "composition": {
+    "experience_families": [
+      "tikv"
+    ],
+    "target_adapter_ids": [
+      "tikv-grpc-client"
+    ]
+  },
+  "extension_schema": null,
+  "registration": {
+    "display_name": "TiKV 8.5.6",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 2379,
+    "default": false,
+    "target_adapter_version": "client-go-v2.0.8-0.20260319064229-5cba4fc2f3a9",
+    "connection_fields": [
+      {
+        "field_id": "pd_endpoints",
+        "route_key": "pd_endpoints",
+        "label": "PD endpoints",
+        "control": "text",
+        "group": "TiKV topology"
+      },
+      {
+        "field_id": "api_version",
+        "route_key": "api_version",
+        "label": "TiKV API version",
+        "control": "number",
+        "group": "TiKV protocol",
+        "default": 1,
+        "minimum": 1,
+        "maximum": 2
+      },
+      {
+        "field_id": "pd_http_scheme",
+        "route_key": "pd_http_scheme",
+        "label": "PD metadata scheme",
+        "control": "select",
+        "group": "TiKV protocol",
+        "default": "http",
+        "options": [
+          {"value": "http", "label": "HTTP"},
+          {"value": "https", "label": "HTTPS"}
+        ]
+      },
+      {
+        "field_id": "tls_ca",
+        "route_key": "tls_ca",
+        "label": "CA certificate path",
+        "control": "file",
+        "group": "TLS"
+      },
+      {
+        "field_id": "tls_certificate",
+        "route_key": "tls_certificate",
+        "label": "Client certificate path",
+        "control": "file",
+        "group": "TLS"
+      },
+      {
+        "field_id": "tls_key",
+        "route_key": "tls_key",
+        "label": "Client key path",
+        "control": "file",
+        "group": "TLS"
+      }
+    ]
+  },
+  "provenance": {
+    "purpose": "TiKV exact-profile provider",
+    "protocol": "tikv_grpc",
+    "client_state": "pinned_client_go_helper",
+    "runtime_state": "exact_runtime_qualified",
+    "activation_gate": "passed",
+    "helper_sha256": "e073268dcbf5687f24643ffec87871f540ef59c2334e24a7d9ecc6037f060e17"
+  }
+}

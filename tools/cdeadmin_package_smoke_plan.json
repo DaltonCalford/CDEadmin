@@ -1,0 +1,75 @@
+{
+  "plan_version": "1.1.0",
+  "status": "hard-fork-release-preparation",
+  "release_blocker": "CDEadmin legal, signing, update-channel, security and release-engineering approvals are not yet assigned.",
+  "common_assertions": [
+    "cdeadmin-identity",
+    "isolated-namespaces",
+    "upstream-attribution",
+    "pgadmin-coexistence",
+    "independent-update-channel",
+    "independent-signing-identity"
+  ],
+  "delivery_modes": [
+    {
+      "mode": "source",
+      "build_entrypoints": ["Makefile"],
+      "artifact_identity": "cdeadmin-source",
+      "smoke": ["identity-check", "python-regression", "javascript-regression"]
+    },
+    {
+      "mode": "python",
+      "build_entrypoints": ["pkg/pip/build.sh", "pkg/pip/setup_pip.py"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["wheel-metadata", "isolated-install", "notice-present", "startup"]
+    },
+    {
+      "mode": "linux-deb",
+      "build_entrypoints": ["pkg/debian/build.sh"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["package-metadata", "parallel-install", "service-paths", "uninstall-preserves-pgadmin"]
+    },
+    {
+      "mode": "linux-rpm",
+      "build_entrypoints": ["pkg/redhat/build.sh"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["package-metadata", "parallel-install", "service-paths", "uninstall-preserves-pgadmin"]
+    },
+    {
+      "mode": "linux-desktop",
+      "build_entrypoints": ["pkg/linux/cdeadmin.desktop"],
+      "artifact_identity": "cdeadmin.desktop",
+      "smoke": ["desktop-id", "executable", "profile-path", "parallel-launch"]
+    },
+    {
+      "mode": "macos",
+      "build_entrypoints": ["pkg/mac/build.sh", "pkg/mac/Info.plist.in"],
+      "artifact_identity": "org.scratchbird.cdeadmin",
+      "smoke": ["bundle-id", "application-name", "profile-path", "signature", "parallel-launch"]
+    },
+    {
+      "mode": "windows",
+      "build_entrypoints": ["pkg/win32/installer.iss.in"],
+      "artifact_identity": "ScratchBird.CDEadmin",
+      "smoke": ["application-id", "executable", "profile-path", "signature", "parallel-launch", "uninstall-preserves-pgadmin"]
+    },
+    {
+      "mode": "container",
+      "build_entrypoints": ["Dockerfile", "pkg/docker/entrypoint.sh"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["image-labels", "non-root-user", "volume-path", "environment-prefix", "healthcheck", "provenance"]
+    },
+    {
+      "mode": "helm",
+      "build_entrypoints": ["pkg/helm/Chart.yaml", "pkg/helm/templates/deployment.yaml"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["chart-metadata", "template-render", "resource-names", "pvc-path", "parallel-release"]
+    },
+    {
+      "mode": "web-service",
+      "build_entrypoints": ["pkg/linux/setup-web.sh", "pkg/debian/cdeadmin.conf", "pkg/redhat/cdeadmin.conf"],
+      "artifact_identity": "cdeadmin",
+      "smoke": ["service-name", "web-mount", "data-path", "log-path", "cookie-name", "parallel-service"]
+    }
+  ]
+}

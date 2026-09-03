@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -9,7 +9,7 @@
 
 import { getNodeListById } from '../../../../static/js/node_ajax';
 import ServerSchema from './server.ui';
-import { showServerPassword, showChangeServerPassword, showNamedRestorePoint } from '../../../../../static/js/Dialogs/index';
+import { showServerPassword, showEndpointVerification, showProviderWorkspace, showChangeServerPassword, showNamedRestorePoint } from '../../../../../static/js/Dialogs/index';
 import _ from 'lodash';
 import getApiInstance, { parseApiError } from '../../../../../static/js/api_instance';
 import { AllPermissionTypes } from '../../../../static/js/constants';
@@ -40,7 +40,9 @@ define('pgadmin.node.server', [
       hasStatistics: true,
       hasCollectiveStatistics: true,
       can_expand: function(d) {
-        return d?.connected;
+        return (d?.connected && !d?.cde_endpoint) ||
+          (d?.cde_endpoint &&
+            d?.runtime_verification_state === 'verified');
       },
       title: function(d, action) {
         if(action == 'create') {
@@ -107,6 +109,42 @@ define('pgadmin.node.server', [
           category: 'drop', priority: 5, label: gettext('Disconnect from server'),
           enable : 'is_connected',data: {
             data_disabled: gettext('Database server is already disconnected.'),
+          },
+        },{
+          name: 'verify_cde_endpoint', node: 'server', module: this,
+          applies: ['object', 'context'], callback: 'verify_cde_endpoint',
+          category: 'connect', priority: 4,
+          label: gettext('Verify Endpoint...'),
+          enable: function(node) {
+            return node?._type === 'server' && node?.cde_endpoint;
+          },
+        },{
+          name: 'browse_cde_endpoint', node: 'server', module: this,
+          applies: ['object', 'context'], callback: 'browse_cde_endpoint',
+          category: 'connect', priority: 5,
+          label: gettext('Browse Resources...'),
+          enable: function(node) {
+            return node?._type === 'server' && node?.cde_endpoint &&
+              node?.runtime_verification_state === 'verified';
+          },
+        },{
+          name: 'open_cde_data_studio', node: 'server', module: this,
+          applies: ['tools', 'context'], callback: 'open_cde_data_studio',
+          priority: 5, label: gettext('Open Data Studio...'),
+          enable: function(node) {
+            return node?._type === 'server' && node?.cde_endpoint &&
+              node?.runtime_verification_state === 'verified';
+          },
+        },{
+          name: 'open_cde_semantic_studio', node: 'server', module: this,
+          applies: ['tools', 'context'], callback: 'open_cde_semantic_studio',
+          priority: 6, label: gettext('Open Cubes & Semantic Models...'),
+          enable: function(node) {
+            return node?._type === 'server' && (
+              (node?.cde_endpoint &&
+                node?.runtime_verification_state === 'verified') ||
+              (!node?.cde_endpoint && node?.connected)
+            );
           },
         },
         {
@@ -178,7 +216,7 @@ define('pgadmin.node.server', [
         );
       },
       is_not_connected: function(node) {
-        return (node && !node.connected);
+        return (node && !node.connected && !node.cde_endpoint);
       },
       canCreate: function(node){
         let serverOwner = node.user_id;
@@ -215,6 +253,55 @@ define('pgadmin.node.server', [
         return _.some(item.children, (child) => pgAdmin.Browser.tree.getData(child).connected);
       },
       callbacks: {
+        browse_cde_endpoint: function(args) {
+          return this.open_cde_workspace(args, 'resources');
+        },
+        open_cde_data_studio: function(args) {
+          return this.open_cde_workspace(args, 'studio');
+        },
+        open_cde_semantic_studio: function(args) {
+          return this.open_cde_workspace(args, 'semantic');
+        },
+        open_cde_workspace: function(args, initialTab) {
+          const tree = pgBrowser.tree;
+          const item = args?.item || tree.selected();
+          const data = item ? tree.itemData(item) : undefined;
+          const providerReady = data?.cde_endpoint &&
+            data?.runtime_verification_state === 'verified';
+          const postgresReady = initialTab === 'semantic' &&
+            !data?.cde_endpoint && data?.connected;
+          if (!providerReady && !postgresReady) {
+            return false;
+          }
+          showProviderWorkspace(
+            gettext('CDEadmin - %s', data.label || data._label),
+            this, data, item, initialTab
+          );
+          return false;
+        },
+        verify_cde_endpoint: function(args) {
+          const input = args || {};
+          const node = this;
+          const tree = pgBrowser.tree;
+          const item = input.item || tree.selected();
+          const data = item ? tree.itemData(item) : undefined;
+          if (!data?.cde_endpoint) {
+            return false;
+          }
+          showEndpointVerification(
+            gettext('Verify Endpoint'), node, data, tree, item,
+            (response) => {
+              data.runtime_verification_state =
+                response.data.runtime_verification_state;
+              data.is_password_saved = response.data.is_password_saved;
+              pgAdmin.Browser.notifier.success(response.info);
+              tree.deselect(item);
+              tree.select(item);
+            },
+            (error) => pgAdmin.Browser.notifier.pgRespErrorNotify(error),
+          );
+          return false;
+        },
         /* Connect the server */
         connect_server: function(args){
           let input = args || {},
@@ -583,7 +670,7 @@ define('pgadmin.node.server', [
     let checkSupportedVersion = function (version, info) {
       if (!_.isUndefined(version) && !_.isNull(version) && version < 100000) {
         pgAdmin.Browser.notifier.warning(gettext('You have connected to a server version that is older ' +
-          'than is supported by pgAdmin. This may cause pgAdmin to break in strange and ' +
+          'than is supported by CDEadmin. This may cause CDEadmin to behave in strange and ' +
           'unpredictable ways. Or a plague of frogs. Either way, you have been warned!') +
           '<br /><br />' + gettext('Server connected'), null);
       } else if (!_.isUndefined(info) && !_.isNull(info)) {
@@ -889,6 +976,18 @@ define('pgadmin.node.server', [
         disconnect();
       }
     };
+  }
+
+  if (!pgBrowser.Nodes['cde_resource']) {
+    pgBrowser.Nodes['cde_resource'] = pgBrowser.Node.extend({
+      parent_type: 'server',
+      type: 'cde_resource',
+      label: gettext('Provider resource'),
+      can_expand: false,
+      Init: function() {
+        this.initialized = true;
+      },
+    });
   }
 
   return pgBrowser.Nodes['server'];

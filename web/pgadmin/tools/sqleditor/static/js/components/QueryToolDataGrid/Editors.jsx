@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -504,7 +504,7 @@ export function JsonTextEditor(props) {
     let confirmed = false;
     pgAdmin.Browser.notifier.confirm(
       gettext('Large data'),
-      gettext('This cell contains a large amount of data. Opening it in the JSON editor may make pgAdmin slow or unresponsive. Do you want to continue?'),
+      gettext('This cell contains a large amount of data. Opening it in the JSON editor may make CDEadmin slow or unresponsive. Do you want to continue?'),
       () => {
         confirmed = true;
         setProceed(true);

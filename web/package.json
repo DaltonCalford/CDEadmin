@@ -1,4 +1,12 @@
 {
+  "name": "cdeadmin-web",
+  "private": true,
+  "description": "CDEadmin multi-engine and multi-model web application.",
+  "cdeadminFork": {
+    "upstream": "pgAdmin 4",
+    "upstreamVersion": "9.17",
+    "relationship": "independent hard fork"
+  },
   "//": [
     "IMPORTANT:",
     "If runtime or build time dependencies are changed in this file, the ",

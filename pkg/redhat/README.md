@@ -1,4 +1,9 @@
-# pgAdmin Redhat Builds
+# CDEadmin Redhat Builds
+
+CDEadmin is an independent hard fork of pgAdmin 4 9.17. See the repository
+`NOTICE` and `LICENSE` files for upstream attribution and licence terms.
+Repository publication uses CDEadmin-owned variables, paths and signing keys;
+the upstream pgAdmin repository and package key must never be reused.
 
 This directory contains the build runner script for creating .RPM packages for
 Redhat distributions. 
@@ -29,19 +34,19 @@ or
 
 Four (or five) .rpm packages will be created in the dist/ directory:
 
-*pgadmin4-<version>.<distro>_noarch.rpm*
+*cdeadmin-<version>.<distro>_noarch.rpm*
 
 A convenience package that depends on all the others.
 
-*pgadmin4-server-<version>.<distro>.<arch>.rpm*
+*cdeadmin-server-<version>.<distro>.<arch>.rpm*
 
 The core server, e.g. the Python and JS code and the online documentation.
 
-*pgadmin4-desktop-<version>.<distro>.<arch>.rpm*
+*cdeadmin-desktop-<version>.<distro>.<arch>.rpm*
 
 The desktop runtime. Requires the server package.
 
-*pgadmin4-web-<version>.<distro>.<arch>.rpm*
+*cdeadmin-web-<version>.<distro>.<arch>.rpm*
 
 The server mode setup script for configuring Apache HTTPD. Requires the server 
 package.
@@ -50,7 +55,7 @@ package.
 
 It is good practice to sign RPMs to prove their provenance. The build scripts
 included in this directory do NOT do that; doing so is done using a Jenkins
-task in the pgAdmin buildfarm.
+task in the CDEadmin buildfarm.
 
 If you want to sign your own RPMs, you'll first need to ensure that the
 *gnupg2* and *rpmsign* tools are available on your system.
@@ -92,22 +97,22 @@ Once everything is setup, RPMs can be signed easily; for example:
 
 A Yum repo can be created by building RPMs for the required platforms, moving
 them into the required directory structure, and then running the *createrepo* 
-tool over that directory. The pgAdmin repos use the following structure:
+tool over that directory. The CDEadmin repos use the following structure:
 
     <root>
       redhat/
         rhel-7-x86_64/
-          pgadmin4-4.21-1.el7.noarch.rpm
-          pgadmin4-desktop-4.21-1.el7.x86_64.rpm
-          pgadmin4-python3-mod_wsgi-4.7.1-2.el7.x86_64.rpm
-          pgadmin4-server-4.21-1.el7.x86_64.rpm
-          pgadmin4-web-4.21-1.el7.noarch.rpm
+          cdeadmin-4.21-1.el7.noarch.rpm
+          cdeadmin-desktop-4.21-1.el7.x86_64.rpm
+          cdeadmin-python3-mod_wsgi-4.7.1-2.el7.x86_64.rpm
+          cdeadmin-server-4.21-1.el7.x86_64.rpm
+          cdeadmin-web-4.21-1.el7.noarch.rpm
         rhel-8-x86_64/
           <...>
       fedora/
         <...>
-      pgadmin4-fedora-repo-1-1.noarch.rpm
-      pgadmin4-redhat-repo-1-1.noarch.rpm
+      cdeadmin-fedora-repo-1-1.noarch.rpm
+      cdeadmin-redhat-repo-1-1.noarch.rpm
       README
 
 Note that only the first branches are shown above; other branches (e.g. for
@@ -124,12 +129,12 @@ architecture. The metadata can be created for each as follows:
 
 A script is provided for the creation of repo RPMs. It will create RPMs that
 install the required Yum configuration file and the public signing key for
-pgAdmin (you may want to replace the contents of *PGADMIN_PKG_KEY* with your own
+CDEadmin (you may want to replace the contents of *CDEADMIN_PKG_KEY* with your own
 public key):
 
-    ./repo-rpms.sh
+    ./repo-rpm.sh
 
-Set the *PGADMIN_REPO_DIR* environment variable to define the repository root
+Set the *CDEADMIN_REPO_DIR* environment variable to define the repository root
 from the client's perspective. Given the example above, you might do:
 
-    PGADMIN_REPO_DIR=https://yum.company.com/repos/<root> ./repo-rpms.sh
+    CDEADMIN_REPO_DIR=https://yum.company.com/repos/<root> ./repo-rpm.sh

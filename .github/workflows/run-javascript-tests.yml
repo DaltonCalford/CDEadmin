@@ -43,3 +43,6 @@ jobs:
         run: |
           cd web
           yarn run test:js-once
+
+      - name: Report CDEadmin contract binding coverage
+        run: make cdeadmin-jest-contract-coverage

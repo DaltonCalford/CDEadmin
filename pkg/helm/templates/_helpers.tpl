@@ -1,13 +1,13 @@
-{{- define "pgadmin4.fullname" -}}
+{{- define "cdeadmin.fullname" -}}
 {{- tpl .Values.fullname . -}}
 {{- end -}}
 
-{{- define "pgadmin4.image" -}}
+{{- define "cdeadmin.image" -}}
 {{- printf "%s/%s:%s" (default .Values.image.registry .Values.global.imageRegistry) .Values.image.repository (default .Chart.AppVersion .Values.image.tag | toString) -}}
 {{- end -}}
 
-{{- define "pgadmin4.serviceAccountName" -}}
-{{- default (ternary (include "pgadmin4.fullname" .) "default" .Values.serviceAccount.create) .Values.serviceAccount.name -}}
+{{- define "cdeadmin.serviceAccountName" -}}
+{{- default (ternary (include "cdeadmin.fullname" .) "default" .Values.serviceAccount.create) .Values.serviceAccount.name -}}
 {{- end -}}
 
 {{- define "renderSecurityContext" -}}

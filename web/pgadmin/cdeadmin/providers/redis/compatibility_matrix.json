@@ -1,0 +1,21 @@
+{
+  "schema": "cdeadmin.redis-compatibility-matrix.v1",
+  "provider_id": "org.cdeadmin.redis",
+  "provider_version": "0.1.0",
+  "protocol": "resp",
+  "endpoint_implementation_policy": "protocol_identity_only",
+  "reference_profile": {"server_version": "8.6.2", "minimum_server_version": "8.6.0", "driver": "redis", "driver_version": "6.4.0", "status": "redis_8.10.1_full_topology_matrix_passed"},
+  "qualified_deployments": [
+    {"deployment": "standalone_plaintext", "server_version": "8.10.1", "status": "passed", "evidence_reference": "cde-redis-live:redis-8.10.1:standalone-plaintext:20260902"},
+    {"deployment": "standalone_plaintext_acl", "server_version": "8.10.1", "status": "passed", "evidence_reference": "cde-redis-live:redis-8.10.1:standalone-acl:20260902"},
+    {"deployment": "standalone_tls_acl", "server_version": "8.10.1", "status": "passed", "evidence_reference": "cde-redis-live:redis-8.10.1:tls-mtls-acl:20260902"},
+    {"deployment": "sentinel_replication", "server_version": "8.10.1", "status": "passed", "evidence_reference": "cde-redis-live:redis-8.10.1:sentinel-failover:20260902"},
+    {"deployment": "redis_cluster", "server_version": "8.10.1", "status": "passed", "evidence_reference": "cde-redis-live:redis-8.10.1:cluster-failover:20260902"}
+  ],
+  "client_platforms": [
+    {"platform": "linux", "contract_suite": "passed", "live_suite": "passed"},
+    {"platform": "macos", "contract_suite": "ci_required", "live_suite": "not_run"},
+    {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
+  ],
+  "activation_state": "active_linux_live_qualified_portable_contract_ci_required"
+}

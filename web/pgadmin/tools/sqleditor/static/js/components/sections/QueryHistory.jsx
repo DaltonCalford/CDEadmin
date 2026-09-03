@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -537,7 +537,7 @@ export function QueryHistory() {
           <Box className='QuerySources-leftRoot'>
             <Box className='QuerySources-header'>
               <Box marginRight="auto">
-                {gettext('Show queries generated internally by pgAdmin?')}
+                {gettext('Show queries generated internally by CDEadmin?')}
                 <InputSwitch value={showInternal} onChange={(e)=>{
                   setShowInternal(e.target.checked);
                   qhu.current.showInternal = e.target.checked;

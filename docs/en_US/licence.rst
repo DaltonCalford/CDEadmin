@@ -4,12 +4,14 @@
 `Licence`:index:
 ****************
 
-pgAdmin is released under the
+CDEadmin is distributed under the
 `PostgreSQL Licence <https://www.postgresql.org/about/licence>`_, which is a
 liberal Open Source licence similar to BSD or MIT, and approved by the Open
-Source Initiative. The copyright for the project source code, website and
-documentation is attributed to the
-`pgAdmin Development Team <https://www.pgadmin.org/development/team/>`_
+Source Initiative. CDEadmin is an independent hard fork of pgAdmin 4 9.17.
+The inherited source and documentation retain the copyright of the
+`pgAdmin Development Team <https://www.pgadmin.org/development/team/>`_.
+CDEadmin modifications are copyright their respective contributors. See the
+repository ``NOTICE`` for the complete fork and attribution statement.
 
 .. topic:: pgAdmin 4
 

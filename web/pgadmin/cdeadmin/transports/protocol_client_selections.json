@@ -1,0 +1,170 @@
+{
+  "schema": "cdeadmin.protocol-client-selections.v1",
+  "review_date": "2026-08-31",
+  "authority_boundary": {
+    "shared_scope": [
+      "framing",
+      "authentication_material_delivery",
+      "transport",
+      "endpoint_fault_isolation"
+    ],
+    "provider_scope": [
+      "query_semantics",
+      "metadata_semantics",
+      "result_interpretation",
+      "transaction_presentation",
+      "retry_decision"
+    ],
+    "engine_scope": [
+      "authorization",
+      "visibility",
+      "transaction_finality",
+      "recovery"
+    ]
+  },
+  "protocols": [
+    {
+      "protocol_id": "postgresql_wire",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "PostgreSQL frontend/backend protocol v3",
+      "authentication_authority": "selected endpoint/server",
+      "client": {
+        "state": "selected_installed",
+        "package": "psycopg[c]",
+        "versions": ["3.2.13; python < 3.10", "3.3.4; python >= 3.10"]
+      },
+      "security_controls": ["tls_policy", "endpoint_secret_lease", "cancel_key_isolation"]
+    },
+    {
+      "protocol_id": "mysql_wire",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "MySQL classic protocol",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["tls_policy", "endpoint_secret_lease", "auth_plugin_allowlist"]
+    },
+    {
+      "protocol_id": "http_json",
+      "transport_kind": "http",
+      "framing_authority": "engine-profile HTTP API",
+      "authentication_authority": "selected endpoint/server or admitted reverse proxy",
+      "client": {"state": "selected_installed", "package": "Python urllib.request", "versions": ["Python 3.10+ standard library; ClickHouse 25.12.10.7, InfluxDB 3.9.0, OpenSearch 3.6.0, and OpenSearch SQL/PPL 3.6.0 exact HTTP/JSON connections verified"]},
+      "security_controls": ["https_required_by_profile", "redirect_policy", "response_size_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "grpc",
+      "transport_kind": "grpc",
+      "framing_authority": "engine-profile protobuf over HTTP/2",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "selected_installed", "package": "pymilvus", "versions": ["2.6.5; exact Milvus 2.6.5 standalone gRPC connection verified; other gRPC engine profiles require separate client qualification"]},
+      "security_controls": ["tls_policy", "protobuf_size_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "arrow_flight",
+      "transport_kind": "grpc",
+      "framing_authority": "Apache Arrow Flight or Flight SQL profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["tls_policy", "batch_size_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "cql",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "Cassandra native protocol selected by engine profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "selected_installed", "package": "cassandra-driver", "versions": ["3.30.1; exact Cassandra 5.0.8 three-node plaintext and TLS qualification passed"]},
+      "security_controls": ["tls_policy", "frame_size_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "resp",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "Redis RESP protocol selected by engine profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["tls_policy", "frame_depth_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "bolt",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "Neo4j Bolt protocol selected by engine profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["tls_policy", "message_size_limit", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "ignite_binary",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "Apache Ignite binary thin-client protocol",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["tls_policy", "topology_generation_isolation", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "mongodb_wire",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "MongoDB wire protocol selected by engine profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "selected_installed", "package": "pymongo", "versions": ["4.17.0; C extension enabled; MongoDB 8.2.6 exact connection verified"]},
+      "security_controls": ["tls_policy", "server_selection_isolation", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "firebird_wire",
+      "transport_kind": "tcp_binary",
+      "framing_authority": "Firebird remote protocol selected by engine profile",
+      "authentication_authority": "selected endpoint/server",
+      "client": {"state": "selected_installed", "package": "firebird-driver", "versions": ["1.10.11; installed with firebird-base 1.8.0 and protobuf 7.34.1"], "rejected_versions": ["2.0.3; requires firebird-base 2.x and protobuf 5.29.x, conflicting with the application protobuf >=6.33.5 dependency set"]},
+      "security_controls": ["wire_encryption_policy", "auth_plugin_allowlist", "endpoint_secret_lease"]
+    },
+    {
+      "protocol_id": "foundationdb_api",
+      "transport_kind": "library_api",
+      "framing_authority": "FoundationDB official client API",
+      "authentication_authority": "selected cluster and client library",
+      "client": {"state": "boundary_only_unselected", "package": null, "versions": []},
+      "security_controls": ["cluster_file_reference", "api_version_pin", "endpoint_process_isolation"]
+    },
+    {
+      "protocol_id": "embedded_duckdb",
+      "transport_kind": "library_api",
+      "framing_authority": "provider-local DuckDB Python client boundary",
+      "authentication_authority": "explicit filesystem grants",
+      "client": {"state": "selected_installed", "package": "duckdb", "versions": ["1.5.2; exact connection verified"]},
+      "security_controls": ["endpoint_process_isolation", "network_denied", "filesystem_grants", "resource_limits", "library_digest"]
+    },
+    {
+      "protocol_id": "embedded_sqlite",
+      "transport_kind": "library_api",
+      "framing_authority": "provider-local Python SQLite client boundary",
+      "authentication_authority": "explicit filesystem grants",
+      "client": {"state": "selected_installed", "package": "Python sqlite3 binding", "versions": ["client runtime 3.45.1; target profile 3.53.0"]},
+      "security_controls": ["endpoint_process_isolation", "network_denied", "filesystem_grants", "resource_limits", "library_digest"]
+    }
+  ],
+  "engine_profiles": [
+    {"engine_id": "apache_ignite", "reference_profile": "2.17.0", "batch": "distributed", "actual_boundaries": ["ignite_binary"]},
+    {"engine_id": "cassandra", "reference_profile": "5.0.8", "batch": "nosql", "actual_boundaries": ["cql"]},
+    {"engine_id": "clickhouse", "reference_profile": "25.12.10.7-stable", "batch": "analytic", "actual_boundaries": ["http_json"]},
+    {"engine_id": "cockroachdb", "reference_profile": "26.1.3", "batch": "distributed", "actual_boundaries": ["postgresql_wire"]},
+    {"engine_id": "dolt", "reference_profile": "1.86.6", "batch": "distributed", "actual_boundaries": ["mysql_wire"]},
+    {"engine_id": "duckdb", "reference_profile": "1.5.2", "batch": "relational", "actual_boundaries": ["embedded_duckdb"]},
+    {"engine_id": "firebird", "reference_profile": "5.0.4", "batch": "relational", "actual_boundaries": ["firebird_wire"]},
+    {"engine_id": "foundationdb", "reference_profile": "7.3.77", "batch": "distributed", "actual_boundaries": ["foundationdb_api"]},
+    {"engine_id": "immudb", "reference_profile": "1.11.0", "batch": "distributed", "actual_boundaries": ["grpc"]},
+    {"engine_id": "influxdb", "reference_profile": "3.9.0", "batch": "analytic", "actual_boundaries": ["http_json", "arrow_flight"]},
+    {"engine_id": "mariadb", "reference_profile": "12.2.2", "batch": "relational", "actual_boundaries": ["mysql_wire"]},
+    {"engine_id": "milvus", "reference_profile": "2.6.5", "batch": "analytic", "actual_boundaries": ["grpc"]},
+    {"engine_id": "mongodb", "reference_profile": "8.2.6", "batch": "nosql", "actual_boundaries": ["mongodb_wire"]},
+    {"engine_id": "mysql", "reference_profile": "9.7.0", "batch": "relational", "actual_boundaries": ["mysql_wire"]},
+    {"engine_id": "neo4j", "reference_profile": "2026.04.0", "batch": "nosql", "actual_boundaries": ["bolt"]},
+    {"engine_id": "opensearch", "reference_profile": "3.6.0", "batch": "analytic", "actual_boundaries": ["http_json"]},
+    {"engine_id": "opensearch_sql_ppl", "reference_profile": "3.6.0-sql-ppl", "batch": "analytic", "actual_boundaries": ["http_json"]},
+    {"engine_id": "postgresql", "reference_profile": "18.3", "batch": "relational", "actual_boundaries": ["postgresql_wire"]},
+    {"engine_id": "redis", "reference_profile": "8.6.2", "batch": "nosql", "actual_boundaries": ["resp"]},
+    {"engine_id": "sqlite", "reference_profile": "3.53.0", "batch": "relational", "actual_boundaries": ["embedded_sqlite"]},
+    {"engine_id": "tidb", "reference_profile": "8.5.6", "batch": "distributed", "actual_boundaries": ["mysql_wire"]},
+    {"engine_id": "tikv", "reference_profile": "8.5.6", "batch": "distributed", "actual_boundaries": ["grpc"]},
+    {"engine_id": "vitess", "reference_profile": "23.0.3", "batch": "distributed", "actual_boundaries": ["mysql_wire", "grpc"]},
+    {"engine_id": "xtdb", "reference_profile": "2.1.0", "batch": "nosql", "actual_boundaries": ["http_json", "postgresql_wire", "arrow_flight"]},
+    {"engine_id": "yugabytedb", "reference_profile": "2025.2.2.2", "batch": "distributed", "actual_boundaries": ["postgresql_wire", "cql"]}
+  ]
+}

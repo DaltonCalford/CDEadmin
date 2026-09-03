@@ -1,6 +1,6 @@
 ##############################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -148,7 +148,7 @@ class TOTPAuthenticator(BaseMFAuth):
 
         uri = totp.provisioning_uri(
             current_user.username, issuer_name=getattr(
-                config, "APP_NAME", "pgAdmin 4"
+                config, "APP_NAME", "CDEadmin"
             )
         )
 

@@ -1,0 +1,1 @@
+"""CDEadmin immudb provider package."""

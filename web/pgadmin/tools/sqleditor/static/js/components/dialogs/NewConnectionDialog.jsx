@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -242,7 +242,7 @@ export default function NewConnectionDialog({onClose, onSave}) {
       connectCallback?.(respData.data);
     } catch (error) {
       if(!error.response) {
-        pgAdmin.Browser.notifier.pgNotifier('error', error, 'Connection error', gettext('Connection to pgAdmin server has been lost.'));
+        pgAdmin.Browser.notifier.pgNotifier('error', error, 'Connection error', gettext('Connection to CDEadmin server has been lost.'));
       } else {
         queryToolCtx.modal.showModal(gettext('Connect to server'), (closeModal)=>{
           return (

@@ -1,6 +1,6 @@
 ##########################################################################
 #
-# pgAdmin 4 - PostgreSQL Tools
+# CDEadmin - Multi-engine Database Administration
 #
 # Copyright (C) 2013 - 2026, The pgAdmin Development Team
 # This software is released under the PostgreSQL Licence
@@ -41,6 +41,10 @@ from pgadmin.tools.sqleditor.utils.constant_definition import ASYNC_OK, \
 from pgadmin.tools.sqleditor.utils.start_running_query import StartRunningQuery
 from pgadmin.tools.sqleditor.utils.update_session_grid_transaction import \
     update_session_grid_transaction
+from pgadmin.cdeadmin.core import (
+    route_query_tool_fetch,
+    route_query_tool_poll,
+)
 from pgadmin.utils import PgAdminModule
 from pgadmin.utils import get_storage_directory
 from pgadmin.utils.ajax import make_json_response, bad_request, \
@@ -1127,8 +1131,12 @@ def poll(trans_id):
         if messages and len(messages) > 0:
             result = ''.join(messages)
     elif status and conn is not None and session_obj is not None:
-        status, result = conn.poll(
-            formatted_exception_msg=True, no_result=True)
+        status, result = route_query_tool_poll(
+            current_app._get_current_object(),
+            conn,
+            formatted_exception_msg=True,
+            no_result=True,
+        )
         if not status:
             if not conn.connected():
                 return service_unavailable(
@@ -1157,11 +1165,13 @@ def poll(trans_id):
             status = 'Success'
             rows_affected = conn.rows_affected()
 
-            st, result = \
-                conn.async_fetchmany_2darray(data_result_rows_per_page + 1
-                                             if trans_obj.server_cursor
-                                             else data_result_rows_per_page
-                                             )
+            st, result = route_query_tool_fetch(
+                current_app._get_current_object(),
+                conn,
+                data_result_rows_per_page + 1
+                if trans_obj.server_cursor
+                else data_result_rows_per_page,
+            )
 
             # There may be additional messages even if result is present
             # eg: Function can provide result as well as RAISE messages

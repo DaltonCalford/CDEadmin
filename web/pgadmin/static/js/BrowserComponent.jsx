@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////
 //
-// pgAdmin 4 - PostgreSQL Tools
+// CDEadmin - Multi-engine Database Administration
 //
 // Copyright (C) 2013 - 2026, The pgAdmin Development Team
 // This software is released under the PostgreSQL Licence
@@ -186,7 +186,7 @@ export default function BrowserComponent({pgAdmin}) {
     beforeClose: (forceClose)=>{
       window.electronUI?.focus();
       pgAdmin.Browser.notifier.confirm(
-        gettext('Quit pgAdmin 4'),
+        gettext('Quit CDEadmin'),
         gettext('Are you sure you want to quit the application?'),
         function() { forceClose(); },
         function() { return true; },

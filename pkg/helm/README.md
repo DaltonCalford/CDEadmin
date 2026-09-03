@@ -1,28 +1,32 @@
-# PgAdmin4 K8S Helm Chart
+# CDEadmin Kubernetes Helm chart
 
-Its been a struggle to deploy pgadmin4 container on different restricted k8s distributions for example openshift, gke or vanilla k8s pod security standards.  
-This helm chart follows best security measures and practices and compatible with all different security contexts and restrictions.  
-Further explanation about the security implementation can be read here: https://korenp1.github.io  
+This chart deploys CDEadmin in Kubernetes environments, including restricted
+security contexts. It supports local configuration, predefined endpoint
+definitions, preferences, persistent state and standard Kubernetes ingress or
+Gateway API routing.
 
-The helm chart also implements most pgadmin4 features, for instance, config_local.py, predefined server definitions or preferences.
+CDEadmin is an independent hard fork of pgAdmin 4 9.17. The upstream pgAdmin
+copyright and PostgreSQL Licence are retained; see the repository `NOTICE` and
+`LICENSE`. This chart uses separate CDEadmin resource names and storage paths.
 
-The majority of features and values are covered in the helm chart but always can be more customable or tpl'able, open for contributions.
+### Package
 
-### Package && Push
-The chart should dump its version and appVersion in the Chart.yaml file every release and pushed to docker.io/dpage repository.
-`helm package . && helm push pgadmin4-helm-<VERSION>.tgz oci://docker.io/dpage`
+The chart is not approved for publication until CDEadmin's registry, signing
+and release-engineering gates are complete.
 
-### Installation Example: 
-`helm install mypgadmin4 oci://docker.io/dpage/pgadmin4-helm --set ingress.enabled=true`
+`helm package .`
+
+### Installation Example:
+`helm install mycdeadmin oci://docker.io/cdeadmin/cdeadmin-helm --set ingress.enabled=true`
 
 ### Important Values
 | Value | Description | Default |
 | --------- | ----------- | ------- |
-| `containerPort` | Internal PgAdmin4 Port | `5050` |
+| `containerPort` | Internal CDEadmin Port | `5051` |
 | `image.registry` | Image registry | `"docker.io"` |
-| `image.repository` | Image Repository | `"dpage/pgadmin4"` |
+| `image.repository` | Image Repository | `"cdeadmin/cdeadmin"` |
 | `image.tag` | Image tag (If empty, will use .Chart.AppVersion) | `""` |
-| `auth.email` | Admin Email | `"admin@pgadmin.org"` |
+| `auth.email` | Admin Email | `"admin@cdeadmin.local"` |
 | `auth.password` | Admin password (If both auth.password and auth.existingSecret are empty, the password will be randomly generated) | `""` |
 | `auth.existingSecret` | Existing secret name for admin password (If both auth.password and auth.existingSecret are empty, the password will be randomly generated) | `""` |
 | `extraEnvVars` | Extra environment variables | `[]` |
@@ -39,7 +43,7 @@ The chart should dump its version and appVersion in the Chart.yaml file every re
 | `service.type` | Service type | `"ClusterIP"` |
 | `service.loadBalancerIP` | Load balancer IP (Only if service.type is LoadBalancer) | `""` |
 | `ingress.enabled` | Ingress resource creation | `false` |
-| `ingress.hostname` | Ingress resource hostname | `"pgadmin4.local"` |
+| `ingress.hostname` | Ingress resource hostname | `"cdeadmin.local"` |
 | `ingress.tlsSecret` | Ingress tls secret name | `""` |
 | `httpRoute.enabled` | Gateway API HTTPRoute resource creation | `false` |
 | `httpRoute.apiVersion` | HTTPRoute apiVersion (override for v1beta1 implementations) | `"gateway.networking.k8s.io/v1"` |
