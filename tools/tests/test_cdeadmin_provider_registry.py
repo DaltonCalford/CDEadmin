@@ -112,6 +112,7 @@ def endpoint(
     adapter=ADAPTER,
     provider_version=PROVIDER_VERSION,
     legacy_driver_type=None,
+    generation=None,
 ):
     endpoint_id = uuid.uuid5(uuid.NAMESPACE_URL, f'endpoint:{label}')
 
@@ -134,6 +135,7 @@ def endpoint(
         diagnostic_namespace=namespace('diagnostic'),
         effective_permissions=frozenset(permissions),
         legacy_driver_type=legacy_driver_type,
+        runtime_identity_generation=generation,
     )
 
 
@@ -395,6 +397,24 @@ class ProviderRegistryTests(unittest.TestCase):
             verification.context.isolation_key,
             workspace.context.isolation_key,
         )
+
+    def test_new_profile_generation_retires_all_old_endpoint_bindings(self):
+        registration = self.register()
+        verification = self.registry.resolve(endpoint(
+            'same', permissions=('network',), generation='generation-one'
+        ))
+        workspace = self.registry.resolve(endpoint(
+            'same', permissions=('network', 'execute'),
+            generation='generation-one'
+        ))
+        replacement = self.registry.resolve(endpoint(
+            'same', permissions=('network', 'execute'),
+            generation='generation-two'
+        ))
+        self.assertTrue(verification.instance.closed)
+        self.assertTrue(workspace.instance.closed)
+        self.assertFalse(replacement.instance.closed)
+        self.assertEqual(1, len(registration.bindings))
 
     def test_factory_failure_quarantines_provider_without_error_detail(self):
         def fail_factory(_context, _permissions):

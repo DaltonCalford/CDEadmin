@@ -183,7 +183,8 @@ class DriverClient:
     def __getitem__(self, name):
         return self.databases.setdefault(name, Database(name, self))
 
-    def start_session(self):
+    def start_session(self, **options):
+        self.session_options = options
         return DriverSession()
 
     @staticmethod
@@ -321,6 +322,207 @@ class MongoDBProviderTests(unittest.TestCase):
         self.assertNotIn('credential_reference_id', observed['keys'])
         value.close()
         self.assertTrue(handle.closed)
+
+    def test_topology_consistency_pool_tls_and_compression_are_forwarded(self):
+        created = []
+
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            created.append(value)
+            return value
+
+        value = client(connector)
+        identity = value.runtime_identity({'route': {
+            'host': 'mongo-a', 'port': 27017,
+            'contact_points': 'mongo-b:27018,mongo-c:27019',
+            'auth_mechanism': 'NONE', 'tls': True,
+            'tls_ca_file': '/certs/ca.pem',
+            'tls_allow_invalid_hostnames': False,
+            'compressors': 'zstd,zlib', 'zlib_compression_level': 6,
+            'read_preference': 'nearest',
+            'read_concern_level': 'majority', 'write_concern': '2',
+            'retry_reads': True, 'retry_writes': False,
+            'min_pool_size': 2, 'max_pool_size': 40,
+            'max_connecting': 4, 'max_idle_time_ms': 60000,
+            'wait_queue_timeout_ms': 3000,
+            'heartbeat_frequency_ms': 2000,
+            'wait_queue_multiple': 6,
+            'server_monitoring_mode': 'poll',
+            'tls_disable_ocsp_endpoint_check': True,
+            'enable_overload_retargeting': True,
+            'max_adaptive_retries': 4,
+            'server_api_version': '1',
+            'server_api_strict': True,
+            'auth_oidc_allowed_hosts': ['login.example.test'],
+            'tz_aware': False,
+            'uuid_representation': 'pythonLegacy',
+            'unicode_decode_error_handler': 'replace',
+            'fsync': True,
+        }})
+
+        self.assertEqual('8.2.6', identity['version'])
+        arguments = created[0].arguments
+        self.assertEqual(
+            ['mongo-a', 'mongo-b:27018', 'mongo-c:27019'],
+            arguments['host'],
+        )
+        self.assertNotIn('port', arguments)
+        self.assertNotIn('username', arguments)
+        self.assertEqual('zstd,zlib', arguments['compressors'])
+        self.assertEqual('nearest', arguments['readPreference'])
+        self.assertEqual('majority', arguments['readConcernLevel'])
+        self.assertEqual(2, arguments['w'])
+        self.assertEqual(40, arguments['maxPoolSize'])
+        self.assertEqual(2000, arguments['heartbeatFrequencyMS'])
+        self.assertEqual(6, arguments['waitQueueMultiple'])
+        self.assertEqual('poll', arguments['serverMonitoringMode'])
+        self.assertTrue(arguments['tlsDisableOCSPEndpointCheck'])
+        self.assertTrue(arguments['enableOverloadRetargeting'])
+        self.assertEqual(4, arguments['maxAdaptiveRetries'])
+        self.assertEqual('1', arguments['server_api'].version)
+        self.assertTrue(arguments['server_api'].strict)
+        self.assertEqual(
+            ['login.example.test'], arguments['authOIDCAllowedHosts']
+        )
+        self.assertFalse(arguments['tz_aware'])
+        self.assertEqual('pythonLegacy', arguments['uuidRepresentation'])
+        self.assertEqual(
+            'replace', arguments['unicode_decode_error_handler']
+        )
+        self.assertTrue(arguments['fsync'])
+
+    def test_session_and_transaction_defaults_are_driver_owned(self):
+        created = []
+
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            created.append(value)
+            return value
+
+        value = client(connector)
+        handle = value.open_session({'route': {
+            'host': 'mongo-a', 'port': 27017,
+            'auth_mechanism': 'NONE',
+            'session_causal_consistency': False,
+            'session_snapshot': True,
+            'transaction_read_concern': 'snapshot',
+            'transaction_write_concern': 'majority',
+            'write_concern_timeout_ms': 2000,
+            'journal': True,
+            'transaction_max_commit_time_ms': 5000,
+        }})
+        options = created[0].session_options
+        self.assertFalse(options['causal_consistency'])
+        self.assertTrue(options['snapshot'])
+        transaction = options['default_transaction_options']
+        self.assertEqual('snapshot', transaction.read_concern.level)
+        self.assertEqual('majority', transaction.write_concern.document['w'])
+        self.assertEqual(5000, transaction.max_commit_time_ms)
+        handle.close()
+
+    def test_snapshot_session_rejects_causal_consistency(self):
+        value = client(lambda **arguments: DriverClient(**arguments))
+        with self.assertRaisesRegex(
+            MongoDBClientError, 'mutually exclusive'
+        ):
+            value.open_session({'route': {
+                'host': 'mongo-a', 'port': 27017,
+                'auth_mechanism': 'NONE',
+                'session_causal_consistency': True,
+                'session_snapshot': True,
+            }})
+
+    def test_invalid_compression_and_topology_conflicts_fail_closed(self):
+        value = client()
+        with self.assertRaisesRegex(
+            MongoDBClientError, 'compressor selection'
+        ):
+            value.runtime_identity({'route': {
+                'host': 'localhost', 'compressors': 'unsupported',
+            }})
+        with self.assertRaisesRegex(
+            MongoDBClientError, 'load-balanced mode conflicts'
+        ):
+            value.runtime_identity({'route': {
+                'host': 'localhost', 'load_balanced': True,
+                'replica_set': 'rs0',
+            }})
+        with self.assertRaisesRegex(
+            MongoDBClientError, 'minimum pool size exceeds'
+        ):
+            value.runtime_identity({'route': {
+                'host': 'localhost', 'min_pool_size': 10,
+                'max_pool_size': 2,
+            }})
+        with self.assertRaisesRegex(
+            MongoDBClientError, 'server monitoring mode'
+        ):
+            value.runtime_identity({'route': {
+                'host': 'localhost', 'server_monitoring_mode': 'unsafe',
+            }})
+
+    def test_aws_and_oidc_use_typed_leased_credentials(self):
+        values = {
+            'aws-secret': b'aws-secret-canary',
+            'aws-session': b'aws-session-canary',
+            'oidc-token': b'oidc-token-canary',
+        }
+        acquisitions = []
+        created = []
+
+        def acquire(reference, principal, purpose, expected_kind):
+            acquisitions.append((
+                reference, principal, purpose, expected_kind
+            ))
+            return SecretLease(values[reference])
+
+        def connector(**arguments):
+            value = DriverClient(**arguments)
+            created.append(value)
+            return value
+
+        value = client(connector, acquire)
+        value.runtime_identity({'route': {
+            'host': 'localhost', 'username': 'access-key-id',
+            'auth_mechanism': 'MONGODB-AWS',
+            'credential_reference_id': 'aws-secret',
+            'credential_kind': 'cloud_secret_access_key',
+            'credential_references': {
+                'cloud_secret_access_key': 'aws-secret',
+                'cloud_session_token': 'aws-session',
+            },
+            'principal_reference': 'principal-one',
+        }})
+        self.assertEqual(
+            'aws-secret-canary', created[0].arguments['password']
+        )
+        self.assertEqual(
+            'aws-session-canary',
+            created[0].arguments['authMechanismProperties'][
+                'AWS_SESSION_TOKEN'
+            ],
+        )
+
+        value.runtime_identity({'route': {
+            'host': 'localhost', 'username': 'oidc-user',
+            'auth_mechanism': 'MONGODB-OIDC',
+            'oidc_environment': 'callback',
+            'credential_reference_id': 'oidc-token',
+            'credential_kind': 'oidc_access_token',
+            'credential_references': {
+                'oidc_access_token': 'oidc-token',
+            },
+            'principal_reference': 'principal-one',
+        }})
+        callback = created[1].arguments['authMechanismProperties'][
+            'OIDC_MACHINE_CALLBACK'
+        ]
+        token = callback.fetch(None)
+        self.assertEqual('oidc-token-canary', token.access_token)
+        self.assertIn(
+            ('oidc-token', 'principal-one', 'connect', 'oidc_access_token'),
+            acquisitions,
+        )
 
     def test_json_query_results_preserve_extended_json_and_are_bounded(self):
         value = client()

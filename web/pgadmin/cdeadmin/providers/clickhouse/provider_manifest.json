@@ -9,10 +9,15 @@
   "composition": {"experience_families": ["clickhouse"], "target_adapter_ids": ["stdlib-clickhouse-http-json-client"]},
   "extension_schema": null,
   "registration": {
-    "display_name": "ClickHouse 25.12.10.7", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": true, "default_port": 8123, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "display_name": "ClickHouse 25.12.10.7", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 8123, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_field_sets": ["analytic-http-v1"],
+    "secret_field_sets": ["analytic-http-v1"],
+    "connection_capability_set": "clickhouse-http-v1",
+    "secret_fields": [{"field_id": "password", "secret_kind": "database_password", "label": "Password", "group": "ClickHouse authentication", "primary": true, "visible_when": {"field_id": "auth_kind", "equals": "clickhouse-basic"}}],
     "connection_fields": [
       {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "ClickHouse database", "default": "default"},
       {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "ClickHouse authentication", "default": "default"},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "ClickHouse authentication", "default": "none", "options": [{"value": "none", "label": "No password"}, {"value": "clickhouse-basic", "label": "Username/password reference"}]},
       {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "ClickHouse TLS", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
       {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "ClickHouse TLS"},
       {"field_id": "tls_certificate_file", "route_key": "tls_certificate_file", "label": "Client certificate", "control": "file", "group": "ClickHouse TLS"},

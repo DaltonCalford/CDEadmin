@@ -47,6 +47,9 @@ from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
     _version as cockroachdb_version,
 )
 from pgadmin.cdeadmin.providers.distributed_sql import (  # noqa: E402
+    _PsycopgPoolConnector,
+    _initialize_mysql_connection,
+    _initialize_postgresql_connection,
     mysql_route,
     postgresql_route,
     resource,
@@ -122,6 +125,7 @@ from pgadmin.cdeadmin.providers.yugabytedb.control_plane import (  # noqa: E402
     compile_action as compile_yugabytedb_action,
 )
 from pgadmin.cdeadmin.sdk import (  # noqa: E402
+    RelationalDBAPIClient,
     RelationalClientConfig,
     RelationalClientError,
 )
@@ -1984,6 +1988,161 @@ class DistributedProviderTests(unittest.TestCase):
             self.assertNotIn('server_implementation', result)
             self.assertNotIn('vtgate_http_port', result)
 
+    def test_wire_routes_forward_full_security_session_and_pool_controls(self):
+        mysql = mysql_route({
+            'route_id': 'mysql-route-one', 'host': 'db.example',
+            'auth_plugin': 'caching_sha2_password',
+            'ssl_ca': '/certs/ca.pem', 'ssl_cert': '/certs/client.pem',
+            'ssl_key': '/certs/client.key', 'ssl_verify_cert': True,
+            'ssl_verify_identity': True,
+            'tls_versions': ['TLSv1.2', 'TLSv1.3'], 'compress': True,
+            'read_timeout': 20, 'write_timeout': 30,
+            'autocommit': False, 'time_zone': '+00:00',
+            'pool_size': 8, 'pool_reset_session': True,
+            'failover': [{'host': 'db-b.example', 'port': 3306}],
+        })
+        self.assertEqual('caching_sha2_password', mysql['auth_plugin'])
+        self.assertEqual('/certs/client.pem', mysql['ssl_cert'])
+        self.assertEqual(['TLSv1.2', 'TLSv1.3'], mysql['tls_versions'])
+        self.assertEqual(8, mysql['pool_size'])
+        self.assertTrue(mysql['pool_name'].startswith('cde_'))
+        self.assertEqual('db-b.example', mysql['failover'][0]['host'])
+
+        postgres = postgresql_route({
+            'host': 'pg-a,pg-b', 'port': '5432,5432',
+            'sslmode': 'verify-full', 'sslrootcert': '/certs/ca.pem',
+            'sslcert': '/certs/client.pem', 'sslkey': '/certs/client.key',
+            'channel_binding': 'require', 'gssencmode': 'prefer',
+            'require_auth': 'scram-sha-256,gss,oauth',
+            'target_session_attrs': 'read-write',
+            'load_balance_hosts': 'random', 'connect_timeout': 12,
+            'keepalives': True, 'application_name': 'CDEadmin',
+        })
+        self.assertEqual('verify-full', postgres['sslmode'])
+        self.assertEqual('require', postgres['channel_binding'])
+        self.assertEqual('read-write', postgres['target_session_attrs'])
+        self.assertEqual('random', postgres['load_balance_hosts'])
+
+    def test_postgresql_wire_pool_returns_handles_and_closes_generation(self):
+        observed = {'returned': [], 'closed': False}
+        connection = _Connection()
+
+        class Pool:
+            check_connection = object()
+
+            def __init__(self, **options):
+                observed['options'] = options
+
+            def getconn(self):
+                return connection
+
+            def putconn(self, value):
+                observed['returned'].append(value)
+
+            def close(self):
+                observed['closed'] = True
+
+        module = SimpleNamespace(connect=lambda **_kwargs: _Connection())
+        connector = _PsycopgPoolConnector(
+            module, 'pool-generation-one',
+            SimpleNamespace(ConnectionPool=Pool),
+        )
+        lease = connector(
+            host='pg.example', dbname='inventory', pool_enabled=True,
+            pool_min_size=2, pool_max_size=9,
+            pool_acquisition_timeout=12, pool_check_connection=True,
+        )
+        self.assertEqual(2, observed['options']['min_size'])
+        self.assertEqual(9, observed['options']['max_size'])
+        self.assertEqual(12, observed['options']['timeout'])
+        self.assertIs(Pool.check_connection, observed['options']['check'])
+        self.assertNotIn('pool_enabled', observed['options']['kwargs'])
+        lease.close()
+        lease.close()
+        self.assertEqual([connection], observed['returned'])
+        connector.close()
+        self.assertTrue(observed['closed'])
+
+    def test_postgresql_transaction_defaults_use_typed_driver_methods(self):
+        observed = {}
+        connection = SimpleNamespace(
+            set_autocommit=lambda value: observed.setdefault(
+                'autocommit', value
+            ),
+            set_isolation_level=lambda value: observed.setdefault(
+                'isolation', value
+            ),
+            set_read_only=lambda value: observed.setdefault(
+                'read_only', value
+            ),
+            set_deferrable=lambda value: observed.setdefault(
+                'deferrable', value
+            ),
+        )
+        _initialize_postgresql_connection(connection, {
+            'autocommit': False,
+            'transaction_isolation': 'SERIALIZABLE',
+            'transaction_read_only': 'read-only',
+            'transaction_deferrable': 'deferrable',
+        })
+        self.assertFalse(observed['autocommit'])
+        self.assertEqual('SERIALIZABLE', observed['isolation'].name)
+        self.assertTrue(observed['read_only'])
+        self.assertTrue(observed['deferrable'])
+
+    def test_mysql_wire_transaction_defaults_are_allowlisted(self):
+        statements = []
+        cursor = SimpleNamespace(
+            execute=statements.append, close=lambda: None
+        )
+        connection = SimpleNamespace(cursor=lambda: cursor)
+        _initialize_mysql_connection(connection, {
+            'transaction_isolation': 'READ COMMITTED',
+        })
+        self.assertEqual([
+            'SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED'
+        ], statements)
+        with self.assertRaisesRegex(
+            RelationalClientError, 'transaction isolation is invalid'
+        ):
+            _initialize_mysql_connection(connection, {
+                'transaction_isolation': 'READ COMMITTED; DROP DATABASE x',
+            })
+
+    def test_relational_client_initializes_from_unfiltered_route(self):
+        observed = {}
+        connection = SimpleNamespace(
+            close=lambda: None,
+        )
+        module = SimpleNamespace(
+            connect=lambda **kwargs: (
+                observed.setdefault('connector', kwargs), connection
+            )[1]
+        )
+        config = RelationalClientConfig(
+            profile=COCKROACHDB,
+            module_name='unused',
+            version_query='SELECT version()',
+            connect_arguments=postgresql_route,
+            metadata_reader=lambda _connection, _request: [],
+            connection_initializer=lambda _connection, route: (
+                observed.setdefault('initializer', route)
+            ),
+        )
+        client = RelationalDBAPIClient(config, module)
+        handle = client.open_session({'route': {
+            'host': 'pg.example',
+            'transaction_isolation': 'SERIALIZABLE',
+        }})
+        self.assertIs(connection, handle)
+        self.assertNotIn(
+            'transaction_isolation', observed['connector']
+        )
+        self.assertEqual(
+            'SERIALIZABLE',
+            observed['initializer']['transaction_isolation'],
+        )
+
     def test_manifests_expose_provider_owned_connection_controls(self):
         manifest_paths = {
             'apache_ignite': 'apache_ignite/provider_manifest.json',
@@ -2014,6 +2173,15 @@ class DistributedProviderTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     expected, manifest['provenance']['runtime_state'])
+                if engine == 'yugabytedb':
+                    self.assertEqual(
+                        'ysql',
+                        manifest['registration']['interface']['interface_id'],
+                    )
+                    self.assertEqual(
+                        'passed',
+                        manifest['provenance']['dual_interface_gate'],
+                    )
         vitess = json.loads(
             (PROVIDER_ROOT / manifest_paths['vitess']).read_text(
                 encoding='utf-8'

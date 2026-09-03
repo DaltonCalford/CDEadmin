@@ -43,6 +43,9 @@
     "default_port": 5432,
     "default": false,
     "target_adapter_version": "psycopg-3.3.4",
+    "connection_capability_set": "postgresql-wire-v1",
+    "connection_field_sets": ["postgresql-wire-v1"],
+    "secret_field_sets": ["postgresql-wire-v1"],
     "connection_fields": [
       {"field_id": "web_host", "route_key": "web_host", "label": "Native API host", "control": "text", "group": "immudb native API"},
       {"field_id": "web_port", "route_key": "web_port", "label": "Native API port", "control": "number", "group": "immudb native API", "default": 8080, "minimum": 1, "maximum": 65535},

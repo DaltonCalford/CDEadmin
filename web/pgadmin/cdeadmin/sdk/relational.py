@@ -79,12 +79,16 @@ class RelationalClientConfig:
     result_kind: str | None = None
     extensions: Mapping[str, Any] = field(default_factory=dict)
     credential_argument: str | None = None
+    credential_arguments: Mapping[str, str] = field(default_factory=dict)
     secret_acquirer: Callable[..., object] | None = field(
         default=None, repr=False, compare=False
     )
     administration: object | None = field(
         default=None, repr=False, compare=False
     )
+    connection_initializer: Callable[
+        [object, Mapping[str, Any]], None
+    ] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if not isinstance(self.profile, PilotProfile):
@@ -116,6 +120,14 @@ class RelationalClientConfig:
             raise RelationalClientError(
                 'credential_argument must be a non-empty string'
             )
+        if not isinstance(self.credential_arguments, Mapping) or not all(
+            isinstance(kind, str) and kind.strip() and
+            isinstance(argument, str) and argument.strip()
+            for kind, argument in self.credential_arguments.items()
+        ):
+            raise RelationalClientError(
+                'credential_arguments must map kinds to connector arguments'
+            )
         if self.secret_acquirer is not None and not callable(
             self.secret_acquirer
         ):
@@ -128,6 +140,12 @@ class RelationalClientConfig:
                     raise RelationalClientError(
                         f'administration adapter requires {name}'
                     )
+        if self.connection_initializer is not None and not callable(
+            self.connection_initializer
+        ):
+            raise RelationalClientError(
+                'connection_initializer must be callable'
+            )
 
 
 @dataclass
@@ -166,23 +184,52 @@ class RelationalDBAPIClient:
         return copy.deepcopy(dict(route))
 
     def _connect(self, request):
+        # Keep the provider route for post-connect session initialization.
+        # ``_invoke_connector`` intentionally creates and filters its own
+        # copy before handing options to the driver, so it cannot return the
+        # session-only values (for example transaction isolation) needed by
+        # the initializer.
+        route = self._route(request)
         connection = self._invoke_connector(request, self._connector)
         self._connections.append(connection)
+        if self.config.connection_initializer is not None:
+            try:
+                self.config.connection_initializer(connection, route)
+            except RelationalClientError:
+                self._safe_close(connection)
+                raise
+            except Exception as exc:
+                self._safe_close(connection)
+                raise RelationalClientError(
+                    f'{self.config.profile.engine_name} session '
+                    f'initialization failed ({type(exc).__name__})'
+                ) from None
         return connection
 
     def _invoke_connector(self, request, connector, overrides=None):
         route = self._route(request)
         reference_id = route.pop('credential_reference_id', None)
         principal = route.pop('principal_reference', None)
+        primary_kind = route.pop('credential_kind', 'database_password')
+        references = route.pop('credential_references', {})
+        route.pop('credential_kinds', None)
+        if not isinstance(references, Mapping):
+            raise RelationalClientError(
+                'credential references must be an object'
+            )
+        references = dict(references)
+        if reference_id is not None:
+            references.setdefault(primary_kind, reference_id)
         args = tuple(self.config.connect_positional(route))
         kwargs = dict(self.config.connect_arguments(route))
         kwargs.update(dict(overrides or {}))
         try:
-            if reference_id is None:
+            if not references:
                 connection = connector(*args, **kwargs)
             else:
-                if not isinstance(reference_id, str) or not (
-                    reference_id.strip()
+                if not all(
+                    isinstance(value, str) and value.strip()
+                    for value in references.values()
                 ):
                     raise RelationalClientError(
                         'credential reference must be a non-empty string'
@@ -191,28 +238,35 @@ class RelationalDBAPIClient:
                     raise RelationalClientError(
                         'credential reference requires a principal reference'
                     )
-                if self.config.credential_argument is None or not callable(
-                    self.config.secret_acquirer
-                ):
+                arguments = dict(self.config.credential_arguments)
+                if self.config.credential_argument is not None:
+                    arguments.setdefault(
+                        'database_password', self.config.credential_argument
+                    )
+                unknown = sorted(set(references) - set(arguments))
+                if unknown or not callable(self.config.secret_acquirer):
                     raise RelationalClientError(
                         'relational credential binding is unavailable'
                     )
-                lease = self.config.secret_acquirer(
-                    reference_id.strip(), principal.strip(), 'connect',
-                    'database_password',
-                )
-                with lease:
-                    connection = lease.use(
-                        lambda view: connector(
-                            *args,
-                            **{
-                                **kwargs,
-                                self.config.credential_argument: bytes(
-                                    view
-                                ).decode('utf-8'),
-                            },
-                        )
+                bindings = [
+                    (kind, references[kind], arguments[kind])
+                    for kind in sorted(references)
+                ]
+
+                def connect(index, options):
+                    if index == len(bindings):
+                        return connector(*args, **options)
+                    kind, reference, argument = bindings[index]
+                    lease = self.config.secret_acquirer(
+                        reference.strip(), principal.strip(), 'connect', kind
                     )
+                    with lease:
+                        return lease.use(lambda view: connect(index + 1, {
+                            **options,
+                            argument: bytes(view).decode('utf-8'),
+                        }))
+
+                connection = connect(0, kwargs)
         except RelationalClientError:
             raise
         except Exception as exc:
@@ -416,7 +470,12 @@ class RelationalDBAPIClient:
                 for column in description
             )
             rows = list(cursor.fetchall()) if description else []
-            rowcount = getattr(cursor, 'rowcount', None)
+            try:
+                rowcount = getattr(cursor, 'rowcount', None)
+            except Exception:
+                # DB-API row counts are optional. In particular, Firebird's
+                # driver can reject the records-info request after valid DDL.
+                rowcount = None
             token = _ResultToken(
                 cursor, handle, columns, rows,
                 rowcount if isinstance(rowcount, int) else None,

@@ -34,6 +34,9 @@
     "default_port": 26257,
     "default": false,
     "target_adapter_version": "psycopg-3.3.4",
+    "connection_capability_set": "postgresql-wire-v1",
+    "connection_field_sets": ["postgresql-wire-v1"],
+    "secret_field_sets": ["postgresql-wire-v1"],
     "connection_fields": [
       {"field_id": "cockroach_path", "route_key": "cockroach_path", "label": "cockroach executable", "control": "file", "group": "CockroachDB control plane"},
       {"field_id": "cockroach_certs_dir", "route_key": "cockroach_certs_dir", "label": "CLI certificate directory", "control": "text", "group": "CockroachDB control plane", "help": "Required for secure native CLI administration."},

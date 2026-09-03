@@ -20,6 +20,11 @@ from .models import (
 )
 from .redaction import REDACTED, SENSITIVE_KEYS, redact, redact_text
 from .secrets import EndpointSecretService, SecretLease
+from .credential_bundle import (
+    credential_from_protected_value,
+    decode_credential_bundle,
+    encode_credential_bundle,
+)
 from .service import IsolationKeyPolicy, RuntimeIdentityPolicy, SecurityService
 
 
@@ -56,6 +61,9 @@ __all__ = (
     'SENSITIVE_KEYS',
     'SecretAccessError',
     'SecretLease',
+    'credential_from_protected_value',
+    'decode_credential_bundle',
+    'encode_credential_bundle',
     'SecretReference',
     'SecurityPolicyError',
     'SecurityService',

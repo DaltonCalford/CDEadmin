@@ -60,5 +60,8 @@ def create_provider(context, permissions, client=None):
     return XTDBPilotProvider(
         context,
         permissions,
-        client or XTDBClient(permissions.acquire_secret),
+        client or XTDBClient(
+            permissions.acquire_secret,
+            pool_namespace=context.pool_namespace,
+        ),
     )

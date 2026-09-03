@@ -34,23 +34,30 @@ from pgadmin.cdeadmin.core import EndpointContext  # noqa: E402
 from pgadmin.cdeadmin.security import SecretLease  # noqa: E402
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     PROFILE as DUCKDB,
+    _initialize_connection as initialize_duckdb_connection,
     _route_arguments as duckdb_route_arguments,
     _version as duckdb_version,
 )
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD,
+    _initialize_connection as initialize_firebird_connection,
     _route_arguments as firebird_route_arguments,
     _version as firebird_version,
 )
 from pgadmin.cdeadmin.providers.mysql_family.provider import (  # noqa: E402
+    MariaDBDBAPIClient,
     MARIADB_PROFILE,
     MYSQL_PROFILE,
+    _MariaDBConnectorFacade,
+    _initialize_connection as initialize_mysql_connection,
+    _resources as mysql_resources,
     _route_arguments as mysql_route_arguments,
     _version as mysql_version,
 )
 from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
     PROFILE as SQLITE,
     SQLiteProvider,
+    _initialize_connection as initialize_sqlite_connection,
     _resources as sqlite_resources,
     _route_arguments as sqlite_route_arguments,
     _security as sqlite_security,
@@ -126,6 +133,120 @@ def sqlite_client(profile):
 
 
 class RelationalInventoryTests(unittest.TestCase):
+
+    def test_duckdb_attachment_initializer_is_contained_and_idempotent(self):
+        try:
+            import duckdb
+        except ImportError:
+            self.skipTest('DuckDB driver is not installed')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            attached = root / 'archive.duckdb'
+            duckdb.connect(str(attached)).close()
+            connection = duckdb.connect(str(root / 'main.duckdb'))
+            route = {
+                'database': str(root / 'main.duckdb'),
+                'filesystem_root': str(root),
+                'attached_databases': [{
+                    'name': 'archive', 'database': str(attached),
+                    'read_only': True,
+                }],
+            }
+            try:
+                initialize_duckdb_connection(connection, route)
+                initialize_duckdb_connection(connection, route)
+                names = {
+                    row[0] for row in connection.execute(
+                        'SELECT database_name FROM duckdb_databases()'
+                    ).fetchall()
+                }
+                self.assertIn('archive', names)
+            finally:
+                connection.close()
+
+    def test_sqlite_attachment_initializer_is_contained_and_discoverable(
+            self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            connection = sqlite3.connect(root / 'main.sqlite')
+            try:
+                initialize_sqlite_connection(connection, {
+                    'database': str(root / 'main.sqlite'),
+                    'filesystem_root': str(root),
+                    'attached_databases': [{
+                        'name': 'archive',
+                        'database': str(root / 'archive.sqlite'),
+                    }],
+                })
+                resources = sqlite_resources(connection, {})
+                attached = next(
+                    item for item in resources
+                    if item['resource_kind'] == 'attached-database'
+                )
+                self.assertEqual('archive', attached['display_name'])
+                self.assertTrue(any(
+                    item['resource_kind'] == 'extension'
+                    for item in resources
+                ))
+            finally:
+                connection.close()
+
+    def test_sqlite_attachment_initializer_rejects_escape(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'approved'
+            root.mkdir()
+            connection = sqlite3.connect(root / 'main.sqlite')
+            try:
+                with self.assertRaisesRegex(
+                    RelationalClientError, 'escapes',
+                ):
+                    initialize_sqlite_connection(connection, {
+                        'database': str(root / 'main.sqlite'),
+                        'filesystem_root': str(root),
+                        'attached_databases': [{
+                            'name': 'outside',
+                            'database': str(Path(temporary) / 'outside.db'),
+                        }],
+                    })
+            finally:
+                connection.close()
+
+    def test_mysql_plugin_discovery_uses_native_server_catalog(self):
+        class Cursor:
+            source = ''
+
+            def execute(self, source):
+                self.source = source
+
+            def fetchall(self):
+                if 'information_schema.TABLES' in self.source:
+                    return [('app', 'widgets', 'BASE TABLE')]
+                if self.source == 'SHOW PLUGINS':
+                    return [(
+                        'auth_example', 'ACTIVE', 'AUTHENTICATION',
+                        'auth_example.so', 'GPL',
+                    )]
+                return []
+
+            @staticmethod
+            def close():
+                return None
+
+        class Connection:
+            @staticmethod
+            def cursor():
+                return Cursor()
+
+        resources = mysql_resources(
+            Connection(), {'capability_generation': 'generation-one'}
+        )
+        plugin = next(
+            item for item in resources
+            if item['resource_kind'] == 'plugin'
+        )
+        self.assertEqual('auth_example', plugin['display_name'])
+        self.assertEqual('auth_example.so', plugin['native']['library'])
+        self.assertEqual('generation-one', plugin['generation'])
 
     def test_six_relational_profiles_are_present_and_distinct(self):
         profiles = (MYSQL_PROFILE, MARIADB_PROFILE, DUCKDB, FIREBIRD, SQLITE)
@@ -225,6 +346,68 @@ class RelationalInventoryTests(unittest.TestCase):
             }),
         )
 
+    def test_firebird_route_maps_trusted_auth_and_dpb_configuration(self):
+        import firebird.driver as firebird_module
+
+        route = firebird_route_arguments({
+            'route_id': 'firebird-route-configuration-test',
+            'host': 'firebird.example', 'port': 3050,
+            'database': '/srv/firebird/inventory.fdb',
+            'trusted_auth': True, 'protocol': 'INET4', 'timeout': 12,
+            'dummy_packet_interval': 30,
+            'wire_config': 'WireCrypt=Required',
+            'dbkey_scope': 'ATTACHMENT',
+            'auth_plugin_list': 'Win_Sspi,Srp256',
+        }, firebird_module)
+        self.assertTrue(route['database'].startswith('cde_database_'))
+        self.assertEqual(
+            firebird_module.DBKeyScope.ATTACHMENT, route['dbkey_scope']
+        )
+        self.assertEqual('Win_Sspi,Srp256', route['auth_plugin_list'])
+        config = firebird_module.driver_config.get_database(
+            route['database']
+        )
+        self.assertTrue(config.trusted_auth.value)
+        self.assertEqual(12, config.timeout.value)
+        self.assertEqual('WireCrypt=Required', config.config.value)
+
+    def test_firebird_transaction_defaults_use_typed_driver_tpb(self):
+        import firebird.driver as firebird_module
+
+        transaction = SimpleNamespace(default_tpb=None)
+        connection = SimpleNamespace(
+            default_tpb=None, main_transaction=transaction
+        )
+        initialize_firebird_connection(connection, {
+            'transaction_isolation': 'READ_COMMITTED_READ_CONSISTENCY',
+            'transaction_access': 'READ',
+            'transaction_lock_timeout': 15,
+        }, firebird_module)
+        self.assertIsInstance(connection.default_tpb, bytes)
+        self.assertEqual(
+            connection.default_tpb, transaction.default_tpb
+        )
+
+    def test_mysql_transaction_isolation_is_allowlisted_and_initialized(self):
+        statements = []
+        cursor = SimpleNamespace(
+            execute=statements.append, close=lambda: None
+        )
+        initialize_mysql_connection(
+            SimpleNamespace(cursor=lambda: cursor),
+            {'transaction_isolation': 'SERIALIZABLE'},
+        )
+        self.assertEqual([
+            'SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE'
+        ], statements)
+        with self.assertRaisesRegex(
+            RelationalClientError, 'transaction isolation is invalid'
+        ):
+            initialize_mysql_connection(
+                SimpleNamespace(cursor=lambda: cursor),
+                {'transaction_isolation': 'INJECTED; DROP DATABASE'},
+            )
+
     def test_embedded_routes_refuse_unapproved_or_escaping_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / 'approved'
@@ -248,6 +431,116 @@ class RelationalInventoryTests(unittest.TestCase):
                     'database': str(root / 'db.sqlite'),
                     'filesystem_root': str(root), 'uri': True,
                 })
+
+    def test_sqlite_safe_uri_and_session_defaults_are_forwarded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = root / 'inventory db.sqlite'
+            values = sqlite_route_arguments({
+                'database': str(database), 'filesystem_root': str(root),
+                'timeout': 0.25, 'uri_mode': 'ro',
+                'uri_cache': 'private', 'uri_immutable': True,
+                'detect_types': 'both', 'isolation_level': 'immediate',
+                'cached_statements': 512,
+            })
+        self.assertTrue(values['uri'])
+        self.assertTrue(values['database'].startswith('file:/'))
+        self.assertIn('mode=ro', values['database'])
+        self.assertIn('immutable=1', values['database'])
+        self.assertEqual(0.25, values['timeout'])
+        self.assertEqual(3, values['detect_types'])
+        self.assertEqual('IMMEDIATE', values['isolation_level'])
+        self.assertEqual(512, values['cached_statements'])
+
+    def test_duckdb_read_only_and_named_scalar_config_are_forwarded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            values = duckdb_route_arguments({
+                'database': str(root / 'warehouse.duckdb'),
+                'filesystem_root': str(root), 'read_only': True,
+                'config': {'threads': 4, 'memory_limit': '2GB'},
+            })
+            self.assertTrue(values['read_only'])
+            self.assertEqual(4, values['config']['threads'])
+            with self.assertRaisesRegex(
+                RelationalClientError, 'named scalar options'
+            ):
+                duckdb_route_arguments({
+                    'database': str(root / 'warehouse.duckdb'),
+                    'filesystem_root': str(root),
+                    'config': {'nested': {'not': 'admitted'}},
+                })
+
+    def test_mariadb_pool_arguments_use_native_connection_pool(self):
+        observed = {}
+
+        class Pool:
+            def __init__(self, **kwargs):
+                observed['pool_options'] = kwargs
+                self.closed = False
+
+            def get_connection(self):
+                observed['checkout'] = True
+                return SimpleNamespace(close=lambda: None)
+
+            def close(self):
+                self.closed = True
+                observed['closed'] = True
+
+        module = SimpleNamespace(
+            connect=lambda **kwargs: observed.setdefault('direct', kwargs),
+            ConnectionPool=Pool,
+        )
+        facade = _MariaDBConnectorFacade(module, 'pool-namespace')
+        connection = facade(
+            host='db.example', user='operator', password='secret-canary',
+            pool_name='cde_test_pool', pool_size=7,
+            pool_reset_connection=False, pool_validation_interval=900,
+        )
+        self.assertIsNotNone(connection)
+        self.assertNotIn('direct', observed)
+        self.assertTrue(observed['checkout'])
+        self.assertEqual(7, observed['pool_options']['pool_size'])
+        self.assertEqual(
+            900, observed['pool_options']['pool_validation_interval']
+        )
+        self.assertEqual('db.example', observed['pool_options']['host'])
+        facade.close()
+        self.assertTrue(observed['closed'])
+
+    def test_mariadb_client_closes_native_pool_after_checked_out_handle(self):
+        events = []
+
+        class Connection:
+            def close(self):
+                events.append('connection')
+
+        class Pool:
+            def __init__(self, **_kwargs):
+                pass
+
+            def get_connection(self):
+                return Connection()
+
+            def close(self):
+                events.append('pool')
+
+        module = SimpleNamespace(
+            connect=lambda **_kwargs: Connection(), ConnectionPool=Pool
+        )
+        client = MariaDBDBAPIClient(RelationalClientConfig(
+            profile=MARIADB_PROFILE,
+            module_name='test.mariadb.dbapi',
+            version_query='SELECT VERSION()',
+            connect_arguments=lambda route: dict(route),
+            metadata_reader=lambda *_args: [],
+        ), 'pool-namespace', module)
+        client.open_session({'route': {
+            'host': 'db.example', 'pool_name': 'cde_test_pool',
+            'pool_size': 2,
+        }})
+        client.close()
+        self.assertEqual(['connection', 'pool'], events)
 
 
 class RelationalDBAPIClientTests(unittest.TestCase):
@@ -442,6 +735,57 @@ class RelationalDBAPIClientTests(unittest.TestCase):
             client.open_session({'route': {
                 'credential_reference_id': 'reference-one',
             }})
+
+    def test_multiple_typed_credentials_bind_to_distinct_arguments(self):
+        observed = {'acquisitions': []}
+        secrets = {
+            'primary-reference': b'primary-canary',
+            'second-reference': b'second-canary',
+            'key-reference': b'key-canary',
+        }
+
+        def acquire(reference, principal, purpose, expected_kind):
+            observed['acquisitions'].append((
+                reference, principal, purpose, expected_kind
+            ))
+            return SecretLease(secrets[reference])
+
+        def connect(**kwargs):
+            observed['arguments'] = kwargs
+            return SimpleNamespace(close=lambda: None)
+
+        client = RelationalDBAPIClient(RelationalClientConfig(
+            profile=self.profile,
+            module_name='test.multi.secret.dbapi',
+            version_query='SELECT sqlite_version()',
+            connect_arguments=lambda route: dict(route),
+            metadata_reader=lambda *_args: [],
+            credential_arguments={
+                'database_password': 'password',
+                'database_password_2': 'password2',
+                'tls_private_key_password': 'sslpassword',
+            },
+            secret_acquirer=acquire,
+        ), SimpleNamespace(connect=connect))
+        client.open_session({'route': {
+            'database': 'qualification',
+            'credential_reference_id': 'primary-reference',
+            'credential_kind': 'database_password',
+            'credential_references': {
+                'database_password': 'primary-reference',
+                'database_password_2': 'second-reference',
+                'tls_private_key_password': 'key-reference',
+            },
+            'credential_kinds': [
+                'database_password', 'database_password_2',
+                'tls_private_key_password',
+            ],
+            'principal_reference': 'principal-one',
+        }})
+        self.assertEqual('primary-canary', observed['arguments']['password'])
+        self.assertEqual('second-canary', observed['arguments']['password2'])
+        self.assertEqual('key-canary', observed['arguments']['sslpassword'])
+        self.assertEqual(3, len(observed['acquisitions']))
 
 
 if __name__ == '__main__':

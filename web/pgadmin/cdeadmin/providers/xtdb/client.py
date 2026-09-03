@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from pgadmin.cdeadmin.sdk import PilotProviderError
+from pgadmin.cdeadmin.providers.distributed_sql import _PsycopgPoolConnector
 
 
 QUALIFIED_DRIVER_VERSION = '3.3.4'
@@ -204,12 +205,22 @@ class XTDBClient:
     ROUTE_FIELDS = frozenset({
         'route_id', 'host', 'port', 'database', 'username',
         'credential_reference_id', 'principal_reference', 'tls_mode',
+        'credential_references', 'credential_kinds', 'credential_kind',
+        'auth_mode', 'oidc_client_id',
         'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
         'connect_timeout', 'statement_timeout', 'application_name',
         'read_only', 'healthz_url', 'tool_workspace',
+        'keepalives', 'keepalives_idle', 'keepalives_interval',
+        'keepalives_count', 'tcp_user_timeout',
+        'pool_enabled', 'pool_min_size', 'pool_max_size',
+        'pool_acquisition_timeout', 'pool_max_waiting',
+        'pool_max_lifetime', 'pool_max_idle', 'pool_reconnect_timeout',
+        'pool_workers', 'pool_check_connection',
+        'transaction_mode', 'transaction_async', 'transaction_timezone',
     })
 
-    def __init__(self, secret_acquirer=None, module=None, clock=None):
+    def __init__(self, secret_acquirer=None, module=None, clock=None,
+                 pool_namespace='xtdb-unscoped', pool_module=None):
         self.secret_acquirer = secret_acquirer
         try:
             self.module = module or importlib.import_module('psycopg')
@@ -224,6 +235,9 @@ class XTDBClient:
             )
         if not callable(getattr(self.module, 'connect', None)):
             raise XTDBDependencyError('psycopg connector is unavailable')
+        self._connector = _PsycopgPoolConnector(
+            self.module, pool_namespace, pool_module
+        )
         self._clock = clock or time.monotonic
         self._connections = []
         self._results = []
@@ -251,6 +265,16 @@ class XTDBClient:
         route.setdefault('statement_timeout', 30)
         route.setdefault('application_name', 'CDEadmin')
         route.setdefault('read_only', False)
+        route.setdefault('transaction_mode', (
+            'read-only' if route['read_only'] else 'inferred'
+        ))
+        route.setdefault('transaction_async', False)
+        route.setdefault('auth_mode', (
+            'password' if route.get('credential_reference_id') or
+            'database_password' in dict(
+                route.get('credential_references') or {}
+            ) else 'trust'
+        ))
         route['host'] = _text(route['host'], 'host', 255)
         route['port'] = _integer(route['port'], 'port', 1, 65535)
         route['database'] = _identifier(route['database'], 'database')
@@ -266,6 +290,20 @@ class XTDBClient:
         )
         if not isinstance(route['read_only'], bool):
             raise XTDBClientError('read_only must be true or false')
+        if route['transaction_mode'] not in {
+            'inferred', 'read-only', 'read-write'
+        }:
+            raise XTDBClientError('XTDB transaction mode is invalid')
+        if not isinstance(route['transaction_async'], bool):
+            raise XTDBClientError('transaction_async must be true or false')
+        if route['read_only'] and route['transaction_mode'] == 'read-write':
+            raise XTDBClientError(
+                'a read-only route cannot default to read-write transactions'
+            )
+        if route['auth_mode'] not in {
+            'trust', 'password', 'oidc-client-credentials', 'oidc-device'
+        }:
+            raise XTDBClientError('XTDB authentication mode is invalid')
         if route['tls_mode'] not in {
             'disable', 'require', 'verify-ca', 'verify-full'
         }:
@@ -274,6 +312,8 @@ class XTDBClient:
             'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
             'healthz_url', 'tool_workspace', 'route_id',
             'credential_reference_id', 'principal_reference',
+            'oidc_client_id',
+            'transaction_timezone',
         ):
             if field in route:
                 route[field] = _text(route[field], field, 4096)
@@ -289,6 +329,48 @@ class XTDBClient:
             raise XTDBClientError(
                 'XTDB client certificate and key must be supplied together'
             )
+        references = route.get('credential_references') or {}
+        if not isinstance(references, Mapping) or not all(
+            isinstance(key, str) and key.strip() and
+            isinstance(value, str) and value.strip()
+            for key, value in references.items()
+        ):
+            raise XTDBClientError('credential references must be a text map')
+        references = dict(references)
+        if route.get('credential_reference_id'):
+            references.setdefault(
+                route.get('credential_kind', 'database_password'),
+                route['credential_reference_id'],
+            )
+        required_kind = {
+            'trust': None, 'password': 'database_password',
+            'oidc-client-credentials': 'oauth_client_secret',
+            'oidc-device': None,
+        }[route['auth_mode']]
+        allowed = {
+            value for value in (
+                required_kind, 'tls_private_key_password'
+            ) if value is not None
+        }
+        if set(references) - allowed:
+            raise XTDBClientError(
+                'credential kinds do not match XTDB authentication mode'
+            )
+        if required_kind and required_kind not in references:
+            raise XTDBClientError(
+                'XTDB authentication requires a credential reference'
+            )
+        if references and not route.get('principal_reference'):
+            raise XTDBClientError(
+                'credential references require a principal reference'
+            )
+        if route['auth_mode'] == 'oidc-client-credentials' and not route.get(
+            'oidc_client_id'
+        ):
+            raise XTDBClientError(
+                'OIDC client credentials require a client ID'
+            )
+        route['credential_references'] = references
         return route
 
     @staticmethod
@@ -302,6 +384,7 @@ class XTDBClient:
             'options': (
                 f"-c statement_timeout={route['statement_timeout'] * 1000}"
             ),
+            'cde_route_id': route.get('route_id'),
         }
         mapping = {
             'tls_ca_file': 'sslrootcert',
@@ -311,28 +394,57 @@ class XTDBClient:
         for source, target in mapping.items():
             if route.get(source):
                 values[target] = route[source]
+        for field in (
+            'keepalives', 'keepalives_idle', 'keepalives_interval',
+            'keepalives_count', 'tcp_user_timeout', 'pool_enabled',
+            'pool_min_size', 'pool_max_size', 'pool_acquisition_timeout',
+            'pool_max_waiting', 'pool_max_lifetime', 'pool_max_idle',
+            'pool_reconnect_timeout', 'pool_workers',
+            'pool_check_connection',
+        ):
+            if route.get(field) is not None:
+                values[field] = route[field]
         return values
 
     def _connect(self, request):
         route = self._route(request)
         kwargs = self._connection_arguments(route)
-        reference = route.get('credential_reference_id')
+        references = dict(route.get('credential_references') or {})
         try:
-            if reference is None:
-                connection = self.module.connect(**kwargs)
+            if not references:
+                connection = self._connector(**kwargs)
             else:
                 principal = route.get('principal_reference')
                 if not principal or not callable(self.secret_acquirer):
                     raise XTDBClientError(
                         'XTDB credential binding is unavailable'
                     )
-                lease = self.secret_acquirer(
-                    reference, principal, 'connect', 'database_password'
-                )
-                with lease:
-                    connection = lease.use(lambda view: self.module.connect(
-                        **kwargs, password=bytes(view).decode('utf-8')
-                    ))
+                bindings = sorted(references.items())
+
+                def connect(index, options):
+                    if index == len(bindings):
+                        if route['auth_mode'] == 'oidc-client-credentials':
+                            options['password'] = (
+                                route['oidc_client_id'] + ':' +
+                                options.pop('oauth_client_secret')
+                            )
+                        return self._connector(**options)
+                    kind, reference = bindings[index]
+                    argument = {
+                        'database_password': 'password',
+                        'oauth_client_secret': 'oauth_client_secret',
+                        'tls_private_key_password': 'sslpassword',
+                    }[kind]
+                    lease = self.secret_acquirer(
+                        reference, principal, 'connect', kind
+                    )
+                    with lease:
+                        return lease.use(lambda view: connect(index + 1, {
+                            **options,
+                            argument: bytes(view).decode('utf-8'),
+                        }))
+
+                connection = connect(0, kwargs)
             self._register_string_dumper(connection)
             session = _Session(connection, route)
             self._connections.append(session)
@@ -413,7 +525,30 @@ class XTDBClient:
             'driver_observation_only': True,
             'finality_interpreted_by_common_code': False,
             'automatic_replay': False,
+            'configured_transaction_mode': handle.route['transaction_mode'],
+            'configured_async_commit': handle.route['transaction_async'],
+            'configured_timezone': handle.route.get('transaction_timezone'),
         }
+
+    @staticmethod
+    def _apply_transaction_defaults(source, route):
+        """Apply XTDB defaults only when the user supplied a bare BEGIN."""
+        if not re.fullmatch(r'\s*BEGIN\s*;?\s*', source, re.I):
+            return source
+        mode = route.get('transaction_mode', 'inferred')
+        if mode == 'inferred':
+            return source
+        if mode == 'read-only':
+            return 'BEGIN READ ONLY'
+        options = []
+        if route.get('transaction_async'):
+            options.append('ASYNC')
+        if route.get('transaction_timezone'):
+            options.append(
+                'TIMEZONE = ' + _sql_string(route['transaction_timezone'])
+            )
+        suffix = f" WITH ({', '.join(options)})" if options else ''
+        return 'BEGIN READ WRITE' + suffix
 
     @staticmethod
     def _command(source):
@@ -454,6 +589,7 @@ class XTDBClient:
             raise XTDBClientError(
                 'XTDB SQL parameters must be an object or array'
             )
+        source = self._apply_transaction_defaults(source, handle.route)
         command = self._command(source)
         if handle.route.get('read_only') and self._is_mutation(source):
             raise XTDBClientError('mutations are refused on a read-only route')
@@ -1651,6 +1787,7 @@ class XTDBClient:
         with self._lock:
             self._row_identities.clear()
             self._admin_cursors.clear()
+        self._connector.close()
 
     def _forget_and_close(self, session):
         try:

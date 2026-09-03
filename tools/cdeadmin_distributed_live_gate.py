@@ -139,6 +139,7 @@ def _provider(engine, permissions):
     context = SimpleNamespace(
         endpoint_id=f'{engine}-live-{uuid.uuid4()}',
         session_namespace=f'{engine}-live-session-{uuid.uuid4()}',
+        pool_namespace=f'{engine}-live-pool-{uuid.uuid4()}',
         mode='legacy_native',
     )
     return module.create_provider(context, permissions), module.PROFILE

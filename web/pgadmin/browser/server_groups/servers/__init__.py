@@ -10,6 +10,7 @@
 import json
 import hashlib
 import os
+import uuid
 from collections import OrderedDict
 import pgadmin.browser.server_groups as sg
 from flask import render_template, request, make_response, jsonify, \
@@ -50,12 +51,19 @@ from pgadmin.utils import get_complete_file_path
 from pgadmin.settings.utils import with_object_filters
 from pgadmin.cdeadmin.endpoints import (
     EndpointRegistrationError,
+    active_secret_fields,
     registration_profile,
     registration_profile_for_endpoint,
     registration_profiles,
     provider_route_form_values,
     provider_route_options,
+    provider_secret_values,
     service_for_app as endpoint_service_for_app,
+)
+from pgadmin.cdeadmin.security import (
+    SecretAccessError,
+    decode_credential_bundle,
+    encode_credential_bundle,
 )
 from pgadmin.cdeadmin.core import (
     ProviderPermissionError, ProviderUnavailableError,
@@ -593,6 +601,10 @@ class ServerNode(PGChildNodeView):
             'get': 'connect_status', 'post': 'connect', 'delete': 'disconnect'
         }],
         'verify_endpoint': [{'post': 'verify_endpoint'}],
+        'cde_routes': [{
+            'get': 'cde_routes', 'post': 'cde_routes',
+            'put': 'cde_routes', 'delete': 'cde_routes',
+        }],
         'cde_workspace': [{
             'get': 'cde_workspace', 'post': 'cde_workspace'
         }],
@@ -754,6 +766,7 @@ class ServerNode(PGChildNodeView):
             connected = conn.connected()
             profile = _cde_registration(server)
             provider_endpoint = profile['workflow'] == 'provider_endpoint'
+            credential_values = {}
             if provider_endpoint:
                 connected = False
             errmsg = None
@@ -1025,6 +1038,10 @@ class ServerNode(PGChildNodeView):
         route_fields_changed = any(
             key.startswith('cde_route_') for key in data
         )
+        secret_fields_changed = any(
+            key.startswith('cde_secret_') and data.get(key) not in {None, ''}
+            for key in data
+        )
         requested_profile = data.get('cde_profile_id')
         if requested_profile is not None and (
             requested_profile != endpoint_registration['profile_id']
@@ -1069,10 +1086,93 @@ class ServerNode(PGChildNodeView):
         self._server_modify_disallowed_when_connected(
             connected, data, disp_lbl)
 
+        typed_credential_kinds = None
+        if provider_endpoint and endpoint_registration.get('secret_fields'):
+            route_model = min(
+                server.endpoint_profile.routes,
+                key=lambda item: item.priority,
+                default=None,
+            )
+            if route_model is None:
+                return make_json_response(
+                    success=0,
+                    errormsg=gettext('Endpoint route is unavailable.')
+                )
+            try:
+                prospective_route = provider_route_options(
+                    endpoint_registration, data,
+                    json.loads(route_model.configuration),
+                )
+                submitted_credentials = provider_secret_values(
+                    endpoint_registration, prospective_route, data,
+                    require_all=False,
+                )
+                stored_credentials = {}
+                if server.password:
+                    _present, crypt_key = get_crypt_key()
+                    protected_value = decrypt(server.password, crypt_key)
+                    try:
+                        stored_credentials = decode_credential_bundle(
+                            protected_value
+                        )
+                    except SecretAccessError:
+                        primary = next((
+                            field for field in active_secret_fields(
+                                endpoint_registration, prospective_route
+                            ) if field['primary']
+                        ), None)
+                        if primary is not None:
+                            stored_credentials[primary['secret_kind']] = (
+                                protected_value
+                            )
+                stored_credentials.update(submitted_credentials)
+                active_kinds = {
+                    field['secret_kind']
+                    for field in active_secret_fields(
+                        endpoint_registration, prospective_route
+                    )
+                }
+                stored_credentials = {
+                    kind: value for kind, value in stored_credentials.items()
+                    if kind in active_kinds
+                }
+                missing = [
+                    field['label']
+                    for field in active_secret_fields(
+                        endpoint_registration, prospective_route
+                    )
+                    if field['required'] and field['secret_kind'] not in (
+                        stored_credentials
+                    )
+                ]
+                if missing:
+                    raise EndpointRegistrationError(
+                        'Required credentials are unavailable: ' +
+                        ', '.join(missing)
+                    )
+            except (EndpointRegistrationError, ValueError) as exc:
+                return bad_request(errormsg=str(exc))
+            save_credentials = data.get(
+                'save_password', bool(server.save_password)
+            )
+            if submitted_credentials and not save_credentials:
+                return bad_request(errormsg=gettext(
+                    'Typed provider credentials require Save password.'
+                ))
+            data = dict(data)
+            if save_credentials and stored_credentials:
+                data['password'] = encode_credential_bundle(
+                    stored_credentials
+                )
+            elif data.get('save_password') is False:
+                server.password = None
+                stored_credentials = {}
+            typed_credential_kinds = sorted(stored_credentials)
+
         idx = self._set_valid_attr_value(gid, data, config_param_map, server,
                                          sharedserver)
 
-        if idx == 0 and not route_fields_changed:
+        if idx == 0 and not route_fields_changed and not secret_fields_changed:
             return make_json_response(
                 success=0,
                 errormsg=gettext('No parameters were changed.')
@@ -1107,11 +1207,22 @@ class ServerNode(PGChildNodeView):
                     'filesystem_root': os.path.dirname(database),
                     'database_create_root': os.path.dirname(database),
                 }
+                try:
+                    route_value = provider_route_options(
+                        endpoint_registration, data, route_value
+                    )
+                except EndpointRegistrationError as exc:
+                    db.session.rollback()
+                    return bad_request(errormsg=str(exc))
             else:
                 try:
                     route_value = provider_route_options(
                         endpoint_registration, data, existing_route
                     )
+                    if typed_credential_kinds is not None:
+                        route_value['credential_kinds'] = (
+                            typed_credential_kinds
+                        )
                 except EndpointRegistrationError as exc:
                     db.session.rollback()
                     return bad_request(errormsg=str(exc))
@@ -1131,7 +1242,8 @@ class ServerNode(PGChildNodeView):
                     'host', 'port', 'username', 'db', 'password',
                     'connection_params',
                 )
-            ) or route_fields_changed:
+            ) or route_fields_changed or secret_fields_changed:
+                server.endpoint_profile.profile_generation = str(uuid.uuid4())
                 server.endpoint_profile.runtime_identity.verification_state = (
                     'stale'
                 )
@@ -1614,32 +1726,49 @@ class ServerNode(PGChildNodeView):
                 post_connection_sql=data.get('post_connection_sql', None)
             )
             if provider_endpoint:
-                if embedded_endpoint:
-                    database = os.path.realpath(data.get('db'))
-                    route_configuration = {
-                        'database': database,
-                        'filesystem_root': os.path.dirname(database),
-                        'database_create_root': os.path.dirname(database),
-                    }
-                else:
-                    route_configuration = {
-                        'host': data.get('host'),
-                        'port': data.get('port'),
-                        'user': data.get('username'),
-                        'database': data.get('db'),
-                        'connection_timeout': connection_params.get(
-                            'connect_timeout', 10
-                        ),
-                    }
+                try:
+                    if embedded_endpoint:
+                        database = os.path.realpath(data.get('db'))
+                        route_configuration = {
+                            'database': database,
+                            'filesystem_root': os.path.dirname(database),
+                            'database_create_root': os.path.dirname(database),
+                        }
+                    else:
+                        route_configuration = {
+                            'host': data.get('host'),
+                            'port': data.get('port'),
+                            'user': data.get('username'),
+                            'database': data.get('db'),
+                            'connection_timeout': connection_params.get(
+                                'connect_timeout', 10
+                            ),
+                        }
                     route_configuration = provider_route_options(
                         endpoint_registration, data, route_configuration
                     )
+                    credential_values = provider_secret_values(
+                        endpoint_registration, route_configuration, data,
+                        require_all=True,
+                    )
+                    if endpoint_registration.get('secret_fields'):
+                        route_configuration['credential_kinds'] = sorted(
+                            credential_values
+                        )
+                except EndpointRegistrationError as exc:
+                    return bad_request(errormsg=str(exc))
                 server._cde_endpoint_registration = endpoint_registration
                 server._cde_endpoint_route_configuration = (
                     route_configuration
                 )
-                if data.get('save_password') and data.get('password'):
-                    server.password = encrypt(data['password'], crypt_key)
+                if data.get('save_password'):
+                    if credential_values:
+                        server.password = encrypt(
+                            encode_credential_bundle(credential_values),
+                            crypt_key,
+                        )
+                    elif data.get('password'):
+                        server.password = encrypt(data['password'], crypt_key)
             db.session.add(server)
             db.session.commit()
             connected = False
@@ -1650,11 +1779,15 @@ class ServerNode(PGChildNodeView):
             tunnel_password_saved = False
 
             if provider_endpoint and data.get('cde_verify_now'):
-                transient_password = (
-                    None if server.password is not None
-                    else data.get('password')
+                transient_password = None if server.password is not None else (
+                    credential_values or data.get('password')
                 )
-                endpoint_requires_secret = (
+                active_credentials = active_secret_fields(
+                    endpoint_registration, route_configuration
+                )
+                endpoint_requires_secret = any(
+                    field['required'] for field in active_credentials
+                ) if active_credentials else (
                     endpoint_registration['requires_secret'] or
                     route_configuration.get('auth_kind') in {
                         'basic', 'bearer'
@@ -1905,6 +2038,42 @@ class ServerNode(PGChildNodeView):
             info=gettext('Endpoint profile verification succeeded.')
         )
 
+    @permissions_required(AllPermissionTypes.object_register_server)
+    @pga_login_required
+    def cde_routes(self, gid, sid):
+        """Manage credential-free alternate routes for a provider endpoint."""
+        server = get_server(sid)
+        if server is None:
+            return bad_request(self.not_found_error_msg())
+        if _is_non_owner(server):
+            return forbidden(errormsg=gettext(
+                'Only the endpoint owner can manage its routes.'
+            ))
+        profile = _cde_registration(server)
+        if profile['workflow'] != 'provider_endpoint':
+            return bad_request(gettext(
+                'The selected endpoint has no provider-managed routes.'
+            ))
+        service = endpoint_service_for_app(current_app)
+        data = request.get_json(silent=True) or {}
+        try:
+            if request.method == 'GET':
+                payload = service.route_catalog(server)
+            elif request.method == 'POST':
+                payload = service.create_route(server, data)
+            elif request.method == 'PUT':
+                payload = service.update_route(
+                    server, data.get('route_id'), data
+                )
+            else:
+                payload = service.delete_route(
+                    server, data.get('route_id')
+                )
+        except EndpointRegistrationError as exc:
+            db.session.rollback()
+            return bad_request(errormsg=str(exc))
+        return make_json_response(data=payload)
+
     @pga_login_required
     def cde_workspace(self, gid, sid):
         """Serve a verified provider endpoint without PostgreSQL routing."""
@@ -1929,7 +2098,29 @@ class ServerNode(PGChildNodeView):
             else:
                 data = request.get_json(silent=True) or {}
                 action = data.get('action')
-                if action == 'open_session':
+                if action == 'route_list':
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).route_catalog(server)
+                elif action == 'route_create':
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).create_route(server, data.get('request') or {})
+                elif action == 'route_update':
+                    route_request = data.get('request') or {}
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).update_route(
+                        server, route_request.get('route_id'), route_request
+                    )
+                elif action == 'route_delete':
+                    route_request = data.get('request') or {}
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).delete_route(
+                        server, route_request.get('route_id')
+                    )
+                elif action == 'open_session':
                     payload = service.open_session(
                         server, data.get('language_profile')
                     )

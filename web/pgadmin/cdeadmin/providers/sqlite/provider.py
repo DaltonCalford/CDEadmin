@@ -1,6 +1,7 @@
 """SQLite 3.53.0 semantic provider."""
 
 import re
+from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
@@ -12,7 +13,7 @@ from ..relational_admin import (
     RelationalAdministration,
     RelationalAdminDialect,
 )
-from ..embedded_route import sqlite_arguments
+from ..embedded_route import contained_database, sqlite_arguments
 
 
 PROFILE = PilotProfile(
@@ -38,6 +39,13 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
     embedded_database=True,
     database_create_mode='embedded-file',
     database_extension='.sqlite',
+    not_applicable_concepts=frozenset({
+        'servers', 'materialized_views', 'domains', 'types', 'sequences',
+        'functions', 'procedures', 'roles_and_grants', 'partitions',
+        'tablespaces_and_filespaces', 'replication_objects',
+        'jobs_and_events',
+    }),
+    concept_resource_kinds={'schemas': ('database', 'attached-database')},
     supported={
         'database': frozenset({'inspect', 'create'}),
         'attached-database': frozenset({'inspect'}),
@@ -184,6 +192,12 @@ def _resources(connection, request):
             'user_version',
         ):
             add('pragma', [], name)
+        cursor.execute('SELECT name FROM pragma_module_list ORDER BY name')
+        for (name,) in cursor.fetchall():
+            add('extension', [], name, {
+                'extension_kind': 'virtual-table-module',
+                'loaded_in_connection': True,
+            })
         return list(resources.values())
     finally:
         cursor.close()
@@ -207,6 +221,39 @@ def _security(connection, request):
         cursor.close()
 
 
+def _initialize_connection(connection, route):
+    attachments = route.get('attached_databases', [])
+    if not isinstance(attachments, list):
+        raise RelationalClientError(
+            'SQLite attached databases must be an array'
+        )
+    cursor = connection.cursor()
+    try:
+        for attachment in attachments:
+            if not isinstance(attachment, Mapping):
+                raise RelationalClientError(
+                    'SQLite attachment must be an object'
+                )
+            name = attachment.get('name')
+            database = attachment.get('database')
+            if not isinstance(name, str) or not re.fullmatch(
+                    r'[A-Za-z_][A-Za-z0-9_]{0,127}', name) or name.lower() in {
+                        'main', 'temp',
+                    }:
+                raise RelationalClientError(
+                    'SQLite attachment name is invalid'
+                )
+            attached_route = dict(route)
+            attached_route['database'] = database
+            path = contained_database(attached_route)
+            cursor.execute(
+                'ATTACH DATABASE ? AS "' + name.replace('"', '""') + '"',
+                (path,),
+            )
+    finally:
+        cursor.close()
+
+
 def _create_client():
     return RelationalDBAPIClient(RelationalClientConfig(
         profile=PROFILE,
@@ -216,6 +263,7 @@ def _create_client():
         metadata_reader=_resources,
         security_reader=_security,
         administration=ADMINISTRATION,
+        connection_initializer=_initialize_connection,
     ))
 
 

@@ -20,6 +20,7 @@ import hashlib
 import importlib
 import json
 from dataclasses import dataclass, field
+from contextlib import ExitStack
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -127,7 +128,12 @@ class Neo4jClient:
         'tls_mode', 'connection_timeout', 'connection_acquisition_timeout',
         'max_transaction_retry_time', 'max_connection_pool_size',
         'max_connection_lifetime', 'keep_alive', 'user_agent',
-        'tool_workspace',
+        'tool_workspace', 'auth_mode', 'auth_realm', 'auth_scheme',
+        'auth_parameters', 'credential_kinds', 'credential_references',
+        'client_certificate', 'tls_certificate_file', 'tls_key_file',
+        'liveness_check_timeout', 'resolver_addresses',
+        'notifications_min_severity', 'access_mode', 'fetch_size',
+        'impersonated_user', 'bookmarks',
     })
 
     ADMIN_OPERATIONS = {
@@ -230,12 +236,97 @@ class Neo4jClient:
                 raise Neo4jClientError(
                     f'Neo4j route {name} must be true or false'
                 )
-        if route.get('username') is not None and route.get(
-            'credential_reference_id'
-        ) is None:
+        auth_mode = route.get(
+            'auth_mode', 'basic' if route.get('username') else 'none'
+        )
+        if auth_mode not in {'none', 'basic', 'kerberos', 'bearer', 'custom'}:
+            raise Neo4jClientError('Neo4j authentication mode is invalid')
+        route['auth_mode'] = auth_mode
+        references = route.get('credential_references') or {}
+        if not isinstance(references, Mapping):
             raise Neo4jClientError(
-                'Neo4j username requires a credential reference'
+                'Neo4j credential references must be an object'
             )
+        if route.get('credential_reference_id') is not None:
+            references.setdefault(
+                'database_password', route['credential_reference_id']
+            )
+        route['credential_references'] = dict(references)
+        required_kind = {
+            'basic': 'database_password',
+            'kerberos': 'authentication_token',
+            'bearer': 'authentication_token',
+            'custom': 'custom_auth_credentials',
+        }.get(auth_mode)
+        if required_kind and required_kind not in references:
+            raise Neo4jClientError(
+                'Neo4j selected authentication credential is unavailable'
+            )
+        if auth_mode in {'basic', 'custom'} and not route.get('username'):
+            raise Neo4jClientError(
+                'Neo4j selected authentication requires a username'
+            )
+        if auth_mode not in {'basic', 'custom'} and route.get('username'):
+            raise Neo4jClientError(
+                'Neo4j username is not valid for this authentication mode'
+            )
+        if route.get('auth_parameters') is not None and not isinstance(
+            route['auth_parameters'], Mapping
+        ):
+            raise Neo4jClientError(
+                'Neo4j custom authentication parameters must be an object'
+            )
+        if auth_mode == 'custom' and not route.get('auth_scheme'):
+            raise Neo4jClientError(
+                'Neo4j custom authentication requires a scheme'
+            )
+        client_certificate = route.get('client_certificate', False)
+        if not isinstance(client_certificate, bool):
+            raise Neo4jClientError(
+                'Neo4j client certificate setting must be true or false'
+            )
+        route['client_certificate'] = client_certificate
+        for name in ('tls_certificate_file', 'tls_key_file'):
+            value = route.get(name)
+            if value is not None:
+                path = Path(_identifier(value, f'Neo4j {name}'))
+                if not path.is_absolute():
+                    raise Neo4jClientError(f'Neo4j {name} must be absolute')
+                route[name] = str(path.resolve(strict=False))
+        if client_certificate and (
+            route['tls_mode'] == 'disabled' or
+            not route.get('tls_certificate_file') or
+            not route.get('tls_key_file')
+        ):
+            raise Neo4jClientError(
+                'Neo4j client certificate requires TLS, certificate, and key'
+            )
+        addresses = route.get('resolver_addresses')
+        if addresses is not None and (
+            not isinstance(addresses, list) or not all(
+                isinstance(item, str) and item.strip() for item in addresses
+            )
+        ):
+            raise Neo4jClientError(
+                'Neo4j resolver addresses must be a string array'
+            )
+        access_mode = route.get('access_mode', 'write')
+        if access_mode not in {'read', 'write'}:
+            raise Neo4jClientError('Neo4j access mode is invalid')
+        route['access_mode'] = access_mode
+        route['fetch_size'] = _bounded_int(
+            route.get('fetch_size'), 1000, 1, 1000000, 'fetch size'
+        )
+        if route.get('impersonated_user'):
+            route['impersonated_user'] = _identifier(
+                route['impersonated_user'], 'Neo4j impersonated user'
+            )
+        bookmarks = route.get('bookmarks', [])
+        if not isinstance(bookmarks, list) or not all(
+            isinstance(item, str) and item.strip() for item in bookmarks
+        ):
+            raise Neo4jClientError('Neo4j bookmarks must be a string array')
+        route['bookmarks'] = [item.strip() for item in bookmarks]
         return route
 
     @staticmethod
@@ -252,8 +343,8 @@ class Neo4jClient:
             f'{_bounded_int(route.get("port"), 7687, 1, 65535, "port")}'
         )
 
-    @staticmethod
-    def _connector_options(route):
+    def _connector_options(self, route, credentials=None):
+        credentials = credentials or {}
         result = {
             'connection_timeout': float(_bounded_int(
                 route.get('connection_timeout'), 30, 1, 600,
@@ -276,43 +367,114 @@ class Neo4jClient:
                 'maximum connection lifetime',
             )),
             'keep_alive': route.get('keep_alive', True) is not False,
+            'liveness_check_timeout': float(_bounded_int(
+                route.get('liveness_check_timeout'), 0, 0, 86400,
+                'liveness-check timeout',
+            )),
         }
         if route.get('user_agent'):
             result['user_agent'] = _identifier(
                 route['user_agent'], 'Neo4j user agent'
             )
+        severity = route.get('notifications_min_severity', 'INFORMATION')
+        if severity not in {'OFF', 'INFORMATION', 'WARNING'}:
+            raise Neo4jClientError(
+                'Neo4j notification severity is invalid'
+            )
+        result['notifications_min_severity'] = severity
+        addresses = route.get('resolver_addresses')
+        if addresses:
+            allowed = tuple(addresses)
+
+            def resolver(_address):
+                return allowed
+
+            result['resolver'] = resolver
+        if route.get('client_certificate'):
+            try:
+                management = importlib.import_module('neo4j.auth_management')
+                certificate = management.ClientCertificate(
+                    route['tls_certificate_file'], route['tls_key_file'],
+                    credentials.get('tls_private_key_password'),
+                )
+                result['client_certificate'] = (
+                    management.ClientCertificateProviders.static(certificate)
+                )
+            except (AttributeError, ImportError, ModuleNotFoundError) as exc:
+                raise Neo4jDependencyError(
+                    'Neo4j driver lacks client-certificate support'
+                ) from exc
         return result
+
+    def _auth(self, route, credentials):
+        mode = route['auth_mode']
+        if mode == 'none':
+            return None
+        if mode == 'basic':
+            factory = getattr(self.module, 'basic_auth', None)
+            if not callable(factory):
+                return (route['username'], credentials['database_password'])
+            return factory(route['username'], credentials['database_password'],
+                           route.get('auth_realm'))
+        if mode == 'kerberos':
+            return self._auth_factory('kerberos_auth')(
+                credentials['authentication_token']
+            )
+        if mode == 'bearer':
+            return self._auth_factory('bearer_auth')(
+                credentials['authentication_token']
+            )
+        return self._auth_factory('custom_auth')(
+            route['username'], credentials['custom_auth_credentials'],
+            route.get('auth_realm'), route['auth_scheme'],
+            **dict(route.get('auth_parameters') or {}),
+        )
+
+    def _auth_factory(self, name):
+        factory = getattr(self.module, name, None)
+        if not callable(factory):
+            raise Neo4jDependencyError(
+                f'Neo4j driver lacks {name} authentication support'
+            )
+        return factory
 
     def _connect(self, request):
         route = self._route(request)
-        reference = route.get('credential_reference_id')
+        references = route.get('credential_references', {})
         principal = route.get('principal_reference')
-        username = route.get('username')
         uri = self._uri(route)
-        options = self._connector_options(route)
 
-        def connect(password=None):
-            auth = None
-            if username is not None:
-                _identifier(username, 'Neo4j username')
-                auth = (username, password)
+        def connect(credentials=None):
+            credentials = credentials or {}
+            auth = self._auth(route, credentials)
+            options = self._connector_options(route, credentials)
             driver = self._connector(uri, auth=auth, **options)
             self._drivers.append(driver)
             return driver
 
-        if reference is None:
+        if not references:
             return connect(), route
-        _identifier(reference, 'credential reference')
         _identifier(principal, 'principal reference')
         if not callable(self._secret_acquirer):
             raise Neo4jClientError('Neo4j credential binding is unavailable')
-        lease = self._secret_acquirer(
-            reference, principal, 'connect', 'database_password'
-        )
-        with lease:
-            driver = lease.use(
-                lambda value: connect(bytes(value).decode('utf-8'))
-            )
+        credentials = {}
+        with ExitStack() as stack:
+            for kind, reference in sorted(references.items()):
+                if kind not in {
+                    'database_password', 'authentication_token',
+                    'custom_auth_credentials', 'tls_private_key_password',
+                }:
+                    raise Neo4jClientError(
+                        'Neo4j credential kind is unsupported'
+                    )
+                lease = stack.enter_context(self._secret_acquirer(
+                    _identifier(reference, 'credential reference'),
+                    principal, 'connect', kind,
+                ))
+                credentials[kind] = lease.use(
+                    lambda value: bytes(value).decode('utf-8')
+                )
+            driver = connect(credentials)
         return driver, route
 
     def _forget_driver(self, driver):
@@ -322,9 +484,27 @@ class Neo4jClient:
             if driver in self._drivers:
                 self._drivers.remove(driver)
 
-    @staticmethod
-    def _session(driver, route, database=None):
-        return driver.session(database=database or route.get('database'))
+    def _session(self, driver, route, database=None):
+        options = {
+            'database': database or route.get('database'),
+            'fetch_size': route['fetch_size'],
+            'default_access_mode': getattr(
+                self.module,
+                'READ_ACCESS' if route['access_mode'] == 'read'
+                else 'WRITE_ACCESS',
+                route['access_mode'].upper(),
+            ),
+        }
+        if route.get('impersonated_user'):
+            options['impersonated_user'] = route['impersonated_user']
+        if route['bookmarks']:
+            bookmark_type = getattr(self.module, 'Bookmarks', None)
+            factory = getattr(bookmark_type, 'from_raw_values', None)
+            options['bookmarks'] = (
+                factory(route['bookmarks']) if callable(factory)
+                else route['bookmarks']
+            )
+        return driver.session(**options)
 
     def runtime_identity(self, request, handle=None):
         owned = handle is None

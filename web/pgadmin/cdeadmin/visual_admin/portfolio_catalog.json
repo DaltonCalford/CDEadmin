@@ -247,7 +247,7 @@
       ]
     },
     {
-      "engine_id": "duckdb", "engine_name": "DuckDB", "reference_profile": "1.5.2", "model_family": "embedded-analytic-relational",
+      "engine_id": "duckdb", "engine_name": "DuckDB", "reference_profile": "1.5.2", "model_family": "embedded-columnar-analytic-relational",
       "objects": [
         {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
         {"resource_kind": "attached-database", "title": "Attached database", "operation_profile": "namespace"},
@@ -262,7 +262,8 @@
         {"resource_kind": "macro", "title": "Macro", "operation_profile": "definition"},
         {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
         {"resource_kind": "secret", "title": "Secret reference", "operation_profile": "security"},
-        {"resource_kind": "extension", "title": "Extension", "operation_profile": "operational"}
+        {"resource_kind": "extension", "title": "Extension", "operation_profile": "operational"},
+        {"resource_kind": "materialization", "title": "Semantic materialization", "operation_profile": "definition"}
       ]
     },
     {
@@ -288,6 +289,8 @@
         {"resource_kind": "character-set", "title": "Character set", "operation_profile": "read_only"},
         {"resource_kind": "collation", "title": "Collation", "operation_profile": "definition"},
         {"resource_kind": "external-function", "title": "External function/filter", "operation_profile": "definition"},
+        {"resource_kind": "plugin", "title": "Configured plugin", "operation_profile": "read_only"},
+        {"resource_kind": "publication", "title": "Publication", "operation_profile": "definition"},
         {"resource_kind": "service-operation", "title": "Service operation", "operation_profile": "operational"}
       ]
     },
@@ -369,6 +372,7 @@
         {"resource_kind": "user", "title": "User", "operation_profile": "security"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "plugin", "title": "Server plugin", "operation_profile": "definition"},
         {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
         {"resource_kind": "server-link", "title": "Remote server", "operation_profile": "definition"}
       ]
@@ -441,6 +445,7 @@
         {"resource_kind": "user", "title": "User", "operation_profile": "security"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
+        {"resource_kind": "plugin", "title": "Server plugin", "operation_profile": "definition"},
         {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
         {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"}
       ]
@@ -724,6 +729,7 @@
         {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
         {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
         {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
+        {"resource_kind": "user-defined-type", "title": "YCQL user-defined type", "operation_profile": "definition"},
         {"resource_kind": "tablet", "title": "Tablet", "operation_profile": "topology"},
         {"resource_kind": "tserver", "title": "Tablet server", "operation_profile": "topology"},
         {"resource_kind": "master", "title": "Master", "operation_profile": "topology"},

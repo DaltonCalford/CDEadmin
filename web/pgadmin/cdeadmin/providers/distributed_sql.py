@@ -17,11 +17,14 @@ the same path as the corresponding reference engine.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Callable, Mapping
 
 from pgadmin.cdeadmin.sdk import (
     RelationalClientConfig,
+    RelationalClientError,
     RelationalDBAPIClient,
+    load_optional_module,
 )
 from .relational_admin import (
     RelationalAdministration,
@@ -57,20 +60,230 @@ def optional_rows(cursor, source, parameters=()):
 def postgresql_route(route):
     allowed = {
         'host', 'port', 'user', 'dbname', 'connect_timeout', 'sslmode',
-        'sslrootcert', 'sslcert', 'sslkey', 'application_name',
+        'hostaddr', 'client_encoding', 'options', 'application_name',
+        'fallback_application_name', 'keepalives', 'keepalives_idle',
+        'keepalives_interval', 'keepalives_count', 'tcp_user_timeout',
+        'replication', 'channel_binding', 'gssencmode', 'sslcompression',
+        'sslcert', 'sslkey',
+        'sslrootcert', 'sslcrl', 'sslcrldir', 'sslsni', 'requirepeer',
+        'ssl_min_protocol_version', 'ssl_max_protocol_version',
+        'krbsrvname', 'gsslib', 'target_session_attrs',
+        'load_balance_hosts', 'gssdelegation', 'require_auth',
+        'sslnegotiation', 'sslkeylogfile', 'min_protocol_version',
+        'max_protocol_version', 'oauth_issuer', 'oauth_client_id',
+        'oauth_scope', 'pool_enabled', 'pool_min_size', 'pool_max_size',
+        'pool_acquisition_timeout', 'pool_max_waiting',
+        'pool_max_lifetime', 'pool_max_idle', 'pool_reconnect_timeout',
+        'pool_workers', 'pool_check_connection',
     }
     result = {key: value for key, value in route.items() if key in allowed}
     if 'database' in route and 'dbname' not in result:
         result['dbname'] = route['database']
+    if route.get('route_id'):
+        result['cde_route_id'] = str(route['route_id'])
     return result
+
+
+class _PooledConnectionLease:
+    """Return a checked-out psycopg connection exactly once."""
+
+    def __init__(self, pool, connection):
+        object.__setattr__(self, '_pool', pool)
+        object.__setattr__(self, '_connection', connection)
+        object.__setattr__(self, '_closed', False)
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+    def __setattr__(self, name, value):
+        if name.startswith('_'):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._connection, name, value)
+
+    def close(self):
+        if self._closed:
+            return
+        self._pool.putconn(self._connection)
+        object.__setattr__(self, '_closed', True)
+
+
+class _PsycopgPoolConnector:
+    """Adapt psycopg_pool to the synchronous DB-API connector boundary."""
+
+    _POOL_ARGUMENTS = frozenset({
+        'pool_enabled', 'pool_min_size', 'pool_max_size',
+        'pool_acquisition_timeout', 'pool_max_waiting',
+        'pool_max_lifetime', 'pool_max_idle', 'pool_reconnect_timeout',
+        'pool_workers', 'pool_check_connection',
+        'cde_route_id',
+    })
+
+    def __init__(self, module, pool_namespace, pool_module=None):
+        self.module = module
+        self.pool_namespace = str(pool_namespace)
+        self.pool_module = pool_module
+        self._pools = {}
+
+    def __call__(self, *args, **kwargs):
+        if not kwargs.get('pool_enabled'):
+            options = dict(kwargs)
+            for key in self._POOL_ARGUMENTS:
+                options.pop(key, None)
+            return self.module.connect(*args, **options)
+        if args:
+            raise RelationalClientError(
+                'pooled PostgreSQL-wire connections require named arguments'
+            )
+        options = dict(kwargs)
+        pool_options = {
+            key: options.pop(key)
+            for key in tuple(options)
+            if key in self._POOL_ARGUMENTS
+        }
+        pool_options.pop('pool_enabled', None)
+        route_id = pool_options.pop('cde_route_id', None)
+        key = str(route_id or (
+            str(options.get('host') or '') + ':' +
+            str(options.get('port') or '') + '/' +
+            str(options.get('dbname') or '') + ':' +
+            str(options.get('user') or '')
+        ))
+        pool_key = self.pool_namespace + ':' + key
+        pool = self._pools.get(pool_key)
+        if pool is None:
+            namespace = self.pool_module or load_optional_module(
+                'psycopg_pool'
+            )
+            pool_type = getattr(namespace, 'ConnectionPool', None)
+            if not callable(pool_type):
+                raise RelationalClientError(
+                    'psycopg_pool has no synchronous ConnectionPool'
+                )
+            check = None
+            if pool_options.pop('pool_check_connection', True):
+                check = getattr(pool_type, 'check_connection', None)
+            pool = pool_type(
+                kwargs=options,
+                min_size=pool_options.pop('pool_min_size', 1),
+                max_size=pool_options.pop('pool_max_size', 10),
+                timeout=pool_options.pop('pool_acquisition_timeout', 30),
+                max_waiting=pool_options.pop('pool_max_waiting', 0),
+                max_lifetime=pool_options.pop('pool_max_lifetime', 3600),
+                max_idle=pool_options.pop('pool_max_idle', 600),
+                reconnect_timeout=pool_options.pop(
+                    'pool_reconnect_timeout', 300
+                ),
+                num_workers=pool_options.pop('pool_workers', 3),
+                check=check,
+                open=True,
+            )
+            self._pools[pool_key] = pool
+        return _PooledConnectionLease(pool, pool.getconn())
+
+    def close(self):
+        for pool in tuple(self._pools.values()):
+            close = getattr(pool, 'close', None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+        self._pools.clear()
+
+
+class PsycopgPoolDBAPIClient(RelationalDBAPIClient):
+    """PostgreSQL-wire client with optional native psycopg pooling."""
+
+    def __init__(self, config, pool_namespace, module=None, pool_module=None):
+        super().__init__(config, module)
+        self._pool_connector = _PsycopgPoolConnector(
+            self.module, pool_namespace, pool_module
+        )
+        self._connector = self._pool_connector
+
+    def close(self):
+        super().close()
+        self._pool_connector.close()
+
+
+def _initialize_postgresql_connection(connection, route):
+    connection.set_autocommit(route.get('autocommit', False) is True)
+    isolation = route.get('transaction_isolation', 'server')
+    if isolation != 'server':
+        module = load_optional_module('psycopg')
+        try:
+            value = module.IsolationLevel[isolation]
+        except KeyError as exc:
+            raise RelationalClientError(
+                'PostgreSQL-wire transaction isolation is invalid'
+            ) from exc
+        connection.set_isolation_level(value)
+    read_mode = route.get('transaction_read_only', 'server')
+    if read_mode not in {'server', 'read-only', 'read-write'}:
+        raise RelationalClientError(
+            'PostgreSQL-wire transaction read mode is invalid'
+        )
+    if read_mode != 'server':
+        connection.set_read_only(read_mode == 'read-only')
+    deferrable = route.get('transaction_deferrable', 'server')
+    if deferrable not in {'server', 'deferrable', 'not-deferrable'}:
+        raise RelationalClientError(
+            'PostgreSQL-wire transaction deferrability is invalid'
+        )
+    if deferrable != 'server':
+        connection.set_deferrable(deferrable == 'deferrable')
+
+
+def _initialize_mysql_connection(connection, route):
+    """Apply session-only MySQL-wire defaults after authentication.
+
+    Transaction isolation is deliberately not interpolated from arbitrary
+    text.  The finite allowlist is shared by Dolt, TiDB and Vitess because
+    they expose the same admitted MySQL wire statement.
+    """
+    isolation = route.get('transaction_isolation')
+    if isolation is None:
+        return
+    allowed = {
+        'READ UNCOMMITTED', 'READ COMMITTED', 'REPEATABLE READ',
+        'SERIALIZABLE',
+    }
+    if isolation not in allowed:
+        raise RelationalClientError(
+            'MySQL-wire transaction isolation is invalid'
+        )
+    cursor = connection.cursor()
+    try:
+        cursor.execute(
+            f'SET SESSION TRANSACTION ISOLATION LEVEL {isolation}'
+        )
+    finally:
+        cursor.close()
 
 
 def mysql_route(route):
     allowed = {
         'host', 'port', 'user', 'database', 'unix_socket',
-        'connection_timeout', 'ssl_ca', 'ssl_cert', 'ssl_key',
+        'connection_timeout', 'read_timeout', 'write_timeout',
+        'ssl_ca', 'ssl_cert', 'ssl_key', 'ssl_verify_cert',
+        'ssl_verify_identity', 'ssl_cipher', 'tls_ciphersuites',
+        'ssl_disabled', 'tls_versions', 'compress', 'force_ipv6',
+        'auth_plugin', 'krb_service_principal', 'kerberos_auth_mode',
+        'oci_config_file', 'oci_config_profile', 'openid_token_file',
+        'dns_srv', 'charset', 'collation', 'autocommit', 'time_zone',
+        'sql_mode', 'init_command', 'conn_attrs', 'pool_name', 'pool_size',
+        'pool_reset_session', 'failover',
     }
-    return {key: value for key, value in route.items() if key in allowed}
+    result = {key: value for key, value in route.items() if key in allowed}
+    if result.get('auth_plugin') == 'auto':
+        result.pop('auth_plugin')
+    if result.get('pool_size') and not result.get('pool_name'):
+        route_id = str(route.get('route_id') or 'unscoped')
+        result['pool_name'] = 'cde_' + hashlib.sha256(
+            route_id.encode('utf-8')
+        ).hexdigest()[:24]
+    return result
 
 
 def postgresql_catalog(connection, request, engine_name, extras=None):
@@ -220,16 +433,27 @@ def create_sql_client(
     client_class=RelationalDBAPIClient,
     client_options=None,
     security_reader_override=None,
+    pool_namespace=None,
 ):
     """Create a DB-API adapter from one provider-owned distributed spec."""
     if wire == 'postgresql':
         module_name = 'psycopg'
         route_builder = postgresql_route
         security_reader = postgresql_security
+        credential_arguments = {
+            'database_password': 'password',
+            'tls_private_key_password': 'sslpassword',
+            'oauth_client_secret': 'oauth_client_secret',
+        }
     elif wire == 'mysql':
         module_name = 'mysql.connector'
         route_builder = mysql_route
         security_reader = mysql_security
+        credential_arguments = {
+            'database_password': 'password',
+            'database_password_2': 'password2',
+            'database_password_3': 'password3',
+        }
     else:
         raise ValueError('distributed SQL wire must be provider-selected')
     config = RelationalClientConfig(
@@ -240,11 +464,24 @@ def create_sql_client(
         connect_arguments=route_builder,
         metadata_reader=metadata_reader,
         security_reader=security_reader_override or security_reader,
-        credential_argument='password',
+        credential_arguments=credential_arguments,
         secret_acquirer=permissions.acquire_secret,
+        connection_initializer=(
+            _initialize_postgresql_connection
+            if wire == 'postgresql' else _initialize_mysql_connection
+        ),
         administration=administration,
     )
-    return client_class(config, **dict(client_options or {}))
+    options = dict(client_options or {})
+    if wire == 'postgresql' and client_class is RelationalDBAPIClient:
+        if pool_namespace is None:
+            raise ValueError(
+                'PostgreSQL-wire client requires a pool namespace'
+            )
+        return PsycopgPoolDBAPIClient(
+            config, pool_namespace, **options
+        )
+    return client_class(config, **options)
 
 
 def sql_administration(

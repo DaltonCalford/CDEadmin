@@ -1,30 +1,208 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.yugabytedb", "provider_version": "0.1.0", "profile_id": "yugabytedb-native", "profile_version": "2025.2.2.2", "evidence_reference": "cde-distributed:yugabytedb-native-live:20260902"},
+  "identity": {
+    "contract_version": "1.1.0",
+    "provider_id": "org.cdeadmin.yugabytedb",
+    "provider_version": "0.1.0",
+    "profile_id": "yugabytedb-native",
+    "profile_version": "2025.2.2.2",
+    "evidence_reference": "cde-distributed:yugabytedb-native-live:20260902"
+  },
   "package_type": "engine",
-  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "sdk_compatibility": {
+    "minimum": "1.1.0",
+    "maximum_exclusive": "2.0.0"
+  },
   "support_state": "experimental",
   "enabled": true,
   "fixture": false,
   "production_registration": true,
-  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
-  "permissions": [
-    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
-    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
-    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
-    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "topology_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "security_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "backup_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "restore_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "replication_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "maintenance_admin", "granted": true, "scope": ["endpoint"]},
-    {"permission_id": "upgrade_admin", "granted": true, "scope": ["endpoint"]}
+  "contracts": [
+    "EndpointProvider",
+    "ResourceProvider",
+    "LanguageProvider",
+    "SessionProvider",
+    "ExecutionProvider",
+    "ResultProvider",
+    "ResultRenderer",
+    "DiagnosticProvider",
+    "OperationProvider",
+    "ToolProvider",
+    "SecurityProvider",
+    "SemanticLayerProvider",
+    "AnalyticalQueryProvider"
   ],
-  "required_permissions": ["network", "secret_read"],
-  "composition": {"experience_families": ["yugabytedb"], "target_adapter_ids": ["ysql-postgresql-wire-client"]},
+  "permissions": [
+    {
+      "permission_id": "network",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "secret_read",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "data_read",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "data_write",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "administer",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "execute",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "topology_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "security_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "backup_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "restore_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "replication_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "maintenance_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "upgrade_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    }
+  ],
+  "required_permissions": [
+    "network",
+    "secret_read"
+  ],
+  "composition": {
+    "experience_families": [
+      "yugabytedb"
+    ],
+    "target_adapter_ids": [
+      "ysql-postgresql-wire-client"
+    ]
+  },
   "extension_schema": null,
-  "registration": {"display_name": "YugabyteDB 2025.2.2.2", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "default_port": 5433, "default": false, "target_adapter_version": "psycopg-3.3.4", "connection_fields": [{"field_id": "yb_admin_path", "route_key": "yb_admin_path", "label": "yb-admin executable", "control": "file", "group": "YugabyteDB control plane"}, {"field_id": "master_addresses", "route_key": "master_addresses", "label": "Master RPC addresses", "control": "text", "group": "YugabyteDB control plane"}, {"field_id": "yb_admin_timeout_ms", "route_key": "yb_admin_timeout_ms", "label": "Control timeout (milliseconds)", "control": "number", "group": "YugabyteDB control plane", "default": 120000, "minimum": 1000, "maximum": 3600000}, {"field_id": "certs_dir_name", "route_key": "certs_dir_name", "label": "Control-plane certificate directory", "control": "text", "group": "YugabyteDB control plane"}]},
-  "provenance": {"purpose": "YugabyteDB exact-profile distributed provider", "protocol": "postgresql_wire", "client_state": "psycopg_3.3.4_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+  "registration": {
+    "display_name": "YugabyteDB 2025.2.2.2 (YSQL)",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 5433,
+    "default": false,
+    "target_adapter_version": "psycopg-3.3.4",
+    "connection_capability_set": "postgresql-wire-v1",
+    "connection_field_sets": [
+      "postgresql-wire-v1"
+    ],
+    "secret_field_sets": [
+      "postgresql-wire-v1"
+    ],
+    "interface": {
+      "engine_id": "yugabytedb",
+      "engine_display_name": "YugabyteDB 2025.2.2.2",
+      "interface_id": "ysql",
+      "interface_display_name": "YSQL",
+      "protocol_id": "postgresql_wire"
+    },
+    "connection_fields": [
+      {
+        "field_id": "yb_admin_path",
+        "route_key": "yb_admin_path",
+        "label": "yb-admin executable",
+        "control": "file",
+        "group": "YugabyteDB control plane"
+      },
+      {
+        "field_id": "master_addresses",
+        "route_key": "master_addresses",
+        "label": "Master RPC addresses",
+        "control": "text",
+        "group": "YugabyteDB control plane"
+      },
+      {
+        "field_id": "yb_admin_timeout_ms",
+        "route_key": "yb_admin_timeout_ms",
+        "label": "Control timeout (milliseconds)",
+        "control": "number",
+        "group": "YugabyteDB control plane",
+        "default": 120000,
+        "minimum": 1000,
+        "maximum": 3600000
+      },
+      {
+        "field_id": "certs_dir_name",
+        "route_key": "certs_dir_name",
+        "label": "Control-plane certificate directory",
+        "control": "text",
+        "group": "YugabyteDB control plane"
+      }
+    ]
+  },
+  "provenance": {
+    "purpose": "YugabyteDB exact-profile distributed provider",
+    "protocol": "postgresql_wire",
+    "client_state": "psycopg_3.3.4_installed",
+    "runtime_state": "exact_runtime_qualified",
+    "activation_gate": "passed",
+    "dual_interface_gate": "passed",
+    "dual_interface_evidence_reference": "cde-yugabytedb-dual-interface-live:20260903"
+  }
 }

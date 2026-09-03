@@ -977,6 +977,7 @@ def _create_legacy_endpoint(connection, source_kind, source):
 
     source_reference = f'{source_kind}:{source.id}'
     registration = getattr(source, '_cde_endpoint_registration', None)
+    provider_managed = registration is not None
     route_configuration = getattr(
         source, '_cde_endpoint_route_configuration', {}
     )
@@ -1010,7 +1011,7 @@ def _create_legacy_endpoint(connection, source_kind, source):
         provider_version=registration['provider_version'],
         profile_id=registration['profile_id'],
         profile_version=registration['profile_version'],
-        profile_generation=None,
+        profile_generation=child_id('profile-generation:initial'),
         target_adapter_id=registration['target_adapter_id'],
         target_adapter_version=registration['target_adapter_version'],
         pool_namespace=namespace_id('pool'),
@@ -1045,11 +1046,21 @@ def _create_legacy_endpoint(connection, source_kind, source):
         if route_configuration.get('auth_kind') == 'bearer'
         else 'database_password'
     )
-    secret_columns = (
-        (primary_secret_kind, 'password'),
-        ('tunnel_password', 'tunnel_password'),
-    )
-    if registration.get(
+    declared_secret_fields = registration.get('secret_fields', [])
+    if declared_secret_fields:
+        secret_columns = tuple(
+            (
+                field['secret_kind'], 'password',
+                f":{field['secret_kind']}",
+            )
+            for field in declared_secret_fields
+        ) + (('tunnel_password', 'tunnel_password', ''),)
+    else:
+        secret_columns = (
+            (primary_secret_kind, 'password', ''),
+            ('tunnel_password', 'tunnel_password', ''),
+        )
+    if declared_secret_fields or registration.get(
         'supports_secret', registration.get('requires_secret', True)
     ):
         connection.execute(EndpointSecretReference.__table__.insert(), [
@@ -1058,14 +1069,23 @@ def _create_legacy_endpoint(connection, source_kind, source):
                 'endpoint_id': endpoint_id,
                 'secret_kind': secret_kind,
                 'storage_kind': 'legacy_protected_column',
-                'secret_reference': f'{source_reference}:{column}',
+                'secret_reference': (
+                    f'{source_reference}:{column}{kind_suffix}'
+                ),
             }
-            for secret_kind, column in secret_columns
+            for secret_kind, column, kind_suffix in secret_columns
         ])
     connection.execute(EndpointTLSProfile.__table__.insert().values(
         endpoint_id=endpoint_id,
-        tls_mode='legacy_inherited',
-        configuration_reference=f'{source_reference}:connection_params',
+        tls_mode=(
+            'per_route'
+            if provider_managed else 'legacy_inherited'
+        ),
+        configuration_reference=(
+            f'cde-endpoint-routes:{endpoint_id}'
+            if provider_managed
+            else f'{source_reference}:connection_params'
+        ),
     ))
     connection.execute(EndpointEvidenceSnapshot.__table__.insert().values(
         id=child_id('evidence:registration'),

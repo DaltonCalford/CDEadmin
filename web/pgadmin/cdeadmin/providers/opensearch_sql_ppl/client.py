@@ -531,3 +531,4 @@ class OpenSearchSQLPPLClient:
             sessions, self._sessions = self._sessions, []
         for session in sessions:
             session.close()
+        self.transport.close()

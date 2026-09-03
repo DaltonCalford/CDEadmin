@@ -36,7 +36,11 @@ from pgadmin.cdeadmin.resources.models import (
     ResourceCommandContribution,
     ResourceInspectorContribution,
 )
-from pgadmin.cdeadmin.visual_admin import ProviderVisualAdministration
+from pgadmin.cdeadmin.visual_admin import (
+    ProviderVisualAdministration,
+    enrich_engine_experience,
+)
+from .preserved_surface import concept_declarations
 
 
 PROVIDER_ID = 'org.pgadmin.postgresql'
@@ -55,6 +59,10 @@ TOOL_DISPOSITIONS = {
     'maintenance': 'provider-local-existing-tool',
     'psql': 'provider-local-existing-tool',
     'debugger': 'provider-local-existing-tool',
+}
+
+POSTGRESQL_CONCEPT_DECLARATIONS = {
+    'relational': concept_declarations(),
 }
 
 
@@ -219,7 +227,10 @@ class PostgreSQLProvider:
             'provider_owned': True,
             'common_provider_reimplementation_required': False,
         }
-        return descriptor
+        descriptor['concept_declarations'] = copy.deepcopy(
+            POSTGRESQL_CONCEPT_DECLARATIONS
+        )
+        return enrich_engine_experience(descriptor)
 
     def validate_visual_admin(self, request):
         return self._visual_admin.validate(request)

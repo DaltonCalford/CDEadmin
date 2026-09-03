@@ -362,6 +362,17 @@ class TiKVBackend:
         if result['pd_http_scheme'] not in ('http', 'https'):
             raise NativeDistributedError(
                 'TiKV PD HTTP scheme must be http or https')
+        timeout = result.get('operation_timeout', 30)
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or not (
+                1 <= timeout <= 3600):
+            raise NativeDistributedError(
+                'TiKV operation timeout is outside approved bounds')
+        result['operation_timeout'] = timeout
+        result['transaction_mode'] = result.get(
+            'transaction_mode', 'optimistic')
+        if result['transaction_mode'] not in {'optimistic', 'pessimistic'}:
+            raise NativeDistributedError(
+                'TiKV transaction mode is invalid')
         certificate = result.get('tls_certificate')
         key = result.get('tls_key')
         if bool(certificate) != bool(key):
@@ -531,11 +542,14 @@ class TiKVBackend:
         return values
 
     @staticmethod
-    def describe_transaction(_handle):
+    def describe_transaction(handle):
         return {
             'native_state': 'tikv-client-go-helper-session',
             'transaction_model': 'tikv-provider-native',
             'automatic_mutation_retry_by_cdeadmin': False,
+            'configured_transaction_mode': handle['transaction_mode'],
+            'operation_timeout_seconds': handle['operation_timeout'],
+            'isolation': 'snapshot-isolation',
         }
 
     @staticmethod
@@ -574,6 +588,8 @@ class TiKVBackend:
             'operation': operation,
             'pd_endpoints': list(route['pd_endpoints']),
             'api_version': route['api_version'],
+            'operation_timeout_seconds': route['operation_timeout'],
+            'transaction_mode': route['transaction_mode'],
         }
         for field in ('tls_ca', 'tls_certificate', 'tls_key'):
             if route.get(field):
@@ -669,7 +685,8 @@ class TiKVBackend:
         try:
             completed = self.runner(
                 [self._validated_helper_path()], input=payload,
-                capture_output=True, check=False, timeout=35,
+                capture_output=True, check=False,
+                timeout=route['operation_timeout'] + 5,
             )
         except (OSError, subprocess.SubprocessError) as exc:
             raise NativeDistributedError(

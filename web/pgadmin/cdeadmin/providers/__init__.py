@@ -116,6 +116,10 @@ BUILTIN_PACKAGES = (
         'yugabytedb/provider_manifest.json',
         'pgadmin.cdeadmin.providers.yugabytedb.provider',
     ),
+    (
+        'yugabytedb_ycql/provider_manifest.json',
+        'pgadmin.cdeadmin.providers.yugabytedb_ycql.provider',
+    ),
 )
 
 

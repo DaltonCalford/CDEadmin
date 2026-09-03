@@ -10,6 +10,9 @@
   "extension_schema": null,
   "registration": {
     "display_name": "InfluxDB 3.9.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 8181, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_field_sets": ["analytic-http-v1"],
+    "secret_field_sets": ["analytic-http-v1"],
+    "connection_capability_set": "influxdb-http-v1",
     "connection_fields": [
       {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "InfluxDB database", "default": "default"},
       {"field_id": "query_language", "route_key": "query_language", "label": "Default query language", "control": "select", "group": "InfluxDB query", "default": "sql", "options": [{"value": "sql", "label": "SQL"}, {"value": "influxql", "label": "InfluxQL"}]},

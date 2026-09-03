@@ -151,13 +151,38 @@ class MongoDBClient:
         'listIndexes', 'ping', 'replSetGetStatus', 'serverStatus',
     })
     ROUTE_KEYS = frozenset({
-        'appname', 'auth_source', 'connect_timeout_ms',
+        'appname', 'auth_mechanism', 'auth_source', 'compressors', 'dns_srv',
+        'contact_points', 'connect_timeout_ms', 'credential_kind',
         'credential_reference_id', 'database', 'direct_connection', 'host',
-        'connection_timeout', 'port', 'principal_reference', 'replica_set',
-        'route_id',
+        'connection_timeout', 'credential_kinds', 'credential_references',
+        'gssapi_canonicalize_host_name', 'gssapi_service_name',
+        'heartbeat_frequency_ms', 'load_balanced', 'max_connecting',
+        'max_adaptive_retries', 'enable_overload_retargeting',
+        'max_idle_time_ms', 'max_pool_size', 'min_pool_size', 'port',
+        'principal_reference', 'read_concern_level', 'read_preference',
+        'read_preference_tags', 'max_staleness_seconds',
+        'local_threshold_ms', 'write_concern_timeout_ms', 'journal',
+        'session_causal_consistency', 'session_snapshot',
+        'transaction_read_concern', 'transaction_write_concern',
+        'transaction_max_commit_time_ms', 'operation_timeout_ms',
+        'oidc_environment', 'oidc_token_resource', 'replica_set',
+        'retry_reads', 'retry_writes', 'route_id', 'srv_max_hosts',
+        'srv_service_name',
+        'server_api_version', 'server_api_strict',
+        'server_api_deprecation_errors', 'server_monitoring_mode',
         'server_selection_timeout_ms', 'socket_timeout_ms', 'tls',
-        'tls_ca_file', 'tls_certificate_key_file', 'tool_workspace', 'user',
-        'username',
+        'tls_allow_invalid_certificates', 'tls_allow_invalid_hostnames',
+        'tls_ca_file', 'tls_certificate_key_file', 'tls_crl_file',
+        'tls_disable_ocsp_endpoint_check',
+        'tool_workspace', 'user', 'username', 'wait_queue_timeout_ms',
+        'wait_queue_multiple', 'write_concern', 'fsync',
+        'auth_oidc_allowed_hosts', 'tz_aware', 'uuid_representation',
+        'unicode_decode_error_handler', 'zlib_compression_level',
+    })
+    AUTH_MECHANISMS = frozenset({
+        'NONE', 'DEFAULT', 'SCRAM-SHA-1', 'SCRAM-SHA-256',
+        'MONGODB-X509', 'GSSAPI', 'PLAIN', 'MONGODB-AWS',
+        'MONGODB-OIDC',
     })
 
     def __init__(self, secret_acquirer=None, module=None):
@@ -215,17 +240,136 @@ class MongoDBClient:
         # The provider deliberately accepts only an explicit structured route.
         _identifier(route.get('host'), 'MongoDB route host')
         _bounded_int(route.get('port'), 27017, 1, 65535, 'MongoDB port')
+        mechanism = route.get('auth_mechanism', 'DEFAULT')
+        if mechanism not in MongoDBClient.AUTH_MECHANISMS:
+            raise MongoDBClientError(
+                'MongoDB authentication mechanism is invalid'
+            )
+        route['auth_mechanism'] = mechanism
+        if route.get('load_balanced') and any((
+            route.get('replica_set'), route.get('direct_connection'),
+        )):
+            raise MongoDBClientError(
+                'MongoDB load-balanced mode conflicts with direct or '
+                'replica-set routing'
+            )
+        if route.get('dns_srv') and any((
+            route.get('contact_points'), route.get('direct_connection'),
+        )):
+            raise MongoDBClientError(
+                'MongoDB DNS SRV conflicts with explicit seeds or direct '
+                'routing'
+            )
+        compressors = route.get('compressors')
+        if compressors:
+            values = [
+                item.strip() for item in compressors.split(',')
+                if item.strip()
+            ]
+            if not values or set(values) - {'snappy', 'zlib', 'zstd'}:
+                raise MongoDBClientError(
+                    'MongoDB compressor selection is invalid'
+                )
+            route['compressors'] = ','.join(dict.fromkeys(values))
+        self_monitoring = route.get('server_monitoring_mode', 'auto')
+        if self_monitoring not in {'auto', 'stream', 'poll'}:
+            raise MongoDBClientError(
+                'MongoDB server monitoring mode is invalid'
+            )
+        route['server_monitoring_mode'] = self_monitoring
+        api_version = route.get('server_api_version')
+        if api_version not in {None, '1'}:
+            raise MongoDBClientError('MongoDB server API version is invalid')
+        uuid_representation = route.get('uuid_representation', 'standard')
+        if uuid_representation not in {
+            'unspecified', 'standard', 'pythonLegacy', 'javaLegacy',
+            'csharpLegacy',
+        }:
+            raise MongoDBClientError(
+                'MongoDB UUID representation is invalid'
+            )
+        route['uuid_representation'] = uuid_representation
+        decode_handler = route.get('unicode_decode_error_handler', 'strict')
+        if decode_handler not in {'strict', 'replace', 'ignore'}:
+            raise MongoDBClientError(
+                'MongoDB Unicode error handler is invalid'
+            )
+        route['unicode_decode_error_handler'] = decode_handler
+        for name in (
+            'direct_connection', 'load_balanced', 'tls',
+            'tls_allow_invalid_certificates',
+            'tls_allow_invalid_hostnames',
+            'tls_disable_ocsp_endpoint_check', 'retry_reads',
+            'retry_writes', 'journal', 'fsync', 'tz_aware',
+            'server_api_strict', 'server_api_deprecation_errors',
+            'enable_overload_retargeting',
+        ):
+            if name in route and not isinstance(route[name], bool):
+                raise MongoDBClientError(
+                    f'MongoDB {name} must be true or false'
+                )
+        bounds = {
+            'connect_timeout_ms': (100, 120000),
+            'server_selection_timeout_ms': (100, 120000),
+            'socket_timeout_ms': (100, 600000),
+            'operation_timeout_ms': (0, 86400000),
+            'wait_queue_timeout_ms': (0, 3600000),
+            'heartbeat_frequency_ms': (500, 120000),
+            'local_threshold_ms': (0, 600000),
+            'write_concern_timeout_ms': (0, 86400000),
+            'min_pool_size': (0, 10000),
+            'max_pool_size': (1, 10000),
+            'max_connecting': (1, 1000),
+            'max_idle_time_ms': (0, 86400000),
+            'srv_max_hosts': (0, 10000),
+            'wait_queue_multiple': (0, 10000),
+            'max_adaptive_retries': (0, 1000),
+        }
+        for name, (minimum, maximum) in bounds.items():
+            if name in route:
+                _bounded_int(route[name], 0, minimum, maximum, name)
+        if (
+            route.get('min_pool_size') is not None and
+            route.get('max_pool_size') is not None and
+            route['min_pool_size'] > route['max_pool_size']
+        ):
+            raise MongoDBClientError(
+                'MongoDB minimum pool size exceeds maximum pool size'
+            )
+        allowed_hosts = route.get('auth_oidc_allowed_hosts')
+        if allowed_hosts is not None and (
+            not isinstance(allowed_hosts, list) or not allowed_hosts or
+            not all(isinstance(item, str) and item.strip()
+                    for item in allowed_hosts)
+        ):
+            raise MongoDBClientError(
+                'MongoDB OIDC allowed hosts must be a non-empty text array'
+            )
         return route
 
     def _connector_arguments(self, route):
+        port = _bounded_int(
+            route.get('port'), 27017, 1, 65535, 'MongoDB port'
+        )
+        hosts = [route['host']]
+        for value in str(route.get('contact_points') or '').split(','):
+            value = value.strip()
+            if value and value not in hosts:
+                hosts.append(value)
+        dns_srv = route.get('dns_srv') is True
         arguments = {
-            'host': route['host'],
-            'port': _bounded_int(
-                route.get('port'), 27017, 1, 65535, 'MongoDB port'
+            'host': (
+                f'mongodb+srv://{route["host"]}' if dns_srv else
+                hosts if len(hosts) > 1 else hosts[0]
             ),
             'connect': True,
             'tz_aware': True,
-            'uuidRepresentation': 'standard',
+            'uuidRepresentation': route.get(
+                'uuid_representation', 'standard'
+            ),
+            'unicode_decode_error_handler': route.get(
+                'unicode_decode_error_handler', 'strict'
+            ),
             'serverSelectionTimeoutMS': _bounded_int(
                 route.get('server_selection_timeout_ms'), 5000,
                 100, 120000, 'server selection timeout'
@@ -240,24 +384,121 @@ class MongoDBClient:
             ),
             'appname': route.get('appname', 'CDEadmin'),
         }
+        if 'tz_aware' in route:
+            arguments['tz_aware'] = route['tz_aware']
+        if len(hosts) == 1 and not dns_srv:
+            arguments['port'] = port
+        mechanism = route.get('auth_mechanism', 'DEFAULT')
+        properties = self._auth_mechanism_properties(route)
         optional = {
-            'username': route.get('username'),
+            'username': (
+                None if mechanism == 'NONE' else route.get('username')
+            ),
             'authSource': (
                 route.get('auth_source') or route.get('database')
             ),
+            'authMechanism': (
+                None if mechanism in {'NONE', 'DEFAULT'} else mechanism
+            ),
+            'authMechanismProperties': properties or None,
             'replicaSet': route.get('replica_set'),
             'directConnection': route.get('direct_connection'),
+            'loadBalanced': route.get('load_balanced'),
             'tls': route.get('tls'),
             'tlsCAFile': route.get('tls_ca_file'),
             'tlsCertificateKeyFile': route.get(
                 'tls_certificate_key_file'
             ),
+            'tlsCRLFile': route.get('tls_crl_file'),
+            'tlsAllowInvalidCertificates': route.get(
+                'tls_allow_invalid_certificates'
+            ),
+            'tlsAllowInvalidHostnames': route.get(
+                'tls_allow_invalid_hostnames'
+            ),
+            'tlsDisableOCSPEndpointCheck': route.get(
+                'tls_disable_ocsp_endpoint_check'
+            ),
+            'compressors': route.get('compressors'),
+            'zlibCompressionLevel': route.get('zlib_compression_level'),
+            'readPreference': route.get('read_preference'),
+            'readPreferenceTags': route.get('read_preference_tags'),
+            'maxStalenessSeconds': route.get('max_staleness_seconds'),
+            'localThresholdMS': route.get('local_threshold_ms'),
+            'readConcernLevel': route.get('read_concern_level'),
+            'w': self._write_concern(route.get('write_concern')),
+            'wTimeoutMS': route.get('write_concern_timeout_ms'),
+            'journal': route.get('journal'),
+            'retryReads': route.get('retry_reads'),
+            'retryWrites': route.get('retry_writes'),
+            'minPoolSize': route.get('min_pool_size'),
+            'maxPoolSize': route.get('max_pool_size'),
+            'maxConnecting': route.get('max_connecting'),
+            'maxIdleTimeMS': route.get('max_idle_time_ms'),
+            'waitQueueTimeoutMS': route.get('wait_queue_timeout_ms'),
+            'waitQueueMultiple': route.get('wait_queue_multiple'),
+            'heartbeatFrequencyMS': route.get('heartbeat_frequency_ms'),
+            'serverMonitoringMode': route.get('server_monitoring_mode'),
+            'maxAdaptiveRetries': route.get('max_adaptive_retries'),
+            'enableOverloadRetargeting': route.get(
+                'enable_overload_retargeting'
+            ),
+            'srvServiceName': route.get('srv_service_name'),
+            'srvMaxHosts': route.get('srv_max_hosts'),
+            'authOIDCAllowedHosts': route.get('auth_oidc_allowed_hosts'),
+            'fsync': route.get('fsync'),
+            'timeoutMS': route.get('operation_timeout_ms'),
         }
         arguments.update({
             key: value for key, value in optional.items()
             if value is not None
         })
+        api_version = route.get('server_api_version')
+        if api_version is not None:
+            try:
+                server_api_module = importlib.import_module(
+                    'pymongo.server_api'
+                )
+                arguments['server_api'] = server_api_module.ServerApi(
+                    api_version,
+                    strict=route.get('server_api_strict'),
+                    deprecation_errors=route.get(
+                        'server_api_deprecation_errors'
+                    ),
+                )
+            except (AttributeError, ImportError, ModuleNotFoundError) as exc:
+                raise MongoDBDependencyError(
+                    'PyMongo Stable API support is unavailable'
+                ) from exc
         return arguments
+
+    @staticmethod
+    def _auth_mechanism_properties(route):
+        mechanism = route.get('auth_mechanism', 'DEFAULT')
+        if mechanism == 'GSSAPI':
+            return {
+                'SERVICE_NAME': route.get('gssapi_service_name', 'mongodb'),
+                'CANONICALIZE_HOST_NAME': (
+                    'true' if route.get('gssapi_canonicalize_host_name')
+                    else 'false'
+                ),
+            }
+        if mechanism == 'MONGODB-OIDC' and route.get(
+            'oidc_environment'
+        ) not in {None, 'callback'}:
+            result = {'ENVIRONMENT': route['oidc_environment']}
+            if route.get('oidc_token_resource'):
+                result['TOKEN_RESOURCE'] = route['oidc_token_resource']
+            return result
+        return {}
+
+    @staticmethod
+    def _write_concern(value):
+        if value is None:
+            return None
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+        return value
 
     def _connect(self, request):
         route = self._route(request)
@@ -265,23 +506,26 @@ class MongoDBClient:
         principal = route.get('principal_reference')
         arguments = self._connector_arguments(route)
         try:
-            if reference_id is None:
-                client = self._connector(**arguments)
-            else:
-                _identifier(reference_id, 'credential reference')
+            references = dict(route.get('credential_references') or {})
+            if reference_id is not None:
+                references.setdefault(
+                    route.get('credential_kind', 'database_password'),
+                    reference_id,
+                )
+            if references:
+                for value in references.values():
+                    _identifier(value, 'credential reference')
                 _identifier(principal, 'principal reference')
                 if not callable(self._secret_acquirer):
                     raise MongoDBClientError(
                         'MongoDB credential binding is unavailable'
                     )
-                lease = self._secret_acquirer(
-                    reference_id, principal, 'connect', 'database_password'
+                client = self._connect_with_credentials(
+                    arguments, references, principal,
+                    route['auth_mechanism'],
                 )
-                with lease:
-                    client = lease.use(lambda view: self._connector(
-                        **arguments,
-                        password=bytes(view).decode('utf-8'),
-                    ))
+            else:
+                client = self._connector(**arguments)
             client.admin.command('ping')
         except MongoDBClientError:
             raise
@@ -291,6 +535,90 @@ class MongoDBClient:
             ) from None
         self._clients.append(client)
         return client, route
+
+    def _connect_with_credentials(
+        self, arguments, references, principal, mechanism
+    ):
+        bindings = []
+        if mechanism in {
+            'DEFAULT', 'SCRAM-SHA-1', 'SCRAM-SHA-256', 'PLAIN', 'GSSAPI'
+        } and 'database_password' in references:
+            bindings.append(('database_password', 'password'))
+        if mechanism == 'MONGODB-AWS':
+            bindings.append(('cloud_secret_access_key', 'password'))
+        if 'tls_private_key_password' in references:
+            bindings.append((
+                'tls_private_key_password',
+                'tlsCertificateKeyFilePassword',
+            ))
+
+        def connect(index, options):
+            if index == len(bindings):
+                if 'cloud_session_token' in references:
+                    kind = 'cloud_session_token'
+                    lease = self._secret_acquirer(
+                        references[kind], principal, 'connect', kind
+                    )
+                    with lease:
+                        return lease.use(lambda view: self._connector(**{
+                            **options,
+                            'authMechanismProperties': {
+                                **dict(options.get(
+                                    'authMechanismProperties'
+                                ) or {}),
+                                'AWS_SESSION_TOKEN': bytes(view).decode(
+                                    'utf-8'
+                                ),
+                            },
+                        }))
+                return self._connector(**options)
+            kind, argument = bindings[index]
+            reference = references.get(kind)
+            if reference is None:
+                raise MongoDBClientError(
+                    f'MongoDB credential {kind} is unavailable'
+                )
+            lease = self._secret_acquirer(
+                reference, principal, 'connect', kind
+            )
+            with lease:
+                return lease.use(lambda view: connect(index + 1, {
+                    **options,
+                    argument: bytes(view).decode('utf-8'),
+                }))
+
+        if mechanism == 'MONGODB-OIDC' and 'oidc_access_token' in references:
+            arguments = dict(arguments)
+            arguments['authMechanismProperties'] = {
+                **dict(arguments.get('authMechanismProperties') or {}),
+                'OIDC_MACHINE_CALLBACK': self._oidc_callback(
+                    references['oidc_access_token'], principal
+                ),
+            }
+        return connect(0, arguments)
+
+    def _oidc_callback(self, reference, principal):
+        try:
+            oidc = importlib.import_module('pymongo.auth_oidc')
+            base = oidc.OIDCCallback
+            result_type = oidc.OIDCCallbackResult
+        except (AttributeError, ImportError, ModuleNotFoundError):
+            raise MongoDBDependencyError(
+                'PyMongo OIDC callback support is unavailable'
+            ) from None
+        acquire = self._secret_acquirer
+
+        class LeasedOIDCCallback(base):
+            def fetch(self, _context):
+                lease = acquire(
+                    reference, principal, 'connect', 'oidc_access_token'
+                )
+                with lease:
+                    return lease.use(lambda view: result_type(
+                        access_token=bytes(view).decode('utf-8')
+                    ))
+
+        return LeasedOIDCCallback()
 
     def _forget_client(self, client):
         if client in self._clients:
@@ -349,7 +677,12 @@ class MongoDBClient:
     def open_session(self, request):
         client, route = self._connect(request)
         try:
-            driver_session = client.start_session()
+            driver_session = client.start_session(
+                **self._session_options(route)
+            )
+        except MongoDBClientError:
+            self._forget_client(client)
+            raise
         except Exception as exc:
             self._forget_client(client)
             raise MongoDBClientError(
@@ -360,6 +693,63 @@ class MongoDBClient:
         )
         self._sessions.append(handle)
         return handle
+
+    def _session_options(self, route):
+        causal = route.get('session_causal_consistency', True) is not False
+        snapshot = route.get('session_snapshot', False) is True
+        if causal and snapshot:
+            raise MongoDBClientError(
+                'MongoDB snapshot and causally consistent session modes '
+                'are mutually exclusive'
+            )
+        options = {
+            'causal_consistency': causal,
+            'snapshot': snapshot,
+        }
+        read_level = route.get('transaction_read_concern', 'server')
+        write_value = route.get('transaction_write_concern')
+        commit_time = route.get('transaction_max_commit_time_ms')
+        if read_level != 'server' or write_value is not None or (
+            commit_time is not None
+        ):
+            try:
+                session_module = importlib.import_module(
+                    'pymongo.client_session'
+                )
+                concern_module = importlib.import_module(
+                    'pymongo.read_concern'
+                )
+                write_module = importlib.import_module(
+                    'pymongo.write_concern'
+                )
+            except (ImportError, ModuleNotFoundError) as exc:
+                raise MongoDBDependencyError(
+                    'PyMongo transaction option support is unavailable'
+                ) from exc
+            arguments = {}
+            if read_level != 'server':
+                if read_level not in {'local', 'majority', 'snapshot'}:
+                    raise MongoDBClientError(
+                        'MongoDB transaction read concern is invalid'
+                    )
+                arguments['read_concern'] = concern_module.ReadConcern(
+                    read_level
+                )
+            if write_value is not None:
+                arguments['write_concern'] = write_module.WriteConcern(
+                    w=self._write_concern(write_value),
+                    wtimeout=route.get('write_concern_timeout_ms'),
+                    j=route.get('journal'),
+                )
+            if commit_time is not None:
+                arguments['max_commit_time_ms'] = _bounded_int(
+                    commit_time, 0, 1, 86400000,
+                    'transaction maximum commit time',
+                )
+            options['default_transaction_options'] = (
+                session_module.TransactionOptions(**arguments)
+            )
+        return options
 
     def describe_transaction(self, handle):
         if not isinstance(handle, _MongoSession) or handle.closed:

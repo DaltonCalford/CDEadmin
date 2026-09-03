@@ -10,9 +10,12 @@
   "extension_schema": null,
   "registration": {
     "display_name": "Milvus 2.6.5", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 19530, "default": false, "target_adapter_version": "pymilvus-2.6.x",
+    "connection_capability_set": "milvus-grpc-v1",
+    "secret_fields": [{"field_id": "password", "secret_kind": "database_password", "label": "Password", "group": "Milvus authentication", "primary": true, "visible_when": {"field_id": "auth_kind", "equals": "basic"}}, {"field_id": "api_token", "secret_kind": "api_token", "label": "API token", "group": "Milvus authentication", "primary": true, "visible_when": {"field_id": "auth_kind", "equals": "token"}}],
     "connection_fields": [
       {"field_id": "database", "route_key": "database", "label": "Database", "control": "text", "group": "Milvus database", "default": "default"},
-      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "Milvus authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}]},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "Milvus authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}, {"value": "token", "label": "API token reference"}]},
+      {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "Milvus authentication", "visible_when": {"field_id": "auth_kind", "equals": "basic"}},
       {"field_id": "consistency_level", "route_key": "consistency_level", "label": "Consistency level", "control": "select", "group": "Milvus query", "default": "Bounded", "options": [{"value": "Strong", "label": "Strong"}, {"value": "Bounded", "label": "Bounded staleness"}, {"value": "Session", "label": "Session"}, {"value": "Eventually", "label": "Eventually"}, {"value": "Customized", "label": "Customized"}]},
       {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "Milvus TLS", "default": "disable", "options": [{"value": "disable", "label": "Plaintext"}, {"value": "require", "label": "TLS"}, {"value": "verify-ca", "label": "TLS with CA verification"}, {"value": "verify-full", "label": "TLS with CA and hostname verification"}]},
       {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "Milvus TLS"},
@@ -21,6 +24,7 @@
       {"field_id": "server_name", "route_key": "server_name", "label": "TLS server name", "control": "text", "group": "Milvus TLS"},
       {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "Milvus timeouts", "default": 10, "minimum": 1, "maximum": 120},
       {"field_id": "operation_timeout", "route_key": "operation_timeout", "label": "Operation timeout (seconds)", "control": "number", "group": "Milvus timeouts", "default": 30, "minimum": 1, "maximum": 3600},
+      {"field_id": "keep_alive", "route_key": "keep_alive", "label": "Enable driver reconnection handler", "control": "boolean", "group": "Milvus connection", "default": true},
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "Milvus safety", "default": false}
     ]
   },

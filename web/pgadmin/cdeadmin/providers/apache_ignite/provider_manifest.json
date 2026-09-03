@@ -6,6 +6,38 @@
   "permissions": [{"permission_id":"network","granted":true,"scope":["endpoint"]},{"permission_id":"secret_read","granted":true,"scope":["endpoint"]},{"permission_id":"data_read","granted":true,"scope":["endpoint","resource"]},{"permission_id":"data_write","granted":true,"scope":["endpoint","resource"]},{"permission_id":"administer","granted":true,"scope":["endpoint","resource"]},{"permission_id":"execute","granted":true,"scope":["endpoint"]},{"permission_id":"topology_admin","granted":true,"scope":["endpoint"]},{"permission_id":"security_admin","granted":true,"scope":["endpoint"]},{"permission_id":"backup_admin","granted":true,"scope":["endpoint"]},{"permission_id":"restore_admin","granted":true,"scope":["endpoint"]},{"permission_id":"replication_admin","granted":true,"scope":["endpoint"]},{"permission_id":"maintenance_admin","granted":true,"scope":["endpoint"]},{"permission_id":"upgrade_admin","granted":true,"scope":["endpoint"]}],
   "required_permissions": ["network", "secret_read"],
   "composition": {"experience_families":["apache_ignite"],"target_adapter_ids":["ignite-thin-client"]}, "extension_schema": null,
-  "registration": {"display_name":"Apache Ignite 2.17.0","workflow":"provider_endpoint","route_kind":"network","requires_secret":false,"default_port":10800,"default":false,"target_adapter_version":"pyignite-0.6.1","connection_fields":[{"field_id":"rest_port","route_key":"rest_port","label":"REST management port","control":"number","group":"Ignite topology","default":8080,"minimum":1,"maximum":65535},{"field_id":"partition_aware","route_key":"partition_aware","label":"Partition-aware routing","control":"boolean","group":"Ignite client","default":true},{"field_id":"control_sh_path","route_key":"control_sh_path","label":"control.sh executable","control":"file","group":"Ignite control plane"},{"field_id":"control_host","route_key":"control_host","label":"Control-plane host","control":"text","group":"Ignite control plane"},{"field_id":"control_port","route_key":"control_port","label":"Control-plane client port","control":"number","group":"Ignite control plane","default":10800,"minimum":1,"maximum":65535}]},
+  "registration": {
+    "display_name": "Apache Ignite 2.17.0", "workflow": "provider_endpoint",
+    "route_kind": "network", "requires_secret": false, "supports_secret": true,
+    "default_port": 10800, "default": false,
+    "target_adapter_version": "pyignite-0.6.1",
+    "secret_fields": [
+      {"field_id":"password","secret_kind":"database_password","label":"Password","group":"Ignite authentication","primary":true,"visible_when":{"field_id":"auth_mode","equals":"username-password"}},
+      {"field_id":"tls_key_password","secret_kind":"tls_private_key_password","label":"Client private-key password","group":"Ignite TLS"}
+    ],
+    "connection_fields": [
+      {"field_id":"contact_points","route_key":"contact_points","label":"Thin-client endpoints","control":"text","group":"Ignite topology","help":"Comma-separated host:port endpoints."},
+      {"field_id":"rest_port","route_key":"rest_port","label":"REST management port","control":"number","group":"Ignite topology","default":8080,"minimum":1,"maximum":65535},
+      {"field_id":"rest_scheme","route_key":"rest_scheme","label":"REST scheme","control":"select","group":"Ignite topology","default":"http","options":[{"value":"http","label":"HTTP"},{"value":"https","label":"HTTPS"}]},
+      {"field_id":"auth_mode","route_key":"auth_mode","label":"Authentication","control":"select","group":"Ignite authentication","default":"none","options":[{"value":"none","label":"None"},{"value":"username-password","label":"Username and password"}]},
+      {"field_id":"username","route_key":"username","label":"Username","control":"text","group":"Ignite authentication","visible_when":{"field_id":"auth_mode","equals":"username-password"}},
+      {"field_id":"tls_mode","route_key":"tls_mode","label":"TLS mode","control":"select","group":"Ignite TLS","default":"disabled","options":[{"value":"disabled","label":"Disabled"},{"value":"required","label":"Encrypted without verification"},{"value":"verify-ca","label":"Verify certificate authority"}]},
+      {"field_id":"tls_ca_file","route_key":"tls_ca_file","label":"Certificate authority file","control":"file","group":"Ignite TLS"},
+      {"field_id":"tls_certificate_file","route_key":"tls_certificate_file","label":"Client certificate","control":"file","group":"Ignite TLS"},
+      {"field_id":"tls_key_file","route_key":"tls_key_file","label":"Client private key","control":"file","group":"Ignite TLS"},
+      {"field_id":"timeout","route_key":"timeout","label":"Socket timeout (seconds)","control":"number","group":"Ignite timeouts","default":10,"minimum":1,"maximum":3600},
+      {"field_id":"handshake_timeout","route_key":"handshake_timeout","label":"Handshake timeout (seconds)","control":"number","group":"Ignite timeouts","default":10,"minimum":1,"maximum":3600},
+      {"field_id":"rest_timeout","route_key":"rest_timeout","label":"REST timeout (seconds)","control":"number","group":"Ignite timeouts","default":10,"minimum":1,"maximum":3600},
+      {"field_id":"partition_aware","route_key":"partition_aware","label":"Partition-aware routing","control":"boolean","group":"Ignite client","default":true},
+      {"field_id":"compact_footer","route_key":"compact_footer","label":"Compact binary footer","control":"boolean","group":"Ignite client","default":true},
+      {"field_id":"transaction_concurrency","route_key":"transaction_concurrency","label":"Transaction concurrency","control":"select","group":"Ignite transactions","default":"pessimistic","options":[{"value":"optimistic","label":"Optimistic"},{"value":"pessimistic","label":"Pessimistic"}]},
+      {"field_id":"transaction_isolation","route_key":"transaction_isolation","label":"Transaction isolation","control":"select","group":"Ignite transactions","default":"repeatable-read","options":[{"value":"read-committed","label":"Read committed"},{"value":"repeatable-read","label":"Repeatable read"},{"value":"serializable","label":"Serializable"}]},
+      {"field_id":"transaction_timeout","route_key":"transaction_timeout","label":"Transaction timeout (milliseconds)","control":"number","group":"Ignite transactions","default":0,"minimum":0,"maximum":86400000},
+      {"field_id":"control_sh_path","route_key":"control_sh_path","label":"control.sh executable","control":"file","group":"Ignite control plane"},
+      {"field_id":"control_host","route_key":"control_host","label":"Control-plane host","control":"text","group":"Ignite control plane"},
+      {"field_id":"control_port","route_key":"control_port","label":"Control-plane client port","control":"number","group":"Ignite control plane","default":10800,"minimum":1,"maximum":65535}
+    ],
+    "connection_capability_set": "apache-ignite-thin-v1"
+  },
   "provenance": {"purpose":"Apache Ignite exact-profile distributed provider","protocol":"ignite_thin","client_state":"pyignite_0.6.1_installed","runtime_state":"exact_runtime_qualified","activation_gate":"passed"}
 }

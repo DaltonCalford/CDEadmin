@@ -155,6 +155,28 @@
         ]
       },
       {
+        "field_id": "operation_timeout",
+        "route_key": "operation_timeout",
+        "label": "Operation timeout (seconds)",
+        "control": "number",
+        "group": "TiKV timeouts",
+        "default": 30,
+        "minimum": 1,
+        "maximum": 3600
+      },
+      {
+        "field_id": "transaction_mode",
+        "route_key": "transaction_mode",
+        "label": "Transaction mode",
+        "control": "select",
+        "group": "TiKV transactions",
+        "default": "optimistic",
+        "options": [
+          {"value": "optimistic", "label": "Optimistic"},
+          {"value": "pessimistic", "label": "Pessimistic"}
+        ]
+      },
+      {
         "field_id": "tls_ca",
         "route_key": "tls_ca",
         "label": "CA certificate path",
@@ -175,7 +197,8 @@
         "control": "file",
         "group": "TLS"
       }
-    ]
+    ],
+    "connection_capability_set": "tikv-client-go-v1"
   },
   "provenance": {
     "purpose": "TiKV exact-profile provider",

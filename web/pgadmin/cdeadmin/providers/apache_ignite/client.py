@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib
 import json
+import ssl
 import threading
 import time
 import urllib.parse
@@ -27,6 +28,20 @@ from ..native_distributed import (
 
 
 class IgniteBackend:
+    ROUTE_FIELDS = frozenset({
+        'route_id', 'host', 'port', 'contact_points', 'rest_port',
+        'rest_scheme', 'username', 'principal_reference',
+        'credential_reference_id', 'credential_references',
+        'credential_kinds', 'credential_kind', 'auth_mode', 'tls_mode',
+        'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
+        'tls_check_hostname', 'tls_min_version', 'tls_ciphers', 'timeout',
+        'handshake_timeout', 'rest_timeout', 'partition_aware',
+        'compact_footer', 'transaction_concurrency',
+        'transaction_isolation', 'transaction_timeout',
+        'transaction_label', 'control_sh_path', 'control_host',
+        'control_port', 'tool_workspace',
+    })
+
     def __init__(self, secret_acquirer=None, module=None):
         try:
             self.module = module or importlib.import_module('pyignite')
@@ -44,16 +59,162 @@ class IgniteBackend:
         route = request.get('route') or request.get('_provider_route')
         if not isinstance(route, dict):
             raise NativeDistributedError('Ignite route is required')
+        route = copy.deepcopy(route)
+        unknown = sorted(set(route) - IgniteBackend.ROUTE_FIELDS)
+        if unknown:
+            raise NativeDistributedError(
+                'Ignite route contains unknown fields: ' + ', '.join(unknown)
+            )
+        route.setdefault('host', '127.0.0.1')
+        route.setdefault('port', 10800)
+        route.setdefault('rest_port', 8080)
+        route.setdefault('rest_scheme', 'http')
+        route.setdefault('auth_mode', 'none')
+        route.setdefault('tls_mode', 'disabled')
+        route.setdefault('timeout', 10)
+        route.setdefault('handshake_timeout', 10)
+        route.setdefault('rest_timeout', 10)
+        route.setdefault('partition_aware', True)
+        route.setdefault('compact_footer', True)
+        route.setdefault('transaction_concurrency', 'pessimistic')
+        route.setdefault('transaction_isolation', 'repeatable-read')
+        route.setdefault('transaction_timeout', 0)
+        if route['auth_mode'] not in {'none', 'username-password'}:
+            raise NativeDistributedError('Ignite authentication is invalid')
+        if route['tls_mode'] not in {
+            'disabled', 'required', 'verify-ca'
+        }:
+            raise NativeDistributedError('Ignite TLS mode is invalid')
+        if route['rest_scheme'] not in {'http', 'https'}:
+            raise NativeDistributedError('Ignite REST scheme is invalid')
+        for field in ('port', 'rest_port'):
+            if isinstance(route[field], bool) or not isinstance(
+                    route[field], int) or not 1 <= route[field] <= 65535:
+                raise NativeDistributedError(f'Ignite {field} is invalid')
+        for field in ('timeout', 'handshake_timeout', 'rest_timeout'):
+            value = route[field]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                    or not 0.1 <= value <= 3600:
+                raise NativeDistributedError(f'Ignite {field} is invalid')
+        if isinstance(route['transaction_timeout'], bool) or not isinstance(
+                route['transaction_timeout'], int) or not (
+                0 <= route['transaction_timeout'] <= 86400000):
+            raise NativeDistributedError(
+                'Ignite transaction timeout is invalid')
+        for field in ('partition_aware', 'compact_footer'):
+            if not isinstance(route[field], bool):
+                raise NativeDistributedError(f'Ignite {field} is invalid')
+        if route['transaction_concurrency'] not in {
+            'optimistic', 'pessimistic'
+        }:
+            raise NativeDistributedError(
+                'Ignite transaction concurrency is invalid')
+        if route['transaction_isolation'] not in {
+            'read-committed', 'repeatable-read', 'serializable'
+        }:
+            raise NativeDistributedError(
+                'Ignite transaction isolation is invalid')
+        references = dict(route.get('credential_references') or {})
+        if route.get('credential_reference_id'):
+            references.setdefault('database_password',
+                                  route['credential_reference_id'])
+        allowed = {'database_password', 'tls_private_key_password'}
+        if set(references) - allowed:
+            raise NativeDistributedError(
+                'Ignite credential kinds are invalid')
+        if route['auth_mode'] == 'username-password' and (
+                not route.get('username') or
+                'database_password' not in references):
+            raise NativeDistributedError(
+                'Ignite username/password authentication requires both '
+                'username and a password reference')
+        if references and not route.get('principal_reference'):
+            raise NativeDistributedError(
+                'Ignite credentials require a principal reference')
+        if bool(route.get('tls_certificate_file')) != bool(
+                route.get('tls_key_file')):
+            raise NativeDistributedError(
+                'Ignite client certificate and key must be supplied together')
+        if route['tls_mode'] == 'verify-ca' and not route.get('tls_ca_file'):
+            raise NativeDistributedError(
+                'verified Ignite TLS requires a CA file')
+        route['credential_references'] = references
+        points = route.get('contact_points') or []
+        if isinstance(points, str):
+            points = [
+                item.strip() for item in points.split(',') if item.strip()
+            ]
+        parsed = [(route['host'], route['port'])]
+        for point in points:
+            if isinstance(point, str):
+                host, separator, port = point.rpartition(':')
+                if not separator:
+                    host, port = point, route['port']
+                try:
+                    point = (host, int(port))
+                except (TypeError, ValueError):
+                    raise NativeDistributedError(
+                        'Ignite contact point is invalid') from None
+            if not isinstance(point, (list, tuple)) or len(point) != 2:
+                raise NativeDistributedError(
+                    'Ignite contact point is invalid')
+            parsed.append((str(point[0]), int(point[1])))
+        route['contact_points'] = list(dict.fromkeys(parsed))
         return route
 
+    def _with_secrets(self, route, callback):
+        bindings = sorted(route.get('credential_references', {}).items())
+        if not bindings:
+            return callback({})
+        if not callable(self.secret_acquirer):
+            raise NativeDistributedError(
+                'Ignite secret binding is unavailable')
+        principal = route['principal_reference']
+
+        def acquire(index, values):
+            if index == len(bindings):
+                return callback(values)
+            kind, reference = bindings[index]
+            lease = self.secret_acquirer(reference, principal, 'connect', kind)
+            with lease:
+                return lease.use(lambda view: acquire(
+                    index + 1, {**values, kind: bytes(view).decode('utf-8')}
+                ))
+        return acquire(0, {})
+
     def _rest(self, route, command):
-        query = urllib.parse.urlencode({'cmd': command})
         url = (
-            f"http://{route.get('host', '127.0.0.1')}:"
-            f"{int(route.get('rest_port', 8080))}/ignite?{query}"
+            f"{route['rest_scheme']}://{route['host']}:"
+            f"{int(route.get('rest_port', 8080))}/ignite"
         )
-        with urllib.request.urlopen(url, timeout=10) as response:
-            value = json.loads(response.read(1024 * 1024))
+
+        def perform(secrets):
+            parameters = {'cmd': command}
+            if route['auth_mode'] == 'username-password':
+                parameters['user'] = route['username']
+                parameters['password'] = secrets['database_password']
+            body = urllib.parse.urlencode(parameters).encode('utf-8')
+            request = urllib.request.Request(
+                url, data=body,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                method='POST',
+            )
+            context = None
+            if route['rest_scheme'] == 'https':
+                context = ssl.create_default_context(
+                    cafile=route.get('tls_ca_file'))
+                if route['tls_mode'] == 'required':
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                if route.get('tls_certificate_file'):
+                    context.load_cert_chain(
+                        route['tls_certificate_file'], route['tls_key_file'],
+                        secrets.get('tls_private_key_password'))
+            with urllib.request.urlopen(
+                    request, timeout=route['rest_timeout'], context=context
+            ) as response:
+                return json.loads(response.read(1024 * 1024))
+        value = self._with_secrets(route, perform)
         if value.get('successStatus') != 0:
             raise NativeDistributedError('Ignite REST operation failed')
         return value.get('response')
@@ -69,14 +230,37 @@ class IgniteBackend:
 
     def open_session(self, request):
         route = self._route(request)
-        client = self.module.Client(
-            timeout=float(route.get('timeout', 10)),
-            partition_aware=bool(route.get('partition_aware', True)),
-        )
-        hosts = route.get('contact_points') or [(
-            route.get('host', '127.0.0.1'), int(route.get('port', 10800))
-        )]
-        client.connect(hosts)
+
+        def connect(secrets):
+            options = {
+                'timeout': float(route['timeout']),
+                'handshake_timeout': float(route['handshake_timeout']),
+                'partition_aware': route['partition_aware'],
+                'compact_footer': route['compact_footer'],
+                'use_ssl': route['tls_mode'] != 'disabled',
+            }
+            if route['tls_mode'] != 'disabled':
+                options['ssl_cert_reqs'] = (
+                    ssl.CERT_NONE if route['tls_mode'] == 'required'
+                    else ssl.CERT_REQUIRED
+                )
+                options['ssl_ca_certfile'] = route.get('tls_ca_file')
+                options['ssl_certfile'] = route.get('tls_certificate_file')
+                options['ssl_keyfile'] = route.get('tls_key_file')
+                options['ssl_keyfile_password'] = secrets.get(
+                    'tls_private_key_password')
+                options['ssl_version'] = getattr(
+                    ssl, 'PROTOCOL_TLS_CLIENT', ssl.PROTOCOL_TLS)
+                if route.get('tls_ciphers'):
+                    options['ssl_ciphers'] = route['tls_ciphers']
+            if route['auth_mode'] == 'username-password':
+                options['username'] = route['username']
+                options['password'] = secrets['database_password']
+            value = self.module.Client(**options)
+            value.connect(route['contact_points'])
+            value._cdeadmin_route = route
+            return value
+        client = self._with_secrets(route, connect)
         self._clients.append(client)
         return client
 
@@ -122,8 +306,16 @@ class IgniteBackend:
         return values
 
     @staticmethod
-    def describe_transaction(_handle):
-        return {'native_state': 'ignite-thin-session'}
+    def describe_transaction(handle):
+        route = getattr(handle, '_cdeadmin_route', {})
+        return {
+            'native_state': 'ignite-thin-session',
+            'configured_concurrency': route.get('transaction_concurrency'),
+            'configured_isolation': route.get('transaction_isolation'),
+            'configured_timeout': route.get('transaction_timeout'),
+            'provider_owned_finality': True,
+            'automatic_mutation_retry_by_cdeadmin': False,
+        }
 
     def execute(self, handle, command, _parameters):
         if not isinstance(command, dict):

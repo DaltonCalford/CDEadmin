@@ -17,6 +17,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
 
+from .experience import enrich_engine_experience
+
 
 CATALOG_PATH = Path(__file__).with_name('portfolio_catalog.json')
 PORTFOLIO_ENGINE_IDS = (
@@ -247,11 +249,11 @@ def catalog_for_engine(engine_id: str) -> dict[str, Any]:
         raise VisualAdminCatalogError(
             f'no visual administration catalog exists for {engine_id!r}'
         ) from exc
-    return {
+    return enrich_engine_experience({
         'schema': 'cdeadmin.visual-admin.descriptor.v1',
         'catalog_version': _catalog_document()['catalog_version'],
         **copy.deepcopy(engine),
-    }
+    })
 
 
 def portfolio_summary() -> dict[str, Any]:

@@ -10,9 +10,12 @@
   "extension_schema": null,
   "registration": {
     "display_name": "OpenSearch 3.6.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": false, "supports_secret": true, "default_port": 9200, "default": false, "target_adapter_version": "python-stdlib-http-json",
+    "connection_field_sets": ["analytic-http-v1"],
+    "secret_field_sets": ["analytic-http-v1"],
+    "connection_capability_set": "opensearch-http-v1",
     "connection_fields": [
       {"field_id": "index", "route_key": "index", "label": "Default index", "control": "text", "group": "OpenSearch query"},
-      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "OpenSearch authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}, {"value": "bearer", "label": "Bearer token reference"}]},
+      {"field_id": "auth_kind", "route_key": "auth_kind", "label": "Authentication", "control": "select", "group": "OpenSearch authentication", "default": "none", "options": [{"value": "none", "label": "No authentication"}, {"value": "basic", "label": "Username/password reference"}, {"value": "bearer", "label": "Bearer token reference"}, {"value": "api-key", "label": "API key reference"}, {"value": "aws-sigv4", "label": "AWS SigV4"}]},
       {"field_id": "username", "route_key": "username", "label": "Username", "control": "text", "group": "OpenSearch authentication"},
       {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "OpenSearch TLS", "default": "disable", "options": [{"value": "disable", "label": "HTTP"}, {"value": "require", "label": "HTTPS without CA verification"}, {"value": "verify-ca", "label": "HTTPS with CA verification"}, {"value": "verify-full", "label": "HTTPS with CA and hostname verification"}]},
       {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "Certificate authority file", "control": "file", "group": "OpenSearch TLS"},

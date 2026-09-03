@@ -1,6 +1,7 @@
 """DuckDB embedded-helper semantic provider pilot."""
 
 import re
+from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
@@ -14,6 +15,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from ..embedded_route import duckdb_arguments
+from ..embedded_route import contained_database
 
 
 PROFILE = PilotProfile(
@@ -22,13 +24,14 @@ PROFILE = PilotProfile(
     'duckdb-native-transaction', 'columnar',
     ('database', 'attached-database', 'schema', 'table', 'column', 'view',
      'index', 'constraint', 'sequence', 'type', 'macro', 'function',
-     'secret', 'extension'),
+     'secret', 'extension', 'materialization'),
     ('duckdb-shell', 'export', 'import', 'extension-manager'),
     ('embedded_runtime', 'filesystem'),
     semantic_sql_dialect={
         'language_profile': 'duckdb-sql', 'quote_open': '"',
         'supports_rollup': True,
     },
+    semantic_materialization_kind='materialization',
 )
 
 
@@ -37,11 +40,53 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
     embedded_database=True,
     database_create_mode='embedded-file',
     database_extension='.duckdb',
+    not_applicable_concepts=frozenset({
+        'servers', 'materialized_views', 'domains', 'procedures',
+        'triggers', 'roles_and_grants', 'partitions',
+        'tablespaces_and_filespaces', 'replication_objects',
+        'jobs_and_events',
+    }),
+    additional_concept_declarations={
+        'columnar': {
+            'native_relations': {
+                'status': 'supported',
+                'resource_kinds': ['table', 'view'],
+                'reason': (
+                    'DuckDB relations use the provider columnar object '
+                    'editor and structured relational administration.'
+                ),
+                'evidence': ['provider-dialect:duckdb'],
+            },
+            'projections': 'not_applicable',
+            'dictionaries': 'not_applicable',
+            'data_skipping_indexes': 'not_applicable',
+            'partitions': 'not_applicable',
+        },
+        'semantic': {
+            concept_id: {
+                'status': 'supported',
+                'resource_kinds': (
+                    ['materialization']
+                    if concept_id == 'materializations' else []
+                ),
+                'external_surface': 'cdeadmin.semantic-model-workspace.v1',
+                'reason': (
+                    'The provider compiles this semantic-model concept to '
+                    'DuckDB SQL through the semantic workspace.'
+                ),
+                'evidence': ['provider-semantic-compiler:duckdb'],
+            }
+            for concept_id in (
+                'cubes', 'dimensions', 'hierarchies', 'levels', 'measures',
+                'materializations',
+            )
+        },
+    },
     supported={
         'database': frozenset({'inspect', 'create'}),
         'attached-database': frozenset({'inspect'}),
         'schema': frozenset({
-            'inspect', 'create', 'rename', 'drop',
+            'inspect', 'create', 'drop',
         }),
         'table': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',
@@ -49,16 +94,15 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'view': frozenset({'inspect', 'create', 'drop'}),
         'column': frozenset({'inspect', 'create', 'rename', 'drop'}),
-        'constraint': frozenset({'inspect', 'create', 'drop'}),
+        'constraint': frozenset({'inspect'}),
         'index': frozenset({'inspect', 'create', 'drop'}),
-        'sequence': frozenset({
-            'inspect', 'create', 'alter', 'rename', 'drop',
-        }),
+        'sequence': frozenset({'inspect', 'create', 'drop'}),
         'type': frozenset({'inspect', 'create', 'drop'}),
         'macro': frozenset({'inspect', 'create', 'alter', 'drop'}),
-        'function': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'function': frozenset({'inspect'}),
         'secret': frozenset({'inspect', 'create', 'drop'}),
         'extension': frozenset({'inspect', 'execute'}),
+        'materialization': frozenset({'create'}),
     },
 ))
 
@@ -141,15 +185,16 @@ def _resources(connection, request):
                 add(kind, path, name, {'definition': detail})
         cursor.execute(
             'SELECT database_name, schema_name, function_name, '
-            'function_type, macro_definition FROM duckdb_functions() '
-            'WHERE NOT internal ORDER BY 1, 2, 3'
+            'function_type, macro_definition, internal '
+            'FROM duckdb_functions() ORDER BY 1, 2, 3'
         )
-        for database, schema, name, function_type, definition in (
+        for database, schema, name, function_type, definition, internal in (
             cursor.fetchall()
         ):
             kind = 'macro' if 'macro' in str(function_type) else 'function'
             add(kind, [database, schema], name, {
                 'function_type': function_type, 'definition': definition,
+                'internal': bool(internal),
             })
         cursor.execute(
             'SELECT extension_name, loaded, installed, extension_version '
@@ -194,6 +239,52 @@ def _security(connection, request):
         cursor.close()
 
 
+def _initialize_connection(connection, route):
+    attachments = route.get('attached_databases', [])
+    if not isinstance(attachments, list):
+        raise RelationalClientError(
+            'DuckDB attached databases must be an array'
+        )
+    existing = {
+        str(row[0]).lower(): str(row[1] or '')
+        for row in connection.execute(
+            'SELECT database_name, path FROM duckdb_databases()'
+        ).fetchall()
+    }
+    for attachment in attachments:
+        if not isinstance(attachment, Mapping):
+            raise RelationalClientError(
+                'DuckDB attachment must be an object'
+            )
+        name = attachment.get('name')
+        if not isinstance(name, str) or not re.fullmatch(
+                r'[A-Za-z_][A-Za-z0-9_]{0,127}', name) or name.lower() in {
+                    'memory', 'system', 'temp',
+                }:
+            raise RelationalClientError('DuckDB attachment name is invalid')
+        read_only = attachment.get('read_only', False)
+        if not isinstance(read_only, bool):
+            raise RelationalClientError(
+                'DuckDB attachment read_only must be true or false'
+            )
+        attached_route = dict(route)
+        attached_route['database'] = attachment.get('database')
+        path = contained_database(attached_route)
+        if name.lower() in existing:
+            if existing[name.lower()] and existing[name.lower()] != path:
+                raise RelationalClientError(
+                    'DuckDB attachment name is already bound to another file'
+                )
+            continue
+        escaped_path = path.replace("'", "''")
+        quoted_name = '"' + name.replace('"', '""') + '"'
+        mode = ' (READ_ONLY)' if read_only else ''
+        connection.execute(
+            f"ATTACH '{escaped_path}' AS {quoted_name}{mode}"
+        )
+        existing[name.lower()] = path
+
+
 def _version(row):
     value = str(row[0]).strip() if row else ''
     match = re.search(r'(\d+\.\d+\.\d+)', value)
@@ -212,6 +303,7 @@ def _create_client():
         metadata_reader=_resources,
         security_reader=_security,
         administration=ADMINISTRATION,
+        connection_initializer=_initialize_connection,
     ))
 
 

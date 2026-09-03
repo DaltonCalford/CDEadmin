@@ -64,6 +64,23 @@ class Retry:
         self.retries = retries
 
 
+class SecretLease:
+    def __init__(self, value=b'correct-horse'):
+        self.value = bytearray(value)
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.closed = True
+        for index in range(len(self.value)):
+            self.value[index] = 0
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
 class Pipeline:
     def __init__(self, client, transaction):
         self.client = client
@@ -343,6 +360,39 @@ class RedisProviderTestCase(unittest.TestCase):
             self.client.open_session({'route': route(
                 client_name='invalid client name'
             )})
+
+    def test_acl_secret_and_cluster_lifecycle_controls_are_forwarded(self):
+        acquired = []
+
+        def acquire(_reference, _principal, _purpose, kind):
+            lease = SecretLease()
+            acquired.append((kind, lease))
+            return lease
+
+        module, factory = fake_module()
+        adapter = RedisClient(acquire, module)
+        session = adapter.open_session({'route': route(
+            topology_mode='cluster', auth_mode='acl', username='operator',
+            credential_references={'database_password': 'credential-one'},
+            principal_reference='principal-one',
+            cluster_require_full_coverage=False,
+            cluster_dynamic_startup_nodes=False,
+            cluster_reinitialize_steps=7,
+            cluster_error_retry_attempts=4,
+            max_connections=250,
+        )})
+        options = factory.cluster_options[-1]
+        self.assertEqual('operator', options['username'])
+        self.assertEqual('correct-horse', options['password'])
+        self.assertFalse(options['require_full_coverage'])
+        self.assertFalse(options['dynamic_startup_nodes'])
+        self.assertEqual(7, options['reinitialize_steps'])
+        self.assertEqual(4, options['cluster_error_retry_attempts'])
+        self.assertEqual(250, options['max_connections'])
+        self.assertEqual('database_password', acquired[0][0])
+        self.assertTrue(acquired[0][1].closed)
+        self.assertEqual({0}, set(acquired[0][1].value))
+        session.close()
 
     def test_mutation_timeout_is_unknown_and_never_replayed(self):
         session = self.client.open_session({'route': route()})

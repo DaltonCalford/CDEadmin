@@ -160,5 +160,6 @@ def create_provider(context, permissions, client=None):
                 connection, request, 'YugabyteDB', _extras
             ),
             administration=ADMINISTRATION,
+            pool_namespace=context.pool_namespace,
         ),
     )

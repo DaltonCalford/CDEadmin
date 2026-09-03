@@ -17,13 +17,20 @@ from pathlib import Path
 
 from pgadmin.cdeadmin.providers import BUILTIN_PACKAGES
 
+from .connection_capabilities import (
+    ConnectionCapabilityError,
+    normalize_connection_capabilities,
+)
+from .capability_sets import expand_capability_set
+from .field_sets import expand_field_sets
+
 
 class EndpointRegistrationError(ValueError):
     """A requested endpoint profile is unavailable or malformed."""
 
 
 CONNECTION_CONTROLS = frozenset({
-    'text', 'number', 'boolean', 'file', 'select',
+    'text', 'multiline', 'json', 'number', 'boolean', 'file', 'select',
 })
 
 
@@ -66,6 +73,7 @@ def _connection_fields(registration):
             'sensitive': field.get('sensitive') is True,
             'help': str(field.get('help') or ''),
         }
+        value['integer'] = field.get('integer', True) is not False
         if 'default' in field:
             value['default'] = copy.deepcopy(field['default'])
         for name in ('minimum', 'maximum'):
@@ -111,6 +119,128 @@ def _connection_fields(registration):
                     'select connection field default is invalid'
                 )
             value['options'] = normalized_options
+        visible_when = field.get('visible_when')
+        if visible_when is not None:
+            if not isinstance(visible_when, dict):
+                raise EndpointRegistrationError(
+                    'connection field visible_when must be an object'
+                )
+            dependency = _required(
+                visible_when.get('field_id'),
+                'connection visible_when field_id',
+            )
+            predicates = [
+                name for name in ('equals', 'in') if name in visible_when
+            ]
+            if len(predicates) != 1:
+                raise EndpointRegistrationError(
+                    'connection visible_when requires equals or in'
+                )
+            predicate = predicates[0]
+            expected = copy.deepcopy(visible_when[predicate])
+            if predicate == 'in' and (
+                not isinstance(expected, list) or not expected
+            ):
+                raise EndpointRegistrationError(
+                    'connection visible_when in must be a non-empty array'
+                )
+            value['visible_when'] = {
+                'field_id': dependency,
+                predicate: expected,
+            }
+        for name in ('requires_fields', 'conflicts_with'):
+            if name not in field:
+                continue
+            references = field[name]
+            if not isinstance(references, list) or not all(
+                isinstance(item, str) and item.strip()
+                for item in references
+            ):
+                raise EndpointRegistrationError(
+                    f'connection field {name} must be a string array'
+                )
+            value[name] = [item.strip() for item in references]
+        normalized.append(value)
+    field_ids = {item['field_id'] for item in normalized}
+    for field in normalized:
+        references = []
+        condition = field.get('visible_when')
+        if condition:
+            references.append(condition['field_id'])
+        references.extend(field.get('requires_fields', []))
+        references.extend(field.get('conflicts_with', []))
+        if field['field_id'] in references or any(
+            item not in field_ids for item in references
+        ):
+            raise EndpointRegistrationError(
+                'connection field dependency is invalid'
+            )
+    return normalized
+
+
+def _secret_fields(registration, connection_fields):
+    fields = registration.get('secret_fields', [])
+    if not isinstance(fields, list):
+        raise EndpointRegistrationError(
+            'endpoint secret_fields must be an array'
+        )
+    normalized = []
+    seen_ids = set()
+    seen_kinds = set()
+    connection_ids = {
+        field['field_id'] for field in connection_fields
+    }
+    for field in fields:
+        if not isinstance(field, dict):
+            raise EndpointRegistrationError(
+                'endpoint secret field must be an object'
+            )
+        field_id = _required(field.get('field_id'), 'secret field_id')
+        secret_kind = _required(field.get('secret_kind'), 'secret kind')
+        if field_id in seen_ids or secret_kind in seen_kinds:
+            raise EndpointRegistrationError(
+                'endpoint secret fields must be unique'
+            )
+        seen_ids.add(field_id)
+        seen_kinds.add(secret_kind)
+        value = {
+            'field_id': field_id,
+            'secret_kind': secret_kind,
+            'label': _required(field.get('label'), 'secret label'),
+            'group': str(field.get('group') or 'Authentication'),
+            'required': field.get('required') is True,
+            'primary': field.get('primary') is True,
+            'help': str(field.get('help') or ''),
+        }
+        condition = field.get('visible_when')
+        if condition is not None:
+            if not isinstance(condition, dict):
+                raise EndpointRegistrationError(
+                    'secret field visible_when must be an object'
+                )
+            dependency = _required(
+                condition.get('field_id'),
+                'secret visible_when field_id',
+            )
+            predicates = [
+                name for name in ('equals', 'in') if name in condition
+            ]
+            if dependency not in connection_ids or len(predicates) != 1:
+                raise EndpointRegistrationError(
+                    'secret field visible_when is invalid'
+                )
+            predicate = predicates[0]
+            expected = copy.deepcopy(condition[predicate])
+            if predicate == 'in' and (
+                not isinstance(expected, list) or not expected
+            ):
+                raise EndpointRegistrationError(
+                    'secret visible_when in must be a non-empty array'
+                )
+            value['visible_when'] = {
+                'field_id': dependency,
+                predicate: expected,
+            }
         normalized.append(value)
     return normalized
 
@@ -119,6 +249,44 @@ def _required(value, field_name):
     if not isinstance(value, str) or not value.strip():
         raise EndpointRegistrationError(f'{field_name} must not be empty')
     return value.strip()
+
+
+def _interface_descriptor(registration, experience, adapter, display_name):
+    """Normalize the engine/interface identity exposed to registration UIs."""
+    descriptor = registration.get('interface')
+    if descriptor is None:
+        return {
+            'engine_id': experience,
+            'engine_display_name': display_name,
+            'interface_id': experience,
+            'interface_display_name': display_name,
+            'protocol_id': adapter,
+            'explicit': False,
+        }
+    if not isinstance(descriptor, dict):
+        raise EndpointRegistrationError(
+            'endpoint interface descriptor must be an object'
+        )
+    return {
+        'engine_id': _required(
+            descriptor.get('engine_id'), 'interface engine_id'
+        ),
+        'engine_display_name': _required(
+            descriptor.get('engine_display_name'),
+            'interface engine_display_name',
+        ),
+        'interface_id': _required(
+            descriptor.get('interface_id'), 'interface interface_id'
+        ),
+        'interface_display_name': _required(
+            descriptor.get('interface_display_name'),
+            'interface interface_display_name',
+        ),
+        'protocol_id': _required(
+            descriptor.get('protocol_id'), 'interface protocol_id'
+        ),
+        'explicit': True,
+    }
 
 
 def _load_profiles():
@@ -138,6 +306,19 @@ def _load_profiles():
             raise EndpointRegistrationError(
                 'active provider has no endpoint registration profile'
             )
+        try:
+            connection_fields, secret_fields = expand_field_sets(
+                registration
+            )
+        except KeyError as exc:
+            raise EndpointRegistrationError(
+                f'endpoint field set is unavailable: {exc.args[0]}'
+            ) from exc
+        registration = {
+            **registration,
+            'connection_fields': connection_fields,
+            'secret_fields': secret_fields,
+        }
         identity = manifest['identity']
         composition = manifest['composition']
         experiences = composition['experience_families']
@@ -163,6 +344,16 @@ def _load_profiles():
             raise EndpointRegistrationError(
                 'embedded endpoint registration must not declare a port'
             )
+        display_name = _required(
+            registration['display_name'], 'display_name'
+        )
+        experience = _required(experiences[0], 'experience_family')
+        adapter = _required(adapters[0], 'target_adapter_id')
+        interface = _interface_descriptor(
+            registration, experience, adapter, display_name
+        )
+        connection_fields = _connection_fields(registration)
+        secret_fields = _secret_fields(registration, connection_fields)
         profiles.append({
             'profile_id': _required(identity['profile_id'], 'profile_id'),
             'profile_version': _required(
@@ -172,19 +363,21 @@ def _load_profiles():
             'provider_version': _required(
                 identity['provider_version'], 'provider_version'
             ),
-            'experience_family': _required(
-                experiences[0], 'experience_family'
-            ),
-            'target_adapter_id': _required(
-                adapters[0], 'target_adapter_id'
-            ),
+            'experience_family': experience,
+            'target_adapter_id': adapter,
             'target_adapter_version': _required(
                 registration['target_adapter_version'],
                 'target_adapter_version',
             ),
-            'display_name': _required(
-                registration['display_name'], 'display_name'
-            ),
+            'display_name': display_name,
+            'engine_id': interface['engine_id'],
+            'engine_display_name': interface['engine_display_name'],
+            'interface_id': interface['interface_id'],
+            'interface_display_name': interface[
+                'interface_display_name'
+            ],
+            'protocol_id': interface['protocol_id'],
+            'explicit_interface': interface['explicit'],
             'workflow': _required(
                 registration['workflow'], 'workflow'
             ),
@@ -194,10 +387,14 @@ def _load_profiles():
             ) is True,
             'supports_secret': registration.get(
                 'supports_secret',
-                registration.get('requires_secret', route_kind == 'network'),
+                bool(secret_fields) or registration.get(
+                    'requires_secret', route_kind == 'network'
+                ),
             ) is True,
             'default_port': default_port,
-            'connection_fields': _connection_fields(registration),
+            'connection_fields': connection_fields,
+            'secret_fields': secret_fields,
+            'connection_capabilities': _capabilities(registration),
             'default': registration.get('default') is True,
             'available': True,
         })
@@ -206,12 +403,28 @@ def _load_profiles():
         raise EndpointRegistrationError(
             'endpoint registration profile IDs are not unique'
         )
+    interface_ids = [
+        (item['engine_id'], item['interface_id']) for item in profiles
+    ]
+    if len(interface_ids) != len(set(interface_ids)):
+        raise EndpointRegistrationError(
+            'endpoint engine/interface identities are not unique'
+        )
     defaults = [item for item in profiles if item['default']]
     if len(defaults) != 1:
         raise EndpointRegistrationError(
             'exactly one endpoint registration profile must be default'
         )
     return tuple(profiles)
+
+
+def _capabilities(registration):
+    try:
+        return normalize_connection_capabilities(
+            expand_capability_set(registration)
+        )
+    except (ConnectionCapabilityError, KeyError) as exc:
+        raise EndpointRegistrationError(str(exc)) from exc
 
 
 def registration_profiles():
@@ -235,6 +448,29 @@ def registration_profile(profile_id=None):
     raise EndpointRegistrationError(
         'endpoint profile is not active for registration'
     )
+
+
+def registration_interfaces(engine_id):
+    """Return every selectable native interface for one logical engine."""
+    engine_id = _required(engine_id, 'engine_id')
+    return tuple(
+        item for item in registration_profiles()
+        if item['engine_id'] == engine_id
+    )
+
+
+def registration_interface(engine_id, interface_id):
+    """Resolve one exact engine/interface pair without protocol fallback."""
+    interface_id = _required(interface_id, 'interface_id')
+    matches = [
+        item for item in registration_interfaces(engine_id)
+        if item['interface_id'] == interface_id
+    ]
+    if len(matches) != 1:
+        raise EndpointRegistrationError(
+            'endpoint engine interface is not active for registration'
+        )
+    return matches[0]
 
 
 def registration_profile_for_endpoint(endpoint):
@@ -263,6 +499,12 @@ def registration_profile_for_endpoint(endpoint):
         'target_adapter_id': endpoint.target_adapter_id,
         'target_adapter_version': endpoint.target_adapter_version,
         'display_name': endpoint.profile_id,
+        'engine_id': endpoint.experience_family,
+        'engine_display_name': endpoint.experience_family,
+        'interface_id': endpoint.experience_family,
+        'interface_display_name': endpoint.profile_id,
+        'protocol_id': endpoint.target_adapter_id,
+        'explicit_interface': False,
         'workflow': (
             'provider_endpoint' if provider_managed else 'legacy_preserved'
         ),
@@ -273,6 +515,8 @@ def registration_profile_for_endpoint(endpoint):
         'default': False,
         'available': False,
         'connection_fields': [],
+        'secret_fields': [],
+        'connection_capabilities': normalize_connection_capabilities(None),
     }
 
 
@@ -302,12 +546,22 @@ def provider_route_options(profile, data, existing=None):
             ', '.join(unknown)
         )
     for ui_key, field in declared.items():
+        active = _field_is_visible(field, profile, data, route)
+        if not active:
+            if ui_key in data and data[ui_key] is not None and (
+                data[ui_key] != ''
+            ):
+                raise EndpointRegistrationError(
+                    f"{field['label']} is unavailable for this selection"
+                )
+            route.pop(field['route_key'], None)
+            continue
         if ui_key not in data:
             if field['route_key'] not in route and 'default' in field:
                 route[field['route_key']] = copy.deepcopy(field['default'])
             continue
         value = data[ui_key]
-        if value in {None, ''}:
+        if value is None or value == '':
             route.pop(field['route_key'], None)
             continue
         control = field['control']
@@ -328,15 +582,32 @@ def provider_route_options(profile, data, existing=None):
                 raise EndpointRegistrationError(
                     f"{field['label']} is outside the admitted range"
                 )
-            if isinstance(value, float) and not value.is_integer():
+            if field.get('integer', True) and (
+                isinstance(value, float) and not value.is_integer()
+            ):
                 raise EndpointRegistrationError(
                     f"{field['label']} must be an integer"
                 )
-            value = int(value)
-        if control in {'text', 'file'} and not isinstance(value, str):
+            if field.get('integer', True):
+                value = int(value)
+        if control in {'text', 'multiline', 'file'} and not isinstance(
+            value, str
+        ):
             raise EndpointRegistrationError(
                 f"{field['label']} must be text"
             )
+        if control == 'json':
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except (TypeError, ValueError):
+                    raise EndpointRegistrationError(
+                        f"{field['label']} must be valid JSON"
+                    ) from None
+            if not isinstance(value, (dict, list)):
+                raise EndpointRegistrationError(
+                    f"{field['label']} must be a JSON object or array"
+                )
         if control == 'select':
             choices = {option['value'] for option in field['options']}
             if not isinstance(value, str) or value not in choices:
@@ -349,11 +620,55 @@ def provider_route_options(profile, data, existing=None):
             )
         route[field['route_key']] = copy.deepcopy(value)
     for field in profile.get('connection_fields', []):
+        if not _field_is_visible(field, profile, data, route):
+            continue
         if field.get('required') and not route.get(field['route_key']):
             raise EndpointRegistrationError(
                 f"{field['label']} is required"
             )
+        if not route.get(field['route_key']):
+            continue
+        missing = [
+            item for item in field.get('requires_fields', [])
+            if not _route_field_value(item, profile, data, route)
+        ]
+        if missing:
+            raise EndpointRegistrationError(
+                f"{field['label']} requires: " + ', '.join(missing)
+            )
+        conflicts = [
+            item for item in field.get('conflicts_with', [])
+            if _route_field_value(item, profile, data, route)
+        ]
+        if conflicts:
+            raise EndpointRegistrationError(
+                f"{field['label']} conflicts with: " +
+                ', '.join(conflicts)
+            )
     return route
+
+
+def _route_field_value(field_id, profile, data, route):
+    field = next(
+        item for item in profile.get('connection_fields', [])
+        if item['field_id'] == field_id
+    )
+    ui_key = f'cde_route_{field_id}'
+    return data.get(
+        ui_key, route.get(field['route_key'], field.get('default'))
+    )
+
+
+def _field_is_visible(field, profile, data, route):
+    condition = field.get('visible_when')
+    if condition is None:
+        return True
+    actual = _route_field_value(
+        condition['field_id'], profile, data, route
+    )
+    if 'equals' in condition:
+        return actual == condition['equals']
+    return actual in condition['in']
 
 
 def provider_route_form_values(profile, route):
@@ -366,5 +681,83 @@ def provider_route_form_values(profile, route):
             continue
         value = route.get(field['route_key'], field.get('default'))
         if value is not None:
+            if field['control'] == 'json':
+                value = json.dumps(
+                    value, sort_keys=True, separators=(',', ':')
+                )
             result[f"cde_route_{field['field_id']}"] = copy.deepcopy(value)
     return result
+
+
+def active_secret_fields(profile, route):
+    """Return credential fields selected by safe, non-secret route values."""
+    if not isinstance(profile, dict) or not isinstance(route, dict):
+        raise EndpointRegistrationError(
+            'secret field selection requires profile and route objects'
+        )
+    fields_by_id = {
+        field['field_id']: field
+        for field in profile.get('connection_fields', [])
+    }
+    active = []
+    for field in profile.get('secret_fields', []):
+        condition = field.get('visible_when')
+        if condition is None:
+            active.append(copy.deepcopy(field))
+            continue
+        dependency = fields_by_id[condition['field_id']]
+        actual = route.get(
+            dependency['route_key'], dependency.get('default')
+        )
+        visible = (
+            actual == condition['equals'] if 'equals' in condition
+            else actual in condition['in']
+        )
+        if visible:
+            active.append(copy.deepcopy(field))
+    return active
+
+
+def provider_secret_values(profile, route, data, require_all=True):
+    """Validate typed form secrets without copying them into a route."""
+    if not isinstance(data, dict):
+        raise EndpointRegistrationError(
+            'provider secret input must be an object'
+        )
+    declared = {
+        f"cde_secret_{field['field_id']}": field
+        for field in profile.get('secret_fields', [])
+    }
+    unknown = sorted(
+        key for key in data
+        if key.startswith('cde_secret_') and key not in declared
+    )
+    if unknown:
+        raise EndpointRegistrationError(
+            'provider credentials contain undeclared fields: ' +
+            ', '.join(unknown)
+        )
+    active = {
+        field['field_id']: field
+        for field in active_secret_fields(profile, route)
+    }
+    values = {}
+    for ui_key, field in declared.items():
+        submitted = data.get(ui_key)
+        if field['field_id'] not in active:
+            if submitted not in {None, ''}:
+                raise EndpointRegistrationError(
+                    f"{field['label']} is unavailable for this selection"
+                )
+            continue
+        if submitted not in {None, ''}:
+            if not isinstance(submitted, str):
+                raise EndpointRegistrationError(
+                    f"{field['label']} must be text"
+                )
+            values[field['secret_kind']] = submitted
+        elif require_all and field['required']:
+            raise EndpointRegistrationError(
+                f"{field['label']} is required"
+            )
+    return values

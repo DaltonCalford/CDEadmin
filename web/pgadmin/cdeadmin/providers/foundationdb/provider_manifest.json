@@ -129,6 +129,7 @@
     "workflow": "provider_endpoint",
     "route_kind": "network",
     "requires_secret": false,
+    "supports_secret": true,
     "default_port": 4500,
     "default": false,
     "target_adapter_version": "foundationdb-api-730",
@@ -140,6 +141,24 @@
         "control": "file",
         "group": "FoundationDB client"
       },
+      {
+        "field_id": "tls_mode", "route_key": "tls_mode",
+        "label": "TLS mode", "control": "select", "group": "FoundationDB TLS",
+        "default": "disabled", "options": [
+          {"value": "disabled", "label": "Disabled"},
+          {"value": "verify-peers", "label": "Verify peers"}
+        ]
+      },
+      {"field_id":"tls_ca_file","route_key":"tls_ca_file","label":"CA certificate file","control":"file","group":"FoundationDB TLS"},
+      {"field_id":"tls_certificate_file","route_key":"tls_certificate_file","label":"Client certificate file","control":"file","group":"FoundationDB TLS"},
+      {"field_id":"tls_key_file","route_key":"tls_key_file","label":"Client private key","control":"file","group":"FoundationDB TLS"},
+      {"field_id":"tls_verify_peers","route_key":"tls_verify_peers","label":"Peer verification constraints","control":"text","group":"FoundationDB TLS","default":"Check.Valid=1"},
+      {"field_id":"external_client_directory","route_key":"external_client_directory","label":"External client library directory","control":"text","group":"FoundationDB client"},
+      {"field_id":"external_client_library","route_key":"external_client_library","label":"External client library","control":"file","group":"FoundationDB client"},
+      {"field_id":"client_threads_per_version","route_key":"client_threads_per_version","label":"Client threads per version","control":"number","group":"FoundationDB client","minimum":1,"maximum":128},
+      {"field_id":"transaction_timeout","route_key":"transaction_timeout","label":"Transaction timeout (milliseconds)","control":"number","group":"FoundationDB transactions","default":5000,"minimum":0,"maximum":86400000},
+      {"field_id":"transaction_retry_limit","route_key":"transaction_retry_limit","label":"Transaction retry limit","control":"number","group":"FoundationDB transactions","default":5,"minimum":0,"maximum":100000},
+      {"field_id":"transaction_max_retry_delay","route_key":"transaction_max_retry_delay","label":"Maximum retry delay (milliseconds)","control":"number","group":"FoundationDB transactions","default":1000,"minimum":0,"maximum":86400000},
       {
         "field_id": "fdbcli_path",
         "route_key": "fdbcli_path",
@@ -170,7 +189,11 @@
         "default": "",
         "help": "Comma-separated URL prefixes admitted for backup and restore."
       }
-    ]
+    ],
+    "secret_fields": [
+      {"field_id":"tls_key_password","secret_kind":"tls_private_key_password","label":"Client private-key password","group":"FoundationDB TLS","primary":true}
+    ],
+    "connection_capability_set": "foundationdb-native-v1"
   },
   "provenance": {
     "purpose": "FoundationDB exact-profile provider",

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import threading
 from urllib.parse import urlsplit
 from collections.abc import Mapping
 
@@ -183,8 +184,10 @@ CONTROL_CATALOG = ControlPlaneCatalog('foundationdb', CONTROL_OPERATIONS)
 
 class FoundationDBBackend:
     MAX_CLI_BYTES = 4 * 1024 * 1024
+    _network_lock = threading.RLock()
+    _network_fingerprint = None
 
-    def __init__(self, module=None):
+    def __init__(self, secret_acquirer=None, module=None):
         try:
             self.fdb = module or importlib.import_module('fdb')
         except ImportError as exc:
@@ -198,7 +201,9 @@ class FoundationDBBackend:
             raise NativeDistributedError(
                 'FoundationDB API version must be 730')
         self._databases = []
+        self._database_routes = {}
         self._row_identities = KeyIdentityStore()
+        self.secret_acquirer = secret_acquirer
 
     @staticmethod
     def _route(request):
@@ -206,7 +211,92 @@ class FoundationDBBackend:
         if not isinstance(route, dict) or not route.get('cluster_file'):
             raise NativeDistributedError(
                 'FoundationDB cluster file is required')
+        route = copy.deepcopy(route)
+        route.setdefault('tls_mode', 'disabled')
+        route.setdefault('tls_verify_peers', 'Check.Valid=1')
+        route.setdefault('transaction_timeout', 5000)
+        route.setdefault('transaction_retry_limit', 5)
+        route.setdefault('transaction_max_retry_delay', 1000)
+        if route['tls_mode'] not in {'disabled', 'verify-peers'}:
+            raise NativeDistributedError('FoundationDB TLS mode is invalid')
+        if route['tls_mode'] == 'verify-peers' and not route.get(
+                'tls_ca_file'):
+            raise NativeDistributedError(
+                'FoundationDB verified TLS requires a CA file')
+        if bool(route.get('tls_certificate_file')) != bool(
+                route.get('tls_key_file')):
+            raise NativeDistributedError(
+                'FoundationDB TLS certificate and key must be supplied '
+                'together')
+        references = dict(route.get('credential_references') or {})
+        if route.get('credential_reference_id'):
+            references.setdefault('tls_private_key_password',
+                                  route['credential_reference_id'])
+        if set(references) - {'tls_private_key_password'}:
+            raise NativeDistributedError(
+                'FoundationDB credential kind is invalid')
+        if references and not route.get('principal_reference'):
+            raise NativeDistributedError(
+                'FoundationDB credentials require a principal reference')
+        route['credential_references'] = references
+        for field in ('transaction_timeout', 'transaction_retry_limit',
+                      'transaction_max_retry_delay'):
+            value = route[field]
+            if isinstance(value, bool) or not isinstance(value, int) or not (
+                    0 <= value <= 86400000):
+                raise NativeDistributedError(
+                    f'FoundationDB {field} is invalid')
         return route
+
+    def _with_tls_password(self, route, callback):
+        reference = route.get('credential_references', {}).get(
+            'tls_private_key_password')
+        if not reference:
+            return callback(None)
+        if not callable(self.secret_acquirer):
+            raise NativeDistributedError(
+                'FoundationDB secret binding is unavailable')
+        lease = self.secret_acquirer(
+            reference, route['principal_reference'], 'connect',
+            'tls_private_key_password')
+        with lease:
+            return lease.use(
+                lambda view: callback(bytes(view).decode('utf-8')))
+
+    def _configure_network(self, route, password):
+        values = tuple(route.get(field) for field in (
+            'tls_mode', 'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
+            'tls_verify_peers', 'external_client_directory',
+            'external_client_library', 'client_threads_per_version',
+        ))
+        fingerprint = (values, bool(password))
+        with self._network_lock:
+            owner = type(self)
+            if owner._network_fingerprint not in {None, fingerprint}:
+                raise NativeDistributedError(
+                    'FoundationDB process already has a different network '
+                    'security profile; retire its provider generation first')
+            if owner._network_fingerprint is not None:
+                return
+            options = self.fdb.options
+            if route['tls_mode'] == 'verify-peers':
+                options.set_tls_ca_path(route['tls_ca_file'])
+                if route.get('tls_certificate_file'):
+                    options.set_tls_cert_path(route['tls_certificate_file'])
+                    options.set_tls_key_path(route['tls_key_file'])
+                if password:
+                    options.set_tls_password(password)
+                options.set_tls_verify_peers(route['tls_verify_peers'])
+            if route.get('external_client_directory'):
+                options.set_external_client_directory(
+                    route['external_client_directory'])
+            if route.get('external_client_library'):
+                options.set_external_client_library(
+                    route['external_client_library'])
+            if route.get('client_threads_per_version') is not None:
+                options.set_client_threads_per_version(
+                    route['client_threads_per_version'])
+            owner._network_fingerprint = fingerprint
 
     @staticmethod
     def _trusted_file(value, label, executable=False):
@@ -230,11 +320,28 @@ class FoundationDBBackend:
                     character in command for character in '\x00\r\n;'):
             raise NativeDistributedError(
                 'FoundationDB control command is invalid')
-        try:
-            result = subprocess.run(
-                [executable, '-C', cluster_file, '--exec', command],
-                check=False, capture_output=True, text=True, timeout=timeout,
+        arguments = [executable, '-C', cluster_file]
+        if route.get('tls_mode') == 'verify-peers':
+            arguments.extend(['--tls-ca-file', route['tls_ca_file']])
+            if route.get('tls_certificate_file'):
+                arguments.extend([
+                    '--tls-certificate-file', route['tls_certificate_file'],
+                    '--tls-key-file', route['tls_key_file'],
+                ])
+            arguments.extend([
+                '--tls-verify-peers', route['tls_verify_peers']])
+        arguments.extend(['--exec', command])
+
+        def run(password):
+            environment = os.environ.copy()
+            if password:
+                environment['FDB_TLS_PASSWORD'] = password
+            return subprocess.run(
+                arguments, check=False, capture_output=True, text=True,
+                timeout=timeout, env=environment,
             )
+        try:
+            result = self._with_tls_password(route, run)
         except (OSError, subprocess.SubprocessError) as exc:
             raise NativeDistributedError(
                 'FoundationDB control request failed') from exc
@@ -272,8 +379,14 @@ class FoundationDBBackend:
                 'protocol_id': 'foundationdb_native'}
 
     def open_session(self, request):
-        database = self.fdb.open(self._route(request)['cluster_file'])
+        route = self._route(request)
+
+        def connect(password):
+            self._configure_network(route, password)
+            return self.fdb.open(route['cluster_file'])
+        database = self._with_tls_password(route, connect)
         self._databases.append(database)
+        self._database_routes[id(database)] = route
         return database
 
     def list_resources(self, request):
@@ -318,9 +431,27 @@ class FoundationDBBackend:
             pass
         return values
 
-    @staticmethod
-    def describe_transaction(_handle):
-        return {'native_state': 'foundationdb-database-handle'}
+    def describe_transaction(self, handle):
+        route = self._database_routes.get(id(handle), {})
+        return {
+            'native_state': 'foundationdb-database-handle',
+            'isolation': 'strict-serializable',
+            'transaction_timeout_ms': route.get('transaction_timeout'),
+            'transaction_retry_limit': route.get('transaction_retry_limit'),
+            'transaction_max_retry_delay_ms': route.get(
+                'transaction_max_retry_delay'),
+            'provider_owned_finality': True,
+        }
+
+    def _transaction(self, database):
+        transaction = database.create_transaction()
+        route = self._database_routes.get(id(database), {})
+        options = transaction.options
+        options.set_timeout(route.get('transaction_timeout', 5000))
+        options.set_retry_limit(route.get('transaction_retry_limit', 5))
+        options.set_max_retry_delay(
+            route.get('transaction_max_retry_delay', 1000))
+        return transaction
 
     def execute(self, handle, command, _parameters):
         if not isinstance(command, dict):
@@ -332,7 +463,7 @@ class FoundationDBBackend:
             rows = [{'key': key.hex(),
                      'value': None if value is None else bytes(value).hex()}]
         elif operation in {'set', 'clear'}:
-            transaction = handle.create_transaction()
+            transaction = self._transaction(handle)
             if operation == 'set':
                 transaction[key] = str(command.get('value', '')).encode()
             else:
@@ -453,7 +584,7 @@ class FoundationDBBackend:
                 key, original = self._row_identities.consume(
                     route, target, draft.get('selector')
                 )
-            transaction = database.create_transaction()
+            transaction = self._transaction(database)
             future = transaction[key]
             future.wait()
             observed = future.value if future.present() else None
@@ -897,7 +1028,7 @@ class FoundationDBBackend:
                 'key range end must sort after its start'
             )
         database = self.open_session({'route': route})
-        transaction = database.create_transaction()
+        transaction = self._transaction(database)
         try:
             values = list(transaction.get_range(
                 begin, finish, limit=limit + 1
@@ -938,4 +1069,5 @@ class FoundationDBBackend:
 
     def close(self):
         self._databases.clear()
+        self._database_routes.clear()
         self._row_identities.clear()

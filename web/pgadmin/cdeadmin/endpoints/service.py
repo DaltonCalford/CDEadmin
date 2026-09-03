@@ -17,13 +17,24 @@ from __future__ import annotations
 
 import json
 import threading
-from contextlib import contextmanager
+import uuid
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 
 from pgadmin.cdeadmin.core import EndpointContext
 from pgadmin.cdeadmin.security import SecretReference
+from pgadmin.cdeadmin.security import (
+    credential_from_protected_value,
+    encode_credential_bundle,
+)
 
-from .profiles import EndpointRegistrationError, registration_profile
+from .profiles import (
+    EndpointRegistrationError,
+    active_secret_fields,
+    registration_profile,
+    provider_route_options,
+)
+from .routing import RouteHealthRegistry, RouteSelectionError
 
 
 APP_EXTENSION_KEY = 'cdeadmin_endpoint_service'
@@ -77,7 +88,9 @@ class ProtectedColumnResolver:
                 buffer[index] = 0
 
     def __call__(self, locator, context, _purpose, principal):
-        source_kind, source_id, column = self._parse_locator(locator)
+        source_kind, source_id, column, credential_kind = (
+            self._parse_locator(locator)
+        )
         from flask_login import current_user
         from pgadmin.model import Server, SharedServer
         from pgadmin.utils.crypto import decrypt
@@ -101,19 +114,40 @@ class ProtectedColumnResolver:
         with self._lock:
             transient = self._transient.get(locator)
             if transient is not None:
-                return bytes(transient)
+                value = bytes(transient)
+                return self._select_credential(
+                    value, column, credential_kind
+                )
         ciphertext = getattr(source, column, None)
         key_present, key = get_crypt_key()
         if ciphertext is None or not key_present:
             raise EndpointRegistrationError(
                 'protected endpoint credential is unavailable'
             )
-        return decrypt(ciphertext, key)
+        return self._select_credential(
+            decrypt(ciphertext, key), column, credential_kind
+        )
+
+    @staticmethod
+    def _select_credential(value, column, credential_kind):
+        if credential_kind is None:
+            return value
+        legacy_kind = (
+            'database_password' if column == 'password'
+            else 'tunnel_password'
+        )
+        return credential_from_protected_value(
+            value, credential_kind, legacy_kind=legacy_kind
+        )
 
     @staticmethod
     def _parse_locator(locator):
         try:
-            source_kind, raw_id, column = locator.split(':', 2)
+            parts = locator.split(':')
+            if len(parts) not in {3, 4}:
+                raise ValueError
+            source_kind, raw_id, column = parts[:3]
+            credential_kind = parts[3] if len(parts) == 4 else None
             source_id = int(raw_id)
         except (AttributeError, TypeError, ValueError) as exc:
             raise EndpointRegistrationError(
@@ -125,15 +159,20 @@ class ProtectedColumnResolver:
             raise EndpointRegistrationError(
                 'protected endpoint credential locator is invalid'
             )
-        return source_kind, source_id, column
+        if credential_kind is not None and not credential_kind.strip():
+            raise EndpointRegistrationError(
+                'protected endpoint credential locator is invalid'
+            )
+        return source_kind, source_id, column, credential_kind
 
 
 class EndpointService:
     """Manage provider endpoint verification without legacy driver routing."""
 
-    def __init__(self, provider_registry, security_service):
+    def __init__(self, provider_registry, security_service, route_health=None):
         self.provider_registry = provider_registry
         self.security_service = security_service
+        self.route_health = route_health or RouteHealthRegistry()
         self.resolver = ProtectedColumnResolver()
         self.security_service.secrets.register_resolver(
             RESOLVER_ID, self.resolver
@@ -151,23 +190,37 @@ class EndpointService:
             endpoint,
             EMBEDDED_VERIFY_PERMISSIONS if embedded else VERIFY_PERMISSIONS,
         )
-        route, reference = self._route_and_reference(
-            server, endpoint, profile
-        )
-        transient = (
-            self.resolver.transient(reference.locator, password)
-            if reference is not None and password else _empty_context()
-        )
+        discovered = None
+        selected_route = None
         try:
-            with transient:
-                discovered = self.provider_registry.resolve(
-                    context
-                ).instance.discover_endpoint({'route': route})
-        except Exception:
+            candidates = self.route_health.candidates(
+                endpoint.id, endpoint.routes
+            )
+        except RouteSelectionError as exc:
+            raise EndpointRegistrationError(str(exc)) from exc
+        for route_model in candidates:
+            route, reference = self._route_and_reference(
+                server, endpoint, profile, route_model=route_model
+            )
+            transient = self._transient_credentials(
+                endpoint, route, reference, password
+            )
+            try:
+                with transient:
+                    discovered = self.provider_registry.resolve(
+                        context
+                    ).instance.discover_endpoint({'route': route})
+            except Exception:
+                self.route_health.record_failure(endpoint.id, route_model.id)
+                continue
+            self.route_health.record_success(endpoint.id, route_model.id)
+            selected_route = route_model
+            break
+        if discovered is None:
             self._record_verification(endpoint, 'failed')
             raise EndpointRegistrationError(
                 'endpoint verification failed'
-            ) from None
+            )
         verified = discovered['verified_runtime']
         self._record_verification(
             endpoint,
@@ -184,7 +237,33 @@ class EndpointService:
             'verified_runtime_family': verified.get('engine_id'),
             'verified_runtime_version': verified.get('version'),
             'evidence_reference': verified.get('evidence_reference'),
+            'selected_route_id': selected_route.id,
         }
+
+    @contextmanager
+    def _transient_credentials(self, endpoint, route, primary, values):
+        if primary is None or not values:
+            yield
+            return
+        payload = (
+            encode_credential_bundle(values)
+            if isinstance(values, dict) else values
+        )
+        reference_ids = set(
+            route.get('credential_references', {}).values()
+        )
+        reference_ids.add(primary.reference_id)
+        models = {
+            item.id: item for item in endpoint.secret_references
+        }
+        with ExitStack() as stack:
+            for reference_id in sorted(reference_ids):
+                model = models.get(reference_id)
+                if model is not None:
+                    stack.enter_context(self.resolver.transient(
+                        model.secret_reference, payload
+                    ))
+            yield
 
     def workspace(self, server):
         """Build a verified endpoint DTO without exposing credentials."""
@@ -209,9 +288,18 @@ class EndpointService:
             EMBEDDED_WORKSPACE_PERMISSIONS
             if embedded else WORKSPACE_PERMISSIONS,
         )
-        route, _reference = self._route_and_reference(
-            server, endpoint, profile
+        candidates = self.route_health.candidates(
+            endpoint.id, endpoint.routes
         )
+        route, _reference = self._route_and_reference(
+            server, endpoint, profile, route_model=candidates[0]
+        )
+        route_candidates = [
+            self._route_and_reference(
+                server, endpoint, profile, route_model=item
+            )[0]
+            for item in candidates
+        ]
         binding = self.provider_registry.resolve(context)
         identity = dict(binding.manifest['identity'])
         endpoint_payload = {
@@ -231,6 +319,8 @@ class EndpointService:
                 ),
             },
             'route': route,
+            'route_candidates': route_candidates,
+            'route_health': self.route_health.snapshot(endpoint.id),
             'capability_generation': endpoint.cache_namespace,
             'extensions': {},
         }
@@ -253,6 +343,213 @@ class EndpointService:
             'extensions': {'cdeadmin': {'workspace_root': True}},
         }
         return context, endpoint_payload, root_resource
+
+    def route_catalog(self, server):
+        """Return owner-safe, credential-free persistent route definitions."""
+        endpoint, profile = self._managed_endpoint(server)
+        routes = []
+        for model in sorted(
+            endpoint.routes, key=lambda item: (item.priority, item.id)
+        ):
+            configuration = self._route_configuration(model)
+            configuration.pop('credential_references', None)
+            configuration.pop('credential_reference_id', None)
+            configuration.pop('principal_reference', None)
+            routes.append({
+                'route_id': model.id,
+                'route_kind': model.route_kind,
+                'priority': model.priority,
+                'configuration': configuration,
+                'health': self.route_health.snapshot(endpoint.id).get(
+                    model.id, {}
+                ),
+            })
+        return {
+            'endpoint_id': endpoint.id,
+            'profile_id': profile['profile_id'],
+            'supports_multiple_routes': profile['route_kind'] == 'network',
+            'default_port': profile.get('default_port'),
+            'connection_fields': profile.get('connection_fields', []),
+            'routes': routes,
+        }
+
+    def create_route(self, server, data):
+        """Create a validated alternate route for one network endpoint."""
+        from pgadmin.model import EndpointRoute, db
+
+        endpoint, profile = self._managed_endpoint(server)
+        if profile['route_kind'] != 'network':
+            raise EndpointRegistrationError(
+                'embedded endpoints do not support alternate routes'
+            )
+        configuration = self._validated_route(profile, data)
+        route_id = str(uuid.uuid4())
+        priorities = {item.priority for item in endpoint.routes}
+        priority = data.get(
+            'priority', max(priorities, default=-1) + 1
+        )
+        self._validate_route_priority(priority, priorities)
+        model = EndpointRoute(
+            id=route_id,
+            endpoint_id=endpoint.id,
+            route_kind='network',
+            route_reference=f'cde-route:{route_id}',
+            priority=priority,
+            configuration=self._encoded_route(configuration),
+        )
+        db.session.add(model)
+        self._stale(endpoint)
+        db.session.commit()
+        return self.route_catalog(server)
+
+    def update_route(self, server, route_id, data):
+        """Replace admitted values on a persistent route."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        model = self._owned_route(endpoint, route_id)
+        existing = self._route_configuration(model)
+        configuration = self._validated_route(profile, data, existing)
+        priorities = {
+            item.priority for item in endpoint.routes if item.id != model.id
+        }
+        priority = data.get('priority', model.priority)
+        self._validate_route_priority(priority, priorities)
+        model.priority = priority
+        model.configuration = self._encoded_route(configuration)
+        self.route_health.clear(endpoint.id, model.id)
+        self._stale(endpoint)
+        db.session.commit()
+        return self.route_catalog(server)
+
+    def delete_route(self, server, route_id):
+        """Delete one alternate route while retaining a usable endpoint."""
+        from pgadmin.model import db
+
+        endpoint, _profile = self._managed_endpoint(server)
+        if len(endpoint.routes) <= 1:
+            raise EndpointRegistrationError(
+                'the final endpoint route cannot be deleted'
+            )
+        model = self._owned_route(endpoint, route_id)
+        db.session.delete(model)
+        self.route_health.clear(endpoint.id, model.id)
+        self._stale(endpoint)
+        db.session.commit()
+        return self.route_catalog(server)
+
+    @staticmethod
+    def _managed_endpoint(server):
+        endpoint = getattr(server, 'endpoint_profile', None)
+        if endpoint is None or endpoint.provider_version is None:
+            raise EndpointRegistrationError(
+                'server is not a provider-managed endpoint'
+            )
+        return endpoint, registration_profile(endpoint.profile_id)
+
+    @staticmethod
+    def _owned_route(endpoint, route_id):
+        route_id = str(route_id or '')
+        model = next(
+            (item for item in endpoint.routes if item.id == route_id), None
+        )
+        if model is None:
+            raise EndpointRegistrationError(
+                'endpoint route is unavailable'
+            )
+        return model
+
+    @staticmethod
+    def _route_configuration(model):
+        try:
+            value = json.loads(model.configuration)
+        except (TypeError, ValueError) as exc:
+            raise EndpointRegistrationError(
+                'endpoint route configuration is invalid'
+            ) from exc
+        if not isinstance(value, dict):
+            raise EndpointRegistrationError(
+                'endpoint route configuration is invalid'
+            )
+        return value
+
+    @staticmethod
+    def _encoded_route(configuration):
+        return json.dumps(
+            configuration, sort_keys=True, separators=(',', ':')
+        )
+
+    @staticmethod
+    def _validate_route_priority(priority, occupied):
+        if isinstance(priority, bool) or not isinstance(priority, int) or (
+            not 0 <= priority <= 100000
+        ):
+            raise EndpointRegistrationError(
+                'endpoint route priority is invalid'
+            )
+        if priority in occupied:
+            raise EndpointRegistrationError(
+                'endpoint route priority is already in use'
+            )
+
+    @staticmethod
+    def _validated_route(profile, data, existing=None):
+        if not isinstance(data, dict):
+            raise EndpointRegistrationError(
+                'endpoint route input must be an object'
+            )
+        forbidden = {
+            'credential_reference_id', 'credential_references',
+            'principal_reference', 'password', 'secret',
+        }
+        if forbidden.intersection(data):
+            raise EndpointRegistrationError(
+                'endpoint route input cannot contain credentials'
+            )
+        result = provider_route_options(profile, data, existing)
+        if profile.get('route_kind') == 'embedded_file':
+            if not result.get('database') or not result.get(
+                'filesystem_root'
+            ):
+                raise EndpointRegistrationError(
+                    'embedded endpoint route is incomplete'
+                )
+            return result
+        for field in ('host', 'user', 'database'):
+            if field in data:
+                value = data[field]
+                if value is not None and not isinstance(value, str):
+                    raise EndpointRegistrationError(
+                        f'endpoint route {field} must be text'
+                    )
+                if value in {None, ''}:
+                    result.pop(field, None)
+                else:
+                    result[field] = value.strip()
+        if 'port' in data:
+            port = data['port']
+            if isinstance(port, bool) or not isinstance(port, int) or (
+                not 1 <= port <= 65535
+            ):
+                raise EndpointRegistrationError(
+                    'endpoint route port is invalid'
+                )
+            result['port'] = port
+        if not result.get('host') or not result.get('port'):
+            raise EndpointRegistrationError(
+                'endpoint route host and port are required'
+            )
+        return result
+
+    @staticmethod
+    def _stale(endpoint):
+        runtime = endpoint.runtime_identity
+        endpoint.profile_generation = str(uuid.uuid4())
+        runtime.verification_state = 'stale'
+        runtime.verified_runtime_family = None
+        runtime.verified_runtime_version = None
+        runtime.verification_evidence_reference = None
+        runtime.verified_at = None
 
     def _postgresql_workspace(self, server, endpoint):
         """Bridge a connected preserved PostgreSQL server to shared studios."""
@@ -334,12 +631,14 @@ class EndpointService:
         return context, endpoint_payload, root_resource
 
     def _route_and_reference(
-        self, server, endpoint, profile=True, requires_secret=None
+        self, server, endpoint, profile=True, requires_secret=None,
+        route_model=None,
     ):
         if requires_secret is not None:
             profile = requires_secret
-        route_model = min(
-            endpoint.routes, key=lambda item: item.priority, default=None
+        route_model = route_model or min(
+            endpoint.routes, key=lambda item: (item.priority, item.id),
+            default=None,
         )
         if route_model is None:
             raise EndpointRegistrationError(
@@ -347,6 +646,68 @@ class EndpointService:
             )
         route = json.loads(route_model.configuration)
         route['route_id'] = route_model.id
+        if isinstance(profile, dict) and profile.get('secret_fields'):
+            fields = active_secret_fields(profile, route)
+            models = {
+                item.secret_kind: item
+                for item in endpoint.secret_references
+            }
+            present = route.get('credential_kinds')
+            if present is not None:
+                if not isinstance(present, list) or not all(
+                    isinstance(item, str) for item in present
+                ):
+                    raise EndpointRegistrationError(
+                        'endpoint credential-kind presence is invalid'
+                    )
+                models = {
+                    kind: model for kind, model in models.items()
+                    if kind in present
+                }
+            missing = [
+                field['secret_kind'] for field in fields
+                if field['required'] and field['secret_kind'] not in models
+            ]
+            if missing:
+                raise EndpointRegistrationError(
+                    'endpoint credential references are unavailable: ' +
+                    ', '.join(missing)
+                )
+            references = {}
+            for field in fields:
+                model = models.get(field['secret_kind'])
+                if model is None:
+                    continue
+                reference = self._bind_reference(server, endpoint, model)
+                references[field['secret_kind']] = reference
+            route['credential_references'] = {
+                kind: reference.reference_id
+                for kind, reference in references.items()
+            }
+            primary_fields = [field for field in fields if field['primary']]
+            if len(primary_fields) > 1:
+                raise EndpointRegistrationError(
+                    'authentication mechanism selected multiple primary '
+                    'credentials'
+                )
+            primary_field = next(
+                iter(primary_fields),
+                next((field for field in fields if field['required']), None),
+            )
+            if primary_field is None:
+                primary_field = next(iter(fields), None)
+            if primary_field is None:
+                route.pop('credential_references', None)
+                return route, None
+            primary = references.get(primary_field['secret_kind'])
+            if primary is None:
+                return route, None
+            route.update({
+                'credential_reference_id': primary.reference_id,
+                'credential_kind': primary.secret_kind,
+                'principal_reference': f'user:{server.user_id}',
+            })
+            return route, primary
         if isinstance(profile, dict):
             auth_kind = route.get('auth_kind', 'none')
             requires_secret = profile.get('requires_secret', True) or (
@@ -374,6 +735,19 @@ class EndpointService:
             )
         if not requires_secret:
             return route, None
+        reference = self._bind_reference(
+            server, endpoint, reference_model
+        )
+        route.update({
+            'route_id': route_model.id,
+            'credential_reference_id': reference.reference_id,
+            'principal_reference': f'user:{server.user_id}',
+        })
+        if reference.secret_kind != 'database_password':
+            route['credential_kind'] = reference.secret_kind
+        return route, reference
+
+    def _bind_reference(self, server, endpoint, reference_model):
         reference = SecretReference(
             reference_id=reference_model.id,
             endpoint_id=endpoint.id,
@@ -388,14 +762,7 @@ class EndpointService:
             authority_scope='legacy_engine_auth',
         )
         self.security_service.secrets.register_reference(reference)
-        route.update({
-            'route_id': route_model.id,
-            'credential_reference_id': reference.reference_id,
-            'principal_reference': f'user:{server.user_id}',
-        })
-        if reference.secret_kind != 'database_password':
-            route['credential_kind'] = reference.secret_kind
-        return route, reference
+        return reference
 
     @staticmethod
     def _context(endpoint, permissions):

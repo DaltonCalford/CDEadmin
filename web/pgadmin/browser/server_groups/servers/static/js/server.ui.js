@@ -250,6 +250,12 @@ export default class ServerSchema extends BaseUISchema {
       'embedded_file';
   }
 
+  hasTypedSecrets(state) {
+    return Boolean(
+      endpointProfiles.get(state.cde_profile_id)?.secret_fields?.length
+    );
+  }
+
   providerConnectionFields() {
     const fields = new Map();
     endpointProfiles.profiles.forEach((profile) => {
@@ -264,11 +270,24 @@ export default class ServerSchema extends BaseUISchema {
       id: field.id,
       label: gettext(field.label),
       type: field.control === 'boolean' ? 'switch' :
-        field.control === 'number' ? 'int' : field.control,
+        field.control === 'number' ? (field.integer === false ? 'numeric' :
+          'int') : field.control === 'json' ? 'multiline' : field.control,
       group: gettext(field.group || 'Advanced connection'),
       mode: ['properties', 'edit', 'create'],
-      deps: ['cde_profile_id'],
-      visible: (state) => field.profileIds.includes(state.cde_profile_id),
+      deps: [
+        'cde_profile_id',
+        ...(field.visible_when ? [
+          `cde_route_${field.visible_when.field_id}`,
+        ] : []),
+      ],
+      visible: (state) => {
+        if (!field.profileIds.includes(state.cde_profile_id)) return false;
+        const condition = field.visible_when;
+        if (!condition) return true;
+        const value = state[`cde_route_${condition.field_id}`];
+        return Object.prototype.hasOwnProperty.call(condition, 'equals') ?
+          value === condition.equals : condition.in.includes(value);
+      },
       noEmpty: Boolean(field.required),
       min: field.minimum,
       max: field.maximum,
@@ -277,6 +296,45 @@ export default class ServerSchema extends BaseUISchema {
       controlProps: field.control === 'file' ? {
         dialogType: 'select_file', supportedTypes: ['*'],
       } : field.control === 'select' ? {allowClear: false} : undefined,
+    }));
+  }
+
+  providerSecretFields() {
+    const obj = this;
+    const fields = new Map();
+    endpointProfiles.profiles.forEach((profile) => {
+      (profile.secret_fields || []).forEach((field) => {
+        const id = `cde_secret_${field.field_id}`;
+        const current = fields.get(id) || {...field, id, profileIds: []};
+        current.profileIds.push(profile.profile_id);
+        fields.set(id, current);
+      });
+    });
+    return [...fields.values()].map((field) => ({
+      id: field.id,
+      label: gettext(field.label),
+      type: 'password',
+      group: gettext(field.group || 'Authentication'),
+      mode: ['create', 'edit'],
+      deps: [
+        'cde_profile_id', 'save_password',
+        ...(field.visible_when ? [
+          `cde_route_${field.visible_when.field_id}`,
+        ] : []),
+      ],
+      visible: (state) => {
+        if (!field.profileIds.includes(state.cde_profile_id)) return false;
+        const condition = field.visible_when;
+        if (!condition) return true;
+        const value = state[`cde_route_${condition.field_id}`];
+        return Object.prototype.hasOwnProperty.call(condition, 'equals') ?
+          value === condition.equals : condition.in.includes(value);
+      },
+      noEmpty: Boolean(field.required),
+      readonly: (state) => !obj.isNew(state) &&
+        (state.connected || !state.save_password),
+      controlProps: {maxLength: null, autoComplete: 'new-password'},
+      helpMessage: field.help || undefined,
     }));
   }
 
@@ -298,9 +356,15 @@ export default class ServerSchema extends BaseUISchema {
         disabled: obj.isShared,
       },
       {
-        id: 'cde_profile_id', label: gettext('Engine profile'), type: 'select',
+        id: 'cde_profile_id', label: gettext('Engine / interface profile'),
+        type: 'select',
         options: endpointProfiles.options, controlProps: {allowClear: false},
         mode: ['properties', 'create'], noEmpty: true,
+        helpMessage: gettext(
+          'Select the native interface used by this endpoint. Engines with '+
+          'multiple interfaces, such as YugabyteDB, expose each interface '+
+          'as a separate protocol-owned profile.'
+        ),
         depChange: (state) => {
           const profile = endpointProfiles.get(state.cde_profile_id);
           if (!profile || !obj.isNew(state)) {
@@ -410,7 +474,8 @@ export default class ServerSchema extends BaseUISchema {
         id: 'host', label: gettext('Host name/address'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], disabled: obj.isShared,
         deps: ['cde_profile_id'],
-        visible: (state) => !obj.isEmbeddedEndpoint(state),
+        visible: (state) => !obj.isEmbeddedEndpoint(state) &&
+          !obj.hasTypedSecrets(state),
         depChange: (state)=>{
           if(obj.origData.host != state.host && !obj.isNew(state) && state.connected){
             obj.informText = gettext(
@@ -492,6 +557,7 @@ export default class ServerSchema extends BaseUISchema {
         },
       },
       ...obj.providerConnectionFields(),
+      ...obj.providerSecretFields(),
       {
         id: 'role', label: gettext('Role'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnected,

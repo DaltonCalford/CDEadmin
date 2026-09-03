@@ -24,8 +24,10 @@ import importlib
 import json
 import re
 import shlex
+import ssl
 import time
 import uuid
+from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -200,7 +202,14 @@ class RedisClient:
         'principal_reference', 'credential_reference_id', 'tls_mode',
         'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
         'connect_timeout', 'socket_timeout', 'health_check_interval',
-        'client_name', 'readonly', 'tool_workspace',
+        'client_name', 'readonly', 'tool_workspace', 'auth_mode',
+        'credential_kinds', 'credential_references', 'sentinel_username',
+        'sentinel_min_other_sentinels', 'sentinel_read_replica',
+        'cluster_require_full_coverage', 'cluster_dynamic_startup_nodes',
+        'cluster_reinitialize_steps', 'cluster_error_retry_attempts',
+        'unix_socket_path', 'tls_ca_path', 'tls_check_hostname',
+        'tls_min_version', 'tls_ciphers', 'tls_validate_ocsp',
+        'max_connections', 'socket_keepalive',
     })
     DATA_KINDS = frozenset({
         'key', 'string', 'hash', 'list', 'set', 'sorted-set', 'stream',
@@ -373,11 +382,36 @@ class RedisClient:
         for name in ('username', 'client_name'):
             if route.get(name) is not None:
                 route[name] = _text(route[name], f'Redis {name}')
+        auth_mode = route.get(
+            'auth_mode', 'acl' if route.get('username') else 'none'
+        )
+        if auth_mode not in {'none', 'password', 'acl'}:
+            raise RedisClientError('Redis authentication mode is invalid')
+        route['auth_mode'] = auth_mode
+        references = route.get('credential_references') or {}
+        if not isinstance(references, Mapping):
+            raise RedisClientError(
+                'Redis credential references must be an object'
+            )
         reference = route.get('credential_reference_id')
         if reference is not None:
-            route['credential_reference_id'] = _text(
+            references.setdefault('database_password', _text(
                 reference, 'credential reference'
+            ))
+        route['credential_references'] = dict(references)
+        if auth_mode in {'password', 'acl'} and (
+            'database_password' not in references
+        ):
+            raise RedisClientError(
+                'Redis authentication requires a credential reference'
             )
+        if auth_mode == 'acl' and not route.get('username'):
+            raise RedisClientError(
+                'Redis ACL authentication requires a username'
+            )
+        if auth_mode != 'acl':
+            route.pop('username', None)
+        if references:
             route['principal_reference'] = _text(
                 route.get('principal_reference'), 'principal reference'
             )
@@ -385,7 +419,10 @@ class RedisClient:
         if tls_mode not in {'disabled', 'system-ca', 'self-signed'}:
             raise RedisClientError('Redis TLS mode is invalid')
         route['tls_mode'] = tls_mode
-        for name in ('tls_ca_file', 'tls_certificate_file', 'tls_key_file'):
+        for name in (
+            'tls_ca_file', 'tls_ca_path', 'tls_certificate_file',
+            'tls_key_file', 'unix_socket_path',
+        ):
             value = route.get(name)
             if value is None:
                 continue
@@ -421,6 +458,40 @@ class RedisClient:
                 'Redis client_name must use printable ASCII without spaces'
             )
         route['readonly'] = bool(route.get('readonly', False))
+        for name, default, minimum, maximum, label in (
+            ('sentinel_min_other_sentinels', 0, 0, 1000,
+             'minimum other Sentinels'),
+            ('cluster_reinitialize_steps', 5, 1, 1000,
+             'cluster reinitialize steps'),
+            ('cluster_error_retry_attempts', 3, 0, 100,
+             'cluster retry attempts'),
+            ('max_connections', 100, 1, 100000,
+             'maximum connections'),
+        ):
+            route[name] = _bounded_int(
+                route.get(name), default, minimum, maximum, label
+            )
+        for name, default in (
+            ('sentinel_read_replica', False),
+            ('cluster_require_full_coverage', True),
+            ('cluster_dynamic_startup_nodes', True),
+            ('socket_keepalive', True),
+            ('tls_check_hostname', True),
+            ('tls_validate_ocsp', False),
+        ):
+            if route.get(name, default) not in {True, False}:
+                raise RedisClientError(f'Redis {name} must be true or false')
+            route[name] = route.get(name, default)
+        route['tls_min_version'] = route.get('tls_min_version', 'TLSv1_2')
+        if route['tls_min_version'] not in {'TLSv1_2', 'TLSv1_3'}:
+            raise RedisClientError('Redis minimum TLS version is invalid')
+        if mode != 'sentinel' and (
+            route.get('sentinel_username') or
+            'sentinel_password' in references
+        ):
+            raise RedisClientError(
+                'Redis Sentinel credentials require Sentinel topology'
+            )
         return route
 
     @staticmethod
@@ -440,7 +511,7 @@ class RedisClient:
             )
         raise RedisClientError('Redis contact point must be host[:port]')
 
-    def _connection_options(self, route, password):
+    def _connection_options(self, route, credentials):
         retry_namespace = getattr(self.module, 'retry', None)
         backoff_namespace = getattr(self.module, 'backoff', None)
         if retry_namespace is None:
@@ -453,7 +524,7 @@ class RedisClient:
             )
         options = {
             'username': route.get('username'),
-            'password': password,
+            'password': credentials.get('database_password'),
             'db': route['database'],
             'protocol': 3,
             'decode_responses': False,
@@ -461,6 +532,8 @@ class RedisClient:
             'socket_timeout': float(route['socket_timeout']),
             'health_check_interval': route['health_check_interval'],
             'client_name': route['client_name'],
+            'max_connections': route['max_connections'],
+            'socket_keepalive': route['socket_keepalive'],
             # redis-py 6.x otherwise retries connection/timeout failures by
             # default.  That is unsafe for mutations whose first execution
             # may already have reached the server.
@@ -476,8 +549,18 @@ class RedisClient:
                     'required' if route['tls_mode'] == 'system-ca' else 'none'
                 ),
                 'ssl_ca_certs': route.get('tls_ca_file'),
+                'ssl_ca_path': route.get('tls_ca_path'),
                 'ssl_certfile': route.get('tls_certificate_file'),
                 'ssl_keyfile': route.get('tls_key_file'),
+                'ssl_password': credentials.get(
+                    'tls_private_key_password'
+                ),
+                'ssl_check_hostname': route['tls_check_hostname'],
+                'ssl_min_version': getattr(
+                    ssl.TLSVersion, route['tls_min_version']
+                ),
+                'ssl_ciphers': route.get('tls_ciphers'),
+                'ssl_validate_ocsp': route['tls_validate_ocsp'],
             })
         return {key: value for key, value in options.items()
                 if value is not None}
@@ -485,13 +568,19 @@ class RedisClient:
     def _connect(self, request):
         route = self._route(request)
 
-        def connect(password=None):
-            options = self._connection_options(route, password)
+        def connect(credentials=None):
+            credentials = credentials or {}
+            options = self._connection_options(route, credentials)
             mode = route['topology_mode']
             if mode == 'standalone':
-                client = self.module.Redis(
-                    host=route['host'], port=route['port'], **options
-                )
+                if route.get('unix_socket_path'):
+                    client = self.module.Redis(
+                        unix_socket_path=route['unix_socket_path'], **options
+                    )
+                else:
+                    client = self.module.Redis(
+                        host=route['host'], port=route['port'], **options
+                    )
                 return client, None
             if mode == 'cluster':
                 points = [(route['host'], route['port']),
@@ -505,6 +594,16 @@ class RedisClient:
                 client = self.module.RedisCluster(
                     startup_nodes=startup,
                     read_from_replicas=route['readonly'],
+                    require_full_coverage=(
+                        route['cluster_require_full_coverage']
+                    ),
+                    dynamic_startup_nodes=(
+                        route['cluster_dynamic_startup_nodes']
+                    ),
+                    reinitialize_steps=route['cluster_reinitialize_steps'],
+                    cluster_error_retry_attempts=(
+                        route['cluster_error_retry_attempts']
+                    ),
                     **cluster_options,
                 )
                 return client, None
@@ -516,31 +615,52 @@ class RedisClient:
             # RESP2 for Redis 8.x Sentinel replies.  The discovered data
             # connection remains RESP3 through ``options`` below.
             sentinel_options['protocol'] = 2
+            sentinel_options['username'] = route.get('sentinel_username')
+            sentinel_options['password'] = credentials.get(
+                'sentinel_password'
+            )
+            sentinel_options = {
+                key: value for key, value in sentinel_options.items()
+                if value is not None
+            }
             topology = self.module.Sentinel(
                 sentinels,
+                min_other_sentinels=route['sentinel_min_other_sentinels'],
                 sentinel_kwargs=sentinel_options,
             )
-            client = topology.master_for(
-                route['sentinel_service'], **options
+            method = (
+                topology.slave_for if route['sentinel_read_replica']
+                else topology.master_for
             )
+            client = method(route['sentinel_service'], **options)
             return client, topology
 
-        reference = route.get('credential_reference_id')
-        if reference is None:
+        references = route.get('credential_references', {})
+        if not references:
             client, topology = connect()
         else:
             if not callable(self._secret_acquirer):
                 raise RedisClientError(
                     'Redis credential binding is unavailable'
                 )
-            lease = self._secret_acquirer(
-                reference, route['principal_reference'], 'connect',
-                'database_password',
-            )
-            with lease:
-                client, topology = lease.use(
-                    lambda value: connect(bytes(value).decode('utf-8'))
-                )
+            credentials = {}
+            with ExitStack() as stack:
+                for kind, reference in sorted(references.items()):
+                    if kind not in {
+                        'database_password', 'sentinel_password',
+                        'tls_private_key_password',
+                    }:
+                        raise RedisClientError(
+                            'Redis credential kind is unsupported'
+                        )
+                    lease = stack.enter_context(self._secret_acquirer(
+                        _text(reference, 'credential reference'),
+                        route['principal_reference'], 'connect', kind,
+                    ))
+                    credentials[kind] = lease.use(
+                        lambda value: bytes(value).decode('utf-8')
+                    )
+                client, topology = connect(credentials)
         return client, topology, route
 
     def runtime_identity(self, request, handle=None):

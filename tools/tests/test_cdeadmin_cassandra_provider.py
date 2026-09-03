@@ -221,6 +221,10 @@ def fake_module(version='3.30.1'):
         PlainTextAuthProvider=AuthProvider, ConsistencyLevel=Consistency,
         SimpleStatement=Statement, dict_factory=lambda *_args: None,
         DCAwareRoundRobinPolicy=lambda **values: values,
+        RoundRobinPolicy=lambda: {'kind': 'round-robin'},
+        TokenAwarePolicy=lambda child: {'kind': 'token-aware',
+                                        'child': child},
+        ExponentialReconnectionPolicy=lambda *values: values,
     ), factory
 
 
@@ -334,6 +338,46 @@ class CassandraProviderTests(unittest.TestCase):
         self.assertEqual('correct-horse', auth.password)
         self.assertTrue(leases[0].closed)
         self.assertEqual({0}, set(leases[0].value))
+
+    def test_connection_policy_controls_are_forwarded_to_driver(self):
+        adapter, factory = client()
+        handle = adapter.open_session({'route': route(
+            load_balancing_policy='token-aware-dc',
+            used_hosts_per_remote_dc=2,
+            allow_remote_dcs_for_local_cl=True,
+            control_connection_timeout=12,
+            heartbeat_interval=15,
+            heartbeat_timeout=20,
+            schema_agreement_timeout=25,
+            reconnect_base_delay=2,
+            reconnect_max_delay=40,
+            reconnect_max_attempts=8,
+            executor_threads=4,
+            application_name='CDEadmin-test',
+        )})
+        options = factory.clusters[0].options
+        self.assertEqual(12.0, options['control_connection_timeout'])
+        self.assertEqual(15.0, options['idle_heartbeat_interval'])
+        self.assertEqual(20.0, options['idle_heartbeat_timeout'])
+        self.assertEqual(25.0, options['max_schema_agreement_wait'])
+        self.assertEqual((2, 40, 8), options['reconnection_policy'])
+        self.assertEqual('token-aware', options['load_balancing_policy'][
+            'kind'])
+        self.assertEqual(2, options['load_balancing_policy']['child'][
+            'used_hosts_per_remote_dc'])
+        self.assertEqual('CDEadmin-test', options['application_name'])
+        handle.close()
+
+    def test_password_auth_requires_both_user_and_typed_reference(self):
+        adapter, _factory = client()
+        for value in (
+            route(auth_mode='password'),
+            route(auth_mode='password', username='operator'),
+        ):
+            with self.assertRaisesRegex(
+                CassandraClientError, 'requires username and credential'
+            ):
+                adapter.open_session({'route': value})
 
     def test_route_rejects_uri_unknown_fields_and_old_protocol(self):
         adapter, _factory = client()

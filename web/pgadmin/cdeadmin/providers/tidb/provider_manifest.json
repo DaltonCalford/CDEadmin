@@ -33,6 +33,9 @@
     "default_port": 4000,
     "default": false,
     "target_adapter_version": "mysql-connector-python-26.7.0",
+    "connection_capability_set": "mysql-connector-python-v1",
+    "connection_field_sets": ["mysql-connector-python-v1"],
+    "secret_field_sets": ["mysql-connector-python-v1"],
     "connection_fields": [
       {"field_id": "br_path", "route_key": "br_path", "label": "BR executable", "control": "file", "group": "TiDB recovery"},
       {"field_id": "br_pd_addresses", "route_key": "br_pd_addresses", "label": "BR PD addresses", "control": "text", "group": "TiDB recovery", "help": "Comma-separated PD host:port addresses."},

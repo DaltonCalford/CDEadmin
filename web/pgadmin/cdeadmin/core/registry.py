@@ -473,6 +473,7 @@ class ProviderRegistry:
                     f'provider registration is {registration.state}'
                 )
             self._validate_context(registration, context)
+            self._retire_superseded_generation(registration, context)
             cached = registration.bindings.get(context.isolation_key)
             if cached is not None:
                 return cached
@@ -513,6 +514,29 @@ class ProviderRegistry:
             )
             registration.bindings[context.isolation_key] = binding
             return binding
+
+    @staticmethod
+    def _retire_superseded_generation(
+        registration: ProviderRegistration,
+        context: EndpointContext,
+    ) -> None:
+        """Close endpoint bindings created for an older profile generation.
+
+        Permission-specific bindings may coexist for one generation.  A route,
+        credential, or connection-profile change advances the generation and
+        makes every older binding unsafe to reuse.
+        """
+        current = context.runtime_identity_generation
+        if current is None:
+            return
+        stale_keys = [
+            key for key, binding in registration.bindings.items()
+            if binding.context.endpoint_id == context.endpoint_id and
+            binding.context.runtime_identity_generation != current
+        ]
+        for key in stale_keys:
+            binding = registration.bindings.pop(key)
+            ProviderRegistry._close_instance(binding.instance)
 
     def _quarantine_permission_violation(
         self, registration, diagnostic_code

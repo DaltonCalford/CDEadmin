@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from .catalog import catalog_for_engine
+from .experience import enrich_engine_experience
 
 
 class VisualAdminError(RuntimeError):
@@ -931,7 +932,7 @@ class ProviderVisualAdministration:
             raise VisualAdminValidationError(
                 'provider visual administration catalog is invalid'
             )
-        return copy.deepcopy(dict(adapted))
+        return enrich_engine_experience(copy.deepcopy(dict(adapted)))
 
     def _operation_supported(self, resource_kind, operation_id):
         callback = self._callback('supports_admin_operation')

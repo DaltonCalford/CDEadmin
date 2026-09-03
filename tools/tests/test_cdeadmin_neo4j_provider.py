@@ -123,9 +123,10 @@ class Result:
 
 
 class Session:
-    def __init__(self, driver, database):
+    def __init__(self, driver, database, options=None):
         self.driver = driver
         self.database = database
+        self.options = options or {}
         self.closed = False
 
     def close(self):
@@ -184,8 +185,8 @@ class Driver:
         self.sessions = []
         self.closed = False
 
-    def session(self, database=None):
-        value = Session(self, database)
+    def session(self, database=None, **options):
+        value = Session(self, database, options)
         self.sessions.append(value)
         return value
 
@@ -234,6 +235,16 @@ def client(secret_acquirer=None):
     connector = Connector()
     module = SimpleNamespace(
         GraphDatabase=SimpleNamespace(driver=connector),
+        basic_auth=lambda user, secret, realm=None:
+            ('basic', user, secret, realm),
+        kerberos_auth=lambda secret: ('kerberos', secret),
+        bearer_auth=lambda secret: ('bearer', secret),
+        custom_auth=lambda user, secret, realm, scheme, **parameters:
+            ('custom', user, secret, realm, scheme, parameters),
+        READ_ACCESS='READ', WRITE_ACCESS='WRITE',
+        Bookmarks=SimpleNamespace(
+            from_raw_values=lambda values: ('bookmarks', tuple(values))
+        ),
     )
     acquire = secret_acquirer or (lambda *_args: SecretLease())
     return Neo4jClient(acquire, module), connector
@@ -288,9 +299,61 @@ class Neo4jProviderTests(unittest.TestCase):
         )}, None)
         self.assertEqual('2026.04.0', identity['version'])
         self.assertEqual('bolt+s://localhost:7687', connector.drivers[0].uri)
-        self.assertEqual(('neo4j', 'correct-horse'), connector.drivers[0].auth)
+        self.assertEqual(
+            ('basic', 'neo4j', 'correct-horse', None),
+            connector.drivers[0].auth,
+        )
         self.assertTrue(leases[0].closed)
         self.assertEqual(bytearray(len(b'correct-horse')), leases[0].value)
+
+    def test_all_bolt_authentication_tokens_are_driver_owned(self):
+        scenarios = (
+            ('kerberos', 'authentication_token', (
+                'kerberos', 'correct-horse',
+            )),
+            ('bearer', 'authentication_token', ('bearer', 'correct-horse')),
+            ('custom', 'custom_auth_credentials', (
+                'custom', 'neo4j', 'correct-horse', 'realm-one',
+                'scheme-one', {'answer': 42},
+            )),
+        )
+        for mode, kind, expected in scenarios:
+            with self.subTest(mode=mode):
+                adapter, connector = client()
+                values = route(
+                    auth_mode=mode,
+                    credential_references={kind: 'credential-one'},
+                )
+                values.pop('credential_reference_id')
+                if mode in {'kerberos', 'bearer'}:
+                    values.pop('username')
+                else:
+                    values.update({
+                        'auth_realm': 'realm-one',
+                        'auth_scheme': 'scheme-one',
+                        'auth_parameters': {'answer': 42},
+                    })
+                handle = adapter.open_session({'route': values})
+                self.assertEqual(expected, connector.drivers[0].auth)
+                handle.close()
+
+    def test_session_defaults_are_forwarded_to_the_bolt_driver(self):
+        adapter, connector = client()
+        handle = adapter.open_session({'route': route(
+            access_mode='read', fetch_size=250,
+            impersonated_user='auditor',
+            bookmarks=['bookmark-one', 'bookmark-two'],
+        )})
+        native = connector.drivers[0].sessions[0]
+        self.assertEqual('neo4j', native.database)
+        self.assertEqual('READ', native.options['default_access_mode'])
+        self.assertEqual(250, native.options['fetch_size'])
+        self.assertEqual('auditor', native.options['impersonated_user'])
+        self.assertEqual(
+            ('bookmarks', ('bookmark-one', 'bookmark-two')),
+            native.options['bookmarks'],
+        )
+        handle.close()
 
     def test_route_refuses_uri_and_unknown_controls(self):
         adapter, _connector = client()

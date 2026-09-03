@@ -50,7 +50,8 @@
     "workflow": "legacy_preserved",
     "default_port": 5432,
     "default": true,
-    "target_adapter_version": "9.17.0"
+    "target_adapter_version": "9.17.0",
+    "connection_capability_set": "postgresql-wire-v1"
   },
   "provenance": {
     "purpose": "CDE-PREP-050 preserved PostgreSQL behavior adapter",

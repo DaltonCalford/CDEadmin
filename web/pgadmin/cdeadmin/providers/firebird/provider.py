@@ -1,6 +1,9 @@
 """Firebird 5.0.4 semantic provider."""
 
+import hashlib
+import json
 import re
+import threading
 
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
@@ -8,6 +11,7 @@ from pgadmin.cdeadmin.sdk import (
     RelationalClientConfig,
     RelationalClientError,
     RelationalDBAPIClient,
+    load_optional_module,
 )
 from ..relational_admin import (
     RelationalAdministration,
@@ -22,7 +26,8 @@ PROFILE = PilotProfile(
     ('server', 'database', 'schema', 'table', 'column', 'view', 'index',
      'constraint', 'domain', 'sequence', 'routine', 'trigger', 'procedure',
      'function', 'package', 'exception', 'user', 'role', 'privilege',
-     'character-set', 'collation', 'external-function',
+     'character-set', 'collation', 'external-function', 'plugin',
+     'publication',
      'service-operation'),
     ('isql', 'gbak', 'gfix', 'gstat', 'nbackup', 'user-administration'),
     semantic_sql_dialect={
@@ -36,11 +41,15 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
     engine_id='firebird',
     database_create_mode='firebird-driver',
     database_extension='.fdb',
+    not_applicable_concepts=frozenset({
+        'schemas', 'materialized_views', 'types', 'partitions',
+        'tablespaces_and_filespaces', 'jobs_and_events',
+    }),
     supported={
         'server': frozenset({'inspect'}),
         'database': frozenset({'inspect', 'create'}),
         'table': frozenset({
-            'inspect', 'create', 'alter', 'rename', 'drop',
+            'inspect', 'create', 'alter', 'drop',
             'insert', 'update', 'delete',
         }),
         'view': frozenset({'inspect', 'create', 'alter', 'drop'}),
@@ -48,7 +57,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'constraint': frozenset({'inspect', 'create', 'drop'}),
         'index': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'sequence': frozenset({
-            'inspect', 'create', 'alter', 'rename', 'drop',
+            'inspect', 'create', 'alter', 'drop',
         }),
         'domain': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',
@@ -76,6 +85,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'character-set': frozenset({'inspect'}),
         'collation': frozenset({'inspect'}),
         'external-function': frozenset({'inspect'}),
+        'plugin': frozenset({'inspect'}),
+        'publication': frozenset({'inspect', 'alter'}),
         'service-operation': frozenset({'inspect'}),
     },
 ))
@@ -86,8 +97,14 @@ class FirebirdProvider(ActualEnginePilotProvider):
         super().__init__(context, permissions, client, PROFILE)
 
 
-def _route_arguments(route):
-    allowed = {'database', 'user', 'role', 'charset', 'timeout'}
+_CONFIG_LOCK = threading.RLock()
+
+
+def _route_arguments(route, module=None):
+    allowed = {
+        'database', 'user', 'role', 'charset', 'auth_plugin_list',
+        'session_time_zone', 'no_gc', 'no_db_triggers',
+    }
     result = {key: value for key, value in route.items() if key in allowed}
     database = result.get('database')
     host = route.get('host')
@@ -97,6 +114,69 @@ def _route_arguments(route):
     ):
         host_spec = f'{host}/{port}' if isinstance(port, int) else host
         result['database'] = f'{host_spec}:{database}'
+    configured = any(
+        name in route for name in (
+            'trusted_auth', 'timeout', 'protocol',
+            'dummy_packet_interval', 'wire_config', 'wire_crypt',
+            'wire_compression', 'dbkey_scope',
+        )
+    )
+    if not configured or module is None:
+        return result
+    database = result.pop('database')
+    material = {
+        name: route.get(name) for name in (
+            'host', 'port', 'database', 'trusted_auth', 'timeout',
+            'protocol', 'dummy_packet_interval', 'wire_config',
+            'wire_crypt', 'wire_compression',
+        )
+    }
+    digest = hashlib.sha256(json.dumps(
+        material, sort_keys=True, separators=(',', ':'),
+    ).encode('utf-8')).hexdigest()[:24]
+    server_name = f'cde_server_{digest}'
+    database_name = f'cde_database_{digest}'
+    with _CONFIG_LOCK:
+        server = module.driver_config.get_server(server_name)
+        if server is None:
+            server = module.driver_config.register_server(server_name)
+        server.host.value = route.get('host')
+        server.port.value = (
+            str(route['port']) if route.get('port') is not None else None
+        )
+        config = module.driver_config.get_database(database_name)
+        if config is None:
+            config = module.driver_config.register_database(database_name)
+            config.database.value = route.get('database') or database
+            config.server.value = server_name
+            if route.get('protocol'):
+                config.protocol.value = module.NetProtocol[
+                    route['protocol']
+                ]
+            config.trusted_auth.value = bool(route.get('trusted_auth'))
+            config.timeout.value = route.get('timeout')
+            config.dummy_packet_interval.value = route.get(
+                'dummy_packet_interval'
+            )
+            wire_options = []
+            if route.get('wire_crypt'):
+                if route['wire_crypt'] not in {
+                    'Disabled', 'Enabled', 'Required'
+                }:
+                    raise RelationalClientError(
+                        'Firebird wire encryption policy is invalid'
+                    )
+                wire_options.append(f'WireCrypt={route["wire_crypt"]}')
+            if route.get('wire_compression'):
+                wire_options.append('WireCompression=true')
+            if route.get('wire_config'):
+                wire_options.append(str(route['wire_config']))
+            config.config.value = '\n'.join(wire_options) or None
+    result['database'] = database_name
+    if route.get('trusted_auth'):
+        result.pop('user', None)
+    if route.get('dbkey_scope'):
+        result['dbkey_scope'] = module.DBKeyScope[route['dbkey_scope']]
     return result
 
 
@@ -106,6 +186,31 @@ def _version(row):
     if match is None:
         raise RelationalClientError('Firebird profile version is unavailable')
     return match.group(1)
+
+
+def _initialize_connection(connection, route, module):
+    isolation_name = route.get('transaction_isolation', 'SNAPSHOT')
+    access_name = route.get('transaction_access', 'WRITE')
+    lock_timeout = route.get('transaction_lock_timeout', -1)
+    try:
+        isolation = module.Isolation[isolation_name]
+        access = module.TraAccessMode[access_name]
+    except (KeyError, TypeError) as exc:
+        raise RelationalClientError(
+            'Firebird transaction defaults are invalid'
+        ) from exc
+    if isinstance(lock_timeout, bool) or not isinstance(lock_timeout, int) or (
+        not -1 <= lock_timeout <= 86400
+    ):
+        raise RelationalClientError(
+            'Firebird transaction lock timeout is invalid'
+        )
+    value = module.tpb(
+        isolation=isolation, lock_timeout=lock_timeout,
+        access_mode=access,
+    )
+    connection.default_tpb = value
+    connection.main_transaction.default_tpb = value
 
 
 def _resources(connection, request):
@@ -159,10 +264,11 @@ def _resources(connection, request):
              'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE '
              'FROM RDB$INDICES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1, 2'),
-            ('constraint', 'SELECT TRIM(RDB$RELATION_NAME), '
-             'TRIM(RDB$CONSTRAINT_NAME), TRIM(RDB$CONSTRAINT_TYPE) '
-             'FROM RDB$RELATION_CONSTRAINTS WHERE '
-             'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, 2'),
+            ('constraint', 'SELECT TRIM(C.RDB$RELATION_NAME), '
+             'TRIM(C.RDB$CONSTRAINT_NAME), TRIM(C.RDB$CONSTRAINT_TYPE) '
+             'FROM RDB$RELATION_CONSTRAINTS C JOIN RDB$RELATIONS R ON '
+             'R.RDB$RELATION_NAME = C.RDB$RELATION_NAME WHERE '
+             'COALESCE(R.RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, 2'),
         )
         for kind, source in queries:
             for row in optional(source):
@@ -210,9 +316,15 @@ def _resources(connection, request):
              'RDB$CHARACTER_SET_ID FROM RDB$COLLATIONS ORDER BY 1'),
             ('user', 'SELECT TRIM(SEC$USER_NAME), TRIM(SEC$PLUGIN) '
              'FROM SEC$USERS ORDER BY 1'),
+            ('plugin', 'SELECT TRIM(RDB$CONFIG_NAME), '
+             'RDB$CONFIG_VALUE FROM RDB$CONFIG WHERE '
+             "UPPER(RDB$CONFIG_NAME) LIKE '%PLUGIN%' ORDER BY 1"),
+            ('publication', 'SELECT TRIM(RDB$PUBLICATION_NAME), '
+             'RDB$ACTIVE_FLAG FROM RDB$PUBLICATIONS ORDER BY 1'),
         )
         for kind, source in simple_queries:
-            for name, detail in optional(source):
+            for row in optional(source):
+                name, detail = row[0], row[1]
                 add(kind, [], name, {
                     'detail': None if detail is None else str(detail).strip(),
                 })
@@ -258,6 +370,7 @@ def _security(connection, request):
 
 
 def _create_client(permissions):
+    module = load_optional_module('firebird.driver')
     return RelationalDBAPIClient(RelationalClientConfig(
         profile=PROFILE,
         module_name='firebird.driver',
@@ -266,13 +379,16 @@ def _create_client(permissions):
             'FROM RDB$DATABASE'
         ),
         version_parser=_version,
-        connect_arguments=_route_arguments,
+        connect_arguments=lambda route: _route_arguments(route, module),
         metadata_reader=_resources,
         security_reader=_security,
         credential_argument='password',
         secret_acquirer=permissions.acquire_secret,
+        connection_initializer=lambda connection, route: (
+            _initialize_connection(connection, route, module)
+        ),
         administration=ADMINISTRATION,
-    ))
+    ), module)
 
 
 def create_provider(context, permissions, client=None):

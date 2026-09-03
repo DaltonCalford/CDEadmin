@@ -49,6 +49,6 @@ def create_provider(context, permissions, client=None):
     if client is None:
         from .client import FoundationDBBackend
         client = NativeDistributedClient(
-            PROFILE, FoundationDBBackend(), OPERATIONS
+            PROFILE, FoundationDBBackend(permissions.acquire_secret), OPERATIONS
         )
     return FoundationDBProvider(context, permissions, client)

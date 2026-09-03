@@ -331,7 +331,7 @@ class QualityGateTests(unittest.TestCase):
         policy = json.loads(QUALITY_POLICY.read_text(encoding='utf-8'))
         result = quality_gate.evaluate(ROOT, policy)
         self.assertEqual([], result['violations'])
-        self.assertEqual(1365, result['startup_measurement']['route_count'])
+        self.assertEqual(1366, result['startup_measurement']['route_count'])
         bundle = result['bundle_measurement']
         self.assertIn(bundle['status'], {'not_built', 'measured'})
         if bundle['status'] == 'measured':

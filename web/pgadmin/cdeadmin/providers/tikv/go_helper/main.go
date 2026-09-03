@@ -37,21 +37,23 @@ type mutation struct {
 }
 
 type request struct {
-	Operation      string     `json:"operation"`
-	PDEndpoints    []string   `json:"pd_endpoints"`
-	TLSCA          string     `json:"tls_ca"`
-	TLSCertificate string     `json:"tls_certificate"`
-	TLSKey         string     `json:"tls_key"`
-	APIVersion     int32      `json:"api_version"`
-	Key            string     `json:"key_base64"`
-	Value          string     `json:"value_base64"`
-	Keys           []string   `json:"keys_base64"`
-	Values         []string   `json:"values_base64"`
-	PreviousValue  *string    `json:"previous_value_base64"`
-	StartKey       string     `json:"start_key_base64"`
-	EndKey         string     `json:"end_key_base64"`
-	Limit          int        `json:"limit"`
-	Mutations      []mutation `json:"mutations"`
+	Operation               string     `json:"operation"`
+	PDEndpoints             []string   `json:"pd_endpoints"`
+	TLSCA                   string     `json:"tls_ca"`
+	TLSCertificate          string     `json:"tls_certificate"`
+	TLSKey                  string     `json:"tls_key"`
+	APIVersion              int32      `json:"api_version"`
+	Key                     string     `json:"key_base64"`
+	Value                   string     `json:"value_base64"`
+	Keys                    []string   `json:"keys_base64"`
+	Values                  []string   `json:"values_base64"`
+	PreviousValue           *string    `json:"previous_value_base64"`
+	StartKey                string     `json:"start_key_base64"`
+	EndKey                  string     `json:"end_key_base64"`
+	Limit                   int        `json:"limit"`
+	Mutations               []mutation `json:"mutations"`
+	OperationTimeoutSeconds int        `json:"operation_timeout_seconds"`
+	TransactionMode         string     `json:"transaction_mode"`
 }
 
 type record struct {
@@ -125,6 +127,12 @@ func validateRequest(value request) error {
 	}
 	if len(value.Keys) > maximumRecords || len(value.Mutations) > maximumRecords {
 		return errors.New("transaction request exceeds record limit")
+	}
+	if value.OperationTimeoutSeconds < 0 || value.OperationTimeoutSeconds > 3600 {
+		return errors.New("operation_timeout_seconds must be between 1 and 3600")
+	}
+	if value.TransactionMode != "" && value.TransactionMode != "optimistic" && value.TransactionMode != "pessimistic" {
+		return errors.New("transaction_mode is invalid")
 	}
 	return nil
 }
@@ -271,6 +279,7 @@ func transactionRequest(ctx context.Context, value request) (response, error) {
 	if err != nil {
 		return response{}, errors.New("TiKV transaction begin failed")
 	}
+	txn.SetPessimistic(value.TransactionMode == "pessimistic")
 	rollbackRequired := true
 	defer func() {
 		if rollbackRequired {
@@ -282,6 +291,8 @@ func transactionRequest(ctx context.Context, value request) (response, error) {
 		Native: map[string]any{
 			"operation": "transaction", "start_ts": txn.StartTS(),
 			"transaction_model": "tikv-client-go-native",
+			"transaction_mode":  value.TransactionMode,
+			"isolation":         "snapshot-isolation",
 		},
 		ProviderFinality: true,
 	}
@@ -360,7 +371,14 @@ func run() error {
 	if err := validateRequest(value); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if value.OperationTimeoutSeconds == 0 {
+		value.OperationTimeoutSeconds = 30
+	}
+	if value.TransactionMode == "" {
+		value.TransactionMode = "optimistic"
+	}
+	ctx, cancel := context.WithTimeout(
+		context.Background(), time.Duration(value.OperationTimeoutSeconds)*time.Second)
 	defer cancel()
 	var result response
 	if value.Operation == "transaction" {

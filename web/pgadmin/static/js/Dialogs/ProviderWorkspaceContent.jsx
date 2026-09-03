@@ -22,33 +22,87 @@ function errorMessage(error) {
     gettext('The provider workspace request failed.');
 }
 
-function ResourceExplorer({page, selectedResourceId, onSelect}) {
+function ResourceExplorer({catalog, page, selectedResourceId, onSelect}) {
   const items = page?.items || [];
+  const [filter, setFilter] = useState('');
+  const objectDescriptors = useMemo(() => Object.fromEntries(
+    (catalog?.objects || []).map((item) => [item.resource_kind, item])
+  ), [catalog]);
+  const groups = useMemo(() => {
+    const admitted = items.filter((item) => {
+      const needle = filter.trim().toLocaleLowerCase();
+      if (!needle) return true;
+      return [item.display_name, item.resource_kind,
+        ...(item.display_path || []), ...(item.authority_path || [])]
+        .some((value) => String(value || '').toLocaleLowerCase()
+          .includes(needle));
+    });
+    const declared = catalog?.navigator?.groups || [];
+    const result = declared.map((group) => ({...group, items: []}));
+    const byId = Object.fromEntries(result.map((group) =>
+      [group.group_id, group]));
+    admitted.forEach((item) => {
+      const groupId = objectDescriptors[item.resource_kind]?.navigator
+        ?.group_id || 'operations';
+      if (!byId[groupId]) {
+        byId[groupId] = {
+          group_id: groupId,
+          title: gettext('Other provider objects'),
+          order: result.length,
+          items: [],
+        };
+        result.push(byId[groupId]);
+      }
+      byId[groupId].items.push(item);
+    });
+    return result.filter((group) => group.items.length > 0);
+  }, [catalog, filter, items, objectDescriptors]);
   return (
-    <Box sx={{overflow: 'auto', flex: 1, p: 2}}>
-      <Box component="table" sx={{width: '100%', borderCollapse: 'collapse'}}>
-        <thead><tr>
-          <th align="left">{gettext('Type')}</th>
-          <th align="left">{gettext('Name')}</th>
-          <th align="left">{gettext('Authority path')}</th>
-        </tr></thead>
-        <tbody>{items.map((item) => (
-          <tr key={item.resource_id}
-            aria-selected={selectedResourceId === item.resource_id}
-            onClick={() => onSelect(item)}
-            style={{cursor: 'pointer', background: selectedResourceId === item.resource_id ? 'rgba(0, 120, 212, 0.12)' : undefined}}>
-            <td>{item.resource_kind}</td>
-            <td>{item.display_name}</td>
-            <td>{(item.authority_path || []).join(' / ')}</td>
-          </tr>
-        ))}</tbody>
-      </Box>
-      {items.length === 0 && <Box>{gettext('No resources returned.')}</Box>}
+    <Box sx={{overflow: 'auto', flex: 1, p: 2}}
+      aria-label={catalog?.navigator?.navigator_id ||
+        gettext('Provider resource navigator')}>
+      <TextField fullWidth size="small" value={filter}
+        label={gettext('Filter provider objects')}
+        onChange={(event) => setFilter(event.target.value)} />
+      {groups.map((group) => <Box key={group.group_id} sx={{mt: 2}}>
+        <Box component="h3" sx={{fontSize: '0.95rem', mb: 0.5}}>
+          {group.title}
+        </Box>
+        <Box component="table"
+          sx={{width: '100%', borderCollapse: 'collapse'}}>
+          <thead><tr>
+            <th align="left">{gettext('Name')}</th>
+            <th align="left">{gettext('Provider object')}</th>
+            <th align="left">{gettext('Authority path')}</th>
+          </tr></thead>
+          <tbody>{group.items.map((item) => {
+            const descriptor = objectDescriptors[item.resource_kind];
+            const depth = Math.max(0, (item.authority_path || []).length - 1);
+            return <tr key={item.resource_id}
+              aria-selected={selectedResourceId === item.resource_id}
+              onClick={() => onSelect(item)}
+              style={{cursor: 'pointer', background: selectedResourceId === item.resource_id ? 'rgba(0, 120, 212, 0.12)' : undefined}}>
+              <td style={{paddingInlineStart: `${depth * 16}px`}}>
+                {item.display_name}
+              </td>
+              <td>{descriptor?.title || item.resource_kind}</td>
+              <td>{(item.authority_path || []).join(' / ')}</td>
+            </tr>;
+          })}</tbody>
+        </Box>
+      </Box>)}
+      {items.length === 0 && <Box sx={{mt: 2}}>
+        {gettext('No resources returned.')}
+      </Box>}
+      {items.length > 0 && groups.length === 0 && <Box sx={{mt: 2}}>
+        {gettext('No provider objects match the filter.')}
+      </Box>}
     </Box>
   );
 }
 
 ResourceExplorer.propTypes = {
+  catalog: PropTypes.object,
   page: PropTypes.object,
   selectedResourceId: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
@@ -139,7 +193,8 @@ VisualAdminField.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
-function VisualAdministration({catalog, resources, post, setError}) {
+function VisualAdministration({catalog, resources, selectedResource, post,
+  setError}) {
   const objects = catalog?.objects || [];
   const [resourceKind, setResourceKind] = useState(objects[0]?.resource_kind || '');
   const [operationId, setOperationId] = useState(objects[0]?.operations?.[0]?.operation_id || '');
@@ -165,6 +220,15 @@ function VisualAdministration({catalog, resources, post, setError}) {
       setResourceKind(objects[0].resource_kind);
     }
   }, [objectDescriptor, objects]);
+
+  useEffect(() => {
+    if (!selectedResource) return;
+    if (objects.some((item) =>
+      item.resource_kind === selectedResource.resource_kind)) {
+      setResourceKind(selectedResource.resource_kind);
+      setTargetId(selectedResource.resource_id);
+    }
+  }, [objects, selectedResource]);
 
   useEffect(() => {
     const nextOperation = operations.find((item) => item.operation_id === operationId) || operations[0];
@@ -246,6 +310,10 @@ function VisualAdministration({catalog, resources, post, setError}) {
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
+    {objectDescriptor?.editor && <Alert severity="info" sx={{mb: 2}}>
+      {objectDescriptor.title} · {objectDescriptor.editor.editor_kind}
+      {' · '}{objectDescriptor.editor.sections.join(' · ')}
+    </Alert>}
     <Box sx={{display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr)', gap: 2}}>
       <TextField select label={gettext('Object type')} value={resourceKind}
         onChange={(event) => setResourceKind(event.target.value)}>
@@ -319,6 +387,7 @@ function VisualAdministration({catalog, resources, post, setError}) {
 VisualAdministration.propTypes = {
   catalog: PropTypes.object,
   resources: PropTypes.array,
+  selectedResource: PropTypes.object,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
 };
@@ -2534,6 +2603,161 @@ ControlPlaneOperations.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
+function routeDraft(catalog, route) {
+  const configuration = route?.configuration || {};
+  const draft = {
+    route_id: route?.route_id || null,
+    priority: route?.priority ?? (catalog?.routes?.length || 0),
+    host: configuration.host || '',
+    port: configuration.port || catalog?.default_port || '',
+    user: configuration.user || '',
+    database: configuration.database || '',
+  };
+  (catalog?.connection_fields || []).forEach((field) => {
+    let value = configuration[field.route_key];
+    if (value === undefined) value = initialFieldValue(field);
+    if (field.control === 'json' && typeof value !== 'string') {
+      value = JSON.stringify(value, null, 2);
+    }
+    draft[field.field_id] = value;
+  });
+  return draft;
+}
+
+function ConnectionRouteWorkspace({post, setError}) {
+  const [catalog, setCatalog] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [working, setWorking] = useState(false);
+
+  const load = useCallback(async () => {
+    setWorking(true);
+    try {
+      const value = await post({action: 'route_list'});
+      setCatalog(value);
+      setDraft((current) => routeDraft(value,
+        value.routes.find((item) => item.route_id === current?.route_id) ||
+        value.routes[0]));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  }, [post, setError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const select = (routeId) => {
+    const route = catalog.routes.find((item) => item.route_id === routeId);
+    setDraft(routeDraft(catalog, route));
+  };
+
+  const request = () => {
+    const value = {
+      route_id: draft.route_id,
+      priority: Number(draft.priority),
+    };
+    if (catalog.supports_multiple_routes) {
+      Object.assign(value, {
+        host: draft.host,
+        port: Number(draft.port),
+        user: draft.user,
+        database: draft.database,
+      });
+    }
+    (catalog.connection_fields || []).filter((field) =>
+      fieldVisible(field, draft)).forEach((field) => {
+      let fieldValue = draft[field.field_id];
+      if (field.control === 'number' && fieldValue !== '') {
+        fieldValue = Number(fieldValue);
+      } else if (field.control === 'json' && fieldValue) {
+        fieldValue = JSON.parse(fieldValue);
+      }
+      value[`cde_route_${field.field_id}`] = fieldValue;
+    });
+    return value;
+  };
+
+  const save = async () => {
+    setWorking(true);
+    setError(null);
+    try {
+      const action = draft.route_id ? 'route_update' : 'route_create';
+      const value = await post({action, request: request()});
+      setCatalog(value);
+      setDraft(routeDraft(value, value.routes.find((item) =>
+        item.route_id === draft.route_id) ||
+        value.routes[value.routes.length - 1]));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const remove = async () => {
+    setWorking(true);
+    setError(null);
+    try {
+      const value = await post({action: 'route_delete', request: {
+        route_id: draft.route_id,
+      }});
+      setCatalog(value);
+      setDraft(routeDraft(value, value.routes[0]));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  if (!catalog || !draft) return <Box p={3}><CircularProgress /></Box>;
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('Routes share the endpoint credential profile. CDEadmin only fails over before a provider session exists and never replays mutations.')}
+    </Alert>
+    <Box sx={{display: 'flex', gap: 1, mb: 2}}>
+      <TextField select label={gettext('Route')} value={draft.route_id || ''}
+        sx={{minWidth: 320}} onChange={(event) => select(event.target.value)}>
+        {catalog.routes.map((route) => <MenuItem key={route.route_id}
+          value={route.route_id}>{`${route.priority}: ${route.configuration.host || route.configuration.database}`}</MenuItem>)}
+      </TextField>
+      <Button disabled={working || !catalog.supports_multiple_routes}
+        onClick={() => setDraft(routeDraft(catalog))}>
+        {gettext('New route')}
+      </Button>
+      <Button color="error" disabled={working || !draft.route_id ||
+        catalog.routes.length < 2} onClick={remove}>{gettext('Delete')}</Button>
+      <Button variant="contained" disabled={working} onClick={save}>
+        {gettext('Save route')}
+      </Button>
+      <Button disabled={working} onClick={load}>{gettext('Refresh')}</Button>
+    </Box>
+    <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
+      {(catalog.supports_multiple_routes ?
+        ['host', 'port', 'user', 'database', 'priority'] :
+        ['priority']).map((name) =>
+        <TextField key={name} label={gettext(name)} value={draft[name]}
+          type={['port', 'priority'].includes(name) ? 'number' : 'text'}
+          onChange={(event) => setDraft({...draft,
+            [name]: event.target.value})} />)}
+      {(catalog.connection_fields || []).filter((field) =>
+        fieldVisible(field, draft)).map((field) =>
+        <VisualAdminField key={field.field_id} field={field}
+          value={draft[field.field_id]} onChange={(value) => setDraft({
+            ...draft, [field.field_id]: value,
+          })} />)}
+    </Box>
+    {draft.route_id && <Box component="pre" sx={{mt: 2, maxHeight: 160,
+      overflow: 'auto'}}>{JSON.stringify(catalog.routes.find((item) =>
+        item.route_id === draft.route_id)?.health || {}, null, 2)}</Box>}
+  </Box>;
+}
+
+ConnectionRouteWorkspace.propTypes = {
+  post: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+};
+
 export default function ProviderWorkspaceContent({
   closeModal, endpointUrl, initialTab='resources',
 }) {
@@ -2659,13 +2883,16 @@ export default function ProviderWorkspaceContent({
         <Tab value="administration" label={gettext('Administration')} />
         <Tab value="operations" label={gettext('Operations')} />
         <Tab value="semantic" label={gettext('Cubes & Semantic Models')} />
+        {workspace?.endpoint?.route_management_available &&
+          <Tab value="connections" label={gettext('Connections')} />}
         {workspace?.visual_admin?.model_family === 'document' &&
           <Tab value="streams" label={gettext('Change streams')} />}
       </Tabs>
       {error && <Alert severity="error">{error}</Alert>}
       {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
       {workspace && tab === 'resources' &&
-        <ResourceExplorer page={workspace.resource_page}
+        <ResourceExplorer catalog={workspace.visual_admin}
+          page={workspace.resource_page}
           selectedResourceId={selectedResource?.resource_id}
           onSelect={setSelectedResource} />}
       {workspace && tab === 'studio' && <Box sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
@@ -2689,6 +2916,7 @@ export default function ProviderWorkspaceContent({
       {workspace && tab === 'administration' &&
         <VisualAdministration catalog={workspace.visual_admin}
           resources={workspace.resource_page?.items || []}
+          selectedResource={selectedResource}
           post={post} setError={setError} />}
       {workspace && tab === 'operations' &&
         <ControlPlaneOperations post={post} setError={setError} />}
@@ -2696,6 +2924,8 @@ export default function ProviderWorkspaceContent({
         <SemanticModelWorkspace semantic={workspace.semantic_models}
           resources={workspace.resource_page?.items || []}
           post={post} setError={setError} />}
+      {workspace && tab === 'connections' &&
+        <ConnectionRouteWorkspace post={post} setError={setError} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&
         <DocumentDataGrid catalog={workspace.visual_admin}
           resources={workspace.resource_page?.items || []}

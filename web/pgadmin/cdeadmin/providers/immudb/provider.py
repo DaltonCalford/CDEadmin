@@ -25,6 +25,7 @@ from pgadmin.cdeadmin.visual_admin import (
 )
 from ..distributed_control_plane import DistributedSQLControlPlane
 from ..distributed_sql import (
+    PsycopgPoolDBAPIClient,
     create_sql_client,
     optional_rows,
     postgresql_catalog,
@@ -858,13 +859,16 @@ ADMINISTRATION = DistributedSQLControlPlane(
 )
 
 
-class ImmudbDBAPIClient(RelationalDBAPIClient):
+class ImmudbDBAPIClient(PsycopgPoolDBAPIClient):
     """Join PostgreSQL-wire SQL with exact native REST identity/admin."""
 
     MAX_REST_BYTES = 16 * 1024 * 1024
 
-    def __init__(self, config, module=None, opener=None):
-        super().__init__(config, module)
+    def __init__(self, config, module=None, opener=None,
+                 pool_namespace='immudb-unscoped', pool_module=None):
+        super().__init__(
+            config, pool_namespace, module=module, pool_module=pool_module
+        )
         self._opener = opener or urllib.request.urlopen
 
     @staticmethod
@@ -1082,6 +1086,7 @@ def create_provider(context, permissions, client=None):
             metadata_reader=_catalog,
             administration=ADMINISTRATION,
             client_class=ImmudbDBAPIClient,
+            client_options={'pool_namespace': context.pool_namespace},
             security_reader_override=_security,
         ),
     )

@@ -320,6 +320,54 @@ class EndpointPersistenceModelTests(unittest.TestCase):
         self.assertNotIn('password', route.configuration.casefold())
         self.assertEqual(2, len(endpoint.secret_references))
 
+    def test_provider_registration_creates_typed_bundle_references(self):
+        server = self.model.Server(
+            id=31, user_id=1, servergroup_id=1,
+            name='Typed credentials', host='db.example.test', port=27017,
+            maintenance_db='admin', username='operator', save_password=1,
+            use_ssh_tunnel=0, tunnel_authentication=0,
+            tunnel_prompt_password=0, shared=False, kerberos_conn=False,
+            cloud_status=0, is_adhoc=0,
+        )
+        server._cde_endpoint_registration = {
+            'experience_family': 'mongodb',
+            'provider_id': 'org.example.mongodb',
+            'provider_version': '1.0', 'profile_id': 'mongodb-native',
+            'profile_version': '8.2.6',
+            'target_adapter_id': 'mongodb-wire-client',
+            'target_adapter_version': '4.17.0',
+            'requires_secret': False,
+            'secret_fields': [
+                {'secret_kind': 'database_password'},
+                {'secret_kind': 'cloud_session_token'},
+            ],
+        }
+        server._cde_endpoint_route_configuration = {
+            'host': 'db.example.test', 'port': 27017,
+            'credential_kinds': ['database_password'],
+        }
+        self.model.db.session.add(server)
+        self.model.db.session.commit()
+
+        endpoint = self.model.EndpointProfile.query.filter_by(
+            legacy_server_id=31
+        ).one()
+        references = {
+            item.secret_kind: item.secret_reference
+            for item in endpoint.secret_references
+        }
+        self.assertEqual(
+            'server:31:password:database_password',
+            references['database_password'],
+        )
+        self.assertEqual(
+            'server:31:password:cloud_session_token',
+            references['cloud_session_token'],
+        )
+        self.assertEqual(
+            'server:31:tunnel_password', references['tunnel_password']
+        )
+
 
 @unittest.skipUnless(
     MIGRATION_DEPENDENCIES,

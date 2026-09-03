@@ -1073,5 +1073,6 @@ def create_provider(context, permissions, client=None):
                 connection, request, 'CockroachDB', _extras
             ),
             administration=ADMINISTRATION,
+            pool_namespace=context.pool_namespace,
         ),
     )

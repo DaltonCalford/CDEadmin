@@ -215,7 +215,8 @@ class ClickHouseProviderTestCase(unittest.TestCase):
         self.assertEqual(
             'passed', manifest['provenance']['activation_gate']
         )
-        self.assertTrue(manifest['registration']['requires_secret'])
+        self.assertFalse(manifest['registration']['requires_secret'])
+        self.assertTrue(manifest['registration']['supports_secret'])
 
     def test_exact_runtime_identity_is_required(self):
         identity = self.client.runtime_identity({'route': route()})

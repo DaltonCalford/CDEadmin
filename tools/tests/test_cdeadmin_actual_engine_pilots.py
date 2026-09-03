@@ -313,7 +313,7 @@ class ActualEnginePilotContractTests(unittest.TestCase):
 
         registry = Registry()
         registrations = register_builtin_providers(registry)
-        self.assertEqual(25, len(registrations))
+        self.assertEqual(26, len(registrations))
         self.assertEqual(
             {
                 'postgresql-native', 'mysql-native', 'mariadb-native',
@@ -326,6 +326,7 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                 'dolt-native', 'foundationdb-native', 'immudb-native',
                 'tidb-native',
                 'tikv-native', 'vitess-native', 'yugabytedb-native',
+                'yugabytedb-ycql',
             },
             {
                 manifest['identity']['profile_id']

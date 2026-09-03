@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import gzip
 import sys
 import unittest
 import urllib.parse
@@ -59,6 +60,10 @@ from pgadmin.cdeadmin.providers.opensearch_sql_ppl.provider import (  # noqa: E4
     PROFILE as OPENSEARCH_SQL_PPL,
 )
 from pgadmin.cdeadmin.results.renderers import builtin_renderers  # noqa: E402
+from pgadmin.cdeadmin.transports.analytics_http import (  # noqa: E402
+    BoundedJSONHTTPTransport,
+    normalize_http_route,
+)
 from pgadmin.cdeadmin.visual_admin.catalog import (  # noqa: E402
     catalog_for_engine,
 )
@@ -459,6 +464,78 @@ class AnalyticProviderTests(unittest.TestCase):
             'unknown_requires_observation',
             raised.exception.outcome)
         self.assertFalse(raised.exception.retryable)
+
+    def test_http_transport_supports_typed_api_key_and_aws_credentials(self):
+        values = {
+            'api': 'api-key-canary', 'aws-secret': 'aws-secret-canary',
+            'aws-session': 'aws-session-canary',
+        }
+        observed = []
+
+        def acquire(reference, _principal, _purpose, expected_kind):
+            observed.append(expected_kind)
+            return Lease(values[reference])
+
+        requests = []
+
+        def opener(request, _timeout, _context):
+            requests.append(dict(request.header_items()))
+            return Response({})
+
+        transport = BoundedJSONHTTPTransport(acquire, urlopen=opener)
+        api_route = normalize_http_route({'route': open_route(
+            auth_kind='api-key', credential_reference_id='api',
+            credential_kind='api_key', principal_reference='user:1',
+        )}, default_port=9200)
+        transport.request(api_route, '/')
+        self.assertEqual(
+            'ApiKey api-key-canary', requests[-1]['Authorization']
+        )
+
+        aws_route = normalize_http_route({'route': open_route(
+            auth_kind='aws-sigv4', username=None,
+            aws_access_key_id='AKIAEXAMPLE', aws_region='ca-central-1',
+            credential_kind='cloud_secret_access_key',
+            credential_reference_id='aws-secret',
+            credential_references={
+                'cloud_secret_access_key': 'aws-secret',
+                'cloud_session_token': 'aws-session',
+            },
+            principal_reference='user:1',
+        )}, default_port=9200)
+        transport.request(aws_route, '/')
+        self.assertTrue(
+            requests[-1]['Authorization'].startswith('AWS4-HMAC-SHA256 ')
+        )
+        self.assertEqual(
+            {'api_key', 'cloud_secret_access_key', 'cloud_session_token'},
+            set(observed),
+        )
+
+    def test_http_transport_negotiates_bounded_gzip(self):
+        payload = gzip.compress(json.dumps({'ok': True}).encode('utf-8'))
+
+        class GzipResponse(Response):
+            headers = {'Content-Encoding': 'gzip'}
+
+        captured = {}
+
+        def opener(request, _timeout, _context):
+            captured['headers'] = dict(request.header_items())
+            captured['body'] = request.data
+            return GzipResponse(payload)
+
+        route = normalize_http_route({'route': influx_route(
+            http_compression='gzip'
+        )}, default_port=8181, extra_fields=('database',))
+        response = BoundedJSONHTTPTransport(
+            urlopen=opener
+        ).request(route, '/write', method='POST', json_body={'value': 42})
+        self.assertEqual({'ok': True}, response.json())
+        self.assertEqual('gzip', captured['headers']['Content-encoding'])
+        self.assertEqual(
+            {'value': 42}, json.loads(gzip.decompress(captured['body']))
+        )
 
     def test_opensearch_identity_search_resources_and_document_admin(self):
         http = AnalyticHTTPFactory()

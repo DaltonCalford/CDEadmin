@@ -75,6 +75,12 @@ class ProviderWorkspaceService:
                 'verified_runtime_version': (
                     context.verified_runtime_version
                 ),
+                'route_management_available': bool(
+                    getattr(
+                        getattr(server, 'endpoint_profile', None),
+                        'provider_version', None,
+                    )
+                ),
             },
             'languages': list(self.studio_service.languages(context)),
             'resource_page': page,

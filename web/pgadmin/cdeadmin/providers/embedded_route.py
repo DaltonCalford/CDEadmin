@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import os
+import re
+import urllib.parse
 from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk import RelationalClientError
@@ -64,11 +66,24 @@ def duckdb_arguments(route):
     """Return only approved DuckDB connector arguments."""
     result = {'database': contained_database(route)}
     if 'read_only' in route:
-        result['read_only'] = bool(route['read_only'])
+        if not isinstance(route['read_only'], bool):
+            raise RelationalClientError(
+                'DuckDB read_only must be true or false'
+            )
+        result['read_only'] = route['read_only']
     config = route.get('config')
     if config is not None:
         if not isinstance(config, Mapping):
             raise RelationalClientError('DuckDB config must be an object')
+        if not all(
+            isinstance(key, str) and key.strip() and
+            isinstance(value, (str, int, float, bool)) and
+            value is not None
+            for key, value in config.items()
+        ):
+            raise RelationalClientError(
+                'DuckDB config must contain named scalar options'
+            )
         result['config'] = dict(config)
     return result
 
@@ -77,16 +92,73 @@ def sqlite_arguments(route):
     """Return only approved SQLite connector arguments."""
     if route.get('uri'):
         raise RelationalClientError(
-            'SQLite URI routes are unavailable at the filesystem boundary'
+            'raw SQLite URI routes are unavailable at the filesystem boundary'
         )
     timeout = route.get('timeout', 5.0)
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or (
-        timeout <= 0
+        timeout < 0
     ):
-        raise RelationalClientError('SQLite timeout must be positive')
-    return {
-        'database': contained_database(route),
+        raise RelationalClientError('SQLite timeout must not be negative')
+    database = contained_database(route)
+    result = {
+        'database': database,
         'timeout': float(timeout),
-        'uri': False,
         'check_same_thread': False,
     }
+    mode = route.get('uri_mode', 'default')
+    cache = route.get('uri_cache', 'default')
+    if mode not in {'default', 'ro', 'rw', 'rwc'}:
+        raise RelationalClientError('SQLite file open mode is invalid')
+    if cache not in {'default', 'shared', 'private'}:
+        raise RelationalClientError('SQLite shared-cache mode is invalid')
+    query = {}
+    if mode != 'default':
+        query['mode'] = mode
+    if cache != 'default':
+        query['cache'] = cache
+    for route_name, uri_name in (
+        ('uri_immutable', 'immutable'), ('uri_nolock', 'nolock')
+    ):
+        value = route.get(route_name, False)
+        if not isinstance(value, bool):
+            raise RelationalClientError(
+                f'SQLite {route_name} must be true or false'
+            )
+        if value:
+            query[uri_name] = '1'
+    vfs = route.get('uri_vfs')
+    if vfs is not None:
+        if not isinstance(vfs, str) or not re.fullmatch(
+            r'[A-Za-z0-9_.-]{1,128}', vfs
+        ):
+            raise RelationalClientError('SQLite VFS name is invalid')
+        query['vfs'] = vfs
+    if query:
+        result['database'] = 'file:' + urllib.parse.quote(database, safe='/')
+        result['database'] += '?' + urllib.parse.urlencode(query)
+        result['uri'] = True
+    else:
+        result['uri'] = False
+    detection = route.get('detect_types', 'none')
+    detection_values = {'none': 0, 'decltypes': 1, 'colnames': 2, 'both': 3}
+    if detection not in detection_values:
+        raise RelationalClientError('SQLite type detection mode is invalid')
+    result['detect_types'] = detection_values[detection]
+    isolation = route.get('isolation_level', 'legacy')
+    if isolation not in {
+        'legacy', 'deferred', 'immediate', 'exclusive', 'autocommit'
+    }:
+        raise RelationalClientError('SQLite isolation level is invalid')
+    if isolation != 'legacy':
+        result['isolation_level'] = (
+            None if isolation == 'autocommit' else isolation.upper()
+        )
+    cached = route.get('cached_statements', 128)
+    if isinstance(cached, bool) or not isinstance(cached, int) or (
+        not 0 <= cached <= 100000
+    ):
+        raise RelationalClientError(
+            'SQLite cached statement count is invalid'
+        )
+    result['cached_statements'] = cached
+    return result

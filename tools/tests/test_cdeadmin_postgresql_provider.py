@@ -232,6 +232,25 @@ class PostgreSQLProviderContractTests(unittest.TestCase):
             PostgreSQLProviderError, 'exact profile 18.3'
         ):
             self.provider.discover_endpoint({'route': {'server_id': 7}})
+
+    def test_preserved_administration_declares_every_relational_concept(self):
+        descriptor = self.provider.visual_admin_descriptor()
+        coverage = descriptor['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertFalse(coverage['activation_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        concepts = coverage['families'][0]['concepts']
+        self.assertTrue(all(
+            item['declared_status'] == 'supported' for item in concepts
+        ))
+        self.assertTrue(all(
+            item['external_surface'] ==
+            'pgadmin.preserved-postgresql-administration'
+            for item in concepts
+        ))
+        self.assertTrue(all(
+            item['operation_obligations'] for item in concepts
+        ))
         self.driver.manager.version = 18.3
         self.driver.version = lambda: '3.2.10'
         with self.assertRaisesRegex(

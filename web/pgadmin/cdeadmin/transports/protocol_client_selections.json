@@ -72,7 +72,7 @@
       "transport_kind": "tcp_binary",
       "framing_authority": "Cassandra native protocol selected by engine profile",
       "authentication_authority": "selected endpoint/server",
-      "client": {"state": "selected_installed", "package": "cassandra-driver", "versions": ["3.30.1; exact Cassandra 5.0.8 three-node plaintext and TLS qualification passed"]},
+      "client": {"state": "selected_installed", "package": "cassandra-driver", "versions": ["3.30.1; exact Cassandra 5.0.8 three-node plaintext and TLS qualification passed; exact YugabyteDB 2025.2.2.2 YCQL protocol-v4 and version-API qualification passed"]},
       "security_controls": ["tls_policy", "frame_size_limit", "endpoint_secret_lease"]
     },
     {

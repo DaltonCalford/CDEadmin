@@ -146,9 +146,10 @@ class MilvusClientAdapter:
         admitted = {
             'route_id', 'host', 'port', 'database', 'user', 'username',
             'credential_reference_id', 'principal_reference', 'tls_mode',
+            'credential_references', 'credential_kinds', 'credential_kind',
             'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
             'server_name', 'connect_timeout', 'operation_timeout',
-            'consistency_level', 'auth_kind', 'read_only',
+            'consistency_level', 'auth_kind', 'read_only', 'keep_alive',
         }
         unknown = sorted(set(route).difference(admitted))
         if unknown:
@@ -170,6 +171,7 @@ class MilvusClientAdapter:
             'auth_kind': route.get('auth_kind', 'none'),
             'consistency_level': route.get('consistency_level', 'Bounded'),
             'read_only': route.get('read_only', False),
+            'keep_alive': route.get('keep_alive', True),
         }
         if not _HOST.fullmatch(result['host']):
             raise MilvusClientError('host is invalid')
@@ -177,7 +179,7 @@ class MilvusClientAdapter:
             'disable', 'require', 'verify-ca', 'verify-full'
         }:
             raise MilvusClientError('TLS mode is invalid')
-        if result['auth_kind'] not in {'none', 'basic'}:
+        if result['auth_kind'] not in {'none', 'basic', 'token'}:
             raise MilvusClientError('authentication kind is invalid')
         if result['consistency_level'] not in {
             'Strong', 'Bounded', 'Session', 'Eventually', 'Customized'
@@ -185,6 +187,8 @@ class MilvusClientAdapter:
             raise MilvusClientError('consistency level is invalid')
         if not isinstance(result['read_only'], bool):
             raise MilvusClientError('read_only must be true or false')
+        if not isinstance(result['keep_alive'], bool):
+            raise MilvusClientError('keep_alive must be true or false')
         for field in (
             'username', 'credential_reference_id', 'principal_reference',
             'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
@@ -194,17 +198,41 @@ class MilvusClientAdapter:
                 result[field] = _text(route[field], field)
         if 'username' not in result and route.get('user'):
             result['username'] = _text(route['user'], 'username')
+        references = route.get('credential_references') or {}
+        if not isinstance(references, Mapping):
+            raise MilvusClientError('credential references must be an object')
+        references = dict(references)
+        expected_kind = {
+            'none': None, 'basic': 'database_password', 'token': 'api_token',
+        }[result['auth_kind']]
+        if route.get('credential_reference_id'):
+            references.setdefault(
+                route.get('credential_kind') or expected_kind,
+                route['credential_reference_id'],
+            )
+        allowed = {expected_kind} - {None}
+        if set(references) - allowed or not all(
+            isinstance(value, str) and value.strip()
+            for value in references.values()
+        ):
+            raise MilvusClientError(
+                'credential kinds do not match authentication mode'
+            )
+        result['credential_references'] = references
         if result['auth_kind'] == 'basic' and not (
-            result.get('username') and
-            result.get('credential_reference_id') and
+            result.get('username') and expected_kind in references and
             result.get('principal_reference')
         ):
             raise MilvusClientError(
                 'authentication requires user and credential references'
             )
-        if result['auth_kind'] == 'none' and result.get(
-            'credential_reference_id'
+        if result['auth_kind'] == 'token' and not (
+            expected_kind in references and result.get('principal_reference')
         ):
+            raise MilvusClientError(
+                'token authentication requires a credential reference'
+            )
+        if result['auth_kind'] == 'none' and references:
             raise MilvusClientError(
                 'unauthenticated route cannot acquire a credential'
             )
@@ -216,10 +244,10 @@ class MilvusClientAdapter:
             )
         return result
 
-    def _with_password(self, route, callback, purpose='connect'):
-        reference = route.get('credential_reference_id')
-        if not reference:
-            return callback(None)
+    def _with_credentials(self, route, callback, purpose='connect'):
+        references = dict(route.get('credential_references') or {})
+        if not references:
+            return callback({})
         if not callable(self.secret_acquirer):
             raise MilvusClientError('secret acquisition is unavailable')
         principal = route.get('principal_reference')
@@ -227,13 +255,21 @@ class MilvusClientAdapter:
             raise MilvusClientError(
                 'credential reference requires a principal reference'
             )
-        lease = self.secret_acquirer(
-            reference, principal, purpose, 'database_password'
-        )
-        with lease:
-            return lease.use(
-                lambda view: callback(bytes(view).decode('utf-8'))
+        bindings = sorted(references.items())
+
+        def acquire(index, values):
+            if index == len(bindings):
+                return callback(values)
+            kind, reference = bindings[index]
+            lease = self.secret_acquirer(
+                reference, principal, purpose, kind
             )
+            with lease:
+                return lease.use(lambda view: acquire(index + 1, {
+                    **values, kind: bytes(view).decode('utf-8'),
+                }))
+
+        return acquire(0, {})
 
     def _connect(self, request):
         if not callable(self._connector):
@@ -245,6 +281,7 @@ class MilvusClientAdapter:
             'uri': f'http://{route["host"]}:{route["port"]}',
             'db_name': route['database'],
             'timeout': route['connect_timeout'],
+            'keep_alive': route['keep_alive'],
         }
         if route['tls_mode'] != 'disable':
             arguments['secure'] = True
@@ -257,17 +294,17 @@ class MilvusClientAdapter:
         arguments.update({key: value for key, value in optional.items()
                           if value is not None})
 
-        def connect(password):
+        def connect(secrets):
             values = copy.deepcopy(arguments)
-            if password is not None:
-                username = route.get('username')
-                values['token'] = (
-                    f'{username}:{password}' if username else password
-                )
+            if route['auth_kind'] == 'basic':
+                values['user'] = route['username']
+                values['password'] = secrets['database_password']
+            elif route['auth_kind'] == 'token':
+                values['token'] = secrets['api_token']
             return self._connector(**values)
 
         try:
-            client = self._with_password(route, connect)
+            client = self._with_credentials(route, connect)
             client.list_collections()
         except MilvusClientError:
             raise

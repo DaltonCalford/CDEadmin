@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from ..sdk.relational import RelationalClientError
+from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -51,6 +52,13 @@ class RelationalAdminDialect:
     database_create_mode: str = 'sql'
     database_extension: str = ''
     syntax_family: str | None = None
+    not_applicable_concepts: frozenset[str] = frozenset()
+    concept_resource_kinds: Mapping[str, tuple[str, ...]] = field(
+        default_factory=dict
+    )
+    additional_concept_declarations: Mapping[
+        str, Mapping[str, object]
+    ] = field(default_factory=dict)
 
     @property
     def sql_family(self):
@@ -99,6 +107,77 @@ class RelationalAdministration:
         )
         value['complete_raw_commands_accepted'] = False
         value['row_identity_authority'] = 'provider'
+        declarations = value.setdefault('concept_declarations', {})
+        relational = declarations.setdefault('relational', {})
+        for concept_id, requirement in EXPERIENCE_REQUIREMENTS[
+                'relational'].items():
+            aliases = self.dialect.concept_resource_kinds.get(
+                concept_id, ()
+            )
+            kinds = set(requirement['resource_kinds']).union(aliases)
+            operations = set().union(*(
+                self.dialect.supported.get(kind, frozenset())
+                for kind in kinds
+            ))
+            if operations:
+                operation_obligations = {
+                    kind: sorted(self.dialect.supported.get(
+                        kind, frozenset()
+                    ))
+                    for kind in sorted(kinds)
+                    if self.dialect.supported.get(kind)
+                }
+                status = (
+                    'supported'
+                    if operations.difference({'inspect'}) else 'read_only'
+                )
+                relational[concept_id] = {
+                    'status': status,
+                    'resource_kinds': sorted(aliases),
+                    'reason': (
+                        'Declared from the exact provider dialect operation '
+                        'map; common code does not infer native support.'
+                    ),
+                    'evidence': [
+                        f'provider-dialect:{self.dialect.engine_id}'
+                    ],
+                    'operation_obligations': operation_obligations,
+                    'live_operations': {},
+                }
+            elif concept_id in self.dialect.not_applicable_concepts:
+                relational[concept_id] = {
+                    'status': 'not_applicable',
+                    'reason': (
+                        'The exact provider profile declares this relational '
+                        'concept absent from its native object model.'
+                    ),
+                    'evidence': [
+                        f'provider-profile:{self.dialect.engine_id}'
+                    ],
+                }
+        for family_id, concepts in (
+                self.dialect.additional_concept_declarations.items()):
+            family = declarations.setdefault(family_id, {})
+            provider_concepts = copy.deepcopy(dict(concepts))
+            for declaration in provider_concepts.values():
+                if not isinstance(declaration, dict) or declaration.get(
+                        'status') not in {'supported', 'read_only'}:
+                    continue
+                kinds = declaration.get('resource_kinds', [])
+                if not isinstance(kinds, list):
+                    continue
+                obligations = {
+                    kind: sorted(self.dialect.supported.get(
+                        kind, frozenset()
+                    ))
+                    for kind in sorted(kinds)
+                    if self.dialect.supported.get(kind)
+                }
+                declaration.setdefault(
+                    'operation_obligations', obligations
+                )
+                declaration.setdefault('live_operations', {})
+            family.update(provider_concepts)
         return value
 
     def validate(self, request):
@@ -228,17 +307,33 @@ class RelationalAdministration:
                     cursor.execute(statement['source'], parameters)
                 else:
                     cursor.execute(statement['source'])
-                rowcount = getattr(cursor, 'rowcount', None)
+                try:
+                    rowcount = getattr(cursor, 'rowcount', None)
+                except Exception:
+                    # Some DB-API drivers execute DDL successfully but raise
+                    # when asked for statement row statistics afterwards.
+                    # Row counts are optional unless this statement declares
+                    # an exact concurrency expectation below.
+                    rowcount = None
+                description = getattr(cursor, 'description', None)
+                rows = list(cursor.fetchall()) if description else []
                 expected = statement.get('expected_rowcount')
-                if expected is not None and rowcount != expected:
+                observed_rowcount = rowcount
+                if (
+                    expected is not None and
+                    (not isinstance(rowcount, int) or rowcount < 0) and
+                    len(rows) == 1 and len(rows[0]) == 1 and
+                    isinstance(rows[0][0], int)
+                ):
+                    observed_rowcount = rows[0][0]
+                if expected is not None and observed_rowcount != expected:
                     raise RelationalClientError(
                         'row identity no longer identifies exactly one row'
                     )
-                description = getattr(cursor, 'description', None)
-                rows = list(cursor.fetchall()) if description else []
                 results.append({
                     'rowcount': (
-                        rowcount if isinstance(rowcount, int) else None
+                        observed_rowcount
+                        if isinstance(observed_rowcount, int) else None
                     ),
                     'rows': copy.deepcopy(rows),
                 })
@@ -301,9 +396,17 @@ class RelationalAdministration:
                     self._quote(name) for name in key_columns
                 ) if key_columns else ''
             )
-            cursor.execute(
-                f'SELECT * FROM {self._qualified(path)}{order} LIMIT {limit}'
-            )
+            if self.dialect.engine_id == 'firebird':
+                source = (
+                    f'SELECT FIRST {limit} * FROM '
+                    f'{self._qualified(path)}{order}'
+                )
+            else:
+                source = (
+                    f'SELECT * FROM {self._qualified(path)}{order} '
+                    f'LIMIT {limit}'
+                )
+            cursor.execute(source)
             description = getattr(cursor, 'description', None) or ()
             columns = tuple(str(item[0]) for item in description)
             native_types = tuple(
@@ -450,8 +553,13 @@ class RelationalAdministration:
                     'database file escapes the approved creation root'
                 )
             host = route.get('host')
+            port = route.get('port')
+            host_spec = (
+                f'{host}/{port}' if isinstance(port, int) else host
+            )
             database = (
-                f'{host}:{database_path}' if isinstance(host, str) and host
+                f'{host_spec}:{database_path}'
+                if isinstance(host_spec, str) and host_spec
                 else database_path
             )
             driver_operation = 'firebird-create-database'
@@ -477,15 +585,16 @@ class RelationalAdministration:
             for key in (
                 'parent', 'table', 'columns', 'constraints', 'unique',
                 'start', 'increment', 'minimum', 'maximum', 'cycle',
-                'data_type', 'nullable', 'default', 'primary_key',
+                'data_type', 'nullable', 'default', 'not_null', 'check',
+                'primary_key',
                 'parameters', 'returns', 'timing', 'events', 'host',
                 'password', 'plugin', 'administrator', 'active',
-                'system_privileges', 'drop_system_privileges',
+                'system_privileges', 'drop_system_privileges', 'members',
                 'position', 'return_parameters', 'header', 'message',
                 'schedule', 'preserve', 'enabled',
                 'type_kind', 'base_type', 'enum_values', 'fields',
                 'expression', 'table_macro', 'secret_type', 'scope',
-                'storage', 'persistent', 'module',
+                'storage', 'persistent', 'module', 'library', 'database',
             ):
                 if key in value:
                     options[key] = value.pop(key)
@@ -505,6 +614,12 @@ class RelationalAdministration:
                     for key in (
                         'add_columns', 'drop_columns', 'rename_columns'
                     ) if key in value
+                }
+            elif kind == 'database' and self.dialect.sql_family == 'mysql':
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in ('character_set', 'collation')
+                    if key in value and value[key] not in {None, ''}
                 }
             elif kind == 'user':
                 value['changes'] = {
@@ -530,6 +645,25 @@ class RelationalAdministration:
                     for key in ('restart', 'increment') if key in value and (
                         value[key] is not None and value[key] != ''
                     )
+                }
+            elif kind == 'domain' and self.dialect.engine_id == 'firebird':
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in (
+                        'data_type', 'default', 'drop_default', 'not_null',
+                        'check', 'drop_constraint',
+                    ) if key in value and value[key] not in {None, ''}
+                }
+            elif kind == 'exception' and (
+                    self.dialect.engine_id == 'firebird'):
+                value['changes'] = {'message': value.pop('message')}
+            elif kind == 'publication' and (
+                    self.dialect.engine_id == 'firebird'):
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in (
+                        'enabled', 'include_tables', 'exclude_tables'
+                    ) if key in value
                 }
             elif kind in {'macro', 'function'} and (
                 self.dialect.engine_id == 'duckdb'
@@ -615,7 +749,7 @@ class RelationalAdministration:
             if kind in {
                 'table', 'view', 'index', 'sequence', 'domain', 'column',
                 'constraint', 'trigger', 'procedure', 'function', 'package',
-                'event',
+                'event', 'materialization',
             }:
                 fields.append(self._field(
                     'parent', 'Parent database/schema', 'text', False,
@@ -625,6 +759,12 @@ class RelationalAdministration:
                 fields.append(self._field(
                     'system_privileges', 'System privileges', 'json', False,
                     'Array of Firebird system privilege names.', [],
+                ))
+            elif kind == 'role' and self.dialect.engine_id == 'mysql':
+                fields.append(self._field(
+                    'members', 'Initial members', 'json', False,
+                    'Account names that receive this role. MySQL persists '
+                    'role identity through role membership edges.', [],
                 ))
             if kind == 'table':
                 fields.extend((
@@ -652,20 +792,43 @@ class RelationalAdministration:
                                 default=False),
                 ))
             elif kind == 'sequence':
-                fields.extend((
+                sequence_fields = [
                     self._field('start', 'Start value', 'number', False),
                     self._field(
                         'increment', 'Increment', 'number', False
                     ),
-                    self._field('minimum', 'Minimum', 'number', False),
-                    self._field('maximum', 'Maximum', 'number', False),
-                    self._field('cycle', 'Cycle', 'boolean', False,
-                                default=False),
-                ))
+                ]
+                if self.dialect.engine_id != 'firebird':
+                    sequence_fields.extend((
+                        self._field(
+                            'minimum', 'Minimum', 'number', False
+                        ),
+                        self._field(
+                            'maximum', 'Maximum', 'number', False
+                        ),
+                        self._field(
+                            'cycle', 'Cycle', 'boolean', False,
+                            default=False,
+                        ),
+                    ))
+                fields.extend(sequence_fields)
             elif kind == 'domain':
                 fields.append(self._field(
                     'data_type', 'Base data type', 'text', True
                 ))
+                if self.dialect.engine_id == 'firebird':
+                    fields.extend((
+                        self._field(
+                            'default', 'Default expression', 'text'
+                        ),
+                        self._field(
+                            'not_null', 'Not null', 'boolean', False,
+                            default=False,
+                        ),
+                        self._field(
+                            'check', 'Check expression', 'text'
+                        ),
+                    ))
             elif kind == 'column':
                 fields.extend((
                     self._field('table', 'Table', 'text', True),
@@ -764,6 +927,20 @@ class RelationalAdministration:
                         'Enter only the statement run by the event.',
                     ),
                 ))
+            elif kind == 'plugin' and self.dialect.sql_family == 'mysql':
+                fields.append(self._field(
+                    'library', 'Shared library', 'text', True,
+                    'Enter the provider library filename, without a path.',
+                ))
+            elif kind == 'materialization' and (
+                    self.dialect.engine_id == 'duckdb'):
+                fields.append(self._field(
+                    'database', 'Target database/schema', 'text', False,
+                ))
+                fields.append(self._field(
+                    'select', 'Provider-compiled SELECT', 'code', True,
+                    'Generated by the semantic model workspace.',
+                ))
             elif kind == 'type' and self.dialect.engine_id == 'duckdb':
                 fields.extend((
                     self._field(
@@ -849,6 +1026,20 @@ class RelationalAdministration:
                     ),
                 ],
             }
+        if operation == 'alter' and kind == 'database' and (
+            self.dialect.sql_family == 'mysql'
+        ):
+            return {
+                'form_id': 'database.alter', 'title': 'Alter database',
+                'fields': [
+                    self._field(
+                        'character_set', 'Default character set', 'text'
+                    ),
+                    self._field(
+                        'collation', 'Default collation', 'text'
+                    ),
+                ],
+            }
         if operation == 'alter' and kind == 'user':
             return {
                 'form_id': 'user.alter', 'title': 'Alter user',
@@ -892,6 +1083,27 @@ class RelationalAdministration:
                     'active', 'Active', 'boolean', False, default=True
                 )],
             }
+        if operation == 'alter' and kind == 'publication' and (
+            self.dialect.engine_id == 'firebird'
+        ):
+            return {
+                'form_id': 'publication.alter',
+                'title': 'Alter publication',
+                'fields': [
+                    self._field(
+                        'enabled', 'Publication enabled', 'boolean', False,
+                        default=True,
+                    ),
+                    self._field(
+                        'include_tables', 'Include tables', 'json', False,
+                        'Array of table names to include.', [],
+                    ),
+                    self._field(
+                        'exclude_tables', 'Exclude tables', 'json', False,
+                        'Array of table names to exclude.', [],
+                    ),
+                ],
+            }
         if operation == 'alter' and kind == 'sequence':
             return {
                 'form_id': 'sequence.alter', 'title': 'Alter sequence',
@@ -899,6 +1111,35 @@ class RelationalAdministration:
                     self._field('restart', 'Restart with', 'number'),
                     self._field('increment', 'Increment by', 'number'),
                 ],
+            }
+        if operation == 'alter' and kind == 'domain' and (
+            self.dialect.engine_id == 'firebird'
+        ):
+            return {
+                'form_id': 'domain.alter', 'title': 'Alter domain',
+                'fields': [
+                    self._field('data_type', 'Replacement type', 'text'),
+                    self._field('default', 'Default expression', 'text'),
+                    self._field(
+                        'drop_default', 'Drop default', 'boolean', False,
+                        default=False,
+                    ),
+                    self._field('not_null', 'Not null', 'boolean'),
+                    self._field('check', 'Check expression', 'text'),
+                    self._field(
+                        'drop_constraint', 'Drop check constraint',
+                        'boolean', False, default=False,
+                    ),
+                ],
+            }
+        if operation == 'alter' and kind == 'exception' and (
+            self.dialect.engine_id == 'firebird'
+        ):
+            return {
+                'form_id': 'exception.alter', 'title': 'Alter exception',
+                'fields': [self._field(
+                    'message', 'Replacement message', 'text', True
+                )],
             }
         if operation == 'alter' and kind == 'event' and (
             self.dialect.engine_id in {'mysql', 'mariadb'}
@@ -1085,9 +1326,17 @@ class RelationalAdministration:
             table = self._option_path(options, 'table')
             columns = self._identifier_list(options.get('columns'))
             unique = 'UNIQUE ' if options.get('unique') else ''
+            index_name = qualified
+            table_name = self._qualified(table)
+            if self.dialect.engine_id == 'sqlite':
+                table_name = self._quote(table[-1])
+            elif self.dialect.engine_id in {
+                'duckdb', 'firebird', 'mysql', 'mariadb',
+            }:
+                index_name = self._quote(name)
             source = (
-                f'CREATE {unique}INDEX {qualified} ON '
-                f'{self._qualified(table)} ({columns})'
+                f'CREATE {unique}INDEX {index_name} ON '
+                f'{table_name} ({columns})'
             )
         elif kind == 'sequence':
             source = f'CREATE SEQUENCE {qualified}'
@@ -1143,18 +1392,55 @@ class RelationalAdministration:
                 'parameters': (),
             }]
         elif kind == 'role':
-            source = f'CREATE ROLE {self._account(name)}'
+            role = (
+                self._quote(name)
+                if self.dialect.engine_id == 'mariadb'
+                else self._account(name)
+            )
+            source = f'CREATE ROLE {role}'
             privileges = options.get('system_privileges')
             if privileges:
                 source += ' SET SYSTEM PRIVILEGES TO ' + (
                     self._privilege_names(privileges)
                 )
+            members = options.get('members') or []
+            if members:
+                if self.dialect.engine_id != 'mysql':
+                    raise RelationalClientError(
+                        'initial role members are unavailable for this engine'
+                    )
+                if not isinstance(members, list):
+                    raise RelationalClientError(
+                        'initial role members must be an array'
+                    )
+                return [
+                    {'source': source, 'parameters': ()},
+                    {
+                        'source': (
+                            f'GRANT {role} TO ' + ', '.join(
+                                self._account(member) for member in members
+                            )
+                        ),
+                        'parameters': (),
+                    },
+                ]
         elif kind in {'database', 'schema'}:
             keyword = self._keyword(kind)
             source = f'CREATE {keyword} {qualified}'
         elif kind == 'domain':
             data_type = self._safe_fragment(options.get('data_type'), 'type')
             source = f'CREATE DOMAIN {qualified} AS {data_type}'
+            if self.dialect.engine_id == 'firebird':
+                if options.get('default') not in {None, ''}:
+                    source += ' DEFAULT ' + self._safe_fragment(
+                        options['default'], 'domain default'
+                    )
+                if options.get('not_null'):
+                    source += ' NOT NULL'
+                if options.get('check') not in {None, ''}:
+                    source += ' CHECK (' + self._safe_fragment(
+                        options['check'], 'domain check'
+                    ) + ')'
         elif kind == 'exception' and self.dialect.engine_id == 'firebird':
             message = options.get('message')
             source = (
@@ -1175,6 +1461,21 @@ class RelationalAdministration:
                 f'CREATE EVENT {qualified} ON SCHEDULE {schedule}'
                 f'{preserve}{state} DO {body}'
             )
+        elif kind == 'plugin' and self.dialect.sql_family == 'mysql':
+            library = options.get('library')
+            if not isinstance(library, str) or not re.fullmatch(
+                    r'[A-Za-z0-9][A-Za-z0-9_.+-]{0,254}', library):
+                raise RelationalClientError(
+                    'plugin library must be a safe unqualified filename'
+                )
+            source = (
+                f'INSTALL PLUGIN {self._quote(name)} '
+                f'SONAME {self._literal(library)}'
+            )
+        elif kind == 'materialization' and (
+                self.dialect.engine_id == 'duckdb'):
+            query = self._query_body(draft.get('select'))
+            source = f'CREATE TABLE {qualified} AS {query}'
         elif kind == 'type' and self.dialect.engine_id == 'duckdb':
             type_kind = str(options.get('type_kind', '')).upper()
             if type_kind == 'ALIAS':
@@ -1275,6 +1576,28 @@ class RelationalAdministration:
                 'preview_source': preview,
                 'parameters': (),
             }]
+        if kind == 'database' and self.dialect.sql_family == 'mysql':
+            clauses = []
+            if changes.get('character_set'):
+                clauses.append(
+                    'DEFAULT CHARACTER SET ' + self._quote(
+                        changes['character_set']
+                    )
+                )
+            if changes.get('collation'):
+                clauses.append(
+                    'DEFAULT COLLATE ' + self._quote(
+                        changes['collation']
+                    )
+                )
+            if not clauses:
+                raise RelationalClientError(
+                    'database alteration has no structured changes'
+                )
+            return [{
+                'source': f'ALTER DATABASE {target} {" ".join(clauses)}',
+                'parameters': (),
+            }]
         if kind == 'role' and self.dialect.engine_id == 'firebird':
             if changes.get('drop_system_privileges'):
                 clause = 'DROP SYSTEM PRIVILEGES'
@@ -1288,10 +1611,50 @@ class RelationalAdministration:
             }]
         if kind == 'index' and self.dialect.engine_id == 'firebird':
             state = 'ACTIVE' if changes.get('active') else 'INACTIVE'
+            target = self._quote(
+                request['target_resource'].get('display_name')
+            )
             return [{
                 'source': f'ALTER INDEX {target} {state}',
                 'parameters': (),
             }]
+        if kind == 'publication' and self.dialect.engine_id == 'firebird':
+            include = changes.get('include_tables') or []
+            exclude = changes.get('exclude_tables') or []
+            if not isinstance(include, list) or not isinstance(exclude, list):
+                raise RelationalClientError(
+                    'publication table selections must be arrays'
+                )
+            overlap = set(include).intersection(exclude)
+            if overlap:
+                raise RelationalClientError(
+                    'a publication table cannot be included and excluded'
+                )
+            statements = [{
+                'source': (
+                    'ALTER DATABASE ENABLE PUBLICATION'
+                    if changes.get('enabled', True)
+                    else 'ALTER DATABASE DISABLE PUBLICATION'
+                ),
+                'parameters': (),
+            }]
+            if include:
+                statements.append({
+                    'source': (
+                        'ALTER DATABASE INCLUDE TABLE '
+                        f'{self._identifier_list(include)} TO PUBLICATION'
+                    ),
+                    'parameters': (),
+                })
+            if exclude:
+                statements.append({
+                    'source': (
+                        'ALTER DATABASE EXCLUDE TABLE '
+                        f'{self._identifier_list(exclude)} FROM PUBLICATION'
+                    ),
+                    'parameters': (),
+                })
+            return statements
         if kind == 'sequence':
             clauses = []
             if 'restart' in changes:
@@ -1312,6 +1675,51 @@ class RelationalAdministration:
                 )
             return [{
                 'source': f'ALTER SEQUENCE {target} {" ".join(clauses)}',
+                'parameters': (),
+            }]
+        if kind == 'domain' and self.dialect.engine_id == 'firebird':
+            clauses = []
+            if changes.get('data_type'):
+                clauses.append(
+                    'TYPE ' + self._safe_fragment(
+                        changes['data_type'], 'domain type'
+                    )
+                )
+            if changes.get('drop_default'):
+                clauses.append('DROP DEFAULT')
+            elif changes.get('default') not in {None, ''}:
+                clauses.append(
+                    'SET DEFAULT ' + self._safe_fragment(
+                        changes['default'], 'domain default'
+                    )
+                )
+            if 'not_null' in changes:
+                clauses.append(
+                    'SET NOT NULL' if changes['not_null']
+                    else 'DROP NOT NULL'
+                )
+            if changes.get('drop_constraint'):
+                clauses.append('DROP CONSTRAINT')
+            elif changes.get('check') not in {None, ''}:
+                clauses.append(
+                    'ADD CHECK (' + self._safe_fragment(
+                        changes['check'], 'domain check'
+                    ) + ')'
+                )
+            if not clauses:
+                raise RelationalClientError(
+                    'domain alteration has no structured changes'
+                )
+            return [{
+                'source': f'ALTER DOMAIN {target} {" ".join(clauses)}',
+                'parameters': (),
+            }]
+        if kind == 'exception' and self.dialect.engine_id == 'firebird':
+            message = changes.get('message')
+            return [{
+                'source': (
+                    f'ALTER EXCEPTION {target} {self._literal(message)}'
+                ),
                 'parameters': (),
             }]
         if kind == 'trigger' and self.dialect.engine_id == 'firebird':
@@ -1355,7 +1763,7 @@ class RelationalAdministration:
                     'parameters': (),
                 },
                 {
-                    'source': f'ALTER PACKAGE BODY {target} AS {body}',
+                    'source': f'RECREATE PACKAGE BODY {target} AS {body}',
                     'parameters': (),
                 },
             ]
@@ -1458,11 +1866,16 @@ class RelationalAdministration:
                     'parameters': (),
                 })
             for item in changes.get('rename_columns', []):
+                rename = (
+                    f'ALTER COLUMN {self._quote(item["from"])} TO '
+                    f'{self._quote(item["to"])}'
+                    if self.dialect.engine_id == 'firebird' else
+                    f'RENAME COLUMN {self._quote(item["from"])} TO '
+                    f'{self._quote(item["to"])}'
+                )
                 statements.append({
                     'source': (
-                        f'ALTER TABLE {target} RENAME COLUMN '
-                        f'{self._quote(item["from"])} TO '
-                        f'{self._quote(item["to"])}'
+                        f'ALTER TABLE {target} {rename}'
                     ),
                     'parameters': (),
                 })
@@ -1495,11 +1908,37 @@ class RelationalAdministration:
         if kind == 'column':
             path = self._target_path(request['target_resource'])
             table = self._qualified(path[:-1])
+            action = (
+                'ALTER COLUMN' if self.dialect.engine_id == 'firebird'
+                else 'RENAME COLUMN'
+            )
             return {
                 'source': (
-                    f'ALTER TABLE {table} RENAME COLUMN '
+                    f'ALTER TABLE {table} {action} '
                     f'{self._quote(path[-1])} TO '
                     f'{self._quote(request["draft"]["new_name"])}'
+                ),
+                'parameters': (),
+            }
+        if kind == 'domain' and self.dialect.engine_id == 'firebird':
+            target = self._qualified(
+                self._target_path(request['target_resource'])
+            )
+            new_name = self._quote(request['draft']['new_name'])
+            return {
+                'source': f'ALTER DOMAIN {target} TO {new_name}',
+                'parameters': (),
+            }
+        if kind == 'sequence' and self.dialect.engine_id == 'mariadb':
+            target = self._qualified(
+                self._target_path(request['target_resource'])
+            )
+            path = self._target_path(request['target_resource'])
+            new_path = (*path[:-1], request['draft']['new_name'])
+            return {
+                'source': (
+                    f'RENAME TABLE {target} TO '
+                    f'{self._qualified(new_path)}'
                 ),
                 'parameters': (),
             }
@@ -1525,22 +1964,40 @@ class RelationalAdministration:
 
     def _compile_drop(self, request):
         kind = request['resource_kind']
-        if kind in {'user', 'role'}:
+        if kind == 'plugin' and self.dialect.sql_family == 'mysql':
             name = request['target_resource'].get('display_name')
             return {
-                'source': (
-                    f'DROP {self._keyword(kind)} {self._account(name)}'
-                ),
+                'source': f'UNINSTALL PLUGIN {self._quote(name)}',
+                'parameters': (),
+            }
+        if kind == 'role':
+            name = request['target_resource'].get('display_name')
+            role = (
+                self._quote(name)
+                if self.dialect.engine_id == 'mariadb'
+                else self._account(name)
+            )
+            return {
+                'source': f'DROP ROLE {role}',
+                'parameters': (),
+            }
+        if kind == 'user':
+            name = request['target_resource'].get('display_name')
+            return {
+                'source': f'DROP USER {self._account(name)}',
                 'parameters': (),
             }
         if kind in {'column', 'constraint'}:
             path = self._target_path(request['target_resource'])
             table = self._qualified(path[:-1])
+            keyword = self._keyword(kind)
+            if kind == 'column' and self.dialect.engine_id == 'firebird':
+                keyword = ''
             return {
                 'source': (
-                    f'ALTER TABLE {table} DROP {self._keyword(kind)} '
+                    f'ALTER TABLE {table} DROP {keyword} '
                     f'{self._quote(path[-1])}'
-                ),
+                ).replace('DROP  ', 'DROP '),
                 'parameters': (),
             }
         if kind == 'index':
@@ -1550,7 +2007,8 @@ class RelationalAdministration:
                     f'DROP INDEX {self._quote(path[-1])} ON '
                     f'{self._qualified(path[:-1])}'
                 )
-            elif self.dialect.engine_id == 'duckdb' and len(path) >= 3:
+            elif self.dialect.engine_id in {'duckdb', 'sqlite'} and (
+                    len(path) >= 3):
                 source = 'DROP INDEX ' + self._qualified(
                     (*path[:-2], path[-1])
                 )
@@ -1559,6 +2017,10 @@ class RelationalAdministration:
             else:
                 source = f'DROP INDEX {self._qualified(path)}'
             return {'source': source, 'parameters': ()}
+        if kind == 'trigger' and self.dialect.sql_family == 'mysql':
+            path = self._target_path(request['target_resource'])
+            target = self._qualified((*path[:-2], path[-1]))
+            return {'source': f'DROP TRIGGER {target}', 'parameters': ()}
         if kind in {'virtual-table', 'fts-table'} and (
             self.dialect.engine_id == 'sqlite'
         ):

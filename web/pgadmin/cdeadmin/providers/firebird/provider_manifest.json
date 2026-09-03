@@ -1,10 +1,134 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.firebird", "provider_version": "0.1.0", "profile_id": "firebird-native", "profile_version": "5.0.4", "evidence_reference": "cde-rel-040:firebird-provider-20260901"},
-  "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
-  "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
-  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider", "SemanticLayerProvider", "AnalyticalQueryProvider"],
-  "permissions": [{"permission_id": "network", "granted": true, "scope": ["endpoint"]}, {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]}, {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]}, {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}],
-  "required_permissions": ["network", "secret_read"], "composition": {"experience_families": ["firebird"], "target_adapter_ids": ["firebird-wire-client"]}, "extension_schema": null,
-  "registration": {"display_name": "Firebird 5.0", "workflow": "provider_endpoint", "route_kind": "network", "requires_secret": true, "default_port": 3050, "default": false, "target_adapter_version": "firebird-driver-1.10.11"},
-  "provenance": {"purpose": "CDE-REL-040 Firebird exact-profile provider", "protocol": "firebird_wire", "client_state": "firebird-driver_1.10.11_installed", "rejected_client": "firebird-driver 2.0.3 conflicts with the shared application protobuf dependency set", "runtime_state": "exact_provider_live_verified", "activation_gate": "passed", "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901"}
+  "identity": {
+    "contract_version": "1.1.0",
+    "provider_id": "org.cdeadmin.firebird",
+    "provider_version": "0.1.0",
+    "profile_id": "firebird-native",
+    "profile_version": "5.0.4",
+    "evidence_reference": "cde-rel-040:firebird-provider-20260901"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {
+    "minimum": "1.1.0",
+    "maximum_exclusive": "2.0.0"
+  },
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": [
+    "EndpointProvider",
+    "ResourceProvider",
+    "LanguageProvider",
+    "SessionProvider",
+    "ExecutionProvider",
+    "ResultProvider",
+    "DiagnosticProvider",
+    "OperationProvider",
+    "ToolProvider",
+    "SecurityProvider",
+    "SemanticLayerProvider",
+    "AnalyticalQueryProvider"
+  ],
+  "permissions": [
+    {
+      "permission_id": "network",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "secret_read",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "data_read",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "data_write",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "administer",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "execute",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    }
+  ],
+  "required_permissions": [
+    "network",
+    "secret_read"
+  ],
+  "composition": {
+    "experience_families": [
+      "firebird"
+    ],
+    "target_adapter_ids": [
+      "firebird-wire-client"
+    ]
+  },
+  "extension_schema": null,
+  "registration": {
+    "display_name": "Firebird 5.0",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": true,
+    "default_port": 3050,
+    "default": false,
+    "target_adapter_version": "firebird-driver-1.10.11",
+    "connection_capability_set": "firebird-driver-v1",
+    "secret_fields": [
+      {"field_id": "password", "secret_kind": "database_password", "label": "Password", "group": "Firebird authentication", "primary": true, "visible_when": {"field_id": "trusted_auth", "equals": false}}
+    ],
+    "connection_fields": [
+      {"field_id": "auth_plugin_list", "route_key": "auth_plugin_list", "label": "Authentication plugin preference list", "control": "text", "group": "Firebird authentication", "default": "Srp256,Srp,Legacy_Auth"},
+      {"field_id": "trusted_auth", "route_key": "trusted_auth", "label": "Use trusted authentication", "control": "boolean", "group": "Firebird authentication", "default": false},
+      {"field_id": "role", "route_key": "role", "label": "Initial role", "control": "text", "group": "Firebird session"},
+      {"field_id": "charset", "route_key": "charset", "label": "Connection character set", "control": "text", "group": "Firebird session", "default": "UTF8"},
+      {"field_id": "session_time_zone", "route_key": "session_time_zone", "label": "Session time zone", "control": "text", "group": "Firebird session"},
+      {"field_id": "no_gc", "route_key": "no_gc", "label": "Disable cooperative garbage collection", "control": "boolean", "group": "Firebird session", "default": false},
+      {"field_id": "no_db_triggers", "route_key": "no_db_triggers", "label": "Disable database triggers", "control": "boolean", "group": "Firebird session", "default": false},
+      {"field_id": "dbkey_scope", "route_key": "dbkey_scope", "label": "DBKEY scope", "control": "select", "group": "Firebird session", "default": "TRANSACTION", "options": [{"value": "TRANSACTION", "label": "Transaction"}, {"value": "ATTACHMENT", "label": "Attachment"}]},
+      {"field_id": "transaction_isolation", "route_key": "transaction_isolation", "label": "Default transaction isolation", "control": "select", "group": "Firebird transaction", "default": "SNAPSHOT", "options": [{"value": "READ_COMMITTED", "label": "Read committed"}, {"value": "READ_COMMITTED_NO_RECORD_VERSION", "label": "Read committed, no record version"}, {"value": "READ_COMMITTED_RECORD_VERSION", "label": "Read committed, record version"}, {"value": "READ_COMMITTED_READ_CONSISTENCY", "label": "Read committed, read consistency"}, {"value": "SNAPSHOT", "label": "Snapshot"}, {"value": "SERIALIZABLE", "label": "Serializable"}]},
+      {"field_id": "transaction_access", "route_key": "transaction_access", "label": "Default transaction access", "control": "select", "group": "Firebird transaction", "default": "WRITE", "options": [{"value": "WRITE", "label": "Read/write"}, {"value": "READ", "label": "Read only"}]},
+      {"field_id": "transaction_lock_timeout", "route_key": "transaction_lock_timeout", "label": "Transaction lock timeout (seconds; -1 waits forever)", "control": "number", "group": "Firebird transaction", "default": -1, "minimum": -1, "maximum": 86400},
+      {"field_id": "protocol", "route_key": "protocol", "label": "Network protocol", "control": "select", "group": "Firebird network", "default": "INET", "options": [{"value": "INET", "label": "INET"}, {"value": "INET4", "label": "INET4"}, {"value": "WNET", "label": "Windows named pipes"}, {"value": "XNET", "label": "Local XNET"}]},
+      {"field_id": "timeout", "route_key": "timeout", "label": "Connection timeout (seconds)", "control": "number", "group": "Firebird network", "minimum": 1, "maximum": 3600},
+      {"field_id": "dummy_packet_interval", "route_key": "dummy_packet_interval", "label": "Dummy packet interval (seconds)", "control": "number", "group": "Firebird network", "minimum": 0, "maximum": 86400},
+      {"field_id": "wire_crypt", "route_key": "wire_crypt", "label": "Wire encryption policy", "control": "select", "group": "Firebird wire encryption", "default": "Required", "options": [{"value": "Disabled", "label": "Disabled"}, {"value": "Enabled", "label": "Enabled"}, {"value": "Required", "label": "Required"}]},
+      {"field_id": "wire_compression", "route_key": "wire_compression", "label": "Enable wire compression", "control": "boolean", "group": "Firebird wire encryption", "default": false},
+      {"field_id": "wire_config", "route_key": "wire_config", "label": "Per-connection wire encryption configuration", "control": "multiline", "group": "Firebird wire encryption", "help": "Firebird DPB configuration such as WireCrypt and WireCryptPlugin settings."}
+    ]
+  },
+  "provenance": {
+    "purpose": "CDE-REL-040 Firebird exact-profile provider",
+    "protocol": "firebird_wire",
+    "client_state": "firebird-driver_1.10.11_installed",
+    "rejected_client": "firebird-driver 2.0.3 conflicts with the shared application protobuf dependency set",
+    "runtime_state": "exact_provider_live_verified",
+    "activation_gate": "passed",
+    "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901"
+  }
 }

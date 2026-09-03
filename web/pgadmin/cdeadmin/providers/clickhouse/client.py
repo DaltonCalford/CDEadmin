@@ -28,6 +28,12 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from pgadmin.cdeadmin.sdk import PilotProviderError
+from pgadmin.cdeadmin.transports.analytics_http import (
+    AnalyticHTTPError,
+    AnalyticHTTPUnknownOutcomeError,
+    BoundedJSONHTTPTransport,
+    normalize_http_route,
+)
 
 
 REFERENCE_VERSION = '25.12.10.7-stable'
@@ -176,9 +182,12 @@ class ClickHouseClient:
     ROUTE_FIELDS = frozenset({
         'route_id', 'host', 'port', 'database', 'username',
         'credential_reference_id', 'principal_reference', 'tls_mode',
+        'credential_references', 'credential_kinds', 'credential_kind',
+        'auth_kind',
         'tls_ca_file', 'tls_certificate_file', 'tls_key_file',
         'connect_timeout', 'statement_timeout', 'read_only',
-        'session_id', 'quota_key', 'role',
+        'session_id', 'quota_key', 'role', 'http_compression',
+        'pool_max_size', 'pool_block',
     })
     ADMIN_OPERATIONS = {
         'server': frozenset({'inspect', 'execute'}),
@@ -221,6 +230,10 @@ class ClickHouseClient:
     def __init__(self, secret_acquirer=None, urlopen=None, clock=None):
         self.secret_acquirer = secret_acquirer
         self._urlopen = urlopen
+        self.transport = BoundedJSONHTTPTransport(
+            secret_acquirer, urlopen=urlopen,
+            max_response_bytes=MAX_RESPONSE_BYTES,
+        )
         self._clock = clock or time.time
         self._sessions = []
         self._row_identities = {}
@@ -236,47 +249,33 @@ class ClickHouseClient:
             raise ClickHouseClientError(
                 f'ClickHouse route contains unknown fields: {unknown}'
             )
-        result = {
-            'route_id': _text(route.get('route_id', 'direct'), 'route ID'),
-            'host': _text(route.get('host'), 'host', 255),
-            'port': route.get('port', 8123),
-            'database': _identifier(route.get('database', 'default'),
-                                    'database'),
-            'username': _text(route.get('username', 'default'), 'username'),
-            'tls_mode': route.get('tls_mode', 'disable'),
-            'connect_timeout': route.get('connect_timeout', 10),
-            'statement_timeout': route.get('statement_timeout', 30),
-            'read_only': route.get('read_only', False),
-        }
-        if not _HOST.fullmatch(result['host']):
-            raise ClickHouseClientError('ClickHouse host is invalid')
-        _integer(result['port'], 'port', 1, 65535)
-        _integer(result['connect_timeout'], 'connect timeout', 1, 120)
-        _integer(result['statement_timeout'], 'statement timeout', 1, 3600)
-        if not isinstance(result['read_only'], bool):
-            raise ClickHouseClientError('read_only must be true or false')
-        if result['tls_mode'] not in {
-            'disable', 'require', 'verify-ca', 'verify-full'
-        }:
-            raise ClickHouseClientError('ClickHouse TLS mode is invalid')
-        for field in (
-            'credential_reference_id', 'principal_reference', 'tls_ca_file',
-            'tls_certificate_file', 'tls_key_file', 'session_id', 'quota_key',
-            'role',
-        ):
-            if route.get(field) is not None:
-                result[field] = _text(route[field], field)
-        verified_tls = result['tls_mode'] in {'verify-ca', 'verify-full'}
-        if verified_tls and not result.get('tls_ca_file'):
-            raise ClickHouseClientError(
-                'verified ClickHouse TLS requires a CA file'
+        if route.get('auth_kind') is None:
+            has_password = bool(route.get('credential_reference_id')) or (
+                'database_password' in dict(
+                    route.get('credential_references') or {}
+                )
             )
-        if bool(result.get('tls_certificate_file')) != bool(
-            result.get('tls_key_file')
-        ):
-            raise ClickHouseClientError(
-                'client certificate and key must be configured together'
+            route['auth_kind'] = (
+                'clickhouse-basic' if has_password else 'none'
             )
+        route.setdefault('credential_kind', (
+            'database_password'
+            if route['auth_kind'] == 'clickhouse-basic' else None
+        ))
+        route.setdefault('username', 'default')
+        route.setdefault('database', 'default')
+        try:
+            result = normalize_http_route(
+                {'route': route}, default_port=8123,
+                extra_fields=('database', 'session_id', 'quota_key', 'role'),
+            )
+        except AnalyticHTTPError as exc:
+            raise ClickHouseClientError(str(exc)) from exc
+        result['database'] = _identifier(result['database'], 'database')
+        result['username'] = _text(result['username'], 'username')
+        for field in ('session_id', 'quota_key', 'role'):
+            if result.get(field) is not None:
+                result[field] = _text(result[field], field)
         return result
 
     @staticmethod
@@ -399,50 +398,25 @@ class ClickHouseClient:
             'X-ClickHouse-User': route['username'],
         }
 
-        def perform(password):
-            if password is not None:
-                headers['X-ClickHouse-Key'] = password
-            request = urllib.request.Request(
-                url, data=body, headers=headers, method='POST'
+        try:
+            response = self.transport.request(
+                route, '/', method='POST', query=args, body=body,
+                headers=headers, mutating=mutating,
             )
-            opener = self._urlopen or self._stdlib_open
-            try:
-                timeout = (
-                    route['connect_timeout'] + route['statement_timeout']
-                )
-                response = opener(
-                    request, timeout, self._ssl_context(route)
-                )
-                with response:
-                    payload = response.read(MAX_RESPONSE_BYTES + 1)
-                    status = getattr(response, 'status', 200)
-                    response_headers = getattr(response, 'headers', {})
-                if len(payload) > MAX_RESPONSE_BYTES:
-                    raise ClickHouseClientError(
-                        'ClickHouse response exceeds the admitted limit'
-                    )
-                return status, payload, response_headers
-            except urllib.error.HTTPError as exc:
-                message = exc.read(8192).decode('utf-8', 'replace')
-                code = exc.headers.get('X-ClickHouse-Exception-Code')
-                first = message.splitlines()[0][:1024] if message else (
-                    f'HTTP {exc.code}'
-                )
-                raise ClickHouseServerError(first, code) from None
-            except ClickHouseClientError:
-                raise
-            except Exception as exc:
-                if mutating:
-                    raise ClickHouseUnknownOutcomeError(
-                        'ClickHouse mutation outcome is unknown; observe '
-                        'server state before any retry '
-                        f'({type(exc).__name__})'
-                    ) from None
-                raise ClickHouseClientError(
-                    f'ClickHouse request failed ({type(exc).__name__})'
-                ) from None
-
-        return (*self._with_password(route, perform), query_id)
+            return response.status, response.body, response.headers, query_id
+        except AnalyticHTTPUnknownOutcomeError as exc:
+            raise ClickHouseUnknownOutcomeError(str(exc)) from exc
+        except AnalyticHTTPError as exc:
+            code = None
+            if isinstance(exc.native_payload, bytes):
+                message = exc.native_payload.decode(
+                    'utf-8', 'replace'
+                ).splitlines()[0][:1024]
+            else:
+                message = str(exc)
+            if exc.status is not None:
+                raise ClickHouseServerError(message, code) from exc
+            raise ClickHouseClientError(message) from exc
 
     @staticmethod
     def _parameter_text(value):
@@ -1614,3 +1588,4 @@ class ClickHouseClient:
         with self._lock:
             self._sessions.clear()
             self._row_identities.clear()
+        self.transport.close()

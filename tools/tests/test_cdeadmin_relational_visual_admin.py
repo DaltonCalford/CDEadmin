@@ -29,6 +29,7 @@ if 'pgadmin' not in sys.modules:
     sys.modules['pgadmin'] = package
 
 from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
+    ADMINISTRATION as SQLITE_ADMINISTRATION,
     PROFILE,
     _resources,
     _route_arguments,
@@ -459,6 +460,173 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertEqual(2, len(
             package['command_preview']['statements']
         ))
+        publication = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'publication', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'publication',
+                'resource_id': 'publication:RDB$DEFAULT',
+                'display_name': 'RDB$DEFAULT',
+                'display_path': ['RDB$DEFAULT'],
+            },
+            'draft': {
+                'enabled': True,
+                'include_tables': ['WIDGETS'],
+                'exclude_tables': ['AUDIT_LOG'],
+            },
+            '_provider_route': route,
+        })
+        publication_sources = [
+            item['source']
+            for item in publication['command_preview']['statements']
+        ]
+        self.assertEqual(
+            'ALTER DATABASE ENABLE PUBLICATION', publication_sources[0]
+        )
+        self.assertIn(
+            'INCLUDE TABLE "WIDGETS" TO PUBLICATION',
+            publication_sources[1],
+        )
+        self.assertIn(
+            'EXCLUDE TABLE "AUDIT_LOG" FROM PUBLICATION',
+            publication_sources[2],
+        )
+        with self.assertRaisesRegex(
+            RelationalClientError, 'cannot be included and excluded'
+        ):
+            FIREBIRD_ADMINISTRATION.plan({
+                'resource_kind': 'publication', 'operation_id': 'alter',
+                'target_resource': {
+                    'resource_kind': 'publication',
+                    'resource_id': 'publication:RDB$DEFAULT',
+                    'display_name': 'RDB$DEFAULT',
+                    'display_path': ['RDB$DEFAULT'],
+                },
+                'draft': {
+                    'enabled': True,
+                    'include_tables': ['WIDGETS'],
+                    'exclude_tables': ['WIDGETS'],
+                },
+                '_provider_route': route,
+            })
+
+    def test_firebird_specialized_metadata_plans_match_native_ddl(self):
+        route = {
+            'host': 'firebird.example', 'port': 3060,
+            'database': '/srv/firebird/current.fdb',
+            'route_id': 'firebird-metadata-test',
+        }
+        database = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'target_resource': None, 'draft': {'name': 'inventory'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'firebird.example/3060:/srv/firebird/inventory.fdb',
+            database['provider_payload']['compiled']['database'],
+        )
+        domain_target = {
+            'resource_kind': 'domain', 'display_name': 'D_QUANTITY',
+            'display_path': ['D_QUANTITY'],
+        }
+        domain = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'domain', 'operation_id': 'alter',
+            'target_resource': domain_target,
+            'draft': {'data_type': 'BIGINT'},
+            '_provider_route': route,
+        })
+        self.assertIn(
+            'ALTER DOMAIN "D_QUANTITY" TYPE BIGINT',
+            str(domain['command_preview']),
+        )
+        renamed = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'domain', 'operation_id': 'rename',
+            'target_resource': domain_target,
+            'draft': {'new_name': 'D_AMOUNT'},
+            '_provider_route': route,
+        })
+        self.assertIn(
+            'ALTER DOMAIN "D_QUANTITY" TO "D_AMOUNT"',
+            str(renamed['command_preview']),
+        )
+        exception = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'exception', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'exception',
+                'display_name': 'E_INVALID',
+                'display_path': ['E_INVALID'],
+            },
+            'draft': {'message': 'Replacement message'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            "ALTER EXCEPTION \"E_INVALID\" 'Replacement message'",
+            exception['command_preview']['statements'][0]['source'],
+        )
+        index = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'index', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'index', 'display_name': 'IX_WIDGETS',
+                'display_path': ['WIDGETS', 'IX_WIDGETS'],
+            },
+            'draft': {'active': False}, '_provider_route': route,
+        })
+        self.assertIn(
+            'ALTER INDEX "IX_WIDGETS" INACTIVE',
+            str(index['command_preview']),
+        )
+        self.assertFalse(FIREBIRD_ADMINISTRATION.supports(
+            'table', 'rename'
+        ))
+        self.assertFalse(FIREBIRD_ADMINISTRATION.supports(
+            'sequence', 'rename'
+        ))
+
+    def test_optional_rowcount_failure_does_not_overturn_successful_ddl(self):
+        class Cursor:
+            description = None
+
+            def execute(self, _source, _parameters=()):
+                return self
+
+            @property
+            def rowcount(self):
+                raise RuntimeError('optional statement statistics refused')
+
+            @staticmethod
+            def close():
+                return None
+
+        class Connection:
+            def cursor(self):
+                return Cursor()
+
+            @staticmethod
+            def commit():
+                return None
+
+            @staticmethod
+            def close():
+                return None
+
+        connection = Connection()
+        client = SimpleNamespace(
+            _connect=lambda _request: connection,
+            _safe_close=lambda value: value.close(),
+            _forget_and_close=lambda value: value.close(),
+        )
+        result = FIREBIRD_ADMINISTRATION.apply(client, {
+            'provider_payload': {
+                'route': {'database': 'qualification.fdb'},
+                'compiled': {
+                    'statements': [{
+                        'source': 'CREATE TABLE T (ID INTEGER)',
+                        'parameters': (),
+                    }],
+                },
+            },
+        })
+        self.assertTrue(result['accepted'])
+        self.assertIsNone(result['statement_results'][0]['rowcount'])
 
     def test_mysql_trigger_event_and_privilege_plans_are_dialect_owned(self):
         route = {'host': 'mysql.example', 'route_id': 'mysql-test'}
@@ -502,6 +670,45 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'source'
         ]
         self.assertIn("TO 'operator'@'localhost'", privilege_source)
+        plugin = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'plugin', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'auth_example',
+                'library': 'auth_example.so',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            "INSTALL PLUGIN `auth_example` SONAME 'auth_example.so'",
+            plugin['command_preview']['statements'][0]['source'],
+        )
+        uninstall = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'plugin', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'plugin', 'resource_id': 'plugin:example',
+                'display_name': 'auth_example',
+                'display_path': ['auth_example'],
+            },
+            'draft': {'cascade': False, 'confirmation': 'drop-plugin'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'UNINSTALL PLUGIN `auth_example`',
+            uninstall['command_preview']['statements'][0]['source'],
+        )
+        with self.assertRaisesRegex(
+            RelationalClientError, 'safe unqualified filename'
+        ):
+            MYSQL_ADMINISTRATION.plan({
+                'resource_kind': 'plugin', 'operation_id': 'create',
+                'target_resource': None,
+                'draft': {
+                    'name': 'unsafe_plugin',
+                    'library': '../../unsafe.so',
+                },
+                '_provider_route': route,
+            })
 
     def test_mariadb_package_specification_and_body_are_provider_built(self):
         route = {'host': 'mariadb.example', 'route_id': 'mariadb-test'}
@@ -526,6 +733,133 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'CREATE PACKAGE BODY `app`.`widget_api`',
             statements[1]['source'],
         )
+
+        sequence_target = {
+            'resource_kind': 'sequence', 'display_name': 'widget_seq',
+            'display_path': ['app', 'widget_seq'],
+        }
+        renamed = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'sequence', 'operation_id': 'rename',
+            'target_resource': sequence_target,
+            'draft': {'new_name': 'widget_seq_next'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'RENAME TABLE `app`.`widget_seq` TO `app`.`widget_seq_next`',
+            renamed['command_preview']['statements'][0]['source'],
+        )
+
+        role = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'role', 'operation_id': 'create',
+            'target_resource': None, 'draft': {'name': 'data_reader'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE ROLE `data_reader`',
+            role['command_preview']['statements'][0]['source'],
+        )
+
+    def test_mysql_role_creation_can_establish_native_membership_edge(self):
+        plan = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'role', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'data_reader',
+                'members': ['operator@localhost'],
+            },
+            '_provider_route': {
+                'host': 'mysql.example', 'route_id': 'mysql-role-test',
+            },
+        })
+        statements = plan['command_preview']['statements']
+        self.assertEqual(2, len(statements))
+        self.assertEqual(
+            "CREATE ROLE 'data_reader'@'%'", statements[0]['source']
+        )
+        self.assertEqual(
+            "GRANT 'data_reader'@'%' TO 'operator'@'localhost'",
+            statements[1]['source'],
+        )
+
+    def test_mysql_database_alter_uses_structured_charset_fields(self):
+        plan = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'database', 'display_name': 'inventory',
+                'display_path': ['inventory'],
+            },
+            'draft': {
+                'character_set': 'utf8mb4',
+                'collation': 'utf8mb4_0900_ai_ci',
+            },
+            '_provider_route': {
+                'host': 'mysql.example', 'route_id': 'mysql-database-test',
+            },
+        })
+        self.assertEqual(
+            'ALTER DATABASE `inventory` DEFAULT CHARACTER SET `utf8mb4` '
+            'DEFAULT COLLATE `utf8mb4_0900_ai_ci`',
+            plan['command_preview']['statements'][0]['source'],
+        )
+
+    def test_relational_dialects_publish_fail_closed_concept_status(self):
+        cases = (
+            ('mysql', '9.7.0', MYSQL_ADMINISTRATION, {
+                'servers': 'read_only',
+                'schemas': 'supported',
+                'materialized_views': 'not_applicable',
+                'extensions_and_plugins': 'supported',
+            }),
+            ('mariadb', '12.2.2', MARIADB_ADMINISTRATION, {
+                'sequences': 'supported',
+                'schemas': 'supported',
+                'materialized_views': 'not_applicable',
+                'extensions_and_plugins': 'supported',
+            }),
+            ('firebird', '5.0.4', FIREBIRD_ADMINISTRATION, {
+                'servers': 'read_only',
+                'schemas': 'not_applicable',
+                'partitions': 'not_applicable',
+                'replication_objects': 'supported',
+                'extensions_and_plugins': 'read_only',
+            }),
+            ('duckdb', '1.5.2', DUCKDB_ADMINISTRATION, {
+                'servers': 'not_applicable',
+                'schemas': 'supported',
+                'extensions_and_plugins': 'supported',
+                'roles_and_grants': 'not_applicable',
+            }),
+            ('sqlite', '3.53.0', SQLITE_ADMINISTRATION, {
+                'servers': 'not_applicable',
+                'schemas': 'supported',
+                'triggers': 'supported',
+                'roles_and_grants': 'not_applicable',
+            }),
+        )
+        for engine_id, version, administration, expected in cases:
+            provider_context = SimpleNamespace(
+                endpoint_id='endpoint-test', mode='legacy_native',
+                runtime_verification_state='verified',
+                verified_runtime_family=engine_id,
+                declared_runtime_family=engine_id,
+                effective_permissions=frozenset({
+                    'data_read', 'data_write', 'administer',
+                }),
+            )
+            descriptor = ProviderVisualAdministration(
+                provider_context, Permissions(), engine_id, version,
+                AdministrationClient(administration),
+            ).descriptor()
+            concepts = {
+                item['concept_id']: item['activation_state']
+                for item in descriptor['concept_coverage']['families'][0][
+                    'concepts'
+                ]
+            }
+            self.assertEqual(expected, {
+                concept_id: concepts[concept_id]
+                for concept_id in expected
+            })
 
 
 class DuckDBVisualAdministrationTests(unittest.TestCase):
@@ -607,12 +941,37 @@ class DuckDBVisualAdministrationTests(unittest.TestCase):
                 DUCKDB_ADMINISTRATION.apply(client, {
                     'provider_payload': macro_plan['provider_payload'],
                 })
+                materialization_plan = DUCKDB_ADMINISTRATION.plan({
+                    'resource_kind': 'materialization',
+                    'operation_id': 'create',
+                    'target_resource': None,
+                    'draft': {
+                        'name': 'widget_rollup', 'database': 'main',
+                        'select': (
+                            'SELECT name, count(*) AS item_count '
+                            'FROM widgets GROUP BY name'
+                        ),
+                    },
+                    '_provider_route': route,
+                })
+                self.assertIn(
+                    'CREATE TABLE "main"."widget_rollup" AS SELECT',
+                    materialization_plan['command_preview']['statements'][0][
+                        'source'
+                    ],
+                )
+                DUCKDB_ADMINISTRATION.apply(client, {
+                    'provider_payload': materialization_plan[
+                        'provider_payload'
+                    ],
+                })
                 connection = client.open_session({'route': route})
                 try:
                     cursor = connection.execute(
-                        'SELECT double_value(4), CAST(\'ok\' AS mood)'
+                        'SELECT double_value(4), CAST(\'ok\' AS mood), '
+                        '(SELECT item_count FROM widget_rollup)'
                     )
-                    self.assertEqual((8, 'ok'), cursor.fetchone())
+                    self.assertEqual((8, 'ok', 1), cursor.fetchone())
                 finally:
                     client.close()
             finally:

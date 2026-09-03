@@ -22,6 +22,17 @@ from .provider import (
     VisualAdminExecutionError,
     VisualAdminValidationError,
 )
+from .experience import EXPERIENCE_SCHEMA, enrich_engine_experience
+from .requirements import (
+    COVERAGE_SCHEMA, ENGINE_EXPERIENCE_FAMILIES,
+    EXPERIENCE_REQUIREMENTS, concept_coverage_for_engine,
+)
+from .live_evidence import (
+    LIVE_EVIDENCE_SCHEMA,
+    LiveEvidenceError,
+    apply_live_evidence,
+    load_live_evidence,
+)
 from .control_plane import (
     CONTROL_PLANE_PERMISSIONS,
     ControlPlaneCatalog,
@@ -44,6 +55,16 @@ __all__ = (
     'ControlPlaneCatalogError',
     'ControlPlaneOperation',
     'control_plane_field',
+    'EXPERIENCE_SCHEMA',
+    'COVERAGE_SCHEMA',
+    'ENGINE_EXPERIENCE_FAMILIES',
+    'EXPERIENCE_REQUIREMENTS',
+    'LIVE_EVIDENCE_SCHEMA',
+    'LiveEvidenceError',
+    'apply_live_evidence',
+    'load_live_evidence',
+    'enrich_engine_experience',
+    'concept_coverage_for_engine',
     'catalog_for_engine',
     'portfolio_summary',
 )

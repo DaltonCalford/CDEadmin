@@ -1,0 +1,63 @@
+{
+  "identity": {
+    "contract_version": "1.1.0",
+    "provider_id": "org.cdeadmin.yugabytedb.ycql",
+    "provider_version": "0.1.0",
+    "profile_id": "yugabytedb-ycql",
+    "profile_version": "2025.2.2.2",
+    "evidence_reference": "cde-yugabytedb-ycql:live:20260903"
+  },
+  "package_type": "engine",
+  "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
+  "support_state": "experimental",
+  "enabled": true,
+  "fixture": false,
+  "production_registration": true,
+  "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
+  "permissions": [
+    {"permission_id": "network", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "secret_read", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}
+  ],
+  "required_permissions": ["network", "secret_read"],
+  "composition": {"experience_families": ["yugabytedb-ycql"], "target_adapter_ids": ["ycql-cassandra-driver"]},
+  "extension_schema": null,
+  "registration": {
+    "display_name": "YugabyteDB 2025.2.2.2 (YCQL)",
+    "workflow": "provider_endpoint",
+    "route_kind": "network",
+    "requires_secret": false,
+    "default_port": 9042,
+    "default": false,
+    "target_adapter_version": "cassandra-driver-3.30.1-ycql-v4",
+    "connection_capability_set": "cql-native-v1",
+    "connection_field_sets": ["cql-native-v1"],
+    "secret_field_sets": ["cql-native-v1"],
+    "interface": {
+      "engine_id": "yugabytedb",
+      "engine_display_name": "YugabyteDB 2025.2.2.2",
+      "interface_id": "ycql",
+      "interface_display_name": "YCQL",
+      "protocol_id": "cql"
+    },
+    "connection_fields": [
+      {"field_id": "contact_points", "route_key": "contact_points", "label": "Additional contact points (comma separated)", "control": "text", "group": "YugabyteDB YCQL topology", "help": "Host is always the first contact point."},
+      {"field_id": "local_dc", "route_key": "local_dc", "label": "Local datacenter", "control": "text", "group": "YugabyteDB YCQL topology"},
+      {"field_id": "keyspace", "route_key": "keyspace", "label": "Initial keyspace", "control": "text", "group": "YugabyteDB YCQL session"},
+      {"field_id": "version_api_scheme", "route_key": "version_api_scheme", "label": "Version API scheme", "control": "select", "group": "YugabyteDB identity verification", "default": "http", "options": [{"value": "http", "label": "HTTP"}, {"value": "https", "label": "HTTPS"}]},
+      {"field_id": "version_api_host", "route_key": "version_api_host", "label": "Version API host", "control": "text", "group": "YugabyteDB identity verification", "help": "Defaults to the YCQL host."},
+      {"field_id": "version_api_port", "route_key": "version_api_port", "label": "Master HTTP port", "control": "number", "group": "YugabyteDB identity verification", "default": 7000, "minimum": 1, "maximum": 65535},
+      {"field_id": "tls_mode", "route_key": "tls_mode", "label": "TLS mode", "control": "select", "group": "YugabyteDB YCQL TLS", "default": "disabled", "options": [{"value": "disabled", "label": "Disabled"}, {"value": "system-ca", "label": "System CA validation"}, {"value": "self-signed", "label": "Self-signed certificate"}]},
+      {"field_id": "tls_ca_file", "route_key": "tls_ca_file", "label": "TLS certificate authority file", "control": "file", "group": "YugabyteDB YCQL TLS"},
+      {"field_id": "compression", "route_key": "compression", "label": "Native protocol compression", "control": "select", "group": "YugabyteDB YCQL protocol", "default": "none", "options": [{"value": "none", "label": "None"}, {"value": "lz4", "label": "LZ4"}, {"value": "snappy", "label": "Snappy"}]},
+      {"field_id": "consistency", "route_key": "consistency", "label": "Default consistency", "control": "select", "group": "YugabyteDB YCQL consistency", "default": "LOCAL_ONE", "options": [{"value": "ONE", "label": "ONE"}, {"value": "TWO", "label": "TWO"}, {"value": "THREE", "label": "THREE"}, {"value": "QUORUM", "label": "QUORUM"}, {"value": "ALL", "label": "ALL"}, {"value": "LOCAL_QUORUM", "label": "LOCAL_QUORUM"}, {"value": "EACH_QUORUM", "label": "EACH_QUORUM"}, {"value": "LOCAL_ONE", "label": "LOCAL_ONE"}]},
+      {"field_id": "serial_consistency", "route_key": "serial_consistency", "label": "Serial consistency", "control": "select", "group": "YugabyteDB YCQL consistency", "default": "LOCAL_SERIAL", "options": [{"value": "SERIAL", "label": "SERIAL"}, {"value": "LOCAL_SERIAL", "label": "LOCAL_SERIAL"}]},
+      {"field_id": "request_timeout", "route_key": "request_timeout", "label": "Request timeout (seconds)", "control": "number", "group": "YugabyteDB YCQL timeouts", "default": 30, "minimum": 1, "maximum": 600},
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "YugabyteDB YCQL timeouts", "default": 10, "minimum": 1, "maximum": 120}
+    ]
+  },
+  "provenance": {"purpose": "YugabyteDB 2025.2.2.2 native YCQL implementation", "protocol": "cql-native-v4", "client_state": "cassandra_driver_3.30.1_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "live_evidence_reference": "cde-yugabytedb-ycql-live:2025.2.2.2-b11:20260903", "runtime_image_digest": "sha256:1fdda2ae928facf0b7b25b7c1183c540567c33730cce10a557c81c33a8e18422", "evidence_sha256": "1ca20a8949b7047f242fc43ac040c106f2bdc8fe29629158c74bcdd005d9310e", "dual_interface_gate": "passed", "dual_interface_evidence_reference": "cde-yugabytedb-dual-interface-live:20260903"}
+}

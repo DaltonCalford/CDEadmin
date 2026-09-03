@@ -30,11 +30,16 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
     ControlPlaneCatalog,
     ControlPlaneOperation,
+    COVERAGE_SCHEMA,
+    ENGINE_EXPERIENCE_FAMILIES,
+    EXPERIENCE_SCHEMA,
+    EXPERIENCE_REQUIREMENTS,
     PORTFOLIO_ENGINE_IDS,
     ProviderVisualAdministration,
     VisualAdminAccessError,
     VisualAdminExecutionError,
     catalog_for_engine,
+    concept_coverage_for_engine,
     portfolio_summary,
     control_plane_field,
 )
@@ -100,6 +105,163 @@ class NativeAdapter:
 
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
+
+    def test_every_object_has_provider_specific_navigator_and_editor(self):
+        for engine_id in PORTFOLIO_ENGINE_IDS:
+            catalog = catalog_for_engine(engine_id)
+            navigator = catalog['navigator']
+            editor_suite = catalog['object_editor']
+            self.assertEqual(EXPERIENCE_SCHEMA, navigator['schema'])
+            self.assertEqual(
+                f'cdeadmin.{engine_id}.navigator',
+                navigator['navigator_id'],
+            )
+            self.assertTrue(navigator['hierarchical'])
+            self.assertTrue(navigator['authority_path_owned_by_provider'])
+            self.assertEqual(EXPERIENCE_SCHEMA, editor_suite['schema'])
+            self.assertEqual(
+                f'cdeadmin.{engine_id}.editors',
+                editor_suite['editor_suite_id'],
+            )
+            self.assertTrue(editor_suite['provider_validates_drafts'])
+            self.assertTrue(editor_suite['provider_plans_native_commands'])
+            self.assertTrue(editor_suite['provider_owns_finality'])
+
+            kinds = {item['resource_kind'] for item in catalog['objects']}
+            group_ids = {
+                item['group_id'] for item in navigator['groups']
+            }
+            navigator_ids = set()
+            editor_ids = set()
+            for resource in catalog['objects']:
+                kind = resource['resource_kind']
+                object_navigator = resource['navigator']
+                editor = resource['editor']
+                self.assertEqual(
+                    f'cdeadmin.{engine_id}.{kind}.navigator',
+                    object_navigator['navigator_id'],
+                )
+                self.assertEqual(
+                    f'cdeadmin.{engine_id}.{kind}.editor',
+                    editor['editor_id'],
+                )
+                self.assertIn(object_navigator['group_id'], group_ids)
+                self.assertTrue(set(
+                    object_navigator['parent_kinds']
+                ).issubset(kinds))
+                self.assertIn('properties', editor['sections'])
+                self.assertIn('operations', editor['sections'])
+                self.assertEqual(
+                    [item['operation_id']
+                     for item in resource['operations']],
+                    editor['provider_planned_operations'],
+                )
+                navigator_ids.add(object_navigator['navigator_id'])
+                editor_ids.add(editor['editor_id'])
+            self.assertEqual(len(catalog['objects']), len(navigator_ids))
+            self.assertEqual(len(catalog['objects']), len(editor_ids))
+
+    def test_model_family_wins_when_object_names_overlap(self):
+        cases = (
+            ('postgresql', 'table', 'relations', 'relational-object'),
+            ('mongodb', 'collection', 'documents', 'document-object'),
+            ('mongodb', 'index', 'documents', 'document-object'),
+            ('neo4j', 'node', 'graph-data', 'graph-object'),
+            ('neo4j', 'index', 'graph-schema', 'graph-object'),
+            ('redis', 'hash', 'keys', 'key-value-object'),
+            ('opensearch', 'index', 'search-schema', 'search-object'),
+            ('clickhouse', 'table', 'analytics', 'columnar-object'),
+            ('duckdb', 'table', 'analytics', 'columnar-object'),
+            ('influxdb', 'table', 'analytics', 'time-series-object'),
+            ('milvus', 'collection', 'analytics', 'vector-object'),
+        )
+        for engine_id, kind, group_id, editor_kind in cases:
+            resource = next(
+                item for item in catalog_for_engine(engine_id)['objects']
+                if item['resource_kind'] == kind
+            )
+            self.assertEqual(group_id, resource['navigator']['group_id'])
+            self.assertEqual(editor_kind, resource['editor']['editor_kind'])
+
+    def test_object_family_coverage_is_explicit_and_fail_closed(self):
+        self.assertEqual(set(PORTFOLIO_ENGINE_IDS), set(
+            ENGINE_EXPERIENCE_FAMILIES
+        ))
+        self.assertEqual({
+            'relational', 'document', 'graph', 'key_value', 'search',
+            'columnar', 'time_series', 'vector', 'wide_column', 'semantic',
+        }, set(EXPERIENCE_REQUIREMENTS))
+        for engine_id in PORTFOLIO_ENGINE_IDS:
+            coverage = catalog_for_engine(engine_id)['concept_coverage']
+            self.assertEqual(COVERAGE_SCHEMA, coverage['schema'])
+            self.assertFalse(coverage['support_inferred_from_catalog'])
+            self.assertEqual(
+                list(ENGINE_EXPERIENCE_FAMILIES[engine_id]),
+                [item['family_id'] for item in coverage['families']],
+            )
+            for family in coverage['families']:
+                required = EXPERIENCE_REQUIREMENTS[family['family_id']]
+                self.assertEqual(
+                    list(required),
+                    [item['concept_id'] for item in family['concepts']],
+                )
+                for concept in family['concepts']:
+                    self.assertIn(
+                        concept['activation_state'],
+                        {'supported', 'read_only', 'not_applicable',
+                         'undeclared'},
+                    )
+
+    def test_catalog_presence_does_not_fabricate_support_declaration(self):
+        engine = {
+            'engine_id': 'postgresql',
+            'objects': [{'resource_kind': 'table'}],
+            'concept_declarations': {
+                'relational': {
+                    'tables': 'supported',
+                    'servers': 'invented-status',
+                },
+            },
+        }
+        coverage = concept_coverage_for_engine(engine)
+        concepts = {
+            item['concept_id']: item
+            for item in coverage['families'][0]['concepts']
+        }
+        self.assertEqual('catalogued', concepts['tables']['catalog_state'])
+        self.assertEqual('supported', concepts['tables']['activation_state'])
+        self.assertFalse(coverage['activation_ready'])
+        self.assertGreater(coverage['live_evidence_missing_count'], 0)
+        self.assertEqual('missing', concepts['servers']['catalog_state'])
+        self.assertEqual('undeclared', concepts['servers']['activation_state'])
+
+    def test_provider_catalog_specialization_refreshes_editor_contract(self):
+        class CatalogAdapter(NativeAdapter):
+            @staticmethod
+            def visual_admin_catalog(catalog):
+                database = next(
+                    item for item in catalog['objects']
+                    if item['resource_kind'] == 'database'
+                )
+                extra = copy.deepcopy(database['operations'][0])
+                extra['operation_id'] = 'provider-extra'
+                extra['title'] = 'Provider extra'
+                database['operations'].append(extra)
+                database['editor']['provider_marker'] = 'preserved'
+                return catalog
+
+        descriptor = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', CatalogAdapter()
+        ).descriptor()
+        database = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'database'
+        )
+        self.assertEqual(
+            [item['operation_id'] for item in database['operations']],
+            database['editor']['provider_planned_operations'],
+        )
+        self.assertEqual('preserved', database['editor']['provider_marker'])
 
     def test_control_plane_catalog_adds_exact_typed_operation(self):
         declaration = ControlPlaneOperation(
