@@ -33,6 +33,9 @@ REFERENCE_VERSION = '3.9.0'
 MAX_RECORDS = 10000
 MAX_PAGE_SIZE = 1000
 _NAME = re.compile(r'^[^\x00-\x1f\x7f]{1,255}$')
+_DURATION = re.compile(
+    r'^(?:0|[1-9][0-9]*(?:ns|us|ms|s|m|h|d|w|month|year))$'
+)
 
 
 class InfluxDBClientError(AnalyticHTTPError):
@@ -76,6 +79,50 @@ def _mapping(value, label='request'):
     if not isinstance(value, Mapping):
         raise InfluxDBClientError(f'{label} must be an object')
     return copy.deepcopy(dict(value))
+
+
+def _duration(value, label='duration'):
+    value = required_text(value, label, 128)
+    if not _DURATION.fullmatch(value):
+        raise InfluxDBClientError(
+            f'{label} must be a positive InfluxDB duration'
+        )
+    return value
+
+
+def _string_list(value, label, required=False):
+    if not isinstance(value, list) or (required and not value):
+        raise InfluxDBClientError(f'{label} must be an array')
+    result = [_name(item, f'{label} item') for item in value]
+    if len(result) != len(set(result)):
+        raise InfluxDBClientError(f'{label} must not contain duplicates')
+    return result
+
+
+def _string_map(value, label):
+    value = _mapping(value, label)
+    result = {}
+    for key, item in value.items():
+        result[_name(key, f'{label} key')] = required_text(
+            item, f'{label} value', 4096
+        )
+    return result
+
+
+def _sql_string(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _code_text(value, label, maximum):
+    if not isinstance(value, str) or not value.strip():
+        raise InfluxDBClientError(f'{label} must not be empty')
+    value = value.strip()
+    if len(value.encode('utf-8')) > maximum or any(
+        ord(character) < 32 and character not in '\t\n\r'
+        for character in value
+    ):
+        raise InfluxDBClientError(f'{label} is invalid')
+    return value
 
 
 class InfluxDBClient:
@@ -290,63 +337,116 @@ class InfluxDBClient:
         resources = [
             self._resource('cluster', route['host'], ping,
                            ['cluster', route['host']]),
-            self._resource('node', route['host'], ping,
-                           ['node', route['host']]),
             self._resource('processing-engine', 'processing-engine', {
-                'endpoint': '/api/v3/configure/processing_engine_plugin'
+                'plugin_endpoint': '/api/v3/plugins/files',
+                'trigger_endpoint': (
+                    '/api/v3/configure/processing_engine_trigger'
+                ),
             }),
             self._resource('compaction', 'compaction', {
                 'engine_owned': True
             }),
         ]
-        databases = self._request(
-            route, '/api/v3/configure/database',
-            query={'format': 'json', 'show_deleted': 'false'},
-        ).json()
-        if isinstance(databases, Mapping):
-            databases = databases.get('databases', databases.get('data', []))
-        for item in databases if isinstance(databases, list) else []:
-            native = item if isinstance(item, Mapping) else {'name': item}
-            name = native.get('name') or native.get('db') or item
+        nodes = self._query_rows(
+            route, 'SELECT * FROM system.nodes', '_internal'
+        )
+        for item in nodes:
+            name = item.get('node_id')
+            if name:
+                resources.append(self._resource(
+                    'node', name, item, ['node', name]
+                ))
+        databases = self._query_rows(
+            route,
+            'SELECT database_name, retention_period_ns FROM '
+            'system.databases WHERE deleted = false',
+            '_internal',
+        )
+        database_names = []
+        for item in databases:
+            name = item.get('database_name')
+            if not name:
+                continue
+            database_names.append(name)
+            native = {**item, 'name': name, 'database': name}
             resources.append(self._resource(
                 'database', name, native, ['database', name]
             ))
-        queries = (
-            ('table', 'SELECT table_schema, table_name, table_type FROM '
-             'information_schema.tables'),
-            ('column', 'SELECT table_schema, table_name, column_name, '
-             'data_type FROM information_schema.columns'),
+            retention = {
+                'name': 'retention', 'database': name,
+                'retention_period_ns': item.get('retention_period_ns'),
+            }
+            resources.append(self._resource(
+                'retention-policy', 'retention', retention,
+                ['database', name, 'retention-policy', 'retention'],
+            ))
+        tables = self._query_rows(
+            route,
+            'SELECT database_name, table_name, column_count, '
+            'series_key_columns, last_cache_count, distinct_cache_count '
+            'FROM system.tables WHERE deleted = false',
+            '_internal',
         )
-        for kind, source in queries:
+        for item in tables:
+            database = item.get('database_name')
+            table = item.get('table_name')
+            if not database or not table:
+                continue
+            native = {**item, 'name': table, 'database': database}
+            resources.append(self._resource(
+                'table', table, native, ['database', database, 'table', table]
+            ))
+        for database in database_names:
             try:
-                rows = self._query_rows(route, source)
+                rows = self._query_rows(
+                    route,
+                    'SELECT table_schema, table_name, column_name, data_type '
+                    'FROM information_schema.columns',
+                    database,
+                )
             except InfluxDBClientError:
                 continue
             for row in rows:
-                if not isinstance(row, Mapping):
+                if not isinstance(row, Mapping) or (
+                    row.get('table_schema') != 'iox'
+                ):
                     continue
                 table = row.get('table_name')
-                name = row.get('column_name') if kind == 'column' else table
-                schema = row.get('table_schema') or route['database']
+                name = row.get('column_name')
+                native = {
+                    **row, 'name': name, 'database': database,
+                    'table': table,
+                }
                 resources.append(self._resource(
-                    kind, name, row, [kind, schema, table, name]
+                    'column', name, native,
+                    ['database', database, 'table', table, 'column', name],
                 ))
-                if kind == 'column':
-                    role = str(row.get('data_type', '')).casefold()
-                    derived = 'tag' if role == 'dictionary' else 'field'
+                data_type = str(row.get('data_type', '')).casefold()
+                if name != 'time':
+                    derived = (
+                        'tag' if data_type.startswith('dictionary(')
+                        else 'field'
+                    )
                     resources.append(self._resource(
-                        derived, name, row, [derived, schema, table, name]
+                        derived, name, native,
+                        ['database', database, 'table', table, derived, name],
                     ))
-        system_queries = (
-            ('last-cache', 'SELECT * FROM system.last_caches', 'name', None),
-            ('distinct-cache', 'SELECT * FROM system.distinct_caches',
-             'name', None),
-            ('trigger', 'SELECT * FROM system.processing_engine_triggers',
-             'trigger_name', None),
+        system_queries = []
+        for database in database_names:
+            system_queries.extend((
+                ('last-cache', 'SELECT * FROM system.last_caches', 'name',
+                 database),
+                ('distinct-cache', 'SELECT * FROM system.distinct_caches',
+                 'name', database),
+                ('trigger',
+                 'SELECT * FROM system.processing_engine_triggers',
+                 'trigger_name', database),
+            ))
+        system_queries.extend((
             ('plugin', 'SELECT * FROM system.plugin_files', 'plugin_name',
              '_internal'),
             ('token', 'SELECT * FROM system.tokens', 'name', '_internal'),
-        )
+        ))
         for kind, source, name_field, database in system_queries:
             try:
                 rows = self._query_rows(route, source, database)
@@ -361,9 +461,12 @@ class InfluxDBClient:
                     native['token_material_exposed'] = False
                 name = native[name_field]
                 table = native.get('table')
+                native.update({
+                    'name': name, 'database': database,
+                })
                 resources.append(self._resource(
                     kind, name, native,
-                    [kind, route['database'], table, name]
+                    [kind, database, table, name]
                     if table else [kind, name],
                 ))
         return resources
@@ -424,7 +527,7 @@ class InfluxDBClient:
                     'title': 'Create table', 'fields': [
                         f('database', 'Database', required=True),
                         f('name', 'Table name', required=True),
-                        f('tags', 'Tag columns', 'json', True, default=[]),
+                        f('tags', 'Tag columns', 'json', False, default=[]),
                         f('fields', 'Field columns', 'json', True, default=[
                             {'name': 'value', 'type': 'float64'}
                         ]),
@@ -442,6 +545,17 @@ class InfluxDBClient:
                         f('accept_partial', 'Accept partial writes',
                           'boolean', True, default=False),
                     ]}
+        if kind == 'retention-policy' and operation == 'alter':
+            return {
+                'form_id': 'influxdb-retention-alter',
+                'title': 'Set database retention',
+                'fields': [
+                    f('retention_period', 'Retention period', required=False,
+                      help='For example 30d; leave empty to retain forever'),
+                    f('retain_forever', 'Clear retention period', 'boolean',
+                      True, default=False),
+                ],
+            }
         if kind in {'last-cache', 'distinct-cache'} and operation == 'create':
             fields = [
                 f('database', 'Database', required=True),
@@ -467,33 +581,200 @@ class InfluxDBClient:
                 ])
             return {'form_id': f'influxdb-{kind}-create',
                     'title': f'Create {kind}', 'fields': fields}
-        if kind in {'trigger', 'plugin',
-                    'processing-engine'} and operation == 'execute':
-            return {'form_id': f'influxdb-{kind}-execute',
-                    'title': f'Configure {kind}', 'fields': [
-                        f('action', 'Action', 'select', True, default='create',
-                          options=[{'value': value, 'label': value.title()}
-                                   for value in ('create', 'delete', 'enable',
-                                                 'disable')]),
-                        f('definition', 'Native API document', 'json', True,
-                          default={}),
-            ]}
+        if kind == 'trigger' and operation == 'execute':
+            return {
+                'form_id': 'influxdb-trigger-execute',
+                'title': 'Manage processing trigger',
+                'fields': [
+                    f('action', 'Action', 'select', True, default='create',
+                      options=[{'value': value, 'label': value.title()}
+                               for value in (
+                                   'create', 'delete', 'enable', 'disable'
+                               )]),
+                    f('database', 'Database'),
+                    f('trigger_name', 'Trigger name'),
+                    f('plugin_filename', 'Plugin filename'),
+                    f('trigger_kind', 'Trigger kind', 'select', False,
+                      default='table', options=[
+                          {'value': 'table', 'label': 'Table writes'},
+                          {'value': 'all_tables', 'label': 'All writes'},
+                          {'value': 'cron', 'label': 'Cron schedule'},
+                          {'value': 'every', 'label': 'Fixed interval'},
+                          {'value': 'request', 'label': 'HTTP request path'},
+                      ]),
+                    f('trigger_value', 'Table, schedule, interval, or path'),
+                    f('arguments', 'Trigger arguments', 'json', False,
+                      default={}),
+                    f('run_async', 'Run asynchronously', 'boolean', True,
+                      default=False),
+                    f('error_behavior', 'On error', 'select', True,
+                      default='log', options=[
+                          {'value': 'log', 'label': 'Log'},
+                          {'value': 'retry', 'label': 'Retry'},
+                          {'value': 'disable', 'label': 'Disable trigger'},
+                      ]),
+                    f('disabled', 'Create disabled', 'boolean', True,
+                      default=False),
+                    f('force', 'Force deletion', 'boolean', True,
+                      default=False),
+                    f('acknowledge_operation', 'Confirm action', 'boolean',
+                      True, default=False),
+                ],
+            }
+        if kind == 'plugin' and operation == 'execute':
+            return {
+                'form_id': 'influxdb-plugin-execute',
+                'title': 'Manage processing plugin',
+                'fields': [
+                    f('action', 'Action', 'select', True,
+                      default='upload-file', options=[
+                          {'value': 'upload-file', 'label': 'Upload file'},
+                          {'value': 'update-file', 'label': 'Update file'},
+                          {'value': 'replace-directory',
+                           'label': 'Replace directory'},
+                      ]),
+                    f('database', 'Database'),
+                    f(
+                        'plugin_name', 'Plugin name or filename',
+                        help=(
+                            'Use a filename when uploading; use the trigger '
+                            'name when updating an installed plugin.'
+                        ),
+                    ),
+                    f('content', 'Python source', 'code'),
+                    f('files', 'Directory files', 'json', False, default=[]),
+                    f('acknowledge_operation', 'Confirm action', 'boolean',
+                      True, default=False),
+                ],
+            }
+        if kind == 'processing-engine' and operation == 'execute':
+            return {
+                'form_id': 'influxdb-processing-engine-execute',
+                'title': 'Run processing-engine operation',
+                'fields': [
+                    f('action', 'Action', 'select', True,
+                      default='test-wal', options=[
+                          {'value': 'test-wal', 'label': 'Test WAL plugin'},
+                          {'value': 'test-schedule',
+                           'label': 'Test scheduled plugin'},
+                          {'value': 'install-packages',
+                           'label': 'Install packages'},
+                          {'value': 'install-requirements',
+                           'label': 'Install requirements'},
+                      ]),
+                    f('database', 'Database'),
+                    f('plugin_filename', 'Plugin filename'),
+                    f('input_line_protocol', 'Test line protocol', 'code'),
+                    f('schedule', 'Optional schedule'),
+                    f('cache_name', 'Optional cache name'),
+                    f('arguments', 'Plugin arguments', 'json', False,
+                      default={}),
+                    f('packages', 'Package names', 'json', False, default=[]),
+                    f('requirements_location', 'Requirements file location'),
+                    f('acknowledge_operation', 'Confirm action', 'boolean',
+                      True, default=False),
+                ],
+            }
         if operation == 'drop':
-            return {'form_id': 'influxdb-drop', 'title': 'Drop', 'fields': [
+            fields = [
                 f('acknowledge_drop', 'Confirm drop', 'boolean', True,
                   default=False),
-            ]}
+            ]
+            if kind in {'database', 'table'}:
+                fields.extend([
+                    f('hard_delete_mode', 'Hard deletion', 'select', True,
+                      default='default', options=[
+                          {'value': 'default', 'label': 'Server default'},
+                          {'value': 'now', 'label': 'Immediately'},
+                          {'value': 'never', 'label': 'Never'},
+                          {'value': 'timestamp',
+                           'label': 'At RFC 3339 timestamp'},
+                      ]),
+                    f('hard_delete_at', 'Hard-delete timestamp'),
+                ])
+            return {
+                'form_id': f'influxdb-{kind}-drop',
+                'title': f'Drop {kind}', 'fields': fields,
+            }
         return {'form_id': f'influxdb-{kind}-{operation}',
-                'title': operation.title(), 'fields': [
-                    f('definition', 'Native API document', 'json', True,
-                      default={}),
-        ]}
+                'title': operation.title(), 'fields': []}
 
     def visual_admin_catalog(self, catalog):
         catalog['native_planner'] = 'influxdb3-http-api-planner'
         catalog['query_languages'] = ['sql', 'influxql']
         catalog['transaction_authority'] = 'influxdb-request-outcome'
         catalog['common_finality_interpretation'] = False
+        catalog['experience_families'] = ['time_series', 'semantic']
+
+        def declaration(resource_kinds, operations, reason, evidence):
+            return {
+                'status': 'supported', 'resource_kinds': resource_kinds,
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in operations
+                },
+                'reason': reason, 'evidence': [evidence],
+            }
+
+        catalog['concept_declarations'] = {
+            'time_series': {
+                'measurements_or_tables': declaration(
+                    ['table'], ('table',),
+                    'InfluxDB native tables are discovered from the system '
+                    'catalog and use typed schema and line-protocol editors.',
+                    'influxdb-3.9-native-tables',
+                ),
+                'tags': declaration(
+                    ['tag'], ('tag',),
+                    'Series-key tag columns are classified from exact Arrow '
+                    'dictionary types and exposed as immutable metadata.',
+                    'influxdb-3.9-tags',
+                ),
+                'fields': declaration(
+                    ['field'], ('field',),
+                    'Native field columns and their exact Arrow types are '
+                    'individually navigable and inspectable.',
+                    'influxdb-3.9-fields',
+                ),
+                'retention': declaration(
+                    ['retention-policy'], ('retention-policy',),
+                    'Database retention is a first-class child with typed set '
+                    'and retain-forever actions.',
+                    'influxdb-3.9-retention',
+                ),
+                'processing': declaration(
+                    ['processing-engine', 'trigger', 'plugin'],
+                    ('processing-engine', 'trigger', 'plugin'),
+                    'Plugin files, registrations, trigger lifecycles and '
+                    'bounded test/install actions are provider-owned.',
+                    'influxdb-3.9-processing-engine',
+                ),
+                'caches': declaration(
+                    ['last-cache', 'distinct-cache'],
+                    ('last-cache', 'distinct-cache'),
+                    'Last-value and distinct-value caches have native typed '
+                    'configuration and lifecycle operations.',
+                    'influxdb-3.9-caches',
+                ),
+            },
+            'semantic': {
+                concept: {
+                    'status': 'supported', 'resource_kinds': [],
+                    'operation_obligations': {},
+                    'external_surface': 'cdeadmin.semantic-model-workspace.v1',
+                    'reason': (
+                        'The revisioned semantic workspace designs, '
+                        'validates, compiles, executes and renders this '
+                        'concept through InfluxDB 3 SQL.'
+                    ),
+                    'evidence': ['influxdb-3.9-semantic-workspace'],
+                }
+                for concept in (
+                    'cubes', 'dimensions', 'hierarchies', 'levels',
+                    'measures', 'materializations',
+                )
+            },
+        }
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             resource['operations'] = [
@@ -518,42 +799,212 @@ class InfluxDBClient:
             ):
                 raise InfluxDBClientError('operation is unavailable')
             draft = _mapping(request.get('draft', {}), 'draft')
+            kind = request.get('resource_kind')
+            operation = request.get('operation_id')
             if request.get('operation_id') == 'drop' and not draft.get(
                 'acknowledge_drop'
             ):
                 raise InfluxDBClientError('drop acknowledgement is required')
-            if request.get('resource_kind') == 'table' and request.get(
-                'operation_id'
-            ) == 'create':
-                if not isinstance(draft.get('tags'), list):
-                    raise InfluxDBClientError('tags must be an array')
+            if kind in {'database', 'table'} and operation == 'drop':
+                mode = draft.get('hard_delete_mode', 'default')
+                if mode not in {'default', 'now', 'never', 'timestamp'}:
+                    raise InfluxDBClientError(
+                        'hard deletion mode is invalid'
+                    )
+                if mode == 'timestamp':
+                    timestamp = required_text(
+                        draft.get('hard_delete_at'),
+                        'hard deletion timestamp', 64,
+                    )
+                    if not re.fullmatch(
+                        r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z',
+                        timestamp,
+                    ):
+                        raise InfluxDBClientError(
+                            'hard deletion timestamp must be RFC 3339 UTC'
+                        )
+            if kind == 'database' and operation in {'create', 'alter'}:
+                if operation == 'create':
+                    _name(draft.get('name'), 'database')
+                if draft.get('retention_period'):
+                    _duration(draft['retention_period'], 'retention period')
+            if kind == 'table' and operation == 'create':
+                _name(draft.get('database'), 'database')
+                _name(draft.get('name'), 'table')
+                tags = _string_list(draft.get('tags', []), 'tags')
                 if not isinstance(draft.get('fields'),
                                   list) or not draft['fields']:
                     raise InfluxDBClientError(
                         'fields must be a non-empty array')
-            if request.get('resource_kind') in {
+                field_names = []
+                for value in draft['fields']:
+                    item = _mapping(value, 'field')
+                    field_names.append(_name(item.get('name'), 'field'))
+                    if str(item.get('type', '')).casefold() not in {
+                        'utf8', 'int64', 'uint64', 'float64', 'bool'
+                    }:
+                        raise InfluxDBClientError('field type is invalid')
+                if len(field_names) != len(set(field_names)):
+                    raise InfluxDBClientError(
+                        'field names must not contain duplicates'
+                    )
+                if set(tags).intersection(field_names):
+                    raise InfluxDBClientError(
+                        'tag and field names must not overlap'
+                    )
+            if kind == 'table' and operation == 'insert':
+                _code_text(
+                    draft.get('line_protocol'), 'line protocol',
+                    2 * 1024 * 1024,
+                )
+                if draft.get('precision', 'nanosecond') not in {
+                    'nanosecond', 'microsecond', 'millisecond', 'second'
+                }:
+                    raise InfluxDBClientError('precision is invalid')
+            if kind == 'retention-policy' and operation == 'alter':
+                if draft.get('retain_forever'):
+                    if draft.get('retention_period'):
+                        raise InfluxDBClientError(
+                            'retain forever cannot include a retention period'
+                        )
+                else:
+                    _duration(
+                        draft.get('retention_period'), 'retention period'
+                    )
+            if kind in {
                 'last-cache', 'distinct-cache'
-            } and request.get('operation_id') == 'create':
+            } and operation == 'create':
                 field = ('key_columns' if request['resource_kind'] ==
                          'last-cache' else 'columns')
-                if not isinstance(draft.get(field), list) or not draft[field]:
-                    raise InfluxDBClientError(
-                        f'{field} must be a non-empty array'
+                _name(draft.get('database'), 'database')
+                _name(draft.get('table'), 'table')
+                _string_list(draft.get(field), field, True)
+                if kind == 'last-cache':
+                    if draft.get('value_columns') is not None:
+                        _string_list(
+                            draft.get('value_columns'), 'value_columns'
+                        )
+                    bounded_integer(
+                        draft.get('count'), 'count', 1, 1, 10
                     )
-            if request.get('resource_kind') in {
-                'trigger', 'plugin', 'processing-engine'
-            } and request.get('operation_id') == 'execute':
-                if draft.get('action') not in {
-                    'create', 'delete', 'enable', 'disable'
-                }:
-                    raise InfluxDBClientError(
-                        'processing action is invalid'
+                    bounded_integer(
+                        draft.get('ttl'), 'ttl', 14400, 1, 315360000
                     )
+                else:
+                    bounded_integer(
+                        draft.get('max_cardinality'),
+                        'maximum cardinality', 100000, 1, 2**63 - 1,
+                    )
+                    bounded_integer(
+                        draft.get('max_age_seconds'),
+                        'maximum age', 3600, 1, 315360000,
+                    )
+            if kind == 'trigger' and operation == 'execute':
+                self._validate_trigger_action(draft)
+            if kind == 'plugin' and operation == 'execute':
+                self._validate_plugin_action(draft)
+            if kind == 'processing-engine' and operation == 'execute':
+                self._validate_processing_action(draft)
         except (InfluxDBClientError, KeyError) as exc:
             errors.append({'field_id': None,
                            'code': 'influxdb_native_validation',
                            'message': str(exc)})
         return {'errors': errors, 'warnings': []}
+
+    @staticmethod
+    def _require_acknowledgement(draft):
+        if not draft.get('acknowledge_operation'):
+            raise InfluxDBClientError(
+                'processing operation acknowledgement is required'
+            )
+
+    @classmethod
+    def _validate_trigger_action(cls, draft):
+        cls._require_acknowledgement(draft)
+        action = draft.get('action')
+        if action not in {'create', 'delete', 'enable', 'disable'}:
+            raise InfluxDBClientError('trigger action is invalid')
+        if action == 'create':
+            _name(draft.get('database'), 'database')
+            _name(draft.get('trigger_name'), 'trigger name')
+            _name(draft.get('plugin_filename'), 'plugin filename')
+            kind = draft.get('trigger_kind')
+            if kind not in {
+                'table', 'all_tables', 'cron', 'every', 'request'
+            }:
+                raise InfluxDBClientError('trigger kind is invalid')
+            if kind != 'all_tables':
+                required_text(
+                    draft.get('trigger_value'), 'trigger value', 4096
+                )
+            _string_map(draft.get('arguments', {}), 'trigger arguments')
+            if draft.get('error_behavior', 'log') not in {
+                'log', 'retry', 'disable'
+            }:
+                raise InfluxDBClientError('trigger error behavior is invalid')
+        else:
+            _name(draft.get('database'), 'database')
+            _name(draft.get('trigger_name'), 'trigger name')
+
+    @classmethod
+    def _validate_plugin_action(cls, draft):
+        cls._require_acknowledgement(draft)
+        action = draft.get('action')
+        if action not in {
+            'upload-file', 'update-file', 'replace-directory',
+        }:
+            raise InfluxDBClientError('plugin action is invalid')
+        _name(draft.get('database'), 'database')
+        _name(draft.get('plugin_name'), 'plugin name')
+        if action in {'upload-file', 'update-file'}:
+            _code_text(draft.get('content'), 'plugin source', 2 * 1024**2)
+        elif action == 'replace-directory':
+            files = draft.get('files')
+            if not isinstance(files, list) or not files:
+                raise InfluxDBClientError(
+                    'plugin directory files must be a non-empty array'
+                )
+            for value in files:
+                item = _mapping(value, 'plugin directory file')
+                _name(item.get('relative_path'), 'relative path')
+                _code_text(
+                    item.get('content'), 'plugin source', 2 * 1024**2
+                )
+            paths = [item['relative_path'] for item in files]
+            if len(paths) != len(set(paths)):
+                raise InfluxDBClientError(
+                    'plugin directory paths must not contain duplicates'
+                )
+
+    @classmethod
+    def _validate_processing_action(cls, draft):
+        cls._require_acknowledgement(draft)
+        action = draft.get('action')
+        if action not in {
+            'test-wal', 'test-schedule', 'install-packages',
+            'install-requirements',
+        }:
+            raise InfluxDBClientError('processing action is invalid')
+        if action in {'test-wal', 'test-schedule'}:
+            _name(draft.get('database'), 'database')
+            _name(draft.get('plugin_filename'), 'plugin filename')
+            _string_map(draft.get('arguments', {}), 'plugin arguments')
+            if draft.get('cache_name'):
+                _name(draft.get('cache_name'), 'cache name')
+        if action == 'test-wal':
+            _code_text(
+                draft.get('input_line_protocol'), 'test line protocol',
+                2 * 1024 * 1024,
+            )
+        elif action == 'install-packages':
+            _string_list(draft.get('packages'), 'packages', True)
+        elif action == 'install-requirements':
+            required_text(
+                draft.get('requirements_location'),
+                'requirements location', 4096,
+            )
+        elif action == 'test-schedule' and draft.get('schedule'):
+            required_text(draft.get('schedule'), 'schedule', 4096)
 
     def plan_admin_operation(self, request):
         validation = self.validate_admin_operation(request)
@@ -587,6 +1038,16 @@ class InfluxDBClient:
         route = self._route({'route': payload.get('route')})
         if route['read_only'] and payload.get('operation') != 'inspect':
             raise InfluxDBClientError('read-only route refused mutation')
+        if payload.get('operation') == 'inspect':
+            document = self._inspect_admin(route, payload)
+            return {
+                'native_response_observed': True,
+                'native_response': document,
+                'http_status': 200,
+                'automatic_retry': False,
+                'request_atomicity_only': True,
+                'transaction_finality_interpreted_by_common_code': False,
+            }
         response = self._apply_admin(route, payload)
         document = response.json()
         return {
@@ -598,22 +1059,104 @@ class InfluxDBClient:
             'transaction_finality_interpreted_by_common_code': False,
         }
 
+    def _inspect_admin(self, route, payload):
+        kind = payload['kind']
+        target = payload.get('target', {})
+        database = (
+            target.get('db') or target.get('database') or
+            target.get('database_name') or route['database']
+        )
+        name = (
+            target.get('name') or target.get('table_name') or
+            target.get('column_name') or target.get('trigger_name') or
+            target.get('plugin_name')
+        )
+        if kind == 'cluster':
+            return self._request(route, '/ping').json()
+        if kind == 'node':
+            source = 'SELECT * FROM system.nodes'
+            if name:
+                source += ' WHERE node_id = ' + _sql_string(name)
+            return {'rows': self._query_rows(route, source, '_internal')}
+        if kind in {'database', 'retention-policy'}:
+            source = (
+                'SELECT * FROM system.databases WHERE database_name = ' +
+                _sql_string(database if kind == 'retention-policy' else name)
+            )
+            return {'rows': self._query_rows(route, source, '_internal')}
+        if kind == 'table':
+            source = (
+                'SELECT * FROM system.tables WHERE database_name = ' +
+                _sql_string(database) + ' AND table_name = ' +
+                _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, '_internal')}
+        if kind in {'column', 'tag', 'field'}:
+            source = (
+                'SELECT * FROM information_schema.columns WHERE table_name = '
+                + _sql_string(target.get('table')) +
+                ' AND column_name = ' + _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, database)}
+        if kind in {'last-cache', 'distinct-cache'}:
+            table = target.get('table')
+            source = (
+                'SELECT * FROM system.' + kind.replace('-', '_') + 's '
+                'WHERE table = ' + _sql_string(table) + ' AND name = ' +
+                _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, database)}
+        if kind == 'trigger':
+            source = (
+                'SELECT * FROM system.processing_engine_triggers WHERE '
+                'trigger_name = ' + _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, database)}
+        if kind == 'plugin':
+            source = (
+                'SELECT * FROM system.plugin_files WHERE plugin_name = ' +
+                _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, '_internal')}
+        if kind == 'token':
+            source = (
+                'SELECT * EXCLUDE(hash) FROM system.tokens WHERE name = ' +
+                _sql_string(name)
+            )
+            return {'rows': self._query_rows(route, source, '_internal')}
+        if kind == 'processing-engine':
+            return {
+                'triggers': self._query_rows(
+                    route, 'SELECT * FROM system.processing_engine_triggers',
+                    database,
+                ),
+                'plugins': self._query_rows(
+                    route, 'SELECT * FROM system.plugin_files', '_internal'
+                ),
+            }
+        if kind == 'compaction':
+            return {'parquet_files': self._query_rows(
+                route, 'SELECT * FROM system.parquet_files', database
+            )}
+        raise InfluxDBClientError('resource inspection is unavailable')
+
     def _apply_admin(self, route, payload):
         kind, operation = payload['kind'], payload['operation']
         draft, target = payload.get('draft', {}), payload.get('target', {})
-        database = target.get('db') or target.get('database') or draft.get(
-            'database'
-        ) or route['database']
+        database = (
+            target.get('db') or target.get('database') or
+            target.get('database_name') or draft.get('database') or
+            route['database']
+        )
         name = target.get('name') or target.get(
-            'table_name') or draft.get('name')
-        if operation == 'inspect':
-            return self._request(route, '/ping')
+            'table_name') or target.get('trigger_name') or target.get(
+                'plugin_name') or draft.get('name')
         if kind == 'database':
             if operation in {'create', 'alter'}:
                 body = {'db': _name(name, 'database')}
                 if draft.get('retention_period'):
-                    body['retention_period'] = required_text(
-                        draft['retention_period'], 'retention period', 128
+                    body['retention_period'] = _duration(
+                        draft['retention_period'], 'retention period'
                     )
                 return self._request(
                     route, '/api/v3/configure/database',
@@ -621,17 +1164,26 @@ class InfluxDBClient:
                     json_body=body, mutating=True,
                 )
             if operation == 'drop':
+                hard_delete = self._hard_delete_at(draft)
                 return self._request(
                     route, '/api/v3/configure/database', method='DELETE',
-                    query={'db': _name(name, 'database')}, mutating=True,
+                    query={
+                        'db': _name(name, 'database'),
+                        'hard_delete_at': hard_delete,
+                    }, mutating=True,
                 )
         if kind == 'retention-policy' and operation == 'alter':
             return self._request(
                 route, '/api/v3/configure/database', method='PUT',
-                json_body={'db': _name(database, 'database'),
-                           'retention_period': required_text(
-                               draft.get('definition'), 'retention period', 128
-                )}, mutating=True,
+                json_body={
+                    'db': _name(database, 'database'),
+                    'retention_period': (
+                        None if draft.get('retain_forever') else _duration(
+                            draft.get('retention_period'), 'retention period'
+                        )
+                    ),
+                },
+                mutating=True,
             )
         if kind == 'table':
             if operation == 'create':
@@ -673,16 +1225,20 @@ class InfluxDBClient:
                            'accept_partial': str(bool(draft.get(
                                'accept_partial'
                            ))).lower()},
-                    body=required_text(
+                    body=_code_text(
                         draft.get('line_protocol'), 'line protocol',
                         2 * 1024 * 1024
                     ), headers={'Content-Type': 'text/plain; charset=utf-8'},
                     mutating=True,
                 )
             if operation == 'drop':
+                hard_delete = self._hard_delete_at(draft)
                 return self._request(
                     route, '/api/v3/configure/table', method='DELETE',
-                    query={'db': database, 'table': _name(name, 'table')},
+                    query={
+                        'db': database, 'table': _name(name, 'table'),
+                        'hard_delete_at': hard_delete,
+                    },
                     mutating=True,
                 )
         if kind in {'last-cache', 'distinct-cache'}:
@@ -751,25 +1307,141 @@ class InfluxDBClient:
                     query={'token_name': _name(name, 'token name')},
                     mutating=True,
                 )
-        if kind in {'trigger', 'plugin',
-                    'processing-engine'} and operation == 'execute':
-            action = draft['action']
-            definition = _mapping(draft['definition'], 'definition')
-            endpoint = {
-                'trigger': '/api/v3/configure/processing_engine_trigger',
-                'plugin': '/api/v3/configure/processing_engine_plugin',
-                'processing-engine': (
-                    '/api/v3/configure/plugin_environment/install_packages'
-                ),
-            }[kind]
-            if kind == 'trigger' and action in {'enable', 'disable'}:
-                endpoint += '/' + action
-            method = 'DELETE' if action == 'delete' else 'POST'
+        if kind == 'trigger' and operation == 'execute':
+            return self._apply_trigger_action(route, draft)
+        if kind == 'plugin' and operation == 'execute':
+            return self._apply_plugin_action(route, draft)
+        if kind == 'processing-engine' and operation == 'execute':
+            return self._apply_processing_action(route, draft)
+        raise InfluxDBClientError('administration operation is unavailable')
+
+    @staticmethod
+    def _hard_delete_at(draft):
+        mode = draft.get('hard_delete_mode', 'default')
+        if mode == 'timestamp':
+            return draft['hard_delete_at']
+        return mode
+
+    def _apply_trigger_action(self, route, draft):
+        action = draft['action']
+        database = _name(draft.get('database'), 'database')
+        trigger_name = _name(draft.get('trigger_name'), 'trigger name')
+        endpoint = '/api/v3/configure/processing_engine_trigger'
+        if action in {'enable', 'disable'}:
             return self._request(
-                route, endpoint, method=method, json_body=definition,
+                route, endpoint + '/' + action, method='POST',
+                query={'db': database, 'trigger_name': trigger_name},
                 mutating=True,
             )
-        raise InfluxDBClientError('administration operation is unavailable')
+        if action == 'delete':
+            return self._request(
+                route, endpoint, method='DELETE', json_body={
+                    'db': database, 'trigger_name': trigger_name,
+                    'force': bool(draft.get('force')),
+                }, mutating=True,
+            )
+        trigger_kind = draft['trigger_kind']
+        specification = {
+            'all_tables': 'all_tables',
+            'table': 'table:' + draft.get('trigger_value', ''),
+            'cron': 'cron:' + draft.get('trigger_value', ''),
+            'every': 'every:' + draft.get('trigger_value', ''),
+            'request': 'request:' + draft.get('trigger_value', ''),
+        }[trigger_kind]
+        return self._request(
+            route, endpoint, method='POST', json_body={
+                'db': database,
+                'plugin_filename': _name(
+                    draft.get('plugin_filename'), 'plugin filename'
+                ),
+                'trigger_name': trigger_name,
+                'trigger_settings': {
+                    'run_async': bool(draft.get('run_async')),
+                    'error_behavior': draft.get('error_behavior', 'log'),
+                },
+                'trigger_specification': specification,
+                'trigger_arguments': _string_map(
+                    draft.get('arguments', {}), 'trigger arguments'
+                ) or None,
+                'disabled': bool(draft.get('disabled')),
+            }, mutating=True,
+        )
+
+    def _apply_plugin_action(self, route, draft):
+        action = draft['action']
+        database = _name(draft.get('database'), 'database')
+        plugin_name = _name(draft.get('plugin_name'), 'plugin name')
+        if action in {'upload-file', 'update-file'}:
+            return self._request(
+                route, '/api/v3/plugins/files',
+                method='POST' if action == 'upload-file' else 'PUT',
+                query={'db': database}, json_body={
+                    'plugin_name': plugin_name,
+                    'content': _code_text(
+                        draft.get('content'), 'plugin source', 2 * 1024**2
+                    ),
+                }, mutating=True,
+            )
+        if action == 'replace-directory':
+            return self._request(
+                route, '/api/v3/plugins/directory', method='PUT',
+                query={'db': database}, json_body={
+                    'plugin_name': plugin_name,
+                    'files': [{
+                        'relative_path': _name(
+                            item['relative_path'], 'relative path'
+                        ),
+                        'content': _code_text(
+                            item['content'], 'plugin source', 2 * 1024**2
+                        ),
+                    } for item in draft['files']],
+                }, mutating=True,
+            )
+        raise InfluxDBClientError('plugin action is unavailable')
+
+    def _apply_processing_action(self, route, draft):
+        action = draft['action']
+        if action == 'install-packages':
+            return self._request(
+                route,
+                '/api/v3/configure/plugin_environment/install_packages',
+                method='POST', json_body={'packages': _string_list(
+                    draft.get('packages'), 'packages', True
+                )}, mutating=True,
+            )
+        if action == 'install-requirements':
+            return self._request(
+                route,
+                '/api/v3/configure/plugin_environment/install_requirements',
+                method='POST', json_body={
+                    'requirements_location': required_text(
+                        draft.get('requirements_location'),
+                        'requirements location', 4096,
+                    ),
+                }, mutating=True,
+            )
+        body = {
+            'filename': _name(
+                draft.get('plugin_filename'), 'plugin filename'
+            ),
+            'database': _name(draft.get('database'), 'database'),
+            'cache_name': draft.get('cache_name') or None,
+            'input_arguments': _string_map(
+                draft.get('arguments', {}), 'plugin arguments'
+            ) or None,
+        }
+        if action == 'test-wal':
+            body['input_lp'] = _code_text(
+                draft.get('input_line_protocol'), 'test line protocol',
+                2 * 1024 * 1024,
+            )
+            endpoint = '/api/v3/plugin_test/wal'
+        else:
+            body['schedule'] = draft.get('schedule') or None
+            endpoint = '/api/v3/plugin_test/schedule'
+        return self._request(
+            route, endpoint, method='POST', json_body=body, mutating=True
+        )
 
     def read_admin_rows(self, request):
         route = self._route({'route': request.get('_provider_route')})

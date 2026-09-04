@@ -116,16 +116,45 @@ class AnalyticHTTPFactory:
             return Response([{'name': 'metrics', 'retention_period': '30d'}])
         if path == '/api/v3/query_sql':
             source = body['q']
+            if 'FROM system.databases' in source:
+                return Response([{
+                    'database_name': 'metrics',
+                    'retention_period_ns': 2592000000000000,
+                }])
+            if 'FROM system.nodes' in source:
+                return Response([{
+                    'node_id': 'node-one', 'state': 'running',
+                }])
+            if 'FROM system.tables' in source:
+                return Response([{
+                    'database_name': 'metrics', 'table_name': 'cpu',
+                    'column_count': 3, 'series_key_columns': 'host',
+                    'last_cache_count': 0, 'distinct_cache_count': 0,
+                }])
             if 'information_schema.tables' in source:
                 return Response([{
                     'table_schema': 'metrics', 'table_name': 'cpu',
                     'table_type': 'BASE TABLE',
                 }])
             if 'information_schema.columns' in source:
-                return Response([{
-                    'table_schema': 'metrics', 'table_name': 'cpu',
-                    'column_name': 'host', 'data_type': 'dictionary',
-                }])
+                return Response([
+                    {
+                        'table_schema': 'iox', 'table_name': 'cpu',
+                        'column_name': 'host',
+                        'data_type': 'Dictionary(Int32, Utf8)',
+                    },
+                    {
+                        'table_schema': 'iox', 'table_name': 'cpu',
+                        'column_name': 'usage', 'data_type': 'Float64',
+                    },
+                    {
+                        'table_schema': 'iox', 'table_name': 'cpu',
+                        'column_name': 'time',
+                        'data_type': 'Timestamp(Nanosecond, None)',
+                    },
+                ])
+            if 'FROM system.' in source:
+                return Response([])
             return Response([{
                 'time': '2026-09-02T12:00:00Z', 'host': 'one',
                 'usage': 0.5,
@@ -404,6 +433,134 @@ class AnalyticProviderTests(unittest.TestCase):
         })
         self.assertEqual(
             '/api/v3/configure/last_cache', http.requests[-1]['path']
+        )
+
+    def test_influxdb_time_series_forms_and_native_operations_are_typed(self):
+        http = AnalyticHTTPFactory()
+        client = InfluxDBClient(urlopen=http)
+        resources = client.list_resources({'route': influx_route()})
+        self.assertTrue({
+            'node', 'database', 'retention-policy', 'table', 'column',
+            'tag', 'field', 'processing-engine',
+        } <= {item['resource_kind'] for item in resources})
+
+        catalog = client.visual_admin_catalog(catalog_for_engine('influxdb'))
+        self.assertEqual(
+            ['time_series', 'semantic'], catalog['experience_families']
+        )
+        self.assertEqual(
+            6, len(catalog['concept_declarations']['time_series'])
+        )
+        self.assertEqual(
+            6, len(catalog['concept_declarations']['semantic'])
+        )
+        typed_kinds = {
+            'table', 'retention-policy', 'last-cache', 'distinct-cache',
+            'trigger', 'plugin', 'processing-engine',
+        }
+        for item in catalog['objects']:
+            if item['resource_kind'] not in typed_kinds:
+                continue
+            for operation in item['operations']:
+                fields = operation['form']['fields']
+                self.assertNotIn(
+                    'definition', {field['field_id'] for field in fields}
+                )
+
+        inspect = client.plan_admin_operation({
+            'resource_kind': 'field', 'operation_id': 'inspect',
+            'target_resource': {'native': {
+                'database': 'metrics', 'table': 'cpu', 'name': 'usage',
+            }},
+            '_provider_route': influx_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': inspect['provider_payload']
+        })
+        self.assertIn(
+            "column_name = 'usage'", http.requests[-1]['body']['q']
+        )
+
+        retention = client.plan_admin_operation({
+            'resource_kind': 'retention-policy', 'operation_id': 'alter',
+            'target_resource': {'native': {'database': 'metrics'}},
+            'draft': {'retention_period': '7d', 'retain_forever': False},
+            '_provider_route': influx_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': retention['provider_payload']
+        })
+        self.assertEqual('PUT', http.requests[-1]['method'])
+        self.assertEqual(
+            {'db': 'metrics', 'retention_period': '7d'},
+            http.requests[-1]['body'],
+        )
+
+        source = (
+            'def process_writes(influxdb3_local, table_batches, args=None):\n'
+            '    influxdb3_local.info("qualified")\n'
+        )
+        upload = client.plan_admin_operation({
+            'resource_kind': 'plugin', 'operation_id': 'execute',
+            'draft': {
+                'action': 'upload-file', 'database': 'metrics',
+                'plugin_name': 'qualified.py', 'content': source,
+                'acknowledge_operation': True,
+            },
+            '_provider_route': influx_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': upload['provider_payload']
+        })
+        self.assertEqual('/api/v3/plugins/files', http.requests[-1]['path'])
+        self.assertEqual(source.strip(), http.requests[-1]['body']['content'])
+
+        trigger = client.plan_admin_operation({
+            'resource_kind': 'trigger', 'operation_id': 'execute',
+            'draft': {
+                'action': 'create', 'database': 'metrics',
+                'trigger_name': 'qualified',
+                'plugin_filename': 'qualified.py',
+                'trigger_kind': 'table', 'trigger_value': 'cpu',
+                'arguments': {'mode': 'test'}, 'run_async': False,
+                'error_behavior': 'log', 'disabled': True,
+                'acknowledge_operation': True,
+            },
+            '_provider_route': influx_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': trigger['provider_payload']
+        })
+        self.assertEqual(
+            'table:cpu',
+            http.requests[-1]['body']['trigger_specification'],
+        )
+
+        processing = client.plan_admin_operation({
+            'resource_kind': 'processing-engine', 'operation_id': 'execute',
+            'draft': {
+                'action': 'test-wal', 'database': 'metrics',
+                'plugin_filename': 'qualified.py',
+                'input_line_protocol': 'cpu,host=one usage=0.5',
+                'arguments': {}, 'acknowledge_operation': True,
+            },
+            '_provider_route': influx_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': processing['provider_payload']
+        })
+        self.assertEqual('/api/v3/plugin_test/wal', http.requests[-1]['path'])
+
+        invalid_table = client.validate_admin_operation({
+            'resource_kind': 'table', 'operation_id': 'create',
+            'draft': {
+                'database': 'metrics', 'name': 'bad_table',
+                'tags': ['value'],
+                'fields': [{'name': 'value', 'type': 'float64'}],
+            },
+        })
+        self.assertRegex(
+            invalid_table['errors'][0]['message'], 'must not overlap'
         )
 
     def test_influxdb_wrong_version_and_inline_secret_fail_closed(self):
