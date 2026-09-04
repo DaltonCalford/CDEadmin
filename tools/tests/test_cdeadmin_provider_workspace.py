@@ -272,6 +272,17 @@ class ProviderWorkspaceTests(unittest.TestCase):
         )
         self.assertEqual('mysql', payload['visual_admin']['engine_id'])
         self.assertTrue(payload['visual_admin']['provider_driven'])
+        self.assertEqual(
+            'cdeadmin.operational-workspace.v1',
+            payload['operational_workspace']['schema'],
+        )
+        self.assertEqual(
+            'mysql', payload['operational_workspace']['engine_id']
+        )
+        self.assertFalse(payload['operational_workspace']['distributed'])
+        self.assertEqual(
+            27, len(payload['operational_workspace']['facets'])
+        )
 
     def test_resource_paging_is_generation_bound_and_root_scoped(self):
         self.client.resource_count = 501

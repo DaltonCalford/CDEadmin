@@ -40,6 +40,12 @@ from .control_plane import (
     ControlPlaneOperation,
     field as control_plane_field,
 )
+from .operational_workspace import (
+    FACETS as OPERATIONAL_WORKSPACE_FACETS,
+    OPERATIONAL_WORKSPACE_SCHEMA,
+    OperationalWorkspaceError,
+    build_operational_workspace,
+)
 
 
 __all__ = (
@@ -55,6 +61,10 @@ __all__ = (
     'ControlPlaneCatalogError',
     'ControlPlaneOperation',
     'control_plane_field',
+    'OPERATIONAL_WORKSPACE_FACETS',
+    'OPERATIONAL_WORKSPACE_SCHEMA',
+    'OperationalWorkspaceError',
+    'build_operational_workspace',
     'EXPERIENCE_SCHEMA',
     'COVERAGE_SCHEMA',
     'ENGINE_EXPERIENCE_FAMILIES',

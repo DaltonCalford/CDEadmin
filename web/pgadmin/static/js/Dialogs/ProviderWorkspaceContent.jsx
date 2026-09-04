@@ -1218,9 +1218,9 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
     {['vector-analytic', 'search-analytic',
       'search-document-analytic'].includes(modelFamily) &&
       <TextField fullWidth multiline
-      minRows={2} sx={{mt: 2}} label={gettext('Native filter (JSON)')}
-      value={filterSource}
-      onChange={(event) => setFilterSource(event.target.value)} />}
+        minRows={2} sx={{mt: 2}} label={gettext('Native filter (JSON)')}
+        value={filterSource}
+        onChange={(event) => setFilterSource(event.target.value)} />}
     {containers.length === 0 && <Alert severity="info" sx={{mt: 2}}>
       {gettext('No discovered analytic data container is available.')}
     </Alert>}
@@ -2963,7 +2963,7 @@ SemanticModelWorkspace.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
-function ControlPlaneOperations({post, setError}) {
+function OperationHistory({post, setError}) {
   const [operations, setOperations] = useState([]);
   const [working, setWorking] = useState(false);
 
@@ -3064,7 +3064,199 @@ function ControlPlaneOperations({post, setError}) {
   </Box>;
 }
 
-ControlPlaneOperations.propTypes = {
+OperationHistory.propTypes = {
+  post: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+};
+
+const OPERATIONAL_STATE_FIELDS = [
+  'health', 'status', 'state', 'role', 'node_role', 'member_role', 'leader',
+  'primary', 'region', 'zone', 'locality', 'replication_lag', 'lag',
+  'progress', 'phase', 'started_at', 'updated_at', 'size', 'storage_usage',
+  'latency', 'connections', 'sessions', 'locks', 'version',
+];
+
+function operationalSnapshot(resource) {
+  const native = providerNative(resource);
+  return Object.fromEntries(OPERATIONAL_STATE_FIELDS.filter((field) =>
+    Object.prototype.hasOwnProperty.call(native, field)
+  ).map((field) => [field, native[field]]));
+}
+
+function TopologyView({workspace, resources}) {
+  const kinds = new Set(workspace?.topology?.resource_kinds || []);
+  const nodes = (resources || []).filter((item) => kinds.has(
+    item.resource_kind
+  ));
+  if (!workspace?.topology?.available) {
+    return <Alert severity="info">
+      {gettext('This provider does not declare topology resources.')}
+    </Alert>;
+  }
+  if (!nodes.length) {
+    return <Alert severity="info">
+      {gettext('No topology resources were discovered. Refresh provider objects to observe current membership and placement.')}
+    </Alert>;
+  }
+  return <Box aria-label={gettext('Provider topology visualization')}
+    sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1}}>
+    {nodes.map((node) => {
+      const path = node.authority_path || node.display_path || [];
+      const snapshot = operationalSnapshot(node);
+      return <Box key={node.resource_id} sx={{border: 1,
+        borderColor: 'divider', borderLeftWidth: 4, p: 1}}>
+        <Box component="strong">{node.display_name}</Box>
+        <Box sx={{fontSize: '0.8em'}}>{node.resource_kind}</Box>
+        {path.length > 0 && <Box sx={{fontSize: '0.8em', mt: 0.5,
+          overflowWrap: 'anywhere'}}>{path.join(' → ')}</Box>}
+        {Object.keys(snapshot).length > 0 && <Box component="pre"
+          sx={{m: 0, mt: 1, whiteSpace: 'pre-wrap', fontSize: '0.75em'}}>
+          {JSON.stringify(snapshot, null, 2)}
+        </Box>}
+      </Box>;
+    })}
+  </Box>;
+}
+
+TopologyView.propTypes = {
+  workspace: PropTypes.object,
+  resources: PropTypes.array,
+};
+
+function OperationalWorkspace({workspace, endpoint, catalog, resources,
+  resourceGeneration, onRefresh, refreshing, post, setError}) {
+  const facets = workspace?.facets || [];
+  const initialFacet = facets.find((item) =>
+    item.catalog_state !== 'unavailable') || facets[0];
+  const [facetId, setFacetId] = useState(initialFacet?.facet_id || '');
+  const [showHistory, setShowHistory] = useState(false);
+  const facet = facets.find((item) => item.facet_id === facetId) ||
+    initialFacet;
+
+  useEffect(() => {
+    if (!facets.some((item) => item.facet_id === facetId)) {
+      setFacetId(initialFacet?.facet_id || '');
+    }
+  }, [facetId, facets, initialFacet]);
+
+  const resourceKinds = useMemo(
+    () => new Set(facet?.resource_kinds || []), [facet]
+  );
+  const facetResources = useMemo(() => (resources || []).filter((item) =>
+    resourceKinds.has(item.resource_kind)), [resourceKinds, resources]);
+  const operationKeys = useMemo(() => new Set((facet?.operations || []).map(
+    (item) => `${item.resource_kind}:${item.operation_id}`
+  )), [facet]);
+  const commandCatalog = useMemo(() => {
+    if (!catalog || !operationKeys.size) return null;
+    const objects = (catalog.objects || []).map((objectItem) => ({
+      ...objectItem,
+      operations: (objectItem.operations || []).filter((operation) =>
+        operationKeys.has(
+          `${objectItem.resource_kind}:${operation.operation_id}`
+        )),
+    })).filter((objectItem) => objectItem.operations.length > 0);
+    return objects.length > 0 ? {...catalog, objects} : null;
+  }, [catalog, operationKeys]);
+  const categories = workspace?.categories || [];
+
+  if (!workspace) return <Alert severity="info">
+    {gettext('This provider does not publish an operational workspace.')}
+  </Alert>;
+
+  return <Box sx={{display: 'grid', gridTemplateColumns:
+    'minmax(220px, 300px) minmax(0, 1fr)', flex: 1, minHeight: 0}}>
+    <Box sx={{borderRight: 1, borderColor: 'divider', p: 1,
+      overflow: 'auto'}}>
+      <Box component="h3" sx={{m: 1}}>{gettext('Operational workspaces')}</Box>
+      {categories.map((category) => <Box key={category} sx={{mb: 1}}>
+        <Box sx={{px: 1, py: 0.5, textTransform: 'uppercase',
+          fontSize: '0.72em', color: 'text.secondary'}}>
+          {category.replaceAll('-', ' ')}
+        </Box>
+        {facets.filter((item) => item.category === category).map((item) =>
+          <Button key={item.facet_id} fullWidth
+            variant={item.facet_id === facet?.facet_id ? 'contained' : 'text'}
+            color={item.catalog_state === 'unavailable' ? 'inherit' : 'primary'}
+            onClick={() => {setFacetId(item.facet_id); setShowHistory(false);}}
+            sx={{justifyContent: 'space-between', textAlign: 'left'}}>
+            <span>{item.title}</span>
+            <span>{item.catalog_state === 'unavailable' ? '—' :
+              (resources || []).filter((resource) =>
+                item.resource_kinds.includes(resource.resource_kind)
+              ).length}</span>
+          </Button>)}
+      </Box>)}
+      <Button fullWidth variant={showHistory ? 'contained' : 'outlined'}
+        onClick={() => setShowHistory(true)}>
+        {gettext('Operation progress and history')}
+      </Button>
+    </Box>
+    <Box sx={{overflow: 'auto', minWidth: 0}}>
+      {showHistory ? <OperationHistory post={post} setError={setError} /> : <>
+        <Box sx={{p: 2, pb: 0}}>
+          <Box sx={{display: 'flex', gap: 1, alignItems: 'center',
+            flexWrap: 'wrap'}}>
+            <Box component="h2" sx={{m: 0}}>{facet?.title}</Box>
+            <Button disabled={refreshing || !resourceGeneration}
+              onClick={onRefresh}>{gettext('Refresh provider state')}</Button>
+            {refreshing && <CircularProgress size={20} />}
+          </Box>
+          <Box sx={{color: 'text.secondary', mt: 0.5}}>{facet?.summary}</Box>
+          <Box sx={{fontSize: '0.85em', mt: 0.5}}>
+            {workspace.engine_id} · {endpoint?.runtime_verification_state ||
+              gettext('unverified runtime')}
+            {endpoint?.verified_runtime_version ?
+              ` · ${endpoint.verified_runtime_version}` : ''}
+          </Box>
+          <Alert severity="info" sx={{mt: 1}}>
+            {gettext('Resources, state, plans, progress, cancellation, and finality are provider-reported. CDEadmin does not infer success or automatically replay mutations.')}
+          </Alert>
+          {facet?.catalog_state === 'unavailable' && <Alert severity="warning"
+            sx={{mt: 1}}>{facet.unavailable_reason}</Alert>}
+          {facet?.facet_id === 'topology' && <Box sx={{mt: 2}}>
+            <TopologyView workspace={workspace} resources={resources} />
+          </Box>}
+          {facet?.facet_id !== 'topology' && facetResources.length > 0 &&
+            <Box sx={{mt: 2}}>
+              <Box component="h3">{gettext('Provider observations')}</Box>
+              <Box sx={{display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 1}}>
+                {facetResources.map((resource) => <Box
+                  key={resource.resource_id} sx={{border: 1,
+                    borderColor: 'divider', p: 1}}>
+                  <Box component="strong">{resource.display_name}</Box>
+                  <Box sx={{fontSize: '0.8em'}}>{resource.resource_kind}</Box>
+                  <Box component="pre" sx={{m: 0, mt: 1,
+                    whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto',
+                    fontSize: '0.75em'}}>
+                    {JSON.stringify(operationalSnapshot(resource), null, 2)}
+                  </Box>
+                </Box>)}
+              </Box>
+            </Box>}
+        </Box>
+        {commandCatalog && <Box sx={{mt: 1, borderTop: 1,
+          borderColor: 'divider'}}>
+          <VisualAdministration catalog={commandCatalog}
+            resources={resources} resourceGeneration={resourceGeneration}
+            post={post} setError={setError} />
+        </Box>}
+      </>}
+    </Box>
+  </Box>;
+}
+
+OperationalWorkspace.propTypes = {
+  workspace: PropTypes.object,
+  endpoint: PropTypes.object,
+  catalog: PropTypes.object,
+  resources: PropTypes.array,
+  resourceGeneration: PropTypes.string,
+  onRefresh: PropTypes.func.isRequired,
+  refreshing: PropTypes.bool,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
 };
@@ -3393,7 +3585,7 @@ function DataMovementWorkspace({catalog, resources, post, setError}) {
     </Box>
     {plan && <><FormControlLabel control={<Checkbox checked={confirmed}
       onChange={(event) => setConfirmed(event.target.checked)} />}
-      label={gettext('I confirm every provider-planned mutation in this non-atomic batch.')} />
+    label={gettext('I confirm every provider-planned mutation in this non-atomic batch.')} />
     <Box component="pre" aria-label={gettext('Bulk operation preview')}
       sx={{p: 1, maxHeight: 320, overflow: 'auto', bgcolor: 'background.default'}}>
       {JSON.stringify(plan, null, 2)}
@@ -3615,7 +3807,7 @@ export default function ProviderWorkspaceContent({
         <Tab value="studio" label={gettext('Data Studio')} />
         <Tab value="data" label={gettext('Edit Data')} />
         <Tab value="administration" label={gettext('Administration')} />
-        <Tab value="operations" label={gettext('Operations')} />
+        <Tab value="operations" label={gettext('Operations & Health')} />
         <Tab value="semantic" label={gettext('Cubes & Semantic Models')} />
         <Tab value="movement" label={gettext('Import & Bulk')} />
         {workspace?.endpoint?.route_management_available &&
@@ -3690,7 +3882,13 @@ export default function ProviderWorkspaceContent({
           resourceGeneration={resourcePage?.generation}
           post={post} setError={setError} />}
       {workspace && tab === 'operations' &&
-        <ControlPlaneOperations post={post} setError={setError} />}
+        <OperationalWorkspace workspace={workspace.operational_workspace}
+          endpoint={workspace.endpoint}
+          catalog={workspace.visual_admin}
+          resources={resourcePage?.items || []}
+          resourceGeneration={resourcePage?.generation}
+          onRefresh={refreshResources} refreshing={loadingMore}
+          post={post} setError={setError} />}
       {workspace && tab === 'semantic' &&
         <SemanticModelWorkspace semantic={workspace.semantic_models}
           resources={resourcePage?.items || []}

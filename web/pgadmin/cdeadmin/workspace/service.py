@@ -25,6 +25,9 @@ from pgadmin.cdeadmin.visual_admin.provider import (
     VisualAdminAccessError,
     VisualAdminExecutionError,
 )
+from pgadmin.cdeadmin.visual_admin.operational_workspace import (
+    build_operational_workspace,
+)
 
 
 APP_EXTENSION_KEY = 'cdeadmin_provider_workspace'
@@ -59,6 +62,7 @@ class ProviderWorkspaceService:
         page = self.resource_service.list_page(
             context, root, page_size=500
         ).to_dict()
+        visual_admin = describe_admin() if callable(describe_admin) else None
         return {
             'endpoint': {
                 'endpoint_id': context.endpoint_id,
@@ -86,8 +90,11 @@ class ProviderWorkspaceService:
             },
             'languages': list(self.studio_service.languages(context)),
             'resource_page': page,
-            'visual_admin': (
-                describe_admin() if callable(describe_admin) else None
+            'visual_admin': visual_admin,
+            'operational_workspace': (
+                build_operational_workspace(
+                    visual_admin, page.get('items', [])
+                ) if visual_admin is not None else None
             ),
             'semantic_models': (
                 {

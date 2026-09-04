@@ -44,6 +44,26 @@ const bootstrap = {
       }],
     }],
   },
+  operational_workspace: {
+    schema: 'cdeadmin.operational-workspace.v1',
+    engine_id: 'mysql',
+    distributed: false,
+    categories: ['runtime'],
+    topology: {available: false, resource_kinds: []},
+    facets: [{
+      facet_id: 'health',
+      title: 'Server and cluster health',
+      category: 'runtime',
+      summary: 'Provider-reported availability and health state.',
+      catalog_state: 'operational',
+      unavailable_reason: null,
+      resource_kinds: ['database'],
+      discovered_resource_count: 1,
+      operations: [{
+        operation_id: 'create', resource_kind: 'database', title: 'Create',
+      }],
+    }],
+  },
   semantic_models: {
     items: [],
     capabilities: {
@@ -528,10 +548,58 @@ describe('ProviderWorkspaceContent', () => {
     }}});
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="operations" />);
+    fireEvent.click(await screen.findByText(
+      'Operation progress and history'
+    ));
     expect(await screen.findByText(/restart-safe audit record/)).toBeInTheDocument();
     expect(screen.getByText('Observe provider state')).toBeDisabled();
     expect(screen.getByText('Request cancellation')).toBeDisabled();
     expect(screen.getByText('Validate post-state')).toBeDisabled();
+  });
+
+  it('renders provider-declared operational facets and commands', async () => {
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="operations" />);
+    expect(await screen.findAllByText('Server and cluster health'))
+      .toHaveLength(2);
+    expect(screen.getByText('Provider observations')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Validate and preview'}))
+      .toBeInTheDocument();
+    expect(screen.getByText(/does not infer success/)).toBeInTheDocument();
+  });
+
+  it('visualizes provider-authoritative distributed topology paths', async () => {
+    const topologyBootstrap = {
+      ...bootstrap,
+      resource_page: {generation: 'topology-one', items: [{
+        resource_id: 'node:one', resource_kind: 'node',
+        display_name: 'node-one',
+        authority_path: ['cluster-a', 'zone-one', 'node-one'],
+        extensions: {provider: {native: {
+          status: 'provider-online', role: 'provider-leader',
+        }}},
+      }]},
+      operational_workspace: {
+        schema: 'cdeadmin.operational-workspace.v1',
+        engine_id: 'distributed-test', distributed: true,
+        categories: ['distributed'],
+        topology: {available: true, authority:
+          'provider-resource-authority-path', resource_kinds: ['node']},
+        facets: [{
+          facet_id: 'topology', title: 'Topology visualization',
+          category: 'distributed', summary: 'Provider topology.',
+          catalog_state: 'observable', unavailable_reason: null,
+          resource_kinds: ['node'], discovered_resource_count: 1,
+          operations: [],
+        }],
+      },
+    };
+    api.get.mockResolvedValue({data: {data: topologyBootstrap}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="operations" />);
+    expect(await screen.findByLabelText('Provider topology visualization'))
+      .toHaveTextContent('cluster-a → zone-one → node-one');
+    expect(screen.getByText(/provider-leader/)).toBeInTheDocument();
   });
 
   it('edits rows through provider-issued identity plans', async () => {
