@@ -178,6 +178,10 @@ class FakeRedis:
             return int(command[2] in self.vectors.get(command[1], {}))
         if name == 'VRANGE':
             return list(self.vectors.get(command[1], {}))
+        if name == 'XINFO' and str(command[1]).upper() == 'GROUPS':
+            return [{b'name': b'workers', b'consumers': 1}]
+        if name == 'XINFO' and str(command[1]).upper() == 'CONSUMERS':
+            return [{b'name': b'worker-one', b'pending': 0}]
         return b'OK'
 
     def pipeline(self, transaction=True):
@@ -242,6 +246,12 @@ class FakeRedis:
 
     def memory_usage(self, _key):
         return 10
+
+    def module_list(self):
+        return [{b'name': b'example', b'ver': 1}]
+
+    def pubsub_channels(self):
+        return [b'events']
 
 
 class Factory:
@@ -435,6 +445,36 @@ class RedisProviderTestCase(unittest.TestCase):
         self.assertFalse(self.client.supports_admin_operation(
             'stream', 'update'
         ))
+
+    def test_resource_discovery_materializes_key_value_children(self):
+        resources = self.client.list_resources({'route': route()})
+        kinds = {item['resource_kind'] for item in resources}
+        self.assertTrue({
+            'key', 'ttl', 'stream', 'consumer-group', 'consumer',
+            'module', 'pubsub-channel',
+        }.issubset(kinds))
+        group = next(
+            item for item in resources
+            if item['resource_kind'] == 'consumer-group'
+        )
+        self.assertEqual('workers', group['display_name'])
+        channel = next(
+            item for item in resources
+            if item['resource_kind'] == 'pubsub-channel' and
+            item['display_name'] == 'events'
+        )
+        self.assertEqual('events', channel['native']['channel'])
+
+    def test_pubsub_workspace_uses_typed_channel_and_message_fields(self):
+        compiled = self.client._compile_admin({
+            'resource_kind': 'pubsub-channel', 'operation_id': 'execute',
+            'native': {'workspace': True},
+            'draft': {'channel': 'events', 'message': 'ready'},
+        })
+        self.assertEqual(
+            (b'PUBLISH', b'events', b'ready'),
+            compiled['commands'][0],
+        )
 
     def test_row_identity_is_route_bound_single_use_and_concurrent(self):
         page = self.client.read_admin_rows({

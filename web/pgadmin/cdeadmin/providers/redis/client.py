@@ -1070,11 +1070,26 @@ class RedisClient:
                     'database': route['database'],
                     'ttl_ms': ttl,
                 }
+                key_resource = self._resource(
+                    'key', str(self._json_value(key)), native,
+                    parent=f'db{route["database"]}', generation=generation,
+                )
+                resources.append(key_resource)
                 resources.append(self._resource(
                     data_type if data_type in self.DATA_KINDS else 'key',
                     str(self._json_value(key)), native,
-                    parent=f'db{route["database"]}', generation=generation,
+                    parent=key_resource['resource_id'],
+                    generation=generation,
                 ))
+                resources.append(self._resource(
+                    'ttl', 'Expiry', native,
+                    parent=key_resource['resource_id'],
+                    generation=generation,
+                ))
+                if data_type == 'stream':
+                    resources.extend(self._stream_group_resources(
+                        client, key, key_resource['resource_id'], generation
+                    ))
             resources.extend(self._operational_resources(
                 client, generation
             ))
@@ -1115,6 +1130,55 @@ class RedisClient:
                 ))
         return resources
 
+    def _stream_group_resources(
+        self, client, stream, parent, generation,
+    ):
+        groups = self._safe_call([], lambda: client.execute_command(
+            'XINFO', 'GROUPS', stream
+        ))
+        resources = []
+        for row in list(groups)[:1000]:
+            if not isinstance(row, Mapping):
+                continue
+            name = row.get(b'name', row.get('name'))
+            if name is None:
+                continue
+            native = {
+                **self._json_value(row),
+                'stream': self._json_value(stream),
+                'group': self._json_value(name),
+            }
+            group = self._resource(
+                'consumer-group', str(self._json_value(name)), native,
+                parent=parent, generation=generation,
+            )
+            resources.append(group)
+            consumers = self._safe_call(
+                [], lambda name=name: client.execute_command(
+                    'XINFO', 'CONSUMERS', stream, name
+                )
+            )
+            for consumer_row in list(consumers)[:1000]:
+                if not isinstance(consumer_row, Mapping):
+                    continue
+                consumer_name = consumer_row.get(
+                    b'name', consumer_row.get('name')
+                )
+                if consumer_name is None:
+                    continue
+                consumer_native = {
+                    **self._json_value(consumer_row),
+                    'stream': self._json_value(stream),
+                    'group': self._json_value(name),
+                    'consumer': self._json_value(consumer_name),
+                }
+                resources.append(self._resource(
+                    'consumer', str(self._json_value(consumer_name)),
+                    consumer_native, parent=group['resource_id'],
+                    generation=generation,
+                ))
+        return resources
+
     def _operational_resources(self, client, generation):
         resources = []
         factories = (
@@ -1147,6 +1211,32 @@ class RedisClient:
                         {'username': self._json_value(user)},
                         parent='security', generation=generation,
                     ))
+                continue
+            if kind == 'module' and isinstance(value, (list, tuple)):
+                for module in value[:1000]:
+                    if not isinstance(module, Mapping):
+                        continue
+                    module_name = module.get(b'name', module.get('name'))
+                    if module_name is None:
+                        continue
+                    resources.append(self._resource(
+                        kind, str(self._json_value(module_name)),
+                        self._json_value(module), parent='modules',
+                        generation=generation,
+                    ))
+                continue
+            if kind == 'pubsub-channel' and isinstance(
+                    value, (list, tuple)):
+                for channel in value[:1000]:
+                    resources.append(self._resource(
+                        kind, str(self._json_value(channel)),
+                        {'channel': self._json_value(channel)},
+                        parent='pubsub', generation=generation,
+                    ))
+                resources.append(self._resource(
+                    kind, 'Publish to channel', {'workspace': True},
+                    parent='pubsub', generation=generation,
+                ))
                 continue
             resources.append(self._resource(
                 kind, name, {'value': self._json_value(value)},
@@ -1290,6 +1380,41 @@ class RedisClient:
         catalog['transaction_authority'] = 'redis-server-owned'
         catalog['native_outcomes_are_opaque'] = True
         catalog['automatic_mutation_retry'] = False
+        catalog['experience_families'] = ['key_value']
+
+        def declaration(*resource_kinds, status='supported', reason=None):
+            return {
+                'status': status,
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in resource_kinds
+                },
+                'reason': reason or (
+                    'Redis objects and operations are provider-owned '
+                    'through the RESP3 data-structure surface.'
+                ),
+                'evidence': ['redis-8.6-plus-native-resp3-catalog'],
+            }
+
+        catalog['concept_declarations'] = {'key_value': {
+            'key_browsing': declaration('key'),
+            'data_type_editing': declaration(
+                'string', 'hash', 'list', 'set', 'sorted-set',
+                'geospatial', 'bitmap', 'hyperloglog', 'vector-set',
+            ),
+            'ttl_inspection': declaration('ttl'),
+            'expiration_management': declaration('ttl'),
+            'streams': declaration('stream'),
+            'pubsub': declaration('pubsub-channel'),
+            'consumer_groups': declaration('consumer-group', 'consumer'),
+            'modules': declaration('module', status='read_only'),
+            'acls': declaration('acl-user'),
+            'replication': declaration('replica'),
+            'sentinel_or_cluster_state': declaration(
+                'sentinel', 'cluster-slot'
+            ),
+        }}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             for operation in resource.get('operations', []):
@@ -1360,6 +1485,13 @@ class RedisClient:
                     f('make_stream', 'Create stream if absent', 'boolean',
                       False, default=False),
                     f('entries_read', 'Entries read', 'number', False),
+                ],
+            )
+        if kind == 'pubsub-channel' and operation == 'execute':
+            return self._form(
+                'redis-pubsub-publish', 'Publish message', [
+                    f('channel', 'Channel', required=True),
+                    f('message', 'Message', required=True),
                 ],
             )
         if kind == 'acl-user' and operation in {
@@ -1671,12 +1803,10 @@ class RedisClient:
                                   self._native_bytes(native, 'group'),
                                   self._native_bytes(native, 'consumer'))]}
         if kind == 'pubsub-channel' and operation == 'execute':
-            arguments = _mapping(draft.get('arguments', {}), 'arguments')
+            channel = native.get('channel', draft.get('channel'))
             return {'commands': [(b'PUBLISH',
-                                  self._native_bytes(native, 'channel'),
-                                  _binary(
-                                      arguments.get('message'), 'message'
-                                  ))]}
+                                  _binary(channel, 'channel'),
+                                  _binary(draft.get('message'), 'message'))]}
         if kind == 'function-library':
             if operation in {'create', 'alter'}:
                 command = [b'FUNCTION', b'LOAD']
