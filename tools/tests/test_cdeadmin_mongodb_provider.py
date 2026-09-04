@@ -172,6 +172,15 @@ class DriverSession:
     def end_session(self):
         self.has_ended = True
 
+    def start_transaction(self):
+        self.in_transaction = True
+
+    def commit_transaction(self):
+        self.in_transaction = False
+
+    def abort_transaction(self):
+        self.in_transaction = False
+
 
 class DriverClient:
     def __init__(self, **arguments):
@@ -545,6 +554,10 @@ class MongoDBProviderTests(unittest.TestCase):
         self.assertFalse(
             transaction['finality_interpreted_by_common_code']
         )
+        value.control_transaction(handle, 'begin')
+        self.assertTrue(value.describe_transaction(handle)['in_transaction'])
+        value.control_transaction(handle, 'rollback')
+        self.assertFalse(value.describe_transaction(handle)['in_transaction'])
         with self.assertRaisesRegex(MongoDBClientError, 'read-only'):
             value.execute(handle, {'source': json.dumps({
                 'operation': 'command', 'database': 'qualification',

@@ -16,6 +16,7 @@ the endpoint provider and are returned as opaque contract presentations.
 
 from __future__ import annotations
 
+import base64
 import copy
 import threading
 
@@ -348,6 +349,102 @@ class ProviderWorkspaceService:
         self.resource_service.invalidate(context)
         return result
 
+    def plan_visual_admin_bulk(self, server, request):
+        """Create bounded, provider-native previews for an ordered batch."""
+        if not isinstance(request, dict) or set(request) != {'items'}:
+            raise ProviderWorkspaceError('bulk plan request is invalid')
+        items = request.get('items')
+        if not isinstance(items, list) or not 1 <= len(items) <= 500:
+            raise ProviderWorkspaceError(
+                'bulk plan requires between 1 and 500 items'
+            )
+        validations = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise ProviderWorkspaceError('bulk plan item is invalid')
+            validations.append(self.validate_visual_admin(server, item))
+        if not all(item.get('valid') is True for item in validations):
+            return {
+                'schema': 'cdeadmin.visual-admin.bulk-plan.v1',
+                'item_count': len(items),
+                'ready': False,
+                'atomicity': 'not-claimed',
+                'automatic_retry': False,
+                'validations': validations,
+                'plans': [],
+            }
+        plans = []
+        for index, item in enumerate(items):
+            plan = self.plan_visual_admin(server, item)
+            plans.append({'index': index, 'plan': plan})
+        ready = all(
+            item['plan'].get('state') == 'ready' and
+            item['plan'].get('execution_available') is True
+            for item in plans
+        )
+        return {
+            'schema': 'cdeadmin.visual-admin.bulk-plan.v1',
+            'item_count': len(plans),
+            'ready': ready,
+            'atomicity': 'not-claimed',
+            'automatic_retry': False,
+            'plans': plans,
+        }
+
+    def apply_visual_admin_bulk(self, server, request):
+        """Apply an explicitly confirmed ordered batch without retry."""
+        if not isinstance(request, dict) or set(request) != {
+                'plans', 'confirmed'}:
+            raise ProviderWorkspaceError('bulk apply request is invalid')
+        plans = request.get('plans')
+        if request.get('confirmed') is not True:
+            raise ProviderWorkspaceError(
+                'bulk apply requires explicit confirmation'
+            )
+        if not isinstance(plans, list) or not 1 <= len(plans) <= 500:
+            raise ProviderWorkspaceError(
+                'bulk apply requires between 1 and 500 plans'
+            )
+        results = []
+        failed_index = None
+        for index, item in enumerate(plans):
+            if not isinstance(item, dict) or set(item) != {
+                    'plan_id', 'plan_digest'}:
+                raise ProviderWorkspaceError('bulk apply plan is invalid')
+            try:
+                result = self.apply_visual_admin(server, {
+                    **item, 'confirmed': True,
+                })
+            except (
+                ProviderWorkspaceError,
+                VisualAdminAccessError,
+                VisualAdminExecutionError,
+            ) as exc:
+                failed_index = index
+                results.append({
+                    'index': index,
+                    'applied': False,
+                    'error_type': type(exc).__name__,
+                    'outcome': 'unknown-or-failed-provider-owned',
+                })
+                break
+            results.append({
+                'index': index, 'applied': True, 'result': result,
+            })
+        return {
+            'schema': 'cdeadmin.visual-admin.bulk-result.v1',
+            'requested_count': len(plans),
+            'attempted_count': len(results),
+            'applied_count': sum(
+                item['applied'] is True for item in results
+            ),
+            'complete': failed_index is None,
+            'failed_index': failed_index,
+            'atomicity': 'not-claimed',
+            'automatic_retry': False,
+            'results': results,
+        }
+
     def read_visual_admin_rows(self, server, request):
         return self._visual_admin_call(
             server, 'read_visual_admin_rows', request
@@ -489,7 +586,8 @@ class ProviderWorkspaceService:
                 context, occurrence_id, capabilities
             )
             response['rendered_result'] = self.result_service.render(
-                descriptor['result_id'], page_size=500
+                descriptor['result_id'], page_size=500,
+                endpoint_id=context.endpoint_id,
             )
             with self._semantic_lock:
                 semantic = self._semantic_executions.get(occurrence_id)
@@ -510,6 +608,74 @@ class ProviderWorkspaceService:
                 )
         return response
 
+    def result_page(self, server, request):
+        """Render one endpoint-bound local result page."""
+        if not isinstance(request, dict) or set(request).difference({
+                'result_id', 'cursor', 'page_size'}):
+            raise ProviderWorkspaceError('result page request is invalid')
+        result_id = request.get('result_id')
+        cursor = request.get('cursor')
+        page_size = request.get('page_size', 500)
+        if not isinstance(result_id, str) or not result_id:
+            raise ProviderWorkspaceError('result ID is required')
+        if cursor is not None and not isinstance(cursor, str):
+            raise ProviderWorkspaceError('result cursor must be text')
+        if isinstance(page_size, bool) or not isinstance(page_size, int):
+            raise ProviderWorkspaceError('result page size must be an integer')
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        return self.result_service.render(
+            result_id, page_size=page_size, cursor=cursor,
+            endpoint_id=context.endpoint_id,
+        )
+
+    def export_result(self, server, request):
+        """Return one bounded, redacted result export for browser download."""
+        if not isinstance(request, dict) or set(request) != {
+                'result_id', 'format'}:
+            raise ProviderWorkspaceError('result export request is invalid')
+        result_id = request.get('result_id')
+        export_format = request.get('format')
+        if not isinstance(result_id, str) or not result_id:
+            raise ProviderWorkspaceError('result ID is required')
+        if not isinstance(export_format, str) or not export_format:
+            raise ProviderWorkspaceError('result export format is required')
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        exported = self.result_service.export(
+            result_id, export_format, endpoint_id=context.endpoint_id
+        )
+        content = exported.pop('content')
+        media_types = {
+            'csv': 'text/csv', 'json': 'application/json',
+            'jsonl': 'application/x-ndjson',
+        }
+        return {
+            **exported,
+            'content_base64': base64.b64encode(content).decode('ascii'),
+            'media_type': media_types.get(
+                export_format, 'application/octet-stream'
+            ),
+            'filename': f'cdeadmin-result-{result_id}.{export_format}',
+        }
+
+    def compare_results(self, server, request):
+        """Compare two retained redacted presentations from one endpoint."""
+        if not isinstance(request, dict) or set(request) != {
+                'left_result_id', 'right_result_id'}:
+            raise ProviderWorkspaceError(
+                'result comparison request is invalid'
+            )
+        values = (
+            request.get('left_result_id'), request.get('right_result_id')
+        )
+        if any(not isinstance(item, str) or not item for item in values):
+            raise ProviderWorkspaceError(
+                'result comparison IDs are required'
+            )
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        return self.result_service.compare(
+            values[0], values[1], endpoint_id=context.endpoint_id
+        )
+
     def cancel(self, server, occurrence_id):
         context, _endpoint, _root = self.endpoint_service.workspace(server)
         return self.studio_service.request_cancel(context, occurrence_id)
@@ -518,6 +684,13 @@ class ProviderWorkspaceService:
         """Return the provider presentation without interpreting its state."""
         context, _endpoint, _root = self.endpoint_service.workspace(server)
         return self.studio_service.refresh_transaction(context, session_id)
+
+    def transaction_action(self, server, session_id, action):
+        """Dispatch a provider-owned transaction action without inference."""
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        return self.studio_service.control_transaction(
+            context, session_id, action
+        )
 
     def _visual_admin_call(self, server, method_name, request):
         context, endpoint, _root = self.endpoint_service.workspace(server)

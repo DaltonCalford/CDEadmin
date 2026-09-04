@@ -368,6 +368,10 @@ class PostgreSQLProvider:
         return binding.instance.describe_transaction(request)
 
     @staticmethod
+    def _studio_control_transaction(binding, request):
+        return binding.instance.control_transaction(request)
+
+    @staticmethod
     def _studio_execute(binding, request):
         return binding.instance.execute(request)
 
@@ -411,6 +415,8 @@ class PostgreSQLProvider:
                     profiles,
                     cls._studio_open_session,
                     cls._studio_describe_transaction,
+                    frozenset({'commit', 'rollback'}),
+                    cls._studio_control_transaction,
                 ),
             ),
             'executions': (
@@ -665,6 +671,27 @@ class PostgreSQLProvider:
             'authority_reference': 'provider:org.pgadmin.postgresql',
             'extensions': {},
         }
+
+    def control_transaction(self, request):
+        """Execute native PostgreSQL transaction control on this session."""
+        payload = _mapping(request)
+        state = self._sessions.get(payload.get('session_id'))
+        if state is None:
+            raise PostgreSQLProviderError('PostgreSQL session is unavailable')
+        action = payload.get('action')
+        statements = {'commit': 'COMMIT;', 'rollback': 'ROLLBACK;'}
+        if action not in statements:
+            raise PostgreSQLProviderError(
+                'PostgreSQL transaction action is unavailable'
+            )
+        status, _detail = state.connection.execute_void(statements[action])
+        if not status:
+            raise PostgreSQLProviderError(
+                'PostgreSQL transaction action outcome is provider-owned'
+            )
+        return self.describe_transaction({
+            'session_id': payload.get('session_id'),
+        })
 
     def complete(self, request):
         """Use pgAdmin's existing PostgreSQL completion implementation."""

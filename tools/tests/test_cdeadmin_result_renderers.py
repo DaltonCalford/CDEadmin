@@ -376,7 +376,10 @@ class DescriptorLimitTests(unittest.TestCase):
         provider.normalized['limits']['max_records'] = 10
         provider.normalized['sampling'] = {'mode': 'stride', 'limit': 10}
         service.admit_provider_result(ctx, result(), {CAPABILITY})
-        rendered = service.render('production-tabular', page_size=10)
+        rendered = service.render(
+            'production-tabular', page_size=10,
+            endpoint_id=ctx.endpoint_id,
+        )
         self.assertTrue(rendered['sampling_applied'])
         self.assertEqual(10, rendered['page']['sampled_count'])
         self.assertEqual(100, rendered['page']['source_count'])
@@ -387,9 +390,14 @@ class DescriptorLimitTests(unittest.TestCase):
         provider.normalized['export_policy']['max_bytes'] = 10
         service.admit_provider_result(ctx, result(), {CAPABILITY})
         with self.assertRaises(ResultLimitError):
-            service.render('production-tabular', page_size=2)
+            service.render(
+                'production-tabular', page_size=2,
+                endpoint_id=ctx.endpoint_id,
+            )
         with self.assertRaises(ResultLimitError):
-            service.export('production-tabular', 'csv')
+            service.export(
+                'production-tabular', 'csv', endpoint_id=ctx.endpoint_id
+            )
 
     def test_descriptor_store_is_bounded_and_explicitly_released(self):
         ctx, _provider, registry, _service = harness()
@@ -404,7 +412,7 @@ class DescriptorLimitTests(unittest.TestCase):
             service.admit_provider_result(
                 ctx, result('second'), {CAPABILITY}
             )
-        self.assertTrue(service.release('first'))
+        self.assertTrue(service.release('first', endpoint_id=ctx.endpoint_id))
         service.admit_provider_result(ctx, result('second'), {CAPABILITY})
         self.assertFalse(service.release('missing'))
         with self.assertRaises(ResultDescriptorError):
@@ -453,8 +461,12 @@ class ProductionRendererTests(unittest.TestCase):
         admitted = service.admit_provider_result(
             ctx, result(), {CAPABILITY}
         )
-        rendered = service.render(admitted['result_id'])
-        exported = service.export(admitted['result_id'], 'csv')
+        rendered = service.render(
+            admitted['result_id'], endpoint_id=ctx.endpoint_id
+        )
+        exported = service.export(
+            admitted['result_id'], 'csv', endpoint_id=ctx.endpoint_id
+        )
         self.assertEqual(
             'SchemaView/DataGridView', rendered['component_reference']
         )
@@ -466,6 +478,46 @@ class ProductionRendererTests(unittest.TestCase):
         self.assertEqual([], list(
             (WEB / 'pgadmin/cdeadmin/results').rglob('*.jsx')
         ))
+
+    def test_production_results_are_endpoint_bound(self):
+        ctx, _provider, _registry, service = harness()
+        admitted = service.admit_provider_result(
+            ctx, result(), {CAPABILITY}
+        )
+        with self.assertRaises(ResultDescriptorError):
+            service.render(admitted['result_id'])
+        with self.assertRaises(ResultDescriptorError):
+            service.render(
+                admitted['result_id'],
+                endpoint_id=context('other').endpoint_id,
+            )
+        rendered = service.render(
+            admitted['result_id'], endpoint_id=ctx.endpoint_id
+        )
+        self.assertEqual(admitted['result_id'], rendered[
+            'descriptor'
+        ]['result_id'])
+
+    def test_comparison_is_redacted_ordered_and_not_semantic(self):
+        ctx, provider, _registry, service = harness()
+        service.admit_provider_result(
+            ctx, result('left'), {CAPABILITY}
+        )
+        provider.normalized = normalized([
+            {'id': 1, 'name': 'Changed', 'password': 'second-secret'},
+        ])
+        service.admit_provider_result(
+            ctx, result('right'), {CAPABILITY}
+        )
+        compared = service.compare(
+            'left', 'right', endpoint_id=ctx.endpoint_id
+        )
+        self.assertEqual(
+            'ordered-redacted-presentation', compared['comparison_kind']
+        )
+        self.assertFalse(compared['semantic_equality_inferred'])
+        self.assertGreater(compared['changed_count'], 0)
+        self.assertNotIn('second-secret', repr(compared))
 
     def test_unknown_result_kind_has_no_implicit_renderer(self):
         ctx, _provider, _registry, service = harness()

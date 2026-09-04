@@ -132,6 +132,8 @@ class FakeProvider:
                     'example.session', profiles,
                     FakeProvider._dispatch_open_session,
                     FakeProvider._dispatch_transaction,
+                    frozenset({'commit', 'rollback'}),
+                    FakeProvider._dispatch_transaction_action,
                 ),
             ),
             'executions': (
@@ -150,6 +152,13 @@ class FakeProvider:
 
     @staticmethod
     def _dispatch_transaction(binding, request):
+        return binding.instance._transaction(binding, request)
+
+    @staticmethod
+    def _dispatch_transaction_action(binding, request):
+        binding.instance.calls.append((
+            'transaction-action', request['action']
+        ))
         return binding.instance._transaction(binding, request)
 
     @staticmethod
@@ -418,6 +427,30 @@ class DataStudioLifecycleTests(unittest.TestCase):
         ])
         session = self.service.session('session-one')
         self.assertEqual(actual, session['transaction_presentation'])
+
+    def test_transaction_control_is_advertised_and_provider_owned(self):
+        language = self.service.languages(self.ctx)[0]
+        self.assertEqual(
+            ['commit', 'rollback'], language['transaction_actions']
+        )
+        actual = self.service.control_transaction(
+            self.ctx, 'session-one', 'rollback'
+        )
+        self.assertEqual(
+            'provider:example', actual['authority_reference']
+        )
+        self.assertIn(
+            ('transaction-action', 'rollback'), self.provider.calls
+        )
+        history = repr(self.service.export_history())
+        self.assertIn('provider-owned', history)
+        self.assertNotIn('retry', history.casefold())
+
+    def test_unadvertised_transaction_action_fails_closed(self):
+        with self.assertRaises(DataStudioAccessError):
+            self.service.control_transaction(
+                self.ctx, 'session-one', 'begin'
+            )
 
     def test_invalid_provider_poll_is_rejected(self):
         item = self._execute()

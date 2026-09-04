@@ -174,6 +174,8 @@ class _ResultToken:
 class RelationalDBAPIClient:
     """Synchronous DB-API client port for ``ActualEnginePilotProvider``."""
 
+    transaction_actions = ('commit', 'rollback')
+
     def __init__(self, config: RelationalClientConfig, module=None):
         self.config = config
         self.module = module or load_optional_module(config.module_name)
@@ -367,6 +369,25 @@ class RelationalDBAPIClient:
         observations['driver_observation_only'] = True
         observations['finality_interpreted_by_common_code'] = False
         return observations
+
+    def control_transaction(self, handle, action):
+        """Delegate transaction control to the retained DB-API connection."""
+        if action not in self.transaction_actions:
+            raise RelationalClientError(
+                'relational transaction action is unavailable'
+            )
+        callback = getattr(handle, action, None)
+        if not callable(callback):
+            raise RelationalClientError(
+                'relational driver has no transaction controller'
+            )
+        try:
+            callback()
+        except Exception as exc:
+            raise RelationalClientError(
+                'relational transaction action outcome is provider-owned '
+                f'({type(exc).__name__})'
+            ) from None
 
     def list_resources(self, request):
         connection = self._connect(request)

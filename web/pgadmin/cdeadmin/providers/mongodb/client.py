@@ -145,6 +145,8 @@ def _bounded_int(value: object, default: int, minimum: int,
 class MongoDBClient:
     """Synchronous, bounded PyMongo port for the actual-engine SDK."""
 
+    transaction_actions = ('begin', 'commit', 'rollback')
+
     READ_COMMANDS = frozenset({
         'buildInfo', 'collStats', 'connectionStatus', 'count', 'dbStats',
         'distinct', 'explain', 'hello', 'listCollections', 'listDatabases',
@@ -764,6 +766,29 @@ class MongoDBClient:
                 getattr(session, 'session_id', None)
             ),
         }
+
+    def control_transaction(self, handle, action):
+        """Use PyMongo's explicit session transaction API without retries."""
+        if not isinstance(handle, _MongoSession) or handle.closed:
+            raise MongoDBClientError('MongoDB session is unavailable')
+        callbacks = {
+            'begin': 'start_transaction',
+            'commit': 'commit_transaction',
+            'rollback': 'abort_transaction',
+        }
+        callback_name = callbacks.get(action)
+        callback = getattr(handle.driver_session, callback_name, None)
+        if not callable(callback):
+            raise MongoDBClientError(
+                'MongoDB transaction action is unavailable'
+            )
+        try:
+            callback()
+        except Exception as exc:
+            raise MongoDBClientError(
+                'MongoDB transaction action outcome is driver-owned '
+                f'({type(exc).__name__})'
+            ) from None
 
     def execute(self, handle, request):
         if not isinstance(handle, _MongoSession) or handle.closed:

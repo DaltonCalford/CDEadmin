@@ -189,6 +189,7 @@ def _sql_string(value):
 
 
 class XTDBClient:
+    transaction_actions = ('begin', 'commit', 'rollback')
     """XTDB 2.1 client with native, fail-closed administration contracts."""
 
     ADMIN_OPERATIONS = {
@@ -541,6 +542,32 @@ class XTDBClient:
             'configured_async_commit': handle.route['transaction_async'],
             'configured_timezone': handle.route.get('transaction_timezone'),
         }
+
+    @staticmethod
+    def control_transaction(handle, action):
+        """Use XTDB's retained PostgreSQL-wire transaction boundary."""
+        if not isinstance(handle, _Session):
+            raise XTDBClientError('XTDB session is invalid')
+        statements = {
+            'begin': 'BEGIN', 'commit': 'COMMIT', 'rollback': 'ROLLBACK',
+        }
+        statement = statements.get(action)
+        if statement is None:
+            raise XTDBClientError('XTDB transaction action is unavailable')
+        cursor = None
+        try:
+            cursor = handle.connection.cursor()
+            cursor.execute(statement)
+            handle.transaction_observation = (
+                f'server-{action}-response-observed'
+            )
+        except Exception as exc:
+            raise XTDBClientError(
+                'XTDB transaction action outcome is server-owned '
+                f'({type(exc).__name__})'
+            ) from None
+        finally:
+            XTDBClient._safe_close(cursor)
 
     @staticmethod
     def _apply_transaction_defaults(source, route):

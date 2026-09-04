@@ -113,6 +113,10 @@ class SessionContribution:
     describe_transaction: Callable[
         [object, Mapping[str, Any]], Mapping[str, Any]
     ]
+    transaction_actions: frozenset[str] = field(default_factory=frozenset)
+    control_transaction: Callable[
+        [object, Mapping[str, Any]], Mapping[str, Any]
+    ] | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -127,6 +131,18 @@ class SessionContribution:
             self.describe_transaction
         ):
             raise DataStudioError('session callbacks must be callable')
+        actions = frozenset(self.transaction_actions)
+        if not actions.issubset({'begin', 'commit', 'rollback'}):
+            raise DataStudioError('transaction action is unknown')
+        object.__setattr__(self, 'transaction_actions', actions)
+        if actions and not callable(self.control_transaction):
+            raise DataStudioError(
+                'transaction actions require a provider callback'
+            )
+        if not actions and self.control_transaction is not None:
+            raise DataStudioError(
+                'transaction callback requires advertised actions'
+            )
 
 
 @dataclass(frozen=True)

@@ -305,6 +305,19 @@ class XTDBClientContractTests(unittest.TestCase):
         self.assertTrue(self.client.cancel(token))
         self.assertTrue(session.connection.cancelled)
 
+    def test_transaction_controls_preserve_server_owned_observation(self):
+        session = self.client.open_session({'route': route()})
+        self.client.control_transaction(session, 'begin')
+        self.assertEqual(
+            'server-begin-response-observed',
+            self.client.describe_transaction(session)['native_observation'],
+        )
+        self.client.control_transaction(session, 'rollback')
+        self.assertEqual(
+            'server-rollback-response-observed',
+            self.client.describe_transaction(session)['native_observation'],
+        )
+
     def test_read_only_route_refuses_mutation(self):
         session = self.client.open_session({
             'route': {**route(), 'read_only': True}

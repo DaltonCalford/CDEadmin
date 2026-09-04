@@ -2139,9 +2139,26 @@ class ServerNode(PGChildNodeView):
                     payload = service.cancel(
                         server, data.get('occurrence_id')
                     )
+                elif action == 'result_page':
+                    payload = service.result_page(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'result_export':
+                    payload = service.export_result(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'result_compare':
+                    payload = service.compare_results(
+                        server, data.get('request') or {}
+                    )
                 elif action == 'transaction':
                     payload = service.transaction(
                         server, data.get('session_id')
+                    )
+                elif action == 'transaction_action':
+                    payload = service.transaction_action(
+                        server, data.get('session_id'),
+                        data.get('transaction_action')
                     )
                 elif action == 'resource_page':
                     payload = service.resource_page(
@@ -2166,6 +2183,14 @@ class ServerNode(PGChildNodeView):
                 elif action == 'visual_admin_apply':
                     payload = service.apply_visual_admin(
                         server, data.get('request')
+                    )
+                elif action == 'visual_admin_bulk_plan':
+                    payload = service.plan_visual_admin_bulk(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'visual_admin_bulk_apply':
+                    payload = service.apply_visual_admin_bulk(
+                        server, data.get('request') or {}
                     )
                 elif action == 'visual_admin_rows':
                     payload = service.read_visual_admin_rows(

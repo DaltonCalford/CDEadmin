@@ -197,6 +197,64 @@ describe('ProviderWorkspaceContent', () => {
     ]);
   });
 
+  it('uses provider transaction controls without inferring finality', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      languages: [{language_profile: 'mysql-sql', title: 'MySQL SQL',
+        transaction_actions: ['commit', 'rollback']}],
+    }}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {
+      data: payload.action === 'open_session' ? {session_id: 'session-one'} : {
+        session_id: 'session-one', transaction_model: 'mysql-native',
+        authority_reference: 'provider:org.cdeadmin.mysql',
+        provider_payload: {driver_observation_only: true},
+      },
+    }}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByText('commit'));
+    await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(
+      '/workspace/1', {
+        action: 'transaction_action', session_id: 'session-one',
+        transaction_action: 'commit',
+      }
+    ));
+    expect(await screen.findByText(/driver_observation_only/))
+      .toBeInTheDocument();
+  });
+
+  it('pages, exports, and compares endpoint-bound retained results', async () => {
+    const rendered = {
+      descriptor: {result_id: 'result-two', export_formats: ['json']},
+      component_reference: 'SchemaView/DataGridView',
+      page: {next_cursor: 'cursor-two', page_size: 1},
+      view_model: {columns: [{name: 'answer'}], rows: [{answer: 42}]},
+    };
+    api.post.mockImplementation((_url, payload) => {
+      const values = {
+        open_session: {session_id: 'session-one'},
+        execute: {occurrence_id: 'occurrence-one'},
+        poll: {occurrence: {operation: {terminal: true}}, rendered_result: rendered},
+        result_page: {...rendered, page: {next_cursor: null, page_size: 1},
+          view_model: {columns: [{name: 'answer'}], rows: [{answer: 43}]}},
+        result_export: {content_base64: 'W3siYW5zd2VyIjo0Mn1d',
+          media_type: 'application/json', filename: 'result.json'},
+      };
+      return Promise.resolve({data: {data: values[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByText('Run'));
+    fireEvent.click(await screen.findByText('Next result page'));
+    expect(await screen.findByText('43')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Export JSON'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'result_export', request: {
+        result_id: 'result-two', format: 'json',
+      },
+    }));
+  });
+
   it('renders document results as a structured JSON tree', async () => {
     const documentBootstrap = {
       ...bootstrap,
@@ -708,6 +766,47 @@ describe('ProviderWorkspaceContent', () => {
     expect(api.post.mock.calls[0][1]).toEqual({
       action: 'visual_admin_rows',
       request: {target_resource: table, limit: 200, continuation: null},
+    });
+  });
+
+  it('previews and explicitly confirms provider bulk imports', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      visual_admin: {...bootstrap.visual_admin, objects: [{
+        ...bootstrap.visual_admin.objects[0], operations: [{
+          ...bootstrap.visual_admin.objects[0].operations[0], blockers: [],
+          execution_available: true,
+        }],
+      }]},
+    }}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {
+      data: payload.action === 'visual_admin_bulk_plan' ? {
+        ready: true, atomicity: 'not-claimed', plans: [{plan: {
+          plan_id: 'plan-one', plan_digest: 'digest-one',
+          command_preview: 'CREATE DATABASE imported',
+        }}],
+      } : {complete: true, applied_count: 1, automatic_retry: false},
+    }}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="movement" />);
+    const source = await screen.findByRole('textbox', {
+      name: 'Import records / provider form drafts',
+    });
+    fireEvent.change(source, {target: {value: '[{"name":"imported"}]'}});
+    fireEvent.click(screen.getByText('Validate and preview batch'));
+    expect(await screen.findByLabelText('Bulk operation preview'))
+      .toHaveTextContent('CREATE DATABASE imported');
+    fireEvent.click(screen.getByLabelText(
+      'I confirm every provider-planned mutation in this non-atomic batch.'
+    ));
+    fireEvent.click(screen.getByText('Apply confirmed batch'));
+    expect(await screen.findByLabelText('Bulk operation result'))
+      .toHaveTextContent('applied_count');
+    expect(api.post).toHaveBeenLastCalledWith('/workspace/1', {
+      action: 'visual_admin_bulk_apply', request: {
+        confirmed: true,
+        plans: [{plan_id: 'plan-one', plan_digest: 'digest-one'}],
+      },
     });
   });
 

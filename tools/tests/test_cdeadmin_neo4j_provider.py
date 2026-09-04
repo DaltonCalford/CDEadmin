@@ -185,6 +185,24 @@ class Session:
             return Result([Record(n=node)])
         return Result([Record(ok=True)])
 
+    def begin_transaction(self):
+        return Transaction(self)
+
+
+class Transaction:
+    def __init__(self, session):
+        self.session = session
+        self.closed = False
+
+    def run(self, statement, parameters=None):
+        return self.session.run(statement, parameters)
+
+    def commit(self):
+        self.closed = True
+
+    def rollback(self):
+        self.closed = True
+
 
 class Driver:
     def __init__(self, uri, auth, options):
@@ -417,6 +435,14 @@ class Neo4jProviderTests(unittest.TestCase):
         transaction = adapter.describe_transaction(handle)
         self.assertFalse(transaction['common_finality_inference'])
         self.assertFalse(transaction['retry_decision_owned_by_common_code'])
+        adapter.control_transaction(handle, 'begin')
+        self.assertTrue(
+            adapter.describe_transaction(handle)['in_transaction']
+        )
+        adapter.control_transaction(handle, 'commit')
+        self.assertFalse(
+            adapter.describe_transaction(handle)['in_transaction']
+        )
 
     def test_record_conversion_does_not_flatten_native_graph_values(self):
         node = Node('4:preserved', ['Person'], name='Ada')

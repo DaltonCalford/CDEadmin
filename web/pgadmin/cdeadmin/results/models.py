@@ -140,6 +140,8 @@ class ResultDescriptor:
             'capability_id': self.capability_id,
             'renderer_id': self.renderer_id,
             'component_reference': self.component_reference,
+            'export_formats': sorted(self.export_policy.formats)
+            if self.export_policy.enabled else [],
             'production': self.production,
             'fixture': self.fixture,
         }

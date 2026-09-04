@@ -54,12 +54,15 @@ class Permissions:
 
 
 class PilotClient:
+    transaction_actions = ('commit', 'rollback')
+
     def __init__(self):
         self.token = object()
         self.handle = SimpleNamespace(close=lambda: None)
         self.cancelled = False
         self.admin_request = None
         self.resource_count = 1
+        self.transaction_action = None
 
     @staticmethod
     def runtime_identity(_request=None, _handle=None):
@@ -118,6 +121,10 @@ class PilotClient:
             'opaque_word': 'active-looking-but-uninterpreted',
             'finality_interpreted_by_common_code': False,
         }
+
+    def control_transaction(self, handle, action):
+        assert handle is self.handle
+        self.transaction_action = action
 
     @staticmethod
     def describe_security(_request):
@@ -347,6 +354,69 @@ class ProviderWorkspaceTests(unittest.TestCase):
                 'finality_interpreted_by_common_code'
             ]
         )
+
+    def test_transaction_action_is_dispatched_to_provider_client(self):
+        server = SimpleNamespace()
+        session = self.workspace.open_session(server, 'mysql-sql')
+        presentation = self.workspace.transaction_action(
+            server, session['session_id'], 'commit'
+        )
+        self.assertEqual('commit', self.client.transaction_action)
+        self.assertEqual(
+            MYSQL_PROFILE.transaction_model, presentation['transaction_model']
+        )
+
+    def test_retained_result_can_page_export_and_compare(self):
+        server = SimpleNamespace()
+        session = self.workspace.open_session(server, 'mysql-sql')
+        first = self.workspace.execute(
+            server, session['session_id'], 'SELECT 42'
+        )
+        rendered = self.workspace.poll(
+            server, first['occurrence_id']
+        )['rendered_result']
+        result_id = rendered['descriptor']['result_id']
+        page = self.workspace.result_page(server, {
+            'result_id': result_id, 'cursor': None, 'page_size': 1,
+        })
+        self.assertEqual([{'answer': 42}], page['view_model']['rows'])
+        exported = self.workspace.export_result(server, {
+            'result_id': result_id, 'format': 'json',
+        })
+        self.assertEqual('application/json', exported['media_type'])
+        compared = self.workspace.compare_results(server, {
+            'left_result_id': result_id, 'right_result_id': result_id,
+        })
+        self.assertEqual(0, compared['changed_count'])
+        self.assertFalse(compared['semantic_equality_inferred'])
+
+    def test_bulk_mutations_are_previewed_and_explicitly_confirmed(self):
+        server = SimpleNamespace(user_id=11)
+        drafts = [{
+            'resource_kind': 'database',
+            'operation_id': 'create',
+            'target_resource': None,
+            'draft': {'name': name, 'options': {}},
+        } for name in ('first', 'second')]
+        preview = self.workspace.plan_visual_admin_bulk(
+            server, {'items': drafts}
+        )
+        self.assertTrue(preview['ready'])
+        self.assertEqual('not-claimed', preview['atomicity'])
+        plans = [{
+            'plan_id': item['plan']['plan_id'],
+            'plan_digest': item['plan']['plan_digest'],
+        } for item in preview['plans']]
+        with self.assertRaisesRegex(Exception, 'confirmation'):
+            self.workspace.apply_visual_admin_bulk(server, {
+                'plans': plans, 'confirmed': False,
+            })
+        applied = self.workspace.apply_visual_admin_bulk(server, {
+            'plans': plans, 'confirmed': True,
+        })
+        self.assertTrue(applied['complete'])
+        self.assertEqual(2, applied['applied_count'])
+        self.assertFalse(applied['automatic_retry'])
 
     def test_visual_admin_uses_only_the_server_side_route(self):
         plan = self.workspace.plan_visual_admin(SimpleNamespace(), {

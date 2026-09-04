@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import binascii
 import copy
+import hashlib
 import json
 import math
 import multiprocessing
@@ -57,6 +58,7 @@ MAX_EXPORT_BYTES = 8 * 1024 * 1024
 MAX_EXPORT_RECORDS = 10_000
 MAX_STORED_DESCRIPTORS = 256
 MAX_STORED_BYTES = 64 * 1024 * 1024
+MAX_COMPARISON_CHANGES = 500
 FIXTURE_MARKER = 'cdeadmin_fixture'
 
 
@@ -201,6 +203,7 @@ class _StoredDescriptor:
     generation: str
     provider_capabilities: frozenset[str]
     encoded_bytes: int
+    endpoint_id: str | None
 
 
 class ResultService:
@@ -277,7 +280,9 @@ class ResultService:
             fixture=False,
             expected_capability=adapter.required_capability,
         )
-        return self._store(descriptor, capabilities)
+        return self._store(
+            descriptor, capabilities, endpoint_id=context.endpoint_id
+        )
 
     def load_fixture_story(self, path: Path):
         try:
@@ -313,26 +318,33 @@ class ResultService:
                 fixture=True,
                 expected_capability=None,
             )
-            admitted.append(self._store(descriptor, frozenset()))
+            admitted.append(self._store(
+                descriptor, frozenset(), endpoint_id=None
+            ))
         return tuple(admitted)
 
-    def descriptor(self, result_id):
-        return self._stored(result_id).descriptor.metadata()
+    def descriptor(self, result_id, *, endpoint_id=None):
+        stored = self._stored(result_id)
+        self._require_endpoint(stored, endpoint_id)
+        return stored.descriptor.metadata()
 
-    def release(self, result_id):
+    def release(self, result_id, *, endpoint_id=None):
         """Release retained records and invalidate all local page cursors."""
         with self._lock:
-            stored = self._descriptors.pop(result_id, None)
+            stored = self._descriptors.get(result_id)
             if stored is None:
                 return False
+            self._require_endpoint(stored, endpoint_id)
+            self._descriptors.pop(result_id)
             self._stored_bytes -= stored.encoded_bytes
         return True
 
     def render(
         self, result_id, *, page_size=None, cursor=None,
-        preferred_renderer=None,
+        preferred_renderer=None, endpoint_id=None,
     ):
         stored = self._stored(result_id)
+        self._require_endpoint(stored, endpoint_id)
         descriptor = stored.descriptor
         self._require_production_capability(stored)
         renderer = self.registry.renderer(
@@ -386,8 +398,9 @@ class ResultService:
             use_worker,
         ).to_dict() | {'sampling_applied': sampled}
 
-    def export(self, result_id, export_format):
+    def export(self, result_id, export_format, *, endpoint_id=None):
         stored = self._stored(result_id)
+        self._require_endpoint(stored, endpoint_id)
         descriptor = stored.descriptor
         self._require_production_capability(stored)
         renderer = self.registry.renderer(descriptor)
@@ -440,6 +453,65 @@ class ResultService:
             'records': len(redacted_records),
             'redacted': True,
             'worker_isolated': use_worker,
+        }
+
+    def compare(self, left_result_id, right_result_id, *, endpoint_id):
+        """Compare two redacted result presentations from one endpoint.
+
+        This is deliberately a presentation comparison, not an engine-level
+        equality or transaction-visibility decision.
+        """
+        left = self._stored(left_result_id)
+        right = self._stored(right_result_id)
+        self._require_endpoint(left, endpoint_id)
+        self._require_endpoint(right, endpoint_id)
+        self._require_production_capability(left)
+        self._require_production_capability(right)
+        left_records, left_sampled = self._sample(left.descriptor)
+        right_records, right_sampled = self._sample(right.descriptor)
+        left_records = tuple(redact(
+            item, left.descriptor.export_policy.redact_keys
+        ) for item in left_records)
+        right_records = tuple(redact(
+            item, right.descriptor.export_policy.redact_keys
+        ) for item in right_records)
+        changed = []
+        unchanged = 0
+        for index in range(max(len(left_records), len(right_records))):
+            left_value = left_records[index] \
+                if index < len(left_records) else None
+            right_value = right_records[index] \
+                if index < len(right_records) else None
+            if self._canonical(left_value) == self._canonical(right_value):
+                unchanged += 1
+                continue
+            if len(changed) < MAX_COMPARISON_CHANGES:
+                changed.append({
+                    'index': index,
+                    'left_present': index < len(left_records),
+                    'right_present': index < len(right_records),
+                    'left': copy.deepcopy(left_value),
+                    'right': copy.deepcopy(right_value),
+                })
+        return {
+            'schema': 'cdeadmin.result-presentation-comparison.v1',
+            'comparison_kind': 'ordered-redacted-presentation',
+            'semantic_equality_inferred': False,
+            'endpoint_id': endpoint_id,
+            'left': self._comparison_summary(left, left_sampled),
+            'right': self._comparison_summary(right, right_sampled),
+            'schema_equal': self._canonical(
+                left.descriptor.schema
+            ) == self._canonical(right.descriptor.schema),
+            'unchanged_count': unchanged,
+            'changed_count': max(
+                len(left_records), len(right_records)
+            ) - unchanged,
+            'changes': changed,
+            'changes_truncated': (
+                max(len(left_records), len(right_records)) - unchanged
+            ) > len(changed),
+            'redacted': True,
         }
 
     def _descriptor(
@@ -617,7 +689,7 @@ class ResultService:
         ))[:policy.limit]
         return sampled, True
 
-    def _store(self, descriptor, capabilities):
+    def _store(self, descriptor, capabilities, *, endpoint_id):
         generation = str(uuid.uuid4())
         encoded_bytes = len(json.dumps(
             {
@@ -646,6 +718,7 @@ class ResultService:
                 generation,
                 frozenset(capabilities),
                 encoded_bytes,
+                endpoint_id,
             )
             self._stored_bytes += encoded_bytes
         return descriptor.metadata()
@@ -657,6 +730,38 @@ class ResultService:
             raise ResultDescriptorError(
                 'result descriptor is unavailable'
             ) from exc
+
+    @staticmethod
+    def _require_endpoint(stored, endpoint_id):
+        if stored.endpoint_id is None and endpoint_id is None:
+            return
+        if stored.endpoint_id != endpoint_id:
+            raise ResultDescriptorError(
+                'result descriptor belongs to another endpoint'
+            )
+
+    @staticmethod
+    def _canonical(value):
+        return json.dumps(
+            value, sort_keys=True, separators=(',', ':'), default=repr
+        )
+
+    def _comparison_summary(self, stored, sampled):
+        descriptor = stored.descriptor
+        records, _sampling_applied = self._sample(descriptor)
+        records = tuple(redact(
+            item, descriptor.export_policy.redact_keys
+        ) for item in records)
+        digest = hashlib.sha256(self._canonical(records).encode(
+            'utf-8'
+        )).hexdigest()
+        return {
+            'result_id': descriptor.result_id,
+            'result_kind': descriptor.result_kind,
+            'record_count': len(records),
+            'sampling_applied': sampled,
+            'presentation_sha256': digest,
+        }
 
     @staticmethod
     def _require_production_capability(stored):

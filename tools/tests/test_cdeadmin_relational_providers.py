@@ -613,6 +613,12 @@ class RelationalDBAPIClientTests(unittest.TestCase):
         payload = result['extensions']['sqlite']['payload']
         self.assertEqual([[42]], [list(row) for row in payload['rows']])
         self.assertTrue(result['complete'])
+        controlled = self.provider.control_transaction({
+            'session_id': session['session_id'], 'action': 'rollback',
+        })
+        self.assertTrue(controlled['provider_payload'][
+            'driver_observation_only'
+        ])
 
     def test_metadata_and_cleanup_are_bounded(self):
         request = {

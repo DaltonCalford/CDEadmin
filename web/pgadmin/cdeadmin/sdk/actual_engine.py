@@ -586,6 +586,10 @@ class ActualEnginePilotProvider:
         return binding.instance.describe_transaction(request)
 
     @staticmethod
+    def _studio_control_transaction(binding, request):
+        return binding.instance.control_transaction(request)
+
+    @staticmethod
     def _studio_execute(binding, request):
         return binding.instance.execute(request)
 
@@ -609,6 +613,9 @@ class ActualEnginePilotProvider:
 
         profiles = frozenset({self.profile.language_profile})
         prefix = f'{self.profile.engine_id}.data-studio'
+        transaction_actions = frozenset(getattr(
+            self.client, 'transaction_actions', ()
+        ))
         return {
             'languages': (
                 LanguageContribution(
@@ -624,6 +631,11 @@ class ActualEnginePilotProvider:
                     profiles,
                     ActualEnginePilotProvider._studio_open_session,
                     ActualEnginePilotProvider._studio_describe_transaction,
+                    transaction_actions,
+                    (
+                        ActualEnginePilotProvider._studio_control_transaction
+                        if transaction_actions else None
+                    ),
                 ),
             ),
             'executions': (
@@ -774,6 +786,29 @@ class ActualEnginePilotProvider:
                 'common_finality_inference': False,
             }),
         }
+
+    def control_transaction(self, request):
+        """Ask the provider client to control its retained native session."""
+        payload = _mapping(request)
+        session_id = payload.get('session_id')
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise PilotProviderError('provider session is unavailable')
+        action = payload.get('action')
+        supported = frozenset(getattr(
+            self.client, 'transaction_actions', ()
+        ))
+        if action not in supported:
+            raise PilotProviderError(
+                'transaction action is unavailable for this provider'
+            )
+        callback = getattr(self.client, 'control_transaction', None)
+        if not callable(callback):
+            raise PilotProviderError(
+                'provider transaction controller is unavailable'
+            )
+        callback(session.handle, action)
+        return self.describe_transaction({'session_id': session_id})
 
     def execute(self, request):
         self._require('execute')

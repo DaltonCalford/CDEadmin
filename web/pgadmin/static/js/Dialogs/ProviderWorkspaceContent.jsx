@@ -22,6 +22,51 @@ function errorMessage(error) {
     gettext('The provider workspace request failed.');
 }
 
+function defaultSource(languageProfile) {
+  const sources = {
+    cypher: 'MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100',
+    'redis-resp3-command': 'PING',
+    'opensearch-query-dsl': '{"query":{"match_all":{}},"size":100}',
+    'opensearch-sql-ppl': 'SELECT * FROM index_name LIMIT 100',
+    'milvus-query-search-api': '{"operation":"query","collection_name":"collection","filter":"","output_fields":["*"],"limit":100}',
+    'influxdb3-sql-influxql': 'SELECT * FROM measurement LIMIT 100',
+    'mongodb-query-api': '{"operation":"find","database":"database","collection":"collection","filter":{},"limit":100}',
+    'mongodb-query-api-json': '{"operation":"aggregate","database":"database","collection":"collection","pipeline":[{"$limit":100}]}',
+    cql: 'SELECT * FROM keyspace.table LIMIT 100',
+    'cql-3': 'SELECT * FROM keyspace.table LIMIT 100',
+  };
+  return sources[languageProfile] || 'SELECT 1';
+}
+
+function sourcePresets(languageProfile) {
+  const presets = {
+    'opensearch-sql-ppl': [
+      ['SQL', 'SELECT * FROM index_name LIMIT 100'],
+      ['PPL', 'source = index_name | head 100'],
+    ],
+    'influxdb3-sql-influxql': [
+      ['SQL', 'SELECT * FROM measurement LIMIT 100'],
+      ['InfluxQL', 'SHOW MEASUREMENTS'],
+    ],
+    'mongodb-query-api-json': [
+      ['Find', '{"operation":"find","database":"database","collection":"collection","filter":{},"limit":100}'],
+      ['Aggregation pipeline', '{"operation":"aggregate","database":"database","collection":"collection","pipeline":[{"$limit":100}]}'],
+    ],
+  };
+  if (presets[languageProfile]) return presets[languageProfile];
+  return [[languageProfile || gettext('Native'), defaultSource(languageProfile)]];
+}
+
+function downloadBase64(payload) {
+  const bytes = Uint8Array.from(atob(payload.content_base64),
+    (character) => character.charCodeAt(0));
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([bytes], {type: payload.media_type}));
+  link.download = payload.filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function resourceHierarchy(groups, expanded, filtering) {
   const rows = [];
   groups.forEach((group) => {
@@ -827,6 +872,11 @@ function KeyValueDataGrid({catalog, resources, post, setError}) {
     {keys.length === 0 && <Alert severity="info" sx={{mt: 2}}>
       {gettext('No discovered Redis key is available.')}
     </Alert>}
+    {target && <Box component="pre" aria-label={gettext('Redis key metadata')}
+      sx={{mt: 1, p: 1, maxHeight: 160, overflow: 'auto',
+        bgcolor: 'background.default'}}>
+      {JSON.stringify(target.extensions || target.native || {}, null, 2)}
+    </Box>}
     {page && <>
       <Alert severity="info" sx={{mt: 2}}>
         {gettext('Edits retain Redis native types and use route-bound, single-use value identities with optimistic concurrency checks.')}
@@ -900,14 +950,14 @@ function StructuredDataGrid({catalog, resources, post, setError}) {
     }
   }, [tables, targetId]);
 
-  const load = async () => {
+  const load = async (continuation=null) => {
     if (!target) return;
     setWorking(true);
     setError(null);
     try {
       const nextPage = await post({
         action: 'visual_admin_rows',
-        request: {target_resource: target, limit: 200},
+        request: {target_resource: target, limit: 200, continuation},
       });
       setPage(nextPage);
       setEdits({});
@@ -1064,6 +1114,15 @@ function StructuredDataGrid({catalog, resources, post, setError}) {
         </tbody>
       </Box>
     </>}
+    {page?.continuation && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
+      <Button disabled={working} onClick={() => load(page.continuation)}>
+        {gettext('Next row page')}</Button>
+      <Button disabled={working} onClick={async () => {
+        await post({action: 'visual_admin_rows_cancel', request: {
+          continuation: page.continuation,
+        }}); setPage({...page, continuation: null, complete: true});
+      }}>{gettext('Cancel row cursor')}</Button>
+    </Box>}
   </Box>;
 }
 
@@ -1078,6 +1137,10 @@ const ANALYTIC_CONTAINER_KINDS = {
   'time-series-analytic': ['table'],
   'vector-analytic': ['collection'],
   'search-analytic': ['index'],
+  'search-document-analytic': ['index'],
+  'columnar-analytic': ['table'],
+  'wide-column': ['table'],
+  'bitemporal-document-relational': ['table'],
 };
 
 function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
@@ -1104,7 +1167,8 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
     setError(null);
     try {
       const request = {target_resource: target, limit: 200, continuation};
-      if (modelFamily !== 'time-series-analytic') {
+      if (['vector-analytic', 'search-analytic',
+        'search-document-analytic'].includes(modelFamily)) {
         request.filter = JSON.parse(filterSource || '{}');
       }
       setPage(await post({action: 'visual_admin_rows', request}));
@@ -1116,6 +1180,27 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
   };
 
   const records = page?.records || page?.documents || [];
+  const components = {
+    'time-series-analytic': 'cdeadmin/results/TimeSeriesView',
+    'vector-analytic': 'cdeadmin/results/VectorView',
+    'search-analytic': 'cdeadmin/results/SearchView',
+    'search-document-analytic': 'cdeadmin/results/SearchView',
+    'columnar-analytic': 'cdeadmin/results/ColumnarView',
+    'wide-column': 'cdeadmin/results/WideColumnView',
+    'bitemporal-document-relational':
+      'cdeadmin/results/BitemporalDocumentView',
+  };
+  const viewModel = ['columnar-analytic', 'wide-column'].includes(modelFamily) ? {
+    rows: records, columns: page?.columns || page?.schema?.columns || [],
+    native_observation: page?.native_observation || {},
+  } : {
+    records, schema: page?.schema || page?.metadata || {},
+    temporal_fields: page?.temporal_fields || {},
+  };
+  const specializedResult = page ? {
+    component_reference: components[modelFamily],
+    view_model: viewModel,
+  } : null;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
     <Box sx={{display: 'flex', gap: 1, alignItems: 'center'}}>
       <TextField select sx={{minWidth: 280}}
@@ -1130,7 +1215,9 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
         onClick={() => load()}>{gettext('Load data')}</Button>
       {working && <CircularProgress size={24} />}
     </Box>
-    {modelFamily !== 'time-series-analytic' && <TextField fullWidth multiline
+    {['vector-analytic', 'search-analytic',
+      'search-document-analytic'].includes(modelFamily) &&
+      <TextField fullWidth multiline
       minRows={2} sx={{mt: 2}} label={gettext('Native filter (JSON)')}
       value={filterSource}
       onChange={(event) => setFilterSource(event.target.value)} />}
@@ -1140,10 +1227,7 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
     {page && <Alert severity="info" sx={{mt: 2}}>
       {gettext('Use the Administration tab for provider-validated inserts, updates, deletes, schema changes, indexes, retention, and security operations.')}
     </Alert>}
-    {records.map((record, index) => <Box component="pre" key={index}
-      sx={{p: 1, mt: 1, bgcolor: 'background.default', whiteSpace: 'pre-wrap'}}>
-      {JSON.stringify(record, null, 2)}
-    </Box>)}
+    {specializedResult && <ResultView rendered={specializedResult} />}
     {page?.continuation && <Button sx={{mt: 1}} disabled={working}
       onClick={() => load(page.continuation)}>{gettext('Next data page')}</Button>}
   </Box>;
@@ -1335,6 +1419,17 @@ function TimeSeriesView({rendered}) {
   const timeField = schema.time_field || 'time';
   return <Box aria-label={gettext('Time-series results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
+    <Box sx={{display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1}}>
+      {schema.measurement && <Box><strong>{gettext('Measurement')}:</strong>
+        {' '}{resultCell(schema.measurement)}</Box>}
+      {schema.tags && <Box><strong>{gettext('Tags')}:</strong>
+        {' '}{resultCell(schema.tags)}</Box>}
+      {schema.fields && <Box><strong>{gettext('Fields')}:</strong>
+        {' '}{resultCell(schema.fields)}</Box>}
+      {(schema.retention || schema.retention_policy) && <Box>
+        <strong>{gettext('Retention')}:</strong>{' '}
+        {resultCell(schema.retention || schema.retention_policy)}</Box>}
+    </Box>
     <Box component="table" sx={{borderCollapse: 'collapse', minWidth: '100%'}}>
       <thead><tr><th align="left">{timeField}</th>
         <th align="left">{gettext('Series values')}</th></tr></thead>
@@ -1357,8 +1452,14 @@ TimeSeriesView.propTypes = {rendered: PropTypes.object};
 
 function VectorView({rendered}) {
   const records = rendered?.view_model?.records || [];
+  const schema = rendered?.view_model?.schema || {};
   return <Box aria-label={gettext('Vector results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
+    {Object.keys(schema).length > 0 && <Box component="pre"
+      aria-label={gettext('Vector collection metadata')}
+      sx={{p: 1, bgcolor: 'background.default', whiteSpace: 'pre-wrap'}}>
+      {JSON.stringify(schema, null, 2)}
+    </Box>}
     {records.map((record, index) => <Box key={index}
       sx={{p: 1, mb: 1, border: 1, borderColor: 'divider'}}>
       <Box sx={{display: 'flex', gap: 2}}>
@@ -1423,6 +1524,22 @@ function DocumentTreeView({rendered}) {
 }
 
 DocumentTreeView.propTypes = {rendered: PropTypes.object};
+
+function QueryPlanView({rendered}) {
+  const view = rendered?.view_model || {};
+  const nodes = view.nodes || view.plan || view.records || view.rows || view;
+  return <Box aria-label={gettext('Query plan results')}
+    sx={{overflow: 'auto', mt: 1, flex: 1}}>
+    <Alert severity="info" sx={{mb: 1}}>
+      {gettext('This plan is the provider\'s native presentation; CDEadmin does not reinterpret cost, finality, or execution state.')}
+    </Alert>
+    <Box component="pre" sx={{whiteSpace: 'pre-wrap', mb: 0}}>
+      {JSON.stringify(nodes, null, 2)}
+    </Box>
+  </Box>;
+}
+
+QueryPlanView.propTypes = {rendered: PropTypes.object};
 
 function BitemporalDocumentView({rendered}) {
   const records = rendered?.view_model?.records || [];
@@ -1534,6 +1651,10 @@ GraphView.propTypes = {
 };
 
 function ResultView({rendered}) {
+  if (rendered?.descriptor?.result_kind === 'plan' ||
+    rendered?.component_reference === 'cdeadmin/results/PlanView') {
+    return <QueryPlanView rendered={rendered} />;
+  }
   if (rendered?.component_reference === 'cdeadmin/results/CubePivotView') {
     return <CubePivotView rendered={rendered} />;
   }
@@ -1569,6 +1690,62 @@ function ResultView({rendered}) {
 }
 
 ResultView.propTypes = {rendered: PropTypes.object};
+
+function ResultControls({rendered, history, post, onRendered, setError,
+  setBusy}) {
+  const [comparison, setComparison] = useState(null);
+  const resultId = rendered?.descriptor?.result_id;
+  const previous = [...history].reverse().find((item) =>
+    item.descriptor?.result_id !== resultId);
+  const perform = async (callback) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await callback();
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!resultId) return null;
+  return <Box sx={{mt: 1}}>
+    <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}
+      aria-label={gettext('Result actions')}>
+      <Button disabled={!rendered.page?.next_cursor} onClick={() => perform(
+        async () => onRendered(await post({action: 'result_page', request: {
+          result_id: resultId, cursor: rendered.page.next_cursor,
+          page_size: rendered.page.page_size || 500,
+        }})))}>{gettext('Next result page')}</Button>
+      {(rendered.descriptor?.export_formats || []).map((format) =>
+        <Button key={format} onClick={() => perform(async () => downloadBase64(
+          await post({action: 'result_export', request: {
+            result_id: resultId, format,
+          }})
+        ))}>{gettext('Export')} {format.toUpperCase()}</Button>)}
+      <Button disabled={!previous} onClick={() => perform(async () =>
+        setComparison(await post({action: 'result_compare', request: {
+          left_result_id: previous.descriptor.result_id,
+          right_result_id: resultId,
+        }})))}>{gettext('Compare with previous result')}</Button>
+    </Box>
+    {comparison && <Box component="pre"
+      aria-label={gettext('Result comparison')}
+      sx={{p: 1, mt: 1, overflow: 'auto', maxHeight: 260,
+        bgcolor: 'background.default', whiteSpace: 'pre-wrap'}}>
+      {JSON.stringify(comparison, null, 2)}
+    </Box>}
+  </Box>;
+}
+
+ResultControls.propTypes = {
+  rendered: PropTypes.object,
+  history: PropTypes.array.isRequired,
+  post: PropTypes.func.isRequired,
+  onRendered: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+  setBusy: PropTypes.func.isRequired,
+};
 
 function DocumentDataGrid({catalog, resources, post, setError}) {
   const collections = (resources || []).filter(
@@ -1819,17 +1996,19 @@ function GraphDataStudio({catalog, resources, post, setError}) {
   const [relationshipStart, setRelationshipStart] = useState('');
   const [relationshipEnd, setRelationshipEnd] = useState('');
   const [relationshipProperties, setRelationshipProperties] = useState('{}');
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [working, setWorking] = useState(false);
   const target = graphs.find((item) => item.resource_id === targetId);
 
-  const load = async () => {
+  const load = async (continuation=null) => {
     if (!target) return;
     setWorking(true); setError(null);
     try {
       setPage(await post({action: 'visual_admin_rows', request: {
-        target_resource: target, limit: 200, filter: {},
+        target_resource: target, limit: 200, filter: {}, continuation,
       }}));
       setEdits({});
+      setDeleteCandidate(null);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -1896,6 +2075,11 @@ function GraphDataStudio({catalog, resources, post, setError}) {
   };
 
   const deleteEntity = async (resourceKind, entity) => {
+    const candidate = `${resourceKind}:${entity.element_id}`;
+    if (deleteCandidate !== candidate) {
+      setDeleteCandidate(candidate);
+      return;
+    }
     setWorking(true); setError(null);
     try {
       await mutate(resourceKind, 'delete', entityTarget(resourceKind, entity), {
@@ -1953,7 +2137,9 @@ function GraphDataStudio({catalog, resources, post, setError}) {
         onClick={() => saveEntity('node', node)}>{gettext('Save')}</Button>
       <Button color="warning"
         disabled={working || !admitted(nodeDescriptor, 'delete')}
-        onClick={() => deleteEntity('node', node)}>{gettext('Delete node')}</Button>
+        onClick={() => deleteEntity('node', node)}>{deleteCandidate ===
+          `node:${node.element_id}` ? gettext('Confirm delete node') :
+          gettext('Delete node')}</Button>
     </Box>)}
     <Box sx={{display: 'grid', gridTemplateColumns: '1fr 2fr auto', gap: 1, mt: 2}}>
       <TextField label={gettext('Labels (comma separated)')} value={labels}
@@ -1978,7 +2164,9 @@ function GraphDataStudio({catalog, resources, post, setError}) {
       <Button color="warning"
         disabled={working || !admitted(relationshipDescriptor, 'delete')}
         onClick={() => deleteEntity('relationship', relationship)}>
-        {gettext('Delete relationship')}</Button>
+        {deleteCandidate === `relationship:${relationship.element_id}` ?
+          gettext('Confirm delete relationship') :
+          gettext('Delete relationship')}</Button>
     </Box>)}
     <Box sx={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr auto',
       gap: 1, mt: 2}}>
@@ -2004,6 +2192,15 @@ function GraphDataStudio({catalog, resources, post, setError}) {
     {graphs.length === 0 && <Alert severity="info" sx={{mt: 2}}>
       {gettext('No discovered graph database is available.')}
     </Alert>}
+    {page?.continuation && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
+      <Button disabled={working} onClick={() => load(page.continuation)}>
+        {gettext('Next graph page')}</Button>
+      <Button disabled={working} onClick={async () => {
+        await post({action: 'visual_admin_rows_cancel', request: {
+          continuation: page.continuation,
+        }}); setPage({...page, continuation: null, complete: true});
+      }}>{gettext('Cancel graph cursor')}</Button>
+    </Box>}
   </Box>;
 }
 
@@ -3027,6 +3224,194 @@ ConnectionRouteWorkspace.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
+function parseCsv(source) {
+  const rows = [];
+  let row = [];
+  let value = '';
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '"' && quoted && source[index + 1] === '"') {
+      value += '"'; index += 1;
+    } else if (character === '"') quoted = !quoted;
+    else if (character === ',' && !quoted) { row.push(value); value = ''; }
+    else if ((character === '\n' || character === '\r') && !quoted) {
+      if (character === '\r' && source[index + 1] === '\n') index += 1;
+      row.push(value); value = '';
+      if (row.some((item) => item !== '')) rows.push(row);
+      row = [];
+    } else value += character;
+  }
+  row.push(value);
+  if (row.some((item) => item !== '')) rows.push(row);
+  if (quoted || rows.length < 2) throw new Error(gettext('CSV input is invalid.'));
+  const headers = rows[0];
+  if (new Set(headers).size !== headers.length || headers.some((item) => !item)) {
+    throw new Error(gettext('CSV headers must be unique and non-empty.'));
+  }
+  return rows.slice(1).map((values) => Object.fromEntries(headers.map(
+    (name, index) => [name, values[index] ?? '']
+  )));
+}
+
+function DataMovementWorkspace({catalog, resources, post, setError}) {
+  const choices = useMemo(() => (catalog?.objects || []).flatMap((object) =>
+    (object.operations || []).filter((operation) =>
+      operation.execution_available && operation.mutation_class !== 'read'
+    ).map((operation) => ({object, operation,
+      id: `${object.resource_kind}\u0000${operation.operation_id}`}))), [catalog]);
+  const [choiceId, setChoiceId] = useState(choices[0]?.id || '');
+  const [targetId, setTargetId] = useState('');
+  const [format, setFormat] = useState('json');
+  const [source, setSource] = useState('[]');
+  const [plan, setPlan] = useState(null);
+  const [result, setResult] = useState(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [working, setWorking] = useState(false);
+  const choice = choices.find((item) => item.id === choiceId) || choices[0];
+  const targets = useMemo(() => {
+    const targetKinds = choice?.operation.target_resource_kinds ||
+      [choice?.object.resource_kind];
+    return (resources || []).filter((resource) =>
+      targetKinds.includes(resource.resource_kind));
+  }, [choice, resources]);
+
+  useEffect(() => {
+    if (!choices.some((item) => item.id === choiceId)) {
+      setChoiceId(choices[0]?.id || '');
+    }
+  }, [choiceId, choices]);
+  useEffect(() => {
+    if (!targets.some((item) => item.resource_id === targetId)) {
+      setTargetId(targets[0]?.resource_id || '');
+    }
+  }, [targetId, targets]);
+
+  const records = () => {
+    let parsed;
+    if (format === 'json') parsed = JSON.parse(source || '[]');
+    else if (format === 'jsonl') parsed = (source || '').split(/\r?\n/)
+      .filter((line) => line.trim()).map((line) => JSON.parse(line));
+    else parsed = parseCsv(source || '');
+    if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 500 ||
+      parsed.some((item) => !item || Array.isArray(item) ||
+        typeof item !== 'object')) {
+      throw new Error(gettext('Import must contain 1 to 500 object records.'));
+    }
+    return parsed;
+  };
+  const draftFor = (record) => {
+    const fields = choice.operation.form?.fields || [];
+    const fieldNames = new Set(fields.map((field) => field.field_id));
+    if (Object.keys(record).every((name) => fieldNames.has(name))) return record;
+    const container = fields.find((field) =>
+      ['values', 'document', 'record', 'properties'].includes(field.field_id));
+    if (container) return {[container.field_id]: record};
+    return record;
+  };
+  const preview = async () => {
+    setWorking(true); setError(null); setResult(null); setConfirmed(false);
+    try {
+      if (!choice) throw new Error(gettext('No bulk operation is available.'));
+      const target = targets.find((item) => item.resource_id === targetId) || null;
+      const items = records().map((record) => ({
+        resource_kind: choice.object.resource_kind,
+        operation_id: choice.operation.operation_id,
+        target_resource: target,
+        draft: draftFor(record),
+      }));
+      setPlan(await post({action: 'visual_admin_bulk_plan', request: {items}}));
+    } catch (requestError) {
+      setPlan(null); setError(errorMessage(requestError));
+    } finally { setWorking(false); }
+  };
+  const apply = async () => {
+    setWorking(true); setError(null);
+    try {
+      setResult(await post({action: 'visual_admin_bulk_apply', request: {
+        confirmed,
+        plans: plan.plans.map(({plan: item}) => ({
+          plan_id: item.plan_id, plan_digest: item.plan_digest,
+        })),
+      }}));
+      setPlan(null); setConfirmed(false);
+    } catch (requestError) { setError(errorMessage(requestError)); }
+    finally { setWorking(false); }
+  };
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('Import and bulk edit use provider forms and native plans. Batches are ordered and are not claimed to be atomic; automatic mutation retry is disabled.')}
+    </Alert>
+    <Box sx={{display: 'grid', gridTemplateColumns:
+      'minmax(220px, 2fr) minmax(140px, 1fr)', gap: 2}}>
+      <TextField select label={gettext('Provider bulk operation')}
+        value={choice?.id || ''} onChange={(event) => {
+          setChoiceId(event.target.value); setPlan(null);
+        }}>
+        {choices.map((item) => <MenuItem key={item.id} value={item.id}>
+          {item.object.title} — {item.operation.title}
+        </MenuItem>)}
+      </TextField>
+      <TextField select label={gettext('Import format')} value={format}
+        onChange={(event) => {setFormat(event.target.value); setPlan(null);}}>
+        <MenuItem value="json">JSON array</MenuItem>
+        <MenuItem value="jsonl">JSON Lines</MenuItem>
+        <MenuItem value="csv">CSV with header</MenuItem>
+      </TextField>
+    </Box>
+    {choice?.operation.target_required && <TextField select fullWidth sx={{mt: 2}}
+      label={gettext('Target resource')} value={targetId}
+      onChange={(event) => {setTargetId(event.target.value); setPlan(null);}}>
+      {targets.map((item) => <MenuItem key={item.resource_id}
+        value={item.resource_id}>{item.display_name}</MenuItem>)}
+    </TextField>}
+    <TextField fullWidth multiline minRows={8} maxRows={20} sx={{mt: 2}}
+      label={gettext('Import records / provider form drafts')} value={source}
+      onChange={(event) => {setSource(event.target.value); setPlan(null);}} />
+    <Box sx={{display: 'flex', gap: 1, mt: 2}}>
+      <Button component="label">{gettext('Choose import file')}
+        <input hidden type="file" accept=".json,.jsonl,.ndjson,.csv"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file || file.size > 4 * 1024 * 1024) {
+              setError(gettext('Import files must not exceed 4 MiB.'));
+              return;
+            }
+            const extension = file.name.split('.').pop()?.toLowerCase();
+            setFormat(extension === 'csv' ? 'csv' :
+              ['jsonl', 'ndjson'].includes(extension) ? 'jsonl' : 'json');
+            file.text().then((value) => {setSource(value); setPlan(null);})
+              .catch((requestError) => setError(errorMessage(requestError)));
+          }} />
+      </Button>
+      <Button variant="contained" disabled={working || !choice ||
+        (choice.operation.target_required && !targetId)} onClick={preview}>
+        {gettext('Validate and preview batch')}</Button>
+      <Button color="warning" disabled={working || !plan?.ready || !confirmed}
+        onClick={apply}>{gettext('Apply confirmed batch')}</Button>
+      {working && <CircularProgress size={24} />}
+    </Box>
+    {plan && <><FormControlLabel control={<Checkbox checked={confirmed}
+      onChange={(event) => setConfirmed(event.target.checked)} />}
+      label={gettext('I confirm every provider-planned mutation in this non-atomic batch.')} />
+    <Box component="pre" aria-label={gettext('Bulk operation preview')}
+      sx={{p: 1, maxHeight: 320, overflow: 'auto', bgcolor: 'background.default'}}>
+      {JSON.stringify(plan, null, 2)}
+    </Box></>}
+    {result && <Box component="pre" aria-label={gettext('Bulk operation result')}
+      sx={{p: 1, maxHeight: 320, overflow: 'auto', bgcolor: 'background.default'}}>
+      {JSON.stringify(result, null, 2)}
+    </Box>}
+  </Box>;
+}
+
+DataMovementWorkspace.propTypes = {
+  catalog: PropTypes.object,
+  resources: PropTypes.array,
+  post: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+};
+
 export default function ProviderWorkspaceContent({
   closeModal, endpointUrl, initialTab='resources',
 }) {
@@ -3034,10 +3419,13 @@ export default function ProviderWorkspaceContent({
   const [tab, setTab] = useState(initialTab);
   const [workspace, setWorkspace] = useState(null);
   const [source, setSource] = useState('SELECT 1');
+  const [languageProfile, setLanguageProfile] = useState('');
   const [parameterSource, setParameterSource] = useState('{}');
   const [sessionId, setSessionId] = useState(null);
   const [occurrenceId, setOccurrenceId] = useState(null);
   const [rendered, setRendered] = useState(null);
+  const [resultHistory, setResultHistory] = useState([]);
+  const [resultPresentation, setResultPresentation] = useState('native');
   const [transaction, setTransaction] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
   const [resourcePage, setResourcePage] = useState(null);
@@ -3049,24 +3437,9 @@ export default function ProviderWorkspaceContent({
     api.get(endpointUrl).then((response) => {
       setWorkspace(response.data.data);
       setResourcePage(response.data.data?.resource_page || null);
-      if (response.data.data?.languages?.[0]?.language_profile === 'cypher') {
-        setSource('MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100');
-      } else if (response.data.data?.languages?.[0]?.language_profile ===
-        'redis-resp3-command') {
-        setSource('PING');
-      } else if (response.data.data?.languages?.[0]?.language_profile ===
-        'opensearch-query-dsl') {
-        setSource('{"query":{"match_all":{}},"size":100}');
-      } else if (response.data.data?.languages?.[0]?.language_profile ===
-        'milvus-query-search-api') {
-        setSource('{"operation":"query","collection_name":"collection","filter":"","output_fields":["*"],"limit":100}');
-      } else if (response.data.data?.languages?.[0]?.language_profile ===
-        'influxdb3-sql-influxql') {
-        setSource('SELECT * FROM measurement LIMIT 100');
-      } else if (response.data.data?.languages?.[0]?.language_profile ===
-        'opensearch-sql-ppl') {
-        setSource('SELECT * FROM index_name LIMIT 100');
-      }
+      const profile = response.data.data?.languages?.[0]?.language_profile || '';
+      setLanguageProfile(profile);
+      setSource(defaultSource(profile));
       setBusy(false);
     }).catch((requestError) => {
       setError(errorMessage(requestError));
@@ -3076,6 +3449,16 @@ export default function ProviderWorkspaceContent({
 
   const post = useCallback((payload) => api.post(endpointUrl, payload)
     .then((response) => response.data.data), [api, endpointUrl]);
+
+  const acceptRendered = useCallback((value) => {
+    setRendered(value);
+    const resultId = value?.descriptor?.result_id;
+    if (!resultId) return;
+    setResultHistory((current) => [
+      ...current.filter((item) => item.descriptor?.result_id !== resultId),
+      value,
+    ].slice(-10));
+  }, []);
 
   useEffect(() => {
     if (selectedResource && !resourcePage?.items?.some((item) =>
@@ -3132,33 +3515,34 @@ export default function ProviderWorkspaceContent({
 
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
-    const language = workspace?.languages?.[0]?.language_profile;
+    const language = languageProfile;
     if (!language) throw new Error(gettext('No query language is available.'));
     const opened = await post({
       action: 'open_session', language_profile: language,
     });
     setSessionId(opened.session_id);
     return opened.session_id;
-  }, [post, sessionId, workspace]);
+  }, [languageProfile, post, sessionId]);
 
   const poll = useCallback(async (id) => {
     setBusy(true);
     setError(null);
     try {
       const response = await post({action: 'poll', occurrence_id: id});
-      setRendered(response.rendered_result);
+      acceptRendered(response.rendered_result);
       setOccurrenceId(response.occurrence?.operation?.terminal ? null : id);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
       setBusy(false);
     }
-  }, [post]);
+  }, [acceptRendered, post]);
 
   const execute = async () => {
     setBusy(true);
     setError(null);
     setRendered(null);
+    setResultPresentation('native');
     try {
       const activeSession = await ensureSession();
       const occurrence = await post({
@@ -3199,6 +3583,31 @@ export default function ProviderWorkspaceContent({
     }
   };
 
+  const controlTransaction = async (action) => {
+    setBusy(true); setError(null);
+    try {
+      const activeSession = await ensureSession();
+      setTransaction(await post({
+        action: 'transaction_action', session_id: activeSession,
+        transaction_action: action,
+      }));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally { setBusy(false); }
+  };
+
+  const selectLanguage = (profile) => {
+    setLanguageProfile(profile);
+    setSource(defaultSource(profile));
+    setSessionId(null);
+    setOccurrenceId(null);
+    setRendered(null);
+    setTransaction(null);
+  };
+
+  const activeLanguage = workspace?.languages?.find((item) =>
+    item.language_profile === languageProfile) || workspace?.languages?.[0];
+
   return (
     <ModalContent>
       <Tabs value={tab} onChange={(_event, value) => setTab(value)}>
@@ -3208,6 +3617,7 @@ export default function ProviderWorkspaceContent({
         <Tab value="administration" label={gettext('Administration')} />
         <Tab value="operations" label={gettext('Operations')} />
         <Tab value="semantic" label={gettext('Cubes & Semantic Models')} />
+        <Tab value="movement" label={gettext('Import & Bulk')} />
         {workspace?.endpoint?.route_management_available &&
           <Tab value="connections" label={gettext('Connections')} />}
         {workspace?.visual_admin?.model_family === 'document' &&
@@ -3225,7 +3635,20 @@ export default function ProviderWorkspaceContent({
           onLoadMore={loadMoreResources} onRefresh={refreshResources}
           loadingMore={loadingMore} />}
       {workspace && tab === 'studio' && <Box sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
-        <Box>{workspace.languages?.[0]?.title || gettext('Provider query language')}</Box>
+        <TextField select size="small" sx={{mb: 1, maxWidth: 360}}
+          label={gettext('Provider language')} value={languageProfile}
+          onChange={(event) => selectLanguage(event.target.value)}>
+          {(workspace.languages || []).map((language) => <MenuItem
+            key={language.language_profile} value={language.language_profile}>
+            {language.title}
+          </MenuItem>)}
+        </TextField>
+        <Box sx={{display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap'}}
+          aria-label={gettext('Provider language examples')}>
+          {sourcePresets(languageProfile).map(([label, example]) =>
+            <Button size="small" key={label} onClick={() => setSource(example)}>
+              {label}</Button>)}
+        </Box>
         <TextField multiline minRows={7} maxRows={14} value={source}
           onChange={(event) => setSource(event.target.value)}
           inputProps={{'aria-label': gettext('Query source')}} />
@@ -3237,10 +3660,28 @@ export default function ProviderWorkspaceContent({
           <Button disabled={busy || !occurrenceId} onClick={() => poll(occurrenceId)}>{gettext('Poll')}</Button>
           <Button disabled={busy || !occurrenceId} onClick={cancel}>{gettext('Cancel request')}</Button>
           <Button disabled={busy} onClick={refreshTransaction}>{gettext('Provider transaction state')}</Button>
+          {(activeLanguage?.transaction_actions || []).map((action) =>
+            <Button key={action} color={action === 'rollback' ? 'warning' : 'primary'}
+              disabled={busy} onClick={() => controlTransaction(action)}>
+              {gettext(action)}</Button>)}
           {busy && <CircularProgress size={24} />}
         </Box>
         {transaction && <Box component="pre" sx={{overflow: 'auto', maxHeight: 120}}>{JSON.stringify(transaction, null, 2)}</Box>}
-        {rendered && <ResultView rendered={rendered} />}
+        {rendered && <ResultControls rendered={rendered} history={resultHistory}
+          post={post} onRendered={acceptRendered} setError={setError}
+          setBusy={setBusy} />}
+        {rendered && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
+          <Button variant={resultPresentation === 'native' ? 'contained' : 'text'}
+            onClick={() => setResultPresentation('native')}>
+            {gettext('Native result view')}</Button>
+          <Button variant={resultPresentation === 'plan' ? 'contained' : 'text'}
+            onClick={() => setResultPresentation('plan')}>
+            {gettext('Explain / query plan view')}</Button>
+        </Box>}
+        {rendered && resultPresentation === 'native' &&
+          <ResultView rendered={rendered} />}
+        {rendered && resultPresentation === 'plan' &&
+          <QueryPlanView rendered={rendered} />}
       </Box>}
       {workspace && tab === 'administration' &&
         <VisualAdministration catalog={workspace.visual_admin}
@@ -3252,6 +3693,10 @@ export default function ProviderWorkspaceContent({
         <ControlPlaneOperations post={post} setError={setError} />}
       {workspace && tab === 'semantic' &&
         <SemanticModelWorkspace semantic={workspace.semantic_models}
+          resources={resourcePage?.items || []}
+          post={post} setError={setError} />}
+      {workspace && tab === 'movement' &&
+        <DataMovementWorkspace catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'connections' &&
@@ -3271,6 +3716,8 @@ export default function ProviderWorkspaceContent({
           post={post} setError={setError} />}
       {workspace && tab === 'data' && [
         'time-series-analytic', 'vector-analytic', 'search-analytic',
+        'search-document-analytic', 'columnar-analytic', 'wide-column',
+        'bitemporal-document-relational',
       ].includes(workspace.visual_admin?.model_family) &&
         <AnalyticDataBrowser
           modelFamily={workspace.visual_admin.model_family}
@@ -3279,6 +3726,8 @@ export default function ProviderWorkspaceContent({
       {workspace && tab === 'data' && ![
         'document', 'graph', 'data-structure-key-value',
         'time-series-analytic', 'vector-analytic', 'search-analytic',
+        'search-document-analytic', 'columnar-analytic', 'wide-column',
+        'bitemporal-document-relational',
       ].includes(
         workspace.visual_admin?.model_family
       ) &&
@@ -3299,6 +3748,6 @@ ProviderWorkspaceContent.propTypes = {
   endpointUrl: PropTypes.string.isRequired,
   initialTab: PropTypes.oneOf([
     'resources', 'studio', 'data', 'administration', 'operations',
-    'semantic', 'streams', 'connections',
+    'semantic', 'movement', 'streams', 'connections',
   ]),
 };

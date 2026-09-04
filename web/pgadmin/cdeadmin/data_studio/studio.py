@@ -195,6 +195,11 @@ class DataStudioService:
             'editor_mode': item.editor_mode,
             'model_families': sorted(item.model_families),
             'source_kind': item.source_kind,
+            'transaction_actions': sorted(
+                self.contributions.session(
+                    item.language_profile
+                ).transaction_actions
+            ),
         } for item in (
             self.contributions.language(profile) for profile in profiles
         ))
@@ -448,6 +453,47 @@ class DataStudioService:
         )
         return copy.deepcopy(presentation)
 
+    def control_transaction(self, context, session_id, action):
+        """Dispatch an advertised action and return provider-owned state."""
+        session, binding = self._operational_session(context, session_id)
+        contribution = self.contributions.session(session.language_profile)
+        if action not in contribution.transaction_actions:
+            raise DataStudioAccessError(
+                'transaction action is unavailable for this provider'
+            )
+        self.history.append(
+            'transaction.action_requested', session_id,
+            {'action': action, 'finality': 'provider-owned'},
+        )
+        try:
+            presentation = self._contract(
+                'TransactionPresentation',
+                contribution.control_transaction(binding, {
+                    **copy.deepcopy(session.provider_session),
+                    'action': action,
+                }),
+            )
+        except Exception:
+            self.history.append(
+                'transaction.action_response_failed', session_id,
+                {'action': action, 'outcome': 'unknown'},
+            )
+            raise
+        if presentation['session_id'] != session.session_id:
+            raise DataStudioAccessError(
+                'provider transaction action changed session identity'
+            )
+        session.transaction_presentation = presentation
+        self.history.append(
+            'transaction.action_provider_response', session_id,
+            {
+                'action': action,
+                'authority_reference': presentation['authority_reference'],
+                'provider_payload': presentation['provider_payload'],
+            },
+        )
+        return copy.deepcopy(presentation)
+
     def publish_channel(self, occurrence_id, channel, payload):
         if channel not in CHANNELS:
             raise DataStudioAccessError('Data Studio channel is unknown')
@@ -612,7 +658,7 @@ class DataStudioService:
             getattr(contribution, name, None)
             for name in (
                 'complete', 'open_session', 'describe_transaction',
-                'execute', 'poll', 'cancel',
+                'control_transaction', 'execute', 'poll', 'cancel',
             )
         )
         for callback in callbacks:

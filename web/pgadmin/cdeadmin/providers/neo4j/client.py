@@ -59,6 +59,7 @@ class _Neo4jSession:
     driver: object
     session: object
     database: str
+    transaction: object | None = None
     closed: bool = False
 
     def close(self):
@@ -421,6 +422,7 @@ def _record_data(record):
 
 
 class Neo4jClient:
+    transaction_actions = ('begin', 'commit', 'rollback')
     """Synchronous, bounded port over the official Neo4j Python driver."""
 
     ROUTE_KEYS = frozenset({
@@ -911,11 +913,45 @@ class Neo4jClient:
         return {
             'native_boundary': 'neo4j-bolt-session',
             'database': handle.database,
-            'explicit_transaction_exposed': False,
+            'explicit_transaction_exposed': True,
+            'in_transaction': handle.transaction is not None,
             'auto_commit_query_semantics': 'driver-and-server-owned',
             'common_finality_inference': False,
             'retry_decision_owned_by_common_code': False,
         }
+
+    @staticmethod
+    def control_transaction(handle, action):
+        if handle.closed:
+            raise Neo4jClientError('Neo4j session is unavailable')
+        try:
+            if action == 'begin':
+                if handle.transaction is not None:
+                    raise Neo4jClientError(
+                        'Neo4j explicit transaction is already active'
+                    )
+                handle.transaction = handle.session.begin_transaction()
+            elif action in {'commit', 'rollback'}:
+                if handle.transaction is None:
+                    raise Neo4jClientError(
+                        'Neo4j explicit transaction is not active'
+                    )
+                transaction = handle.transaction
+                callback = transaction.commit if action == 'commit' \
+                    else transaction.rollback
+                callback()
+                handle.transaction = None
+            else:
+                raise Neo4jClientError(
+                    'Neo4j transaction action is unavailable'
+                )
+        except Neo4jClientError:
+            raise
+        except Exception as exc:
+            raise Neo4jClientError(
+                'Neo4j transaction action outcome is driver-owned '
+                f'({type(exc).__name__})'
+            ) from None
 
     def execute(self, handle, request):
         source = request.get('source')
@@ -926,7 +962,8 @@ class Neo4jClient:
         parameters = request.get('parameters', {})
         parameters = _mapping(parameters, 'Cypher parameters')
         try:
-            result = handle.session.run(source, parameters)
+            runner = handle.transaction or handle.session
+            result = runner.run(source, parameters)
             fields = list(result.keys())
             token = _Neo4jResult(result, handle, fields)
             self._results.append(token)
