@@ -2143,6 +2143,18 @@ class ServerNode(PGChildNodeView):
                     payload = service.transaction(
                         server, data.get('session_id')
                     )
+                elif action == 'resource_page':
+                    payload = service.resource_page(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'resource_inspect':
+                    payload = service.inspect_resource(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'resource_refresh':
+                    payload = service.refresh_resources(
+                        server, data.get('request') or {}
+                    )
                 elif action == 'visual_admin_validate':
                     payload = service.validate_visual_admin(
                         server, data.get('request')

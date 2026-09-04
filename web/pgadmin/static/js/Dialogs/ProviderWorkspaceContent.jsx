@@ -7,7 +7,7 @@
 //
 //////////////////////////////////////////////////////////////
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
 import {
@@ -22,9 +22,68 @@ function errorMessage(error) {
     gettext('The provider workspace request failed.');
 }
 
-function ResourceExplorer({catalog, page, selectedResourceId, onSelect}) {
+function resourceHierarchy(groups, expanded, filtering) {
+  const rows = [];
+  groups.forEach((group) => {
+    const groupId = `group:${group.group_id}`;
+    rows.push({
+      id: groupId, parentId: null, level: 1, expandable: true,
+      expanded: filtering || expanded.has(groupId), title: group.title,
+      kind: 'group', group,
+    });
+    if (!filtering && !expanded.has(groupId)) return;
+    const root = {children: new Map(), resources: []};
+    group.items.forEach((resource) => {
+      const sourcePath = resource.display_path?.length ?
+        resource.display_path : resource.authority_path || [];
+      const path = [...sourcePath];
+      if (path[path.length - 1] === resource.display_name) path.pop();
+      let parent = root;
+      let parentId = groupId;
+      path.forEach((segment) => {
+        const title = String(segment);
+        const id = `${parentId}/path:${encodeURIComponent(title)}`;
+        if (!parent.children.has(title)) {
+          parent.children.set(title, {
+            id, parentId, title, children: new Map(), resources: [],
+          });
+        }
+        parent = parent.children.get(title);
+        parentId = id;
+      });
+      parent.resources.push({resource, parentId});
+    });
+    const visit = (node, level) => {
+      [...node.children.values()].sort((left, right) =>
+        left.title.localeCompare(right.title)).forEach((branch) => {
+        const isOpen = filtering || expanded.has(branch.id);
+        rows.push({
+          ...branch, level, kind: 'branch', expandable: true,
+          expanded: isOpen,
+        });
+        if (isOpen) visit(branch, level + 1);
+      });
+      node.resources.sort((left, right) =>
+        left.resource.display_name.localeCompare(
+          right.resource.display_name
+        )).forEach(({resource, parentId}) => rows.push({
+        id: `resource:${resource.resource_id}`, parentId, level,
+        expandable: false, expanded: false, title: resource.display_name,
+        kind: 'resource', resource,
+      }));
+    };
+    visit(root, 2);
+  });
+  return rows;
+}
+
+function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
+  onOpenAdministration, onOpenData, onLoadMore, onRefresh, loadingMore}) {
   const items = page?.items || [];
   const [filter, setFilter] = useState('');
+  const [expanded, setExpanded] = useState(new Set());
+  const [activeId, setActiveId] = useState(null);
+  const rowRefs = useRef(new Map());
   const objectDescriptors = useMemo(() => Object.fromEntries(
     (catalog?.objects || []).map((item) => [item.resource_kind, item])
   ), [catalog]);
@@ -57,46 +116,147 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect}) {
     });
     return result.filter((group) => group.items.length > 0);
   }, [catalog, filter, items, objectDescriptors]);
+  const filtering = Boolean(filter.trim());
+  const rows = useMemo(
+    () => resourceHierarchy(groups, expanded, filtering),
+    [expanded, filtering, groups]
+  );
+  const selected = items.find((item) =>
+    item.resource_id === selectedResourceId);
+  const selectedDescriptor = selected ?
+    objectDescriptors[selected.resource_kind] : null;
+  const canOpenData = selectedDescriptor?.editor?.sections?.includes('data');
+
+  useEffect(() => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      groups.forEach((group) => next.add(`group:${group.group_id}`));
+      return next.size === current.size ? current : next;
+    });
+  }, [groups]);
+
+  useEffect(() => {
+    if (activeId && rows.some((row) => row.id === activeId)) return;
+    setActiveId(rows[0]?.id || null);
+  }, [activeId, rows]);
+
+  const toggle = (id, force) => setExpanded((current) => {
+    const next = new Set(current);
+    const shouldExpand = force ?? !next.has(id);
+    if (shouldExpand) next.add(id);
+    else next.delete(id);
+    return next;
+  });
+  const focusRow = (id) => {
+    if (!id) return;
+    setActiveId(id);
+    setTimeout(() => rowRefs.current.get(id)?.focus(), 0);
+  };
+  const keyDown = (event, row, index) => {
+    let destination = null;
+    if (event.key === 'ArrowDown') destination = rows[index + 1]?.id;
+    if (event.key === 'ArrowUp') destination = rows[index - 1]?.id;
+    if (event.key === 'Home') destination = rows[0]?.id;
+    if (event.key === 'End') destination = rows[rows.length - 1]?.id;
+    if (event.key === 'ArrowRight' && row.expandable) {
+      if (!row.expanded) toggle(row.id, true);
+      else destination = rows.find((item) => item.parentId === row.id)?.id;
+    }
+    if (event.key === 'ArrowLeft') {
+      if (row.expandable && row.expanded) toggle(row.id, false);
+      else destination = row.parentId;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      if (row.kind === 'resource') onSelect(row.resource);
+      else if (row.expandable) toggle(row.id);
+    }
+    if (destination || ['ArrowRight', 'ArrowLeft', 'Enter', ' ']
+      .includes(event.key)) {
+      event.preventDefault();
+      focusRow(destination);
+    }
+  };
   return (
     <Box sx={{overflow: 'auto', flex: 1, p: 2}}
-      aria-label={catalog?.navigator?.navigator_id ||
-        gettext('Provider resource navigator')}>
+      aria-label={gettext('Provider resource explorer')}>
       <TextField fullWidth size="small" value={filter}
         label={gettext('Filter provider objects')}
         onChange={(event) => setFilter(event.target.value)} />
-      {groups.map((group) => <Box key={group.group_id} sx={{mt: 2}}>
-        <Box component="h3" sx={{fontSize: '0.95rem', mb: 0.5}}>
-          {group.title}
+      {selected && <Box component="nav" aria-label={gettext('Selected object breadcrumb')}
+        sx={{display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1}}>
+        {(selected.display_path || selected.authority_path || []).map(
+          (part, index) => <Box component="span" key={`${part}:${index}`}>
+            {index > 0 && <Box component="span" aria-hidden="true"> / </Box>}
+            {String(part)}
+          </Box>)}
+        <Box sx={{display: 'flex', gap: 1, width: '100%', mt: 0.5}}>
+          <Button size="small" onClick={onOpenAdministration}>
+            {gettext('Open object editor')}
+          </Button>
+          <Button size="small" onClick={onOpenData} disabled={!canOpenData}>
+            {gettext('Open object data')}
+          </Button>
         </Box>
-        <Box component="table"
-          sx={{width: '100%', borderCollapse: 'collapse'}}>
-          <thead><tr>
-            <th align="left">{gettext('Name')}</th>
-            <th align="left">{gettext('Provider object')}</th>
-            <th align="left">{gettext('Authority path')}</th>
-          </tr></thead>
-          <tbody>{group.items.map((item) => {
-            const descriptor = objectDescriptors[item.resource_kind];
-            const depth = Math.max(0, (item.authority_path || []).length - 1);
-            return <tr key={item.resource_id}
-              aria-selected={selectedResourceId === item.resource_id}
-              onClick={() => onSelect(item)}
-              style={{cursor: 'pointer', background: selectedResourceId === item.resource_id ? 'rgba(0, 120, 212, 0.12)' : undefined}}>
-              <td style={{paddingInlineStart: `${depth * 16}px`}}>
-                {item.display_name}
-              </td>
-              <td>{descriptor?.title || item.resource_kind}</td>
-              <td>{(item.authority_path || []).join(' / ')}</td>
-            </tr>;
-          })}</tbody>
-        </Box>
-      </Box>)}
+      </Box>}
+      <Box role="tree"
+        aria-label={catalog?.navigator?.navigator_id ||
+          gettext('Provider resource navigator')}
+        sx={{mt: 1, border: 1, borderColor: 'divider'}}>
+        {rows.map((row, index) => {
+          const descriptor = row.resource ?
+            objectDescriptors[row.resource.resource_kind] : null;
+          return <Box key={row.id} role="treeitem" aria-level={row.level}
+            aria-expanded={row.expandable ? row.expanded : undefined}
+            aria-selected={row.kind === 'resource' ?
+              selectedResourceId === row.resource.resource_id : undefined}
+            tabIndex={activeId === row.id ? 0 : -1}
+            ref={(element) => {
+              if (element) rowRefs.current.set(row.id, element);
+              else rowRefs.current.delete(row.id);
+            }}
+            onFocus={() => setActiveId(row.id)}
+            onKeyDown={(event) => keyDown(event, row, index)}
+            onClick={() => row.kind === 'resource' ?
+              onSelect(row.resource) : toggle(row.id)}
+            sx={{
+              display: 'flex', alignItems: 'center', gap: 1, py: 0.5,
+              px: 1, pl: `${8 + (row.level - 1) * 18}px`, cursor: 'pointer',
+              bgcolor: row.kind === 'resource' &&
+                selectedResourceId === row.resource.resource_id ?
+                'action.selected' : undefined,
+              '&:focus-visible': {outline: '2px solid', outlineColor: 'primary.main'},
+            }}>
+            <Box component="span" aria-hidden="true" sx={{width: 14}}>
+              {row.expandable ? (row.expanded ? '▾' : '▸') : '•'}
+            </Box>
+            <Box component="span" aria-hidden="true" title={
+              descriptor?.title || row.kind
+            } data-icon-id={descriptor?.navigator?.icon_id}
+            sx={{fontWeight: 700, minWidth: 18}}>
+              {row.kind === 'resource' ?
+                row.resource.resource_kind.slice(0, 1).toUpperCase() : '◇'}
+            </Box>
+            <Box component="span" sx={{fontWeight:
+              row.kind === 'group' ? 700 : 400}}>{row.title}</Box>
+            {row.kind === 'resource' && <Box component="small"
+              sx={{ml: 'auto', color: 'text.secondary'}}>
+              {row.resource.resource_kind}
+            </Box>}
+          </Box>;
+        })}
+      </Box>
       {items.length === 0 && <Box sx={{mt: 2}}>
         {gettext('No resources returned.')}
       </Box>}
       {items.length > 0 && groups.length === 0 && <Box sx={{mt: 2}}>
         {gettext('No provider objects match the filter.')}
       </Box>}
+      <Box sx={{display: 'flex', gap: 1, mt: 1}}>
+        {page?.next_cursor && <Button disabled={loadingMore}
+          onClick={onLoadMore}>{gettext('Load more provider objects')}</Button>}
+        <Button disabled={loadingMore || !page?.generation}
+          onClick={onRefresh}>{gettext('Refresh provider objects')}</Button>
+      </Box>
     </Box>
   );
 }
@@ -106,6 +266,11 @@ ResourceExplorer.propTypes = {
   page: PropTypes.object,
   selectedResourceId: PropTypes.string,
   onSelect: PropTypes.func.isRequired,
+  onOpenAdministration: PropTypes.func.isRequired,
+  onOpenData: PropTypes.func.isRequired,
+  onLoadMore: PropTypes.func.isRequired,
+  onRefresh: PropTypes.func.isRequired,
+  loadingMore: PropTypes.bool,
 };
 
 function initialFieldValue(field) {
@@ -193,8 +358,89 @@ VisualAdminField.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
+function providerNative(resource) {
+  const extensions = resource?.extensions || {};
+  return Object.values(extensions).find((item) =>
+    item && typeof item === 'object' && item.native)?.native || {};
+}
+
+function sectionPayload(section, resource, descriptor) {
+  const native = providerNative(resource);
+  if (section === 'properties') {
+    return {
+      name: resource?.display_name, kind: resource?.resource_kind,
+      display_path: resource?.display_path,
+      authority_path: resource?.authority_path,
+      generation: resource?.generation,
+    };
+  }
+  if (section === 'definition') return native.definition ?? native;
+  if (section === 'dependencies') {
+    return native.dependencies ?? native.dependents ?? [];
+  }
+  if (section === 'security') {
+    return native.security ?? native.privileges ?? native.grants ?? [];
+  }
+  if (section === 'statistics') {
+    return native.statistics ?? native.stats ?? native.metrics ?? {};
+  }
+  if (section === 'state') {
+    return native.state ?? native.status ?? native.health ?? native;
+  }
+  if (section === 'data') {
+    return {
+      presentation: descriptor?.editor?.data_presentation || null,
+      workspace: gettext('Use Open object data from the navigator.'),
+    };
+  }
+  if (section === 'operations') {
+    return (descriptor?.operations || []).map((item) => ({
+      operation_id: item.operation_id, title: item.title,
+      execution_available: item.execution_available,
+      blockers: item.blockers || [],
+    }));
+  }
+  return {};
+}
+
+const DEFAULT_INSPECTOR_SECTIONS = ['properties'];
+
+function ObjectInspectorTabs({resource, descriptor, loading}) {
+  const sections = descriptor?.editor?.sections ||
+    DEFAULT_INSPECTOR_SECTIONS;
+  const [section, setSection] = useState(sections[0]);
+  useEffect(() => {
+    if (!sections.includes(section)) setSection(sections[0]);
+  }, [section, sections]);
+  if (!resource) return null;
+  return <Box sx={{mb: 2, border: 1, borderColor: 'divider'}}>
+    <Box sx={{p: 1}}>
+      <Box component="strong">{resource.display_name}</Box>
+      {' · '}{descriptor?.title || resource.resource_kind}
+      {loading && <CircularProgress size={16} sx={{ml: 1}} />}
+    </Box>
+    <Tabs value={section} variant="scrollable"
+      onChange={(_event, value) => setSection(value)}
+      aria-label={gettext('Provider object sections')}>
+      {sections.map((item) => <Tab key={item} value={item}
+        label={item.replaceAll('-', ' ')} />)}
+    </Tabs>
+    <Box role="tabpanel" aria-label={`${section} ${gettext('object section')}`}
+      component="pre" sx={{m: 0, p: 1, overflow: 'auto', maxHeight: 220,
+        whiteSpace: 'pre-wrap', bgcolor: 'background.default'}}>
+      {JSON.stringify(sectionPayload(section, resource, descriptor), null, 2)}
+    </Box>
+  </Box>;
+}
+
+ObjectInspectorTabs.propTypes = {
+  resource: PropTypes.object,
+  descriptor: PropTypes.object,
+  loading: PropTypes.bool,
+};
+
 function VisualAdministration({catalog, resources, selectedResource, post,
-  setError}) {
+  setError, resourceGeneration}) {
   const objects = catalog?.objects || [];
   const [resourceKind, setResourceKind] = useState(objects[0]?.resource_kind || '');
   const [operationId, setOperationId] = useState(objects[0]?.operations?.[0]?.operation_id || '');
@@ -205,6 +451,8 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   const [result, setResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
+  const [inspectedResource, setInspectedResource] = useState(null);
+  const [inspecting, setInspecting] = useState(false);
   const objectDescriptor = objects.find((item) => item.resource_kind === resourceKind);
   const operations = objectDescriptor?.operations || [];
   const operation = operations.find((item) => item.operation_id === operationId);
@@ -229,6 +477,28 @@ function VisualAdministration({catalog, resources, selectedResource, post,
       setTargetId(selectedResource.resource_id);
     }
   }, [objects, selectedResource]);
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedResource) {
+      setInspectedResource(null);
+      return () => { active = false; };
+    }
+    setInspecting(true);
+    post({
+      action: 'resource_inspect', request: {
+        resource_id: selectedResource.resource_id,
+        generation: resourceGeneration,
+      },
+    }).then((resource) => {
+      if (active) setInspectedResource(resource);
+    }).catch((requestError) => {
+      if (active) setError(errorMessage(requestError));
+    }).finally(() => {
+      if (active) setInspecting(false);
+    });
+    return () => { active = false; };
+  }, [post, resourceGeneration, selectedResource, setError]);
 
   useEffect(() => {
     const nextOperation = operations.find((item) => item.operation_id === operationId) || operations[0];
@@ -310,10 +580,8 @@ function VisualAdministration({catalog, resources, selectedResource, post,
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
-    {objectDescriptor?.editor && <Alert severity="info" sx={{mb: 2}}>
-      {objectDescriptor.title} · {objectDescriptor.editor.editor_kind}
-      {' · '}{objectDescriptor.editor.sections.join(' · ')}
-    </Alert>}
+    <ObjectInspectorTabs resource={inspectedResource || selectedResource}
+      descriptor={objectDescriptor} loading={inspecting} />
     <Box sx={{display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr)', gap: 2}}>
       <TextField select label={gettext('Object type')} value={resourceKind}
         onChange={(event) => setResourceKind(event.target.value)}>
@@ -388,6 +656,7 @@ VisualAdministration.propTypes = {
   catalog: PropTypes.object,
   resources: PropTypes.array,
   selectedResource: PropTypes.object,
+  resourceGeneration: PropTypes.string,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
 };
@@ -2771,12 +3040,15 @@ export default function ProviderWorkspaceContent({
   const [rendered, setRendered] = useState(null);
   const [transaction, setTransaction] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
+  const [resourcePage, setResourcePage] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     api.get(endpointUrl).then((response) => {
       setWorkspace(response.data.data);
+      setResourcePage(response.data.data?.resource_page || null);
       if (response.data.data?.languages?.[0]?.language_profile === 'cypher') {
         setSource('MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100');
       } else if (response.data.data?.languages?.[0]?.language_profile ===
@@ -2804,6 +3076,59 @@ export default function ProviderWorkspaceContent({
 
   const post = useCallback((payload) => api.post(endpointUrl, payload)
     .then((response) => response.data.data), [api, endpointUrl]);
+
+  useEffect(() => {
+    if (selectedResource && !resourcePage?.items?.some((item) =>
+      item.resource_id === selectedResource.resource_id)) {
+      setSelectedResource(null);
+    }
+  }, [resourcePage, selectedResource]);
+
+  const loadMoreResources = async () => {
+    if (!resourcePage?.next_cursor) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const next = await post({
+        action: 'resource_page', request: {
+          continuation: resourcePage.next_cursor,
+          generation: resourcePage.generation,
+        },
+      });
+      if (next.generation !== resourcePage.generation) {
+        throw new Error(gettext(
+          'Provider objects changed while paging. Reopen the workspace.'
+        ));
+      }
+      setResourcePage({
+        ...next,
+        items: [...(resourcePage.items || []), ...(next.items || [])],
+      });
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const refreshResources = async () => {
+    if (!resourcePage?.generation) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const refreshed = await post({
+        action: 'resource_refresh', request: {
+          generation: resourcePage.generation,
+        },
+      });
+      setResourcePage(refreshed);
+      setSelectedResource(null);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
@@ -2892,9 +3217,13 @@ export default function ProviderWorkspaceContent({
       {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
       {workspace && tab === 'resources' &&
         <ResourceExplorer catalog={workspace.visual_admin}
-          page={workspace.resource_page}
+          page={resourcePage}
           selectedResourceId={selectedResource?.resource_id}
-          onSelect={setSelectedResource} />}
+          onSelect={setSelectedResource}
+          onOpenAdministration={() => setTab('administration')}
+          onOpenData={() => setTab('data')}
+          onLoadMore={loadMoreResources} onRefresh={refreshResources}
+          loadingMore={loadingMore} />}
       {workspace && tab === 'studio' && <Box sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
         <Box>{workspace.languages?.[0]?.title || gettext('Provider query language')}</Box>
         <TextField multiline minRows={7} maxRows={14} value={source}
@@ -2915,36 +3244,37 @@ export default function ProviderWorkspaceContent({
       </Box>}
       {workspace && tab === 'administration' &&
         <VisualAdministration catalog={workspace.visual_admin}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           selectedResource={selectedResource}
+          resourceGeneration={resourcePage?.generation}
           post={post} setError={setError} />}
       {workspace && tab === 'operations' &&
         <ControlPlaneOperations post={post} setError={setError} />}
       {workspace && tab === 'semantic' &&
         <SemanticModelWorkspace semantic={workspace.semantic_models}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'connections' &&
         <ConnectionRouteWorkspace post={post} setError={setError} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&
         <DocumentDataGrid catalog={workspace.visual_admin}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'graph' &&
         <GraphDataStudio catalog={workspace.visual_admin}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family ===
         'data-structure-key-value' &&
         <KeyValueDataGrid catalog={workspace.visual_admin}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'data' && [
         'time-series-analytic', 'vector-analytic', 'search-analytic',
       ].includes(workspace.visual_admin?.model_family) &&
         <AnalyticDataBrowser
           modelFamily={workspace.visual_admin.model_family}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'data' && ![
         'document', 'graph', 'data-structure-key-value',
@@ -2953,10 +3283,10 @@ export default function ProviderWorkspaceContent({
         workspace.visual_admin?.model_family
       ) &&
         <StructuredDataGrid catalog={workspace.visual_admin}
-          resources={workspace.resource_page?.items || []}
+          resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'streams' && workspace.visual_admin?.model_family === 'document' &&
-        <ChangeStreamViewer resources={workspace.resource_page?.items || []}
+        <ChangeStreamViewer resources={resourcePage?.items || []}
           languageProfile={workspace.languages?.[0]?.language_profile}
           post={post} setError={setError} />}
       <ModalFooter><Button onClick={closeModal}>{gettext('Close')}</Button></ModalFooter>
@@ -2969,6 +3299,6 @@ ProviderWorkspaceContent.propTypes = {
   endpointUrl: PropTypes.string.isRequired,
   initialTab: PropTypes.oneOf([
     'resources', 'studio', 'data', 'administration', 'operations',
-    'semantic', 'streams',
+    'semantic', 'streams', 'connections',
   ]),
 };

@@ -11,45 +11,79 @@
 
 from __future__ import annotations
 
+import copy
 import unittest
 
-from tools.cdeadmin_provider_object_coverage_gate import audit
+from tools.cdeadmin_provider_object_coverage_gate import (
+    audit, provider_catalogs,
+)
 
 
 class ProviderObjectCoverageGateTests(unittest.TestCase):
 
-    def test_inventory_is_complete_in_scope_and_fail_closed(self):
-        result = audit()
-        self.assertEqual(26, result['engine_count'])
-        self.assertGreater(result['concept_count'], 200)
+    @classmethod
+    def setUpClass(cls):
+        cls.catalogs = provider_catalogs()
+
+    def test_inventory_is_structurally_complete_and_fail_closed(self):
+        result = audit(self.catalogs)
+        self.assertEqual(26, result['profile_count'])
+        self.assertEqual(35, result['family_slice_count'])
+        self.assertEqual(466, result['concept_count'])
         self.assertEqual(
             result['concept_count'],
-            result['catalogued_count'] + result['missing_catalog_count'],
+            result['catalogued_count'] +
+            result['external_surface_count'] +
+            result['not_applicable_count'],
+        )
+        self.assertEqual(result['concept_count'], result['declared_count'])
+        self.assertEqual(0, result['undeclared_count'])
+        self.assertEqual(0, result['blocking_missing_count'])
+        self.assertEqual([], result['failures'])
+        self.assertTrue(result['complete'])
+        self.assertEqual(
+            ['scratchbird'], result['scope']['deferred_engine_ids']
         )
         self.assertEqual(
-            result['concept_count'],
-            result['declared_count'] + result['undeclared_count'],
+            'delegated-to-strict-provider-engine-gates',
+            result['scope']['live_activation'],
         )
-        self.assertFalse(result['complete'])
-        self.assertGreater(result['undeclared_count'], 0)
+
+        broken = copy.deepcopy(self.catalogs)
+        declaration = broken['neo4j-native']['descriptor'][
+            'concept_declarations']['graph']['nodes']
+        declaration['status'] = 'unfinished'
+        from pgadmin.cdeadmin.visual_admin import enrich_engine_experience
+        broken['neo4j-native']['descriptor'] = enrich_engine_experience(
+            broken['neo4j-native']['descriptor']
+        )
+        failed = audit(broken)
+        self.assertFalse(failed['complete'])
         self.assertTrue(any(
-            value.endswith(':undeclared') for value in result['failures']
+            value.endswith('graph.nodes:undeclared')
+            for value in failed['failures']
         ))
 
     def test_inventory_preserves_specialized_provider_families(self):
-        result = audit()
+        result = audit(self.catalogs)
 
-        def families(engine):
+        def families(profile_id):
             return {
                 item['family_id']
-                for item in result['engines'][engine]['concepts']
+                for item in result['profiles'][profile_id]['concepts']
             }
-        self.assertIn('columnar', families('clickhouse'))
-        self.assertIn('time_series', families('influxdb'))
-        self.assertIn('vector', families('milvus'))
-        self.assertIn('wide_column', families('cassandra'))
-        self.assertIn('graph', families('neo4j'))
-        self.assertIn('search', families('opensearch'))
+        self.assertIn('columnar', families('clickhouse-native'))
+        self.assertIn('time_series', families('influxdb-native'))
+        self.assertIn('vector', families('milvus-native'))
+        self.assertIn('wide_column', families('cassandra-native'))
+        self.assertIn('graph', families('neo4j-native'))
+        self.assertIn('search', families('opensearch-native'))
+        self.assertEqual(
+            {'wide_column'}, families('yugabytedb-ycql')
+        )
+        self.assertEqual(
+            {'relational'}, families('yugabytedb-native')
+        )
 
 
 if __name__ == '__main__':

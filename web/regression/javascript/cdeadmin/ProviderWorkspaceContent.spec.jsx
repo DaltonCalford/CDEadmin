@@ -69,9 +69,100 @@ describe('ProviderWorkspaceContent', () => {
       closeModal={jest.fn()}
       endpointUrl="/workspace/1"
     />);
+    fireEvent.click(await screen.findByRole('treeitem', {name: /database/i}));
     expect(await screen.findByText('example')).toBeInTheDocument();
-    expect(screen.getByText('database')).toBeInTheDocument();
+    expect(screen.getAllByText('database')).toHaveLength(2);
     expect(api.get).toHaveBeenCalledWith('/workspace/1');
+  });
+
+  it('navigates the provider tree by keyboard and opens the linked editor', async () => {
+    api.post.mockResolvedValue({data: {data: {
+      ...bootstrap.resource_page.items[0], generation: 'generation-one',
+      extensions: {mysql: {native: {character_set: 'utf8mb4'}}},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" />);
+    const branch = await screen.findByRole('treeitem', {name: /database/i});
+    fireEvent.focus(branch);
+    fireEvent.keyDown(branch, {key: 'ArrowRight'});
+    expect(branch).toHaveAttribute('aria-expanded', 'true');
+    const resource = await screen.findByRole('treeitem', {name: /example/i});
+    fireEvent.keyDown(resource, {key: 'Enter'});
+    expect(await screen.findByRole('navigation', {
+      name: 'Selected object breadcrumb',
+    })).toHaveTextContent('database / example');
+    fireEvent.click(screen.getByText('Open object editor'));
+    expect(await screen.findByRole('textbox', {name: /Name/}))
+      .toBeInTheDocument();
+    expect(await screen.findByRole('tab', {name: 'properties'}))
+      .toBeInTheDocument();
+    expect(screen.getByRole('tabpanel', {name: 'properties object section'}))
+      .toHaveTextContent('generation-one');
+    expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'resource_inspect', request: {
+        resource_id: 'database:example', generation: undefined,
+      },
+    });
+  });
+
+  it('loads generation-bound navigator continuation pages', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {
+        ...bootstrap.resource_page, generation: 'generation-one',
+        next_cursor: 'cursor-one', total_count: 2,
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {
+      generation: 'generation-one', next_cursor: null, total_count: 2,
+      items: [{
+        resource_id: 'schema:example:public', resource_kind: 'schema',
+        display_name: 'public', display_path: ['database', 'example', 'public'],
+        authority_path: ['database', 'example', 'schema', 'public'],
+      }],
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" />);
+    fireEvent.click(await screen.findByText('Load more provider objects'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/workspace/1', {
+        action: 'resource_page', request: {
+          continuation: 'cursor-one', generation: 'generation-one',
+        },
+      }
+    ));
+    fireEvent.change(screen.getByLabelText('Filter provider objects'), {
+      target: {value: 'public'},
+    });
+    expect(await screen.findByText('public')).toBeInTheDocument();
+  });
+
+  it('refreshes only the active provider generation', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {
+        ...bootstrap.resource_page, generation: 'generation-one',
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {
+      ...bootstrap.resource_page, generation: 'generation-two',
+      items: [{
+        ...bootstrap.resource_page.items[0], display_name: 'refreshed',
+      }],
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" />);
+    fireEvent.click(await screen.findByText('Refresh provider objects'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/workspace/1', {
+        action: 'resource_refresh', request: {
+          generation: 'generation-one',
+        },
+      }
+    ));
+    fireEvent.click(await screen.findByRole('treeitem', {name: /database/i}));
+    fireEvent.click(await screen.findByRole('treeitem', {name: /example/i}));
+    expect(await screen.findByText('refreshed')).toBeInTheDocument();
   });
 
   it('opens a provider session, executes and renders rows', async () => {

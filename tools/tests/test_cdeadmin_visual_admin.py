@@ -142,6 +142,10 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
                     object_navigator['navigator_id'],
                 )
                 self.assertEqual(
+                    f'cdeadmin.{engine_id}.{kind}',
+                    object_navigator['icon_id'],
+                )
+                self.assertEqual(
                     f'cdeadmin.{engine_id}.{kind}.editor',
                     editor['editor_id'],
                 )

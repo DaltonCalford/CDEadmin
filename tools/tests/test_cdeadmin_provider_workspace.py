@@ -59,6 +59,7 @@ class PilotClient:
         self.handle = SimpleNamespace(close=lambda: None)
         self.cancelled = False
         self.admin_request = None
+        self.resource_count = 1
 
     @staticmethod
     def runtime_identity(_request=None, _handle=None):
@@ -69,15 +70,14 @@ class PilotClient:
             'protocol_id': 'mysql_wire',
         }
 
-    @staticmethod
-    def list_resources(_request):
+    def list_resources(self, _request):
         return [{
-            'resource_id': 'database:example',
+            'resource_id': f'database:example-{index}',
             'resource_kind': 'database',
-            'display_name': 'example',
-            'authority_path': ['database', 'example'],
+            'display_name': 'example' if index == 0 else f'example-{index}',
+            'authority_path': ['database', f'example-{index}'],
             'generation': 'workspace-test',
-        }]
+        } for index in range(self.resource_count)]
 
     @staticmethod
     def inspect_resource(request):
@@ -265,6 +265,55 @@ class ProviderWorkspaceTests(unittest.TestCase):
         )
         self.assertEqual('mysql', payload['visual_admin']['engine_id'])
         self.assertTrue(payload['visual_admin']['provider_driven'])
+
+    def test_resource_paging_is_generation_bound_and_root_scoped(self):
+        self.client.resource_count = 501
+        first = self.workspace.bootstrap(SimpleNamespace())['resource_page']
+        self.assertEqual(500, len(first['items']))
+        self.assertIsNotNone(first['next_cursor'])
+        second = self.workspace.resource_page(SimpleNamespace(), {
+            'continuation': first['next_cursor'],
+            'generation': first['generation'],
+        })
+        self.assertEqual(1, len(second['items']))
+        self.assertEqual('example-500', second['items'][0]['display_name'])
+        with self.assertRaisesRegex(
+                Exception, 'unsupported fields'):
+            self.workspace.resource_page(
+                SimpleNamespace(), {'parent_resource': {'forged': True}}
+            )
+
+    def test_resource_inspection_uses_cached_identity_and_generation(self):
+        page = self.workspace.bootstrap(SimpleNamespace())['resource_page']
+        resource = page['items'][0]
+        inspected = self.workspace.inspect_resource(SimpleNamespace(), {
+            'resource_id': resource['resource_id'],
+            'generation': page['generation'],
+        })
+        self.assertEqual(resource['resource_id'], inspected['resource_id'])
+        with self.assertRaisesRegex(Exception, 'invalid'):
+            self.workspace.inspect_resource(SimpleNamespace(), {
+                'resource_id': resource['resource_id'],
+                'generation': page['generation'],
+                'native': {'forged': True},
+            })
+
+    def test_resource_refresh_is_endpoint_scoped_and_generation_bound(self):
+        first = self.workspace.bootstrap(SimpleNamespace())['resource_page']
+        refreshed = self.workspace.refresh_resources(SimpleNamespace(), {
+            'generation': first['generation'],
+        })
+        self.assertNotEqual(first['generation'], refreshed['generation'])
+        self.assertEqual(1, len(refreshed['items']))
+        with self.assertRaisesRegex(Exception, 'stale'):
+            self.workspace.refresh_resources(SimpleNamespace(), {
+                'generation': first['generation'],
+            })
+        with self.assertRaisesRegex(Exception, 'invalid'):
+            self.workspace.refresh_resources(SimpleNamespace(), {
+                'generation': refreshed['generation'],
+                'endpoint_id': 'forged',
+            })
 
     def test_data_studio_executes_and_renders_provider_rows(self):
         server = SimpleNamespace()

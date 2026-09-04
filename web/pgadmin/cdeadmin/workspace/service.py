@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import threading
 
+from pgadmin.cdeadmin.resources import ResourceRef
 from pgadmin.cdeadmin.visual_admin.provider import (
     VisualAdminAccessError,
     VisualAdminExecutionError,
@@ -100,6 +101,77 @@ class ProviderWorkspaceService:
                 }
             ),
         }
+
+    def resource_page(self, server, request):
+        """Return the next generation-bound root navigator page."""
+        if not isinstance(request, dict):
+            raise ProviderWorkspaceError(
+                'resource page request must be an object'
+            )
+        if set(request).difference({'continuation', 'generation'}):
+            raise ProviderWorkspaceError(
+                'resource page request contains unsupported fields'
+            )
+        continuation = request.get('continuation')
+        generation = request.get('generation')
+        if continuation is not None and not isinstance(continuation, str):
+            raise ProviderWorkspaceError(
+                'resource page continuation must be text'
+            )
+        if generation is not None and not isinstance(generation, str):
+            raise ProviderWorkspaceError(
+                'resource page generation must be text'
+            )
+        context, _endpoint, root = self.endpoint_service.workspace(server)
+        return self.resource_service.list_page(
+            context, root, page_size=500, cursor=continuation,
+            expected_generation=generation,
+        ).to_dict()
+
+    def refresh_resources(self, server, request):
+        """Refresh only this endpoint's resource generation."""
+        if not isinstance(request, dict) or set(request).difference({
+                'generation'}):
+            raise ProviderWorkspaceError(
+                'resource refresh request is invalid'
+            )
+        generation = request.get('generation')
+        if not isinstance(generation, str) or not generation:
+            raise ProviderWorkspaceError(
+                'resource refresh generation is required'
+            )
+        context, _endpoint, root = self.endpoint_service.workspace(server)
+        # Verify the caller's generation before invalidating. A stale browser
+        # must reopen or reconcile instead of refreshing a newer tree.
+        self.resource_service.list_page(
+            context, root, page_size=1,
+            expected_generation=generation,
+        )
+        self.resource_service.invalidate(context)
+        return self.resource_service.list_page(
+            context, root, page_size=500
+        ).to_dict()
+
+    def inspect_resource(self, server, request):
+        """Inspect one cached resource without trusting browser identity."""
+        if not isinstance(request, dict) or set(request).difference({
+                'resource_id', 'generation'}):
+            raise ProviderWorkspaceError(
+                'resource inspect request is invalid'
+            )
+        resource_id = request.get('resource_id')
+        generation = request.get('generation')
+        if not isinstance(resource_id, str) or not resource_id:
+            raise ProviderWorkspaceError('resource ID is required')
+        if generation is not None and not isinstance(generation, str):
+            raise ProviderWorkspaceError(
+                'resource generation must be text'
+            )
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        return self.resource_service.inspect(
+            context, ResourceRef(context.endpoint_id, resource_id),
+            expected_generation=generation,
+        )
 
     def semantic_model_action(self, server, action, request):
         """Apply an endpoint-scoped semantic-model lifecycle action."""

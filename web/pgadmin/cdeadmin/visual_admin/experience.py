@@ -323,6 +323,7 @@ def enrich_engine_experience(engine):
         ]
         navigator = {
             'navigator_id': f'cdeadmin.{engine_id}.{kind}.navigator',
+            'icon_id': f'cdeadmin.{engine_id}.{kind}',
             'group_id': group_id,
             'order': order,
             'parent_kinds': parent_kinds,
