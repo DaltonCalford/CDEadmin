@@ -1,5 +1,6 @@
 """Vitess 23.0.3 VTGate distributed relational provider."""
 
+import copy
 import json
 import re
 import ssl
@@ -24,6 +25,7 @@ from ..relational_admin import RelationalAdministration
 from ..distributed_control_plane import DistributedSQLControlPlane
 from .control_plane import (
     OPERATIONS as CONTROL_OPERATIONS,
+    catalog_resources as control_catalog_resources,
     cancel_action,
     compile_action,
     execute_action,
@@ -215,6 +217,11 @@ class VitessAdministration(RelationalAdministration):
         return value
 
     def _compile(self, request):
+        if (
+            request['resource_kind'] == 'sequence' and
+            request['operation_id'] == 'drop'
+        ):
+            return {'statements': self._compile_drop(request)}
         if (
             request['resource_kind'] == 'table' and
             request['operation_id'] == 'drop' and
@@ -497,13 +504,70 @@ class VitessControlAdministration(VitessAdministration):
             return _CONTROL_ADMINISTRATION.apply(client, request)
         return super().apply(client, request)
 
+    @staticmethod
+    def _control_request(request):
+        plan = request.get('plan') or {}
+        return _CONTROL_ADMINISTRATION.control_plane.supports(
+            plan.get('resource_kind'), plan.get('operation_id')
+        )
+
+    @staticmethod
+    def _relational_observation(client, request):
+        plan = request.get('plan') or {}
+        payload = request.get('provider_payload') or {}
+        route = payload.get('route')
+        if not isinstance(route, Mapping):
+            raise RelationalClientError(
+                'Vitess relational observation route is unavailable'
+            )
+        target = plan.get('target_resource') or {}
+        draft = plan.get('draft') or {}
+        operation = plan.get('operation_id')
+        kind = plan.get('resource_kind')
+        path = target.get('display_path')
+        if operation == 'create':
+            name = draft.get('name')
+            parent = draft.get('parent') or route.get('database')
+            path = [parent, name] if parent else [name]
+        if not isinstance(path, list) or not path or not all(
+                isinstance(value, str) and value for value in path):
+            raise RelationalClientError(
+                'Vitess relational observation target is unavailable'
+            )
+        resources = client.list_resources({'route': route})
+        resource = next((
+            item for item in resources
+            if item.get('resource_kind') == kind and
+            item.get('display_path') == path
+        ), None)
+        return {
+            'resource_kind': kind,
+            'display_path': copy.deepcopy(path),
+            'present': resource is not None,
+            'resource': copy.deepcopy(resource),
+            'provider_observation_only': True,
+            'provider_finality_authority': True,
+        }
+
     def inspect_operation(self, client, request):
+        if not self._control_request(request):
+            return self._relational_observation(client, request)
         return _CONTROL_ADMINISTRATION.inspect_operation(client, request)
 
     def cancel_operation(self, client, request):
         return _CONTROL_ADMINISTRATION.cancel_operation(client, request)
 
     def validate_operation_post_state(self, client, request):
+        if not self._control_request(request):
+            plan = request.get('plan') or {}
+            observed = self._relational_observation(client, request)
+            expected_present = plan.get('operation_id') != 'drop'
+            return {
+                'confirmed': observed['present'] is expected_present,
+                'reason': 'vitess_relational_catalog_state_observed',
+                'observation': observed,
+                'provider_finality_authority': True,
+            }
         return _CONTROL_ADMINISTRATION.validate_operation_post_state(
             client, request
         )
@@ -732,14 +796,20 @@ def _extras(cursor, _request, generation, keyspaces=None):
             }
         ))
     for row in optional_rows(cursor, 'SHOW VITESS_MIGRATIONS'):
-        if len(row) < 17:
+        if len(row) < 53:
             continue
         migration = str(row[1])
         values.append(resource(
             'online-ddl', [row[2]], migration, generation, {
                 'shard': str(row[3]), 'table': str(row[5]),
                 'statement': str(row[6]), 'strategy': str(row[7]),
-                'status': str(row[16]),
+                'options': str(row[8]), 'status': str(row[16]),
+                'retries': row[19], 'tablet': str(row[20]),
+                'progress': row[22], 'message': str(row[25]),
+                'postpone_completion': bool(row[35]),
+                'ready_to_complete': bool(row[44]),
+                'postpone_launch': bool(row[51]),
+                'stage': str(row[52]),
             }
         ))
     return values
@@ -778,6 +848,9 @@ def _catalog(connection, request):
             values[item['resource_id']] = item
     finally:
         cursor.close()
+    route = request.get('route') or request.get('_provider_route') or {}
+    for item in control_catalog_resources(route, generation, keyspaces):
+        values[item['resource_id']] = item
     return list(values.values())
 
 

@@ -47,6 +47,16 @@ OPERATIONS = (
         ), impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
+        'keyspace', 'rebuild_graph', 'Rebuild keyspace serving graph',
+        'admin', 'topology_admin', (
+            cp_field('cells', 'Cells', 'json', False, default=[],
+                     json_type='array'),
+            cp_field('allow_partial', 'Allow partial snapshot keyspace',
+                     'boolean', False, default=False),
+        ), impact_scope='cluster', long_running=True,
+        post_state_required=False
+    ),
+    ControlPlaneOperation(
         'shard', 'create', 'Create shard', 'admin', 'topology_admin', (
             cp_field('keyspace', 'Keyspace', 'text', True,
                      max_length=256, pattern=_NAME_PATTERN),
@@ -88,6 +98,12 @@ OPERATIONS = (
         ), impact_scope='shard', long_running=True
     ),
     ControlPlaneOperation(
+        'shard', 'set_primary_serving', 'Set primary serving state',
+        'destructive', 'topology_admin', (
+            cp_field('is_serving', 'Primary is serving', 'boolean', True),
+        ), impact_scope='shard'
+    ),
+    ControlPlaneOperation(
         'workflow', 'create_move_tables', 'Create MoveTables workflow',
         'admin', 'replication_admin', (
             cp_field('workflow_name', 'Workflow name', 'text', True,
@@ -98,9 +114,10 @@ OPERATIONS = (
                      max_length=256, pattern=_NAME_PATTERN),
             cp_field('tables', 'Tables', 'json', True, json_type='array'),
             _choice('tablet_types', 'Source tablet types', (
-                ('replica', 'Replica'), ('rdonly', 'Read-only'),
+                ('primary', 'Primary'), ('replica', 'Replica'),
+                ('rdonly', 'Read-only'),
                 ('replica,rdonly', 'Replica and read-only'),
-            ), required=True, default='replica'),
+            ), required=True, default='primary'),
         ), target_required=False, impact_scope='cluster', long_running=True,
         cancellable=True
     ),
@@ -116,19 +133,22 @@ OPERATIONS = (
             cp_field('target_shards', 'Target shards', 'json', True,
                      json_type='array'),
             _choice('tablet_types', 'Source tablet types', (
-                ('replica', 'Replica'), ('rdonly', 'Read-only'),
+                ('primary', 'Primary'), ('replica', 'Replica'),
+                ('rdonly', 'Read-only'),
                 ('replica,rdonly', 'Replica and read-only'),
-            ), required=True, default='replica'),
+            ), required=True, default='primary'),
         ), target_required=False, impact_scope='cluster', long_running=True,
         cancellable=True
     ),
     ControlPlaneOperation(
         'workflow', 'start', 'Start workflow', 'admin',
-        'replication_admin', impact_scope='cluster', long_running=True
+        'replication_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'workflow', 'stop', 'Stop workflow', 'admin',
-        'replication_admin', impact_scope='cluster', long_running=True
+        'replication_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'workflow', 'switch_traffic', 'Switch workflow traffic',
@@ -161,7 +181,8 @@ OPERATIONS = (
                      }),
             cp_field('force', 'Force past non-critical failures',
                      'boolean', False, default=False),
-        ), impact_scope='cluster', long_running=True
+        ), impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'workflow', 'reverse_traffic', 'Reverse workflow traffic',
@@ -188,7 +209,8 @@ OPERATIONS = (
                      default=True),
             cp_field('force', 'Force past non-critical failures',
                      'boolean', False, default=False),
-        ), impact_scope='cluster', long_running=True
+        ), impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'workflow', 'complete', 'Complete workflow migration',
@@ -223,6 +245,45 @@ OPERATIONS = (
         'replication_admin', impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
+        'materialize', 'create', 'Create materialization workflow', 'admin',
+        'replication_admin', (
+            cp_field('workflow_name', 'Workflow name', 'text', True,
+                     max_length=256, pattern=_NAME_PATTERN),
+            cp_field('target_keyspace', 'Target keyspace', 'text', True,
+                     max_length=256, pattern=_NAME_PATTERN),
+            cp_field('source_keyspace', 'Source keyspace', 'text', True,
+                     max_length=256, pattern=_NAME_PATTERN),
+            cp_field('table_settings', 'Materialized tables', 'json', True,
+                     json_type='array'),
+            cp_field('reference_tables', 'Reference tables', 'json', False,
+                     default=[], json_type='array'),
+            _choice('tablet_types', 'Source tablet types', (
+                ('primary', 'Primary'), ('replica', 'Replica'),
+                ('rdonly', 'Read-only'),
+                ('replica,rdonly', 'Replica and read-only'),
+            ), required=True, default='primary'),
+            cp_field('cells', 'Source cells', 'json', False, default=[],
+                     json_type='array'),
+            cp_field('stop_after_copy', 'Stop after initial copy',
+                     'boolean', False, default=False),
+        ), target_required=False, impact_scope='cluster', long_running=True,
+        cancellable=True
+    ),
+    ControlPlaneOperation(
+        'materialize', 'start', 'Start materialization', 'admin',
+        'replication_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
+    ),
+    ControlPlaneOperation(
+        'materialize', 'stop', 'Stop materialization', 'admin',
+        'replication_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
+    ),
+    ControlPlaneOperation(
+        'materialize', 'drop', 'Delete materialization', 'destructive',
+        'replication_admin', impact_scope='cluster', long_running=True
+    ),
+    ControlPlaneOperation(
         'routing-rule', 'apply', 'Replace routing rules', 'destructive',
         'topology_admin', (
             cp_field('rules', 'Routing rules', 'json', True,
@@ -235,37 +296,43 @@ OPERATIONS = (
     ),
     ControlPlaneOperation(
         'online-ddl', 'launch', 'Launch postponed migration', 'admin',
-        'maintenance_admin', impact_scope='cluster', long_running=True
+        'maintenance_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'retry', 'Retry failed migration', 'admin',
-        'maintenance_admin', impact_scope='cluster', long_running=True
+        'maintenance_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'complete', 'Complete postponed migration', 'admin',
-        'maintenance_admin', impact_scope='cluster', long_running=True
+        'maintenance_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'cancel', 'Cancel migration', 'destructive',
-        'maintenance_admin', impact_scope='cluster', long_running=True
+        'maintenance_admin', impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'cleanup', 'Clean up migration artifacts',
         'destructive', 'maintenance_admin', impact_scope='cluster',
-        long_running=True
+        long_running=True, post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'throttle', 'Throttle migration', 'admin',
-        'maintenance_admin', impact_scope='cluster'
+        'maintenance_admin', impact_scope='cluster',
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'unthrottle', 'Unthrottle migration', 'admin',
-        'maintenance_admin', impact_scope='cluster'
+        'maintenance_admin', impact_scope='cluster',
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'online-ddl', 'force_cutover', 'Force migration cutover',
         'destructive', 'maintenance_admin', impact_scope='cluster',
-        long_running=True
+        long_running=True, post_state_required=False
     ),
     ControlPlaneOperation(
         'vschema', 'rebuild', 'Rebuild serving VSchema', 'admin',
@@ -426,6 +493,51 @@ def _routing_rules(value):
     return {'rules': normalized}
 
 
+def _materialize_settings(value):
+    if not isinstance(value, list) or not value or len(value) > 256:
+        raise RelationalClientError(
+            'Vitess materialization table settings are invalid')
+    normalized = []
+    targets = set()
+    for item in value:
+        if not isinstance(item, dict) or not set(item).issubset({
+                'target_table', 'source_expression', 'create_ddl'}):
+            raise RelationalClientError(
+                'Vitess materialization table setting is invalid')
+        target = _safe_name(item.get('target_table'), 'target table')
+        if target in targets:
+            raise RelationalClientError(
+                'Vitess materialization target tables must be unique')
+        targets.add(target)
+        expression = item.get('source_expression')
+        if not isinstance(expression, str) or not 0 < len(
+                expression) <= 65536 or '\x00' in expression or re.match(
+                    r'^\s*(?:select|with)\b', expression,
+                    flags=re.IGNORECASE) is None:
+            raise RelationalClientError(
+                'Vitess materialization source expression is invalid')
+        setting = {
+            'target_table': target,
+            'source_expression': expression,
+        }
+        create_ddl = item.get('create_ddl', 'copy')
+        if create_ddl != 'copy':
+            raise RelationalClientError(
+                'Vitess materialization create DDL must use copy mode')
+        copied_table = re.fullmatch(
+            r'\s*select\s+\*\s+from\s+(?:`?[A-Za-z0-9_]+`?\.)?'
+            r'`?([A-Za-z0-9_]+)`?\s*;?\s*',
+            expression, flags=re.IGNORECASE,
+        )
+        if copied_table is None or copied_table.group(1) != target:
+            raise RelationalClientError(
+                'Vitess copy materialization must select all columns from '
+                'the identically named source table')
+        setting['create_ddl'] = create_ddl
+        normalized.append(setting)
+    return normalized
+
+
 def compile_action(request):
     kind = request['resource_kind']
     operation = request['operation_id']
@@ -447,12 +559,22 @@ def compile_action(request):
                     ),
                 ])
             arguments.append(name)
-        else:
+        elif operation == 'drop':
             arguments = ['DeleteKeyspace']
             if draft.get('recursive'):
                 arguments.append('--recursive')
             if draft.get('force'):
                 arguments.append('--force')
+            arguments.append(name)
+        elif operation == 'rebuild_graph':
+            arguments = ['RebuildKeyspaceGraph']
+            cells = draft.get('cells') or []
+            if cells:
+                arguments.extend([
+                    '--cells', ','.join(_string_list(cells, 'cell')),
+                ])
+            if draft.get('allow_partial'):
+                arguments.append('--allow-partial')
             arguments.append(name)
     elif kind == 'shard':
         if operation == 'create':
@@ -493,6 +615,15 @@ def compile_action(request):
                 if draft.get('wait_for_all_tablets'):
                     arguments.append('--wait-for-all-tablets')
             arguments.append(target)
+        elif operation == 'set_primary_serving':
+            serving = draft.get('is_serving')
+            if not isinstance(serving, bool):
+                raise RelationalClientError(
+                    'Vitess shard serving state is invalid')
+            arguments = [
+                'SetShardIsPrimaryServing', target,
+                str(serving).lower(),
+            ]
     elif kind == 'workflow' and operation.startswith('create_'):
         workflow = _safe_name(draft.get('workflow_name'), 'workflow')
         target = _safe_name(draft.get('target_keyspace'), 'keyspace')
@@ -523,14 +654,60 @@ def compile_action(request):
                     r'[0-9A-Fa-f-]+'
                 )),
             ])
-        tablet_types = draft.get('tablet_types', 'replica')
-        if tablet_types not in {'replica', 'rdonly', 'replica,rdonly'}:
+        tablet_types = draft.get('tablet_types', 'primary')
+        if tablet_types not in {
+                'primary', 'replica', 'rdonly', 'replica,rdonly'}:
             raise RelationalClientError('Vitess tablet types are invalid')
         arguments.extend(['--tablet-types', tablet_types])
         cancel_arguments = [
             family, '--workflow', workflow, '--target-keyspace', target,
             'cancel',
         ]
+    elif kind == 'materialize' and operation == 'create':
+        workflow = _safe_name(draft.get('workflow_name'), 'workflow')
+        target = _safe_name(draft.get('target_keyspace'), 'keyspace')
+        source = _safe_name(draft.get('source_keyspace'), 'source keyspace')
+        settings = _materialize_settings(draft.get('table_settings'))
+        arguments = [
+            'Materialize', '--workflow', workflow,
+            '--target-keyspace', target, 'create',
+            '--source-keyspace', source, '--table-settings',
+            json.dumps(settings, sort_keys=True, separators=(',', ':')),
+        ]
+        references = draft.get('reference_tables') or []
+        if references:
+            arguments.extend([
+                '--reference-tables', ','.join(_string_list(
+                    references, 'reference table')),
+            ])
+        tablet_types = draft.get('tablet_types', 'primary')
+        if tablet_types not in {
+                'primary', 'replica', 'rdonly', 'replica,rdonly'}:
+            raise RelationalClientError('Vitess tablet types are invalid')
+        arguments.extend(['--tablet-types', tablet_types])
+        cells = draft.get('cells') or []
+        if cells:
+            arguments.extend([
+                '--cells', ','.join(_string_list(cells, 'cell')),
+            ])
+        if draft.get('stop_after_copy'):
+            arguments.append('--stop-after-copy')
+        cancel_arguments = [
+            'Workflow', '--keyspace', target, 'delete',
+            '--workflow', workflow,
+        ]
+    elif kind == 'materialize':
+        keyspace, workflow = _workflow_target(request)
+        if operation == 'drop':
+            arguments = [
+                'Workflow', '--keyspace', keyspace, 'delete',
+                '--workflow', workflow,
+            ]
+        else:
+            arguments = [
+                'Materialize', '--workflow', workflow,
+                '--target-keyspace', keyspace, operation,
+            ]
     elif kind == 'workflow' and operation in {
             'switch_traffic', 'reverse_traffic'}:
         keyspace, workflow = _workflow_target(request)
@@ -712,19 +889,126 @@ def _server(route):
     return value
 
 
-def _run(route, arguments, timeout=120):
+def _trusted_optional_file(route, key, label):
+    value = route.get(key)
+    if value in {None, ''}:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise RelationalClientError(f'Vitess {label} is invalid')
+    path = Path(value).expanduser().resolve()
+    if not path.is_file():
+        raise RelationalClientError(f'Vitess {label} is unavailable')
+    return str(path)
+
+
+def _bounded_integer(route, key, label, default, minimum, maximum):
+    value = route.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not (
+            minimum <= value <= maximum):
+        raise RelationalClientError(f'Vitess {label} is invalid')
+    return value
+
+
+def _connection_arguments(route):
+    arguments = []
+    for cert, key, label in (
+        ('vtctld_grpc_cert', 'vtctld_grpc_key', 'VTctld client TLS'),
+        ('tablet_manager_grpc_cert', 'tablet_manager_grpc_key',
+         'tablet-manager client TLS'),
+    ):
+        if bool(route.get(cert)) != bool(route.get(key)):
+            raise RelationalClientError(
+                f'Vitess {label} requires both certificate and key'
+            )
+    for key, flag, label in (
+        ('vtctld_grpc_ca', '--vtctld-grpc-ca', 'VTctld CA file'),
+        ('vtctld_grpc_cert', '--vtctld-grpc-cert',
+         'VTctld client certificate file'),
+        ('vtctld_grpc_key', '--vtctld-grpc-key',
+         'VTctld client key file'),
+        ('vtctld_grpc_crl', '--vtctld-grpc-crl', 'VTctld CRL file'),
+        ('grpc_auth_static_client_creds',
+         '--grpc-auth-static-client-creds',
+         'static gRPC client credentials file'),
+        ('tablet_manager_grpc_ca', '--tablet-manager-grpc-ca',
+         'tablet-manager CA file'),
+        ('tablet_manager_grpc_cert', '--tablet-manager-grpc-cert',
+         'tablet-manager client certificate file'),
+        ('tablet_manager_grpc_key', '--tablet-manager-grpc-key',
+         'tablet-manager client key file'),
+        ('tablet_manager_grpc_crl', '--tablet-manager-grpc-crl',
+         'tablet-manager CRL file'),
+    ):
+        value = _trusted_optional_file(route, key, label)
+        if value:
+            arguments.extend([flag, value])
+    for key, flag, label in (
+        ('vtctld_grpc_server_name', '--vtctld-grpc-server-name',
+         'VTctld certificate server name'),
+        ('tablet_manager_grpc_server_name',
+         '--tablet-manager-grpc-server-name',
+         'tablet-manager certificate server name'),
+    ):
+        value = route.get(key)
+        if value not in {None, ''}:
+            if not isinstance(value, str) or re.fullmatch(
+                    r'[A-Za-z0-9_.:-]{1,253}', value) is None:
+                raise RelationalClientError(f'Vitess {label} is invalid')
+            arguments.extend([flag, value])
+    compression = route.get('grpc_compression', 'none')
+    if compression not in {'none', 'snappy'}:
+        raise RelationalClientError('Vitess gRPC compression is invalid')
+    if compression != 'none':
+        arguments.extend(['--grpc-compression', compression])
+    for key, flag, label, default in (
+        ('grpc_keepalive_time_seconds', '--grpc-keepalive-time',
+         'gRPC keepalive time', 10),
+        ('grpc_keepalive_timeout_seconds', '--grpc-keepalive-timeout',
+         'gRPC keepalive timeout', 10),
+    ):
+        if key in route:
+            value = _bounded_integer(
+                route, key, label, default, 1, 86400)
+            arguments.extend([flag, f'{value}s'])
+    if 'grpc_max_message_size' in route:
+        value = _bounded_integer(
+            route, 'grpc_max_message_size', 'gRPC maximum message size',
+            16777216, 1024, 1073741824,
+        )
+        arguments.extend(['--grpc-max-message-size', str(value)])
+    if 'tablet_manager_grpc_concurrency' in route:
+        value = _bounded_integer(
+            route, 'tablet_manager_grpc_concurrency',
+            'tablet-manager gRPC concurrency', 8, 1, 1024,
+        )
+        arguments.extend(['--tablet-manager-grpc-concurrency', str(value)])
+    action_timeout = _bounded_integer(
+        route, 'vtctld_action_timeout_seconds',
+        'VTctld action timeout', 3600, 1, 86400,
+    )
+    arguments.extend(['--action-timeout', f'{action_timeout}s'])
+    return arguments, action_timeout
+
+
+def _run(route, arguments, timeout=None):
     if not isinstance(arguments, list) or not arguments or len(
             arguments) > 128 or any(
                 not isinstance(value, str) or not value or len(value) > 8192
                 or '\x00' in value for value in arguments):
         raise RelationalClientError('Vitess tool arguments are invalid')
+    connection_arguments, action_timeout = _connection_arguments(route)
     command = [
-        _trusted_executable(route), '--server', _server(route), *arguments,
+        _trusted_executable(route), '--server', _server(route),
+        *connection_arguments, *arguments,
     ]
+    timeout_value = action_timeout + 15 if timeout is None else timeout
+    if isinstance(timeout_value, bool) or not isinstance(
+            timeout_value, int) or not 1 <= timeout_value <= 86415:
+        raise RelationalClientError('Vitess client timeout is invalid')
     try:
         result = subprocess.run(
             command, check=False, capture_output=True, text=True,
-            timeout=timeout,
+            timeout=timeout_value,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise RelationalClientError(
@@ -795,6 +1079,20 @@ def inspect_action(_client, request):
             'workflow', '--keyspace', keyspace, 'show',
             '--workflow', workflow,
         ]
+    elif kind == 'materialize':
+        if plan['operation_id'] == 'create':
+            draft = payload.get('compiled_request_draft') or plan.get(
+                'draft', {})
+            keyspace = draft.get('target_keyspace')
+            workflow = draft.get('workflow_name')
+        else:
+            keyspace, workflow = _workflow_target({
+                'target_resource': plan.get('target_resource')
+            })
+        inspect_arguments = (
+            ['Materialize', '--workflow', workflow,
+             '--target-keyspace', keyspace, 'show']
+        )
     elif kind == 'routing-rule':
         inspect_arguments = ['GetRoutingRules']
     elif kind == 'online-ddl':
@@ -809,7 +1107,7 @@ def inspect_action(_client, request):
             'target_resource': plan.get('target_resource')
         })[-1]
         inspect_arguments = (
-            ['GetTablets', '--tablet-alias', tablet]
+            ['GetTablets', '--format', 'json', '--tablet-alias', tablet]
             if plan['operation_id'] == 'drop'
             else ['GetTablet', tablet]
         )
@@ -859,11 +1157,16 @@ def post_validate_action(client, request):
     elif kind == 'shard':
         if operation == 'create':
             expected = draft.get('shard')
+        elif operation == 'set_primary_serving':
+            expected = str(draft.get('is_serving')).upper()
+            present = expected in _document_values_for_key(
+                document, 'is_primary_serving')
         else:
             expected = path[-1].split('/', 1)[-1]
-        present = _document_contains_named_resource(document, expected)
-    elif kind == 'workflow':
-        if operation.startswith('create_'):
+        if operation != 'set_primary_serving':
+            present = _document_contains_named_resource(document, expected)
+    elif kind in {'workflow', 'materialize'}:
+        if operation.startswith('create_') or operation == 'create':
             expected = draft.get('workflow_name')
         else:
             expected = path[-1]
@@ -888,7 +1191,8 @@ def post_validate_action(client, request):
         expected and present is not None and (
             (operation in {'drop', 'complete'} and not present) or
             (operation in {'create', 'create_move_tables',
-                           'create_reshard', 'apply', 'change_type'} and
+                           'create_reshard', 'apply', 'change_type',
+                           'set_primary_serving'} and
              present)
         )
     )
@@ -902,6 +1206,86 @@ def post_validate_action(client, request):
         'observation': observation,
         'provider_finality_authority': True,
     }
+
+
+def _workflow_streams(document):
+    if isinstance(document, dict):
+        workflows = document.get('workflows')
+    else:
+        workflows = document
+    return workflows if isinstance(workflows, list) else []
+
+
+def catalog_resources(route, generation, keyspaces):
+    """Read exact native workflow and VReplication objects for navigation."""
+    if not isinstance(route, dict) or not route.get(
+            'vtctldclient_path') or not route.get('vtctld_server'):
+        return []
+    resources = []
+    for keyspace in sorted(set(keyspaces or ())):
+        try:
+            response = _run(
+                route, ['GetWorkflows', '--show-all', keyspace], timeout=30,
+            )
+            document = json.loads(response.get('stdout') or 'null')
+        except (RelationalClientError, TypeError, ValueError):
+            continue
+        for workflow in _workflow_streams(document):
+            if not isinstance(workflow, dict):
+                continue
+            name = workflow.get('name')
+            try:
+                name = _safe_name(name, 'workflow')
+            except RelationalClientError:
+                continue
+            workflow_type = str(
+                workflow.get('workflow_type') or
+                workflow.get('workflowType') or 'unknown'
+            )
+            native = copy.deepcopy(workflow)
+            resources.append({
+                'resource_id': f'workflow:{keyspace}:{name}',
+                'resource_kind': 'workflow', 'display_name': name,
+                'display_path': [keyspace, name],
+                'authority_path': [keyspace, 'workflow', name],
+                'generation': generation, 'native': native,
+            })
+            if workflow_type.lower() == 'materialize':
+                resources.append({
+                    'resource_id': f'materialize:{keyspace}:{name}',
+                    'resource_kind': 'materialize', 'display_name': name,
+                    'display_path': [keyspace, name],
+                    'authority_path': [keyspace, 'materialize', name],
+                    'generation': generation, 'native': native,
+                })
+            shard_streams = workflow.get(
+                'shard_streams', workflow.get('shardStreams', {}))
+            if not isinstance(shard_streams, dict):
+                continue
+            for shard, group in shard_streams.items():
+                streams = group.get('streams', []) if isinstance(
+                    group, dict) else []
+                for stream in streams:
+                    if not isinstance(stream, dict):
+                        continue
+                    stream_id = stream.get('id')
+                    if not isinstance(stream_id, (str, int)):
+                        continue
+                    display = f'{name}:{shard}:{stream_id}'
+                    resources.append({
+                        'resource_id': (
+                            f'vreplication-stream:{keyspace}:{display}'
+                        ),
+                        'resource_kind': 'vreplication-stream',
+                        'display_name': display,
+                        'display_path': [keyspace, name, str(shard),
+                                         str(stream_id)],
+                        'authority_path': [keyspace, 'workflow', name,
+                                           str(shard), str(stream_id)],
+                        'generation': generation,
+                        'native': copy.deepcopy(stream),
+                    })
+    return resources
 
 
 def _document_contains_named_resource(document, expected):

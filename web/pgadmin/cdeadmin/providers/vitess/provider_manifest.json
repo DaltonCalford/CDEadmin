@@ -219,6 +219,151 @@
         "label": "VTctld gRPC address",
         "control": "text",
         "group": "Vitess control plane"
+      },
+      {
+        "field_id": "vtctld_grpc_ca",
+        "route_key": "vtctld_grpc_ca",
+        "label": "VTctld CA file",
+        "control": "file",
+        "group": "Vitess control-plane TLS"
+      },
+      {
+        "field_id": "vtctld_grpc_cert",
+        "route_key": "vtctld_grpc_cert",
+        "label": "VTctld client certificate",
+        "control": "file",
+        "group": "Vitess control-plane TLS"
+      },
+      {
+        "field_id": "vtctld_grpc_key",
+        "route_key": "vtctld_grpc_key",
+        "label": "VTctld client private key",
+        "control": "file",
+        "group": "Vitess control-plane TLS"
+      },
+      {
+        "field_id": "vtctld_grpc_crl",
+        "route_key": "vtctld_grpc_crl",
+        "label": "VTctld certificate revocation list",
+        "control": "file",
+        "group": "Vitess control-plane TLS"
+      },
+      {
+        "field_id": "vtctld_grpc_server_name",
+        "route_key": "vtctld_grpc_server_name",
+        "label": "VTctld certificate server name",
+        "control": "text",
+        "group": "Vitess control-plane TLS"
+      },
+      {
+        "field_id": "grpc_auth_static_client_creds",
+        "route_key": "grpc_auth_static_client_creds",
+        "label": "Static gRPC credentials file",
+        "control": "file",
+        "group": "Vitess control-plane authentication"
+      },
+      {
+        "field_id": "grpc_compression",
+        "route_key": "grpc_compression",
+        "label": "Control-plane gRPC compression",
+        "control": "select",
+        "group": "Vitess control-plane transport",
+        "default": "none",
+        "options": [
+          {
+            "value": "none",
+            "label": "None"
+          },
+          {
+            "value": "snappy",
+            "label": "Snappy"
+          }
+        ]
+      },
+      {
+        "field_id": "grpc_keepalive_time_seconds",
+        "route_key": "grpc_keepalive_time_seconds",
+        "label": "gRPC keepalive interval (seconds)",
+        "control": "number",
+        "group": "Vitess control-plane transport",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 86400
+      },
+      {
+        "field_id": "grpc_keepalive_timeout_seconds",
+        "route_key": "grpc_keepalive_timeout_seconds",
+        "label": "gRPC keepalive timeout (seconds)",
+        "control": "number",
+        "group": "Vitess control-plane transport",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 86400
+      },
+      {
+        "field_id": "grpc_max_message_size",
+        "route_key": "grpc_max_message_size",
+        "label": "Maximum gRPC message size",
+        "control": "number",
+        "group": "Vitess control-plane transport",
+        "default": 16777216,
+        "minimum": 1024,
+        "maximum": 1073741824
+      },
+      {
+        "field_id": "vtctld_action_timeout_seconds",
+        "route_key": "vtctld_action_timeout_seconds",
+        "label": "VTctld action timeout (seconds)",
+        "control": "number",
+        "group": "Vitess control-plane transport",
+        "default": 3600,
+        "minimum": 1,
+        "maximum": 86400
+      },
+      {
+        "field_id": "tablet_manager_grpc_ca",
+        "route_key": "tablet_manager_grpc_ca",
+        "label": "Tablet-manager CA file",
+        "control": "file",
+        "group": "Vitess tablet-manager TLS"
+      },
+      {
+        "field_id": "tablet_manager_grpc_cert",
+        "route_key": "tablet_manager_grpc_cert",
+        "label": "Tablet-manager client certificate",
+        "control": "file",
+        "group": "Vitess tablet-manager TLS"
+      },
+      {
+        "field_id": "tablet_manager_grpc_key",
+        "route_key": "tablet_manager_grpc_key",
+        "label": "Tablet-manager client private key",
+        "control": "file",
+        "group": "Vitess tablet-manager TLS"
+      },
+      {
+        "field_id": "tablet_manager_grpc_crl",
+        "route_key": "tablet_manager_grpc_crl",
+        "label": "Tablet-manager certificate revocation list",
+        "control": "file",
+        "group": "Vitess tablet-manager TLS"
+      },
+      {
+        "field_id": "tablet_manager_grpc_server_name",
+        "route_key": "tablet_manager_grpc_server_name",
+        "label": "Tablet-manager certificate server name",
+        "control": "text",
+        "group": "Vitess tablet-manager TLS"
+      },
+      {
+        "field_id": "tablet_manager_grpc_concurrency",
+        "route_key": "tablet_manager_grpc_concurrency",
+        "label": "Tablet-manager gRPC concurrency",
+        "control": "number",
+        "group": "Vitess control-plane transport",
+        "default": 8,
+        "minimum": 1,
+        "maximum": 1024
       }
     ]
   },

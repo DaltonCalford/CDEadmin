@@ -15,6 +15,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
@@ -116,7 +117,9 @@ from pgadmin.cdeadmin.providers.vitess.provider import (  # noqa: E402
     _version as vitess_version,
 )
 from pgadmin.cdeadmin.providers.vitess.control_plane import (  # noqa: E402
+    _connection_arguments as vitess_connection_arguments,
     _document_contains_named_resource as vitess_contains_resource,
+    catalog_resources as vitess_control_resources,
     compile_action as compile_vitess_action,
 )
 from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
@@ -757,6 +760,8 @@ class DistributedProviderTests(unittest.TestCase):
         }
         self.assertTrue({
             ('keyspace', 'create'), ('shard', 'planned_reparent'),
+            ('keyspace', 'rebuild_graph'),
+            ('shard', 'set_primary_serving'),
             ('workflow', 'create_move_tables'),
             ('workflow', 'create_reshard'), ('tablet', 'restore'),
             ('workflow', 'switch_traffic'),
@@ -786,6 +791,30 @@ class DistributedProviderTests(unittest.TestCase):
             'CreateKeyspace', '--allow-empty-vschema',
             '--durability-policy', 'semi_sync', 'commerce',
         ], keyspace['provider_action']['arguments'])
+        serving = compile_vitess_action({
+            'resource_kind': 'shard',
+            'operation_id': 'set_primary_serving',
+            'target_resource': {
+                'resource_id': 'shard:commerce/-80',
+                'display_path': ['commerce', '-80'],
+            },
+            'draft': {'is_serving': False},
+        })
+        self.assertEqual([
+            'SetShardIsPrimaryServing', 'commerce/-80', 'false',
+        ], serving['provider_action']['arguments'])
+        rebuild = compile_vitess_action({
+            'resource_kind': 'keyspace', 'operation_id': 'rebuild_graph',
+            'target_resource': {
+                'resource_id': 'keyspace:commerce',
+                'display_path': ['commerce'],
+            },
+            'draft': {'cells': ['zone1'], 'allow_partial': True},
+        })
+        self.assertEqual([
+            'RebuildKeyspaceGraph', '--cells', 'zone1',
+            '--allow-partial', 'commerce',
+        ], rebuild['provider_action']['arguments'])
         reparent = compile_vitess_action({
             'resource_kind': 'shard',
             'operation_id': 'planned_reparent',
@@ -838,6 +867,69 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertNotIn('arguments', plan['command_preview']['statements'][0])
         self.assertTrue(plan['receipt']['provider_finality_authority'])
         self.assertFalse(plan['receipt']['automatic_mutation_retry'])
+
+    def test_vitess_control_plane_connection_options_are_typed(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = {}
+            for key in (
+                    'vtctld_grpc_ca', 'vtctld_grpc_cert',
+                    'vtctld_grpc_key', 'vtctld_grpc_crl',
+                    'grpc_auth_static_client_creds',
+                    'tablet_manager_grpc_ca',
+                    'tablet_manager_grpc_cert',
+                    'tablet_manager_grpc_key',
+                    'tablet_manager_grpc_crl'):
+                path = root / key
+                path.touch()
+                files[key] = str(path)
+            route = {
+                **files,
+                'vtctld_grpc_server_name': 'vtctld.internal',
+                'tablet_manager_grpc_server_name': 'tablet.internal',
+                'grpc_compression': 'snappy',
+                'grpc_keepalive_time_seconds': 13,
+                'grpc_keepalive_timeout_seconds': 7,
+                'grpc_max_message_size': 33554432,
+                'tablet_manager_grpc_concurrency': 16,
+                'vtctld_action_timeout_seconds': 120,
+            }
+            arguments, timeout = vitess_connection_arguments(route)
+            self.assertEqual(120, timeout)
+            self.assertIn('--vtctld-grpc-ca', arguments)
+            self.assertIn(str(root / 'vtctld_grpc_ca'), arguments)
+            self.assertIn('--grpc-auth-static-client-creds', arguments)
+            self.assertIn('--tablet-manager-grpc-crl', arguments)
+            self.assertIn('--grpc-compression', arguments)
+            self.assertIn('snappy', arguments)
+            self.assertIn('--grpc-keepalive-time', arguments)
+            self.assertIn('13s', arguments)
+            self.assertIn('--grpc-keepalive-timeout', arguments)
+            self.assertIn('7s', arguments)
+            self.assertIn('--grpc-max-message-size', arguments)
+            self.assertIn('33554432', arguments)
+            self.assertIn('--tablet-manager-grpc-concurrency', arguments)
+            self.assertIn('16', arguments)
+            self.assertEqual(['--action-timeout', '120s'], arguments[-2:])
+
+    def test_vitess_control_plane_connection_options_fail_closed(self):
+        with TemporaryDirectory() as directory:
+            certificate = Path(directory) / 'client.crt'
+            certificate.touch()
+            with self.assertRaisesRegex(
+                    RelationalClientError, 'certificate and key'):
+                vitess_connection_arguments({
+                    'vtctld_grpc_cert': str(certificate),
+                })
+        for route, message in (
+                ({'grpc_compression': 'gzip'}, 'compression'),
+                ({'grpc_keepalive_time_seconds': 0}, 'keepalive time'),
+                ({'grpc_max_message_size': 1023}, 'message size'),
+                ({'tablet_manager_grpc_concurrency': 0}, 'concurrency'),
+                ({'vtctld_action_timeout_seconds': 0}, 'action timeout')):
+            with self.subTest(route=route):
+                with self.assertRaisesRegex(RelationalClientError, message):
+                    vitess_connection_arguments(route)
 
     def test_vitess_workflow_drop_uses_native_delete_and_state_is_exact(self):
         action = compile_vitess_action({
@@ -898,6 +990,71 @@ class DistributedProviderTests(unittest.TestCase):
             '--keep-routing-rules', '--rename-tables',
             '--ignore-source-keyspace',
         ], completed['provider_action']['arguments'])
+
+    def test_vitess_materialization_is_typed_and_provider_constructed(self):
+        action = compile_vitess_action({
+            'resource_kind': 'materialize', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'workflow_name': 'sales_rollup',
+                'target_keyspace': 'analytics',
+                'source_keyspace': 'commerce',
+                'table_settings': [{
+                    'target_table': 'orders',
+                    'source_expression': 'SELECT * FROM orders',
+                    'create_ddl': 'copy',
+                }],
+                'tablet_types': 'replica', 'cells': ['zone1'],
+                'stop_after_copy': True,
+            },
+        })
+        arguments = action['provider_action']['arguments']
+        self.assertEqual('Materialize', arguments[0])
+        self.assertIn('--table-settings', arguments)
+        settings = json.loads(arguments[arguments.index(
+            '--table-settings') + 1])
+        self.assertEqual('orders', settings[0]['target_table'])
+        self.assertEqual([
+            'Workflow', '--keyspace', 'analytics', 'delete',
+            '--workflow', 'sales_rollup',
+        ], action['provider_action']['cancel_arguments'])
+        with self.assertRaisesRegex(
+                RelationalClientError, 'source expression is invalid'):
+            compile_vitess_action({
+                'resource_kind': 'materialize', 'operation_id': 'create',
+                'target_resource': None,
+                'draft': {
+                    'workflow_name': 'unsafe',
+                    'target_keyspace': 'analytics',
+                    'source_keyspace': 'commerce',
+                    'table_settings': [{
+                        'target_table': 'bad',
+                        'source_expression': 'DROP TABLE orders',
+                    }],
+                },
+            })
+
+    @patch('pgadmin.cdeadmin.providers.vitess.control_plane._run')
+    def test_vitess_native_workflow_resources_are_navigable(self, run):
+        run.return_value = {'stdout': json.dumps({'workflows': [{
+            'name': 'sales_rollup', 'workflow_type': 'Materialize',
+            'shard_streams': {'-': {'streams': [{
+                'id': 7, 'state': 'Running',
+            }]}},
+        }]})}
+        resources = vitess_control_resources(
+            {'vtctldclient_path': '/trusted/client',
+             'vtctld_server': '127.0.0.1:15999'},
+            'generation-one', {'analytics'},
+        )
+        self.assertEqual({
+            'workflow', 'materialize', 'vreplication-stream',
+        }, {item['resource_kind'] for item in resources})
+        run.assert_called_once_with(
+            {'vtctldclient_path': '/trusted/client',
+             'vtctld_server': '127.0.0.1:15999'},
+            ['GetWorkflows', '--show-all', 'analytics'], timeout=30,
+        )
 
     def test_vitess_routing_rules_are_structured_and_fail_closed(self):
         rules = {
@@ -2875,6 +3032,26 @@ class DistributedProviderTests(unittest.TestCase):
             altered['source'],
         )
         self.assertEqual((500, 25), tuple(altered['parameters']))
+        dropped = VITESS_ADMIN.plan({
+            'resource_kind': 'sequence', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'sequence', 'display_name': 'widget_seq',
+                'display_path': ['sequence_keyspace', 'widget_seq'],
+            },
+            'draft': {'confirmation': 'widget_seq'},
+            '_provider_route': {
+                'host': '127.0.0.1', 'database': 'sequence_keyspace',
+            },
+        })['provider_payload']['compiled']['statements']
+        self.assertEqual(2, len(dropped))
+        self.assertEqual(
+            'ALTER VSCHEMA DROP SEQUENCE '
+            '`sequence_keyspace`.`widget_seq`', dropped[0]['source'],
+        )
+        self.assertEqual(
+            'DROP TABLE `sequence_keyspace`.`widget_seq`',
+            dropped[1]['source'],
+        )
         self.assertFalse(VITESS_ADMIN.supports('sequence', 'rename'))
 
         index = VITESS_ADMIN.plan({
