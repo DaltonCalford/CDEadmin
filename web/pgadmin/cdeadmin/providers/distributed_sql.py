@@ -455,6 +455,7 @@ def create_sql_client(
     client_options=None,
     security_reader_override=None,
     pool_namespace=None,
+    tool_credential_kinds=frozenset(),
 ):
     """Create a DB-API adapter from one provider-owned distributed spec."""
     if wire == 'postgresql':
@@ -486,6 +487,7 @@ def create_sql_client(
         metadata_reader=metadata_reader,
         security_reader=security_reader_override or security_reader,
         credential_arguments=credential_arguments,
+        tool_credential_kinds=frozenset(tool_credential_kinds),
         secret_acquirer=permissions.acquire_secret,
         connection_initializer=(
             _initialize_postgresql_connection

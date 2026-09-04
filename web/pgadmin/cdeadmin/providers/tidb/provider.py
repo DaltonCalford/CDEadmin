@@ -1,5 +1,6 @@
 """TiDB 8.5.6 distributed relational provider."""
 
+import copy
 import json
 import os
 import re
@@ -11,6 +12,7 @@ from urllib.parse import urlsplit
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
     PilotProfile,
+    RelationalDBAPIClient,
     RelationalClientError,
 )
 from ..distributed_sql import (
@@ -123,6 +125,13 @@ _BR_STORAGE_FIELD = (
              max_length=8192, sensitive=True),
 )
 
+_BR_RESTORE_VERIFICATION_FIELD = (
+    cp_field(
+        'verification_database', 'Database expected after restore', 'text',
+        True, max_length=256, pattern=r'[A-Za-z_][A-Za-z0-9_$-]*',
+    ),
+)
+
 CONTROL_OPERATIONS = (
     ControlPlaneOperation(
         'cluster', 'backup_full', 'Back up cluster with BR', 'admin',
@@ -141,7 +150,9 @@ CONTROL_OPERATIONS = (
     ),
     ControlPlaneOperation(
         'cluster', 'restore_full', 'Restore cluster with BR', 'destructive',
-        'restore_admin', _BR_STORAGE_FIELD, impact_scope='cluster',
+        'restore_admin',
+        _BR_STORAGE_FIELD + _BR_RESTORE_VERIFICATION_FIELD,
+        impact_scope='cluster',
         long_running=True, cancellable=True
     ),
     ControlPlaneOperation(
@@ -163,7 +174,8 @@ CONTROL_OPERATIONS = (
             cp_field('full_backup_storage_uri',
                      'Approved full-backup storage URI', 'text', False,
                      max_length=8192, sensitive=True),
-        ), impact_scope='cluster', long_running=True, cancellable=True
+        ) + _BR_RESTORE_VERIFICATION_FIELD,
+        impact_scope='cluster', long_running=True, cancellable=True
     ),
     ControlPlaneOperation(
         'placement-policy', 'create', 'Create placement policy', 'admin',
@@ -204,6 +216,18 @@ CONTROL_OPERATIONS = (
                      max_length=256,
                      pattern=r'[A-Za-z_][A-Za-z0-9_$-]*'),
         ), impact_scope='cluster'
+    ),
+    ControlPlaneOperation(
+        'database', 'reset_placement', 'Use default database placement',
+        'admin', 'topology_admin', impact_scope='cluster'
+    ),
+    ControlPlaneOperation(
+        'table', 'reset_placement', 'Use default table placement',
+        'admin', 'topology_admin', impact_scope='cluster'
+    ),
+    ControlPlaneOperation(
+        'partition', 'reset_placement', 'Use default partition placement',
+        'admin', 'topology_admin', impact_scope='cluster'
     ),
     ControlPlaneOperation(
         'resource-group', 'create', 'Create resource group', 'admin',
@@ -416,6 +440,7 @@ def _compile_cdc_action(request):
             'cli', 'changefeed', 'create',
             '--changefeed-id', changefeed,
             '--sink-uri', _allowlisted_cdc_sink(request),
+            '--no-confirm',
         ]
         for field_id, flag in (
                 ('start_ts', '--start-ts'), ('target_ts', '--target-ts')):
@@ -491,6 +516,10 @@ def _compile_br_action(request):
         'provider_action': {
             'arguments': arguments,
             'cancel_arguments': cancel_arguments,
+            'verification_database': (
+                (request.get('draft') or {}).get('verification_database')
+                if operation in {'restore_full', 'restore_point'} else None
+            ),
         },
         'action_preview': {
             'tool': 'br', 'verb': f'{mode} {scope}',
@@ -532,8 +561,11 @@ def _compile_control_plane(request):
             )
         elif operation == 'drop':
             source = f'DROP PLACEMENT POLICY {_quote(name)}'
-    elif operation == 'configure_placement':
-        policy = _quote(draft['policy_name'])
+    elif operation in {'configure_placement', 'reset_placement'}:
+        policy = (
+            _quote(draft['policy_name'])
+            if operation == 'configure_placement' else 'DEFAULT'
+        )
         path = _path(request)
         if kind == 'database':
             source = f'ALTER DATABASE {_quote(path[-1])} '
@@ -639,6 +671,22 @@ def _br_pd_addresses(route):
     return ','.join(result)
 
 
+def _verify_external_version(command, label, environment=None):
+    try:
+        result = subprocess.run(
+            command, check=False, capture_output=True, text=True,
+            timeout=15, env=environment,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RelationalClientError(
+            f'TiDB {label} version verification failed') from exc
+    output = (result.stdout or '') + (result.stderr or '')
+    if result.returncode != 0 or re.search(
+            r'Release Version:\s*v?8\.5\.6(?:\s|$)', output) is None:
+        raise RelationalClientError(
+            f'TiDB {label} is not the exact 8.5.6 tool')
+
+
 def _run_br(route, arguments, timeout=None):
     if not isinstance(arguments, list) or not arguments or len(
             arguments) > 64 or any(
@@ -651,8 +699,10 @@ def _run_br(route, arguments, timeout=None):
     if isinstance(timeout_value, bool) or not isinstance(
             timeout_value, int) or not 1 <= timeout_value <= 86400:
         raise RelationalClientError('TiDB BR timeout is invalid')
+    executable = _trusted_file(route, 'br_path', 'BR executable', True)
+    _verify_external_version([executable, '--version'], 'BR')
     command = [
-        _trusted_file(route, 'br_path', 'BR executable', True),
+        executable,
         *arguments,
         f'--pd={_br_pd_addresses(route)}',
     ]
@@ -722,10 +772,43 @@ def _run_cdc(route, arguments, timeout=None):
         _trusted_file(route, 'ticdc_path', 'TiCDC executable', True),
         *arguments, '--server', _cdc_server(route),
     ]
+    ca = route.get('ticdc_ca')
+    certificate = route.get('ticdc_cert')
+    key = route.get('ticdc_key')
+    if bool(certificate) != bool(key):
+        raise RelationalClientError(
+            'TiCDC client authentication requires certificate and key')
+    if ca:
+        command.extend([
+            '--ca', _trusted_file(route, 'ticdc_ca', 'TiCDC CA file'),
+        ])
+    if certificate:
+        command.extend([
+            '--cert', _trusted_file(
+                route, 'ticdc_cert', 'TiCDC certificate file'),
+            '--key', _trusted_file(route, 'ticdc_key', 'TiCDC key file'),
+        ])
+    user = route.get('ticdc_user') or route.get('user')
+    if user is not None:
+        if not isinstance(user, str) or not user or len(user) > 256 or any(
+                character in user for character in '\x00\r\n'):
+            raise RelationalClientError('TiCDC user is invalid')
+        command.extend(['--user', user])
+    password = route.get('ticdc_password')
+    if password is not None and (
+            not isinstance(password, str) or not password or
+            len(password) > 8192 or '\x00' in password):
+        raise RelationalClientError('TiCDC password is invalid')
+    environment = None
+    if password is not None:
+        environment = os.environ.copy()
+        environment['TICDC_PASSWORD'] = password
+    _verify_external_version(
+        [command[0], 'version'], 'TiCDC', environment)
     try:
         result = subprocess.run(
             command, check=False, capture_output=True, text=True,
-            timeout=timeout_value,
+            timeout=timeout_value, env=environment,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise RelationalClientError(
@@ -745,14 +828,58 @@ def _run_cdc(route, arguments, timeout=None):
     }
 
 
+def _cdc_resources(request, generation):
+    route = request.get('route') if isinstance(request, dict) else None
+    if not isinstance(route, dict) or not (
+            route.get('ticdc_path') and route.get('ticdc_server')):
+        return []
+    response = _run_cdc(
+        route, ['cli', 'changefeed', 'list'], timeout=30)
+    try:
+        rows = json.loads(response['stdout'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RelationalClientError(
+            'TiCDC changefeed catalog is invalid') from exc
+    if not isinstance(rows, list) or len(rows) > 100000:
+        raise RelationalClientError(
+            'TiCDC changefeed catalog exceeds its admitted shape')
+    values = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RelationalClientError(
+                'TiCDC changefeed catalog contains an invalid item')
+        changefeed_id = _changefeed_id(row.get('id'))
+        summary = row.get('summary')
+        if not isinstance(summary, dict):
+            summary = {}
+        values.append(resource(
+            'changefeed', [], changefeed_id, generation, {
+                'keyspace': str(row.get('keyspace') or ''),
+                'state': str(summary.get('state') or ''),
+                'checkpoint_tso': summary.get('tso'),
+                'checkpoint_time': str(summary.get('checkpoint') or ''),
+                'error': summary.get('error'),
+            },
+        ))
+    return values
+
+
 def _execute_control_action(_client, request):
     payload = request.get('provider_payload') or {}
     action = payload.get('compiled', {}).get('provider_action') or {}
     runner = _run_cdc if action.get('tool') == 'cdc' else _run_br
+    response = runner(
+        payload.get('route') or {}, action.get('arguments'))
+    # TiCDC create output includes the full sink URI. It remains private to
+    # the provider and is independently verified through a safe query.
+    if action.get('tool') == 'cdc' and request.get('plan', {}).get(
+            'operation_id') == 'create':
+        response['stdout'] = ''
+        response['stderr'] = ''
+        response['sensitive_output_redacted'] = True
     return {
         'accepted': True,
-        'provider_response': runner(
-            payload.get('route') or {}, action.get('arguments')),
+        'provider_response': response,
         'provider_finality_authority': True,
         'automatic_mutation_retry': False,
     }
@@ -804,21 +931,34 @@ def _inspect_control_plane(client, request):
             'provider_finality_authority': True,
         }
     if operation in {'restore_full', 'restore_point'}:
-        return {
-            'provider_observation_only': True,
-            'provider_finality_authority': True,
-            'manual_scope_validation_required': True,
-        }
+        compiled = (request.get('provider_payload') or {}).get(
+            'compiled', {})
+        database = compiled.get('provider_action', {}).get(
+            'verification_database')
+        if not isinstance(database, str) or re.fullmatch(
+                r'[A-Za-z_][A-Za-z0-9_$-]{0,255}', database) is None:
+            raise RelationalClientError(
+                'TiDB restore verification database is invalid')
+        return _query_once(
+            client, route,
+            'SELECT SCHEMA_NAME FROM information_schema.SCHEMATA '
+            'WHERE SCHEMA_NAME = %s', (database,),
+        )
     if kind == 'changefeed':
         compiled = (request.get('provider_payload') or {}).get(
             'compiled', {})
         action = compiled.get('provider_action', {})
         changefeed = action.get('changefeed_id')
-        return {
-            'provider_observation': _run_cdc(route, [
+        arguments = (
+            ['cli', 'changefeed', 'list']
+            if operation == 'remove' else [
                 'cli', 'changefeed', 'query', '--simple',
                 '--changefeed-id', _changefeed_id(changefeed),
-            ], timeout=30),
+            ]
+        )
+        return {
+            'provider_observation': _run_cdc(
+                route, arguments, timeout=30),
             'provider_observation_only': True,
             'provider_finality_authority': True,
         }
@@ -837,8 +977,9 @@ def _inspect_control_plane(client, request):
     if kind == 'placement-policy':
         return _query_once(
             client, route,
-            'SELECT POLICY_NAME, PRIMARY_REGION, REGIONS, FOLLOWERS, '
-            'VOTERS, LEARNERS, CONSTRAINTS FROM '
+            'SELECT POLICY_NAME, PRIMARY_REGION, REGIONS, CONSTRAINTS, '
+            'LEADER_CONSTRAINTS, FOLLOWER_CONSTRAINTS, '
+            'LEARNER_CONSTRAINTS, SCHEDULE, FOLLOWERS, LEARNERS FROM '
             'information_schema.PLACEMENT_POLICIES WHERE POLICY_NAME = %s',
             (name,),
         )
@@ -861,7 +1002,7 @@ def _inspect_control_plane(client, request):
         return _query_once(client, route, source, parameters)
     if kind == 'job':
         return _query_once(client, route, 'ADMIN SHOW DDL JOBS 100')
-    if operation == 'configure_placement':
+    if operation in {'configure_placement', 'reset_placement'}:
         if kind == 'database':
             return _query_once(
                 client, route,
@@ -908,23 +1049,32 @@ def _post_validate_control_plane(client, request):
     if operation in {'backup_full', 'backup_br'}:
         confirmed = bool(observation.get('provider_observation'))
     elif operation in {'restore_full', 'restore_point'}:
-        confirmed = False
+        confirmed = bool(rows)
     elif operation == 'restore_br':
         confirmed = bool(rows)
     elif plan['resource_kind'] == 'changefeed':
         output = observation.get('provider_observation', {}).get(
             'stdout', '')
         try:
-            state = json.loads(output).get('state')
+            decoded = json.loads(output)
         except (AttributeError, TypeError, ValueError):
-            state = None
+            decoded = None
+        state = decoded.get('state') if isinstance(decoded, dict) else None
         admitted = {
             'create': {'normal', 'stopped', 'warning'},
             'pause': {'stopped'},
             'resume': {'normal', 'warning'},
-            'remove': {'removed'},
         }
-        confirmed = state in admitted.get(operation, set())
+        if operation == 'remove' and isinstance(decoded, list):
+            changefeed = (request.get('provider_payload') or {}).get(
+                'compiled', {}).get('provider_action', {}).get(
+                    'changefeed_id')
+            confirmed = all(
+                not isinstance(item, dict) or item.get('id') != changefeed
+                for item in decoded
+            )
+        else:
+            confirmed = state in admitted.get(operation, set())
     elif operation == 'drop':
         confirmed = not rows
     elif operation == 'cancel':
@@ -936,9 +1086,21 @@ def _post_validate_control_plane(client, request):
         )
     elif operation == 'configure_placement' and rows:
         confirmed = str(rows[0][-1]) == str(plan['draft']['policy_name'])
+    elif operation == 'reset_placement' and rows:
+        confirmed = all(
+            row[-1] is None or str(row[-1]).upper() in {'', 'DEFAULT'}
+            for row in rows
+        )
     elif operation == 'set_tiflash_replica':
         expected = int(plan['draft']['replica_count'])
-        confirmed = bool(rows) and all(int(row[2]) == expected for row in rows)
+        confirmed = (
+            not rows if expected == 0 else
+            all(
+                int(row[2]) == expected and bool(row[3]) and
+                float(row[4]) >= 1.0
+                for row in rows
+            )
+        )
     return {
         'confirmed': confirmed,
         'operation_id': operation,
@@ -1096,12 +1258,93 @@ def _extras(cursor, _request, generation):
         values.append(resource('resource-group', [], name, generation, {
             'ru_per_sec': ru_per_sec, 'priority': str(priority),
         }))
+    values.extend(_cdc_resources(_request, generation))
     return values
 
 
 class TiDBProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
+
+
+class TiDBDBAPIClient(RelationalDBAPIClient):
+    """Keep TiCDC credentials leased and outside persistent route state."""
+
+    _TICDC_SECRET_KIND = 'tidb_ticdc_password'
+
+    @staticmethod
+    def _request_routes(request):
+        routes = []
+        for key in ('route', '_provider_route'):
+            route = request.get(key)
+            if isinstance(route, dict):
+                routes.append(route)
+        payload = request.get('provider_payload')
+        if isinstance(payload, dict) and isinstance(
+                payload.get('route'), dict):
+            routes.append(payload['route'])
+        return routes
+
+    def _with_ticdc_credentials(self, request, callback):
+        scoped = copy.deepcopy(dict(request))
+        routes = self._request_routes(scoped)
+        configured = [
+            route for route in routes
+            if route.get('ticdc_path') and route.get('ticdc_server')
+        ]
+        if not configured:
+            return callback(scoped)
+        references = {
+            str((route.get('credential_references') or {}).get(
+                self._TICDC_SECRET_KIND))
+            for route in configured
+            if (route.get('credential_references') or {}).get(
+                self._TICDC_SECRET_KIND)
+        }
+        if not references:
+            return callback(scoped)
+        principals = {
+            str(route.get('principal_reference'))
+            for route in configured if route.get('principal_reference')
+        }
+        if len(references) != 1 or len(principals) != 1 or not callable(
+                self.config.secret_acquirer):
+            raise RelationalClientError(
+                'TiCDC credential binding is unavailable')
+        reference = next(iter(references))
+        principal = next(iter(principals))
+        lease = self.config.secret_acquirer(
+            reference, principal, 'provider_tool', self._TICDC_SECRET_KIND
+        )
+
+        def invoke(view):
+            password = bytes(view).decode('utf-8')
+            for route in configured:
+                route['ticdc_password'] = password
+            return callback(scoped)
+
+        with lease:
+            return lease.use(invoke)
+
+    def list_resources(self, request):
+        return self._with_ticdc_credentials(
+            request, super().list_resources)
+
+    def apply_admin_operation(self, request):
+        return self._with_ticdc_credentials(
+            request, super().apply_admin_operation)
+
+    def inspect_admin_operation(self, request):
+        return self._with_ticdc_credentials(
+            request, super().inspect_admin_operation)
+
+    def cancel_admin_operation(self, request):
+        return self._with_ticdc_credentials(
+            request, super().cancel_admin_operation)
+
+    def validate_admin_post_state(self, request):
+        return self._with_ticdc_credentials(
+            request, super().validate_admin_post_state)
 
 
 def create_provider(context, permissions, client=None):
@@ -1118,5 +1361,7 @@ def create_provider(context, permissions, client=None):
                 connection, request, 'TiDB', _extras
             ),
             administration=ADMINISTRATION,
+            client_class=TiDBDBAPIClient,
+            tool_credential_kinds={'tidb_ticdc_password'},
         ),
     )

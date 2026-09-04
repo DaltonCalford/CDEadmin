@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.tidb", "provider_version": "0.1.0", "profile_id": "tidb-native", "profile_version": "8.5.6", "evidence_reference": "cde-distributed:tidb-native-live:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.tidb", "provider_version": "0.2.0", "profile_id": "tidb-native", "profile_version": "8.5.6", "evidence_reference": "cde-distributed:tidb-full-live:20260904"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental",
@@ -46,8 +46,15 @@
       {"field_id": "br_timeout_seconds", "route_key": "br_timeout_seconds", "label": "BR timeout (seconds)", "control": "number", "group": "TiDB recovery", "default": 3600, "minimum": 1, "maximum": 86400}
       ,{"field_id": "ticdc_path", "route_key": "ticdc_path", "label": "TiCDC executable", "control": "file", "group": "TiDB change data capture"}
       ,{"field_id": "ticdc_server", "route_key": "ticdc_server", "label": "TiCDC coordinator URL", "control": "text", "group": "TiDB change data capture", "help": "Exact http(s) URL including the TiCDC coordinator port."}
+      ,{"field_id": "ticdc_ca", "route_key": "ticdc_ca", "label": "TiCDC CA file", "control": "file", "group": "TiDB change data capture TLS"}
+      ,{"field_id": "ticdc_cert", "route_key": "ticdc_cert", "label": "TiCDC client certificate", "control": "file", "group": "TiDB change data capture TLS"}
+      ,{"field_id": "ticdc_key", "route_key": "ticdc_key", "label": "TiCDC client private key", "control": "file", "group": "TiDB change data capture TLS", "sensitive": true}
+      ,{"field_id": "ticdc_user", "route_key": "ticdc_user", "label": "TiCDC user", "control": "text", "group": "TiDB change data capture authentication", "help": "Optional TiCDC SQL user override. Its password is supplied by the TiCDC provider-tool secret reference."}
       ,{"field_id": "ticdc_sink_allowlist", "route_key": "ticdc_sink_allowlist", "label": "TiCDC sink URI allowlist", "control": "text", "group": "TiDB change data capture", "help": "Comma-separated admitted sink URI prefixes."}
       ,{"field_id": "ticdc_timeout_seconds", "route_key": "ticdc_timeout_seconds", "label": "TiCDC timeout (seconds)", "control": "number", "group": "TiDB change data capture", "default": 120, "minimum": 1, "maximum": 86400}
+    ],
+    "secret_fields": [
+      {"field_id": "ticdc_password", "secret_kind": "tidb_ticdc_password", "label": "TiCDC password", "group": "TiDB change data capture authentication", "help": "Leased only for a TiCDC provider-tool invocation and never persisted in the endpoint route."}
     ]
   },
   "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}

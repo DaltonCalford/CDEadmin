@@ -787,6 +787,47 @@ class RelationalDBAPIClientTests(unittest.TestCase):
         self.assertEqual('key-canary', observed['arguments']['sslpassword'])
         self.assertEqual(3, len(observed['acquisitions']))
 
+    def test_provider_tool_credentials_are_not_forwarded_to_connector(self):
+        observed = {'acquisitions': []}
+
+        def acquire(reference, principal, purpose, expected_kind):
+            observed['acquisitions'].append((
+                reference, principal, purpose, expected_kind
+            ))
+            return SecretLease(b'database-password-canary')
+
+        def connect(**kwargs):
+            observed['arguments'] = kwargs
+            return SimpleNamespace(close=lambda: None)
+
+        client = RelationalDBAPIClient(RelationalClientConfig(
+            profile=self.profile,
+            module_name='test.tool.secret.dbapi',
+            version_query='SELECT sqlite_version()',
+            connect_arguments=lambda route: dict(route),
+            metadata_reader=lambda *_args: [],
+            credential_arguments={'database_password': 'password'},
+            tool_credential_kinds=frozenset({'provider_tool_password'}),
+            secret_acquirer=acquire,
+        ), SimpleNamespace(connect=connect))
+        client.open_session({'route': {
+            'database': 'qualification',
+            'credential_references': {
+                'database_password': 'database-reference',
+                'provider_tool_password': 'tool-reference',
+            },
+            'principal_reference': 'principal-one',
+        }})
+        self.assertEqual(
+            {'database': 'qualification',
+             'password': 'database-password-canary'},
+            observed['arguments'],
+        )
+        self.assertEqual([
+            ('database-reference', 'principal-one', 'connect',
+             'database_password'),
+        ], observed['acquisitions'])
+
 
 if __name__ == '__main__':
     unittest.main()

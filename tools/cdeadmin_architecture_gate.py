@@ -422,7 +422,7 @@ def scan_common_and_providers(source: Path, policy: dict) -> list[dict]:
                     imported = target.split(".providers.", 1)[1].split(
                         ".", 1
                     )[0]
-                    if imported and imported != owner:
+                    if imported in provider_names and imported != owner:
                         violations.append(
                             violation(
                                 "cross-provider-import-boundary",

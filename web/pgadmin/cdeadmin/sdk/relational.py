@@ -80,6 +80,7 @@ class RelationalClientConfig:
     extensions: Mapping[str, Any] = field(default_factory=dict)
     credential_argument: str | None = None
     credential_arguments: Mapping[str, str] = field(default_factory=dict)
+    tool_credential_kinds: frozenset[str] = field(default_factory=frozenset)
     secret_acquirer: Callable[..., object] | None = field(
         default=None, repr=False, compare=False
     )
@@ -127,6 +128,17 @@ class RelationalClientConfig:
         ):
             raise RelationalClientError(
                 'credential_arguments must map kinds to connector arguments'
+            )
+        if not isinstance(self.tool_credential_kinds, frozenset) or any(
+                not isinstance(kind, str) or not kind.strip()
+                for kind in self.tool_credential_kinds):
+            raise RelationalClientError(
+                'tool_credential_kinds must be a set of secret kinds'
+            )
+        if set(self.credential_arguments).intersection(
+                self.tool_credential_kinds):
+            raise RelationalClientError(
+                'connector and provider-tool credentials must be distinct'
             )
         if self.secret_acquirer is not None and not callable(
             self.secret_acquirer
@@ -243,14 +255,25 @@ class RelationalDBAPIClient:
                     arguments.setdefault(
                         'database_password', self.config.credential_argument
                     )
-                unknown = sorted(set(references) - set(arguments))
-                if unknown or not callable(self.config.secret_acquirer):
+                connector_references = {
+                    kind: reference
+                    for kind, reference in references.items()
+                    if kind in arguments
+                }
+                unknown = sorted(
+                    set(references) - set(arguments) -
+                    set(self.config.tool_credential_kinds)
+                )
+                if unknown or (
+                    connector_references and
+                    not callable(self.config.secret_acquirer)
+                ):
                     raise RelationalClientError(
                         'relational credential binding is unavailable'
                     )
                 bindings = [
-                    (kind, references[kind], arguments[kind])
-                    for kind in sorted(references)
+                    (kind, connector_references[kind], arguments[kind])
+                    for kind in sorted(connector_references)
                 ]
 
                 def connect(index, options):

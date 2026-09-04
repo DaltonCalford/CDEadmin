@@ -701,6 +701,8 @@ class EndpointService:
                 return route, None
             primary = references.get(primary_field['secret_kind'])
             if primary is None:
+                if references:
+                    route['principal_reference'] = f'user:{server.user_id}'
                 return route, None
             route.update({
                 'credential_reference_id': primary.reference_id,

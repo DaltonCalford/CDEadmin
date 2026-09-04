@@ -96,6 +96,7 @@ from pgadmin.cdeadmin.providers.tidb.provider import (  # noqa: E402
     ADMINISTRATION as TIDB_ADMIN,
     CONTROL_OPERATIONS as TIDB_CONTROL_OPERATIONS,
     PROFILE as TIDB,
+    TiDBDBAPIClient,
     _run_br as run_tidb_br,
     _run_cdc as run_tidb_cdc,
     _version as tidb_version,
@@ -1496,6 +1497,9 @@ class DistributedProviderTests(unittest.TestCase):
             ('placement-policy', 'alter'),
             ('resource-group', 'create'),
             ('table', 'configure_placement'),
+            ('database', 'reset_placement'),
+            ('table', 'reset_placement'),
+            ('partition', 'reset_placement'),
             ('table', 'set_tiflash_replica'),
             ('job', 'cancel'),
         }.issubset(keys))
@@ -1541,6 +1545,21 @@ class DistributedProviderTests(unittest.TestCase):
         )
         self.assertEqual(4, len(statement['parameters']))
         self.assertTrue(placement['impact']['data_movement_possible'])
+
+        reset = TIDB_ADMIN.plan({
+            'resource_kind': 'partition',
+            'operation_id': 'reset_placement',
+            'target_resource': {
+                'display_path': ['inventory', 'orders', 'p0'],
+            },
+            'draft': {},
+            '_provider_route': {'host': '127.0.0.1', 'port': 4000},
+        })
+        self.assertEqual(
+            'ALTER TABLE `inventory`.`orders` PARTITION `p0` '
+            'PLACEMENT POLICY = DEFAULT',
+            reset['provider_payload']['compiled']['statements'][0]['source'],
+        )
 
         group = TIDB_ADMIN.plan({
             'resource_kind': 'resource-group',
@@ -1598,10 +1617,13 @@ class DistributedProviderTests(unittest.TestCase):
         ], action['arguments'])
         self.assertNotIn(
             'arguments', plan['command_preview']['statements'][0])
+        version = SimpleNamespace(
+            returncode=0, stdout='Release Version: v8.5.6\n', stderr=''
+        )
         result = SimpleNamespace(returncode=0, stdout='ok', stderr='')
         with patch(
             'pgadmin.cdeadmin.providers.tidb.provider.subprocess.run',
-            return_value=result,
+            side_effect=[version, result],
         ) as runner:
             response = run_tidb_br(route, action['arguments'])
         command = runner.call_args.args[0]
@@ -1655,16 +1677,19 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual([
             'cli', 'changefeed', 'create', '--changefeed-id',
             'orders-canada', '--sink-uri',
-            'kafka://broker.internal/orders', '--start-ts',
+            'kafka://broker.internal/orders', '--no-confirm', '--start-ts',
             '438156275634929669',
         ], action['arguments'])
         self.assertNotIn(
             'kafka://broker.internal/orders', json.dumps(
                 plan['command_preview']))
+        version = SimpleNamespace(
+            returncode=0, stdout='Release Version: v8.5.6\n', stderr=''
+        )
         result = SimpleNamespace(returncode=0, stdout='{}', stderr='')
         with patch(
             'pgadmin.cdeadmin.providers.tidb.provider.subprocess.run',
-            return_value=result,
+            side_effect=[version, result],
         ) as runner:
             response = run_tidb_cdc(route, action['arguments'])
         command = runner.call_args.args[0]
@@ -1673,6 +1698,89 @@ class DistributedProviderTests(unittest.TestCase):
             '--server', 'http://127.0.0.1:8300',
         ], command[-2:])
         self.assertFalse(response['automatic_mutation_retry'])
+
+    def test_tidb_ticdc_tls_and_password_are_provider_owned(self):
+        route = {
+            'ticdc_path': '/bin/true',
+            'ticdc_server': 'https://cdc.internal:8300',
+            'ticdc_ca': '/bin/true',
+            'ticdc_cert': '/bin/true',
+            'ticdc_key': '/bin/true',
+            'ticdc_user': 'cdeadmin',
+            'ticdc_password': 'secret-canary',
+        }
+        version = SimpleNamespace(
+            returncode=0, stdout='Release Version: v8.5.6\n', stderr=''
+        )
+        result = SimpleNamespace(returncode=0, stdout='[]', stderr='')
+        with patch(
+            'pgadmin.cdeadmin.providers.tidb.provider.subprocess.run',
+            side_effect=[version, result],
+        ) as runner:
+            response = run_tidb_cdc(
+                route, ['cli', 'changefeed', 'list'])
+        command = runner.call_args.args[0]
+        self.assertIn('--ca', command)
+        self.assertIn('--cert', command)
+        self.assertIn('--key', command)
+        self.assertEqual(['--user', 'cdeadmin'], command[-2:])
+        self.assertNotIn('secret-canary', command)
+        self.assertEqual(
+            'secret-canary', runner.call_args.kwargs['env']['TICDC_PASSWORD']
+        )
+        self.assertEqual('[]', response['stdout'])
+
+    def test_tidb_ticdc_password_is_leased_only_for_provider_tool(self):
+        acquisitions = []
+
+        class Lease:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            @staticmethod
+            def use(callback):
+                return callback(b'ticdc-secret-canary')
+
+        def acquire(reference, principal, purpose, expected_kind):
+            acquisitions.append((
+                reference, principal, purpose, expected_kind
+            ))
+            return Lease()
+
+        config = RelationalClientConfig(
+            profile=TIDB, module_name='fake', version_query='SELECT 1',
+            connect_arguments=mysql_route,
+            metadata_reader=lambda _connection, _request: [],
+            credential_arguments={'database_password': 'password'},
+            tool_credential_kinds=frozenset({'tidb_ticdc_password'}),
+            secret_acquirer=acquire,
+        )
+        client = TiDBDBAPIClient(
+            config, module=SimpleNamespace(connect=lambda **_kwargs: None)
+        )
+        request = {'provider_payload': {'route': {
+            'ticdc_path': '/bin/true',
+            'ticdc_server': 'https://cdc.internal:8300',
+            'credential_references': {
+                'tidb_ticdc_password': 'ticdc-reference',
+            },
+            'principal_reference': 'principal-one',
+        }}}
+        observed = client._with_ticdc_credentials(
+            request,
+            lambda scoped: scoped['provider_payload']['route'].get(
+                'ticdc_password'),
+        )
+        self.assertEqual('ticdc-secret-canary', observed)
+        self.assertNotIn(
+            'ticdc_password', request['provider_payload']['route'])
+        self.assertEqual([
+            ('ticdc-reference', 'principal-one', 'provider_tool',
+             'tidb_ticdc_password'),
+        ], acquisitions)
 
     def test_tidb_ticdc_sink_and_identifier_fail_closed(self):
         base = {

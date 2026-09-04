@@ -110,6 +110,17 @@ class ArchitectureGateTestCase(unittest.TestCase):
         )
         self.assertIn("cross-provider-import-boundary", self.rules())
 
+    def test_provider_may_import_shared_module_below_provider_root(self):
+        self.write(
+            "web/pgadmin/cdeadmin/providers/alpha/service.py",
+            "from pgadmin.cdeadmin.providers.shared_sql import Adapter\n",
+        )
+        self.write(
+            "web/pgadmin/cdeadmin/providers/shared_sql.py",
+            "class Adapter:\n    pass\n",
+        )
+        self.assertNotIn("cross-provider-import-boundary", self.rules())
+
     def test_fixture_provider_below_production_root_fails(self):
         self.write(
             "web/pgadmin/cdeadmin/providers/fixture_demo/provider.py",
