@@ -77,6 +77,8 @@ from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
     ImmudbDBAPIClient,
     _compile_control as compile_immudb_control,
     _contains_name as immudb_contains_name,
+    _execute_control as execute_immudb_control,
+    _inspect_control as inspect_immudb_control,
 )
 from pgadmin.cdeadmin.providers.native_distributed import (  # noqa: E402
     NativeDistributedClient,
@@ -188,6 +190,18 @@ class _Response:
 
     def read(self, maximum):
         return self.payload[:maximum]
+
+
+class _SecretLease:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    @staticmethod
+    def use(callback):
+        return callback(b'immudb')
 
 
 class _Backend:
@@ -1972,6 +1986,8 @@ class DistributedProviderTests(unittest.TestCase):
             ('permission', 'revoke'),
             ('permission', 'grant_sql'),
             ('permission', 'revoke_sql'),
+            ('index', 'create'),
+            ('index', 'drop'),
         }.issubset(keys))
         self.assertFalse(any(
             field['control'] == 'code'
@@ -2016,6 +2032,20 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertNotIn('autoload', settings)
         self.assertNotIn('excludeCommitTime', settings)
 
+        drop = compile_immudb_control({
+            'resource_kind': 'database', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_id': 'database:analytics',
+                'display_path': ['analytics'],
+            },
+            'draft': {},
+        })['provider_action']
+        self.assertEqual('/db/delete', drop['path'])
+        self.assertEqual([{
+            'method': 'POST', 'path': '/db/unload',
+            'body': {'database': 'analytics'}, 'database': None,
+        }], drop['pre_actions'])
+
     def test_immudb_replica_and_sql_privilege_values_fail_closed(self):
         with self.assertRaisesRegex(
             RelationalClientError, 'primary connection fields'
@@ -2049,6 +2079,124 @@ class DistributedProviderTests(unittest.TestCase):
             'database': 'analytics', 'privileges': ['SELECT', 'INSERT'],
         }, grant['provider_action']['body'])
 
+    def test_immudb_native_kv_and_document_plans_are_structured(self):
+        index = compile_immudb_control({
+            'resource_kind': 'index', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'table': 'records', 'columns': ['category', 'created_at'],
+                'unique': True,
+            },
+            '_provider_route': {'database': 'defaultdb'},
+        })['provider_action']
+        self.assertEqual('/db/sqlexec', index['path'])
+        self.assertEqual(
+            'CREATE UNIQUE INDEX ON records (category, created_at)',
+            index['body']['sql'],
+        )
+
+        drop_index = compile_immudb_control({
+            'resource_kind': 'index', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'index',
+                'display_path': ['public', 'records', 'records_idx_2'],
+                'native': {
+                    'table': 'records', 'columns': ['category'],
+                },
+            },
+            'draft': {},
+            '_provider_route': {'database': 'defaultdb'},
+        })['provider_action']
+        self.assertEqual(
+            'DROP INDEX ON records (category)', drop_index['body']['sql']
+        )
+
+        document_index = compile_immudb_control({
+            'resource_kind': 'collection-index', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'collection-index',
+                'display_path': ['defaultdb', 'records', 'name, category'],
+                'extensions': {'immudb': {'native': {
+                    'fields': ['name', 'category'], 'unique': False,
+                }}},
+            },
+            'draft': {},
+        })['provider_action']
+        self.assertEqual('DELETE', document_index['method'])
+        self.assertEqual(
+            '/collection/records/index?fields=name&fields=category',
+            document_index['path'],
+        )
+        self.assertIsNone(document_index['body'])
+
+        set_key = compile_immudb_control({
+            'resource_kind': 'key', 'operation_id': 'insert',
+            'target_resource': None,
+            'draft': {
+                'key': 'alpha', 'value': 'value', 'encoding': 'utf8',
+                'key_encoding': 'utf8',
+                'expires_at': 2000000000,
+            },
+            '_provider_route': {'database': 'defaultdb'},
+        })
+        action = set_key['provider_action']
+        self.assertEqual('/db/set', action['path'])
+        self.assertEqual('YWxwaGE=', action['body']['KVs'][0]['key'])
+        self.assertEqual('dmFsdWU=', action['body']['KVs'][0]['value'])
+        self.assertEqual(
+            '2000000000',
+            action['body']['KVs'][0]['metadata']['expiration']['expiresAt'],
+        )
+
+        collection = compile_immudb_control({
+            'resource_kind': 'collection', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'records', 'document_id_field': '_id',
+                'fields': [{'name': 'name', 'type': 'string'}],
+                'indexes': [{'fields': ['name'], 'unique': False}],
+            },
+        })['provider_action']
+        self.assertEqual(2, collection['api_version'])
+        self.assertEqual('/collection/records', collection['path'])
+        self.assertEqual(
+            'STRING', collection['body']['fields'][0]['type']
+        )
+
+        replace = compile_immudb_control({
+            'resource_kind': 'document', 'operation_id': 'update',
+            'target_resource': {
+                'resource_kind': 'document',
+                'display_path': ['defaultdb', 'records', 'doc-one'],
+                'native': {'document_id_field': '_id'},
+            },
+            'draft': {'document': {'name': 'changed'}},
+        })['provider_action']
+        self.assertEqual('PUT', replace['method'])
+        self.assertEqual(
+            '/collection/records/documents/replace', replace['path']
+        )
+        comparison = replace['body']['query']['expressions'][0][
+            'fieldComparisons'
+        ][0]
+        self.assertEqual(
+            {'field': '_id', 'operator': 'EQ', 'value': 'doc-one'},
+            comparison,
+        )
+
+        with self.assertRaisesRegex(
+            RelationalClientError, 'not valid base64'
+        ):
+            compile_immudb_control({
+                'resource_kind': 'key', 'operation_id': 'insert',
+                'target_resource': None,
+                'draft': {
+                    'key': 'alpha', 'value': '***', 'encoding': 'base64',
+                    'key_encoding': 'utf8',
+                },
+                '_provider_route': {'database': 'defaultdb'},
+            })
+
     def test_immudb_identity_joins_wire_and_exact_native_version(self):
         config = RelationalClientConfig(
             profile=IMMUDB, module_name='fake', version_query='SELECT 1',
@@ -2078,6 +2226,26 @@ class DistributedProviderTests(unittest.TestCase):
             'http://127.0.0.1:8080/api/serverinfo', calls[0]
         )
 
+    def test_immudb_connection_uses_psycopg_client_cursor(self):
+        config = RelationalClientConfig(
+            profile=IMMUDB, module_name='fake', version_query='SELECT 1',
+            connect_arguments=postgresql_route,
+            metadata_reader=lambda _connection, _request: [],
+        )
+        connection = _Connection()
+        module = _ConnectorModule(connection)
+        client_cursor = object()
+        module.ClientCursor = client_cursor
+        client = ImmudbDBAPIClient(config, module=module)
+
+        handle = client._connect({'route': {
+            'host': '127.0.0.1', 'port': 5432,
+            'user': 'immudb', 'database': 'defaultdb',
+        }})
+
+        self.assertIs(connection, handle)
+        self.assertIs(client_cursor, module.arguments['cursor_factory'])
+
     def test_immudb_name_matching_does_not_decode_database_names(self):
         self.assertTrue(immudb_contains_name({
             'databases': [{'name': 'dGVzdA=='}],
@@ -2088,6 +2256,168 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertTrue(immudb_contains_name({
             'users': [{'user': 'dGVzdA=='}],
         }, 'test'))
+
+    def test_immudb_navigator_joins_sql_kv_and_document_resources(self):
+        config = RelationalClientConfig(
+            profile=IMMUDB, module_name='fake', version_query='SELECT 1',
+            connect_arguments=postgresql_route,
+            metadata_reader=lambda _connection, _request: [],
+            secret_acquirer=lambda *_args: _SecretLease(),
+            credential_arguments={'database_password': 'password'},
+        )
+        calls = []
+
+        def opener(request, **_options):
+            calls.append((
+                request.full_url, request.get_method(),
+                dict(request.header_items()),
+            ))
+            path = request.full_url
+            if path.endswith('/api/login'):
+                return _Response({'token': 'server-token'})
+            if path.endswith('/api/db/use/defaultdb'):
+                return _Response({'token': 'database-token'})
+            if path.endswith('/api/db/list/v2'):
+                return _Response({'databases': [{
+                    'name': 'defaultdb', 'loaded': True, 'settings': {},
+                }]})
+            if path.endswith('/api/db/scan'):
+                return _Response({'entries': [{
+                    'tx': '7', 'key': 'YWxwaGE=', 'value': 'dmFsdWU=',
+                    'revision': '2', 'expired': False,
+                    'metadata': {'expiration': {'expiresAt': '2000000000'}},
+                }]})
+            if path.endswith('/api/v2/authorization/session/open'):
+                return _Response({'sessionID': 'document-session'})
+            if path.endswith('/api/v2/collections'):
+                return _Response({'collections': [{
+                    'name': 'records', 'documentIdFieldName': '_id',
+                    'fields': [{'name': 'name', 'type': 'STRING'}],
+                    'indexes': [{
+                        'fields': ['name'], 'isUnique': False,
+                    }],
+                }]})
+            if path.endswith('/documents/search'):
+                return _Response({'revisions': [{
+                    'transactionId': '8', 'documentId': 'doc-one',
+                    'revision': '1', 'document': {'name': 'first'},
+                }]})
+            if path.endswith('/api/v2/authorization/session/close'):
+                return _Response({})
+            self.fail(f'unexpected immudb request: {path}')
+
+        client = ImmudbDBAPIClient(
+            config, module=_ConnectorModule(_Connection()), opener=opener,
+        )
+        resources = client.list_resources({'route': {
+            'host': '127.0.0.1', 'web_host': '127.0.0.1',
+            'web_port': 8080, 'user': 'immudb', 'database': 'defaultdb',
+            'credential_reference_id': 'credential',
+            'principal_reference': 'principal',
+        }})
+        kinds = {item['resource_kind'] for item in resources}
+        self.assertTrue({
+            'key', 'ttl', 'revision', 'transaction', 'collection',
+            'collection-index', 'document',
+        }.issubset(kinds))
+        key = next(
+            item for item in resources if item['resource_kind'] == 'key'
+        )
+        self.assertEqual('alpha', key['display_name'])
+        document_calls = [
+            item for item in calls if '/api/v2/' in item[0]
+        ]
+        self.assertTrue(all(
+            item[2].get('Grpc-metadata-sessionid') == 'document-session'
+            for item in document_calls[1:]
+        ))
+
+    def test_immudb_document_cleanup_failure_never_replays_mutation(self):
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            @staticmethod
+            def _document_session(_route):
+                return 'document-session'
+
+            def _document_request(
+                self, _route, _session_id, method, path, body=None,
+            ):
+                self.calls.append((method, path, body))
+                if path == '/authorization/session/close':
+                    raise RelationalClientError('close unavailable')
+                return {'documentIds': ['doc-one']}
+
+        client = Client()
+        result = execute_immudb_control(client, {
+            'plan': {
+                'resource_kind': 'document', 'operation_id': 'insert',
+            },
+            'provider_payload': {
+                'route': {'database': 'defaultdb'},
+                'compiled': {'provider_action': {
+                    'api_version': 2, 'method': 'POST',
+                    'path': '/collection/records/documents',
+                    'body': {
+                        'collectionName': 'records',
+                        'documents': [{'name': 'first'}],
+                    },
+                }},
+            },
+        })
+        self.assertTrue(result['accepted'])
+        response = result['provider_response']
+        self.assertFalse(response['document_session_closed'])
+        self.assertFalse(response['automatic_mutation_retry'])
+        self.assertEqual([
+            ('POST', '/collection/records/documents', {
+                'collectionName': 'records',
+                'documents': [{'name': 'first'}],
+            }),
+            ('POST', '/authorization/session/close', {}),
+        ], client.calls)
+
+    def test_immudb_operation_inspection_only_discovers_resources(self):
+        class Client:
+            def __init__(self):
+                self.list_calls = 0
+
+            def list_resources(self, request):
+                self.list_calls += 1
+                self.request = request
+                return [{
+                    'resource_id': 'document:doc-one',
+                    'resource_kind': 'document',
+                }]
+
+            @staticmethod
+            def rest_admin(*_args, **_kwargs):
+                raise AssertionError('mutation action was replayed')
+
+        client = Client()
+        observed = inspect_immudb_control(client, {
+            'plan': {
+                'resource_kind': 'document', 'operation_id': 'delete',
+                'target_resource': {'resource_id': 'document:doc-one'},
+            },
+            'provider_payload': {
+                'route': {'database': 'defaultdb'},
+                'compiled': {'provider_action': {
+                    'api_version': 2, 'method': 'POST',
+                    'path': '/collection/records/documents/delete',
+                    'body': {'query': {}},
+                }},
+            },
+        })
+        self.assertEqual(1, client.list_calls)
+        self.assertTrue(observed['provider_observation_only'])
+        self.assertEqual(
+            ['document:doc-one'],
+            [item['resource_id'] for item in (
+                observed['provider_observation']['resources']
+            )],
+        )
 
     def test_vitess_table_and_vindex_commands_are_provider_constructed(self):
         route = {'host': '127.0.0.1', 'database': 'inventory'}

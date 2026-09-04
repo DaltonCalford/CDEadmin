@@ -76,6 +76,10 @@ from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
     PROFILE as YUGABYTEDB_PROFILE,
     create_provider as create_yugabytedb_provider,
 )
+from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
+    PROFILE as IMMUDB_PROFILE,
+    create_provider as create_immudb_provider,
+)
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
@@ -101,6 +105,7 @@ PROFILES = {
     'tidb': TIDB_PROFILE,
     'vitess': VITESS_PROFILE,
     'yugabytedb': YUGABYTEDB_PROFILE,
+    'immudb': IMMUDB_PROFILE,
     'mysql': MYSQL_PROFILE,
     'mariadb': MARIADB_PROFILE,
     'duckdb': DUCKDB_PROFILE,
@@ -114,6 +119,7 @@ PROVIDER_FACTORIES = {
     'tidb': create_tidb_provider,
     'vitess': create_vitess_provider,
     'yugabytedb': create_yugabytedb_provider,
+    'immudb': create_immudb_provider,
     'duckdb': create_duckdb_provider,
     'firebird': create_firebird_provider,
     'sqlite': create_sqlite_provider,
@@ -125,6 +131,7 @@ TARGET_ADAPTERS = {
     'tidb': 'tidb-mysql-wire-client',
     'vitess': 'vitess-mysql-wire-client',
     'yugabytedb': 'ysql-postgresql-wire-client',
+    'immudb': 'immudb-postgresql-wire-and-rest-client',
     'duckdb': 'embedded-duckdb-helper',
     'firebird': 'firebird-wire-client',
     'mariadb': 'mysql-wire-client',
@@ -306,7 +313,7 @@ def _relational_editor_evidence(provider, request, engine):
     value_column = (
         'QUALIFICATION_VALUE' if engine == 'firebird' else 'value'
     )
-    if engine == 'firebird':
+    if engine in {'firebird', 'immudb'}:
         parent = None
     elif engine in {'mysql', 'mariadb', 'dolt', 'tidb', 'vitess'}:
         parent = str(route['database'])
@@ -360,7 +367,7 @@ def _relational_editor_evidence(provider, request, engine):
             )
             record('table', 'delete')
         except Exception as exc:
-            failures['table.grid'] = type(exc).__name__
+            failures['table.grid'] = f'{type(exc).__name__}: {exc}'
 
     created = attempt(
         'table.create', 'table', 'create', {
@@ -489,15 +496,47 @@ def _relational_editor_evidence(provider, request, engine):
 
         if attempt(
             'index.create', 'index', 'create', {
-                'name': 'cde_editor_index',
-                **({'parent': parent} if parent else {}),
-                'table': qualified_table, 'columns': [value_column],
+                **({} if engine == 'immudb' else {
+                    'name': 'cde_editor_index',
+                    **({'parent': parent} if parent else {}),
+                }),
+                'table': (
+                    qualification['display_name']
+                    if engine == 'immudb' else qualified_table
+                ),
+                'columns': [value_column],
                 'unique': False,
             },
         ):
-            index = inspect_created(
-                'index.inspect', 'index', 'cde_editor_index'
-            )
+            if engine == 'immudb':
+                try:
+                    index = next((
+                        item for item in provider.list_resources(request)
+                        if item.get('resource_kind') == 'index' and
+                        item.get('extensions', {}).get(
+                            'immudb', {}
+                        ).get('native', {}).get('table') == (
+                            qualification['display_name']
+                        ) and item.get('extensions', {}).get(
+                            'immudb', {}
+                        ).get('native', {}).get('columns') == [value_column]
+                    ), None)
+                    if index is None:
+                        failures['index.inspect'] = 'CreatedResourceMissing'
+                    else:
+                        provider.inspect_resource({
+                            **request, 'resource_id': index['resource_id'],
+                        })
+                        record('index', 'inspect')
+                except Exception as exc:
+                    index = None
+                    failures['index.inspect'] = (
+                        f'{type(exc).__name__}: {exc}'
+                    )
+            else:
+                index = inspect_created(
+                    'index.inspect', 'index', 'cde_editor_index'
+                )
             if index is not None:
                 if provider.client.supports_admin_operation('index', 'alter'):
                     attempt(
@@ -507,8 +546,10 @@ def _relational_editor_evidence(provider, request, engine):
                     )
                 attempt(
                     'index.drop', 'index', 'drop', {
-                        'cascade': False,
-                        'confirmation': 'drop-live-editor-index',
+                        **({} if engine == 'immudb' else {
+                            'cascade': False,
+                            'confirmation': 'drop-live-editor-index',
+                        }),
                     }, index,
                 )
 
@@ -1580,17 +1621,22 @@ def _relational_editor_evidence(provider, request, engine):
         )
 
     database_created = False
+    editor_database = (
+        f'cde_editor_database_{secrets.token_hex(4)}'
+        if engine == 'immudb' else 'cde_editor_database'
+    )
     if provider.client.supports_admin_operation('database', 'create'):
         database_created = attempt(
             'database.create', 'database', 'create', {
-                'name': 'cde_editor_database',
+                'name': editor_database,
             },
         )
     if database_created and engine in {
         'cockroachdb', 'yugabytedb', 'mysql', 'mariadb', 'dolt', 'tidb',
+        'immudb',
     }:
         database = inspect_created(
-            'database.inspect-created', 'database', 'cde_editor_database'
+            'database.inspect-created', 'database', editor_database
         )
         if database is not None:
             if engine in {'mysql', 'mariadb', 'tidb'}:
@@ -1612,8 +1658,10 @@ def _relational_editor_evidence(provider, request, engine):
                 )
             attempt(
                 'database.drop', 'database', 'drop', {
-                    'cascade': False,
-                    'confirmation': 'drop-live-editor-database',
+                    **({} if engine == 'immudb' else {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-database',
+                    }),
                 }, database,
             )
     return _object_operation_evidence(
@@ -1748,6 +1796,130 @@ def _dolt_repository_editor_evidence(provider, request, database):
             )
     return _object_operation_evidence(
         provider, passed, 'dolt', scope='repository-editor-operations',
+        failures=failures,
+    )
+
+
+def _immudb_multimodel_editor_evidence(provider, request):
+    """Exercise reversible native KV and document forms without raw SQL."""
+    route = request['route']
+    passed = {}
+    failures = {}
+    suffix = secrets.token_hex(4)
+    key_name = f'cdeadmin-key-{suffix}'
+    collection_name = f'cdeadmin_docs_{suffix}'
+
+    def record(kind, operation):
+        passed.setdefault(kind, set()).add(operation)
+
+    def apply(label, kind, operation, draft, target=None):
+        try:
+            result = _apply_editor(
+                provider, route, kind, operation, draft, target=target
+            )
+            record(kind, operation)
+            return result
+        except Exception as exc:
+            failures[label] = f'{type(exc).__name__}: {exc}'
+            return None
+
+    key = None
+    if apply('key.insert', 'key', 'insert', {
+        'key': key_name, 'key_encoding': 'utf8',
+        'value': 'first', 'encoding': 'utf8',
+    }):
+        key = _target(provider.list_resources(request), 'key', key_name)
+        if key is None:
+            failures['key.inspect'] = 'CreatedResourceMissing'
+        else:
+            provider.inspect_resource({
+                **request, 'resource_id': key['resource_id'],
+            })
+            record('key', 'inspect')
+            apply('key.update', 'key', 'update', {
+                'value': 'second', 'encoding': 'utf8',
+            }, key)
+    if key is not None:
+        apply('key.delete', 'key', 'delete', {}, key)
+
+    collection = None
+    if apply('collection.create', 'collection', 'create', {
+        'name': collection_name, 'document_id_field': '_id',
+        'fields': [
+            {'name': 'name', 'type': 'STRING'},
+            {'name': 'score', 'type': 'INTEGER'},
+        ],
+        'indexes': [],
+    }):
+        collection = _target(
+            provider.list_resources(request), 'collection', collection_name
+        )
+        if collection is None:
+            failures['collection.inspect'] = 'CreatedResourceMissing'
+        else:
+            provider.inspect_resource({
+                **request, 'resource_id': collection['resource_id'],
+            })
+            record('collection', 'inspect')
+            apply('collection.alter', 'collection', 'alter', {
+                'document_id_field': '_id',
+            }, collection)
+
+    index = None
+    if collection is not None and apply(
+        'collection-index.create', 'collection-index', 'create', {
+            'collection': collection_name, 'fields': ['name'],
+            'unique': False,
+        },
+    ):
+        index = next((
+            item for item in provider.list_resources(request)
+            if item.get('resource_kind') == 'collection-index' and
+            collection_name in item.get('display_path', []) and
+            item.get('display_name') == 'name'
+        ), None)
+        if index is None:
+            failures['collection-index.inspect'] = 'CreatedResourceMissing'
+        else:
+            provider.inspect_resource({
+                **request, 'resource_id': index['resource_id'],
+            })
+            record('collection-index', 'inspect')
+
+    document = None
+    if collection is not None and apply(
+        'document.insert', 'document', 'insert', {
+            'collection': collection_name,
+            'document': {'name': 'first', 'score': 1},
+        },
+    ):
+        document = next((
+            item for item in provider.list_resources(request)
+            if item.get('resource_kind') == 'document' and
+            collection_name in item.get('display_path', [])
+        ), None)
+        if document is None:
+            failures['document.inspect'] = 'CreatedResourceMissing'
+        else:
+            provider.inspect_resource({
+                **request, 'resource_id': document['resource_id'],
+            })
+            record('document', 'inspect')
+            apply('document.update', 'document', 'update', {
+                'document': {'name': 'second', 'score': 2},
+            }, document)
+    if document is not None:
+        apply('document.delete', 'document', 'delete', {}, document)
+    if index is not None:
+        apply(
+            'collection-index.drop', 'collection-index', 'drop', {}, index
+        )
+    if collection is not None:
+        apply('collection.drop', 'collection', 'drop', {}, collection)
+
+    return _object_operation_evidence(
+        provider, passed, 'immudb',
+        scope='native-multimodel-editor-operations',
         failures=failures,
     )
 
@@ -2291,6 +2463,80 @@ class _YugabyteDBAccount:
             self.password = ''
 
 
+class _ImmudbAccount:
+    """Use an exact endpoint administrator and remove all probe objects."""
+
+    def __init__(
+        self, host, port, web_port, admin_user, admin_password,
+        database='defaultdb',
+    ):
+        self.host = host
+        self.port = port
+        self.username = admin_user
+        self.password = admin_password
+        self.database = database
+        self.connection = None
+        self.route_options = {
+            'autocommit': True,
+            'web_host': host,
+            'web_port': web_port,
+            'web_tls_mode': 'disable',
+        }
+
+    def _connect(self):
+        import psycopg
+
+        return psycopg.connect(
+            host=self.host, port=self.port, user=self.username,
+            password=self.password, dbname=self.database,
+            connect_timeout=10, autocommit=True,
+        )
+
+    def create(self):
+        self.connection = self._connect()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute('DROP TABLE IF EXISTS qualification')
+            cursor.execute(
+                'CREATE TABLE qualification '
+                '(id INTEGER, value INTEGER, PRIMARY KEY id)'
+            )
+            cursor.execute(
+                'INSERT INTO qualification (id, value) VALUES (1, 42)'
+            )
+        except Exception:
+            self.drop()
+            raise
+        finally:
+            cursor.close()
+
+    def drop(self):
+        connection = self.connection
+        if connection is None:
+            try:
+                connection = self._connect()
+            except Exception:
+                self.password = ''
+                return
+        cursor = connection.cursor()
+        try:
+            for statement in (
+                'DROP VIEW IF EXISTS cde_editor_view',
+                'DROP TABLE IF EXISTS cde_editor_probe',
+                'DROP TABLE IF EXISTS cde_editor_probe_renamed',
+                'DROP TABLE IF EXISTS qualification',
+            ):
+                try:
+                    cursor.execute(statement)
+                except Exception:
+                    pass
+        finally:
+            cursor.close()
+            connection.close()
+            self.connection = None
+            self.password = ''
+
+
 class _FirebirdAccount:
     def __init__(self, host, port, database, admin_user, admin_password):
         suffix = secrets.token_hex(6).upper()
@@ -2760,6 +3006,13 @@ def verify(engine, host, port, socket_path=None, account=None):
     error_type = None
     error_message = None
     secret_service = EndpointSecretService()
+    # Default development credentials can equal an engine name (notably
+    # ``immudb``), which is expected to appear in every provider envelope.
+    # Use only a sufficiently discriminating value for leak detection while
+    # still redacting any credential from an error message below.
+    secret_leak_marker = (
+        account.password if len(account.password or '') >= 16 else ''
+    )
     reference_id = str(uuid.uuid5(
         uuid.UUID(context.endpoint_id), 'database-password'
     ))
@@ -2846,7 +3099,7 @@ def verify(engine, host, port, socket_path=None, account=None):
             '%s'
             if engine in {
                 'cockroachdb', 'yugabytedb', 'mysql', 'dolt', 'tidb',
-                'vitess',
+                'vitess', 'immudb',
             } else '?'
         )
         source = f'SELECT {marker} AS value'
@@ -2868,7 +3121,7 @@ def verify(engine, host, port, socket_path=None, account=None):
         categories['semantic_query'] = 'passed'
         if engine in {
             'cockroachdb', 'yugabytedb', 'firebird', 'mysql', 'mariadb',
-            'dolt', 'tidb', 'vitess',
+            'dolt', 'tidb', 'vitess', 'immudb',
         }:
             # Release the provider-owned result attachment before trying
             # metadata DDL through visual administration connections. This is
@@ -2890,6 +3143,11 @@ def verify(engine, host, port, socket_path=None, account=None):
                     _dolt_repository_editor_evidence(
                         provider, request, account.database
                     ),
+                )
+            if engine == 'immudb':
+                object_evidence = _merge_object_evidence(
+                    object_evidence,
+                    _immudb_multimodel_editor_evidence(provider, request),
                 )
             session = provider.open_session(request)
 
@@ -2920,14 +3178,15 @@ def verify(engine, host, port, socket_path=None, account=None):
                 'source': 'SELECT * FROM cdeadmin_live_missing_object',
             })
         except Exception as exc:
-            if account.password and account.password in str(exc):
+            if secret_leak_marker and secret_leak_marker in str(exc):
                 raise RuntimeError('provider fault exposed secret material')
             diagnostic = provider.translate_diagnostic({
                 'code': 'CDE_RELATIONAL_LIVE_EXPECTED_FAULT',
                 'exception_type': type(exc).__name__,
                 'retryable': False,
             })
-            if account.password and account.password in json.dumps(diagnostic):
+            if secret_leak_marker and secret_leak_marker in json.dumps(
+                    diagnostic):
                 raise RuntimeError('translated diagnostic exposed secret')
         else:
             raise RuntimeError('invalid live query did not fail')
@@ -3034,6 +3293,28 @@ def main():
             parser.error('--port is required for YugabyteDB YSQL')
         account = _YugabyteDBAccount(
             args.host, args.port, admin_user=args.admin_user,
+        )
+        result = verify(
+            args.engine, args.host, args.port, account=account
+        )
+    elif args.engine == 'immudb':
+        if (
+            args.port is None or args.http_port is None or
+            not args.admin_password_env
+        ):
+            parser.error(
+                '--port, --http-port, and --admin-password-env are required '
+                'for immudb'
+            )
+        admin_password = os.environ.get(args.admin_password_env)
+        if not admin_password:
+            parser.error('immudb admin password environment is empty')
+        admin_user = (
+            'immudb' if args.admin_user == 'SYSDBA' else args.admin_user
+        )
+        account = _ImmudbAccount(
+            args.host, args.port, args.http_port, admin_user,
+            admin_password, database=args.database or 'defaultdb',
         )
         result = verify(
             args.engine, args.host, args.port, account=account

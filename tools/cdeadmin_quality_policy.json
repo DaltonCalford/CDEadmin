@@ -1,7 +1,7 @@
 {
   "schema": "cdeadmin.quality-policy.v1",
   "baseline_id": "pgadmin4-9.17-bc58657d3d3a-20260831",
-  "source_budget_revision": "cde-complete-connection-parity-20260903",
+  "source_budget_revision": "cde-immudb-multimodel-20260903",
   "production_provider_roots": [
     "web/pgadmin/cdeadmin/providers"
   ],
@@ -22,7 +22,7 @@
   "contract_runtime": "web/pgadmin/cdeadmin/contracts/v1/runtime.py",
   "source_budgets": {
     "production_cdeadmin_bytes_baseline": 1276252,
-    "production_cdeadmin_bytes_maximum": 2600000,
+    "production_cdeadmin_bytes_maximum": 2700000,
     "frontend_cdeadmin_bytes_maximum": 12000
   },
   "built_bundle": {

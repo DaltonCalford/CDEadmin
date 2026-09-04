@@ -25,11 +25,13 @@ from .requirements import EXPERIENCE_REQUIREMENTS
 
 
 CONTROL_PLANE_PERMISSIONS = frozenset({
+    'data_write', 'administer',
     'topology_admin', 'security_admin', 'backup_admin', 'restore_admin',
     'replication_admin', 'maintenance_admin', 'upgrade_admin',
 })
 IMPACT_SCOPES = frozenset({
-    'resource', 'node', 'shard', 'region', 'cluster', 'deployment',
+    'resource', 'database', 'node', 'shard', 'region', 'cluster',
+    'deployment',
 })
 CONTROL_PLANE_CONTROLS = frozenset({
     'text', 'multiline', 'password', 'number', 'boolean', 'select',
@@ -69,7 +71,9 @@ class ControlPlaneOperation:
             object.__setattr__(
                 self, name, _required_text(getattr(self, name), name)
             )
-        if self.mutation_class not in {'read', 'admin', 'destructive'}:
+        if self.mutation_class not in {
+            'read', 'write', 'admin', 'destructive',
+        }:
             raise ControlPlaneCatalogError('invalid control-plane mutation')
         if self.permission not in CONTROL_PLANE_PERMISSIONS:
             raise ControlPlaneCatalogError('invalid control-plane permission')

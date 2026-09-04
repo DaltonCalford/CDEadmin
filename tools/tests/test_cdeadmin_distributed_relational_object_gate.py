@@ -35,6 +35,42 @@ class DistributedRelationalObjectGateTests(unittest.TestCase):
         self.assertFalse(coverage['activation_ready'])
         self.assertIn('cockroachdb', result['live_failures'])
 
+    def test_immudb_multimodel_declaration_is_exact_and_complete(self):
+        result = audit()
+        coverage = result['engines']['immudb']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        self.assertEqual(
+            {'relational', 'key_value', 'document'},
+            {family['family_id'] for family in coverage['families']},
+        )
+        concepts = {
+            (family['family_id'], concept['concept_id']): concept
+            for family in coverage['families']
+            for concept in family['concepts']
+        }
+        self.assertEqual(
+            'supported', concepts[('relational', 'views')][
+                'declared_status'
+            ]
+        )
+        self.assertEqual(
+            'supported', concepts[('relational', 'sequences')][
+                'declared_status'
+            ]
+        )
+        self.assertEqual(
+            'supported', concepts[('document', 'documents')][
+                'declared_status'
+            ]
+        )
+        self.assertEqual(
+            'supported', concepts[('key_value', 'data_type_editing')][
+                'declared_status'
+            ]
+        )
+
     def test_dolt_declaration_is_exact_and_complete(self):
         result = audit()
         coverage = result['engines']['dolt']
