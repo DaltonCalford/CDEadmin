@@ -35,6 +35,10 @@ from tools.cdeadmin_neo4j_live_gate import (  # noqa: E402
 from tools.cdeadmin_neo4j_gds_live_gate import (  # noqa: E402
     object_evidence as gds_object_evidence,
 )
+from tools.cdeadmin_neo4j_enterprise_live_gate import (  # noqa: E402
+    EXPECTED_IMAGE_ID,
+    object_evidence as enterprise_object_evidence,
+)
 from tools.cdeadmin_neo4j_object_experience_gate import (  # noqa: E402
     audit, provider_catalog,
 )
@@ -110,6 +114,32 @@ class Neo4jObjectExperienceGateTests(unittest.TestCase):
         self.assertFalse(coverage['activation_ready'])
         self.assertEqual(1, coverage['live_evidence_missing_count'])
         self.assertEqual(6, coverage['live_operation_missing_count'])
+
+    def test_enterprise_evidence_closes_community_and_gds_coverage(self):
+        documents = (
+            _object_evidence(
+                'unit-community', COMMUNITY_OBJECT_OPERATIONS
+            ),
+            gds_object_evidence(
+                'unit-gds', 'b' * 64, {'create', 'inspect', 'drop'}
+            ),
+            enterprise_object_evidence(
+                'unit-enterprise', EXPECTED_IMAGE_ID, {
+                    'database': {'create', 'inspect', 'alter', 'drop'},
+                    'server': {'inspect', 'alter', 'execute'},
+                },
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for index, document in enumerate(documents):
+                path = Path(directory) / f'evidence-{index}.json'
+                path.write_text(json.dumps(document), encoding='utf-8')
+                paths.append(path)
+            coverage = provider_catalog(paths)['concept_coverage']
+        self.assertTrue(coverage['activation_ready'])
+        self.assertEqual(0, coverage['live_evidence_missing_count'])
+        self.assertEqual(0, coverage['live_operation_missing_count'])
 
 
 if __name__ == '__main__':

@@ -102,6 +102,27 @@ def _quoted(value: object, label='identifier') -> str:
     return '`' + _identifier(value, label).replace('`', '``') + '`'
 
 
+def _database_name(value):
+    value = _identifier(value, 'database name')
+    normalized = value.lower()
+    if not 3 <= len(normalized) <= 63:
+        raise Neo4jClientError(
+            'database name must contain between 3 and 63 characters'
+        )
+    if normalized.startswith('system'):
+        raise Neo4jClientError(
+            'database name must not use the reserved system prefix'
+        )
+    if normalized[0] not in 'abcdefghijklmnopqrstuvwxyz0123456789' or any(
+            char not in 'abcdefghijklmnopqrstuvwxyz0123456789-.'
+            for char in normalized):
+        raise Neo4jClientError(
+            'database name may contain only ASCII letters, numbers, dots, '
+            'and dashes and must begin with a letter or number'
+        )
+    return value
+
+
 def _bounded_int(value, default, minimum, maximum, label):
     if value is None:
         return default
@@ -112,6 +133,278 @@ def _bounded_int(value, default, minimum, maximum, label):
             f'{label} must be between {minimum} and {maximum}'
         )
     return value
+
+
+def _string_list(value, label, *, forbid_commas=False):
+    if value is None:
+        return []
+    if not isinstance(value, list) or any(
+            not isinstance(item, str) or not item.strip() for item in value):
+        raise Neo4jClientError(f'{label} must be an array of text values')
+    normalized = [item.strip() for item in value]
+    if len(normalized) != len(set(normalized)):
+        raise Neo4jClientError(f'{label} must not contain duplicates')
+    if forbid_commas and any(',' in item for item in normalized):
+        raise Neo4jClientError(f'{label} must not contain commas')
+    return normalized
+
+
+def _choice(field_id, label, values, default):
+    return {
+        'field_id': field_id, 'label': label, 'control': 'select',
+        'required': True, 'default': default,
+        'options': [
+            {'value': value, 'label': title} for value, title in values
+        ],
+    }
+
+
+def _database_form(kind, operation):
+    title_kind = (
+        'composite database' if kind == 'composite-database' else 'database'
+    )
+    if operation == 'create':
+        fields = [{
+            'field_id': 'name', 'label': 'Database name', 'control': 'text',
+            'required': True, 'min_length': 3, 'max_length': 63,
+        }]
+        if kind == 'database':
+            fields.append(_choice('database_kind', 'Database layout', (
+                ('standard', 'Standard database'),
+                ('sharded', 'Sharded property database'),
+            ), 'standard'))
+        fields.append(_choice('default_language', 'Default Cypher version', (
+            ('default', 'Server default'), ('CYPHER 5', 'Cypher 5'),
+            ('CYPHER 25', 'Cypher 25'),
+        ), 'default'))
+        if kind == 'database':
+            fields.extend([{
+                'field_id': 'primaries', 'label': 'Primary copies',
+                'control': 'number', 'required': False,
+                'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'standard',
+                },
+            }, {
+                'field_id': 'secondaries', 'label': 'Secondary copies',
+                'control': 'number', 'required': False,
+                'minimum': 0, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'standard',
+                },
+            }, {
+                'field_id': 'graph_shard_primaries',
+                'label': 'Graph-shard primary copies', 'control': 'number',
+                'required': False, 'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, {
+                'field_id': 'graph_shard_secondaries',
+                'label': 'Graph-shard secondary copies', 'control': 'number',
+                'required': False, 'minimum': 0, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, {
+                'field_id': 'property_shard_count',
+                'label': 'Property-shard count', 'control': 'number',
+                'required': True, 'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, {
+                'field_id': 'property_shard_replicas',
+                'label': 'Property-shard replicas', 'control': 'number',
+                'required': False, 'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, _choice('store_format', 'Store format', (
+                ('default', 'Server default'), ('block', 'Block'),
+                ('aligned', 'Aligned'), ('standard', 'Standard (deprecated)'),
+                ('high_limit', 'High limit (deprecated)'),
+            ), 'default'), _choice(
+                'tx_log_enrichment', 'CDC transaction-log enrichment', (
+                    ('default', 'Server default'), ('OFF', 'Off'),
+                    ('DIFF', 'Diff'), ('FULL', 'Full'),
+                ), 'default'
+            ), {
+                'field_id': 'seed_uri', 'label': 'Seed URI',
+                'control': 'text', 'required': False,
+            }, {
+                'field_id': 'seed_config', 'label': 'Seed configuration',
+                'control': 'multiline', 'required': False,
+            }, {
+                'field_id': 'existing_data_seed_server',
+                'label': 'Existing-data seed server ID', 'control': 'text',
+                'required': False,
+            }, {
+                'field_id': 'seed_source_database',
+                'label': 'Seed source database', 'control': 'text',
+                'required': False,
+            }, {
+                'field_id': 'seed_restore_transaction_id',
+                'label': 'Seed restore-until transaction ID',
+                'control': 'number', 'required': False, 'minimum': 0,
+            }])
+        fields.extend([_choice('wait_mode', 'Completion wait', (
+            ('default', 'Server default'), ('wait', 'Wait'),
+            ('nowait', 'Do not wait'),
+        ), 'default'), {
+            'field_id': 'wait_seconds', 'label': 'Wait seconds',
+            'control': 'number', 'required': False,
+            'minimum': 0, 'maximum': 3600,
+            'visible_when': {'field_id': 'wait_mode', 'equals': 'wait'},
+        }])
+        return {
+            'form_id': f'neo4j-{kind}-create',
+            'title': f'Create Neo4j {title_kind}', 'fields': fields,
+        }
+    if operation == 'alter':
+        fields = [_choice('action', 'Database action', (
+            ('configure', 'Change configuration'), ('start', 'Start'),
+            ('stop', 'Stop'),
+        ), 'configure')]
+        if kind == 'database':
+            fields.extend([_choice('database_kind', 'Database layout', (
+                ('standard', 'Standard database'),
+                ('sharded', 'Sharded property database'),
+            ), 'standard'), _choice('access', 'Access mode', (
+                ('unchanged', 'Unchanged'), ('read-only', 'Read only'),
+                ('read-write', 'Read/write'),
+            ), 'unchanged'), {
+                'field_id': 'primaries', 'label': 'Primary copies',
+                'control': 'number', 'required': False,
+                'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'standard',
+                },
+            }, {
+                'field_id': 'secondaries', 'label': 'Secondary copies',
+                'control': 'number', 'required': False,
+                'minimum': 0, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'standard',
+                },
+            }, {
+                'field_id': 'graph_shard_primaries',
+                'label': 'Graph-shard primary copies', 'control': 'number',
+                'required': False, 'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, {
+                'field_id': 'graph_shard_secondaries',
+                'label': 'Graph-shard secondary copies', 'control': 'number',
+                'required': False, 'minimum': 0, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, {
+                'field_id': 'property_shard_replicas',
+                'label': 'Property-shard replicas', 'control': 'number',
+                'required': False, 'minimum': 1, 'maximum': 1000,
+                'visible_when': {
+                    'field_id': 'database_kind', 'equals': 'sharded',
+                },
+            }, _choice(
+                'tx_log_enrichment', 'CDC transaction-log enrichment', (
+                    ('unchanged', 'Unchanged'), ('OFF', 'Off'),
+                    ('DIFF', 'Diff'), ('FULL', 'Full'),
+                    ('remove', 'Remove option'),
+                ), 'unchanged'
+            )])
+        fields.extend([_choice(
+            'default_language', 'Default Cypher version', (
+                ('unchanged', 'Unchanged'), ('CYPHER 5', 'Cypher 5'),
+                ('CYPHER 25', 'Cypher 25'),
+            ), 'unchanged'
+        ), _choice('wait_mode', 'Completion wait', (
+            ('default', 'Server default'), ('wait', 'Wait'),
+            ('nowait', 'Do not wait'),
+        ), 'default'), {
+            'field_id': 'wait_seconds', 'label': 'Wait seconds',
+            'control': 'number', 'required': False,
+            'minimum': 0, 'maximum': 3600,
+            'visible_when': {'field_id': 'wait_mode', 'equals': 'wait'},
+        }])
+        return {
+            'form_id': f'neo4j-{kind}-alter',
+            'title': f'Alter Neo4j {title_kind}', 'fields': fields,
+        }
+    return None
+
+
+def _server_form(operation):
+    option_fields = [_choice('mode_constraint', 'Hosting mode', (
+        ('NONE', 'Primary or secondary'), ('PRIMARY', 'Primary only'),
+        ('SECONDARY', 'Secondary only'),
+    ), 'NONE'), _choice('database_filter', 'Database placement filter', (
+        ('any', 'Allow any database'), ('allow', 'Allow listed patterns'),
+        ('deny', 'Deny listed patterns'),
+    ), 'any'), {
+        'field_id': 'database_patterns', 'label': 'Database name patterns',
+        'control': 'json', 'json_type': 'array', 'required': True,
+        'visible_when': {
+            'field_id': 'database_filter', 'in': ['allow', 'deny'],
+        },
+    }, {
+        'field_id': 'tags', 'label': 'Routing tags', 'control': 'json',
+        'json_type': 'array', 'required': False, 'default': [],
+    }]
+    if operation == 'alter':
+        return {
+            'form_id': 'neo4j-server-alter',
+            'title': 'Alter Neo4j cluster member',
+            'fields': option_fields,
+        }
+    if operation == 'execute':
+        return {
+            'form_id': 'neo4j-server-execute',
+            'title': 'Run Neo4j cluster-member operation',
+            'fields': [_choice('action', 'Cluster-member action', (
+                ('enable', 'Enable or uncordon'), ('cordon', 'Cordon'),
+                ('rename', 'Rename'),
+                ('deallocate-dry-run', 'Preview deallocation'),
+                ('deallocate', 'Deallocate databases'),
+                ('drop', 'Remove deallocated server'),
+            ), 'enable'), {
+                'field_id': 'new_name', 'label': 'New server name',
+                'control': 'text', 'required': True,
+                'visible_when': {'field_id': 'action', 'equals': 'rename'},
+            }, *option_fields, {
+                'field_id': 'confirmation',
+                'label': 'Server ID/name confirmation', 'control': 'text',
+                'required': False,
+            }],
+        }
+    return None
+
+
+def _server_options(draft):
+    mode = draft.get('mode_constraint', 'NONE')
+    if mode not in {'PRIMARY', 'SECONDARY', 'NONE'}:
+        raise Neo4jClientError('server hosting mode is invalid')
+    database_filter = draft.get('database_filter', 'any')
+    if database_filter not in {'any', 'allow', 'deny'}:
+        raise Neo4jClientError('server database filter is invalid')
+    patterns = _string_list(
+        draft.get('database_patterns'), 'database name patterns'
+    )
+    if database_filter != 'any' and not patterns:
+        raise Neo4jClientError(
+            'the selected server database filter requires patterns'
+        )
+    options = {'modeConstraint': mode}
+    if database_filter == 'allow':
+        options['allowedDatabases'] = patterns
+    elif database_filter == 'deny':
+        options['deniedDatabases'] = patterns
+    options['tags'] = _string_list(
+        draft.get('tags'), 'server tags', forbid_commas=True
+    )
+    return options
 
 
 def _record_data(record):
@@ -151,7 +444,7 @@ class Neo4jClient:
             'inspect', 'create', 'alter', 'drop',
         }),
         'composite-database': frozenset({
-            'inspect', 'create', 'drop',
+            'inspect', 'create', 'alter', 'drop',
         }),
         'alias': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'graph': frozenset({'inspect', 'insert'}),
@@ -404,7 +697,18 @@ class Neo4jClient:
         result['notifications_min_severity'] = severity
         addresses = route.get('resolver_addresses')
         if addresses:
-            allowed = tuple(addresses)
+            address_type = getattr(self.module, 'Address', None)
+            parse_address = getattr(address_type, 'parse', None)
+            if not callable(parse_address):
+                raise Neo4jDependencyError(
+                    'Neo4j driver lacks custom resolver address support'
+                )
+            try:
+                allowed = tuple(parse_address(item) for item in addresses)
+            except (TypeError, ValueError):
+                raise Neo4jClientError(
+                    'Neo4j resolver address is invalid'
+                ) from None
 
             def resolver(_address):
                 return allowed
@@ -840,6 +1144,39 @@ class Neo4jClient:
         ('privilege', 'SHOW PRIVILEGES YIELD * RETURN *', 'action'),
     )
 
+    @staticmethod
+    def _database_resources(rows):
+        """Collapse Neo4j's per-host database rows into navigator objects."""
+        grouped = {}
+        for row in rows:
+            name = row.get('name')
+            if name is None:
+                continue
+            key = (str(name), str(row.get('type', '')).lower())
+            grouped.setdefault(key, []).append(copy.deepcopy(row))
+
+        resources = []
+        for (name, database_type), members in grouped.items():
+            members.sort(key=lambda item: str(
+                item.get('serverId') or item.get('address') or ''
+            ))
+            native = copy.deepcopy(members[0])
+            native['clusterMembers'] = members
+            native['clusterMemberCount'] = len(members)
+            for field in ('requestedStatus', 'currentStatus', 'access'):
+                values = {
+                    str(member[field]) for member in members
+                    if member.get(field) is not None
+                }
+                if len(values) == 1:
+                    native[field] = values.pop()
+                elif values:
+                    native[field] = 'mixed'
+            kind = 'composite-database' \
+                if database_type == 'composite' else 'database'
+            resources.append(Neo4jClient._resource(kind, name, native))
+        return resources
+
     def list_resources(self, request):
         resources = [self._resource(
             'dbms', 'Neo4j DBMS', {'name': 'Neo4j DBMS'},
@@ -861,17 +1198,14 @@ class Neo4jClient:
                     # Edition- or privilege-dependent categories do not
                     # suppress other discoverable resources.
                     continue
+                if kind == 'database':
+                    resources.extend(self._database_resources(rows[:2000]))
+                    continue
                 for row in rows[:2000]:
                     name = row.get(name_field)
                     if name is None:
                         continue
                     actual_kind = kind
-                    is_composite = (
-                        kind == 'database' and
-                        str(row.get('type', '')).lower() == 'composite'
-                    )
-                    if is_composite:
-                        actual_kind = 'composite-database'
                     resources.append(self._resource(
                         actual_kind, str(name), row
                     ))
@@ -1065,6 +1399,15 @@ class Neo4jClient:
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             for operation in resource.get('operations', []):
+                typed_form = None
+                if kind in {'database', 'composite-database'}:
+                    typed_form = _database_form(
+                        kind, operation['operation_id']
+                    )
+                elif kind == 'server':
+                    typed_form = _server_form(operation['operation_id'])
+                if typed_form is not None:
+                    operation['form'] = typed_form
                 if kind in {'node', 'relationship'} and operation[
                     'operation_id'
                 ] == 'insert':
@@ -1203,6 +1546,56 @@ class Neo4jClient:
                 'message': 'Use structured visual options; raw Cypher is not '
                            'accepted by administration forms.',
             })
+        if kind == 'server' and operation in {'alter', 'execute'}:
+            action = draft.get('action', 'alter')
+            if operation == 'alter' or action == 'enable':
+                try:
+                    _server_options(draft)
+                except Neo4jClientError as exc:
+                    errors.append({
+                        'field_id': None, 'code': 'server_options_invalid',
+                        'message': str(exc),
+                    })
+            if operation == 'execute' and action in {'drop', 'deallocate'}:
+                target = request.get('target_resource')
+                try:
+                    native = self._native_target(target)
+                except Neo4jClientError:
+                    native = {}
+                accepted = {
+                    native.get('serverId'), native.get('name'),
+                }.difference({None, ''})
+                if draft.get('confirmation') not in accepted:
+                    errors.append({
+                        'field_id': 'confirmation',
+                        'code': 'confirmation_mismatch',
+                        'message': (
+                            'Type the selected server ID or name to confirm '
+                            'this cluster topology operation.'
+                        ),
+                    })
+        if kind in {'database', 'composite-database'} and operation in {
+                'create', 'alter'}:
+            action = draft.get('action', 'create')
+            if operation == 'alter' and action == 'configure':
+                meaningful = set(draft).difference({
+                    'action', 'database_kind', 'access',
+                    'default_language', 'tx_log_enrichment', 'wait_mode',
+                    'wait_seconds',
+                })
+                selected = (
+                    draft.get('access') not in {None, 'unchanged'} or
+                    draft.get('default_language') not in {
+                        None, 'unchanged',
+                    } or draft.get('tx_log_enrichment') not in {
+                        None, 'unchanged',
+                    }
+                )
+                if not meaningful and not selected:
+                    errors.append({
+                        'field_id': None, 'code': 'changes_required',
+                        'message': 'Select at least one database change.',
+                    })
         if kind in {'node', 'relationship', 'graph'} and operation == 'insert':
             values = draft.get('values')
             if not isinstance(values, Mapping):
@@ -1599,11 +1992,23 @@ class Neo4jClient:
 
     @staticmethod
     def _inspect_command(kind, native):
+        if kind == 'server':
+            server_id = _identifier(
+                native.get('serverId') or native.get('name'), 'server ID'
+            )
+            return (
+                'SHOW SERVERS YIELD * '
+                'WHERE serverId = $server OR name = $server RETURN *',
+                {'server': server_id},
+            )
+        if kind in {'database', 'composite-database'}:
+            name = _identifier(native.get('name'), 'database name')
+            return (
+                'SHOW DATABASES YIELD * WHERE name = $database RETURN *',
+                {'database': name},
+            )
         statements = {
             'dbms': 'CALL dbms.components() YIELD * RETURN *',
-            'server': 'SHOW SERVERS YIELD * RETURN *',
-            'database': 'SHOW DATABASES YIELD * RETURN *',
-            'composite-database': 'SHOW DATABASES YIELD * RETURN *',
             'alias': 'SHOW ALIASES FOR DATABASES YIELD * RETURN *',
             'label': 'CALL db.labels() YIELD label RETURN label',
             'relationship-type': (
@@ -1807,25 +2212,32 @@ class Neo4jClient:
     def _database_command(kind, operation, draft, native):
         current = native.get('name')
         if operation == 'create':
-            name = _quoted(draft.get('name'), 'database name')
+            name = _quoted(_database_name(draft.get('name')), 'database name')
             composite = ' COMPOSITE' if kind == 'composite-database' else ''
             options = _mapping(
                 draft.get('options', {}), 'database options'
-            )
+            ) if 'options' in draft else copy.deepcopy(draft)
             clauses = []
             parameters = {}
             default_language = options.get('default_language')
-            if default_language is not None:
-                if kind == 'composite-database':
-                    raise Neo4jClientError(
-                        'composite databases have no default language option'
-                    )
+            if default_language not in {None, 'default'}:
                 if default_language not in {'CYPHER 5', 'CYPHER 25'}:
                     raise Neo4jClientError(
                         'database default language is unavailable'
                     )
                 clauses.append(f'DEFAULT LANGUAGE {default_language}')
+            database_kind = options.get('database_kind', 'standard')
+            if database_kind not in {'standard', 'sharded'}:
+                raise Neo4jClientError('database layout is invalid')
             topology = options.get('topology')
+            if topology is None and database_kind == 'standard' and any(
+                    options.get(field) is not None
+                    for field in ('primaries', 'secondaries')):
+                topology = {
+                    field: options.get(field)
+                    for field in ('primaries', 'secondaries')
+                    if options.get(field) is not None
+                }
             if topology is not None:
                 if kind == 'composite-database':
                     raise Neo4jClientError(
@@ -1846,6 +2258,12 @@ class Neo4jClient:
                     raise Neo4jClientError('database topology is empty')
                 clauses.append('TOPOLOGY ' + ' '.join(pieces))
             graph_shard = options.get('graph_shard')
+            if graph_shard is None and database_kind == 'sharded':
+                graph_shard = {
+                    field: options.get(f'graph_shard_{field}')
+                    for field in ('primaries', 'secondaries')
+                    if options.get(f'graph_shard_{field}') is not None
+                }
             if graph_shard is not None:
                 if kind == 'composite-database':
                     raise Neo4jClientError(
@@ -1869,6 +2287,11 @@ class Neo4jClient:
                     'SET GRAPH SHARD { TOPOLOGY ' + ' '.join(pieces) + ' }'
                 )
             property_shards = options.get('property_shards')
+            if property_shards is None and database_kind == 'sharded':
+                property_shards = {
+                    'count': options.get('property_shard_count'),
+                    'replicas': options.get('property_shard_replicas'),
+                }
             if property_shards is not None:
                 if kind == 'composite-database':
                     raise Neo4jClientError(
@@ -1892,26 +2315,50 @@ class Neo4jClient:
                     )
                 clauses.append(source + ' }')
             native_options = options.get('options')
+            if native_options is None and kind == 'database':
+                option_fields = {
+                    'store_format': 'storeFormat',
+                    'tx_log_enrichment': 'txLogEnrichment',
+                    'seed_uri': 'seedURI',
+                    'seed_config': 'seedConfig',
+                    'existing_data_seed_server': 'existingDataSeedServer',
+                    'seed_source_database': 'seedSourceDatabase',
+                    'seed_restore_transaction_id': 'seedRestoreUntil',
+                }
+                native_options = {
+                    native_name: options[field]
+                    for field, native_name in option_fields.items()
+                    if options.get(field) not in {None, '', 'default'}
+                }
             if native_options is not None:
-                parameters['database_options'] = _mapping(
+                native_options = _mapping(
                     native_options, 'database native options'
                 )
-                clauses.append('OPTIONS $database_options')
+                if native_options:
+                    parameters['database_options'] = native_options
+                    clauses.append('OPTIONS $database_options')
+            wait_mode = options.get('wait_mode')
             wait = options.get('wait_seconds')
-            if wait is not None:
-                parameters['wait_seconds'] = _bounded_int(
+            if wait is not None or wait_mode == 'wait':
+                wait_seconds = _bounded_int(
                     wait, 0, 0, 3600, 'wait seconds'
                 )
-                clauses.append('WAIT $wait_seconds SECONDS')
-            elif options.get('wait') is False:
+                clauses.append(f'WAIT {wait_seconds} SECONDS')
+            elif options.get('wait') is False or wait_mode == 'nowait':
                 clauses.append('NOWAIT')
             suffix = (' ' + ' '.join(clauses)) if clauses else ''
+            prefix = 'CYPHER 25 ' if database_kind == 'sharded' else ''
             return (
-                f'CREATE{composite} DATABASE {name} IF NOT EXISTS{suffix}',
+                f'{prefix}CREATE{composite} DATABASE {name} '
+                f'IF NOT EXISTS{suffix}',
                 parameters,
             )
         name = _quoted(current, 'database name')
         if operation == 'drop':
+            if draft.get('confirmation') != current:
+                raise Neo4jClientError(
+                    'database name confirmation does not match'
+                )
             composite = 'COMPOSITE ' if kind == 'composite-database' else ''
             disposition = draft.get('data_disposition', 'destroy')
             aliases = draft.get('alias_action', 'restrict')
@@ -1925,30 +2372,54 @@ class Neo4jClient:
             parameters = {}
             wait_clause = ''
             if draft.get('wait_seconds') is not None:
-                parameters['wait_seconds'] = _bounded_int(
+                wait_seconds = _bounded_int(
                     draft['wait_seconds'], 0, 0, 3600, 'wait seconds'
                 )
-                wait_clause = ' WAIT $wait_seconds SECONDS'
+                wait_clause = f' WAIT {wait_seconds} SECONDS'
             return (
                 f'DROP {composite}DATABASE {name} IF EXISTS {alias_clause} '
                 f'{disposition.upper()} DATA{wait_clause}', parameters,
             )
         if operation == 'alter':
-            changes = _mapping(draft.get('changes'), 'database changes')
-            action = changes.get('action')
+            changes = _mapping(
+                draft.get('changes'), 'database changes'
+            ) if 'changes' in draft else copy.deepcopy(draft)
+            action = changes.get('action', 'configure')
             if action in {'start', 'stop'}:
-                return f'{action.upper()} DATABASE {name}', {}
+                parameters = {}
+                suffix = ''
+                if changes.get('wait_seconds') is not None or changes.get(
+                        'wait_mode') == 'wait':
+                    wait_seconds = _bounded_int(
+                        changes.get('wait_seconds'), 0, 0, 3600,
+                        'wait seconds',
+                    )
+                    suffix = f' WAIT {wait_seconds} SECONDS'
+                elif changes.get('wait_mode') == 'nowait':
+                    suffix = ' NOWAIT'
+                return f'{action.upper()} DATABASE {name}{suffix}', parameters
+            if action != 'configure':
+                raise Neo4jClientError('database action is invalid')
             clauses = []
             parameters = {}
             access = changes.get('access')
-            if access is not None:
+            if access not in {None, 'unchanged'}:
                 admitted = {
                     'read-only': 'READ ONLY', 'read-write': 'READ WRITE',
                 }
                 if access not in admitted:
                     raise Neo4jClientError('database access mode is invalid')
                 clauses.append('SET ACCESS ' + admitted[access])
+            database_kind = changes.get('database_kind', 'standard')
             topology = changes.get('topology')
+            if topology is None and database_kind == 'standard' and any(
+                    changes.get(field) is not None
+                    for field in ('primaries', 'secondaries')):
+                topology = {
+                    field: changes.get(field)
+                    for field in ('primaries', 'secondaries')
+                    if changes.get(field) is not None
+                }
             if topology is not None:
                 topology = _mapping(topology, 'database topology')
                 pieces = []
@@ -1964,7 +2435,7 @@ class Neo4jClient:
                 if pieces:
                     clauses.append('SET TOPOLOGY ' + ' '.join(pieces))
             default_language = changes.get('default_language')
-            if default_language is not None:
+            if default_language not in {None, 'unchanged'}:
                 if default_language not in {'CYPHER 5', 'CYPHER 25'}:
                     raise Neo4jClientError(
                         'database default language is unavailable'
@@ -1973,6 +2444,14 @@ class Neo4jClient:
                     'SET DEFAULT LANGUAGE ' + default_language
                 )
             graph_shard = changes.get('graph_shard')
+            if graph_shard is None and database_kind == 'sharded' and any(
+                    changes.get(f'graph_shard_{field}') is not None
+                    for field in ('primaries', 'secondaries')):
+                graph_shard = {
+                    field: changes.get(f'graph_shard_{field}')
+                    for field in ('primaries', 'secondaries')
+                    if changes.get(f'graph_shard_{field}') is not None
+                }
             if graph_shard is not None:
                 graph_shard = _mapping(graph_shard, 'graph shard')
                 pieces = []
@@ -1992,6 +2471,11 @@ class Neo4jClient:
                         ' '.join(pieces) + ' }'
                     )
             property_shard = changes.get('property_shard')
+            if property_shard is None and changes.get(
+                    'property_shard_replicas') is not None:
+                property_shard = {
+                    'replicas': changes['property_shard_replicas'],
+                }
             if property_shard is not None:
                 property_shard = _mapping(
                     property_shard, 'property shard'
@@ -2026,9 +2510,36 @@ class Neo4jClient:
                 clauses.append(
                     'REMOVE OPTION ' + _quoted(key, 'database option')
                 )
+            enrichment = changes.get('tx_log_enrichment')
+            if enrichment not in {None, 'unchanged'}:
+                if enrichment == 'remove':
+                    clauses.append('REMOVE OPTION `txLogEnrichment`')
+                elif enrichment in {'OFF', 'DIFF', 'FULL'}:
+                    parameters['tx_log_enrichment'] = enrichment
+                    clauses.append(
+                        'SET OPTION `txLogEnrichment` $tx_log_enrichment'
+                    )
+                else:
+                    raise Neo4jClientError(
+                        'transaction-log enrichment mode is invalid'
+                    )
             if not clauses:
                 raise Neo4jClientError('database changes are empty')
-            return f'ALTER DATABASE {name} ' + ' '.join(clauses), parameters
+            wait_clause = ''
+            if changes.get('wait_seconds') is not None or changes.get(
+                    'wait_mode') == 'wait':
+                wait_seconds = _bounded_int(
+                    changes.get('wait_seconds'), 0, 0, 3600, 'wait seconds'
+                )
+                wait_clause = f' WAIT {wait_seconds} SECONDS'
+            elif changes.get('wait_mode') == 'nowait':
+                wait_clause = ' NOWAIT'
+            prefix = 'CYPHER 25 ' if database_kind == 'sharded' else ''
+            return (
+                f'{prefix}ALTER DATABASE {name} ' + ' '.join(clauses) +
+                wait_clause,
+                parameters,
+            )
         raise Neo4jClientError('database operation is unavailable')
 
     def _alias_command(self, operation, draft, native, route):
@@ -2515,29 +3026,57 @@ class Neo4jClient:
                 native.get('serverId') or native.get('name'), 'server ID'
             )
             if operation == 'alter':
-                changes = _mapping(draft.get('changes'), 'server changes')
+                changes = _mapping(
+                    draft.get('changes'), 'server changes'
+                ) if 'changes' in draft else copy.deepcopy(draft)
+                options = changes.get('options')
+                if options is None:
+                    options = _server_options(changes)
                 return 'ALTER SERVER $server SET OPTIONS $options', {
                     'server': server_id,
-                    'options': _mapping(
-                        changes.get('options', changes), 'server options'
-                    ),
+                    'options': _mapping(options, 'server options'),
                 }
             if action == 'enable':
                 arguments = _mapping(
-                    draft.get('arguments', {}), 'server arguments'
-                )
+                    draft.get('arguments'), 'server arguments'
+                ) if 'arguments' in draft else copy.deepcopy(draft)
+                options = arguments.get('options')
+                if options is None:
+                    options = _server_options(arguments)
                 return 'ENABLE SERVER $server OPTIONS $options', {
                     'server': server_id,
-                    'options': _mapping(
-                        arguments.get('options', {}), 'server options'
+                    'options': _mapping(options, 'server options'),
+                }
+            if action == 'cordon':
+                return 'CALL dbms.cluster.cordonServer($server)', {
+                    'server': server_id,
+                }
+            if action == 'rename':
+                return 'RENAME SERVER $server TO $new_name', {
+                    'server': server_id,
+                    'new_name': _identifier(
+                        draft.get('new_name'), 'new server name'
                     ),
                 }
+            if action == 'deallocate-dry-run':
+                return 'DRYRUN DEALLOCATE DATABASES FROM SERVER $server', {
+                    'server': server_id,
+                }
+            if action in {'drop', 'deallocate'}:
+                accepted = {
+                    server_id, native.get('name'), native.get('serverId'),
+                }.difference({None, ''})
+                if draft.get('confirmation') not in accepted:
+                    raise Neo4jClientError(
+                        'server ID/name confirmation does not match'
+                    )
             if action == 'drop':
                 return 'DROP SERVER $server', {'server': server_id}
-            if action == 'deallocate-databases':
+            if action in {'deallocate', 'deallocate-databases'}:
                 return 'DEALLOCATE DATABASES FROM SERVER $server', {
                     'server': server_id
                 }
+            raise Neo4jClientError('server operation is unavailable')
         if kind == 'procedure' and action == 'execute':
             procedure = _identifier(native.get('name'), 'procedure name')
             source = '.'.join(

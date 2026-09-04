@@ -145,7 +145,14 @@ class Session:
             )])
         if statement.startswith('SHOW DATABASES'):
             return Result([
-                Record(name='neo4j', type='standard', currentStatus='online'),
+                Record(
+                    name='neo4j', type='standard', currentStatus='online',
+                    serverId='server-one', access='read-write',
+                ),
+                Record(
+                    name='neo4j', type='standard', currentStatus='online',
+                    serverId='server-two', access='read-write',
+                ),
                 Record(
                     name='fabric', type='composite', currentStatus='online'
                 ),
@@ -251,6 +258,9 @@ def client(secret_acquirer=None):
         READ_ACCESS='READ', WRITE_ACCESS='WRITE',
         Bookmarks=SimpleNamespace(
             from_raw_values=lambda values: ('bookmarks', tuple(values))
+        ),
+        Address=SimpleNamespace(
+            parse=lambda value: tuple(value.rsplit(':', 1))
         ),
     )
     acquire = secret_acquirer or (lambda *_args: SecretLease())
@@ -362,6 +372,18 @@ class Neo4jProviderTests(unittest.TestCase):
         )
         handle.close()
 
+    def test_resolver_addresses_are_parsed_for_driver_failover(self):
+        adapter, connector = client()
+        adapter.runtime_identity({'route': route(
+            resolver_addresses=[
+                '127.0.0.1:7687', '127.0.0.2:7687',
+            ],
+        )})
+        resolver = connector.drivers[0].options['resolver']
+        self.assertEqual((
+            ('127.0.0.1', '7687'), ('127.0.0.2', '7687'),
+        ), resolver(('ignored', 7687)))
+
     def test_route_refuses_uri_and_unknown_controls(self):
         adapter, _connector = client()
         with self.assertRaises(Neo4jClientError):
@@ -428,6 +450,20 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertNotIn(
             'CALL gds.graph.list() YIELD * RETURN *', statements
         )
+        databases = [
+            item for item in resources
+            if item['resource_kind'] == 'database' and
+            item['display_name'] == 'neo4j'
+        ]
+        self.assertEqual(1, len(databases))
+        self.assertEqual(2, databases[0]['native']['clusterMemberCount'])
+        self.assertEqual(
+            ['server-one', 'server-two'],
+            [
+                item['serverId']
+                for item in databases[0]['native']['clusterMembers']
+            ],
+        )
 
     def test_graph_page_and_node_create_use_parameters(self):
         adapter, connector = client()
@@ -490,7 +526,7 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertIn('DEFAULT LANGUAGE CYPHER 25', statement)
         self.assertIn('TOPOLOGY $primaries PRIMARY', statement)
         self.assertEqual(
-            {'primaries': 1, 'secondaries': 2, 'wait_seconds': 5},
+            {'primaries': 1, 'secondaries': 2},
             parameters,
         )
         statement, parameters = adapter._security_command(
@@ -525,6 +561,141 @@ class Neo4jProviderTests(unittest.TestCase):
             'GRANT READ {`name`} ON GRAPH `neo4j` NODES `Person` '
             'TO `analyst`', statement,
         )
+
+    def test_enterprise_database_forms_compile_typed_native_commands(self):
+        adapter, _connector = client()
+        statement, parameters = adapter._database_command(
+            'database', 'create', {
+                'name': 'analytics', 'database_kind': 'standard',
+                'default_language': 'CYPHER 25',
+                'primaries': 3, 'secondaries': 1,
+                'store_format': 'block', 'tx_log_enrichment': 'FULL',
+                'wait_mode': 'wait', 'wait_seconds': 30,
+            }, {},
+        )
+        self.assertEqual(
+            'CREATE DATABASE `analytics` IF NOT EXISTS '
+            'DEFAULT LANGUAGE CYPHER 25 TOPOLOGY $primaries PRIMARY '
+            '$secondaries SECONDARY OPTIONS $database_options '
+            'WAIT 30 SECONDS',
+            statement,
+        )
+        self.assertEqual({
+            'primaries': 3, 'secondaries': 1,
+            'database_options': {
+                'storeFormat': 'block', 'txLogEnrichment': 'FULL',
+            },
+        }, parameters)
+        statement, parameters = adapter._database_command(
+            'database', 'create', {
+                'name': 'sharded', 'database_kind': 'sharded',
+                'default_language': 'CYPHER 25',
+                'graph_shard_primaries': 3,
+                'property_shard_count': 4,
+                'property_shard_replicas': 2,
+            }, {},
+        )
+        self.assertTrue(statement.startswith(
+            'CYPHER 25 CREATE DATABASE `sharded`'
+        ))
+        self.assertEqual(4, parameters['property_shard_count'])
+        statement, parameters = adapter._database_command(
+            'database', 'alter', {
+                'action': 'configure', 'database_kind': 'standard',
+                'access': 'read-only', 'tx_log_enrichment': 'DIFF',
+                'wait_mode': 'nowait',
+            }, {'name': 'analytics'},
+        )
+        self.assertEqual(
+            'ALTER DATABASE `analytics` SET ACCESS READ ONLY '
+            'SET OPTION `txLogEnrichment` $tx_log_enrichment NOWAIT',
+            statement,
+        )
+        self.assertEqual({'tx_log_enrichment': 'DIFF'}, parameters)
+        statement, _parameters = adapter._database_command(
+            'composite-database', 'alter', {
+                'action': 'configure', 'default_language': 'CYPHER 25',
+            }, {'name': 'federated'},
+        )
+        self.assertEqual(
+            'ALTER DATABASE `federated` SET DEFAULT LANGUAGE CYPHER 25',
+            statement,
+        )
+
+    def test_cluster_member_forms_compile_typed_native_commands(self):
+        adapter, _connector = client()
+        native = {'serverId': 'server-1', 'name': 'primary-east'}
+        statement, parameters = adapter._operational_command(
+            'server', 'alter', {
+                'mode_constraint': 'PRIMARY',
+                'database_filter': 'allow',
+                'database_patterns': ['sales*'], 'tags': ['east'],
+            }, native,
+        )
+        self.assertEqual(
+            'ALTER SERVER $server SET OPTIONS $options', statement
+        )
+        self.assertEqual({
+            'modeConstraint': 'PRIMARY',
+            'allowedDatabases': ['sales*'], 'tags': ['east'],
+        }, parameters['options'])
+        statement, parameters = adapter._operational_command(
+            'server', 'execute', {
+                'action': 'deallocate-dry-run',
+            }, native,
+        )
+        self.assertEqual(
+            'DRYRUN DEALLOCATE DATABASES FROM SERVER $server', statement
+        )
+        self.assertEqual('server-1', parameters['server'])
+        with self.assertRaisesRegex(Neo4jClientError, 'confirmation'):
+            adapter._operational_command(
+                'server', 'execute', {
+                    'action': 'drop', 'confirmation': 'wrong',
+                }, native,
+            )
+        with self.assertRaisesRegex(Neo4jClientError, 'duplicates'):
+            adapter._operational_command(
+                'server', 'alter', {
+                    'mode_constraint': 'NONE', 'database_filter': 'any',
+                    'tags': ['east', 'east'],
+                }, native,
+            )
+
+    def test_enterprise_typed_forms_plan_without_generic_escape_fields(self):
+        adapter, _connector = client()
+        provider = Neo4jPilotProvider(context(), Permissions(), adapter)
+        plan = provider.plan_visual_admin({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'draft': {
+                'name': 'analytics', 'database_kind': 'standard',
+                'default_language': 'CYPHER 25', 'primaries': 3,
+                'secondaries': 0, 'store_format': 'block',
+                'tx_log_enrichment': 'OFF', 'wait_mode': 'wait',
+                'wait_seconds': 15,
+            }, '_provider_route': route(),
+        })
+        self.assertEqual('ready', plan['state'])
+        self.assertNotIn(
+            'definition', plan['command_preview']['arguments']
+        )
+        target = {
+            'resource_kind': 'server',
+            'extensions': {'neo4j': {'native': {
+                'serverId': 'server-1', 'name': 'primary-east',
+            }}},
+        }
+        plan = provider.plan_visual_admin({
+            'resource_kind': 'server', 'operation_id': 'execute',
+            'target_resource': target,
+            'draft': {
+                'action': 'deallocate', 'mode_constraint': 'NONE',
+                'database_filter': 'any', 'tags': [],
+                'confirmation': 'server-1',
+            }, '_provider_route': route(),
+        })
+        self.assertEqual('ready', plan['state'])
+        self.assertNotIn('arguments', plan['command_preview']['arguments'])
 
     def test_nonexistent_native_rename_operations_are_not_advertised(self):
         adapter, _connector = client()
@@ -570,6 +741,27 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertIn(
             'provider_operation_unavailable', projection_create['blockers']
         )
+        database_create = next(
+            item for item in by_kind['database']['operations']
+            if item['operation_id'] == 'create'
+        )
+        database_fields = {
+            field['field_id'] for field in database_create['form']['fields']
+        }
+        self.assertIn('database_kind', database_fields)
+        self.assertIn('tx_log_enrichment', database_fields)
+        self.assertNotIn('options', database_fields)
+        server_alter = next(
+            item for item in by_kind['server']['operations']
+            if item['operation_id'] == 'alter'
+        )
+        server_fields = {
+            field['field_id'] for field in server_alter['form']['fields']
+        }
+        self.assertEqual({
+            'mode_constraint', 'database_filter', 'database_patterns', 'tags',
+        }, server_fields)
+        self.assertNotIn('changes', server_fields)
 
     def test_gds_operations_require_a_bound_external_surface_digest(self):
         adapter, connector = client()
@@ -668,7 +860,7 @@ class Neo4jProviderTests(unittest.TestCase):
             {'argument_0': 'Person', 'argument_1': 10}, parameters
         )
 
-    def test_manifest_records_exact_live_community_qualification(self):
+    def test_manifest_records_exact_full_graph_qualification(self):
         manifest = json.loads((
             WEB / 'pgadmin/cdeadmin/providers/neo4j/provider_manifest.json'
         ).read_text(encoding='utf-8'))
@@ -676,18 +868,15 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue(manifest['production_registration'])
         self.assertEqual('experimental', manifest['support_state'])
         self.assertEqual(
-            'passed_community_and_gds_surface_full_graph_activation_blocked_'
-            'on_enterprise',
+            'passed_full_graph_object_activation',
             manifest['provenance']['activation_gate'],
         )
         self.assertEqual(
-            '25_of_31_operations_live_enterprise_database_and_cluster_'
-            'required_for_full_activation',
+            '11_of_11_concepts_and_31_of_31_operations_live',
             manifest['provenance']['object_experience_state'],
         )
         self.assertEqual(
-            'cde-neo4j-object-live:neo4j-2026.04.0-community-plus-gds:'
-            '20260904',
+            'cde-neo4j-object-live:neo4j-2026.04.0-full:20260904',
             manifest['provenance']['live_evidence_reference'],
         )
 
