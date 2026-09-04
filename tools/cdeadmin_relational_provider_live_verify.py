@@ -27,6 +27,7 @@ import os
 import secrets
 import sys
 import tempfile
+import time
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -455,7 +456,9 @@ def _relational_editor_evidence(provider, request, engine):
                     }, column,
                 )
 
-        if attempt(
+        if provider.client.supports_admin_operation(
+            'view', 'create'
+        ) and attempt(
             'view.create', 'view', 'create', {
                 'name': 'cde_editor_view',
                 **({'parent': parent} if parent else {}),
@@ -1827,8 +1830,10 @@ def _immudb_multimodel_editor_evidence(provider, request):
     if apply('key.insert', 'key', 'insert', {
         'key': key_name, 'key_encoding': 'utf8',
         'value': 'first', 'encoding': 'utf8',
+        'expires_at': int(time.time()) + 3600,
     }):
-        key = _target(provider.list_resources(request), 'key', key_name)
+        resources = provider.list_resources(request)
+        key = _target(resources, 'key', key_name)
         if key is None:
             failures['key.inspect'] = 'CreatedResourceMissing'
         else:
@@ -1838,7 +1843,20 @@ def _immudb_multimodel_editor_evidence(provider, request):
             record('key', 'inspect')
             apply('key.update', 'key', 'update', {
                 'value': 'second', 'encoding': 'utf8',
+                'expires_at': int(time.time()) + 7200,
             }, key)
+            ttl = next((
+                item for item in resources
+                if item.get('resource_kind') == 'ttl' and
+                key_name in item.get('display_path', [])
+            ), None)
+            if ttl is None:
+                failures['ttl.inspect'] = 'ExpirationResourceMissing'
+            else:
+                provider.inspect_resource({
+                    **request, 'resource_id': ttl['resource_id'],
+                })
+                record('ttl', 'inspect')
     if key is not None:
         apply('key.delete', 'key', 'delete', {}, key)
 

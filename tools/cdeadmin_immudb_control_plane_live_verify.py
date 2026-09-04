@@ -19,11 +19,13 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / 'web'
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(WEB) not in sys.path:
     sys.path.insert(0, str(WEB))
 if 'pgadmin' not in sys.modules:
@@ -34,6 +36,11 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
     PROFILE,
     create_provider,
+)
+from tools.cdeadmin_relational_provider_live_verify import (  # noqa: E402
+    _context,
+    _merge_object_evidence,
+    _object_operation_evidence,
 )
 
 
@@ -77,6 +84,11 @@ def parser():
     value.add_argument('--user', default='immudb')
     value.add_argument('--password-environment', required=True)
     value.add_argument('--output', type=Path)
+    value.add_argument('--object-output', type=Path)
+    value.add_argument(
+        '--base-object-evidence', type=Path, action='append', default=[],
+        help='Merge earlier exact-runtime object evidence into object output.',
+    )
     return value
 
 
@@ -132,11 +144,7 @@ def verify(args):
     password = os.environ.get(args.password_environment)
     if password is None:
         raise RuntimeError('immudb password environment variable is absent')
-    context = SimpleNamespace(
-        endpoint_id=f'immudb-control-{uuid.uuid4()}',
-        session_namespace=f'immudb-control-session-{uuid.uuid4()}',
-        mode='legacy_native', runtime_verification_state='verified',
-    )
+    context = _context(PROFILE)
     provider = create_provider(context, _Permissions(password))
     client = provider.client
     route = {
@@ -152,31 +160,62 @@ def verify(args):
     database = f'cdeadmin_{suffix}'
     username = f'cdeuser_{suffix}'
     user_password = f'Cde-{suffix}-A9!'
+    changed_password = f'Cde-{suffix}-B8!'
     database_target = _target('database', database)
     user_target = _target('user', username)
+    server_target = _target('server', 'immudb')
     operations = []
     cleanup = []
     failures = []
     started = time.time()
 
-    def run(kind, operation, draft, target=None, post_state=True):
+    def run(kind, operation, draft, target=None, post_state=True,
+            operation_route=None):
         try:
             operations.append(_admin(
-                client, route, kind, operation, draft, target, post_state
+                client, operation_route or route, kind, operation, draft,
+                target, post_state
             ))
         except Exception as exc:
             failures.append(
                 f'{kind}.{operation}: {type(exc).__name__}: {exc}'
             )
 
+    def run_precondition(kind, operation, draft, expected, target=None):
+        try:
+            _admin(client, route, kind, operation, draft, target, False)
+        except Exception as exc:
+            if expected not in str(exc):
+                failures.append(
+                    f'{kind}.{operation}: {type(exc).__name__}: {exc}'
+                )
+                return
+            operations.append({
+                'operation': f'{kind}.{operation}',
+                'accepted': False,
+                'provider_precondition_confirmed': True,
+                'provider_diagnostic': expected,
+                'provider_finality_authority': True,
+                'automatic_mutation_retry': False,
+            })
+        else:
+            operations.append({
+                'operation': f'{kind}.{operation}', 'accepted': True,
+                'provider_precondition_confirmed': False,
+                'provider_finality_authority': True,
+                'automatic_mutation_retry': False,
+            })
+
     try:
         identity = client.runtime_identity({'route': route})
         if identity['version'] != PROFILE.exact_version:
             raise RuntimeError('immudb exact runtime identity changed')
+        run('server', 'health', {}, server_target)
         run('database', 'create', {
             'name': database, 'autoload': True,
             'max_concurrency': 4, 'read_tx_pool_size': 16,
-            'index_flush_threshold': 1000,
+            'index_flush_threshold': 1,
+            'index_compaction_threshold': 1,
             'aht_sync_threshold': 32,
         })
         run('database', 'update_settings', {
@@ -186,6 +225,9 @@ def verify(args):
             'name': username, 'password': user_password,
             'permission': 'read', 'database': database,
         })
+        run('user', 'change_password', {
+            'old_password': '', 'new_password': changed_password,
+        }, user_target, post_state=False)
         run('permission', 'grant', {
             'username': username, 'database': database,
             'permission': 'readwrite',
@@ -197,11 +239,24 @@ def verify(args):
         })
         run('user', 'set_active', {'active': False}, user_target)
         run('user', 'set_active', {'active': True}, user_target)
+        database_route = dict(route)
+        database_route['database'] = database
+        run('key', 'insert', {
+            'key': 'compaction-qualification', 'key_encoding': 'utf8',
+            'value': 'qualification', 'encoding': 'utf8',
+        }, operation_route=database_route)
         run('database', 'flush_index', {
             'cleanup_percentage': 0, 'synced': True,
         }, database_target, post_state=False)
         run('database', 'unload', {}, database_target, post_state=False)
         run('database', 'load', {}, database_target)
+        run('database', 'compact_index', {}, database_target,
+            post_state=False)
+        run_precondition(
+            'database', 'truncate_history', {
+                'retention_period_ms': 86400000,
+            }, 'retention period has not been reached', database_target,
+        )
         run('permission', 'revoke_sql', {
             'username': username, 'database': database,
             'privileges': ['SELECT', 'CREATE', 'INSERT', 'UPDATE',
@@ -217,6 +272,7 @@ def verify(args):
                 client, route, 'user', 'drop', {}, user_target,
                 validate_post_state=True,
             )
+            operations.append(result)
             cleanup.append({
                 'resource': username,
                 'confirmed_deactivated': result.get(
@@ -228,19 +284,33 @@ def verify(args):
                 f'cleanup.user: {type(exc).__name__}: {exc}'
             )
         try:
-            _admin(
-                client, route, 'database', 'unload', {}, database_target,
-                validate_post_state=False,
-            )
-            _admin(
+            result = _admin(
                 client, route, 'database', 'drop', {}, database_target,
                 validate_post_state=True,
             )
+            operations.append(result)
             cleanup.append({'resource': database, 'confirmed_absent': True})
         except Exception as exc:
             failures.append(
                 f'cleanup.database: {type(exc).__name__}: {exc}'
             )
+        passed_operations = {}
+        for operation in operations:
+            if not (
+                operation.get('accepted') is True or
+                operation.get('provider_precondition_confirmed') is True
+            ):
+                continue
+            kind, operation_id = operation['operation'].split('.', 1)
+            passed_operations.setdefault(kind, set()).add(operation_id)
+        object_evidence = _object_operation_evidence(
+            provider, passed_operations, 'immudb',
+            scope='native-control-plane-operations',
+        )
+        object_evidence['conditionally_qualified_operations'] = [
+            operation['operation'] for operation in operations
+            if operation.get('provider_precondition_confirmed') is True
+        ]
         provider.close()
 
     return {
@@ -253,6 +323,7 @@ def verify(args):
         'provider_finality_authority': True,
         'automatic_mutation_retry': False,
         'common_transaction_finality_interpretation': False,
+        'object_experience_evidence': object_evidence,
         'started_at': started, 'completed_at': time.time(),
         'failures': failures, 'passed': not failures,
     }
@@ -268,11 +339,33 @@ def main():
             'engine_id': 'immudb', 'passed': False,
             'failures': [f'setup: {type(exc).__name__}: {exc}'],
         }
+    object_evidence = evidence.get('object_experience_evidence')
+    if object_evidence and args.base_object_evidence:
+        inputs = [
+            json.loads(path.read_text(encoding='utf-8'))
+            for path in args.base_object_evidence
+        ]
+        object_evidence = _merge_object_evidence(
+            *inputs, object_evidence
+        )
+        conditional = evidence['object_experience_evidence'].get(
+            'conditionally_qualified_operations', [])
+        if conditional:
+            object_evidence['conditionally_qualified_operations'] = (
+                conditional
+            )
+        evidence['object_experience_evidence'] = object_evidence
     document = json.dumps(evidence, indent=2, sort_keys=True)
     print(document)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(document + '\n', encoding='utf-8')
+    if args.object_output and object_evidence:
+        args.object_output.parent.mkdir(parents=True, exist_ok=True)
+        args.object_output.write_text(json.dumps(
+            object_evidence, indent=2,
+            sort_keys=True,
+        ) + '\n', encoding='utf-8')
     return 0 if evidence['passed'] else 1
 
 

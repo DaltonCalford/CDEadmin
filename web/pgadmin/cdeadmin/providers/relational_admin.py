@@ -94,6 +94,10 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            resource['operations'] = [
+                operation for operation in resource.get('operations', [])
+                if self.supports(kind, operation['operation_id'])
+            ]
             for operation in resource.get('operations', []):
                 operation_id = operation['operation_id']
                 if self.supports(kind, operation_id):
@@ -1576,7 +1580,14 @@ class RelationalAdministration:
                 'type': options.get('data_type'),
                 **dict(options),
             }
-            source = f'ALTER TABLE {table} ADD {self._column_definition(item)}'
+            add_keyword = (
+                'ADD COLUMN'
+                if self.dialect.engine_id == 'immudb' else 'ADD'
+            )
+            source = (
+                f'ALTER TABLE {table} {add_keyword} '
+                f'{self._column_definition(item)}'
+            )
         elif kind == 'constraint':
             table = self._qualified(self._option_path(options, 'table'))
             item = {'name': draft['name'], **dict(options)}
@@ -1923,9 +1934,13 @@ class RelationalAdministration:
         if kind == 'table':
             statements = []
             for item in changes.get('add_columns', []):
+                add_keyword = (
+                    'ADD COLUMN'
+                    if self.dialect.engine_id == 'immudb' else 'ADD'
+                )
                 statements.append({
                     'source': (
-                        f'ALTER TABLE {target} ADD '
+                        f'ALTER TABLE {target} {add_keyword} '
                         f'{self._column_definition(item)}'
                     ),
                     'parameters': (),

@@ -2637,6 +2637,58 @@ class DistributedProviderTests(unittest.TestCase):
             'body': {'database': 'analytics'}, 'database': None,
         }], drop['pre_actions'])
 
+    def test_immudb_column_add_uses_required_column_keyword(self):
+        route = {'route_id': 'immudb-column-editor'}
+        create = IMMUDB_ADMIN.plan({
+            'resource_kind': 'column', 'operation_id': 'create',
+            'draft': {
+                'name': 'note', 'table': 'records',
+                'data_type': 'INTEGER', 'nullable': True,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'ALTER TABLE "records" ADD COLUMN "note" INTEGER',
+            create['provider_payload']['compiled']['provider_action'][
+                'body'
+            ]['sql'],
+        )
+        alter = IMMUDB_ADMIN.plan({
+            'resource_kind': 'table', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_id': 'table:records',
+                'resource_kind': 'table',
+                'display_path': ['records'],
+            },
+            'draft': {'add_columns': [{
+                'name': 'note', 'type': 'INTEGER', 'nullable': True,
+            }], 'drop_columns': [], 'rename_columns': []},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'ALTER TABLE "records" ADD COLUMN "note" INTEGER',
+            alter['provider_payload']['compiled']['provider_action'][
+                'body'
+            ]['sql'],
+        )
+        target = {
+            'resource_id': 'column:public:records:note',
+            'resource_kind': 'column',
+            'display_path': ['public', 'records', 'note'],
+        }
+        rename = IMMUDB_ADMIN.plan({
+            'resource_kind': 'column', 'operation_id': 'rename',
+            'target_resource': target, 'draft': {'new_name': 'comment'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'ALTER TABLE "records" RENAME COLUMN "note" TO "comment"',
+            rename['provider_payload']['compiled'][
+                'provider_action'
+            ]['body']['sql'],
+        )
+        self.assertFalse(IMMUDB_ADMIN.supports('column', 'alter'))
+
     def test_immudb_replica_and_sql_privilege_values_fail_closed(self):
         with self.assertRaisesRegex(
             RelationalClientError, 'primary connection fields'
@@ -2870,7 +2922,21 @@ class DistributedProviderTests(unittest.TestCase):
                 return _Response({'token': 'database-token'})
             if path.endswith('/api/db/list/v2'):
                 return _Response({'databases': [{
-                    'name': 'defaultdb', 'loaded': True, 'settings': {},
+                    'name': 'defaultdb', 'loaded': True, 'settings': {
+                        'replicationSettings': {
+                            'replica': {'value': False},
+                        },
+                    },
+                }]})
+            if path.endswith('/api/user/list'):
+                return _Response({'users': [{
+                    'user': 'YWxpY2U=', 'active': True,
+                    'permissions': [{
+                        'database': 'defaultdb', 'permission': 2,
+                    }],
+                    'sqlPrivileges': [{
+                        'database': 'defaultdb', 'privilege': 'SELECT',
+                    }],
                 }]})
             if path.endswith('/api/db/scan'):
                 return _Response({'entries': [{
@@ -2909,12 +2975,25 @@ class DistributedProviderTests(unittest.TestCase):
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
             'key', 'ttl', 'revision', 'transaction', 'collection',
-            'collection-index', 'document',
+            'collection-index', 'document', 'user', 'permission', 'replica',
         }.issubset(kinds))
         key = next(
             item for item in resources if item['resource_kind'] == 'key'
         )
         self.assertEqual('alpha', key['display_name'])
+        user = next(
+            item for item in resources
+            if item['resource_kind'] == 'user'
+        )
+        self.assertEqual('alice', user['display_name'])
+        permissions = [
+            item for item in resources
+            if item['resource_kind'] == 'permission'
+        ]
+        self.assertEqual(
+            {'database:readwrite', 'sql:SELECT'},
+            {item['display_name'] for item in permissions},
+        )
         document_calls = [
             item for item in calls if '/api/v2/' in item[0]
         ]

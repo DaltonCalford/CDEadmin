@@ -61,6 +61,7 @@ def _choice(field_id, label, values, **options):
 
 
 _NAME_PATTERN = r'[A-Za-z_][A-Za-z0-9_]{0,127}'
+_TABLE_PATTERN = r'(?:public\.)?[A-Za-z_][A-Za-z0-9_]{0,127}'
 _UINT32_MAX = 4294967295
 
 
@@ -325,6 +326,48 @@ CONTROL_OPERATIONS = (
                          )
                      ]),
         ), target_required=False, impact_scope='cluster'
+    ),
+    ControlPlaneOperation(
+        'table', 'alter', 'Alter table columns', 'admin', 'administer', (
+            cp_field('add_columns', 'Columns to add', 'json', False,
+                     json_type='array', default=[]),
+            cp_field('drop_columns', 'Columns to drop', 'json', False,
+                     json_type='array', default=[]),
+            cp_field('rename_columns', 'Columns to rename', 'json', False,
+                     json_type='array', default=[]),
+        ), confirmation_required=False, impact_scope='database'
+    ),
+    ControlPlaneOperation(
+        'column', 'create', 'Create column', 'admin', 'administer', (
+            cp_field('name', 'Column name', 'text', True, max_length=128,
+                     pattern=_NAME_PATTERN),
+            cp_field('table', 'Table', 'text', True, max_length=135,
+                     pattern=_TABLE_PATTERN),
+            cp_field('data_type', 'Data type', 'text', True,
+                     max_length=256),
+            cp_field('nullable', 'Nullable', 'boolean', False,
+                     default=True),
+            cp_field('default', 'Default expression', 'text', False,
+                     max_length=4096),
+            cp_field('primary_key', 'Primary key', 'boolean', False,
+                     default=False),
+        ), target_required=False, confirmation_required=False,
+        impact_scope='database'
+    ),
+    ControlPlaneOperation(
+        'column', 'rename', 'Rename column', 'admin', 'administer', (
+            cp_field('new_name', 'New column name', 'text', True,
+                     max_length=128, pattern=_NAME_PATTERN),
+        ), confirmation_required=False, impact_scope='database'
+    ),
+    ControlPlaneOperation(
+        'column', 'drop', 'Drop column', 'destructive', 'administer', (
+            cp_field('cascade', 'Cascade', 'boolean', False,
+                     default=False),
+            cp_field('confirmation', 'Confirmation', 'text', False,
+                     max_length=256),
+        ),
+        impact_scope='database'
     ),
     ControlPlaneOperation(
         'index', 'create', 'Create native SQL index', 'admin', 'administer', (
@@ -688,6 +731,35 @@ def _compile_control(request):
             'database': _name(draft.get('database'), 'database'),
             'privileges': privileges,
         }
+    elif (
+        kind == 'table' and operation == 'alter'
+    ) or (
+        kind == 'column' and operation in {
+            'create', 'rename', 'drop',
+        }
+    ):
+        database = str(
+            (request.get('_provider_route') or {}).get('database') or
+            (request.get('_provider_route') or {}).get('dbname') or
+            'defaultdb'
+        )
+        relational_plan = _BASE_ADMIN.plan(request)
+        statements = relational_plan.get(
+            'provider_payload', {}).get('compiled', {}).get(
+                'statements', [])
+        if not statements:
+            raise RelationalClientError(
+                'immudb native SQL operation has no statement')
+        source = '; '.join(
+            statement['source'] for statement in statements
+        )
+        # The PostgreSQL compatibility catalog exposes immudb's flat SQL
+        # namespace as ``public``. The native SQL parser intentionally has
+        # no schema-qualified object syntax, so discard only that synthetic
+        # catalog prefix before using the native endpoint.
+        source = source.replace('"public".', '')
+        path = '/db/sqlexec'
+        body = {'sql': source, 'params': [], 'noWait': False}
     elif kind == 'index' and operation in {'create', 'drop'}:
         database = str(
             (request.get('_provider_route') or {}).get('database') or
@@ -1126,7 +1198,8 @@ def _inspect_control(client, request):
     elif kind in {'user', 'permission'}:
         response = client.rest_admin(route, 'GET', '/user/list', None)
     elif kind in {
-        'index', 'key', 'collection', 'collection-index', 'document',
+        'table', 'column', 'index', 'key', 'collection',
+        'collection-index', 'document',
     }:
         resources = client.list_resources({'route': route})
         target_id = (plan.get('target_resource') or {}).get('resource_id')
@@ -1285,12 +1358,28 @@ def _post_validate(client, request):
                 else requested.isdisjoint(current)
             )
     elif plan['resource_kind'] in {
-        'index', 'key', 'collection', 'collection-index', 'document',
+        'table', 'column', 'index', 'key', 'collection',
+        'collection-index', 'document',
     }:
         resources = client.list_resources({'route': route})
         kind = plan['resource_kind']
         target = plan.get('target_resource') or {}
-        if kind == 'index' and operation == 'create':
+        if kind == 'column' and operation in {'create', 'rename'}:
+            expected_name = (
+                draft.get('name') if operation == 'create'
+                else draft.get('new_name')
+            )
+            expected_table = (
+                draft.get('table') if operation == 'create'
+                else (target.get('display_path') or [None, None])[-2]
+            )
+            matches = [
+                item for item in resources
+                if item.get('resource_kind') == kind and
+                item.get('display_name') == expected_name and
+                expected_table in item.get('display_path', [])
+            ]
+        elif kind == 'index' and operation == 'create':
             expected_table = draft.get('table')
             expected_columns = draft.get('columns')
             matches = [
@@ -1355,6 +1444,36 @@ def _post_validate(client, request):
             confirmed = matches[0].get('native', {}).get(
                 'document_id_field'
             ) == draft.get('document_id_field')
+        if confirmed and kind == 'table' and operation == 'alter':
+            table_name = (target.get('display_path') or [None])[-1]
+            column_names = {
+                item.get('display_name') for item in resources
+                if item.get('resource_kind') == 'column' and
+                table_name in item.get('display_path', [])
+            }
+            added = {
+                item.get('name') for item in draft.get('add_columns', [])
+                if isinstance(item, Mapping)
+            }
+            dropped = set(draft.get('drop_columns', []))
+            renamed_from = {
+                item.get('from') for item in draft.get(
+                    'rename_columns', []) if isinstance(item, Mapping)
+            }
+            renamed_to = {
+                item.get('to') for item in draft.get(
+                    'rename_columns', []) if isinstance(item, Mapping)
+            }
+            confirmed = (
+                added <= column_names and
+                dropped.isdisjoint(column_names) and
+                renamed_from.isdisjoint(column_names) and
+                renamed_to <= column_names
+            )
+        if confirmed and kind == 'column' and operation == 'alter':
+            expected_nullable = 'YES' if draft.get('nullable') else 'NO'
+            confirmed = str(matches[0].get('native', {}).get(
+                'is_nullable', '')).upper() == expected_nullable
     else:
         confirmed = False
     return {
@@ -1375,9 +1494,10 @@ _SUPPORTED.pop('schema', None)
 _SUPPORTED.pop('role', None)
 _SUPPORTED.pop('privilege', None)
 _SUPPORTED['database'] = frozenset({'inspect'})
-_SUPPORTED['view'] = frozenset({'inspect', 'create', 'drop'})
-_SUPPORTED['sequence'] = frozenset({'inspect', 'create', 'drop'})
-_SUPPORTED['constraint'] = frozenset({'inspect', 'drop'})
+_SUPPORTED['column'] = frozenset({'inspect', 'create', 'rename', 'drop'})
+_SUPPORTED.pop('view', None)
+_SUPPORTED.pop('sequence', None)
+_SUPPORTED.pop('constraint', None)
 _SUPPORTED['user'] = frozenset({'inspect', 'drop'})
 _SUPPORTED['ttl'] = frozenset({'inspect'})
 _SUPPORTED['collection-index'] = frozenset({'inspect'})
@@ -1387,12 +1507,41 @@ _DIALECT = replace(
     not_applicable_concepts=frozenset({
         'schemas', 'materialized_views', 'domains', 'types', 'functions',
         'procedures', 'triggers', 'extensions_and_plugins', 'partitions',
-        'tablespaces_and_filespaces', 'jobs_and_events',
+        'tablespaces_and_filespaces', 'jobs_and_events', 'views',
+        'sequences', 'constraints',
     }),
     concept_resource_kinds={
         'roles_and_grants': ('user', 'permission'),
     },
     additional_concept_declarations={
+        'relational': {
+            'views': {
+                'status': 'not_applicable',
+                'reason': (
+                    'immudb 1.11.0 accepts view DDL but exposes no public '
+                    'view-enumeration metadata; CDEadmin does not invent a '
+                    'shadow catalog.'
+                ),
+                'evidence': ['immudb-1.11-pg-views-empty'],
+            },
+            'sequences': {
+                'status': 'not_applicable',
+                'reason': (
+                    'immudb 1.11.0 accepts sequence DDL but its public '
+                    'pg_sequences relation is intentionally empty.'
+                ),
+                'evidence': ['immudb-1.11-pg-sequences-empty'],
+            },
+            'constraints': {
+                'status': 'not_applicable',
+                'reason': (
+                    'immudb 1.11.0 neither enumerates CHECK constraints nor '
+                    'executes DROP CONSTRAINT reliably through its public '
+                    'administration interfaces.'
+                ),
+                'evidence': ['immudb-1.11-constraint-catalog-gap'],
+            },
+        },
         'key_value': {
             'key_browsing': {
                 'status': 'read_only', 'resource_kinds': ['key'],
@@ -1775,11 +1924,56 @@ class ImmudbDBAPIClient(PsycopgPoolDBAPIClient):
                     'replicationSettings', {}
                 )
             )
-            if isinstance(replication, Mapping) and replication.get(
-                    'replica', {}).get('value') is True:
+            if isinstance(replication, Mapping):
                 item = resource(
                     'replica', [name], 'replication', generation,
                     copy.deepcopy(dict(replication)),
+                )
+                values[item['resource_id']] = item
+        users = self.rest_admin(
+            route, 'GET', '/user/list', None
+        )['document']
+        permission_names = {1: 'read', 2: 'readwrite', 254: 'admin'}
+        for user_item in users.get('users', []):
+            if not isinstance(user_item, Mapping):
+                continue
+            username = self._byte_label(user_item.get('user'))
+            if not username:
+                continue
+            item = resource(
+                'user', [], username, generation,
+                copy.deepcopy(dict(user_item)),
+            )
+            values[item['resource_id']] = item
+            for permission in user_item.get('permissions', []):
+                if not isinstance(permission, Mapping):
+                    continue
+                permission_database = permission.get('database')
+                permission_value = permission.get('permission')
+                permission_name = permission_names.get(
+                    permission_value, str(permission_value)
+                )
+                item = resource(
+                    'permission', [username, permission_database],
+                    f'database:{permission_name}', generation, {
+                        'permission_type': 'database',
+                        'username': username,
+                        **copy.deepcopy(dict(permission)),
+                    },
+                )
+                values[item['resource_id']] = item
+            for privilege in user_item.get('sqlPrivileges', []):
+                if not isinstance(privilege, Mapping):
+                    continue
+                privilege_database = privilege.get('database')
+                privilege_name = privilege.get('privilege')
+                item = resource(
+                    'permission', [username, privilege_database],
+                    f'sql:{privilege_name}', generation, {
+                        'permission_type': 'sql',
+                        'username': username,
+                        **copy.deepcopy(dict(privilege)),
+                    },
                 )
                 values[item['resource_id']] = item
         scan = self.rest_admin(

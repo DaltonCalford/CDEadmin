@@ -51,12 +51,17 @@ class DistributedRelationalObjectGateTests(unittest.TestCase):
             for concept in family['concepts']
         }
         self.assertEqual(
-            'supported', concepts[('relational', 'views')][
+            'not_applicable', concepts[('relational', 'views')][
                 'declared_status'
             ]
         )
         self.assertEqual(
-            'supported', concepts[('relational', 'sequences')][
+            'not_applicable', concepts[('relational', 'sequences')][
+                'declared_status'
+            ]
+        )
+        self.assertEqual(
+            'not_applicable', concepts[('relational', 'constraints')][
                 'declared_status'
             ]
         )
