@@ -74,7 +74,7 @@ CONTROL_OPERATIONS = (
             cp_field('addresses', 'Coordinator addresses', 'json', True,
                      json_type='array'),
             cp_field('description', 'Cluster description', 'text', False,
-                     max_length=128, pattern=r'[A-Za-z0-9_.:-]+'),
+                     max_length=128, pattern=r'[A-Za-z0-9_]+'),
         ), impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
@@ -425,8 +425,21 @@ class FoundationDBBackend:
                 route, 'status json', timeout=15
             )['stdout'])
             cluster = status.get('cluster', {})
-            for address in cluster.get('coordinators', {}).get(
-                    'coordinators', []):
+            coordinator_values = cluster.get('coordinators', {}).get(
+                'coordinators', []
+            )
+            if not coordinator_values:
+                coordinator_values = status.get('client', {}).get(
+                    'coordinators', {}).get('coordinators', [])
+            addresses = []
+            for coordinator in coordinator_values:
+                address = (
+                    coordinator.get('address')
+                    if isinstance(coordinator, Mapping) else coordinator
+                )
+                if isinstance(address, str) and address not in addresses:
+                    addresses.append(address)
+            for address in addresses:
                 values.append(resource(
                     'coordinator', [], address, generation
                 ))
@@ -642,7 +655,11 @@ class FoundationDBBackend:
             return {'accepted': True, 'native_operation': operation}
         if payload['resource_kind'] in {'key', 'key-range'} and operation in {
                 'insert', 'update', 'delete'}:
-            route = payload['_provider_route']
+            # Identity tokens are issued against the normalized route in
+            # read_admin_rows(). Normalize before consuming them as well so
+            # provider defaults do not make a legitimate token look as if it
+            # came from another endpoint.
+            route = self._route(payload)
             target = payload.get('target_resource') or {
                 'resource_kind': payload['resource_kind'],
                 'display_path': ['bounded-key-browser'],
@@ -689,8 +706,65 @@ class FoundationDBBackend:
                 'automatic_mutation_retry_by_cdeadmin': False,
             }
         if operation == 'inspect':
-            return {'accepted': True,
-                    'resource': payload.get('target_resource')}
+            route = self._route(payload)
+            target = payload.get('target_resource')
+            if payload['resource_kind'] == 'key':
+                native = self._target_native(payload)
+                if isinstance(native.get('key_base64'), str):
+                    key = decode_value({
+                        'key': native['key_base64'],
+                        'key_encoding': 'base64',
+                    }, 'key')
+                else:
+                    value = native.get('key') or (
+                        target.get('display_name')
+                        if isinstance(target, Mapping) else None
+                    )
+                    key = decode_value({'key': value}, 'key')
+                database = self.open_session({'route': route})
+                transaction = self._transaction(database)
+                try:
+                    future = transaction[key]
+                    future.wait()
+                    if not future.present():
+                        raise NativeDistributedError(
+                            'FoundationDB inspection key is unavailable')
+                    value = bytes(future.value)
+                finally:
+                    transaction.reset()
+                key_text, key_base64 = display_value(key)
+                value_text, value_base64 = display_value(value)
+                observation = {
+                    'key': key_text,
+                    'key_base64': key_base64,
+                    'value': value_text,
+                    'value_base64': value_base64,
+                }
+            elif payload['resource_kind'] == 'key-range':
+                inspect_request = {
+                    '_provider_route': route,
+                    'target_resource': target,
+                    'limit': 1,
+                }
+                observation = self.read_admin_rows(inspect_request)
+            else:
+                target_id = (
+                    target.get('resource_id')
+                    if isinstance(target, Mapping) else None
+                )
+                observation = next((
+                    item for item in self.list_resources({'route': route})
+                    if item.get('resource_id') == target_id
+                ), None)
+                if observation is None:
+                    raise NativeDistributedError(
+                        'FoundationDB inspection target is unavailable')
+            return {
+                'accepted': True,
+                'native_operation': 'inspect',
+                'provider_observation': observation,
+                'provider_finality_only': True,
+            }
         raise NativeDistributedError(
             'FoundationDB admin operation unsupported')
 
@@ -744,10 +818,26 @@ class FoundationDBBackend:
         return FoundationDBBackend._safe_token(value, 'backup tag')
 
     @staticmethod
+    def _target_native(request):
+        target = request.get('target_resource')
+        if not isinstance(target, Mapping):
+            return {}
+        native = target.get('native')
+        if isinstance(native, Mapping):
+            return native
+        extensions = target.get('extensions')
+        if isinstance(extensions, Mapping):
+            provider = extensions.get('foundationdb')
+            if isinstance(provider, Mapping) and isinstance(
+                    provider.get('native'), Mapping):
+                return provider['native']
+        return {}
+
+    @staticmethod
     def _process_address(request):
         target = request.get('target_resource')
-        native = target.get('native') if isinstance(target, Mapping) else None
-        value = native.get('address') if isinstance(native, Mapping) else None
+        native = FoundationDBBackend._target_native(request)
+        value = native.get('address')
         if value is None:
             value = target.get('display_name') if isinstance(
                 target, Mapping) else None
@@ -814,7 +904,8 @@ class FoundationDBBackend:
             if description:
                 command += ' description=' + (
                     FoundationDBBackend._safe_token(
-                        description, 'cluster description', limit=128
+                        description, 'cluster description',
+                        r'[A-Za-z0-9_]+', 128
                     )
                 )
         elif kind == 'cluster' and operation == 'maintenance_on':

@@ -1305,6 +1305,36 @@ class DistributedProviderTests(unittest.TestCase):
                     'cluster_file': __file__,
                 }, 'tenant create safe; kill all')
 
+    def test_foundationdb_process_control_reads_sdk_wrapped_native_data(self):
+        command = FoundationDBBackend._control_command({
+            'resource_kind': 'process', 'operation_id': 'exclude',
+            'target_resource': {
+                'resource_id': 'process:worker-id',
+                'display_name': 'worker-id',
+                'extensions': {'foundationdb': {'native': {
+                    'address': '127.0.0.1:4512',
+                }}},
+            },
+            'draft': {},
+        })
+        self.assertEqual('exclude 127.0.0.1:4512', command['command'])
+
+    def test_foundationdb_rejects_invalid_cluster_description(self):
+        with self.assertRaisesRegex(
+                NativeDistributedError, 'cluster description is invalid'):
+            FoundationDBBackend._control_command({
+                'resource_kind': 'cluster',
+                'operation_id': 'change_coordinators',
+                'target_resource': {
+                    'resource_id': 'cluster:FoundationDB',
+                    'display_name': 'FoundationDB',
+                },
+                'draft': {
+                    'addresses': ['127.0.0.1:4510'],
+                    'description': 'not-valid',
+                },
+            })
+
     def test_foundationdb_backup_tools_are_typed_and_allowlisted(self):
         keys = {
             (item.resource_kind, item.operation_id)

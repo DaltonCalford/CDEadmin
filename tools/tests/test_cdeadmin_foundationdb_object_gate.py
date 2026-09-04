@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
@@ -33,6 +35,27 @@ from tools.cdeadmin_foundationdb_object_experience_gate import (  # noqa: E402
 
 
 class FoundationDBObjectExperienceGateTests(unittest.TestCase):
+
+    @staticmethod
+    def _complete_evidence():
+        concepts = {}
+        for family in provider_catalog()['concept_coverage']['families']:
+            results = {}
+            for concept in family['concepts']:
+                if concept['declared_status'] == 'supported':
+                    results[concept['concept_id']] = {
+                        'status': 'passed',
+                        'operations': concept['operation_obligations'],
+                    }
+            if results:
+                concepts[family['family_id']] = results
+        return {
+            'schema': 'cdeadmin.provider-object-live-evidence.v1',
+            'engine_id': 'foundationdb',
+            'exact_profile': '7.3.77',
+            'run_id': 'foundationdb-unit-complete',
+            'concepts': concepts,
+        }
 
     def test_key_value_declarations_are_structurally_complete(self):
         result = audit()
@@ -62,6 +85,18 @@ class FoundationDBObjectExperienceGateTests(unittest.TestCase):
                     'not_applicable',
                     concepts[concept_id]['declared_status'],
                 )
+
+    def test_exact_complete_live_evidence_activates_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'foundationdb-live.json'
+            path.write_text(
+                json.dumps(self._complete_evidence()), encoding='utf-8'
+            )
+            result = audit([path])
+        self.assertTrue(result['live_complete'])
+        self.assertEqual(0, result['coverage'][
+            'live_operation_missing_count'
+        ])
 
 
 if __name__ == '__main__':
