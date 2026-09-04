@@ -190,6 +190,7 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
         self.assertEqual({
             'relational', 'document', 'graph', 'key_value', 'search',
             'columnar', 'time_series', 'vector', 'wide_column', 'semantic',
+            'bitemporal',
         }, set(EXPERIENCE_REQUIREMENTS))
         for engine_id in PORTFOLIO_ENGINE_IDS:
             coverage = catalog_for_engine(engine_id)['concept_coverage']

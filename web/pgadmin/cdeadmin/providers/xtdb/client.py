@@ -134,6 +134,17 @@ def _text(value, label, maximum=1024, required=True):
     return value
 
 
+def _multiline_text(value, label, maximum):
+    if not isinstance(value, str) or not value.strip():
+        raise XTDBClientError(f'{label} must not be empty')
+    value = value.strip()
+    if len(value) > maximum or any(
+            ord(character) < 32 and character not in '\n\r\t'
+            for character in value):
+        raise XTDBClientError(f'{label} is invalid')
+    return value
+
+
 def _integer(value, label, minimum, maximum):
     if isinstance(value, bool) or not isinstance(value, int):
         raise XTDBClientError(f'{label} must be an integer')
@@ -184,6 +195,7 @@ class XTDBClient:
         'cluster': frozenset({'inspect'}),
         'node': frozenset({'inspect'}),
         'database': frozenset({'inspect', 'create', 'drop'}),
+        'schema': frozenset({'inspect'}),
         'table': frozenset({
             'inspect', 'create', 'insert', 'update', 'delete', 'erase'
         }),
@@ -826,6 +838,9 @@ class XTDBClient:
                             'document', f'{schema}.{table}', native, database
                         ),
                         self._resource(
+                            'entity', f'{schema}.{table}', native, database
+                        ),
+                        self._resource(
                             'valid-time', f'{schema}.{table}', native, database
                         ),
                         self._resource(
@@ -939,6 +954,109 @@ class XTDBClient:
         catalog['native_outcomes_are_opaque'] = True
         catalog['xtql_transport_qualified'] = False
         catalog['common_finality_interpretation'] = False
+        catalog['experience_families'] = [
+            'document', 'relational', 'bitemporal'
+        ]
+
+        def declaration(*resource_kinds, status='supported', reason=None):
+            return {
+                'status': status,
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in resource_kinds
+                },
+                'reason': reason or (
+                    'XTDB objects and operations are provider-owned through '
+                    'its bitemporal SQL surface.'
+                ),
+                'evidence': ['xtdb-2.1-native-pgwire-catalog'],
+            }
+
+        absent = (
+            'XTDB 2.1 has no corresponding user-managed runtime object.'
+        )
+        catalog['concept_declarations'] = {
+            'document': {
+                'databases': declaration('database'),
+                'collections': declaration(
+                    'table', reason=(
+                        'Schemaless XTDB tables are the native document '
+                        'containers and arise from document writes.'
+                    )
+                ),
+                'documents': declaration('document'),
+                'validation_rules': {
+                    'status': 'not_applicable', 'reason': absent,
+                },
+                'indexes': {
+                    'status': 'not_applicable', 'reason': (
+                        'XTDB indexing is automatic and has no user-managed '
+                        'index object in the exact profile.'
+                    ),
+                },
+                'views': {'status': 'not_applicable', 'reason': absent},
+                'aggregation_pipelines': {
+                    'status': 'not_applicable',
+                    'reason': 'XTQL transport is not qualified in this '
+                              'PostgreSQL-wire provider profile.',
+                },
+                'users_and_roles': declaration(
+                    'user', reason=(
+                        'The exact profile supports authentication users but '
+                        'does not expose roles or grants.'
+                    )
+                ),
+                'replica_sets_and_sharding': {
+                    'status': 'not_applicable', 'reason': (
+                        'XTDB deployment topology is configuration-owned, '
+                        'not a document-database replica-set object.'
+                    ),
+                },
+            },
+            'relational': {
+                'servers': declaration(
+                    'cluster', 'node', status='read_only'
+                ),
+                'databases': declaration('database'),
+                'schemas': declaration('schema', status='read_only'),
+                'tables': declaration('table'),
+                'columns': declaration('column', status='read_only'),
+                **{
+                    concept: {'status': 'not_applicable', 'reason': absent}
+                    for concept in (
+                        'views', 'materialized_views', 'domains', 'types',
+                        'sequences', 'functions', 'procedures', 'triggers',
+                        'indexes', 'constraints', 'roles_and_grants',
+                        'extensions_and_plugins', 'partitions',
+                        'tablespaces_and_filespaces', 'replication_objects',
+                        'jobs_and_events',
+                    )
+                },
+            },
+            'bitemporal': {
+                'entities': declaration('entity'),
+                'valid_time_history': declaration(
+                    'valid-time', status='read_only'
+                ),
+                'system_time_history': declaration(
+                    'system-time', status='read_only'
+                ),
+                'transactions': declaration(
+                    'transaction', status='read_only', reason=(
+                        'XTDB transaction state is displayed as an opaque '
+                        'server/driver observation; CDEadmin does not infer '
+                        'cross-engine finality.'
+                    )
+                ),
+                'transaction_log': declaration(
+                    'transaction-log', status='read_only', reason=(
+                        'XTDB transaction-log rows are observational native '
+                        'history and are not a common recovery authority.'
+                    )
+                ),
+            },
+        }
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             if kind in {'table', 'document', 'entity'}:
@@ -1005,14 +1123,18 @@ class XTDBClient:
                         'system-time'}:
                 temporal = [
                     f('valid_time_mode', 'Valid-time basis', 'select', False,
-                      default='current', options=[
+                      default=(
+                          'all' if kind == 'valid-time' else 'current'
+                      ), options=[
                           {'value': 'current', 'label': 'Current'},
                           {'value': 'all', 'label': 'All history'},
                           {'value': 'as_of', 'label': 'As of'},
                       ]),
                     f('valid_time', 'Valid-time instant', required=False),
                     f('system_time_mode', 'System-time basis', 'select', False,
-                      default='current', options=[
+                      default=(
+                          'all' if kind == 'system-time' else 'current'
+                      ), options=[
                           {'value': 'current', 'label': 'Current'},
                           {'value': 'all', 'label': 'All history'},
                           {'value': 'as_of', 'label': 'As of'},
@@ -1090,8 +1212,10 @@ class XTDBClient:
         try:
             if kind == 'database' and operation == 'create':
                 _identifier(draft.get('name'), 'database name')
-                _text(draft.get('config_yaml'), 'database config YAML',
-                      1024 * 1024)
+                _multiline_text(
+                    draft.get('config_yaml'), 'database config YAML',
+                    1024 * 1024,
+                )
             if kind == 'database' and operation == 'drop' and not draft.get(
                 'acknowledge_detach'
             ):
@@ -1247,17 +1371,15 @@ class XTDBClient:
         mutation = payload['operation'] not in {'inspect'}
         try:
             source, parameters = self._compile_admin(payload, route)
+            identity = payload.get('_resolved_identity')
+            if identity is not None:
+                self._require_current_row_identity(
+                    session, payload.get('target', {}), identity
+                )
             cursor = session.connection.cursor()
             try:
                 cursor.execute(source, parameters or None)
                 rowcount = getattr(cursor, 'rowcount', None)
-                if (
-                    payload['operation'] in {'update', 'delete', 'erase'}
-                    and rowcount == 0
-                ):
-                    raise XTDBClientError(
-                        'XTDB document changed or no longer exists'
-                    )
                 rows = []
                 if getattr(cursor, 'description', None):
                     names = [str(item[0]) for item in cursor.description]
@@ -1266,15 +1388,33 @@ class XTDBClient:
                          for name, value in zip(names, row)}
                         for row in cursor.fetchmany(MAX_PAGE_SIZE)
                     ]
-                return {
-                    'native_response_observed': True,
-                    'rowcount': rowcount,
-                    'rows': rows,
-                    'automatic_retry': False,
-                    'transaction_finality_interpreted_by_common_code': False,
-                }
             finally:
                 self._safe_close(cursor)
+            if payload['operation'] == 'erase':
+                native = payload.get('target', {})
+                if identity is None:
+                    raise XTDBClientError('XTDB erase identity is absent')
+                target = _qualified(
+                    native.get('schema', 'public'), native['table']
+                )
+                remaining = self._query_rows(
+                    session,
+                    f'SELECT COUNT(*) AS remaining FROM {target} '
+                    'FOR ALL VALID_TIME FOR ALL SYSTEM_TIME WHERE _id = %s',
+                    (self._adapt_value(identity.document_id),),
+                )
+                if not remaining or int(remaining[0]['remaining']) != 0:
+                    raise XTDBClientError(
+                        'XTDB document changed or no longer exists'
+                    )
+            return {
+                'native_response_observed': True,
+                'rowcount': rowcount,
+                'rows': rows,
+                'automatic_retry': False,
+                'transaction_finality_interpreted_by_common_code': False,
+                'affected_row_count_available': False,
+            }
         except XTDBClientError:
             raise
         except Exception as exc:
@@ -1446,10 +1586,14 @@ class XTDBClient:
                 draft.get('row_identity') or draft.get('concurrency_token'),
                 route, native, consume=True
             )
+            payload['_resolved_identity'] = identity
             if operation == 'erase':
-                return f'ERASE FROM {target} WHERE _id = %s', (
-                    self._adapt_value(identity.document_id),
-                )
+                predicate = '_id = %s'
+                values = [self._adapt_value(identity.document_id)]
+                if identity.system_from is not None:
+                    predicate += ' AND _system_from = %s'
+                    values.append(identity.system_from)
+                return f'ERASE FROM {target} WHERE {predicate}', tuple(values)
             temporal, temporal_parameters = self._temporal_mutation(draft)
             if operation == 'delete':
                 predicate = '_id = %s'
@@ -1653,6 +1797,44 @@ class XTDBClient:
         with self._lock:
             self._row_identities[token] = identity
         return token
+
+    def _require_current_row_identity(self, session, native, identity):
+        target = _qualified(
+            native.get('schema', 'public'), native.get('table')
+        )
+        rows = self._query_rows(
+            session,
+            f'SELECT *, _valid_from AS __cde_valid_from, '
+            f'_valid_to AS __cde_valid_to, '
+            f'_system_from AS __cde_system_from, '
+            f'_system_to AS __cde_system_to FROM {target} '
+            'WHERE _id = %s',
+            (self._adapt_value(identity.document_id),),
+        )
+        if len(rows) != 1:
+            raise XTDBClientError(
+                'XTDB document changed or no longer exists'
+            )
+        row = rows[0]
+        row['_valid_from'] = row.pop(
+            '__cde_valid_from', row.get('_valid_from')
+        )
+        row['_valid_to'] = row.pop(
+            '__cde_valid_to', row.get('_valid_to')
+        )
+        row['_system_from'] = row.pop(
+            '__cde_system_from', row.get('_system_from')
+        )
+        row['_system_to'] = row.pop(
+            '__cde_system_to', row.get('_system_to')
+        )
+        digest = hashlib.sha256(json.dumps(
+            row, sort_keys=True, default=str
+        ).encode('utf-8')).hexdigest()
+        if digest != identity.digest:
+            raise XTDBClientError(
+                'XTDB document changed or no longer exists'
+            )
 
     def _resolve_row_identity(self, token, route, native, consume=False):
         with self._lock:

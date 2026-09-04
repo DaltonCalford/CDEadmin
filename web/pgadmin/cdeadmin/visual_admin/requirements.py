@@ -167,6 +167,16 @@ EXPERIENCE_REQUIREMENTS = {
         'materializations': _concept(
             'Materializations', 'materialization'),
     },
+    'bitemporal': {
+        'entities': _concept('Bitemporal entities', 'entity'),
+        'valid_time_history': _concept(
+            'Valid-time history', 'valid-time'),
+        'system_time_history': _concept(
+            'System-time history', 'system-time'),
+        'transactions': _concept('Transactions', 'transaction'),
+        'transaction_log': _concept(
+            'Transaction log', 'transaction-log'),
+    },
 }
 
 
@@ -198,7 +208,7 @@ ENGINE_EXPERIENCE_FAMILIES = {
     'tidb': ('relational',),
     'tikv': ('key_value',),
     'vitess': ('relational',),
-    'xtdb': ('document', 'relational'),
+    'xtdb': ('document', 'relational', 'bitemporal'),
     # This catalog is the YSQL profile. YCQL is a separately registered
     # provider and must not borrow object claims from the PostgreSQL wire.
     'yugabytedb': ('relational',),

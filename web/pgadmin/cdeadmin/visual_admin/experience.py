@@ -31,6 +31,7 @@ GROUPS = (
     ('search-schema', 'Search schema'),
     ('ingest', 'Ingest & processing'),
     ('analytics', 'Analytical structures'),
+    ('temporal', 'Bitemporal history'),
     ('security', 'Security'),
     ('storage', 'Storage'),
     ('replication', 'Replication & distribution'),
@@ -99,6 +100,10 @@ GROUP_KINDS = {
         'vector-collection', 'vector-index', 'load-state', 'compaction',
         'data-skipping-index', 'query-plan', 'profiling', 'saved-query',
         'prepared-query', 'query',
+    },
+    'temporal': {
+        'entity', 'valid-time', 'system-time', 'transaction',
+        'transaction-log',
     },
     'security': {
         'user', 'acl-user', 'principal', 'role', 'privilege', 'permission',
@@ -171,6 +176,10 @@ DATA_PRESENTATIONS = {
     'profiling': 'query-profile', 'time-series': 'time-series',
     'measurement': 'time-series', 'vector-collection': 'vector',
     'vector-index': 'vector-index', 'cube': 'semantic-cube',
+    'valid-time': 'bitemporal-history',
+    'system-time': 'bitemporal-history',
+    'transaction': 'transaction-state',
+    'transaction-log': 'transaction-history',
 }
 
 
@@ -215,6 +224,8 @@ VECTOR_KINDS = {
 
 
 def _group_for(kind, model_family):
+    if 'bitemporal' in model_family and kind in GROUP_KINDS['temporal']:
+        return 'temporal'
     if 'document' in model_family and kind in DOCUMENT_KINDS:
         return 'documents'
     if 'graph' in model_family and kind in GRAPH_DATA_KINDS:
@@ -238,6 +249,8 @@ def _group_for(kind, model_family):
 
 
 def _editor_kind(kind, model_family, group_id):
+    if 'bitemporal' in model_family and group_id == 'temporal':
+        return 'bitemporal-object'
     if 'document' in model_family and group_id == 'documents':
         return 'document-object'
     if 'graph' in model_family and group_id in {
@@ -260,7 +273,8 @@ def _editor_kind(kind, model_family, group_id):
         return 'topology-object'
     if group_id == 'security':
         return 'security-object'
-    if group_id in {'storage', 'replication', 'scheduling', 'operations'}:
+    if group_id in {
+            'storage', 'replication', 'scheduling', 'operations', 'temporal'}:
         return 'operational-object'
     return 'relational-object'
 
@@ -277,7 +291,8 @@ def _sections(group_id, operations):
         'search-schema', 'analytics',
     }:
         sections.append('data')
-    if group_id in {'topology', 'replication', 'storage', 'operations'}:
+    if group_id in {
+            'topology', 'replication', 'storage', 'operations', 'temporal'}:
         sections.extend(['state', 'statistics'])
     if group_id == 'security' or any(
             item in {'grant', 'revoke'} for item in operations):

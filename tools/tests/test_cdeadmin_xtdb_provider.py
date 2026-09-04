@@ -100,6 +100,10 @@ class FakeCursor:
                     ),
                 ],
             )
+        elif lowered.startswith(('update ', 'delete ')):
+            self.description = None
+            self.rows = []
+            self.rowcount = 0
         else:
             self.description = None
             self.rows = []
@@ -327,7 +331,8 @@ class XTDBClientContractTests(unittest.TestCase):
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
             'cluster', 'node', 'database', 'schema', 'table', 'column',
-            'document', 'valid-time', 'system-time', 'transaction-log',
+            'document', 'entity', 'valid-time', 'system-time',
+            'transaction-log',
             'user',
         }.issubset(kinds))
         security = self.client.describe_security({'route': route()})
@@ -359,6 +364,23 @@ class XTDBClientContractTests(unittest.TestCase):
             self.client.supports_admin_operation('index', 'create')
         )
         self.assertFalse(catalog['xtql_transport_qualified'])
+        forms = {
+            item['resource_kind']: next(
+                operation['form'] for operation in item['operations']
+                if operation['operation_id'] == 'inspect'
+            )
+            for item in catalog['objects']
+            if item['resource_kind'] in {'valid-time', 'system-time'}
+        }
+        defaults = {
+            kind: {
+                field['field_id']: field.get('default')
+                for field in form['fields']
+            }
+            for kind, form in forms.items()
+        }
+        self.assertEqual('all', defaults['valid-time']['valid_time_mode'])
+        self.assertEqual('all', defaults['system-time']['system_time_mode'])
 
     def test_editable_page_uses_route_bound_single_use_identity(self):
         target = {
@@ -446,6 +468,22 @@ class XTDBClientContractTests(unittest.TestCase):
         })
         self.assertTrue(result['native_response_observed'])
 
+    def test_visual_database_plan_accepts_bounded_multiline_yaml(self):
+        provider = XTDBPilotProvider(context(), Permissions(), self.client)
+        plan = provider.plan_visual_admin({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'history',
+                'config_yaml': (
+                    'log: !InMemory\n'
+                    'storage: !InMemory\n'
+                ),
+            },
+            '_provider_route': route(),
+        })
+        self.assertEqual('ready', plan['state'])
+
     def test_user_names_reject_delimited_or_injectable_forms(self):
         for username in ('quoted user', '"quoted"', 'name;select'):
             result = self.client.validate_admin_operation({
@@ -495,6 +533,22 @@ class XTDBClientContractTests(unittest.TestCase):
     def test_provider_descriptor_marks_unavailable_postgres_surfaces(self):
         provider = XTDBPilotProvider(context(), Permissions(), self.client)
         descriptor = provider.visual_admin_descriptor()
+        coverage = descriptor['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        self.assertEqual(
+            ['document', 'relational', 'bitemporal'],
+            [item['family_id'] for item in coverage['families']],
+        )
+        temporal = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'valid-time'
+        )
+        self.assertEqual('temporal', temporal['navigator']['group_id'])
+        self.assertEqual(
+            'bitemporal-object', temporal['editor']['editor_kind']
+        )
         index = next(
             item for item in descriptor['objects']
             if item['resource_kind'] == 'index'

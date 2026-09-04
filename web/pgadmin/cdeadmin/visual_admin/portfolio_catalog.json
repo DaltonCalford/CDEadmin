@@ -713,6 +713,7 @@
         {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
         {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
         {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "schema", "title": "Schema", "operation_profile": "read_only"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "document", "title": "Document", "operation_profile": "data_item"},
