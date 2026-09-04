@@ -1692,7 +1692,27 @@ function ResultView({rendered}) {
 
 ResultView.propTypes = {rendered: PropTypes.object};
 
-function SemanticChartView({chart, rendered}) {
+export function semanticCrossFilter(definition, chart, selection) {
+  const encoding = chart?.encodings?.x;
+  if (!encoding || selection?.value === undefined) return null;
+  let reference = null;
+  for (const dimension of definition?.dimensions || []) {
+    if (dimension.id === encoding) reference = dimension.field;
+    for (const hierarchy of dimension.hierarchies || []) {
+      const level = (hierarchy.levels || []).find((item) =>
+        item.id === encoding);
+      if (level) reference = level.field;
+    }
+  }
+  if (!reference) return null;
+  return selection.value === null ? {
+    field: reference, operator: 'is_null',
+  } : {
+    field: reference, operator: 'eq', value: selection.value,
+  };
+}
+
+function SemanticChartView({chart, rendered, onSelect}) {
   const records = rendered?.view_model?.records || [];
   const chartType = chart.chart_type;
   if (['table', 'pivot', 'graph', 'vector-neighbors'].includes(chartType)) {
@@ -1704,6 +1724,7 @@ function SemanticChartView({chart, rendered}) {
     label: String(record?.[xField] ?? index + 1),
     x: Number(record?.[xField]),
     y: Number(record?.[yField]),
+    record,
   })).filter((point) => Number.isFinite(point.y));
   if (!points.length) {
     return <Alert severity="info" sx={{mt: 1}}>
@@ -1716,27 +1737,37 @@ function SemanticChartView({chart, rendered}) {
   }
   const nativeType = chartType === 'area' || chartType === 'timeline' ?
     'line' : chartType === 'histogram' ? 'bar' : chartType;
+  const plotted = nativeType === 'scatter' ? points.filter((point) =>
+    Number.isFinite(point.x)) : points;
   const data = nativeType === 'scatter' ? {
-    datasets: [{label: chart.name, data: points.filter((point) =>
-      Number.isFinite(point.x)).map((point) => ({x: point.x, y: point.y})),
+    datasets: [{label: chart.name, data: plotted.map((point) =>
+      ({x: point.x, y: point.y})),
     backgroundColor: '#4c9bd6'}],
   } : {
-    labels: points.map((point) => point.label),
-    datasets: [{label: chart.name, data: points.map((point) => point.y),
+    labels: plotted.map((point) => point.label),
+    datasets: [{label: chart.name, data: plotted.map((point) => point.y),
       backgroundColor: '#4c9bd6', borderColor: '#2878b5',
       fill: chartType === 'area'}],
+  };
+  const selectPoint = (_event, elements) => {
+    const point = elements?.[0] && plotted[elements[0].index];
+    if (point && xField && onSelect) onSelect({
+      encoding: xField, value: point.record?.[xField], label: point.label,
+    });
   };
   return <Box aria-label={gettext('Semantic chart result')}
     sx={{height: 260, mt: 1}}>
     <BaseChart id={`semantic-chart-${chart.id}`} type={nativeType}
       data={data} options={{responsive: true, maintainAspectRatio: false,
-        parsing: true, plugins: {legend: {display: true}}}} />
+        parsing: true, plugins: {legend: {display: true}},
+        onClick: selectPoint}} />
   </Box>;
 }
 
 SemanticChartView.propTypes = {
   chart: PropTypes.object.isRequired,
   rendered: PropTypes.object.isRequired,
+  onSelect: PropTypes.func,
 };
 
 function ResultControls({rendered, history, post, onRendered, setError,
@@ -2420,6 +2451,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const [resultHistory, setResultHistory] = useState([]);
   const [diagnostics, setDiagnostics] = useState(null);
   const [activeChartId, setActiveChartId] = useState(null);
+  const [dashboardResults, setDashboardResults] = useState({});
+  const [dashboardSelections, setDashboardSelections] = useState({});
   const [reportResults, setReportResults] = useState([]);
   const [detailFieldsDraft, setDetailFieldsDraft] = useState('');
   const [query, setQuery] = useState({
@@ -2518,6 +2551,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       const value = await call('semantic_model_get', {model_id: modelId});
       setRecord(value); setDefinition(value.definition); setSelectedId(modelId);
       setValidation(null); setCompiled(null); setRendered(null);
+      setDashboardResults({}); setDashboardSelections({});
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally { setWorking(false); }
@@ -2561,6 +2595,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         expected_revision: record.revision});
       setRecord(null); setSelectedId('');
       setDefinition(emptySemanticModel(resources, analyticalProfile));
+      setDashboardResults({}); setDashboardSelections({});
       await refreshList();
     } catch (requestError) { setError(errorMessage(requestError)); }
     finally { setWorking(false); }
@@ -2840,6 +2875,59 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const runChart = (chart) => {
     setActiveChartId(chart.id);
     return compile(true, chart.query);
+  };
+  const executeDashboardChart = async (chart, crossFilters=[]) => {
+    const value = await call('semantic_query_execute', {
+      model_id: record?.model_id,
+      definition: record ? undefined : definition,
+      query: {...chart.query, cross_filters: [
+        ...(chart.query.cross_filters || []), ...crossFilters,
+      ]},
+    });
+    const response = await post({action: 'poll',
+      occurrence_id: value.occurrence.occurrence_id});
+    if (!response.rendered_result) throw new Error(gettext(
+      'The provider did not return a dashboard result page.'
+    ));
+    return response.rendered_result;
+  };
+  const runDashboard = async (dashboard, filter=null, selection=null) => {
+    const charts = dashboard.tiles.map((tile) => ({tile, chart:
+      (definition.visualizations || []).find((item) =>
+        item.id === tile.visualization_id)})).filter((item) => item.chart);
+    if (!charts.length) {
+      setError(gettext('The dashboard has no chart queries.'));
+      return;
+    }
+    setWorking(true); setError(null);
+    try {
+      const results = {};
+      for (const {chart} of charts) {
+        results[chart.id] = await executeDashboardChart(
+          chart, filter ? [filter] : []
+        );
+      }
+      setDashboardResults((current) => ({...current,
+        [dashboard.id]: results}));
+      setDashboardSelections((current) => ({...current,
+        [dashboard.id]: selection}));
+      setResultHistory((current) => [...current, ...Object.values(results)]);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const selectDashboardPoint = (dashboard, chart, selection) => {
+    if (!dashboard.cross_filtering || working) return;
+    const filter = semanticCrossFilter(definition, chart, selection);
+    if (!filter) {
+      setError(gettext(
+        'The selected chart encoding is not a semantic dimension or level.'
+      ));
+      return;
+    }
+    runDashboard(dashboard, filter, {...selection, chart_id: chart.id});
   };
   const runDiagnostics = async () => {
     setWorking(true); setError(null);
@@ -3528,16 +3616,41 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         <Box component="strong">{dashboard.name}</Box> · {
           dashboard.cross_filtering ? gettext('cross-filtering enabled') :
             gettext('independent tiles')}
-        <Box>{dashboard.tiles.map((tile, index) => <Box key={
-          tile.visualization_id}>{tile.visualization_id}
-          <Button onClick={() => setDefinition({...definition,
-            dashboards: definition.dashboards.map((item) =>
-              item.id === dashboard.id ? {...item,
-                tiles: item.tiles.filter(
-                  (_tile, position) => position !== index),
-              } : item),
-          })}>{gettext('Remove tile')}</Button>
-        </Box>)}</Box>
+        <Box sx={{display: 'flex', gap: 1, my: 1}}>
+          <Button disabled={!semantic.capabilities.execution_available || working}
+            onClick={() => runDashboard(dashboard)}>
+            {gettext('Run dashboard')}</Button>
+          <Button disabled={!dashboardSelections[dashboard.id] || working}
+            onClick={() => runDashboard(dashboard)}>
+            {gettext('Clear dashboard selection')}</Button>
+          {dashboardSelections[dashboard.id] && <Box role="status">
+            {gettext('Filtered by')} {
+              dashboardSelections[dashboard.id].label}</Box>}
+        </Box>
+        <Box sx={{display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 1}}>
+          {dashboard.tiles.map((tile, index) => {
+            const chart = (definition.visualizations || []).find((item) =>
+              item.id === tile.visualization_id);
+            const tileResult = dashboardResults[dashboard.id]?.[
+              tile.visualization_id];
+            return <Box key={tile.visualization_id}
+              aria-label={gettext('Dashboard chart tile')}
+              sx={{p: 1, border: 1, borderColor: 'divider'}}>
+              <Box component="strong">{chart?.name || tile.visualization_id}</Box>
+              <Button onClick={() => setDefinition({...definition,
+                dashboards: definition.dashboards.map((item) =>
+                  item.id === dashboard.id ? {...item,
+                    tiles: item.tiles.filter(
+                      (_tile, position) => position !== index),
+                  } : item),
+              })}>{gettext('Remove tile')}</Button>
+              {chart && tileResult && <SemanticChartView chart={chart}
+                rendered={tileResult} onSelect={(selection) =>
+                  selectDashboardPoint(dashboard, chart, selection)} />}
+            </Box>;
+          })}
+        </Box>
         <Box sx={{display: 'flex', gap: 1, mt: 1}}>
           <TextField select label={gettext('Chart to add')}
             value={dashboardDraft.visualization_id} onChange={(event) =>

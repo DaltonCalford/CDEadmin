@@ -81,6 +81,7 @@ def _integration_failures(root):
             'Time role', 'Metric owner', 'Add cross-filter',
             'Chart builder', 'Dashboard builder', 'Report builder',
             'Row-level security', 'Tenant filtering', 'Query diagnostics',
+            'semanticCrossFilter', 'Run dashboard',
         ),
     }
     failures = []

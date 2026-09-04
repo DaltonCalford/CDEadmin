@@ -8,7 +8,9 @@
 //////////////////////////////////////////////////////////////
 
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
-import ProviderWorkspaceContent from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
+import ProviderWorkspaceContent, {
+  semanticCrossFilter,
+} from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
@@ -93,6 +95,29 @@ describe('ProviderWorkspaceContent', () => {
     api = {get: jest.fn(), post: jest.fn()};
     getApiInstance.mockReturnValue(api);
     api.get.mockResolvedValue({data: {data: bootstrap}});
+  });
+
+  it('maps chart selections to provider-compiled semantic filters', () => {
+    const definition = {dimensions: [{
+      id: 'region', field: {source_id: 'sales', field: 'region'},
+      hierarchies: [{levels: [{
+        id: 'region_level',
+        field: {source_id: 'sales', field: 'customer.region'},
+      }]}],
+    }]};
+    const chart = {encodings: {x: 'region_level'}};
+    expect(semanticCrossFilter(definition, chart, {value: 'North'}))
+      .toEqual({
+        field: {source_id: 'sales', field: 'customer.region'},
+        operator: 'eq', value: 'North',
+      });
+    expect(semanticCrossFilter(definition, chart, {value: null}))
+      .toEqual({
+        field: {source_id: 'sales', field: 'customer.region'},
+        operator: 'is_null',
+      });
+    expect(semanticCrossFilter(definition, {encodings: {x: 'measure'}},
+      {value: 42})).toBeNull();
   });
 
   it('loads provider resources through the workspace endpoint', async () => {
