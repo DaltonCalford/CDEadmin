@@ -156,6 +156,27 @@ class SemanticModelTests(unittest.TestCase):
         self.assertIn("North''; DROP TABLE sales; --", compiled['source'])
         self.assertNotIn("North'; DROP", compiled['source'])
 
+    def test_filter_operand_shapes_fail_before_provider_compilation(self):
+        checked = validate_model(model())
+        invalid = (
+            ('in', 'North', 'requires an array'),
+            ('not_in', 3, 'requires an array'),
+            ('between', [1], 'array of two values'),
+            ('eq', None, 'requires a value or parameter'),
+            ('is_null', None, 'must not contain a value'),
+        )
+        for operator, value, message in invalid:
+            request = query()
+            request['filters'] = [{
+                'field': {'source_id': 'sales', 'field': 'region_name'},
+                'operator': operator,
+            }]
+            if value is not None or operator == 'is_null':
+                request['filters'][0]['value'] = value
+            with self.subTest(operator=operator), self.assertRaisesRegex(
+                    SemanticModelError, message):
+                validate_query(checked, request)
+
     def test_calculated_measure_uses_structured_expression_tree(self):
         value = model()
         value['measures'].extend([{

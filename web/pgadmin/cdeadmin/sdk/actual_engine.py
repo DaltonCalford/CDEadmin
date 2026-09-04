@@ -87,6 +87,7 @@ class PilotProfile:
     semantic_sql_dialect: Mapping[str, Any] | None = None
     semantic_materialization_kind: str | None = None
     semantic_materialization_defaults: Mapping[str, Any] | None = None
+    semantic_compiler_kind: str | None = None
 
     def __post_init__(self):
         fields = (
@@ -129,10 +130,18 @@ class PilotProfile:
                     'semantic_materialization_kind',
                 )
             )
-            if self.semantic_sql_dialect is None:
+            if self.semantic_sql_dialect is None and (
+                    self.semantic_compiler_kind is None):
                 raise PilotProviderError(
                     'semantic materialization requires a semantic compiler'
                 )
+        if self.semantic_compiler_kind is not None:
+            object.__setattr__(
+                self, 'semantic_compiler_kind', _required(
+                    self.semantic_compiler_kind, 'semantic_compiler_kind'
+                )
+            )
+        if self.semantic_sql_dialect is not None:
             language = self.semantic_sql_dialect.get('language_profile')
             if language != self.language_profile:
                 raise PilotProviderError(
@@ -289,7 +298,10 @@ class ActualEnginePilotProvider:
 
     def semantic_model_descriptor(self):
         """Describe provider-owned semantic compilation availability."""
-        available = self.profile.semantic_sql_dialect is not None
+        available = (
+            self.profile.semantic_sql_dialect is not None or
+            self.profile.semantic_compiler_kind is not None
+        )
         return {
             'provider_id': self.profile.provider_id,
             'engine_id': self.profile.engine_id,
@@ -297,7 +309,12 @@ class ActualEnginePilotProvider:
             'execution_available': available,
             'language_profile': (
                 self.profile.semantic_sql_dialect.get('language_profile')
-                if available else None
+                if self.profile.semantic_sql_dialect is not None else
+                self.profile.language_profile if available else None
+            ),
+            'compiler_kind': self.profile.semantic_compiler_kind or (
+                'sql' if self.profile.semantic_sql_dialect is not None
+                else None
             ),
             'materialization': {
                 'execution_available': (

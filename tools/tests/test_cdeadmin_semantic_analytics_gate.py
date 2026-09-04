@@ -20,6 +20,12 @@ class SemanticAnalyticsGateTests(unittest.TestCase):
         self.assertEqual(26, self.result['profile_count'])
         self.assertGreaterEqual(self.result['semantic_family_count'], 8)
         self.assertEqual(23, self.result['required_capability_count'])
+        self.assertEqual(3, self.result['native_compiler_count'])
+        self.assertEqual({
+            'mongodb-native': 'mongodb-aggregation',
+            'neo4j-native': 'neo4j-cypher',
+            'opensearch-native': 'opensearch-composite-aggregation',
+        }, self.result['native_compilers'])
         self.assertEqual([], self.result['failures'])
         self.assertEqual(
             ['scratchbird'], self.result['scope']['deferred_engine_ids']

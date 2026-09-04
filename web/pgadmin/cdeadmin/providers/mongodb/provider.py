@@ -38,12 +38,18 @@ PROFILE = PilotProfile(
     result_records_field='documents',
     result_export_formats=('json', 'jsonl'),
     result_worker_required=True,
+    semantic_compiler_kind='mongodb-aggregation',
 )
 
 
 class MongoDBPilotProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
+
+    @staticmethod
+    def compile_semantic_query(model, query):
+        from .semantic import compile_mongodb_aggregation
+        return compile_mongodb_aggregation(model, query)
 
 
 def create_provider(context, permissions, client=None):

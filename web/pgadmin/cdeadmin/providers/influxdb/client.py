@@ -262,6 +262,8 @@ class InfluxDBClient:
         value = str(value).casefold()
         if value in {'sql', 'influxql'}:
             return value
+        if value == 'influxdb3-sql-influxql':
+            return default
         if 'influxql' in value:
             return 'influxql'
         if 'sql' in value:

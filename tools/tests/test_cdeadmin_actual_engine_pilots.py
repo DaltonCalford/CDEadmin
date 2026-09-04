@@ -459,6 +459,7 @@ class ActualEnginePilotContractTests(unittest.TestCase):
             'xtdb', 'clickhouse', 'influxdb', 'cockroachdb', 'dolt',
             'tidb', 'vitess', 'yugabytedb',
         }
+        native = {'mongodb', 'neo4j', 'opensearch'}
         observed = set()
         for provider_type, profile in PILOTS:
             instance = provider(provider_type, profile)
@@ -476,6 +477,13 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                     compiled['language_profile'],
                 )
                 self.assertIn('COUNT(*)', compiled['source'])
+            elif profile.engine_id in native:
+                observed.add(profile.engine_id)
+                self.assertTrue(descriptor['execution_available'])
+                self.assertEqual(
+                    profile.semantic_compiler_kind,
+                    descriptor['compiler_kind'],
+                )
             else:
                 self.assertFalse(descriptor['execution_available'])
                 self.assertIsNotNone(descriptor['reason'])
@@ -483,7 +491,7 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                     instance.compile_semantic_query(
                         semantic_model(profile.engine_id), semantic_query()
                     )
-        self.assertEqual(admitted, observed)
+        self.assertEqual(admitted | native, observed)
 
     def test_wrong_runtime_engine_version_or_protocol_fails_closed(self):
         for field in ('engine_id', 'version', 'protocol_id'):

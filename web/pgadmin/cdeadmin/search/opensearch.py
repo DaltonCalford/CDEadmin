@@ -218,7 +218,15 @@ class OpenSearchClient:
         if not isinstance(handle, _Session) or handle.closed:
             raise OpenSearchClientError('OpenSearch session is unavailable')
         source = self._source(request.get('source'))
-        index = request.get('index') or handle.route.get('index')
+        parameters = request.get('parameters') or {}
+        if not isinstance(parameters, Mapping):
+            raise OpenSearchClientError(
+                'OpenSearch query parameters must be an object'
+            )
+        index = (
+            request.get('index') or parameters.get('index') or
+            handle.route.get('index')
+        )
         path = '/_search' if not index else f'/{
             _path_part(
                 index, "index")}/_search'
@@ -235,6 +243,13 @@ class OpenSearchClient:
             Mapping) else []
         if not isinstance(hits, list):
             raise OpenSearchClientError('OpenSearch hits are invalid')
+        source_aggregations = source.get('aggs', {})
+        if isinstance(source_aggregations, Mapping) and (
+                'semantic_rows' in source_aggregations):
+            hits = self._semantic_aggregation_rows(
+                document, parameters.get('semantic_axes', []),
+                parameters.get('semantic_count_measures', []),
+            )
         handle.last_observation = 'native-search-response-observed'
         return _Result(
             copy.deepcopy(hits[:MAX_RECORDS]),
@@ -244,6 +259,54 @@ class OpenSearchClient:
              'timed_out': document.get('timed_out')},
             copy.deepcopy(dict(document)),
         )
+
+    @staticmethod
+    def _semantic_aggregation_rows(document, axes, count_measures):
+        """Flatten only CDEadmin's reserved semantic aggregation envelope."""
+        if not isinstance(axes, list) or not all(
+                isinstance(item, str) for item in axes):
+            raise OpenSearchClientError('semantic axes are invalid')
+        if not isinstance(count_measures, list) or not all(
+                isinstance(item, str) for item in count_measures):
+            raise OpenSearchClientError('semantic count measures are invalid')
+        aggregations = document.get('aggregations', {})
+        if not isinstance(aggregations, Mapping) or (
+                'semantic_rows' not in aggregations):
+            raise OpenSearchClientError(
+                'OpenSearch semantic aggregation response is missing'
+            )
+        semantic = aggregations['semantic_rows']
+        if not isinstance(semantic, Mapping):
+            raise OpenSearchClientError(
+                'OpenSearch semantic aggregation response is invalid'
+            )
+
+        def row(value, keys):
+            result = copy.deepcopy(keys)
+            for name, metric in value.items():
+                if name in {'key', 'key_as_string', 'doc_count', 'buckets',
+                            'after_key'}:
+                    continue
+                if isinstance(metric, Mapping) and 'value' in metric:
+                    result[str(name)] = copy.deepcopy(metric['value'])
+            for name in count_measures:
+                result[name] = value.get('doc_count', 0)
+            return result
+
+        buckets = semantic.get('buckets')
+        if isinstance(buckets, list):
+            rows = []
+            for bucket in buckets:
+                if not isinstance(bucket, Mapping):
+                    raise OpenSearchClientError(
+                        'OpenSearch semantic bucket is invalid'
+                    )
+                key = bucket.get('key', {})
+                if not isinstance(key, Mapping):
+                    key = {axes[0]: key} if len(axes) == 1 else {}
+                rows.append(row(bucket, dict(key)))
+            return rows
+        return [row(semantic, {})]
 
     @staticmethod
     def cancel(_token):

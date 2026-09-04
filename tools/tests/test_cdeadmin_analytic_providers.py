@@ -381,6 +381,18 @@ class Lease:
 
 class AnalyticProviderTests(unittest.TestCase):
 
+    def test_influxdb_combined_profile_uses_route_default_language(self):
+        self.assertEqual(
+            'sql', InfluxDBClient._language(
+                INFLUXDB.language_profile, 'sql'
+            )
+        )
+        self.assertEqual(
+            'influxql', InfluxDBClient._language(
+                INFLUXDB.language_profile, 'influxql'
+            )
+        )
+
     def test_profiles_and_manifests_are_distinct_and_activated(self):
         profiles = [INFLUXDB, MILVUS, OPENSEARCH, OPENSEARCH_SQL_PPL]
         self.assertEqual(4, len({profile.provider_id for profile in profiles}))

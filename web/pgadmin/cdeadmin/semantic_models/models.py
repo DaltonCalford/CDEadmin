@@ -348,6 +348,26 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
             certification.get('definition') or ''
         )[:4096]
         measure['certification'] = certification
+    dependencies = {
+        item['id']: _expression_references(item.get('expression'))
+        for item in measures
+    }
+    visited = set()
+    visiting = set()
+
+    def visit_measure(measure_id):
+        if measure_id in visiting:
+            raise SemanticModelError('calculated measure cycle is unsupported')
+        if measure_id in visited:
+            return
+        visiting.add(measure_id)
+        for dependency in dependencies[measure_id]:
+            visit_measure(dependency)
+        visiting.remove(measure_id)
+        visited.add(measure_id)
+
+    for measure_id in measure_ids:
+        visit_measure(measure_id)
     model['measures'] = measures
 
     parameters = array(model.get('parameters', []), 'model.parameters', 128)
@@ -376,8 +396,9 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
                 )
     model['parameters'] = parameters
 
+    parameter_definitions = {item['id']: item for item in parameters}
     model['default_filters'] = _validate_filters(
-        model.get('default_filters', []), source_ids, parameter_ids
+        model.get('default_filters', []), source_ids, parameter_definitions
     )
     materializations = array(
         model.get('materializations', []), 'model.materializations', 64
@@ -397,7 +418,7 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
     model['materializations'] = materializations
     security = mapping(model.get('security', {}), 'model.security')
     security['row_filters'] = _validate_filters(
-        security.get('row_filters', []), source_ids, parameter_ids
+        security.get('row_filters', []), source_ids, parameter_definitions
     )
     tenant = security.get('tenant_filter')
     if tenant is not None:
@@ -418,7 +439,7 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
             'security.role.principal_claim',
         )
         role['filters'] = _validate_filters(
-            role.get('filters', []), source_ids, parameter_ids
+            role.get('filters', []), source_ids, parameter_definitions
         )
     security['roles'] = roles
     model['security'] = security
@@ -570,6 +591,17 @@ def _validate_expression(value, measure_ids, current_id, depth=0):
     _validate_expression(value['right'], measure_ids, current_id, depth + 1)
 
 
+def _expression_references(value):
+    if value is None or 'literal' in value:
+        return set()
+    if 'measure' in value:
+        return {value['measure']}
+    return (
+        _expression_references(value['left']) |
+        _expression_references(value['right'])
+    )
+
+
 def _validate_parameter_value(value, parameter_type):
     """Enforce declared parameter types without coercing caller input."""
     valid = {
@@ -595,20 +627,29 @@ def _validate_field_reference(value, source_ids):
     value = mapping(value, 'field reference')
     if value.get('source_id') not in source_ids:
         raise SemanticModelError('field reference uses an unknown source')
-    identifier(value.get('field'), 'field reference.field')
+    field = required_text(value.get('field'), 'field reference.field', 512)
+    if '\x00' in field:
+        raise SemanticModelError('field reference contains a null character')
 
 
-def _validate_filters(value, source_ids, parameter_ids=frozenset()):
+def _validate_filters(value, source_ids, parameters=None):
+    parameters = parameters or {}
+    parameter_ids = set(parameters)
     filters = array(value, 'filters', 128)
     normalized = []
     for raw in filters:
         item = mapping(raw, 'filter')
         _validate_field_reference(item.get('field'), source_ids)
-        if item.get('operator', 'eq') not in FILTER_OPERATORS:
+        operator = item.get('operator', 'eq')
+        if operator not in FILTER_OPERATORS:
             raise SemanticModelError('filter.operator is unsupported')
-        item['operator'] = item.get('operator', 'eq')
+        item['operator'] = operator
         parameter_id = item.get('parameter_id')
         if parameter_id is not None:
+            if operator in {'is_null', 'is_not_null'}:
+                raise SemanticModelError(
+                    f'{operator} filter must not use a parameter'
+                )
             if parameter_id not in parameter_ids:
                 raise SemanticModelError(
                     'filter references an unknown parameter'
@@ -617,6 +658,27 @@ def _validate_filters(value, source_ids, parameter_ids=frozenset()):
                 raise SemanticModelError(
                     'filter cannot contain both value and parameter_id'
                 )
+            if operator in {'in', 'not_in', 'between'} and parameters[
+                    parameter_id]['type'] != 'array':
+                raise SemanticModelError(
+                    f'{operator} filter parameter must have array type'
+                )
+        elif operator in {'is_null', 'is_not_null'}:
+            if 'value' in item:
+                raise SemanticModelError(
+                    f'{operator} filter must not contain a value'
+                )
+        elif 'value' not in item:
+            raise SemanticModelError('filter requires a value or parameter')
+        elif operator in {'in', 'not_in'} and not isinstance(
+                item['value'], list):
+            raise SemanticModelError(f'{operator} filter requires an array')
+        elif operator == 'between' and (
+                not isinstance(item['value'], list) or
+                len(item['value']) != 2):
+            raise SemanticModelError(
+                'between filter requires an array of two values'
+            )
         normalized.append(item)
     return normalized
 
@@ -640,11 +702,11 @@ def validate_query(model, value):
     query['measures'] = selected_measures
     query['filters'] = _validate_filters(
         query.get('filters', []), set(symbols['source_ids']),
-        set(symbols['parameter_ids'])
+        {item['id']: item for item in model['parameters']}
     )
     query['cross_filters'] = _validate_filters(
         query.get('cross_filters', []), set(symbols['source_ids']),
-        set(symbols['parameter_ids'])
+        {item['id']: item for item in model['parameters']}
     )
     parameters = mapping(query.get('parameters', {}), 'query.parameters')
     if set(parameters).difference(symbols['parameter_ids']):

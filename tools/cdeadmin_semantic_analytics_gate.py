@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from pathlib import Path
@@ -40,6 +41,27 @@ REQUIRED_CAPABILITIES = frozenset({
     'tenant_filtering', 'metric_certification', 'lineage', 'versioning',
     'diagnostics', 'reproducibility',
 })
+
+NATIVE_COMPILERS = {
+    'mongodb-native': {
+        'kind': 'mongodb-aggregation',
+        'provider_module': 'pgadmin.cdeadmin.providers.mongodb.provider',
+        'compiler_module': 'pgadmin.cdeadmin.providers.mongodb.semantic',
+        'callable': 'compile_mongodb_aggregation',
+    },
+    'neo4j-native': {
+        'kind': 'neo4j-cypher',
+        'provider_module': 'pgadmin.cdeadmin.providers.neo4j.provider',
+        'compiler_module': 'pgadmin.cdeadmin.providers.neo4j.semantic',
+        'callable': 'compile_neo4j_cypher',
+    },
+    'opensearch-native': {
+        'kind': 'opensearch-composite-aggregation',
+        'provider_module': 'pgadmin.cdeadmin.providers.opensearch.provider',
+        'compiler_module': 'pgadmin.cdeadmin.providers.opensearch.semantic',
+        'callable': 'compile_opensearch_aggregation',
+    },
+}
 
 
 def _integration_failures(root):
@@ -75,9 +97,44 @@ def _integration_failures(root):
     return failures
 
 
+def _native_compiler_failures(catalogs):
+    failures = []
+    activated = {}
+    for profile_id, declaration in NATIVE_COMPILERS.items():
+        if profile_id not in catalogs:
+            failures.append(f'{profile_id}:provider-profile-missing')
+            continue
+        try:
+            provider_module = importlib.import_module(
+                declaration['provider_module']
+            )
+            compiler_module = importlib.import_module(
+                declaration['compiler_module']
+            )
+        except ImportError:
+            failures.append(f'{profile_id}:native-compiler-import-failed')
+            continue
+        profile = getattr(provider_module, 'PROFILE', None)
+        compiler = getattr(compiler_module, declaration['callable'], None)
+        if getattr(profile, 'semantic_compiler_kind', None) != declaration[
+                'kind']:
+            failures.append(f'{profile_id}:native-compiler-not-activated')
+            continue
+        if not callable(compiler):
+            failures.append(f'{profile_id}:native-compiler-not-callable')
+            continue
+        if profile.profile_id != profile_id:
+            failures.append(f'{profile_id}:native-compiler-profile-mismatch')
+            continue
+        activated[profile_id] = declaration['kind']
+    return failures, activated
+
+
 def audit(catalogs=None, root=ROOT):
     catalogs = provider_catalogs() if catalogs is None else catalogs
     failures = _integration_failures(root)
+    compiler_failures, native_compilers = _native_compiler_failures(catalogs)
+    failures.extend(compiler_failures)
     profiles = {}
     families = {}
     for profile_id in sorted(catalogs):
@@ -120,6 +177,8 @@ def audit(catalogs=None, root=ROOT):
         'semantic_family_count': len(families),
         'semantic_families': dict(sorted(families.items())),
         'required_capability_count': len(REQUIRED_CAPABILITIES),
+        'native_compiler_count': len(native_compilers),
+        'native_compilers': native_compilers,
         'scope': {
             'profile_ids': sorted(profiles),
             'deferred_engine_ids': list(DEFERRED_ENGINE_IDS),

@@ -33,7 +33,7 @@ PROFILE = PilotProfile(
     result_export_formats=('csv', 'json', 'jsonl'),
     result_worker_required=True,
     semantic_sql_dialect={
-        'language_profile': 'sql', 'quote_open': '"',
+        'language_profile': 'influxdb3-sql-influxql', 'quote_open': '"',
         'supports_rollup': False,
     },
 )

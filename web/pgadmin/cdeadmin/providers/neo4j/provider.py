@@ -40,12 +40,18 @@ PROFILE = PilotProfile(
     result_records_field='graphs',
     result_export_formats=('json', 'jsonl'),
     result_worker_required=True,
+    semantic_compiler_kind='neo4j-cypher',
 )
 
 
 class Neo4jPilotProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
+
+    @staticmethod
+    def compile_semantic_query(model, query):
+        from .semantic import compile_neo4j_cypher
+        return compile_neo4j_cypher(model, query)
 
 
 def create_provider(context, permissions, client=None):

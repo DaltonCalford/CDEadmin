@@ -34,12 +34,18 @@ PROFILE = PilotProfile(
     result_records_field='hits',
     result_export_formats=('json', 'jsonl'),
     result_worker_required=True,
+    semantic_compiler_kind='opensearch-composite-aggregation',
 )
 
 
 class OpenSearchPilotProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
+
+    @staticmethod
+    def compile_semantic_query(model, query):
+        from .semantic import compile_opensearch_aggregation
+        return compile_opensearch_aggregation(model, query)
 
 
 def create_provider(context, permissions, client=None):
