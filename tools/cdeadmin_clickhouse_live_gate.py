@@ -50,8 +50,22 @@ CATEGORIES = (
     'insert_and_aggregate', 'semantic_query', 'semantic_materialization',
     'editable_grid', 'columnar_objects',
     'views_and_functions', 'access_control', 'resource_discovery',
-    'transaction_boundary', 'cleanup',
+    'object_operations', 'transaction_boundary', 'cleanup',
 )
+OBJECT_OPERATIONS = {
+    'table': {
+        'inspect', 'create', 'alter', 'rename', 'insert', 'update', 'delete',
+        'drop',
+    },
+    'view': {'inspect', 'create', 'alter', 'rename', 'drop'},
+    'materialized-view': {'inspect', 'create', 'alter', 'rename', 'drop'},
+    'projection': {'inspect', 'create', 'alter', 'execute', 'drop'},
+    'dictionary': {'inspect', 'create', 'alter', 'execute', 'drop'},
+    'data-skipping-index': {
+        'inspect', 'create', 'alter', 'execute', 'drop',
+    },
+    'partition': {'inspect', 'execute'},
+}
 
 
 class _Lease:
@@ -100,6 +114,7 @@ def parser():
     value.add_argument('--tls-certificate-file')
     value.add_argument('--tls-key-file')
     value.add_argument('--output', type=Path)
+    value.add_argument('--object-output', type=Path)
     value.add_argument(
         '--destructive-disposable-runtime', action='store_true',
         help='admit temporary databases and access-control objects',
@@ -171,6 +186,7 @@ def verify(args):
     profile = f'cdeadmin_profile_{run_id}'
     policy = f'cdeadmin_policy_{run_id}'
     function = f'cdeadmin_fn_{run_id}'
+    dictionary = f'cdeadmin_dictionary_{run_id}'
     semantic_view = f'cdeadmin_semantic_{run_id}'
     route = {
         'route_id': f'clickhouse-live-{run_id}',
@@ -200,7 +216,16 @@ def verify(args):
         ),
     }
     failures = []
+    observed_operations = {
+        kind: set() for kind in OBJECT_OPERATIONS
+    }
     session = None
+
+    def admin(kind, operation, draft, target=None):
+        result = _admin(client, route, kind, operation, draft, target)
+        if kind in observed_operations:
+            observed_operations[kind].add(operation)
+        return result
 
     _record(evidence, 'runtime_identity', lambda: client.runtime_identity({
         'route': route
@@ -272,7 +297,7 @@ def verify(args):
                     'name': database, 'engine': 'Atomic',
                     'comment': 'CDEadmin exact-profile qualification',
                 })
-                _admin(client, route, 'table', 'create', {
+                admin('table', 'create', {
                     'database': database, 'name': 'events',
                     'columns': [
                         {'name': 'id', 'type': 'UInt64'},
@@ -302,8 +327,8 @@ def verify(args):
                     {'id': 3, 'category': 'two', 'value': 5,
                      'event_time': '2026-09-02 12:02:00'},
                 ):
-                    _admin(
-                        client, route, 'table', 'insert', {'values': row},
+                    admin(
+                        'table', 'insert', {'values': row},
                         table_target,
                     )
                 value = _execute(
@@ -442,6 +467,7 @@ def verify(args):
                     'plan_id': plan['plan_id'],
                     'plan_digest': plan['plan_digest'], 'confirmed': True,
                 })
+                observed_operations['materialized-view'].add('create')
                 observed = _execute(
                     client, session,
                     'SELECT name, engine FROM system.tables WHERE '
@@ -477,7 +503,7 @@ def verify(args):
                     item for item in page['rows']
                     if item['values']['id'] == 1
                 )
-                _admin(client, route, 'table', 'update', {
+                admin('table', 'update', {
                     'selector': {'id': 1},
                     'concurrency_token': row['concurrency_token'],
                     'changes': {'value': 11},
@@ -490,7 +516,7 @@ def verify(args):
                     item for item in page['rows']
                     if item['values']['id'] == 3
                 )
-                _admin(client, route, 'table', 'delete', {
+                admin('table', 'delete', {
                     'selector': {'id': 3},
                     'concurrency_token': row['concurrency_token'],
                     'acknowledge_delete': True,
@@ -520,14 +546,14 @@ def verify(args):
                     'projection', database=database, table='events',
                     name='category_projection',
                 )
-                _admin(client, route, 'data-skipping-index', 'create', {
+                admin('data-skipping-index', 'create', {
                     'name': 'value_index', 'expression': 'value',
                     'type': 'minmax', 'granularity': 1,
                 }, index_target)
-                _admin(client, route, 'projection', 'create', {
+                admin('projection', 'create', {
                     'name': 'category_projection',
-                    'expression': 'SELECT category, sum(value) GROUP BY '
-                    'category',
+                    'select_columns': ['category', 'sum(value)'],
+                    'group_by': ['category'], 'order_by': [],
                 }, projection_target)
                 observed = _execute(
                     client, session,
@@ -543,7 +569,7 @@ def verify(args):
             )
 
             def views_and_functions():
-                _admin(client, route, 'view', 'create', {
+                admin('view', 'create', {
                     'database': database, 'name': 'event_totals',
                     'select': f'SELECT category, sum(value) AS total FROM '
                     f'`{database}`.`events` GROUP BY category',
@@ -617,6 +643,208 @@ def verify(args):
 
             _record(evidence, 'resource_discovery', resources, failures)
 
+            def object_operations():
+                lifecycle = 'lifecycle_objects'
+                lifecycle_target = _target(
+                    'table', database=database, table=lifecycle,
+                    name=lifecycle,
+                )
+                admin('table', 'create', {
+                    'database': database, 'name': lifecycle,
+                    'columns': [
+                        {'name': 'id', 'type': 'UInt64'},
+                        {'name': 'value', 'type': 'Int64'},
+                    ],
+                    'engine': 'MergeTree', 'order_by': 'id',
+                })
+                admin('table', 'inspect', {}, lifecycle_target)
+                admin('table', 'alter', {
+                    'action': 'modify-setting',
+                    'setting_name': 'min_bytes_for_wide_part',
+                    'setting_value': '0',
+                }, lifecycle_target)
+                admin('table', 'rename', {
+                    'new_name': lifecycle + '_renamed',
+                }, lifecycle_target)
+                renamed_lifecycle = _target(
+                    'table', database=database,
+                    table=lifecycle + '_renamed',
+                    name=lifecycle + '_renamed',
+                )
+                admin('table', 'rename', {
+                    'new_name': lifecycle,
+                }, renamed_lifecycle)
+
+                view_target = _target(
+                    'view', database=database, table='event_totals',
+                    name='event_totals',
+                )
+                admin('view', 'inspect', {'limit': 20}, view_target)
+                admin('view', 'alter', {
+                    'select': f'SELECT category, sum(value) AS total FROM '
+                    f'`{database}`.`events` GROUP BY category',
+                }, view_target)
+                admin('view', 'rename', {
+                    'new_name': 'event_totals_renamed',
+                }, view_target)
+                renamed_view = _target(
+                    'view', database=database,
+                    table='event_totals_renamed',
+                    name='event_totals_renamed',
+                )
+                admin('view', 'rename', {
+                    'new_name': 'event_totals',
+                }, renamed_view)
+
+                materialized_target = _target(
+                    'materialized-view', database=database,
+                    table=semantic_view, name=semantic_view,
+                )
+                admin('materialized-view', 'inspect', {'limit': 20},
+                      materialized_target)
+                admin('materialized-view', 'alter', {
+                    'select': semantic_compiled['source'],
+                }, materialized_target)
+                admin('materialized-view', 'rename', {
+                    'new_name': semantic_view + '_renamed',
+                }, materialized_target)
+                renamed_materialized = _target(
+                    'materialized-view', database=database,
+                    table=semantic_view + '_renamed',
+                    name=semantic_view + '_renamed',
+                )
+                admin('materialized-view', 'rename', {
+                    'new_name': semantic_view,
+                }, renamed_materialized)
+
+                projection_target = _target(
+                    'projection', database=database, table='events',
+                    name='category_projection',
+                )
+                admin('projection', 'inspect', {}, projection_target)
+                projection_draft = {
+                    'select_columns': ['category', 'sum(value)'],
+                    'group_by': ['category'],
+                    'order_by': [],
+                }
+                admin('projection', 'alter', projection_draft,
+                      projection_target)
+                admin('projection', 'execute', {
+                    'action': 'materialize', 'partition_id': '',
+                    'acknowledge_operation': True,
+                }, projection_target)
+                admin('projection', 'execute', {
+                    'action': 'clear', 'partition_id': '',
+                    'acknowledge_operation': True,
+                }, projection_target)
+
+                index_target = _target(
+                    'data-skipping-index', database=database,
+                    table='events', name='value_index',
+                )
+                admin('data-skipping-index', 'inspect', {}, index_target)
+                admin('data-skipping-index', 'alter', {
+                    'expression': 'value', 'type': 'minmax',
+                    'type_parameters': [], 'granularity': 2,
+                }, index_target)
+                admin('data-skipping-index', 'execute', {
+                    'action': 'materialize', 'partition_id': '',
+                    'acknowledge_operation': True,
+                }, index_target)
+                admin('data-skipping-index', 'execute', {
+                    'action': 'clear', 'partition_id': '',
+                    'acknowledge_operation': True,
+                }, index_target)
+
+                dictionary_target = _target(
+                    'dictionary', database=database, name=dictionary,
+                )
+                dictionary_draft = {
+                    'database': database, 'name': dictionary,
+                    'attributes': [
+                        {'name': 'id', 'type': 'UInt64'},
+                        {'name': 'value', 'type': 'Int64'},
+                    ],
+                    'primary_key': 'id', 'source_database': database,
+                    'source_table': 'events', 'layout': 'HASHED',
+                    'source_username': args.username,
+                    'lifetime_min': 0, 'lifetime_max': 300,
+                }
+                if password is not None:
+                    dictionary_draft['source_password_reference'] = (
+                        secret_reference
+                    )
+                admin('dictionary', 'create', dictionary_draft)
+                admin('dictionary', 'inspect', {}, dictionary_target)
+                dictionary_draft.pop('database')
+                dictionary_draft.pop('name')
+                dictionary_draft['lifetime_max'] = 600
+                admin('dictionary', 'alter', dictionary_draft,
+                      dictionary_target)
+                admin('dictionary', 'execute', {
+                    'action': 'reload', 'partition_id': '',
+                    'acknowledge_operation': True,
+                }, dictionary_target)
+
+                partitions = [
+                    item for item in client.list_resources({'route': route})
+                    if item['resource_kind'] == 'partition' and
+                    item['native'].get('database') == database and
+                    item['native'].get('table') == 'events'
+                ]
+                if not partitions:
+                    raise RuntimeError('ClickHouse partition is unavailable')
+                partition = partitions[0]
+                partition_target = _target(
+                    'partition', database=database, table='events',
+                    name=partition['native']['partition_id'],
+                    partition_id=partition['native']['partition_id'],
+                )
+                admin('partition', 'inspect', {}, partition_target)
+                admin('partition', 'execute', {
+                    'action': 'optimize',
+                    'acknowledge_operation': True,
+                }, partition_target)
+
+                admin('projection', 'drop', {
+                    'acknowledge_drop': True,
+                }, projection_target)
+                admin('data-skipping-index', 'drop', {
+                    'acknowledge_drop': True,
+                }, index_target)
+                admin('dictionary', 'drop', {
+                    'acknowledge_drop': True,
+                }, dictionary_target)
+                admin('view', 'drop', {
+                    'acknowledge_drop': True,
+                }, view_target)
+                admin('materialized-view', 'drop', {
+                    'acknowledge_drop': True,
+                }, materialized_target)
+                admin('table', 'drop', {
+                    'acknowledge_drop': True,
+                }, lifecycle_target)
+                missing_operations = {
+                    kind: sorted(required.difference(
+                        observed_operations[kind]
+                    ))
+                    for kind, required in OBJECT_OPERATIONS.items()
+                    if required.difference(observed_operations[kind])
+                }
+                if missing_operations:
+                    raise RuntimeError(
+                        'ClickHouse object operations are missing: '
+                        f'{missing_operations}'
+                    )
+                return {
+                    kind: sorted(operations)
+                    for kind, operations in observed_operations.items()
+                }
+
+            _record(
+                evidence, 'object_operations', object_operations, failures
+            )
+
         def transaction_boundary():
             observed = client.describe_transaction(session)
             if observed['multi_statement_transaction_supported']:
@@ -669,6 +897,87 @@ def verify(args):
     evidence['status'] = 'passed' if not failures else 'failed'
     evidence['failure_count'] = len(failures)
     evidence['failures'] = failures
+    missing = {
+        kind: sorted(required.difference(observed_operations[kind]))
+        for kind, required in OBJECT_OPERATIONS.items()
+        if required.difference(observed_operations[kind])
+    }
+    semantic_passed = all(
+        evidence['categories'].get(name, {}).get('status') == 'passed'
+        for name in ('semantic_query', 'semantic_materialization')
+    )
+    concepts = {
+        'columnar': {
+            'native_relations': {
+                'status': 'passed',
+                'operations': {
+                    kind: sorted(observed_operations[kind])
+                    for kind in ('table', 'view', 'materialized-view')
+                },
+            },
+            'projections': {
+                'status': 'passed',
+                'operations': {'projection': sorted(
+                    observed_operations['projection']
+                )},
+            },
+            'dictionaries': {
+                'status': 'passed',
+                'operations': {'dictionary': sorted(
+                    observed_operations['dictionary']
+                )},
+            },
+            'data_skipping_indexes': {
+                'status': 'passed',
+                'operations': {'data-skipping-index': sorted(
+                    observed_operations['data-skipping-index']
+                )},
+            },
+            'partitions': {
+                'status': 'passed',
+                'operations': {'partition': sorted(
+                    observed_operations['partition']
+                )},
+            },
+        },
+        'semantic': {
+            concept: {
+                'status': 'passed' if semantic_passed else 'failed',
+                'operations': (
+                    {'materialized-view': sorted(
+                        observed_operations['materialized-view']
+                    )} if concept == 'materializations' else {}
+                ),
+            }
+            for concept in (
+                'cubes', 'dimensions', 'hierarchies', 'levels', 'measures',
+                'materializations',
+            )
+        },
+    }
+    object_failures = [
+        value for value in failures
+        if value.startswith(('object_operations:', 'semantic_query:',
+                             'semantic_materialization:'))
+    ]
+    object_evidence = {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'clickhouse',
+        'exact_profile': '25.12.10.7-stable',
+        'evidence_scope': 'columnar-and-semantic-object-operations',
+        'concepts': concepts,
+        'passed_resource_operations': {
+            kind: sorted(operations)
+            for kind, operations in observed_operations.items()
+        },
+        'missing_resource_operations': missing,
+        'operation_failures': object_failures,
+        'raw_commands_used_for_provider_operations': False,
+        'automatic_mutation_retry': False,
+        'common_transaction_finality_interpreted': False,
+        'passed': not missing and not object_failures,
+    }
+    evidence['object_evidence'] = object_evidence
     return evidence
 
 
@@ -679,6 +988,14 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(document, encoding='utf-8')
+    if args.object_output:
+        args.object_output.parent.mkdir(parents=True, exist_ok=True)
+        args.object_output.write_text(
+            json.dumps(
+                evidence['object_evidence'], indent=2, sort_keys=True
+            ) + '\n',
+            encoding='utf-8',
+        )
     sys.stdout.write(document)
     return 0 if evidence['status'] == 'passed' else 1
 

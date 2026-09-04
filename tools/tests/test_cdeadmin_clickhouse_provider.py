@@ -319,6 +319,123 @@ class ClickHouseProviderTestCase(unittest.TestCase):
             for operation in item['operations']
         ))
 
+    def test_columnar_and_semantic_concepts_are_fully_declared(self):
+        catalog = self.client.visual_admin_catalog(
+            catalog_for_engine('clickhouse')
+        )
+        declarations = catalog['concept_declarations']
+        self.assertEqual({
+            'native_relations', 'projections', 'dictionaries',
+            'data_skipping_indexes', 'partitions',
+        }, set(declarations['columnar']))
+        self.assertEqual({
+            'cubes', 'dimensions', 'hierarchies', 'levels', 'measures',
+            'materializations',
+        }, set(declarations['semantic']))
+        self.assertTrue(all(
+            concept['status'] == 'supported'
+            for concepts in declarations.values()
+            for concept in concepts.values()
+        ))
+
+    def test_columnar_forms_are_typed_and_compile_native_operations(self):
+        catalog = self.client.visual_admin_catalog(
+            catalog_for_engine('clickhouse')
+        )
+        objects = {item['resource_kind']: item for item in catalog['objects']}
+        for kind in (
+            'table', 'view', 'materialized-view', 'projection',
+            'dictionary', 'data-skipping-index', 'partition',
+        ):
+            for operation in objects[kind]['operations']:
+                fields = {
+                    item['field_id']
+                    for item in operation['form']['fields']
+                }
+                self.assertNotIn('definition', fields, (kind, operation))
+
+        projection = self.client.plan_admin_operation({
+            'resource_kind': 'projection', 'operation_id': 'create',
+            '_provider_route': route(),
+            'target_resource': {
+                'resource_kind': 'table',
+                'extensions': {'clickhouse': {'native': {
+                    'database': 'qualification', 'table': 'widgets',
+                }}},
+            },
+            'draft': {
+                'name': 'category_totals',
+                'select_columns': ['category', 'sum(value)'],
+                'group_by': ['category'], 'order_by': [],
+            },
+        })
+        source, _parameters, _rows = self.client._compile_admin(
+            projection['provider_payload'],
+            self.client._route({'route': route()}),
+        )
+        self.assertEqual(
+            'ALTER TABLE `qualification`.`widgets` ADD PROJECTION '
+            '`category_totals` (SELECT category, sum(value) GROUP BY '
+            'category)',
+            source,
+        )
+
+        view = self.client.plan_admin_operation({
+            'resource_kind': 'view', 'operation_id': 'alter',
+            '_provider_route': route(),
+            'target_resource': target(
+                'view', name='totals', table='totals'
+            ),
+            'draft': {'select': 'SELECT 42 AS answer'},
+        })
+        source, _parameters, _rows = self.client._compile_admin(
+            view['provider_payload'],
+            self.client._route({'route': route()}),
+        )
+        self.assertEqual(
+            'CREATE OR REPLACE VIEW `qualification`.`totals` AS '
+            'SELECT 42 AS answer',
+            source,
+        )
+
+    def test_dictionary_source_password_is_secret_reference_backed(self):
+        request = {
+            'resource_kind': 'dictionary', 'operation_id': 'create',
+            '_provider_route': route(principal_reference='operator-one'),
+            'draft': {
+                'database': 'qualification', 'name': 'widget_dictionary',
+                'attributes': [
+                    {'name': 'id', 'type': 'UInt64'},
+                    {'name': 'value', 'type': 'String'},
+                ],
+                'primary_key': 'id',
+                'source_database': 'qualification',
+                'source_table': 'widgets', 'source_username': 'reader',
+                'source_password_reference': 'dictionary-secret',
+                'layout': 'HASHED', 'lifetime_min': 0,
+                'lifetime_max': 300,
+            },
+        }
+        plan = self.client.plan_admin_operation(request)
+        self.assertEqual(
+            'CREATE DICTIONARY WITH <redacted>',
+            plan['command_preview']['statement'],
+        )
+        self.assertNotIn('qualification-password', json.dumps(plan))
+        source, _parameters, _rows = self.client._compile_admin(
+            plan['provider_payload'], self.client._route({
+                'route': route(principal_reference='operator-one')
+            })
+        )
+        self.assertIn("USER 'reader'", source)
+        self.assertIn("PASSWORD 'qualification-password'", source)
+        self.assertEqual(
+            ('dictionary-secret', 'operator-one', 'administer',
+             'database_password'),
+            self.secret_requests[-1],
+        )
+        self.assertTrue(self.leases[-1].closed)
+
     def test_structured_table_ddl_rejects_second_statement(self):
         request = {
             'resource_kind': 'table', 'operation_id': 'create',

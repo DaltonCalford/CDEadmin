@@ -176,6 +176,17 @@ def _expression(value, label, maximum=16384):
     return value
 
 
+def _expression_list(value, label, required=False):
+    if not isinstance(value, list) or (required and not value):
+        raise ClickHouseClientError(f'{label} must be an array')
+    result = [
+        _expression(item, f'{label} item', 8192) for item in value
+    ]
+    if len(result) != len(set(result)):
+        raise ClickHouseClientError(f'{label} must not contain duplicates')
+    return result
+
+
 class ClickHouseClient:
     """Native ClickHouse HTTP provider with fail-closed operation outcomes."""
 
@@ -205,11 +216,15 @@ class ClickHouseClient:
         'materialized-view': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',
         }),
-        'dictionary': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'dictionary': frozenset({
+            'inspect', 'create', 'alter', 'execute', 'drop',
+        }),
         'function': frozenset({'inspect', 'create', 'alter', 'drop'}),
-        'projection': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'projection': frozenset({
+            'inspect', 'create', 'alter', 'execute', 'drop',
+        }),
         'data-skipping-index': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'execute', 'drop',
         }),
         'partition': frozenset({'inspect', 'execute'}),
         'user': frozenset({
@@ -724,6 +739,79 @@ class ClickHouseClient:
         catalog['transaction_authority'] = 'clickhouse-statement-outcome'
         catalog['statement_atomicity_only'] = True
         catalog['common_finality_interpretation'] = False
+        catalog['experience_families'] = ['columnar', 'semantic']
+
+        def declaration(resource_kinds, operations, reason, evidence):
+            return {
+                'status': 'supported',
+                'resource_kinds': resource_kinds,
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in operations
+                },
+                'reason': reason,
+                'evidence': [evidence],
+            }
+
+        catalog['concept_declarations'] = {
+            'columnar': {
+                'native_relations': declaration(
+                    ['table', 'view', 'materialized-view'],
+                    ('table', 'view', 'materialized-view'),
+                    'ClickHouse relations are native columnar objects with '
+                    'provider-compiled lifecycle and grid operations.',
+                    'clickhouse-25.12-native-relations',
+                ),
+                'projections': declaration(
+                    ['projection'], ('projection',),
+                    'Projection definition, materialization, clearing and '
+                    'lifecycle are provider-owned.',
+                    'clickhouse-25.12-projections',
+                ),
+                'dictionaries': declaration(
+                    ['dictionary'], ('dictionary',),
+                    'Dictionary definition, reload and lifecycle are '
+                    'provider-owned.', 'clickhouse-25.12-dictionaries',
+                ),
+                'data_skipping_indexes': declaration(
+                    ['data-skipping-index'], ('data-skipping-index',),
+                    'Skipping-index definition, materialization, clearing '
+                    'and lifecycle are provider-owned.',
+                    'clickhouse-25.12-skipping-indexes',
+                ),
+                'partitions': declaration(
+                    ['partition'], ('partition',),
+                    'Partitions are discovered from active parts and '
+                    'administered through bounded native actions.',
+                    'clickhouse-25.12-partitions',
+                ),
+            },
+            'semantic': {
+                concept: {
+                    'status': 'supported',
+                    'resource_kinds': (
+                        ['materialized-view']
+                        if concept == 'materializations' else []
+                    ),
+                    'operation_obligations': (
+                        {'materialized-view': sorted(
+                            self.ADMIN_OPERATIONS['materialized-view']
+                        )} if concept == 'materializations' else {}
+                    ),
+                    'external_surface': 'cdeadmin.semantic-model-workspace.v1',
+                    'reason': (
+                        'The revisioned semantic workspace designs, '
+                        'validates, compiles, executes and renders this '
+                        'concept through ClickHouse SQL.'
+                    ),
+                    'evidence': ['clickhouse-25.12-semantic-workspace'],
+                }
+                for concept in (
+                    'cubes', 'dimensions', 'hierarchies', 'levels',
+                    'measures', 'materializations',
+                )
+            },
+        }
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             resource['operations'] = [
@@ -761,6 +849,11 @@ class ClickHouseClient:
                     f('comment', 'Comment'),
                 ]
             )
+        if kind == 'database' and operation == 'alter':
+            return self._form('clickhouse-database-alter',
+                              'Alter database comment', [
+                                  f('comment', 'Comment', 'multiline', False),
+                              ])
         if kind == 'table' and operation == 'create':
             return self._form('clickhouse-table-create', 'Create table', [
                 f('database', 'Database', required=True, default='default'),
@@ -783,6 +876,22 @@ class ClickHouseClient:
                 f('partition_by', 'Partition expression', 'code'),
                 f('primary_key', 'Primary-key expression', 'code'),
                 f('ttl', 'TTL expression', 'code'),
+            ])
+        if kind == 'table' and operation == 'alter':
+            return self._form('clickhouse-table-alter', 'Alter table', [
+                f('action', 'Action', 'select', True,
+                  default='modify-ttl', options=[
+                      {'value': 'modify-ttl', 'label': 'Modify TTL'},
+                      {'value': 'remove-ttl', 'label': 'Remove TTL'},
+                      {'value': 'modify-order-by',
+                       'label': 'Modify ordering key'},
+                      {'value': 'modify-setting',
+                       'label': 'Modify setting'},
+                      {'value': 'reset-setting', 'label': 'Reset setting'},
+                  ]),
+                f('expression', 'TTL or ordering expression', 'code'),
+                f('setting_name', 'Setting name'),
+                f('setting_value', 'Setting value', 'code'),
             ])
         if kind == 'column' and operation in {'create', 'alter'}:
             return self._form(f'clickhouse-column-{operation}',
@@ -828,9 +937,25 @@ class ClickHouseClient:
                 f('name', 'Dictionary name', required=operation == 'create'),
                 f('attributes', 'Attributes', 'json', True, default=[]),
                 f('primary_key', 'Primary key', required=True),
-                f('source', 'SOURCE clause contents', 'code', True),
-                f('layout', 'Layout', required=True, default='HASHED()'),
-                f('lifetime', 'Lifetime', required=True, default='300'),
+                f('source_database', 'Source database', required=True),
+                f('source_table', 'Source table', required=True),
+                f('source_username', 'Source username'),
+                f('source_password_reference',
+                  'Source password secret reference'),
+                f('layout', 'Layout', 'select', True, default='HASHED',
+                  options=[
+                      {'value': value,
+                       'label': value.replace('_', ' ').title()}
+                      for value in (
+                          'FLAT', 'HASHED', 'SPARSE_HASHED', 'CACHE',
+                          'DIRECT', 'COMPLEX_KEY_HASHED',
+                          'COMPLEX_KEY_CACHE',
+                      )
+                  ]),
+                f('lifetime_min', 'Minimum lifetime seconds', 'number', True,
+                  default=0, minimum=0, maximum=31536000),
+                f('lifetime_max', 'Maximum lifetime seconds', 'number', True,
+                  default=300, minimum=0, maximum=31536000),
             ])
         if kind == 'function' and operation in {'create', 'alter'}:
             return self._form(f'clickhouse-function-{operation}',
@@ -838,20 +963,54 @@ class ClickHouseClient:
                 f('name', 'Function name', required=operation == 'create'),
                 f('lambda', 'Lambda expression', 'code', True),
             ])
-        if kind in {'projection', 'data-skipping-index'} and operation in {
+        if kind == 'projection' and operation in {
             'create', 'alter'
         }:
-            fields = [
-                f('name', 'Object name', required=operation == 'create'),
-                f('expression', 'Expression', 'code', True),
-            ]
-            if kind == 'data-skipping-index':
-                fields.extend([
-                    f('type', 'Index type', required=True, default='minmax'),
-                    f('granularity', 'Granularity', 'number', True, default=1),
-                ])
             return self._form(f'clickhouse-{kind}-{operation}',
-                              f'{operation.title()} {kind}', fields)
+                              f'{operation.title()} projection', [
+                f('name', 'Object name', required=operation == 'create'),
+                f('select_columns', 'Selected expressions', 'json', True,
+                  default=[]),
+                f('group_by', 'Grouping expressions', 'json', False,
+                  default=[]),
+                f('order_by', 'Ordering expressions', 'json', False,
+                  default=[]),
+            ])
+        if kind == 'data-skipping-index' and operation in {'create', 'alter'}:
+            return self._form(f'clickhouse-{kind}-{operation}',
+                              f'{operation.title()} data-skipping index', [
+                f('name', 'Object name', required=operation == 'create'),
+                f('expression', 'Indexed expression', 'code', True),
+                f('type', 'Index type', 'select', True, default='minmax',
+                  options=[
+                      {'value': 'minmax', 'label': 'Min/max'},
+                      {'value': 'set', 'label': 'Set'},
+                      {'value': 'bloom_filter', 'label': 'Bloom filter'},
+                      {'value': 'tokenbf_v1', 'label': 'Token bloom filter'},
+                      {'value': 'ngrambf_v1', 'label': 'N-gram bloom filter'},
+                  ]),
+                f('type_parameters', 'Index type parameters', 'json', False,
+                  default=[]),
+                f('granularity', 'Granularity', 'number', True, default=1,
+                  minimum=1, maximum=1000000),
+            ])
+        if kind in {'dictionary', 'projection', 'data-skipping-index'} and \
+                operation == 'execute':
+            options = (
+                [{'value': 'reload', 'label': 'Reload'}]
+                if kind == 'dictionary' else [
+                    {'value': 'materialize', 'label': 'Materialize'},
+                    {'value': 'clear', 'label': 'Clear data'},
+                ]
+            )
+            return self._form(f'clickhouse-{kind}-execute',
+                              f'Run {kind} operation', [
+                f('action', 'Action', 'select', True,
+                  default=options[0]['value'], options=options),
+                f('partition_id', 'Optional partition ID'),
+                f('acknowledge_operation', 'Confirm operation', 'boolean',
+                  True, default=False),
+            ])
         if kind == 'partition' and operation == 'execute':
             return self._form(
                 'clickhouse-partition-execute', 'Partition operation', [
@@ -950,6 +1109,42 @@ class ClickHouseClient:
                 raise ClickHouseClientError('drop must be acknowledged')
             if kind == 'table' and operation == 'create':
                 self._validate_columns(draft.get('columns'))
+            if kind == 'table' and operation == 'alter':
+                action = draft.get('action')
+                if action in {'modify-ttl', 'modify-order-by'}:
+                    _expression(draft.get('expression'), 'table expression')
+                elif action in {'modify-setting', 'reset-setting'}:
+                    _identifier(draft.get('setting_name'), 'setting name')
+                    if action == 'modify-setting':
+                        _expression(
+                            draft.get('setting_value'), 'setting value'
+                        )
+                elif action != 'remove-ttl':
+                    raise ClickHouseClientError(
+                        'table alteration action is invalid'
+                    )
+            if kind == 'dictionary' and operation in {'create', 'alter'}:
+                self._validate_dictionary(draft)
+            if kind == 'projection' and operation in {'create', 'alter'}:
+                _expression_list(
+                    draft.get('select_columns'), 'selected expressions', True
+                )
+                _expression_list(
+                    draft.get('group_by', []), 'grouping expressions'
+                )
+                _expression_list(
+                    draft.get('order_by', []), 'ordering expressions'
+                )
+            if (kind == 'data-skipping-index' and
+                    operation in {'create', 'alter'}):
+                _expression(draft.get('expression'), 'index expression')
+                parameters = draft.get('type_parameters', [])
+                if not isinstance(parameters, list) or any(
+                    isinstance(value, (dict, list)) for value in parameters
+                ):
+                    raise ClickHouseClientError(
+                        'index type parameters must be scalar values'
+                    )
             if kind == 'table' and operation == 'insert':
                 if not isinstance(draft.get('values'), Mapping):
                     raise ClickHouseClientError('row values must be an object')
@@ -995,6 +1190,50 @@ class ClickHouseClient:
         if len(names) != len(set(names)):
             raise ClickHouseClientError('column names must be unique')
 
+    @staticmethod
+    def _validate_dictionary(draft):
+        attributes = draft.get('attributes')
+        if not isinstance(attributes, list) or not attributes:
+            raise ClickHouseClientError(
+                'dictionary attributes must be a non-empty array'
+            )
+        names = []
+        for value in attributes:
+            item = _mapping(value, 'dictionary attribute')
+            names.append(_identifier(item.get('name'), 'attribute name'))
+            _clickhouse_type(item.get('type'))
+        if len(names) != len(set(names)):
+            raise ClickHouseClientError(
+                'dictionary attribute names must be unique'
+            )
+        primary_key = _identifier(draft.get('primary_key'), 'primary key')
+        if primary_key not in names:
+            raise ClickHouseClientError(
+                'dictionary primary key must name an attribute'
+            )
+        _identifier(draft.get('source_database'), 'source database')
+        _identifier(draft.get('source_table'), 'source table')
+        source_username = draft.get('source_username')
+        password_reference = draft.get('source_password_reference')
+        if source_username:
+            _text(source_username, 'source username', 256)
+        if password_reference:
+            _text(password_reference, 'source password secret reference')
+            if not source_username:
+                raise ClickHouseClientError(
+                    'dictionary source username is required with a password'
+                )
+        minimum = _integer(
+            draft.get('lifetime_min'), 'minimum lifetime', 0, 31536000
+        )
+        maximum = _integer(
+            draft.get('lifetime_max'), 'maximum lifetime', 0, 31536000
+        )
+        if minimum > maximum:
+            raise ClickHouseClientError(
+                'dictionary minimum lifetime exceeds maximum lifetime'
+            )
+
     def plan_admin_operation(self, request):
         validation = self.validate_admin_operation(request)
         if validation['errors']:
@@ -1002,7 +1241,12 @@ class ClickHouseClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         target = self._native_target(request.get('target_resource'))
-        sensitive = kind == 'user' and operation in {'create', 'alter'}
+        sensitive = (
+            kind == 'user' and operation in {'create', 'alter'}
+        ) or (
+            kind == 'dictionary' and operation in {'create', 'alter'} and
+            bool(request.get('draft', {}).get('source_password_reference'))
+        )
         return {
             'command_preview': {
                 'kind': kind, 'operation': operation,
@@ -1059,6 +1303,35 @@ class ClickHouseClient:
                 limit = draft.get('limit', 200)
                 _integer(limit, 'limit', 1, MAX_PAGE_SIZE)
                 return f'SELECT * FROM {qualified} LIMIT {limit}', None, None
+            inspection = {
+                'projection': (
+                    'SELECT * FROM system.projections WHERE database = '
+                    f'{_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table"))} AND name = '
+                    f'{_sql_string(name)}'
+                ),
+                'data-skipping-index': (
+                    'SELECT * FROM system.data_skipping_indices WHERE '
+                    f'database = {_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table"))} AND name = '
+                    f'{_sql_string(name)}'
+                ),
+                'dictionary': (
+                    'SELECT * FROM system.dictionaries WHERE database = '
+                    f'{_sql_string(database)} AND name = {_sql_string(name)}'
+                ),
+                'partition': (
+                    'SELECT database, table, partition_id, sum(rows) AS rows, '
+                    'sum(bytes_on_disk) AS bytes_on_disk, count() AS '
+                    'part_count FROM system.parts WHERE active AND database = '
+                    f'{_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table"))} AND partition_id = '
+                    f'{_sql_string(target.get("partition_id") or name)} '
+                    'GROUP BY database, table, partition_id'
+                ),
+            }
+            if kind in inspection:
+                return inspection[kind], None, None
             return 'SELECT 1 AS inspected', None, None
         if kind == 'database':
             if operation == 'create':
@@ -1078,7 +1351,7 @@ class ClickHouseClient:
             if operation == 'alter':
                 return (
                     f'ALTER DATABASE {_quote_identifier(name)} MODIFY '
-                    f'COMMENT {_sql_string(draft.get("definition", ""))}',
+                    f'COMMENT {_sql_string(draft.get("comment", ""))}',
                     None, None,
                 )
             if operation == 'rename':
@@ -1176,8 +1449,32 @@ class ClickHouseClient:
                     None, None,
                 )
             if operation == 'alter':
+                action = draft['action']
+                if action == 'modify-ttl':
+                    clause = 'MODIFY TTL ' + _expression(
+                        draft['expression'], 'TTL expression'
+                    )
+                elif action == 'remove-ttl':
+                    clause = 'REMOVE TTL'
+                elif action == 'modify-order-by':
+                    clause = 'MODIFY ORDER BY ' + _expression(
+                        draft['expression'], 'ordering expression'
+                    )
+                elif action == 'modify-setting':
+                    clause = 'MODIFY SETTING {} = {}'.format(
+                        _identifier(draft['setting_name'], 'setting name'),
+                        _expression(draft['setting_value'], 'setting value'),
+                    )
+                elif action == 'reset-setting':
+                    clause = 'RESET SETTING ' + _identifier(
+                        draft['setting_name'], 'setting name'
+                    )
+                else:
+                    raise ClickHouseClientError(
+                        'table alteration action is invalid'
+                    )
                 return (
-                    f'ALTER TABLE {qualified} {self._definition(draft)}',
+                    f'ALTER TABLE {qualified} {clause}',
                     None, None,
                 )
             if operation == 'drop':
@@ -1237,6 +1534,12 @@ class ClickHouseClient:
                 )
                 return source, None, None
             if operation == 'alter':
+                if kind == 'view':
+                    return (
+                        f'CREATE OR REPLACE VIEW {qualified} AS '
+                        f'{self._select(draft["select"])}',
+                        None, None,
+                    )
                 return (f'ALTER TABLE {qualified} MODIFY QUERY '
                         f'{self._select(draft["select"])}', None, None)
             if operation == 'rename':
@@ -1259,23 +1562,42 @@ class ClickHouseClient:
                     'CREATE' if operation == 'create'
                     else 'CREATE OR REPLACE'
                 )
+                minimum = _integer(
+                    draft['lifetime_min'], 'minimum lifetime', 0, 31536000
+                )
+                maximum = _integer(
+                    draft['lifetime_max'], 'maximum lifetime', 0, 31536000
+                )
+                source_auth = ''
+                if draft.get('source_username'):
+                    source_auth += ' USER ' + _sql_string(
+                        draft['source_username']
+                    )
+                if draft.get('source_password_reference'):
+                    source_auth += ' PASSWORD ' + _sql_string(
+                        self._admin_password(
+                            draft['source_password_reference'], route
+                        )
+                    )
                 source = '{}{}{}{}{}{}{}'.format(
                     f'{verb} DICTIONARY {qualified} (',
                     ', '.join(attributes),
                     ') PRIMARY KEY '
                     f'{_quote_identifier(draft["primary_key"])} ',
-                    'SOURCE(' + _expression(
-                        draft['source'], 'dictionary source', 16384
-                    ) + ') ',
-                    'LAYOUT(' + _expression(
-                        draft['layout'], 'dictionary layout', 1024
-                    ) + ') ',
-                    'LIFETIME(',
-                    _expression(
-                        draft['lifetime'], 'dictionary lifetime', 1024
-                    ) + ')',
+                    'SOURCE(CLICKHOUSE(DB '
+                    f'{_sql_string(draft["source_database"])} TABLE '
+                    f'{_sql_string(draft["source_table"])}{source_auth})) ',
+                    f'LAYOUT({draft["layout"]}()) ',
+                    'LIFETIME(MIN ',
+                    f'{minimum} MAX {maximum})',
                 )
                 return source, None, None
+            if operation == 'execute':
+                if draft['action'] != 'reload':
+                    raise ClickHouseClientError(
+                        'dictionary action is invalid'
+                    )
+                return f'SYSTEM RELOAD DICTIONARY {qualified}', None, None
             return f'DROP DICTIONARY {qualified}', None, None
         if kind == 'function':
             if operation in {'create', 'alter'}:
@@ -1295,9 +1617,10 @@ class ClickHouseClient:
             if operation in {'create', 'alter'}:
                 object_name = target.get('name') or draft.get('name')
                 if kind == 'projection':
+                    projection = self._projection_select(draft)
                     clause = (
                         f'ADD PROJECTION {_quote_identifier(object_name)} '
-                        f'({self._select(draft["expression"])})'
+                        f'({projection})'
                     )
                 else:
                     granularity = draft.get('granularity', 1)
@@ -1305,9 +1628,14 @@ class ClickHouseClient:
                     index_expression = _expression(
                         draft['expression'], 'index expression', 8192
                     )
-                    index_type = _expression(
-                        draft['type'], 'index type', 1024
-                    )
+                    index_type = draft['type']
+                    type_parameters = draft.get('type_parameters', [])
+                    if type_parameters:
+                        index_type += '(' + ', '.join(
+                            str(_integer(value, 'index type parameter', 0,
+                                         1000000000))
+                            for value in type_parameters
+                        ) + ')'
                     clause = (
                         f'ADD INDEX {_quote_identifier(object_name)} '
                         f'{index_expression} TYPE {index_type} '
@@ -1322,6 +1650,20 @@ class ClickHouseClient:
                         f'ALTER TABLE {qualified} {drop} '
                         f'{_quote_identifier(object_name)}, {clause}',
                         None, None,
+                    )
+                return f'ALTER TABLE {qualified} {clause}', None, None
+            if operation == 'execute':
+                action = draft['action']
+                noun = ('PROJECTION' if kind == 'projection' else 'INDEX')
+                if action not in {'materialize', 'clear'}:
+                    raise ClickHouseClientError(
+                        'columnar object action is invalid'
+                    )
+                clause = f'{action.upper()} {noun} '
+                clause += _quote_identifier(target['name'])
+                if draft.get('partition_id'):
+                    clause += ' IN PARTITION ID ' + _sql_string(
+                        draft['partition_id']
                     )
                 return f'ALTER TABLE {qualified} {clause}', None, None
             clause = (
@@ -1425,6 +1767,24 @@ class ClickHouseClient:
         return _expression(
             draft.get('definition'), 'native definition', 16384
         )
+
+    @staticmethod
+    def _projection_select(draft):
+        selected = _expression_list(
+            draft.get('select_columns'), 'selected expressions', True
+        )
+        source = 'SELECT ' + ', '.join(selected)
+        grouped = _expression_list(
+            draft.get('group_by', []), 'grouping expressions'
+        )
+        if grouped:
+            source += ' GROUP BY ' + ', '.join(grouped)
+        ordered = _expression_list(
+            draft.get('order_by', []), 'ordering expressions'
+        )
+        if ordered:
+            source += ' ORDER BY ' + ', '.join(ordered)
+        return source
 
     @staticmethod
     def _select(source):
