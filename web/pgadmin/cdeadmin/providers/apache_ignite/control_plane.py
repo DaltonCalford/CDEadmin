@@ -284,6 +284,7 @@ def compile_action(request):
                     ])
                 if draft.get('synchronous'):
                     arguments.append('--sync')
+                arguments.append('--yes')
                 cancel_arguments = [
                     '--snapshot', 'restore', name, '--cancel',
                 ]
@@ -336,7 +337,36 @@ def _trusted_executable(route):
     return str(path)
 
 
-def _run(route, arguments, timeout=120):
+def _connection_arguments(route, secrets):
+    values = []
+    if route.get('auth_mode') == 'username-password':
+        values.extend([
+            '--user', route['username'], '--password',
+            secrets['database_password'],
+        ])
+    mappings = (
+        ('control_ssl_protocols', '--ssl-protocol'),
+        ('control_ssl_ciphers', '--ssl-cipher-suites'),
+        ('control_ssl_key_algorithm', '--ssl-key-algorithm'),
+        ('control_ssl_factory', '--ssl-factory'),
+        ('control_keystore_type', '--keystore-type'),
+        ('control_keystore_path', '--keystore'),
+        ('control_truststore_type', '--truststore-type'),
+        ('control_truststore_path', '--truststore'),
+    )
+    for field, argument in mappings:
+        value = route.get(field)
+        if value:
+            values.extend([argument, str(value)])
+    for secret, argument in (
+            ('control_keystore_password', '--keystore-password'),
+            ('control_truststore_password', '--truststore-password')):
+        if secret in secrets:
+            values.extend([argument, secrets[secret]])
+    return values
+
+
+def _run(route, arguments, timeout=120, secrets=None):
     if not isinstance(arguments, list) or not arguments or len(
             arguments) > 128 or any(
                 not isinstance(value, str) or not value or len(value) > 8192
@@ -352,6 +382,7 @@ def _run(route, arguments, timeout=120):
         raise NativeDistributedError('Ignite control port is invalid')
     command = [
         _trusted_executable(route), '--host', host, '--port', str(port),
+        *_connection_arguments(route, secrets or {}),
         *arguments,
     ]
     try:
@@ -377,18 +408,19 @@ def _run(route, arguments, timeout=120):
     }
 
 
-def execute_action(request):
+def execute_action(request, secrets=None):
     payload = request.get('provider_payload') or {}
     action = payload.get('compiled', {}).get('provider_action', {})
     return {
         'accepted': True,
-        'provider_response': _run(_route(request), action.get('arguments')),
+        'provider_response': _run(
+            _route(request), action.get('arguments'), secrets=secrets),
         'provider_finality_authority': True,
         'automatic_mutation_retry': False,
     }
 
 
-def inspect_action(request):
+def inspect_action(request, secrets=None):
     plan = request.get('plan') or {}
     kind = plan.get('resource_kind')
     if kind == 'cluster':
@@ -396,7 +428,17 @@ def inspect_action(request):
     elif kind == 'baseline-topology':
         arguments = ['--baseline']
     elif kind == 'snapshot':
-        arguments = ['--snapshot', 'status']
+        operation = plan.get('operation_id')
+        payload = request.get('provider_payload') or {}
+        draft = payload.get('draft') or {}
+        target = payload.get('target_resource') or plan.get(
+            'target_resource') or {}
+        name = draft.get('name') or target.get('display_name')
+        if operation in {'create', 'check'} and name:
+            arguments = ['--snapshot', 'check', _safe(
+                name, 'snapshot name')]
+        else:
+            arguments = ['--snapshot', 'status']
     elif kind == 'cache':
         arguments = ['--cache', 'list', '^' + re.escape(
             _target({'target_resource': plan.get('target_resource')})
@@ -404,13 +446,14 @@ def inspect_action(request):
     else:
         arguments = ['--state']
     return {
-        'provider_observation': _run(_route(request), arguments, timeout=30),
+        'provider_observation': _run(
+            _route(request), arguments, timeout=30, secrets=secrets),
         'provider_observation_only': True,
         'provider_finality_authority': True,
     }
 
 
-def cancel_action(request):
+def cancel_action(request, secrets=None):
     payload = request.get('provider_payload') or {}
     arguments = payload.get('compiled', {}).get(
         'provider_action', {}
@@ -418,4 +461,4 @@ def cancel_action(request):
     if not arguments:
         raise NativeDistributedError(
             'Ignite operation is not declared cancellable')
-    return _run(_route(request), arguments)
+    return _run(_route(request), arguments, secrets=secrets)

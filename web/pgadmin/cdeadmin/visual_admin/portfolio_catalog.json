@@ -140,18 +140,24 @@
     {
       "engine_id": "apache_ignite", "engine_name": "Apache Ignite", "reference_profile": "2.17.0", "model_family": "distributed",
       "objects": [
-        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
-        {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
-        {"resource_kind": "baseline-topology", "title": "Baseline topology", "operation_profile": "topology"},
-        {"resource_kind": "sql-schema", "title": "SQL schema", "operation_profile": "namespace"},
-        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
-        {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
-        {"resource_kind": "cache", "title": "Cache", "operation_profile": "data_container"},
-        {"resource_kind": "cache-template", "title": "Cache template", "operation_profile": "definition"},
-        {"resource_kind": "data-region", "title": "Data region", "operation_profile": "topology"},
-        {"resource_kind": "compute-task", "title": "Compute task", "operation_profile": "operational"},
-        {"resource_kind": "service", "title": "Service", "operation_profile": "operational"},
-        {"resource_kind": "user", "title": "User", "operation_profile": "security"}
+        {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "read_only"},
+        {"resource_kind": "node", "title": "Node", "operation_profile": "read_only"},
+        {"resource_kind": "baseline-topology", "title": "Baseline topology", "operation_profile": "read_only"},
+        {"resource_kind": "sql-schema", "title": "SQL schema", "operation_profile": "read_only"},
+        {"resource_kind": "table", "title": "Table", "operation_profile": "data_container", "exclude_operations": ["rename"]},
+        {"resource_kind": "view", "title": "SQL view", "operation_profile": "definition", "exclude_operations": ["rename"]},
+        {"resource_kind": "column", "title": "Column", "operation_profile": "definition", "exclude_operations": ["alter", "rename"]},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "definition", "exclude_operations": ["alter", "rename"]},
+        {"resource_kind": "constraint", "title": "Primary-key constraint", "operation_profile": "read_only"},
+        {"resource_kind": "cache", "title": "Cache", "operation_profile": "data_container", "exclude_operations": ["alter", "rename"]},
+        {"resource_kind": "cache-template", "title": "Cache template", "operation_profile": "read_only"},
+        {"resource_kind": "data-region", "title": "Data region", "operation_profile": "read_only"},
+        {"resource_kind": "replica", "title": "Partition replica", "operation_profile": "read_only"},
+        {"resource_kind": "ttl", "title": "Cache entry expiration policy", "operation_profile": "definition", "exclude_operations": ["rename"]},
+        {"resource_kind": "compute-task", "title": "Compute task", "operation_profile": "read_only"},
+        {"resource_kind": "service", "title": "Service", "operation_profile": "read_only"},
+        {"resource_kind": "user", "title": "User", "operation_profile": "security", "exclude_operations": ["rename", "grant", "revoke"]},
+        {"resource_kind": "snapshot", "title": "Snapshot", "operation_profile": "read_only"}
       ]
     },
     {

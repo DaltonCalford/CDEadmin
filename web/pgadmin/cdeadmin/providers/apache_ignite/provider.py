@@ -13,8 +13,9 @@ PROFILE = PilotProfile(
     'ignite-native-transaction', 'key_value',
     (
         'cluster', 'node', 'baseline-topology', 'sql-schema', 'table',
-        'index', 'cache', 'cache-template', 'data-region', 'compute-task',
-        'service', 'user', 'snapshot',
+        'view', 'column', 'index', 'constraint', 'cache', 'cache-template',
+        'data-region', 'replica', 'ttl', 'compute-task', 'service', 'user',
+        'snapshot',
     ),
     ('control-script', 'snapshot', 'index-validate', 'idle-verify'),
     language_mime_type='application/vnd.apache.ignite.command+json',
@@ -33,16 +34,24 @@ OPERATIONS = {
         'inspect', 'add_nodes', 'remove_nodes', 'set_nodes', 'set_version',
         'configure_auto_adjust',
     }, 'sql-schema': {'inspect'},
-    'table': {'inspect'}, 'index': {'inspect'},
+    'table': {
+        'inspect', 'create', 'alter', 'insert', 'update', 'delete', 'drop',
+    },
+    'view': {'inspect', 'create', 'alter', 'drop'},
+    'column': {'inspect', 'create', 'drop'},
+    'index': {'inspect', 'create', 'drop'},
+    'constraint': {'inspect'},
     'cache': {
         'inspect', 'create', 'insert', 'update', 'delete', 'drop', 'clear',
         'validate_indexes', 'idle_verify', 'reset_lost_partitions',
         'rebuild_indexes',
     },
     'cache-template': {'inspect'}, 'data-region': {'inspect'},
+    'replica': {'inspect'},
+    'ttl': {'inspect', 'create', 'alter', 'drop'},
     'compute-task': {'inspect', 'cancel'},
     'service': {'inspect', 'cancel'},
-    'user': {'inspect'},
+    'user': {'inspect', 'create', 'alter', 'drop'},
     'snapshot': {'inspect', 'create', 'check', 'restore'},
 }
 

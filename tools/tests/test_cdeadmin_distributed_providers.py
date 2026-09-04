@@ -36,6 +36,7 @@ from pgadmin.cdeadmin.providers.apache_ignite.client import (  # noqa: E402
 )
 from pgadmin.cdeadmin.providers.apache_ignite.control_plane import (  # noqa: E402
     OPERATIONS as IGNITE_CONTROL_OPERATIONS,
+    _connection_arguments as ignite_connection_arguments,
     compile_action as compile_ignite_action,
 )
 from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
@@ -330,7 +331,28 @@ class _IgniteClient:
         return list(cls.caches)
 
     @staticmethod
-    def sql(_source):
+    def get_cluster():
+        return SimpleNamespace(get_state=lambda: 'ACTIVE')
+
+    @staticmethod
+    def sql(source, **_options):
+        fields = {
+            'SYS.CACHES': ['CACHE_NAME'],
+            'SYS.SCHEMAS': ['SCHEMA_NAME', 'PREDEFINED'],
+            'SYS.TABLES': ['SCHEMA_NAME', 'TABLE_NAME'],
+            'SYS.TABLE_COLUMNS': [
+                'SCHEMA_NAME', 'TABLE_NAME', 'COLUMN_NAME', 'PK'],
+            'SYS.INDEXES': ['SCHEMA_NAME', 'TABLE_NAME', 'INDEX_NAME'],
+            'SYS.VIEWS': ['SCHEMA', 'NAME', 'SQL', 'DESCRIPTION'],
+            'SYS.SERVICES': ['NAME'],
+            'SYS.TASKS': ['ID'],
+            'SYS.PARTITION_STATES': [
+                'CACHE_GROUP_ID', 'NODE_ID', 'STATE', 'IS_PRIMARY',
+                'PARTITION_COUNT'],
+        }
+        for marker, names in fields.items():
+            if marker in source:
+                return [names]
         return []
 
 
@@ -412,6 +434,41 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual([
             '--snapshot', 'cancel', '--name', 'pre_upgrade',
         ], snapshot['provider_action']['cancel_arguments'])
+        restore = compile_ignite_action({
+            'resource_kind': 'snapshot', 'operation_id': 'restore',
+            'target_resource': {
+                'resource_id': 'snapshot:pre_upgrade',
+                'display_name': 'pre_upgrade',
+            },
+            'draft': {'groups': [], 'synchronous': True},
+        })
+        self.assertEqual([
+            '--snapshot', 'restore', 'pre_upgrade', '--sync', '--yes',
+        ], restore['provider_action']['arguments'])
+
+    def test_ignite_control_connection_arguments_cover_auth_and_tls(self):
+        arguments = ignite_connection_arguments({
+            'auth_mode': 'username-password', 'username': 'operator',
+            'control_ssl_protocols': 'TLSv1.3',
+            'control_ssl_ciphers': 'TLS_AES_256_GCM_SHA384',
+            'control_keystore_type': 'PKCS12',
+            'control_keystore_path': '/run/secrets/client.p12',
+            'control_truststore_type': 'PKCS12',
+            'control_truststore_path': '/run/secrets/trust.p12',
+        }, {
+            'database_password': 'database-secret',
+            'control_keystore_password': 'key-secret',
+            'control_truststore_password': 'trust-secret',
+        })
+        self.assertEqual([
+            '--user', 'operator', '--password', 'database-secret',
+            '--ssl-protocol', 'TLSv1.3', '--ssl-cipher-suites',
+            'TLS_AES_256_GCM_SHA384', '--keystore-type', 'PKCS12',
+            '--keystore', '/run/secrets/client.p12', '--truststore-type',
+            'PKCS12', '--truststore', '/run/secrets/trust.p12',
+            '--keystore-password', 'key-secret', '--truststore-password',
+            'trust-secret',
+        ], arguments)
 
     def test_ignite_control_plan_redacts_native_arguments(self):
         plan = IgniteBackend.plan_admin_operation({
@@ -469,6 +526,63 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual(1, len(nodes))
         self.assertEqual('ignite-node-a', nodes[0]['display_name'])
         self.assertEqual(10800, nodes[0]['native']['tcp_port'])
+
+    def test_ignite_object_contract_is_structurally_complete_and_typed(self):
+        backend = IgniteBackend.__new__(IgniteBackend)
+        catalog = enrich_engine_experience(backend.visual_admin_catalog(
+            catalog_for_engine('apache_ignite')
+        ))
+        coverage = catalog['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        objects = {
+            item['resource_kind']: item for item in catalog['objects']
+        }
+        operations = {
+            kind: {item['operation_id'] for item in value['operations']}
+            for kind, value in objects.items()
+        }
+        self.assertEqual(
+            {'inspect', 'create', 'alter', 'insert', 'update', 'delete',
+             'drop'}, operations['table'])
+        self.assertEqual(
+            {'inspect', 'create', 'alter', 'drop'}, operations['view'])
+        self.assertEqual(
+            {'inspect', 'create', 'drop'}, operations['column'])
+        self.assertEqual(
+            {'inspect', 'create', 'alter', 'drop'}, operations['ttl'])
+        self.assertNotIn('rename', operations['table'])
+        self.assertNotIn('execute', operations['node'])
+        for kind in ('table', 'view', 'column', 'index', 'ttl', 'user'):
+            for operation in objects[kind]['operations']:
+                self.assertFalse(any(
+                    field['field_id'] in {'definition', 'action'}
+                    for field in operation['form']['fields']
+                ))
+
+    def test_ignite_structured_validation_rejects_sql_injection(self):
+        rejected = IgniteBackend.validate_admin_operation({
+            'resource_kind': 'table', 'operation_id': 'create',
+            'draft': {
+                'schema': 'PUBLIC', 'name': 'safe',
+                'columns': [{
+                    'name': 'id', 'data_type': 'INT); DROP TABLE victim',
+                    'primary_key': True,
+                }],
+            },
+        })
+        self.assertEqual(
+            'invalid_native_request', rejected['errors'][0]['code'])
+        rejected = IgniteBackend.validate_admin_operation({
+            'resource_kind': 'view', 'operation_id': 'create',
+            'draft': {
+                'schema': 'PUBLIC', 'name': 'safe',
+                'query': 'SELECT 1; DROP TABLE victim',
+            },
+        })
+        self.assertEqual(
+            'invalid_native_request', rejected['errors'][0]['code'])
 
     def test_yugabytedb_control_plane_is_typed_and_cli_compiled(self):
         keys = {
