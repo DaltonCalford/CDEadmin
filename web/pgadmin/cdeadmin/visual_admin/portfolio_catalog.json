@@ -215,7 +215,7 @@
         {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
         {"resource_kind": "sequence", "title": "Sequence", "operation_profile": "definition"},
         {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
-        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container", "exclude_operations": ["alter", "insert", "update", "delete"]},
         {"resource_kind": "type", "title": "Type", "operation_profile": "definition"},
         {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
         {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},

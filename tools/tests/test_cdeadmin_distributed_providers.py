@@ -1814,11 +1814,17 @@ class DistributedProviderTests(unittest.TestCase):
                     'target_resource': database,
                     'draft': draft, '_provider_route': route,
                 })
-                statement = plan['provider_payload']['compiled'][
-                    'statements'][0]
+                statements = plan['provider_payload']['compiled'][
+                    'statements']
+                statement = statements[-1]
                 self.assertEqual(source, statement['source'])
                 self.assertEqual((), statement['parameters'])
                 self.assertTrue(plan['impact']['data_movement_possible'])
+                if operation == 'set_placement':
+                    self.assertEqual(
+                        'SET enable_multiregion_placement_policy = true',
+                        statements[0]['source'],
+                    )
 
         table = {
             'resource_id': 'table:public.customers',
@@ -1955,6 +1961,110 @@ class DistributedProviderTests(unittest.TestCase):
                     'host': '127.0.0.1', 'port': 26257,
                 },
             })
+
+        alter = COCKROACH_ADMIN.plan({
+            'resource_kind': 'changefeed', 'operation_id': 'add_table',
+            'target_resource': {
+                'resource_id': 'changefeed:71', 'display_path': ['71'],
+            },
+            'draft': {
+                'table_name': 'inventory.public.more_widgets',
+                'initial_scan': 'no',
+            },
+            '_provider_route': {
+                'host': '127.0.0.1', 'port': 26257,
+            },
+        })
+        statement = alter['provider_payload']['compiled']['statements'][0]
+        self.assertEqual(
+            'ALTER CHANGEFEED %s ADD TABLE '
+            '"inventory"."public"."more_widgets" '
+            "WITH initial_scan = 'no'",
+            statement['source'],
+        )
+        self.assertEqual((71,), tuple(statement['parameters']))
+
+    def test_cockroach_materialized_views_and_ranges_are_typed(self):
+        catalog = COCKROACH_ADMIN.catalog({
+            'objects': [
+                {
+                    'resource_kind': kind,
+                    'operations': ([
+                        {'operation_id': 'inspect'},
+                        {'operation_id': 'create'},
+                        {'operation_id': 'rename'},
+                        {'operation_id': 'drop'},
+                    ] if kind == 'materialized-view' else []),
+                }
+                for kind in {
+                    item.resource_kind
+                    for item in COCKROACH_CONTROL_OPERATIONS
+                }
+            ],
+        })
+        materialized = next(
+            item for item in catalog['objects']
+            if item['resource_kind'] == 'materialized-view')
+        create = next(
+            item for item in materialized['operations']
+            if item['operation_id'] == 'create')
+        self.assertEqual(
+            ['name', 'parent', 'query', 'with_data'],
+            [field['field_id'] for field in create['form']['fields']],
+        )
+        plan = COCKROACH_ADMIN.plan({
+            'resource_kind': 'materialized-view', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'daily_totals', 'parent': 'analytics',
+                'query': 'SELECT day, count(*) AS total FROM events '
+                         'GROUP BY day',
+                'with_data': False,
+            },
+            '_provider_route': {
+                'host': '127.0.0.1', 'port': 26257,
+            },
+        })
+        statement = plan['provider_payload']['compiled']['statements'][0]
+        self.assertEqual(
+            'CREATE MATERIALIZED VIEW "analytics"."daily_totals" AS '
+            'SELECT day, count(*) AS total FROM events GROUP BY day '
+            'WITH NO DATA',
+            statement['source'],
+        )
+        range_plan = COCKROACH_ADMIN.plan({
+            'resource_kind': 'range', 'operation_id': 'relocate_voter',
+            'target_resource': {
+                'resource_id': 'range:81', 'display_path': ['defaultdb', '81'],
+            },
+            'draft': {'source_store_id': 1, 'destination_store_id': 4},
+            '_provider_route': {
+                'host': '127.0.0.1', 'port': 26257,
+            },
+        })
+        self.assertEqual(
+            'ALTER RANGE 81 RELOCATE VOTERS FROM 1 TO 4',
+            range_plan['provider_payload']['compiled']['statements'][0][
+                'source'],
+        )
+
+    def test_cockroach_zone_ttl_uses_exact_native_setting_name(self):
+        plan = COCKROACH_ADMIN.plan({
+            'resource_kind': 'table', 'operation_id': 'configure_zone',
+            'target_resource': {
+                'resource_id': 'table:defaultdb.public.events',
+                'display_path': ['defaultdb', 'public', 'events'],
+            },
+            'draft': {'gc_ttl_seconds': 3600},
+            '_provider_route': {
+                'host': '127.0.0.1', 'port': 26257,
+            },
+        })
+        self.assertEqual(
+            'ALTER TABLE "defaultdb"."public"."events" '
+            'CONFIGURE ZONE USING gc.ttlseconds = %s',
+            plan['provider_payload']['compiled']['statements'][0]['source'],
+        )
 
     def test_cockroach_node_post_state_uses_exact_membership(self):
         document = [
