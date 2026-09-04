@@ -21,6 +21,11 @@
       "deployment": "ycql_protocol_v4_and_master_version_api",
       "server_version": "2025.2.2.2",
       "status": "passed"
+    },
+    {
+      "deployment": "authenticated_full_visual_object_operation_matrix",
+      "server_version": "2025.2.2.2",
+      "status": "passed"
     }
   ],
   "client_platforms": [
@@ -34,6 +39,7 @@
   },
   "required_categories": [
     "runtime_identity", "schema_and_discovery", "visual_data_crud",
-    "language_and_native_outcome", "security", "fail_closed", "cleanup"
+    "language_and_native_outcome", "security", "operation_evidence",
+    "fail_closed", "cleanup"
   ]
 }

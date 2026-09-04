@@ -454,6 +454,18 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
         self.assertTrue(any(
             item['execution_available'] for item in udt['operations']
         ))
+        self.assertNotIn(
+            'alter',
+            {item['operation_id'] for item in udt['operations']},
+        )
+        column = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'column'
+        )
+        self.assertNotIn(
+            'alter',
+            {item['operation_id'] for item in column['operations']},
+        )
         advertised = {
             item['resource_kind'] for item in descriptor['objects']
         }

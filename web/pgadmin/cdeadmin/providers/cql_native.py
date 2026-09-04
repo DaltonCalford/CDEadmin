@@ -22,6 +22,7 @@ import base64
 import copy
 import hashlib
 import importlib
+import inspect
 import ipaddress
 import json
 import re
@@ -592,13 +593,31 @@ class CassandraClient:
         token_aware = getattr(self.module, 'TokenAwarePolicy', None)
         policy_name = route['load_balancing_policy']
         if 'dc' in policy_name and callable(dc_policy):
-            child = dc_policy(
-                local_dc=route.get('local_dc', ''),
-                used_hosts_per_remote_dc=route['used_hosts_per_remote_dc'],
-                allow_remote_dcs_for_local_cl=(
-                    route['allow_remote_dcs_for_local_cl']
+            policy_options = {
+                'local_dc': route.get('local_dc', ''),
+                'used_hosts_per_remote_dc': (
+                    route['used_hosts_per_remote_dc']
                 ),
+            }
+            try:
+                parameters = inspect.signature(dc_policy).parameters
+            except (TypeError, ValueError):
+                parameters = {}
+            accepts_keywords = any(
+                item.kind == inspect.Parameter.VAR_KEYWORD
+                for item in parameters.values()
             )
+            if ('allow_remote_dcs_for_local_cl' in parameters or
+                    accepts_keywords):
+                policy_options['allow_remote_dcs_for_local_cl'] = (
+                    route['allow_remote_dcs_for_local_cl']
+                )
+            elif route['allow_remote_dcs_for_local_cl']:
+                raise CassandraClientError(
+                    'Cassandra driver does not support remote datacenters '
+                    'for local consistency levels'
+                )
+            child = dc_policy(**policy_options)
         elif callable(round_robin):
             child = round_robin()
         else:

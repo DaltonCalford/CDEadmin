@@ -80,11 +80,11 @@ class YugabyteDBYCQLClient(CassandraClient):
             'drop',
         }),
         'column': frozenset({
-            'inspect', 'create', 'alter', 'rename', 'drop',
+            'inspect', 'create', 'rename', 'drop',
         }),
         'index': frozenset({'inspect', 'create', 'drop'}),
         'user-defined-type': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'drop',
         }),
         'role': frozenset({
             'inspect', 'create', 'alter', 'grant', 'revoke', 'drop',
@@ -360,10 +360,31 @@ class YugabyteDBYCQLClient(CassandraClient):
             'experience_families': ['wide_column'],
             'concept_declarations': {
                 'wide_column': {
-                    'keyspaces': {'status': 'supported'},
-                    'tables': {'status': 'supported'},
-                    'columns': {'status': 'supported'},
-                    'types': {'status': 'supported'},
+                    'keyspaces': {
+                        'status': 'supported',
+                        'operation_obligations': {'keyspace': [
+                            'inspect', 'create', 'alter', 'drop',
+                        ]},
+                    },
+                    'tables': {
+                        'status': 'supported',
+                        'operation_obligations': {'table': [
+                            'inspect', 'create', 'alter', 'insert',
+                            'update', 'delete', 'drop',
+                        ]},
+                    },
+                    'columns': {
+                        'status': 'supported',
+                        'operation_obligations': {'column': [
+                            'inspect', 'create', 'rename', 'drop',
+                        ]},
+                    },
+                    'types': {
+                        'status': 'supported',
+                        'operation_obligations': {'user-defined-type': [
+                            'inspect', 'create', 'drop',
+                        ]},
+                    },
                     'materialized_views': {
                         'status': 'not_applicable',
                         'reason': (
@@ -376,6 +397,7 @@ class YugabyteDBYCQLClient(CassandraClient):
                         'external_surface': (
                             'cdeadmin.yugabytedb.control-plane'
                         ),
+                        'external_surface_digest_required': True,
                         'reason': (
                             'YugabyteDB owns replication and compaction at '
                             'the shared cluster control plane, not as YCQL '
@@ -390,6 +412,12 @@ class YugabyteDBYCQLClient(CassandraClient):
             item for item in result.get('objects', [])
             if item['resource_kind'] in self.RESOURCE_KINDS
         ]
+        for resource in result['objects']:
+            admitted = self.ADMIN_OPERATIONS[resource['resource_kind']]
+            resource['operations'] = [
+                operation for operation in resource.get('operations', [])
+                if operation['operation_id'] in admitted
+            ]
         result['native_planner'] = 'yugabytedb-ycql-structured-planner'
         result['query_language'] = 'YCQL'
         result['transaction_authority'] = 'yugabytedb-and-ycql-driver'

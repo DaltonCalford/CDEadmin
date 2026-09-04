@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -47,13 +48,10 @@ OPERATIONS = (
     ControlPlaneOperation(
         'table', 'configure_placement', 'Configure table placement', 'admin',
         'topology_admin', (
-            cp_field('placements', 'Cloud/region/zone placements', 'json',
-                     True, json_type='array'),
-            cp_field('replication_factor', 'Replication factor', 'number',
-                     True, minimum=1, maximum=64),
-            cp_field('placement_uuid', 'Placement UUID', 'text', False,
+            cp_field('tablespace', 'Placement tablespace', 'text', True,
                      max_length=256, pattern=_ID_PATTERN),
-        ), impact_scope='cluster', long_running=True
+        ), impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'node', 'add_blacklist', 'Drain node replicas', 'admin',
@@ -109,7 +107,8 @@ OPERATIONS = (
         'restore_admin', (
             cp_field('restore_timestamp', 'Restore timestamp', 'text', False,
                      max_length=128, pattern=r'[0-9TZ: .+-]+'),
-        ), impact_scope='cluster', long_running=True, cancellable=True
+        ), impact_scope='cluster', long_running=True, cancellable=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'snapshot', 'drop', 'Delete snapshot', 'destructive', 'backup_admin',
@@ -144,7 +143,8 @@ OPERATIONS = (
         'restore_admin', (
             cp_field('restore_timestamp', 'Restore timestamp', 'text', True,
                      max_length=128, pattern=r'[0-9TZ: .+-]+'),
-        ), impact_scope='cluster', long_running=True, cancellable=True
+        ), impact_scope='cluster', long_running=True, cancellable=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'changefeed', 'create', 'Create CDCSDK stream', 'admin',
@@ -248,6 +248,22 @@ def _target(request, pattern=_ID_PATTERN):
     return _safe(path[-1], 'target', pattern)
 
 
+def _quoted_identifier(value, label):
+    return '"' + _safe(value, label, _ID_PATTERN) + '"'
+
+
+def _qualified_table(request):
+    target = request.get('target_resource')
+    path = target.get('display_path') if isinstance(target, dict) else None
+    if not isinstance(path, list) or len(path) < 2:
+        raise RelationalClientError(
+            'YugabyteDB YSQL table path is invalid')
+    return '.'.join((
+        _quoted_identifier(path[-2], 'schema'),
+        _quoted_identifier(path[-1], 'table'),
+    ))
+
+
 def _placements(value):
     placements = _list(value, 'placement', r'[A-Za-z0-9_.:-]+', 256)
     for placement in placements:
@@ -275,16 +291,35 @@ def compile_action(request):
     operation = request['operation_id']
     draft = request.get('draft') or {}
     arguments = []
-    if kind in {'placement-policy', 'table'}:
+    if kind == 'table':
+        # YugabyteDB rejects modify_table_placement_info for YSQL tables and
+        # explicitly requires placement through YSQL tablespaces.  Compile
+        # the provider-owned form to the supported YSQL operation instead of
+        # presenting the YCQL-only yb-admin command as usable for YSQL.
+        tablespace = _quoted_identifier(
+            draft.get('tablespace'), 'tablespace')
+        return {
+            'statements': [{
+                'source': (
+                    f'ALTER TABLE {_qualified_table(request)} '
+                    f'SET TABLESPACE {tablespace}'
+                ),
+                'parameters': (),
+            }],
+            'impact': {
+                'scope': 'resource',
+                'target_resource_id': (
+                    request.get('target_resource') or {}
+                ).get('resource_id'),
+                'availability_risk': 'medium',
+                'data_movement_possible': True,
+            },
+        }
+    if kind == 'placement-policy':
         if operation == 'clear':
             arguments = ['clear_placement_info']
         else:
-            arguments = [
-                'modify_placement_info' if kind == 'placement-policy'
-                else 'modify_table_placement_info',
-            ]
-            if kind == 'table':
-                arguments.append(_target(request))
+            arguments = ['modify_placement_info']
             arguments.extend([
                 _placements(draft.get('placements')),
                 _positive_integer(
@@ -566,6 +601,144 @@ def _run(route, arguments, timeout=120):
     }
 
 
+def _json_document(text):
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _result_stdout(request):
+    result = request.get('provider_result') or {}
+    response = result.get('provider_response') if isinstance(
+        result, dict
+    ) else None
+    return response.get('stdout', '') if isinstance(response, dict) else ''
+
+
+def _created_identifier(request, keys, pattern):
+    text = _result_stdout(request)
+    document = _json_document(text)
+    if isinstance(document, dict):
+        for key in keys:
+            value = document.get(key)
+            if isinstance(value, str) and re.fullmatch(pattern, value):
+                return value
+    match = re.search(pattern, text, re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def _schedule_rows(document):
+    rows = document.get('schedules') if isinstance(document, dict) else None
+    return rows if isinstance(rows, list) else []
+
+
+def _schedule_ids(document):
+    return {
+        row.get('id') for row in _schedule_rows(document)
+        if isinstance(row, dict) and isinstance(row.get('id'), str)
+    }
+
+
+def _changefeed_ids(text):
+    return set(re.findall(
+        r'(?m)^\s*stream_id:\s*"([A-Fa-f0-9-]+)"\s*$', text or ''
+    ))
+
+
+def _xcluster_ids(text):
+    match = re.search(r'\[([^\]]*)\]', text or '')
+    if match is None:
+        return set()
+    return {
+        value.strip() for value in match.group(1).split(',')
+        if value.strip()
+    }
+
+
+def _resource(kind, name, generation, native, path=None):
+    path = list(path or ())
+    return {
+        'resource_id': ':'.join([kind, *path, name]),
+        'resource_kind': kind, 'display_name': name,
+        'display_path': [*path, name],
+        'authority_path': [*path, kind, name], 'generation': generation,
+        'native': copy.deepcopy(native),
+    }
+
+
+def catalog_resources(route, generation):
+    """Enumerate provider-owned YB control-plane objects for navigation."""
+    if not isinstance(route, dict) or not route.get(
+            'yb_admin_path') or not route.get('master_addresses'):
+        return []
+    resources = []
+    probes = (
+        ('schedule', ['list_snapshot_schedules']),
+        ('changefeed', ['list_change_data_streams']),
+        ('xcluster-replication', ['list_universe_replications']),
+        ('snapshot', ['list_snapshots', 'JSON', 'SHOW_DETAILS']),
+        ('placement-policy', ['get_universe_config']),
+        ('table', [
+            'list_tables', 'include_db_type', 'include_table_id',
+            'include_table_type',
+        ]),
+    )
+    for kind, arguments in probes:
+        try:
+            response = _run(route, arguments, timeout=30)
+        except RelationalClientError:
+            continue
+        text = response.get('stdout', '')
+        document = _json_document(text)
+        if kind == 'schedule':
+            for row in _schedule_rows(document):
+                if isinstance(row, dict) and isinstance(row.get('id'), str):
+                    resources.append(_resource(
+                        kind, row['id'], generation, row))
+        elif kind == 'changefeed':
+            for identifier in sorted(_changefeed_ids(text)):
+                resources.append(_resource(
+                    kind, identifier, generation, {'raw': text}))
+        elif kind == 'xcluster-replication':
+            for identifier in sorted(_xcluster_ids(text)):
+                resources.append(_resource(
+                    kind, identifier, generation, {'raw': text}))
+        elif kind == 'snapshot':
+            rows = document.get('snapshots') if isinstance(
+                document, dict
+            ) else document
+            for row in rows if isinstance(rows, list) else []:
+                if not isinstance(row, dict):
+                    continue
+                identifier = row.get('id') or row.get('snapshot_id')
+                if isinstance(identifier, str):
+                    resources.append(_resource(
+                        kind, identifier, generation, row))
+        elif kind == 'table':
+            database = str(route.get('database') or '')
+            pattern = re.compile(
+                r'^ysql\.([^\.\s]+)\.([^\s]+) '
+                r'\[ysql_schema=([^\]]+)\] '
+                r'\[([A-Fa-f0-9-]+)\] [A-Fa-f0-9-]+ table$',
+                re.MULTILINE,
+            )
+            for db_name, table, schema, table_id in pattern.findall(text):
+                if database and db_name != database:
+                    continue
+                resources.append(_resource(
+                    kind, table, generation, {
+                        'table_id': table_id, 'database': db_name,
+                        'schema': schema,
+                    }, path=[schema]))
+        elif isinstance(document, dict):
+            resources.append(_resource(
+                kind, 'live-placement', generation,
+                document.get('replicationInfo') or document,
+            ))
+    return resources
+
+
 def execute_action(_client, request):
     payload = request.get('provider_payload') or {}
     action = payload.get('compiled', {}).get('provider_action', {})
@@ -604,14 +777,14 @@ def inspect_action(_client, request):
         arguments = ['list_snapshots', 'JSON', 'SHOW_DETAILS']
     elif kind == 'schedule':
         arguments = ['list_snapshot_schedules']
-        if operation != 'create':
+        if operation not in {'create', 'drop'}:
             arguments.append(_target({
                 'target_resource': plan.get('target_resource')
             }, _UUID_PATTERN))
     elif kind == 'changefeed':
         arguments = ['list_change_data_streams']
     elif kind == 'xcluster-replication':
-        if operation == 'create':
+        if operation in {'create', 'drop'}:
             arguments = ['list_universe_replications']
         else:
             arguments = [
@@ -669,9 +842,76 @@ def cancel_action(_client, request):
 def post_validate_action(client, request):
     observation = inspect_action(client, request)
     text = observation['provider_observation'].get('stdout', '')
+    document = _json_document(text)
+    plan = request.get('plan') or {}
+    kind = plan.get('resource_kind')
+    operation = plan.get('operation_id')
+    draft = plan.get('draft') or {}
+    target = plan.get('target_resource') or {}
+    path = target.get('display_path') or [target.get('display_name')]
+    expected = path[-1] if path and isinstance(path[-1], str) else None
+    present = None
+    if kind == 'schedule':
+        if operation == 'create':
+            expected = _created_identifier(
+                request, ('schedule_id', 'scheduleId'),
+                r'"schedule_id"\s*:\s*"([A-Fa-f0-9-]+)"',
+            )
+        present = expected in _schedule_ids(document)
+        if present and operation == 'drop':
+            row = next(item for item in _schedule_rows(document)
+                       if item.get('id') == expected)
+            present = not bool((row.get('options') or {}).get('delete_time'))
+        if present and operation == 'alter':
+            row = next(item for item in _schedule_rows(document)
+                       if item.get('id') == expected)
+            options = row.get('options') or {}
+            checks = []
+            for key, field in (
+                    ('interval_minutes', 'interval'),
+                    ('retention_minutes', 'retention')):
+                if draft.get(key) is not None:
+                    checks.append(str(options.get(field, '')).startswith(
+                        str(draft[key]) + ' '))
+            present = bool(checks) and all(checks)
+    elif kind == 'changefeed':
+        if operation == 'create':
+            expected = _created_identifier(
+                request, (),
+                r'CDC\s+Stream\s+ID:\s*([A-Fa-f0-9-]+)',
+            )
+        present = expected in _changefeed_ids(text)
+    elif kind == 'xcluster-replication':
+        if operation == 'create':
+            expected = draft.get('replication_group_id')
+            present = expected in _xcluster_ids(text)
+        else:
+            present = bool(expected and (
+                f'Replication Group Id: {expected}' in text or
+                expected in _xcluster_ids(text)
+            ))
+            if present and operation in {'add_tables', 'remove_tables'}:
+                observed_ids = set(re.findall(
+                    r'(?m)^\s*[A-Fa-f0-9-]+\s+([A-Fa-f0-9-]+)\s+'
+                    r'[A-Fa-f0-9-]+\s*$', text,
+                ))
+                requested = set(draft.get('table_ids') or [])
+                present = (
+                    requested.issubset(observed_ids)
+                    if operation == 'add_tables' else
+                    requested.isdisjoint(observed_ids)
+                )
+    confirmed = bool(expected and present is not None and (
+        (operation == 'drop' and not present) or
+        (operation != 'drop' and present)
+    ))
     return {
-        'confirmed': False,
-        'reason': 'yugabytedb_provider_state_requires_semantic_review',
+        'confirmed': confirmed,
+        'reason': (
+            'yugabytedb_resource_state_matches_requested_state'
+            if confirmed else
+            'yugabytedb_provider_state_requires_semantic_review'
+        ),
         'provider_output': text,
         'observation': observation,
         'provider_finality_authority': True,

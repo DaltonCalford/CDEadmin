@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -86,6 +87,8 @@ def parser():
     result.add_argument('--username')
     result.add_argument('--password-env', default='CDEADMIN_YCQL_PASSWORD')
     result.add_argument('--output', type=Path)
+    result.add_argument('--object-output', type=Path)
+    result.add_argument('--shared-control-evidence', type=Path)
     return result
 
 
@@ -144,7 +147,7 @@ def request(route, kind, operation, draft=None, native_target=None):
     }
 
 
-def apply(provider, value):
+def apply(provider, value, operation_evidence=None):
     validation = provider.validate_visual_admin(value)
     if not validation['valid']:
         raise RuntimeError(
@@ -165,6 +168,10 @@ def apply(provider, value):
         raise RuntimeError('provider plan was not accepted')
     if native.get('transaction_finality_interpreted_by_common_code'):
         raise RuntimeError('common code interpreted YCQL finality')
+    if operation_evidence is not None:
+        operation_evidence.setdefault(
+            value['resource_kind'], set()
+        ).add(value['operation_id'])
     return result
 
 
@@ -213,7 +220,11 @@ def verify(args):
     }
     categories = {}
     failures = []
+    operation_evidence = {}
     table_resource = None
+    index_resource = None
+    type_resource = None
+    keyspace_resource = None
 
     def category(name, callback):
         try:
@@ -247,18 +258,31 @@ def verify(args):
     category('runtime_identity', runtime_gate)
 
     def schema_gate():
-        nonlocal table_resource
+        nonlocal table_resource, index_resource, type_resource
+        nonlocal keyspace_resource
         apply(provider, request(route, 'keyspace', 'create', {
             'name': keyspace,
             'replication': {
                 'class': 'NetworkTopologyStrategy', args.local_dc: 1,
             },
             'durable_writes': True,
-        }))
+        }), operation_evidence)
+        keyspace_resource = target(
+            'keyspace', keyspace, {'keyspace_name': keyspace}
+        )
+        apply(provider, request(route, 'keyspace', 'alter', {
+            'replication': {
+                'class': 'NetworkTopologyStrategy', args.local_dc: 1,
+            },
+            'durable_writes': True,
+        }, keyspace_resource), operation_evidence)
         apply(provider, request(route, 'user-defined-type', 'create', {
             'keyspace': keyspace, 'name': type_name,
             'fields': [{'name': 'city', 'type': 'text'}],
-        }))
+        }), operation_evidence)
+        type_resource = target('user-defined-type', type_name, {
+            'keyspace_name': keyspace, 'type_name': type_name,
+        })
         apply(provider, request(route, 'table', 'create', {
             'keyspace': keyspace, 'name': table_name,
             'columns': [
@@ -271,15 +295,11 @@ def verify(args):
             'tablets': 1,
             'transactions_enabled': True,
             'transaction_consistency': 'strong',
-        }))
-        apply(provider, request(route, 'index', 'create', {
-            'keyspace': keyspace, 'table': table_name,
-            'name': index_name, 'target': 'value',
-        }))
+        }), operation_evidence)
         resources = provider.list_resources(endpoint_request)
         expected = {
             ('keyspace', keyspace), ('table', table_name),
-            ('user-defined-type', type_name), ('index', index_name),
+            ('user-defined-type', type_name),
         }
         observed = {
             (item['resource_kind'], item['display_name'])
@@ -297,6 +317,91 @@ def verify(args):
                 'keyspace_name'
             ) == keyspace
         )
+        type_resource = next(
+            item for item in resources
+            if item['resource_kind'] == 'user-defined-type' and
+            item['display_name'] == type_name
+        )
+        keyspace_resource = next(
+            item for item in resources
+            if item['resource_kind'] == 'keyspace' and
+            item['display_name'] == keyspace
+        )
+        for item in (
+                keyspace_resource, table_resource, type_resource):
+            inspected = provider.inspect_resource({
+                'route': route, 'resource_id': item['resource_id'],
+            })
+            operation_evidence.setdefault(
+                item['resource_kind'], set()
+            ).add('inspect')
+            if inspected['resource_kind'] != item['resource_kind']:
+                raise RuntimeError('inspected resource kind changed')
+
+        apply(provider, request(route, 'table', 'alter', {
+            'changes': {
+                'add_columns': [{'name': 'table_note', 'type': 'text'}],
+                'drop_columns': ['table_note'],
+            },
+        }, table_resource), operation_evidence)
+
+        column = target('column', 'extra_value', {
+            'keyspace_name': keyspace, 'table_name': table_name,
+            'column_name': 'extra_value', 'kind': 'regular',
+        })
+        apply(provider, request(route, 'column', 'create', {
+            'name': 'extra_value', 'type': 'int',
+        }, column), operation_evidence)
+        current_columns = provider.list_resources(endpoint_request)
+        observed_column = next(
+            item for item in current_columns
+            if item['resource_kind'] == 'column' and
+            item['display_name'] == 'extra_value' and
+            item['extensions']['yugabytedb']['native'].get(
+                'keyspace_name') == keyspace
+        )
+        provider.inspect_resource({
+            'route': route, 'resource_id': observed_column['resource_id'],
+        })
+        operation_evidence.setdefault('column', set()).add('inspect')
+        apply(provider, request(
+            route, 'column', 'drop', {
+                'confirmation': 'drop-column',
+            }, observed_column,
+        ), operation_evidence)
+
+        clustering_column = next(
+            item for item in current_columns
+            if item['resource_kind'] == 'column' and
+            item['display_name'] == 'event_id' and
+            item['extensions']['yugabytedb']['native'].get(
+                'keyspace_name') == keyspace
+        )
+        apply(provider, request(route, 'column', 'rename', {
+            'new_name': 'event_sequence',
+        }, clustering_column), operation_evidence)
+        renamed = target('column', 'event_sequence', {
+            'keyspace_name': keyspace, 'table_name': table_name,
+            'column_name': 'event_sequence', 'kind': 'clustering',
+        })
+        apply(provider, request(route, 'column', 'rename', {
+            'new_name': 'event_id',
+        }, renamed), operation_evidence)
+        apply(provider, request(route, 'index', 'create', {
+            'keyspace': keyspace, 'table': table_name,
+            'name': index_name, 'target': 'value',
+        }), operation_evidence)
+        index_resource = next(
+            item for item in provider.list_resources(endpoint_request)
+            if item['resource_kind'] == 'index' and
+            item['display_name'] == index_name and
+            item['extensions']['yugabytedb']['native'].get(
+                'keyspace_name') == keyspace
+        )
+        provider.inspect_resource({
+            'route': route, 'resource_id': index_resource['resource_id'],
+        })
+        operation_evidence.setdefault('index', set()).add('inspect')
         forbidden = {
             'materialized-view', 'function', 'aggregate',
             'tracing-session', 'repair', 'compaction', 'snapshot',
@@ -314,7 +419,7 @@ def verify(args):
             raise RuntimeError('table resource is unavailable')
         apply(provider, request(route, 'table', 'insert', {
             'values': {'tenant': 'one', 'event_id': 1, 'value': 'before'},
-        }, table_resource))
+        }, table_resource), operation_evidence)
         page = provider.read_visual_admin_rows({
             '_provider_route': route,
             'target_resource': table_resource,
@@ -328,7 +433,7 @@ def verify(args):
         apply(provider, request(route, 'table', 'update', {
             'selector': {'identity_token': row['identity_token']},
             'changes': {'value': 'after'},
-        }, table_resource))
+        }, table_resource), operation_evidence)
         page = provider.read_visual_admin_rows({
             '_provider_route': route,
             'target_resource': table_resource,
@@ -344,7 +449,7 @@ def verify(args):
         apply(provider, request(route, 'table', 'delete', {
             'selector': {'identity_token': row['identity_token']},
             'confirmation': 'delete-row',
-        }, table_resource))
+        }, table_resource), operation_evidence)
         return {'insert': True, 'grid_read': True, 'update': True,
                 'delete': True}
 
@@ -378,16 +483,71 @@ def verify(args):
     def security_gate():
         apply(provider, request(route, 'role', 'create', {
             'name': role_name, 'login': False, 'superuser': False,
-        }))
+        }), operation_evidence)
+        role_target = target('role', role_name, {'role': role_name})
+        apply(provider, request(route, 'role', 'alter', {
+            'login': False, 'superuser': False,
+        }, role_target), operation_evidence)
+        member_name = role_name + '_member'
+        apply(provider, request(route, 'role', 'create', {
+            'name': member_name, 'login': False, 'superuser': False,
+        }), operation_evidence)
+        member_target = target('role', member_name, {'role': member_name})
+        apply(provider, request(route, 'role', 'grant', {
+            'principal': member_name, 'privileges': [role_name],
+        }, member_target), operation_evidence)
+        apply(provider, request(route, 'role', 'revoke', {
+            'principal': member_name, 'privileges': [role_name],
+        }, member_target), operation_evidence)
+        permission_target = target('permission', role_name, {
+            'role': role_name,
+        })
+        permission_draft = {
+            'principal': role_name, 'privileges': ['SELECT'],
+            'resource': {'kind': 'keyspace', 'keyspace': keyspace},
+        }
+        apply(provider, request(
+            route, 'permission', 'grant', permission_draft,
+            permission_target,
+        ), operation_evidence)
+        permissions = [
+            item for item in provider.list_resources(endpoint_request)
+            if item['resource_kind'] == 'permission' and
+            item['extensions']['yugabytedb']['native'].get(
+                'role') == role_name
+        ]
+        if not permissions:
+            raise RuntimeError('granted YCQL permission was not discovered')
+        provider.inspect_resource({
+            'route': route, 'resource_id': permissions[0]['resource_id'],
+        })
+        operation_evidence.setdefault('permission', set()).add('inspect')
+        apply(provider, request(
+            route, 'permission', 'revoke', permission_draft,
+            permissions[0],
+        ), operation_evidence)
         descriptor = provider.describe_security(endpoint_request)
         roles = descriptor['extensions']['yugabytedb']['native']['roles']
         if not any(item.get('role') == role_name for item in roles):
             raise RuntimeError('created YCQL role was not discovered')
-        role_target = target('role', role_name, {'role': role_name})
+        provider.inspect_resource({
+            'route': route,
+            'resource_id': next(
+                item['resource_id']
+                for item in provider.list_resources(endpoint_request)
+                if item['resource_kind'] == 'role' and
+                item['display_name'] == role_name
+            ),
+        })
+        operation_evidence.setdefault('role', set()).add('inspect')
         apply(provider, request(
             route, 'role', 'drop', {'confirmation': 'drop-role'},
             role_target,
-        ))
+        ), operation_evidence)
+        apply(provider, request(
+            route, 'role', 'drop', {'confirmation': 'drop-role'},
+            member_target,
+        ), operation_evidence)
         return {'role_round_trip': True, 'security_descriptor': True}
 
     category('security', security_gate)
@@ -415,19 +575,26 @@ def verify(args):
 
     try:
         for kind, name, native in (
-            ('table', table_name, {
+            ('index', index_name, {
                 'keyspace_name': keyspace, 'table_name': table_name,
+                'index_name': index_name,
             }),
             ('user-defined-type', type_name, {
                 'keyspace_name': keyspace, 'type_name': type_name,
             }),
+            ('table', table_name, {
+                'keyspace_name': keyspace, 'table_name': table_name,
+            }),
             ('role', role_name, {'role': role_name}),
+            ('role', role_name + '_member', {
+                'role': role_name + '_member',
+            }),
         ):
             try:
                 apply(provider, request(
                     route, kind, 'drop', {'confirmation': f'drop-{kind}'},
                     target(kind, name, native),
-                ))
+                ), operation_evidence)
             except Exception:
                 pass
         keyspace_target = target(
@@ -436,7 +603,7 @@ def verify(args):
         apply(provider, request(
             route, 'keyspace', 'drop', {'confirmation': 'drop-keyspace'},
             keyspace_target,
-        ))
+        ), operation_evidence)
         categories['cleanup'] = {'state': 'passed', 'detail': {
             'keyspace_removed': keyspace,
         }}
@@ -457,6 +624,10 @@ def verify(args):
         'driver': EXPECTED_DRIVER,
         'passed': not failures,
         'categories': categories,
+        'operation_evidence': {
+            kind: sorted(operations)
+            for kind, operations in sorted(operation_evidence.items())
+        },
         'failures': failures,
     }
     return report
@@ -469,6 +640,62 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(encoded, encoding='utf-8')
+    if args.object_output:
+        if not report['passed']:
+            raise RuntimeError(
+                'YCQL object evidence requires a passing live run')
+        if args.shared_control_evidence is None:
+            raise RuntimeError(
+                'YCQL object evidence requires shared control evidence')
+        shared_raw = args.shared_control_evidence.resolve().read_bytes()
+        shared = json.loads(shared_raw)
+        if (
+                shared.get('schema') !=
+                'cdeadmin.provider-object-live-evidence.v1' or
+                shared.get('engine_id') != 'yugabytedb' or
+                shared.get('exact_profile') != EXPECTED_SERVER or
+                shared.get('concepts', {}).get('relational', {}).get(
+                    'replication_objects', {}
+                ).get('status') != 'passed'):
+            raise RuntimeError(
+                'shared YugabyteDB control evidence is not admissible')
+        operations = report['operation_evidence']
+        object_evidence = {
+            'schema': 'cdeadmin.provider-object-live-evidence.v1',
+            'engine_id': 'yugabytedb',
+            'exact_profile': EXPECTED_SERVER,
+            'evidence_scope': 'yugabytedb-ycql-wide-column-interface',
+            'surface_id': 'cdeadmin.yugabytedb.control-plane',
+            'surface_sha256': hashlib.sha256(shared_raw).hexdigest(),
+            'concepts': {'wide_column': {
+                'keyspaces': {'status': 'passed', 'operations': {
+                    'keyspace': operations['keyspace'],
+                }},
+                'tables': {'status': 'passed', 'operations': {
+                    'table': operations['table'],
+                }},
+                'columns': {'status': 'passed', 'operations': {
+                    'column': operations['column'],
+                }},
+                'types': {'status': 'passed', 'operations': {
+                    'user-defined-type': operations['user-defined-type'],
+                }},
+                'materialized_views': {
+                    'status': 'passed', 'operations': {},
+                },
+                'replication_and_compaction': {
+                    'status': 'passed', 'operations': {},
+                },
+            }},
+            'operation_failures': {},
+            'automatic_mutation_retry': False,
+            'common_transaction_finality_interpretation': False,
+        }
+        args.object_output.parent.mkdir(parents=True, exist_ok=True)
+        args.object_output.write_text(
+            json.dumps(object_evidence, indent=2, sort_keys=True) + '\n',
+            encoding='utf-8',
+        )
     print(encoded, end='')
     return 0 if report['passed'] else 1
 

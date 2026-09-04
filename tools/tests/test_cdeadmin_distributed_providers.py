@@ -130,6 +130,7 @@ from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
 )
 from pgadmin.cdeadmin.providers.yugabytedb.control_plane import (  # noqa: E402
     _restoration_id as yugabytedb_restoration_id,
+    catalog_resources as yugabytedb_control_resources,
     compile_action as compile_yugabytedb_action,
 )
 from pgadmin.cdeadmin.sdk import (  # noqa: E402
@@ -626,6 +627,77 @@ class DistributedProviderTests(unittest.TestCase):
             '3', 'canada-primary',
         ], placement['provider_action']['arguments'])
         self.assertTrue(placement['impact']['data_movement_possible'])
+
+        table_placement = compile_yugabytedb_action({
+            'resource_kind': 'table',
+            'operation_id': 'configure_placement',
+            'target_resource': {
+                'resource_id': 'table:public:orders',
+                'display_path': ['public', 'orders'],
+            },
+            'draft': {'tablespace': 'canada_primary'},
+        })
+        self.assertEqual(
+            'ALTER TABLE "public"."orders" SET TABLESPACE '
+            '"canada_primary"',
+            table_placement['statements'][0]['source'],
+        )
+        self.assertNotIn('provider_action', table_placement)
+
+    @patch(
+        'pgadmin.cdeadmin.providers.yugabytedb.control_plane._run'
+    )
+    def test_yugabytedb_control_catalog_parses_native_objects(self, run):
+        values = {
+            'list_snapshot_schedules': json.dumps({'schedules': [{
+                'id': 'a' * 32, 'options': {'interval': '60 min'},
+            }]}),
+            'list_change_data_streams': (
+                'streams {\n  stream_id: "' + 'b' * 32 + '"\n}\n'
+            ),
+            'list_universe_replications': '[orders_replication]\n',
+            'list_snapshots': json.dumps({'snapshots': [{
+                'id': 'c' * 32, 'state': 'COMPLETE',
+            }]}),
+            'get_universe_config': json.dumps({
+                'replicationInfo': {'liveReplicas': {}},
+            }),
+            'list_tables': (
+                'ysql.application.orders [ysql_schema=public] '
+                '[' + 'd' * 32 + '] ' + 'e' * 32 + ' table\n'
+            ),
+        }
+
+        def response(_route, arguments, timeout=120):
+            return {
+                'stdout': values[arguments[0]], 'stderr': '',
+                'provider_response_observed': True,
+            }
+
+        run.side_effect = response
+        resources = yugabytedb_control_resources({
+            'yb_admin_path': '/trusted/yb-admin',
+            'master_addresses': 'master.internal:7100',
+            'database': 'application',
+        }, 'generation-one')
+        observed = {
+            (item['resource_kind'], item['display_name'])
+            for item in resources
+        }
+        self.assertTrue({
+            ('schedule', 'a' * 32),
+            ('changefeed', 'b' * 32),
+            ('xcluster-replication', 'orders_replication'),
+            ('snapshot', 'c' * 32),
+            ('placement-policy', 'live-placement'),
+            ('table', 'orders'),
+        }.issubset(observed))
+        table = next(
+            item for item in resources
+            if item['resource_kind'] == 'table'
+        )
+        self.assertEqual('d' * 32, table['native']['table_id'])
+        self.assertEqual(['public', 'orders'], table['display_path'])
 
     def test_yugabytedb_xcluster_plan_is_provider_constructed(self):
         plan = YUGABYTEDB_ADMIN.plan({

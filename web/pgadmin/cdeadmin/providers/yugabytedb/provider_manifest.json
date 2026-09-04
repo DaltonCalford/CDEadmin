@@ -5,7 +5,7 @@
     "provider_version": "0.1.0",
     "profile_id": "yugabytedb-native",
     "profile_version": "2025.2.2.2",
-    "evidence_reference": "cde-distributed:yugabytedb-native-live:20260902"
+    "evidence_reference": "cdeadmin-yugabytedb-full-live:20260904"
   },
   "package_type": "engine",
   "sdk_compatibility": {
@@ -202,7 +202,10 @@
     "client_state": "psycopg_3.3.4_installed",
     "runtime_state": "exact_runtime_qualified",
     "activation_gate": "passed",
+    "object_experience_gate": "passed",
+    "full_live_evidence_sha256": "b459932d4690375ae656ad95acb835392cbf52ef68ce6c5f9e0a17500e58e9f2",
+    "strict_object_evidence_sha256": "95f339172a7800021dc7b32099f08a4836f97bc9dbbfe6484357b779f98e7fec",
     "dual_interface_gate": "passed",
-    "dual_interface_evidence_reference": "cde-yugabytedb-dual-interface-live:20260903"
+    "dual_interface_evidence_reference": "cdeadmin-yugabytedb-dual-interface-live:20260904"
   }
 }

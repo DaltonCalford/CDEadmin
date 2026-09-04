@@ -1,5 +1,7 @@
 """YugabyteDB 2025.2.2.2 YSQL distributed provider."""
 
+import copy
+from collections.abc import Mapping
 from dataclasses import replace
 import json
 import re
@@ -20,6 +22,7 @@ from ..distributed_sql import (
 from ..relational_admin import RelationalAdministration
 from .control_plane import (
     OPERATIONS as CONTROL_OPERATIONS,
+    catalog_resources as control_catalog_resources,
     cancel_action,
     compile_action,
     execute_action,
@@ -280,13 +283,73 @@ class YugabyteDBAdministration(RelationalAdministration):
             return _CONTROL_ADMINISTRATION.apply(client, request)
         return super().apply(client, request)
 
+    @staticmethod
+    def _control_request(request):
+        plan = request.get('plan') or {}
+        return _CONTROL_ADMINISTRATION.control_plane.supports(
+            plan.get('resource_kind'), plan.get('operation_id')
+        )
+
+    @staticmethod
+    def _relational_observation(client, request):
+        plan = request.get('plan') or {}
+        payload = request.get('provider_payload') or {}
+        route = payload.get('route')
+        if not isinstance(route, Mapping):
+            raise RelationalClientError(
+                'YugabyteDB relational observation route is unavailable'
+            )
+        target = plan.get('target_resource') or {}
+        draft = plan.get('draft') or {}
+        operation = plan.get('operation_id')
+        kind = plan.get('resource_kind')
+        path = target.get('display_path')
+        if operation == 'create':
+            name = draft.get('name')
+            if kind in {
+                    'database', 'schema', 'role', 'user', 'tablespace',
+                    'extension'}:
+                path = [name]
+            else:
+                parent = draft.get('parent') or route.get('database')
+                path = [parent, name] if parent else [name]
+        if not isinstance(path, list) or not path or not all(
+                isinstance(value, str) and value for value in path):
+            raise RelationalClientError(
+                'YugabyteDB relational observation target is unavailable'
+            )
+        resources = client.list_resources({'route': route})
+        item = next((
+            value for value in resources
+            if value.get('resource_kind') == kind and
+            value.get('display_path') == path
+        ), None)
+        return {
+            'resource_kind': kind, 'display_path': copy.deepcopy(path),
+            'present': item is not None, 'resource': copy.deepcopy(item),
+            'provider_observation_only': True,
+            'provider_finality_authority': True,
+        }
+
     def inspect_operation(self, client, request):
+        if not self._control_request(request):
+            return self._relational_observation(client, request)
         return _CONTROL_ADMINISTRATION.inspect_operation(client, request)
 
     def cancel_operation(self, client, request):
         return _CONTROL_ADMINISTRATION.cancel_operation(client, request)
 
     def validate_operation_post_state(self, client, request):
+        if not self._control_request(request):
+            plan = request.get('plan') or {}
+            observed = self._relational_observation(client, request)
+            expected_present = plan.get('operation_id') != 'drop'
+            return {
+                'confirmed': observed['present'] is expected_present,
+                'reason': 'yugabytedb_relational_catalog_state_observed',
+                'observation': observed,
+                'provider_finality_authority': True,
+            }
         return _CONTROL_ADMINISTRATION.validate_operation_post_state(
             client, request
         )
@@ -446,6 +509,20 @@ def _extras(cursor, _request, generation):
     return values
 
 
+def _catalog(connection, request):
+    generation = str(request.get('capability_generation') or 'current')
+    values = {
+        item['resource_id']: item
+        for item in postgresql_catalog(
+            connection, request, 'YugabyteDB', _extras
+        )
+    }
+    route = request.get('route') or request.get('_provider_route') or {}
+    for item in control_catalog_resources(route, generation):
+        values[item['resource_id']] = item
+    return list(values.values())
+
+
 class YugabyteDBProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
@@ -461,9 +538,7 @@ def create_provider(context, permissions, client=None):
             wire='postgresql',
             version_query='SELECT version()',
             version_parser=_version,
-            metadata_reader=lambda connection, request: postgresql_catalog(
-                connection, request, 'YugabyteDB', _extras
-            ),
+            metadata_reader=_catalog,
             administration=ADMINISTRATION,
             pool_namespace=context.pool_namespace,
         ),
