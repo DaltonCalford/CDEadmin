@@ -19,7 +19,10 @@ PROFILE = PilotProfile(
     result_kind='columnar',
     resource_kinds=(
         'catalog', 'data-source', 'query', 'saved-query',
-        'prepared-query', 'language-settings',
+        'prepared-query', 'language-settings', 'index', 'mapping',
+        'settings', 'alias', 'index-template', 'component-template',
+        'ingest-pipeline', 'shard', 'reindex-operation', 'snapshot',
+        'ingest-processor', 'query-profile', 'repository',
     ),
     admin_tools=('sql-ppl-api', 'datasource-admin'),
     required_permissions=('network', 'secret_read'),

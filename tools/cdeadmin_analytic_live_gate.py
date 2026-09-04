@@ -390,7 +390,10 @@ def _opensearch(client, sql_client, route, run_id, destructive):
             'index': index, 'document_id': 'one',
             'document': {'value': 43},
         }, document_target)
-        client._request(route, f'/{index}/_refresh', method='POST')
+        client._request(
+            client._route({'route': route}),
+            f'/{index}/_refresh', method='POST',
+        )
         selected = dict(route, index=index)
         session = client.open_session({'route': selected})
         try:

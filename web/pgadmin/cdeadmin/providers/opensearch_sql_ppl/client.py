@@ -27,6 +27,7 @@ from pgadmin.cdeadmin.transports.analytics_http import (
     normalize_http_route,
     required_text,
 )
+from pgadmin.cdeadmin.search.opensearch import OpenSearchClient
 
 
 SERVER_VERSION = '3.6.0'
@@ -80,12 +81,23 @@ def _name(value, label='name'):
 class OpenSearchSQLPPLClient:
     """Separate SQL/PPL semantic profile over OpenSearch's HTTP boundary."""
 
+    SEARCH_RESOURCE_KINDS = frozenset({
+        'index', 'mapping', 'settings', 'alias', 'index-template',
+        'component-template', 'ingest-pipeline', 'shard',
+        'reindex-operation', 'repository', 'snapshot', 'ingest-processor',
+        'query-profile',
+    })
+
     ADMIN_OPERATIONS = {
         'catalog': frozenset({'inspect'}),
         'data-source': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'query': frozenset({'inspect', 'execute'}),
         'prepared-query': frozenset({'inspect', 'execute'}),
         'language-settings': frozenset({'inspect', 'alter'}),
+        **{
+            kind: OpenSearchClient.ADMIN_OPERATIONS[kind]
+            for kind in SEARCH_RESOURCE_KINDS
+        },
     }
 
     def __init__(self, secret_acquirer=None, urlopen=None):
@@ -94,6 +106,7 @@ class OpenSearchSQLPPLClient:
         )
         self._sessions = []
         self._lock = threading.RLock()
+        self.search_admin = OpenSearchClient(secret_acquirer, urlopen=urlopen)
 
     @staticmethod
     def _route(request):
@@ -320,6 +333,21 @@ class OpenSearchSQLPPLClient:
             name = native.get('name') or native.get('dataSourceName')
             if name:
                 resources.append(self._resource('data-source', name, native))
+        for item in self.search_admin.list_resources(request):
+            if item.get('resource_kind') not in self.SEARCH_RESOURCE_KINDS:
+                continue
+            shared = copy.deepcopy(item)
+            shared['resource_id'] = (
+                'opensearch_sql_ppl:search:' + item['resource_id']
+            )
+            shared['authority_path'] = [
+                'opensearch_sql_ppl', 'search',
+                *item.get('authority_path', [])[1:],
+            ]
+            shared['display_path'] = [
+                'search', *item.get('display_path', []),
+            ]
+            resources.append(shared)
         return resources
 
     def inspect_resource(self, request):
@@ -328,6 +356,10 @@ class OpenSearchSQLPPLClient:
         name = native.get('name') or native.get('dataSourceName') or kind
         if not kind or not name:
             raise OpenSearchSQLPPLClientError('resource identity is absent')
+        if kind in self.SEARCH_RESOURCE_KINDS:
+            return self.search_admin.inspect_resource({
+                'resource_kind': kind, 'native': native,
+            })
         return self._resource(kind, name, native)
 
     def describe_security(self, request):
@@ -401,6 +433,18 @@ class OpenSearchSQLPPLClient:
         catalog['query_languages'] = ['sql', 'ppl']
         catalog['transaction_authority'] = 'opensearch-query-request-outcome'
         catalog['common_finality_interpretation'] = False
+        catalog['experience_families'] = ['search']
+        declarations = self.search_admin.search_concept_declarations()
+        for declaration in declarations.values():
+            declaration['reason'] = (
+                'The SQL/PPL provider composes the same exact OpenSearch '
+                '3.6 REST administration surface alongside its query '
+                'language endpoints.'
+            )
+            declaration['evidence'] = [
+                'opensearch-sql-ppl-3.6-composed-rest-catalog'
+            ]
+        catalog['concept_declarations'] = {'search': declarations}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             resource['operations'] = [
@@ -410,7 +454,14 @@ class OpenSearchSQLPPLClient:
                 )
             ]
             for operation in resource['operations']:
-                operation['form'] = self._form(kind, operation['operation_id'])
+                if kind in self.SEARCH_RESOURCE_KINDS:
+                    operation['form'] = self.search_admin._form(
+                        kind, operation['operation_id']
+                    )
+                else:
+                    operation['form'] = self._form(
+                        kind, operation['operation_id']
+                    )
                 if operation['operation_id'] in {'drop', 'execute'}:
                     operation['confirmation_required'] = True
         return catalog
@@ -420,6 +471,14 @@ class OpenSearchSQLPPLClient:
         try:
             kind, operation = request.get(
                 'resource_kind'), request.get('operation_id')
+            if kind in self.SEARCH_RESOURCE_KINDS:
+                adapted = copy.deepcopy(request)
+                adapted['target_resource'] = {
+                    'native': self._native_target(
+                        request.get('target_resource')
+                    )
+                }
+                return self.search_admin.validate_admin_operation(adapted)
             if not self.supports_admin_operation(kind, operation):
                 raise OpenSearchSQLPPLClientError('operation is unavailable')
             draft = _mapping(request.get('draft', {}), 'draft')
@@ -459,6 +518,10 @@ class OpenSearchSQLPPLClient:
 
     def apply_admin_operation(self, request):
         payload = _mapping(request.get('provider_payload'), 'provider payload')
+        if payload.get('kind') in self.SEARCH_RESOURCE_KINDS:
+            return self.search_admin.apply_admin_operation({
+                'provider_payload': payload,
+            })
         route = self._route({'route': payload.get('route')})
         kind, operation = payload['kind'], payload['operation']
         if route['read_only'] and operation not in {'inspect', 'execute'}:
@@ -532,3 +595,4 @@ class OpenSearchSQLPPLClient:
         for session in sessions:
             session.close()
         self.transport.close()
+        self.search_admin.close()

@@ -661,6 +661,14 @@ class AnalyticProviderTests(unittest.TestCase):
         self.assertIn('prometheus', {
             item['display_name'] for item in resources
         })
+        self.assertTrue({
+            'index', 'mapping', 'reindex-operation', 'query-profile',
+        } <= {item['resource_kind'] for item in resources})
+        catalog = client.visual_admin_catalog(
+            catalog_for_engine('opensearch_sql_ppl')
+        )
+        self.assertEqual(['search'], catalog['experience_families'])
+        self.assertEqual(11, len(catalog['concept_declarations']['search']))
 
         class MissingPlugin(AnalyticHTTPFactory):
             def __call__(self, request, timeout, context):

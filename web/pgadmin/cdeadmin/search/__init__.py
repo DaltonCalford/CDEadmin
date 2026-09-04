@@ -7,9 +7,9 @@
 #
 ##########################################################################
 
-"""OpenSearch provider compatibility exports for shared administration."""
+"""Shared provider-neutral search administration clients."""
 
-from pgadmin.cdeadmin.search.opensearch import (
+from .opensearch import (
     OpenSearchClient, OpenSearchClientError, OpenSearchUnknownOutcomeError,
 )
 

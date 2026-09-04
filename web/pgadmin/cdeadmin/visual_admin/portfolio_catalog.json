@@ -527,6 +527,11 @@
         {"resource_kind": "role-mapping", "title": "Role mapping", "operation_profile": "security"},
         {"resource_kind": "tenant", "title": "Tenant", "operation_profile": "security"},
         {"resource_kind": "policy", "title": "Lifecycle/security policy", "operation_profile": "security"}
+        ,{"resource_kind": "settings", "title": "Index settings", "operation_profile": "definition"}
+        ,{"resource_kind": "shard", "title": "Shard and replicas", "operation_profile": "read_only"}
+        ,{"resource_kind": "ingest-processor", "title": "Ingest processor", "operation_profile": "definition"}
+        ,{"resource_kind": "reindex-operation", "title": "Reindex workspace", "operation_profile": "operational"}
+        ,{"resource_kind": "query-profile", "title": "Query profiling workspace", "operation_profile": "operational"}
       ]
     },
     {
@@ -537,7 +542,20 @@
         {"resource_kind": "query", "title": "SQL/PPL query", "operation_profile": "operational"},
         {"resource_kind": "saved-query", "title": "Saved query", "operation_profile": "definition"},
         {"resource_kind": "prepared-query", "title": "Prepared query", "operation_profile": "operational"},
-        {"resource_kind": "language-settings", "title": "Language settings", "operation_profile": "definition"}
+        {"resource_kind": "language-settings", "title": "Language settings", "operation_profile": "definition"},
+        {"resource_kind": "index", "title": "Index", "operation_profile": "data_container"},
+        {"resource_kind": "mapping", "title": "Mapping", "operation_profile": "definition"},
+        {"resource_kind": "settings", "title": "Index settings", "operation_profile": "definition"},
+        {"resource_kind": "alias", "title": "Alias", "operation_profile": "definition"},
+        {"resource_kind": "index-template", "title": "Index template", "operation_profile": "definition"},
+        {"resource_kind": "component-template", "title": "Component template", "operation_profile": "definition"},
+        {"resource_kind": "ingest-pipeline", "title": "Ingest pipeline", "operation_profile": "definition"},
+        {"resource_kind": "shard", "title": "Shard and replicas", "operation_profile": "read_only"},
+        {"resource_kind": "reindex-operation", "title": "Reindex workspace", "operation_profile": "operational"},
+        {"resource_kind": "repository", "title": "Snapshot repository", "operation_profile": "operational"},
+        {"resource_kind": "snapshot", "title": "Snapshot", "operation_profile": "operational"},
+        {"resource_kind": "ingest-processor", "title": "Ingest processor", "operation_profile": "definition"},
+        {"resource_kind": "query-profile", "title": "Query profiling workspace", "operation_profile": "operational"}
       ]
     },
     {
