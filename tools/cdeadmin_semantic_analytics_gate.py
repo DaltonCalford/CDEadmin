@@ -76,12 +76,18 @@ def _integration_failures(root):
             'reproducibility_manifest', 'def diagnostics',
             'exact_data_replay_requires_provider_snapshot',
         ),
+        'web/pgadmin/cdeadmin/results/renderers.py': (
+            'def export_xlsx', 'def export_svg', 'inlineStr',
+        ),
+        'web/pgadmin/cdeadmin/workspace/service.py': (
+            'spreadsheetml.sheet', 'image/svg+xml',
+        ),
         'web/pgadmin/static/js/Dialogs/ProviderWorkspaceContent.jsx': (
             'Semantic relationship diagram', 'Declared grain fields',
             'Time role', 'Metric owner', 'Add cross-filter',
             'Chart builder', 'Dashboard builder', 'Report builder',
             'Row-level security', 'Tenant filtering', 'Query diagnostics',
-            'semanticCrossFilter', 'Run dashboard',
+            'semanticCrossFilter', 'Run dashboard', 'allowedFormats',
         ),
     }
     failures = []

@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 import unittest
 import uuid
@@ -397,6 +398,16 @@ class ProviderWorkspaceTests(unittest.TestCase):
             'result_id': result_id, 'format': 'json',
         })
         self.assertEqual('application/json', exported['media_type'])
+        spreadsheet = self.workspace.export_result(server, {
+            'result_id': result_id, 'format': 'xlsx',
+        })
+        self.assertEqual(
+            'application/vnd.openxmlformats-officedocument.'
+            'spreadsheetml.sheet', spreadsheet['media_type']
+        )
+        self.assertTrue(base64.b64decode(
+            spreadsheet['content_base64']
+        ).startswith(b'PK'))
         compared = self.workspace.compare_results(server, {
             'left_result_id': result_id, 'right_result_id': result_id,
         })

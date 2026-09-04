@@ -317,7 +317,8 @@ class Neo4jProviderTests(unittest.TestCase):
         )
         self.assertFalse(renderer.fixture_safe)
         self.assertEqual(
-            frozenset({'json', 'jsonl'}), renderer.export_formats
+            frozenset({'json', 'jsonl', 'xlsx', 'svg'}),
+            renderer.export_formats,
         )
 
     def test_structured_route_secret_lease_and_tls_scheme(self):

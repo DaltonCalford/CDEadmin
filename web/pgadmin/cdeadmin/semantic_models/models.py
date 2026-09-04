@@ -55,7 +55,7 @@ CHART_TYPES = frozenset({
     'histogram', 'timeline', 'graph', 'vector-neighbors',
 })
 EXPORT_FORMATS = frozenset({
-    'csv', 'json', 'jsonl',
+    'csv', 'json', 'jsonl', 'xlsx', 'svg',
 })
 FILTER_OPERATORS = frozenset({
     'eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'not_in', 'between',

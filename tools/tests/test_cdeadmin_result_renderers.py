@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import multiprocessing
 import sys
@@ -19,6 +20,7 @@ import tempfile
 import time
 import unittest
 import uuid
+import zipfile
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -53,6 +55,8 @@ from pgadmin.cdeadmin.results import (  # noqa: E402
 )
 from pgadmin.cdeadmin.results.renderers import (  # noqa: E402
     export_json,
+    export_svg,
+    export_xlsx,
     render_document,
 )
 from pgadmin.cdeadmin.results.service import (  # noqa: E402
@@ -420,6 +424,33 @@ class DescriptorLimitTests(unittest.TestCase):
 
 
 class ProductionRendererTests(unittest.TestCase):
+
+    def test_xlsx_export_is_valid_formula_safe_office_open_xml(self):
+        content = export_xlsx({'schema': {'columns': [
+            {'name': 'name'}, {'name': 'amount'}, {'name': 'identifier'},
+        ]}}, ({
+            'name': '=HYPERLINK("bad")',
+            'amount': 42,
+            'identifier': 1234567890123456,
+        },))
+        self.assertTrue(content.startswith(b'PK'))
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            self.assertIsNone(archive.testzip())
+            sheet = archive.read('xl/worksheets/sheet1.xml')
+        self.assertIn(b'inlineStr', sheet)
+        self.assertIn(b'=HYPERLINK', sheet)
+        self.assertNotIn(b'<f>', sheet)
+        self.assertIn(b'<v>42</v>', sheet)
+        self.assertIn(b'1234567890123456</t>', sheet)
+
+    def test_svg_export_is_standalone_escaped_and_non_scriptable(self):
+        content = export_svg({'schema': {'columns': [{'name': 'value'}]}}, (
+            {'value': '<script>alert(1)</script>\x00'},
+        ))
+        self.assertTrue(content.startswith(b'<?xml'))
+        self.assertIn(b'&lt;script&gt;', content)
+        self.assertNotIn(b'<script>', content)
+        self.assertNotIn(b'\x00', content)
 
     def test_document_json_lines_export_is_bounded_record_framing(self):
         exported = export_json({}, (

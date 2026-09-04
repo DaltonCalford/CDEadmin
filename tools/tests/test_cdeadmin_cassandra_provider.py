@@ -308,7 +308,8 @@ class CassandraProviderTests(unittest.TestCase):
         self.assertFalse(renderer.fixture_safe)
         self.assertTrue(renderer.worker_required)
         self.assertEqual(
-            frozenset({'csv', 'json', 'jsonl'}), renderer.export_formats
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}),
+            renderer.export_formats,
         )
 
     def test_exact_driver_version_fails_closed(self):

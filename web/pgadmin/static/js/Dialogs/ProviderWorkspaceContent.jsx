@@ -1771,7 +1771,7 @@ SemanticChartView.propTypes = {
 };
 
 function ResultControls({rendered, history, post, onRendered, setError,
-  setBusy}) {
+  setBusy, allowedFormats}) {
   const [comparison, setComparison] = useState(null);
   const resultId = rendered?.descriptor?.result_id;
   const previous = [...history].reverse().find((item) =>
@@ -1796,7 +1796,8 @@ function ResultControls({rendered, history, post, onRendered, setError,
           result_id: resultId, cursor: rendered.page.next_cursor,
           page_size: rendered.page.page_size || 500,
         }})))}>{gettext('Next result page')}</Button>
-      {(rendered.descriptor?.export_formats || []).map((format) =>
+      {(rendered.descriptor?.export_formats || []).filter((format) =>
+        !allowedFormats || allowedFormats.includes(format)).map((format) =>
         <Button key={format} onClick={() => perform(async () => downloadBase64(
           await post({action: 'result_export', request: {
             result_id: resultId, format,
@@ -1824,6 +1825,7 @@ ResultControls.propTypes = {
   onRendered: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   setBusy: PropTypes.func.isRequired,
+  allowedFormats: PropTypes.array,
 };
 
 function DocumentDataGrid({catalog, resources, post, setError}) {
@@ -2518,7 +2520,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   });
   const [reportDraft, setReportDraft] = useState({
     id: 'report', name: 'Report', dashboard_id: '', schedule_id: '',
-    export_formats: 'json,csv',
+    export_formats: 'json,csv,xlsx,svg',
   });
   const sourceResources = (resources || []).filter((item) =>
     (analyticalProfile.source_kinds || ['table', 'collection', 'index'])
@@ -2861,7 +2863,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         });
         const response = await post({action: 'poll',
           occurrence_id: value.occurrence.occurrence_id});
-        results.push({chart, rendered: response.rendered_result});
+        results.push({report, chart, rendered: response.rendered_result});
       }
       setReportResults(results);
       setResultHistory((current) => [...current,
@@ -3720,14 +3722,15 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         <Button disabled={!semantic.capabilities.execution_available}
           onClick={() => runReport(report)}>{gettext('Run report')}</Button>
       </Box>)}
-      {reportResults.map(({chart, rendered: reportResult}) => <Box
+      {reportResults.map(({report, chart, rendered: reportResult}) => <Box
         key={chart.id} sx={{mt: 2}}>
         <Box component="h4">{chart.name}</Box>
         <ResultControls rendered={reportResult} history={resultHistory}
           post={post} onRendered={(value) => setReportResults((current) =>
             current.map((item) => item.chart.id === chart.id ? {
               ...item, rendered: value,
-            } : item))} setError={setError} setBusy={setWorking} />
+            } : item))} setError={setError} setBusy={setWorking}
+          allowedFormats={report.export_formats} />
         <SemanticChartView chart={chart} rendered={reportResult} />
       </Box>)}
     </Box>}

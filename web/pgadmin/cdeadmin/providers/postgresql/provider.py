@@ -455,7 +455,7 @@ class PostgreSQLProvider:
             )},
             'export_policy': {
                 'enabled': True,
-                'formats': ['csv', 'json'],
+                'formats': ['csv', 'json', 'xlsx', 'svg'],
                 'max_records': 10000,
                 'max_bytes': 8 * 1024 * 1024,
                 'redact_keys': [],

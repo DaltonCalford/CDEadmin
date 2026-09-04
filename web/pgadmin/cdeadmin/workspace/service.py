@@ -726,6 +726,9 @@ class ProviderWorkspaceService:
         media_types = {
             'csv': 'text/csv', 'json': 'application/json',
             'jsonl': 'application/x-ndjson',
+            'xlsx': ('application/vnd.openxmlformats-officedocument.'
+                     'spreadsheetml.sheet'),
+            'svg': 'image/svg+xml',
         }
         return {
             **exported,
