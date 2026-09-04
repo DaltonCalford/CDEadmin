@@ -32,6 +32,9 @@ if 'pgadmin' not in sys.modules:
 from tools.cdeadmin_neo4j_live_gate import (  # noqa: E402
     COMMUNITY_OBJECT_OPERATIONS, FULL_OBJECT_OPERATIONS, _object_evidence,
 )
+from tools.cdeadmin_neo4j_gds_live_gate import (  # noqa: E402
+    object_evidence as gds_object_evidence,
+)
 from tools.cdeadmin_neo4j_object_experience_gate import (  # noqa: E402
     audit, provider_catalog,
 )
@@ -86,6 +89,27 @@ class Neo4jObjectExperienceGateTests(unittest.TestCase):
         self.assertTrue(coverage['activation_ready'])
         self.assertEqual(0, coverage['live_evidence_missing_count'])
         self.assertEqual(0, coverage['live_operation_missing_count'])
+
+    def test_gds_evidence_is_digest_bound_and_composes_with_community(self):
+        community = _object_evidence(
+            'unit-community', COMMUNITY_OBJECT_OPERATIONS
+        )
+        gds = gds_object_evidence(
+            'unit-gds', 'b' * 64, {'create', 'inspect', 'drop'}
+        )
+        self.assertTrue(gds['passed'])
+        self.assertEqual(
+            'neo4j-graph-data-science-plugin', gds['surface_id']
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / 'community.json'
+            second = Path(directory) / 'gds.json'
+            first.write_text(json.dumps(community), encoding='utf-8')
+            second.write_text(json.dumps(gds), encoding='utf-8')
+            coverage = provider_catalog([first, second])['concept_coverage']
+        self.assertFalse(coverage['activation_ready'])
+        self.assertEqual(1, coverage['live_evidence_missing_count'])
+        self.assertEqual(6, coverage['live_operation_missing_count'])
 
 
 if __name__ == '__main__':

@@ -31,11 +31,13 @@ from pgadmin.cdeadmin.providers.neo4j.client import (  # noqa: E402
     Neo4jClient,
     Neo4jClientError,
     Neo4jDependencyError,
+    QUALIFIED_GDS_SHA256,
     _record_data,
 )
 from pgadmin.cdeadmin.providers.neo4j.provider import (  # noqa: E402
     Neo4jPilotProvider,
     PROFILE,
+    create_provider,
 )
 from pgadmin.cdeadmin.results.renderers import builtin_renderers  # noqa: E402
 
@@ -219,6 +221,10 @@ class Permissions:
 
     def allows(self, _permission, _scope='endpoint'):
         return True
+
+    @staticmethod
+    def acquire_secret(*_args):
+        return SecretLease()
 
 
 def route(**changes):
@@ -405,7 +411,7 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertEqual(['Person'], value['n']['labels'])
 
     def test_discovery_is_category_isolated_and_includes_graph(self):
-        adapter, _connector = client()
+        adapter, connector = client()
         resources = adapter.list_resources({'route': route()})
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
@@ -414,6 +420,14 @@ class Neo4jProviderTests(unittest.TestCase):
             'user', 'role', 'privilege', 'node', 'relationship',
             'query-plan',
         }.issubset(kinds))
+        statements = [
+            statement for driver in connector.drivers
+            for _database, statement, _parameters in driver.statements
+        ]
+        self.assertIn('CALL gds.graph.list()', statements)
+        self.assertNotIn(
+            'CALL gds.graph.list() YIELD * RETURN *', statements
+        )
 
     def test_graph_page_and_node_create_use_parameters(self):
         adapter, connector = client()
@@ -568,7 +582,7 @@ class Neo4jProviderTests(unittest.TestCase):
                 __version__='6.3.0',
                 GraphDatabase=SimpleNamespace(driver=connector),
             ),
-            gds_surface_sha256='a' * 64,
+            gds_surface_sha256=QUALIFIED_GDS_SHA256,
         )
         self.assertTrue(qualified.supports_admin_operation(
             'graph-projection', 'create'
@@ -591,6 +605,21 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertEqual(
             {'readConcurrency': 2}, parameters['configuration']
         )
+        with self.assertRaisesRegex(Neo4jClientError, 'does not match'):
+            Neo4jClient(
+                lambda *_args: SecretLease(),
+                SimpleNamespace(
+                    __version__='6.3.0',
+                    GraphDatabase=SimpleNamespace(driver=connector),
+                ),
+                gds_surface_sha256='a' * 64,
+            )
+
+    def test_production_factory_binds_the_qualified_gds_surface(self):
+        provider = create_provider(context(), Permissions())
+        self.assertTrue(provider.client.supports_admin_operation(
+            'graph-projection', 'create'
+        ))
 
     def test_query_plan_workspace_is_bounded_and_parameterized(self):
         adapter, _connector = client()
@@ -647,13 +676,19 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue(manifest['production_registration'])
         self.assertEqual('experimental', manifest['support_state'])
         self.assertEqual(
-            'passed_community_surface_full_graph_activation_blocked',
+            'passed_community_and_gds_surface_full_graph_activation_blocked_'
+            'on_enterprise',
             manifest['provenance']['activation_gate'],
         )
         self.assertEqual(
-            '22_of_31_operations_live_enterprise_and_gds_required_for_full_'
-            'activation',
+            '25_of_31_operations_live_enterprise_database_and_cluster_'
+            'required_for_full_activation',
             manifest['provenance']['object_experience_state'],
+        )
+        self.assertEqual(
+            'cde-neo4j-object-live:neo4j-2026.04.0-community-plus-gds:'
+            '20260904',
+            manifest['provenance']['live_evidence_reference'],
         )
 
 

@@ -234,10 +234,20 @@ def startup_measurement(source: Path, policy):
         (temporary / 'config_local.py').write_text(
             configuration, encoding='utf-8'
         )
+        # Linux carries ru_maxrss from the parent across fork/exec. Read the
+        # post-exec process high-water mark where available so a test runner's
+        # earlier allocations cannot inflate the application startup result.
         script = (
-            'import json, resource, time; start=time.perf_counter(); '
+            'import json, os, resource, sys, time; '
+            'start=time.perf_counter(); '
             'import config; from pgadmin import create_app; app=create_app(); '
-            'rss=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss; '
+            'fallback=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss; '
+            'fallback=fallback//1024 if sys.platform=="darwin" else fallback; '
+            'status_path="/proc/self/status"; '
+            'status=(open(status_path,encoding="utf-8").read() '
+            'if os.path.exists(status_path) else ""); '
+            'rss=next((int(line.split()[1]) for line in status.splitlines() '
+            'if line.startswith("VmHWM:")),fallback); '
             f'names={tuple(startup["required_extensions"])!r}; '
             'result={"route_count":len(app.url_map._rules),'
             '"extensions":{name:(name in app.extensions) for name in names},'

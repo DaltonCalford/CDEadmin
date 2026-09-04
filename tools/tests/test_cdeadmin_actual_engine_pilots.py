@@ -414,7 +414,10 @@ class ActualEnginePilotContractTests(unittest.TestCase):
             row for row in record['pilots']
             if row['engine_id'] == 'neo4j'
         )
-        self.assertEqual('community', neo4j['qualification_scope'])
+        self.assertEqual(
+            'community_plus_gds_2026.04.0',
+            neo4j['qualification_scope'],
+        )
 
     def test_mysql_and_mariadb_share_wire_but_not_semantics(self):
         self.assertEqual(

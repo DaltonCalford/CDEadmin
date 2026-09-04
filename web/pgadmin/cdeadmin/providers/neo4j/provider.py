@@ -4,7 +4,7 @@ from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
     PilotProfile,
 )
-from .client import Neo4jClient
+from .client import Neo4jClient, QUALIFIED_GDS_SHA256
 
 
 PROFILE = PilotProfile(
@@ -52,5 +52,8 @@ def create_provider(context, permissions, client=None):
     return Neo4jPilotProvider(
         context,
         permissions,
-        client or Neo4jClient(permissions.acquire_secret),
+        client or Neo4jClient(
+            permissions.acquire_secret,
+            gds_surface_sha256=QUALIFIED_GDS_SHA256,
+        ),
     )

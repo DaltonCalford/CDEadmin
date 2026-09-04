@@ -40,6 +40,10 @@ MAX_PAGE_SIZE = 500
 MAX_QUERY_BYTES = 2 * 1024 * 1024
 MAX_PROPERTIES = 10000
 QUALIFIED_DRIVER_VERSION = '6.3.0'
+QUALIFIED_GDS_VERSION = '2026.04.0'
+QUALIFIED_GDS_SHA256 = (
+    '9b715ca68abe64aa55fa77461fe8f0b25c64398349ed139177484c42d1482cdf'
+)
 
 
 class Neo4jClientError(PilotProviderError):
@@ -206,12 +210,10 @@ class Neo4jClient:
         self._secret_acquirer = secret_acquirer
         if gds_surface_sha256 is not None and (
                 not isinstance(gds_surface_sha256, str) or
-                len(gds_surface_sha256) != 64 or any(
-                    char not in '0123456789abcdef'
-                    for char in gds_surface_sha256.lower()
-                )):
+                gds_surface_sha256.lower() != QUALIFIED_GDS_SHA256):
             raise Neo4jClientError(
-                'GDS external-surface digest must be a SHA-256 value'
+                'GDS external-surface digest does not match the qualified '
+                '2026.04.0 artifact'
             )
         self._gds_surface_sha256 = gds_surface_sha256
         self._drivers: list[object] = []
@@ -913,7 +915,7 @@ class Neo4jClient:
                 ))
             try:
                 projections = self._rows(
-                    graph, 'CALL gds.graph.list() YIELD * RETURN *'
+                    graph, 'CALL gds.graph.list()'
                 )
             except Exception:
                 projections = []
@@ -1362,6 +1364,21 @@ class Neo4jClient:
                 'user', 'role', 'privilege',
             } else route.get('database')
             session = self._session(driver, route, database)
+            if payload['resource_kind'] == 'graph-projection':
+                version_result = session.run(
+                    'RETURN gds.version() AS cdeadmin_gds_version'
+                )
+                version_record = version_result.single()
+                version_result.consume()
+                version = (
+                    _record_data(version_record).get('cdeadmin_gds_version')
+                    if version_record is not None else None
+                )
+                if version != QUALIFIED_GDS_VERSION:
+                    raise Neo4jClientError(
+                        'the qualified Neo4j GDS 2026.04.0 surface is '
+                        'unavailable on this endpoint'
+                    )
             statement, parameters = self._admin_command(payload, route)
             result = session.run(statement, parameters)
             records = [
