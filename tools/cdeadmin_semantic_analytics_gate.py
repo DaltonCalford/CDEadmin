@@ -71,6 +71,7 @@ def _integration_failures(root):
             "model['visualizations']", "model['dashboards']",
             "model['schedules']", "model['reports']", 'tenant_filter',
             'certification', "query['cross_filters']", "query['drill']",
+            "query['windows']", 'period_comparison', 'fiscal_year',
         ),
         'web/pgadmin/cdeadmin/semantic_models/service.py': (
             'reproducibility_manifest', 'def diagnostics',
@@ -88,6 +89,7 @@ def _integration_failures(root):
             'Chart builder', 'Dashboard builder', 'Report builder',
             'Row-level security', 'Tenant filtering', 'Query diagnostics',
             'semanticCrossFilter', 'Run dashboard', 'allowedFormats',
+            'Native analytical windows', 'Anchor date or datetime',
         ),
     }
     failures = []

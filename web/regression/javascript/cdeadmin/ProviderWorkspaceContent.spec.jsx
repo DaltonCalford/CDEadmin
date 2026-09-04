@@ -73,6 +73,11 @@ const bootstrap = {
       lineage: true, query_builder: true, pivot_cellset: true,
       execution_available: true,
       provider_compiler: {execution_available: true},
+      time_intelligence_operations: ['as_of', 'range', 'period_to_date',
+        'period_comparison'],
+      time_intelligence_periods: ['day', 'week', 'month', 'quarter', 'year',
+        'fiscal_quarter', 'fiscal_year'],
+      analytical_window_operations: ['running_sum', 'moving_average', 'lag'],
       scheduled_report_execution: false,
       analytical_profile: {
         title: 'Relational and multidimensional',
@@ -940,6 +945,10 @@ describe('ProviderWorkspaceContent', () => {
       .toBeInTheDocument();
     fireEvent.click(screen.getByText('Cube query'));
     expect(screen.getByLabelText('Time operation')).toBeInTheDocument();
+    expect(screen.getByText('Native analytical windows')).toBeInTheDocument();
+    expect(screen.getByLabelText('Window operation')).toHaveTextContent(
+      'running sum'
+    );
     expect(screen.getByLabelText('Drill-through fields (source.field, ...)'))
       .toBeInTheDocument();
   });

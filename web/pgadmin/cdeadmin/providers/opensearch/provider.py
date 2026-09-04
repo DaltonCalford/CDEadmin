@@ -35,6 +35,9 @@ PROFILE = PilotProfile(
     result_export_formats=('json', 'jsonl'),
     result_worker_required=True,
     semantic_compiler_kind='opensearch-composite-aggregation',
+    semantic_time_operations=(
+        'as_of', 'range', 'period_to_date', 'period_comparison',
+    ),
 )
 
 

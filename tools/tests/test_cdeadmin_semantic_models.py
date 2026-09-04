@@ -432,6 +432,113 @@ class SemanticModelTests(unittest.TestCase):
             'range', compiled['projection']['time_intelligence']['operation']
         )
 
+    def test_fiscal_period_to_date_and_period_comparison_are_normalized(self):
+        value = model()
+        value['dimensions'][0]['time_intelligence'] = {
+            'role': 'fiscal-time', 'calendar': 'gregorian',
+            'timezone': 'UTC', 'fiscal_year_start_month': 4,
+        }
+        checked = validate_model(value)
+        request = query()
+        request['time_intelligence'] = {
+            'dimension_id': 'region', 'operation': 'period_to_date',
+            'period': 'fiscal_year', 'anchor': '2026-02-15',
+        }
+        normalized = validate_query(checked, request)['time_intelligence']
+        self.assertEqual('2025-04-01', normalized['start'])
+        self.assertEqual('2026-02-15', normalized['end'])
+
+        request['time_intelligence'] = {
+            'dimension_id': 'region', 'operation': 'period_comparison',
+            'period': 'month', 'anchor': '2026-03-15',
+        }
+        compiled = self.service.compile(SQLProvider(), value, request)
+        self.assertIn("THEN 'current'", compiled['source'])
+        self.assertIn("THEN 'comparison'", compiled['source'])
+        self.assertIn('2026-02-15', compiled['source'])
+        self.assertIn('__semantic_period', compiled['source'])
+
+        request['time_intelligence']['anchor'] = '2026-03-31'
+        normalized = validate_query(
+            validate_model(value), request
+        )['time_intelligence']
+        self.assertEqual('2026-02-28', normalized['comparison_end'])
+
+    def test_sql_analytical_window_executes_and_preserves_cellset_output(self):
+        value = model()
+        value['sources'][0]['relation'] = ['main', 'sales']
+        request = query()
+        request['totals'] = False
+        request['windows'] = [{
+            'id': 'running_revenue', 'measure_id': 'revenue',
+            'operation': 'running_sum', 'partition_by': [],
+            'order_by': {'level_id': 'region_level', 'direction': 'asc'},
+            'frame_size': 1,
+        }]
+        compiled = compile_sql(value, request, {
+            'language_profile': 'sqlite-sql', 'quote_open': '"',
+            'supports_rollup': False,
+        })
+        connection = sqlite3.connect(':memory:')
+        try:
+            connection.execute(
+                'CREATE TABLE sales (region_name TEXT, amount REAL)'
+            )
+            connection.executemany(
+                'INSERT INTO sales VALUES (?, ?)',
+                [('North', 10.0), ('North', 12.5), ('South', 5.0)],
+            )
+            rows = connection.execute(compiled['source']).fetchall()
+        finally:
+            connection.close()
+        self.assertEqual(
+            [('North', 22.5, 22.5), ('South', 5.0, 27.5)], rows
+        )
+        cellset = self.service.cellset(value, request, [{
+            'region_level': 'North', 'revenue': 22.5,
+            'running_revenue': 22.5,
+        }])
+        self.assertIn('running_revenue', cellset['measures'])
+        self.assertEqual(
+            22.5, cellset['cells'][0]['measures']['running_revenue']
+        )
+
+    def test_provider_can_refuse_unadmitted_window_operation(self):
+        request = query()
+        request['windows'] = [{
+            'id': 'running_revenue', 'measure_id': 'revenue',
+            'operation': 'running_sum', 'partition_by': [],
+            'order_by': {'level_id': 'region_level'}, 'frame_size': 1,
+        }]
+        with self.assertRaisesRegex(
+                SemanticModelError, 'does not admit requested'):
+            compile_sql(model(), request, {
+                'language_profile': 'limited-sql', 'quote_open': '"',
+                'window_operations': (),
+            })
+
+    def test_period_boundaries_use_the_declared_iana_timezone(self):
+        value = model()
+        value['dimensions'][0]['time_intelligence'] = {
+            'role': 'event-time', 'calendar': 'gregorian',
+            'timezone': 'America/Toronto', 'fiscal_year_start_month': 1,
+            'value_type': 'datetime',
+        }
+        request = query()
+        request['time_intelligence'] = {
+            'dimension_id': 'region', 'operation': 'period_to_date',
+            'period': 'day', 'anchor': '2026-09-04T02:00:00Z',
+        }
+        normalized = validate_query(
+            validate_model(value), request
+        )['time_intelligence']
+        self.assertEqual('2026-09-03T00:00:00-04:00', normalized['start'])
+        self.assertEqual('2026-09-03T22:00:00-04:00', normalized['end'])
+
+        value['dimensions'][0]['time_intelligence']['timezone'] = 'Mars/Base'
+        with self.assertRaisesRegex(SemanticModelError, 'timezone is invalid'):
+            validate_model(value)
+
     def test_saved_chart_requires_a_valid_semantic_query(self):
         value = model()
         value['visualizations'] = [{

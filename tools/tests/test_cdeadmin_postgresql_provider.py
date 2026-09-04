@@ -362,6 +362,13 @@ class PostgreSQLProviderContractTests(unittest.TestCase):
         )
         self.assertTrue(descriptor['execution_available'])
         self.assertEqual('postgresql-sql', descriptor['language_profile'])
+        self.assertIn(
+            'period_comparison',
+            descriptor['time_intelligence']['operations'],
+        )
+        self.assertIn(
+            'running_sum', descriptor['analytical_windows']['operations']
+        )
         self.assertIn('COUNT(*)', source)
         self.assertIn('"public"."facts" AS "facts"', source)
         self.assertIsNone(parameters)

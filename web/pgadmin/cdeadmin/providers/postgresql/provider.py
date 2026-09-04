@@ -250,6 +250,21 @@ class PostgreSQLProvider:
             'model_family': 'relational',
             'execution_available': True,
             'language_profile': 'postgresql-sql',
+            'compiler_kind': 'sql',
+            'time_intelligence': {
+                'operations': [
+                    'as_of', 'range', 'period_to_date',
+                    'period_comparison',
+                ],
+                'periods': [
+                    'day', 'week', 'month', 'quarter', 'year',
+                    'fiscal_quarter', 'fiscal_year',
+                ],
+            },
+            'analytical_windows': {'operations': [
+                'running_sum', 'moving_sum', 'moving_average', 'lag',
+                'delta', 'percent_change', 'rank', 'dense_rank',
+            ]},
             'materialization': 'provider_planned',
             'reason': None,
         }

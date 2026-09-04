@@ -306,6 +306,34 @@ class OpenSearchClient:
                     key = {axes[0]: key} if len(axes) == 1 else {}
                 rows.append(row(bucket, dict(key)))
             return rows
+        if isinstance(buckets, Mapping):
+            rows = []
+            for period, bucket in buckets.items():
+                if not isinstance(bucket, Mapping):
+                    raise OpenSearchClientError(
+                        'OpenSearch semantic period bucket is invalid'
+                    )
+                values = bucket.get('period_values', {})
+                nested = values.get('buckets') if isinstance(
+                    values, Mapping
+                ) else None
+                if isinstance(nested, list):
+                    for value in nested:
+                        if not isinstance(value, Mapping):
+                            raise OpenSearchClientError(
+                                'OpenSearch semantic bucket is invalid'
+                            )
+                        key = value.get('key', {})
+                        if not isinstance(key, Mapping):
+                            key = {axes[0]: key} if len(axes) == 1 else {}
+                        rows.append(row(value, {
+                            **dict(key), '__semantic_period': str(period),
+                        }))
+                elif isinstance(values, Mapping):
+                    rows.append(row(values, {
+                        '__semantic_period': str(period),
+                    }))
+            return rows
         return [row(semantic, {})]
 
     @staticmethod

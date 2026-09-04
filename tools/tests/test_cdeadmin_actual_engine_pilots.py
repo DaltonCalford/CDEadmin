@@ -466,6 +466,12 @@ class ActualEnginePilotContractTests(unittest.TestCase):
             descriptor = instance.semantic_model_descriptor()
             self.assertEqual(profile.engine_id, descriptor['engine_id'])
             self.assertEqual(profile.model_family, descriptor['model_family'])
+            if profile.engine_id in admitted | native:
+                self.assertEqual(
+                    {'as_of', 'range', 'period_to_date',
+                     'period_comparison'},
+                    set(descriptor['time_intelligence']['operations']),
+                )
             if profile.engine_id in admitted:
                 observed.add(profile.engine_id)
                 self.assertTrue(descriptor['execution_available'])
@@ -477,12 +483,20 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                     compiled['language_profile'],
                 )
                 self.assertIn('COUNT(*)', compiled['source'])
+                self.assertIn(
+                    'moving_average',
+                    descriptor['analytical_windows']['operations'],
+                )
             elif profile.engine_id in native:
                 observed.add(profile.engine_id)
                 self.assertTrue(descriptor['execution_available'])
                 self.assertEqual(
                     profile.semantic_compiler_kind,
                     descriptor['compiler_kind'],
+                )
+                self.assertEqual(
+                    profile.engine_id == 'mongodb',
+                    bool(descriptor['analytical_windows']['operations']),
                 )
             else:
                 self.assertFalse(descriptor['execution_available'])

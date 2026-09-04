@@ -26,6 +26,10 @@ def compile_neo4j_cypher(model_value, query_value):
     """Compile graph semantic intent to parameterized read-only Cypher."""
     model = validate_model(model_value)
     query = validate_query(model, query_value)
+    if query['windows']:
+        raise SemanticModelError(
+            'Neo4j does not admit generic analytical window operations'
+        )
     if model['semantic_family'] != 'graph':
         raise SemanticModelError('Neo4j requires a graph semantic model')
     if model['joins']:
@@ -108,18 +112,45 @@ def compile_neo4j_cypher(model_value, query_value):
     )
     predicates = [predicate(item) for item in filters]
     time = query['time_intelligence']
+    period_expression = None
     if time:
         dimension = next(
             item for item in model['dimensions']
             if item['id'] == time['dimension_id']
         )
         left = field(dimension['field'])
-        if time['operation'] == 'as_of':
-            predicates.append(f'{left} <= {bind(time["start"])}')
+        value_type = dimension['time_intelligence'].get(
+            'value_type', 'string'
+        )
+
+        def bind_time(value):
+            parameter = bind(value)
+            return (
+                f'{value_type}({parameter})'
+                if value_type in {'date', 'datetime'} else parameter
+            )
+
+        operation = time['operation']
+        if operation == 'as_of':
+            predicates.append(f'{left} <= {bind_time(time["start"])}')
+        elif operation == 'period_comparison':
+            current = (
+                f'{left} >= {bind_time(time["start"])} AND '
+                f'{left} <= {bind_time(time["end"])}'
+            )
+            previous = (
+                f'{left} >= {bind_time(time["comparison_start"])} AND '
+                f'{left} <= {bind_time(time["comparison_end"])}'
+            )
+            predicates.append(f'({current}) OR ({previous})')
+            period_expression = (
+                f"CASE WHEN {current} THEN 'current' "
+                f"ELSE 'comparison' END"
+            )
         else:
             predicates.append(
-                f'{left} >= {bind(time["start"])} AND '
-                f'{left} <= {bind(time["end"])}'
+                f'{left} >= {bind_time(time["start"])} AND '
+                f'{left} <= {bind_time(time["end"])}'
             )
 
     levels = {}
@@ -187,6 +218,12 @@ def compile_neo4j_cypher(model_value, query_value):
         f'{measure_expression(item)} AS {_quote(item)}'
         for item in query['measures']
     )
+    projection_levels = list(axes)
+    if period_expression is not None:
+        selections.append(
+            f'{period_expression} AS {_quote("__semantic_period")}'
+        )
+        projection_levels.append('__semantic_period')
     for index, reference in enumerate(query['drill']['detail_fields']):
         selections.append(
             f'{field(reference)} AS {_quote("detail_" + str(index + 1))}'
@@ -195,17 +232,20 @@ def compile_neo4j_cypher(model_value, query_value):
     if predicates:
         source += ' WHERE ' + ' AND '.join(f'({item})' for item in predicates)
     source += ' RETURN ' + ', '.join(selections)
-    if axes:
-        source += ' ORDER BY ' + ', '.join(_quote(item) for item in axes)
+    if projection_levels:
+        source += ' ORDER BY ' + ', '.join(
+            _quote(item) for item in projection_levels
+        )
     source += f' LIMIT {query["limit"]}'
     return {
         'contract_version': '1.0.0', 'language_profile': 'cypher',
         'source': source, 'parameters': bound,
         'projection': {
-            'axes': copy.deepcopy(query['axes']), 'levels': axes,
+            'axes': copy.deepcopy(query['axes']), 'levels': projection_levels,
             'measures': copy.deepcopy(query['measures']),
             'drill': copy.deepcopy(query['drill']),
             'time_intelligence': copy.deepcopy(time),
+            'windows': [],
         },
         'warnings': ([
             'Neo4j has no common SQL rollup; totals were not generated.'

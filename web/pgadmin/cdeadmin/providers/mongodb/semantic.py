@@ -79,6 +79,15 @@ def _calculation(node, measures):
     return {operators[node['operator']]: [left, right]}
 
 
+def _time_value(dimension, value):
+    value_type = dimension['time_intelligence'].get('value_type', 'string')
+    if value_type == 'string':
+        return value
+    if 'T' not in value:
+        value += 'T00:00:00Z'
+    return {'$date': value}
+
+
 def compile_mongodb_aggregation(model_value, query_value):
     """Compile one collection model to a bounded native pipeline."""
     model = validate_model(model_value)
@@ -115,17 +124,36 @@ def compile_mongodb_aggregation(model_value, query_value):
     )
     matches = [_filter(item, parameters) for item in filters]
     time = query['time_intelligence']
+    comparison = False
     if time:
         dimension = next(
             item for item in model['dimensions']
             if item['id'] == time['dimension_id']
         )
         time_field = dimension['field']['field']
-        if time['operation'] == 'as_of':
-            condition = {'$lte': time['start']}
+        start_value = _time_value(dimension, time['start'])
+        end_value = _time_value(dimension, time.get('end', time['start']))
+        operation = time['operation']
+        if operation == 'as_of':
+            condition = {'$lte': start_value}
+        elif operation == 'period_comparison':
+            matches.append({'$or': [
+                {time_field: {
+                    '$gte': start_value, '$lte': end_value,
+                }},
+                {time_field: {
+                    '$gte': _time_value(
+                        dimension, time['comparison_start']
+                    ),
+                    '$lte': _time_value(dimension, time['comparison_end']),
+                }},
+            ]})
+            comparison = True
+            condition = None
         else:
-            condition = {'$gte': time['start'], '$lte': time['end']}
-        matches.append({time_field: condition})
+            condition = {'$gte': start_value, '$lte': end_value}
+        if condition is not None:
+            matches.append({time_field: condition})
 
     levels = {}
     for dimension in model['dimensions']:
@@ -141,9 +169,13 @@ def compile_mongodb_aggregation(model_value, query_value):
     if query['drill']['mode'] == 'down' and query['drill'][
             'target_level'] not in axes:
         axes.append(query['drill']['target_level'])
+    if comparison:
+        axes.append('__semantic_period')
 
     group = {'_id': {
-        item: '$' + levels[item]['field'] for item in axes
+        item: '$' + (
+            levels[item]['field'] if item in levels else item
+        ) for item in axes
     } if axes else None}
     projection = {'_id': 0}
     projection.update({item: '$_id.' + item for item in axes})
@@ -216,6 +248,13 @@ def compile_mongodb_aggregation(model_value, query_value):
         pipeline.append({'$match': (
             matches[0] if len(matches) == 1 else {'$and': matches}
         )})
+    if comparison:
+        pipeline.append({'$set': {'__semantic_period': {'$cond': [
+            {'$and': [
+                {'$gte': ['$' + time_field, start_value]},
+                {'$lte': ['$' + time_field, end_value]},
+            ]}, 'current', 'comparison',
+        ]}}})
     pipeline.extend(({'$group': group}, {'$project': projection}))
     if calculated:
         pipeline.append({'$set': {
@@ -230,6 +269,7 @@ def compile_mongodb_aggregation(model_value, query_value):
         }})
     if axes:
         pipeline.append({'$sort': {item: 1 for item in axes}})
+    pipeline.extend(_window_stages(query['windows'], axes))
     pipeline.append({'$limit': query['limit']})
     native = {
         'operation': 'aggregate', 'database': database,
@@ -248,9 +288,71 @@ def compile_mongodb_aggregation(model_value, query_value):
             'measures': copy.deepcopy(query['measures']),
             'drill': copy.deepcopy(query['drill']),
             'time_intelligence': copy.deepcopy(time),
+            'windows': copy.deepcopy(query['windows']),
         },
         'warnings': [],
     }
+
+
+def _window_stages(windows, axes):
+    """Compile admitted semantic windows to native setWindowFields stages."""
+    admitted = set(axes)
+    stages = []
+    for index, window in enumerate(windows):
+        required = set(window['partition_by']) | {
+            window['order_by']['level_id']
+        }
+        if not required.issubset(admitted):
+            raise SemanticModelError(
+                'window partition and order levels must be query axes'
+            )
+        operation = window['operation']
+        if operation not in {
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+        }:
+            raise SemanticModelError(
+                'MongoDB does not admit the requested analytical window'
+            )
+        size = window['frame_size']
+        measure = '$' + window['measure_id']
+        if operation == 'running_sum':
+            expression = {
+                '$sum': measure,
+                'window': {'documents': ['unbounded', 'current']},
+            }
+        elif operation in {'moving_sum', 'moving_average'}:
+            expression = {
+                '$sum' if operation == 'moving_sum' else '$avg': measure,
+                'window': {'documents': [-(size - 1), 'current']},
+            }
+        else:
+            expression = {'$shift': {
+                'output': measure, 'by': -size, 'default': None,
+            }}
+        temporary = '__semantic_previous_' + str(index + 1)
+        output_id = temporary if operation == 'delta' else window['id']
+        stage = {'$setWindowFields': {
+            'sortBy': {window['order_by']['level_id']: (
+                1 if window['order_by']['direction'] == 'asc' else -1
+            )},
+            'output': {output_id: expression},
+        }}
+        if window['partition_by']:
+            stage['$setWindowFields']['partitionBy'] = {
+                item: '$' + item for item in window['partition_by']
+            }
+        stages.append(stage)
+        if operation == 'delta':
+            stages.extend((
+                {'$set': {window['id']: {
+                    '$cond': [
+                        {'$eq': ['$' + temporary, None]}, None,
+                        {'$subtract': [measure, '$' + temporary]},
+                    ],
+                }}},
+                {'$unset': temporary},
+            ))
+    return stages
 
 
 __all__ = ('compile_mongodb_aggregation',)

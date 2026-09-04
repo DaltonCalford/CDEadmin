@@ -84,6 +84,10 @@ def compile_opensearch_aggregation(model_value, query_value):
     """Compile one-index analytical intent to a composite aggregation."""
     model = validate_model(model_value)
     query = validate_query(model, query_value)
+    if query['windows']:
+        raise SemanticModelError(
+            'OpenSearch does not admit generic analytical window operations'
+        )
     if model['semantic_family'] != 'search':
         raise SemanticModelError('OpenSearch requires a search semantic model')
     if len(model['sources']) != 1 or model['joins'] or model['relationships']:
@@ -109,17 +113,31 @@ def compile_opensearch_aggregation(model_value, query_value):
     )
     clauses = [_filter(item, parameters) for item in filters]
     time = query['time_intelligence']
+    period_ranges = None
     if time:
         dimension = next(
             item for item in model['dimensions']
             if item['id'] == time['dimension_id']
         )
         time_field = dimension['field']['field']
-        if time['operation'] == 'as_of':
+        operation = time['operation']
+        if operation == 'as_of':
             condition = {'lte': time['start']}
+        elif operation == 'period_comparison':
+            period_ranges = {
+                'current': {'range': {time_field: {
+                    'gte': time['start'], 'lte': time['end'],
+                }}},
+                'comparison': {'range': {time_field: {
+                    'gte': time['comparison_start'],
+                    'lte': time['comparison_end'],
+                }}},
+            }
+            condition = None
         else:
             condition = {'gte': time['start'], 'lte': time['end']}
-        clauses.append({'range': {time_field: condition}})
+        if condition is not None:
+            clauses.append({'range': {time_field: condition}})
     query_dsl = {'match_all': {}} if not clauses else {
         'bool': {'filter': clauses}
     }
@@ -208,10 +226,16 @@ def compile_opensearch_aggregation(model_value, query_value):
         }
     else:
         semantic_rows = {'filter': {'match_all': {}}, 'aggs': aggregations}
-    native = {
-        'size': 0, 'query': query_dsl,
-        'aggs': {'semantic_rows': semantic_rows},
-    }
+    if period_ranges is not None:
+        semantic_rows = {
+            'filters': {'filters': period_ranges},
+            'aggs': {'period_values': semantic_rows},
+        }
+    native = {'size': 0, 'query': query_dsl,
+              'aggs': {'semantic_rows': semantic_rows}}
+    projection_levels = axes + (
+        ['__semantic_period'] if period_ranges is not None else []
+    )
     return {
         'contract_version': '1.0.0',
         'language_profile': 'opensearch-query-dsl',
@@ -223,10 +247,12 @@ def compile_opensearch_aggregation(model_value, query_value):
             'semantic_count_measures': count_measures,
         },
         'projection': {
-            'axes': copy.deepcopy(query['axes']), 'levels': axes,
+            'axes': copy.deepcopy(query['axes']),
+            'levels': projection_levels,
             'measures': copy.deepcopy(query['measures']),
             'drill': copy.deepcopy(query['drill']),
             'time_intelligence': copy.deepcopy(time),
+            'windows': [],
         },
         'warnings': ([
             'OpenSearch composite aggregation does not emit SQL rollup totals.'

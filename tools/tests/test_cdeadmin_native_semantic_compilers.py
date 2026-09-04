@@ -50,7 +50,88 @@ def query(measures, rows=None):
     }
 
 
+def time_model(family):
+    settings = {
+        'document': ('collection', 'document-set', 'time', 'aggregate'),
+        'graph': ('node', 'node-set', 'property', 'path-count'),
+        'search': (
+            'index', 'indexed-document-set', 'date-histogram',
+            'document-count',
+        ),
+    }
+    source_kind, classification, dimension_kind, measure_kind = settings[
+        family
+    ]
+    return {
+        'name': 'Temporal events', 'semantic_family': family,
+        'sources': [{
+            'id': 'events', 'resource_id': family + ':events',
+            'relation': ['analytics', 'events'], 'alias': 'events',
+            'source_kind': source_kind, 'classification': classification,
+            'grain': [], 'provider_config': {},
+        }],
+        'dimensions': [{
+            'id': 'occurred', 'name': 'Occurred',
+            'dimension_kind': dimension_kind,
+            'field': {'source_id': 'events', 'field': 'occurred_at'},
+            'time_intelligence': {
+                'role': 'event-time', 'calendar': 'gregorian',
+                'timezone': 'UTC', 'fiscal_year_start_month': 4,
+                'value_type': 'datetime',
+            },
+            'hierarchies': [{
+                'id': 'calendar', 'name': 'Calendar', 'levels': [{
+                    'id': 'occurred_level', 'name': 'Occurred',
+                    'field': {
+                        'source_id': 'events', 'field': 'occurred_at',
+                    },
+                }],
+            }],
+        }],
+        'measures': [{
+            'id': 'events_count', 'name': 'Events',
+            'aggregation': 'count', 'measure_kind': measure_kind,
+            'field': None,
+        }],
+    }
+
+
 class NativeSemanticCompilerTests(unittest.TestCase):
+
+    def test_native_period_comparison_is_provider_compiled(self):
+        request = query(['events_count'], ['occurred_level'])
+        request['time_intelligence'] = {
+            'dimension_id': 'occurred', 'operation': 'period_comparison',
+            'period': 'fiscal_quarter',
+            'anchor': '2026-09-04T12:00:00Z',
+        }
+        mongo_request = dict(request)
+        mongo_request['windows'] = [{
+            'id': 'running_events', 'measure_id': 'events_count',
+            'operation': 'running_sum', 'partition_by': [],
+            'order_by': {'level_id': 'occurred_level'}, 'frame_size': 1,
+        }]
+        mongo = json.loads(compile_mongodb_aggregation(
+            time_model('document'), mongo_request
+        )['source'])
+        serialized = json.dumps(mongo)
+        self.assertIn('__semantic_period', serialized)
+        self.assertIn('$setWindowFields', serialized)
+        self.assertIn('$date', serialized)
+
+        neo4j = compile_neo4j_cypher(time_model('graph'), request)
+        self.assertIn('__semantic_period', neo4j['source'])
+        self.assertIn("THEN 'current'", neo4j['source'])
+        self.assertIn('datetime($semantic_', neo4j['source'])
+
+        opensearch = json.loads(compile_opensearch_aggregation(
+            time_model('search'), request
+        )['source'])
+        periods = opensearch['aggs']['semantic_rows']['filters']['filters']
+        self.assertEqual({'current', 'comparison'}, set(periods))
+        self.assertIn(
+            'period_values', opensearch['aggs']['semantic_rows']['aggs']
+        )
 
     def test_mongodb_compiles_nested_paths_and_calculated_measure(self):
         model = {
@@ -210,6 +291,25 @@ class NativeSemanticCompilerTests(unittest.TestCase):
         self.assertEqual([{
             'region_facet': 'north', 'revenue': 42.5, 'documents': 3,
         }], rows)
+
+        period_rows = OpenSearchClient._semantic_aggregation_rows({
+            'aggregations': {'semantic_rows': {'buckets': {
+                'current': {'period_values': {'buckets': [{
+                    'key': {'region_facet': 'north'}, 'doc_count': 3,
+                    'revenue': {'value': 42.5},
+                }]}},
+                'comparison': {'period_values': {'buckets': [{
+                    'key': {'region_facet': 'north'}, 'doc_count': 2,
+                    'revenue': {'value': 35.0},
+                }]}},
+            }}},
+        }, ['region_facet'], ['documents'])
+        self.assertEqual(['current', 'comparison'], [
+            item['__semantic_period'] for item in period_rows
+        ])
+        self.assertEqual([42.5, 35.0], [
+            item['revenue'] for item in period_rows
+        ])
 
     def test_calculated_measure_cycles_fail_during_model_validation(self):
         model = {

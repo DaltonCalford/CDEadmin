@@ -14,7 +14,10 @@ from __future__ import annotations
 import copy
 import json
 import re
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .profiles import analytical_profile
 
@@ -60,6 +63,17 @@ EXPORT_FORMATS = frozenset({
 FILTER_OPERATORS = frozenset({
     'eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'not_in', 'between',
     'is_null', 'is_not_null',
+})
+TIME_OPERATIONS = frozenset({
+    'as_of', 'range', 'period_to_date', 'period_comparison',
+})
+TIME_PERIODS = frozenset({
+    'day', 'week', 'month', 'quarter', 'year',
+    'fiscal_quarter', 'fiscal_year',
+})
+WINDOW_OPERATIONS = frozenset({
+    'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+    'percent_change', 'rank', 'dense_rank',
 })
 _ID = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,127}$')
 
@@ -267,6 +281,18 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
                 time.get('timezone', 'UTC'),
                 'dimension.time_intelligence.timezone', 128,
             )
+            try:
+                ZoneInfo(time['timezone'])
+            except (ValueError, ZoneInfoNotFoundError) as exc:
+                raise SemanticModelError(
+                    'dimension time-intelligence timezone is invalid'
+                ) from exc
+            value_type = time.get('value_type', 'string')
+            if value_type not in {'string', 'date', 'datetime'}:
+                raise SemanticModelError(
+                    'dimension time-intelligence value type is unsupported'
+                )
+            time['value_type'] = value_type
             fiscal_month = time.get('fiscal_year_start_month', 1)
             if isinstance(fiscal_month, bool) or not isinstance(
                     fiscal_month, int) or not 1 <= fiscal_month <= 12:
@@ -683,6 +709,199 @@ def _validate_filters(value, source_ids, parameters=None):
     return normalized
 
 
+def _temporal_value(value, label, timezone_name):
+    value = required_text(value, label, 128)
+    try:
+        parsed = (
+            datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if 'T' in value else datetime.combine(
+                date.fromisoformat(value), datetime.min.time()
+            )
+        )
+    except ValueError as exc:
+        raise SemanticModelError(f'{label} must be an ISO date or datetime') \
+            from exc
+    if 'T' in value:
+        timezone = ZoneInfo(timezone_name)
+        parsed = (
+            parsed.replace(tzinfo=timezone)
+            if parsed.tzinfo is None else parsed.astimezone(timezone)
+        )
+    return value, parsed, 'T' in value
+
+
+def _format_temporal(value, has_time):
+    if not has_time:
+        return value.date().isoformat()
+    formatted = value.isoformat()
+    return formatted[:-6] + 'Z' if formatted.endswith('+00:00') else formatted
+
+
+def _shift_months(value, months):
+    target = value.month - 1 + months
+    year = value.year + target // 12
+    month = target % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def _period_start(anchor, period, fiscal_month):
+    start = anchor.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == 'day':
+        return start
+    if period == 'week':
+        return start - timedelta(days=start.weekday())
+    if period == 'month':
+        return start.replace(day=1)
+    if period == 'quarter':
+        return start.replace(month=((start.month - 1) // 3) * 3 + 1, day=1)
+    if period == 'year':
+        return start.replace(month=1, day=1)
+    offset = (start.month - fiscal_month) % 12
+    if period == 'fiscal_quarter':
+        return _shift_months(start.replace(day=1), -(offset % 3))
+    fiscal_year = start.year if start.month >= fiscal_month else start.year - 1
+    return start.replace(year=fiscal_year, month=fiscal_month, day=1)
+
+
+def _previous_period_start(current_start, period):
+    if period == 'day':
+        return current_start - timedelta(days=1)
+    if period == 'week':
+        return current_start - timedelta(days=7)
+    months = {
+        'month': -1, 'quarter': -3, 'fiscal_quarter': -3,
+        'year': -12, 'fiscal_year': -12,
+    }
+    return _shift_months(current_start, months[period])
+
+
+def _validate_time_intelligence(model, value):
+    time = mapping(value, 'query.time_intelligence')
+    if not time:
+        return time
+    dimension_id = time.get('dimension_id')
+    dimensions = {item['id']: item for item in model['dimensions']}
+    dimension = dimensions.get(dimension_id)
+    if dimension is None or not dimension.get('time_intelligence'):
+        raise SemanticModelError(
+            'query time intelligence requires a declared time dimension'
+        )
+    operation = time.get('operation')
+    if operation not in TIME_OPERATIONS:
+        raise SemanticModelError(
+            'query time-intelligence operation is unsupported'
+        )
+    value_type = dimension['time_intelligence'].get('value_type', 'string')
+    timezone_name = dimension['time_intelligence']['timezone']
+
+    def check_type(has_time):
+        if value_type == 'date' and has_time:
+            raise SemanticModelError(
+                'time-intelligence value must match date dimension type'
+            )
+        if value_type == 'datetime' and not has_time:
+            raise SemanticModelError(
+                'time-intelligence value must match datetime dimension type'
+            )
+
+    if operation in {'as_of', 'range'}:
+        time['start'], start, start_time = _temporal_value(
+            time.get('start'), 'query.time_intelligence.start', timezone_name
+        )
+        check_type(start_time)
+        if operation == 'range':
+            time['end'], end, end_time = _temporal_value(
+                time.get('end'), 'query.time_intelligence.end', timezone_name
+            )
+            check_type(end_time)
+            if start_time != end_time or end < start:
+                raise SemanticModelError(
+                    'time-intelligence range must use ordered matching types'
+                )
+        else:
+            time.pop('end', None)
+        return time
+    period = time.get('period')
+    if period not in TIME_PERIODS:
+        raise SemanticModelError(
+            'query time-intelligence period is unsupported'
+        )
+    if dimension['time_intelligence']['calendar'] != 'gregorian':
+        raise SemanticModelError(
+            'computed periods require the Gregorian calendar'
+        )
+    anchor_text, anchor, has_time = _temporal_value(
+        time.get('anchor'), 'query.time_intelligence.anchor', timezone_name
+    )
+    check_type(has_time)
+    fiscal_month = dimension['time_intelligence'][
+        'fiscal_year_start_month'
+    ]
+    current_start = _period_start(anchor, period, fiscal_month)
+    time['anchor'] = anchor_text
+    time['start'] = _format_temporal(current_start, has_time)
+    time['end'] = _format_temporal(anchor, has_time)
+    if operation == 'period_comparison':
+        prior_start = _previous_period_start(current_start, period)
+        boundary_step = timedelta(microseconds=1) if has_time else timedelta(
+            days=1
+        )
+        prior_end = min(
+            prior_start + (anchor - current_start),
+            current_start - boundary_step,
+        )
+        time['comparison_start'] = _format_temporal(prior_start, has_time)
+        time['comparison_end'] = _format_temporal(prior_end, has_time)
+    return time
+
+
+def _validate_windows(value, symbols, selected_measures):
+    windows = array(value, 'query.windows', 32)
+    window_ids = _unique(windows, 'query.windows')
+    admitted_levels = set(symbols['level_ids']) | set(
+        symbols['dimension_ids']
+    )
+    if window_ids & (
+        admitted_levels | set(symbols['measure_ids']) |
+        {'__semantic_period'}
+    ):
+        raise SemanticModelError(
+            'window output identifiers must not collide with model symbols'
+        )
+    for window in windows:
+        if window.get('measure_id') not in symbols['measure_ids']:
+            raise SemanticModelError('window references an unknown measure')
+        if window['measure_id'] not in selected_measures:
+            raise SemanticModelError(
+                'window measure must be selected by the query'
+            )
+        operation = window.get('operation')
+        if operation not in WINDOW_OPERATIONS:
+            raise SemanticModelError('window.operation is unsupported')
+        partition = array(
+            window.get('partition_by', []), 'window.partition_by', 16
+        )
+        if any(item not in admitted_levels for item in partition):
+            raise SemanticModelError('window partition has an unknown level')
+        order = mapping(window.get('order_by', {}), 'window.order_by')
+        if order.get('level_id') not in admitted_levels:
+            raise SemanticModelError('window order has an unknown level')
+        direction = order.get('direction', 'asc')
+        if direction not in {'asc', 'desc'}:
+            raise SemanticModelError('window order direction is unsupported')
+        size = window.get('frame_size', 1)
+        if isinstance(size, bool) or not isinstance(size, int) or not (
+                1 <= size <= 10000):
+            raise SemanticModelError('window frame size is outside limits')
+        window['partition_by'] = partition
+        window['order_by'] = {
+            'level_id': order['level_id'], 'direction': direction,
+        }
+        window['frame_size'] = size
+    return windows
+
+
 def validate_query(model, value):
     query = mapping(value, 'query')
     symbols = model['_symbols']
@@ -745,34 +964,12 @@ def validate_query(model, value):
     drill['target_level'] = target
     drill['detail_fields'] = detail_fields
     query['drill'] = drill
-    time_intelligence = mapping(
-        query.get('time_intelligence', {}), 'query.time_intelligence'
+    query['time_intelligence'] = _validate_time_intelligence(
+        model, query.get('time_intelligence', {})
     )
-    if time_intelligence:
-        dimension_id = time_intelligence.get('dimension_id')
-        dimensions = {item['id']: item for item in model['dimensions']}
-        if dimension_id not in dimensions or not dimensions[
-                dimension_id].get('time_intelligence'):
-            raise SemanticModelError(
-                'query time intelligence requires a declared time dimension'
-            )
-        operation = time_intelligence.get('operation')
-        if operation not in {'as_of', 'range'}:
-            raise SemanticModelError(
-                'query time-intelligence operation is unsupported'
-            )
-        time_intelligence['start'] = required_text(
-            time_intelligence.get('start'),
-            'query.time_intelligence.start', 128,
-        )
-        if operation == 'range':
-            time_intelligence['end'] = required_text(
-                time_intelligence.get('end'),
-                'query.time_intelligence.end', 128,
-            )
-        else:
-            time_intelligence.pop('end', None)
-    query['time_intelligence'] = time_intelligence
+    query['windows'] = _validate_windows(
+        query.get('windows', []), symbols, set(selected_measures)
+    )
     query['totals'] = bool(query.get('totals', False))
     query['limit'] = query.get('limit', 500)
     if isinstance(query['limit'], bool) or not isinstance(query['limit'], int):

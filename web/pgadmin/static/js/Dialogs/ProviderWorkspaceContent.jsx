@@ -2463,11 +2463,14 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     parameters: {}, cross_filters: [], drill: {
       mode: 'summary', target_level: null, detail_fields: [],
     }, time_intelligence: {},
+    windows: [],
   });
   const [dimensionDraft, setDimensionDraft] = useState({
     id: 'dimension', name: 'Dimension', source_id: 'source', field: '',
     hierarchy: 'default', level: 'level', dimension_kind: 'attribute',
     time_role: 'calendar-time', timezone: 'UTC',
+    fiscal_year_start_month: 1,
+    time_value_type: 'datetime',
   });
   const [hierarchyDraft, setHierarchyDraft] = useState({
     dimension_id: '', id: 'hierarchy', name: 'Hierarchy',
@@ -2521,6 +2524,10 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const [reportDraft, setReportDraft] = useState({
     id: 'report', name: 'Report', dashboard_id: '', schedule_id: '',
     export_formats: 'json,csv,xlsx,svg',
+  });
+  const [windowDraft, setWindowDraft] = useState({
+    id: 'window', measure_id: '', operation: 'running_sum',
+    partition_by: [], order_level: '', direction: 'asc', frame_size: 1,
   });
   const sourceResources = (resources || []).filter((item) =>
     (analyticalProfile.source_kinds || ['table', 'collection', 'index'])
@@ -2677,7 +2684,11 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       dimension_kind: dimensionDraft.dimension_kind,
       time_intelligence: dimensionDraft.dimension_kind === 'time' ? {
         role: dimensionDraft.time_role, calendar: 'gregorian',
-        timezone: dimensionDraft.timezone, fiscal_year_start_month: 1,
+        timezone: dimensionDraft.timezone,
+        value_type: dimensionDraft.time_value_type,
+        fiscal_year_start_month: Number(
+          dimensionDraft.fiscal_year_start_month
+        ),
       } : null,
       provider_config: {},
       hierarchies: [{id: portableId(dimensionDraft.hierarchy),
@@ -2761,6 +2772,16 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       operator: filterDraft.operator, value,
     }]}));
   };
+  const addWindow = () => setQuery((current) => ({...current,
+    windows: [...(current.windows || []), {
+      id: portableId(windowDraft.id), measure_id: windowDraft.measure_id,
+      operation: windowDraft.operation,
+      partition_by: windowDraft.partition_by,
+      order_by: {level_id: windowDraft.order_level,
+        direction: windowDraft.direction},
+      frame_size: Number(windowDraft.frame_size),
+    }],
+  }));
   const addParameter = () => {
     let defaultValue = parameterDraft.default;
     if (defaultValue !== '' && ['integer', 'number', 'boolean', 'array']
@@ -3154,7 +3175,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     </Box>}
     {panel === 'dimensions' && <Box sx={{mt: 2}}>
       <Box sx={{display: 'grid',
-        gridTemplateColumns: 'repeat(9, 1fr) auto', gap: 1}}>
+        gridTemplateColumns: 'repeat(11, 1fr) auto', gap: 1}}>
         <TextField label={gettext('Dimension ID')} value={dimensionDraft.id}
           onChange={(event) => setDimensionDraft({...dimensionDraft, id: event.target.value})} />
         <TextField label={gettext('Name')} value={dimensionDraft.name}
@@ -3191,6 +3212,20 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           value={dimensionDraft.timezone} onChange={(event) =>
             setDimensionDraft({...dimensionDraft,
               timezone: event.target.value})} />
+        <TextField type="number" label={gettext('Fiscal start month')}
+          disabled={dimensionDraft.dimension_kind !== 'time'}
+          inputProps={{min: 1, max: 12}}
+          value={dimensionDraft.fiscal_year_start_month}
+          onChange={(event) => setDimensionDraft({...dimensionDraft,
+            fiscal_year_start_month: event.target.value})} />
+        <TextField select label={gettext('Time value type')}
+          disabled={dimensionDraft.dimension_kind !== 'time'}
+          value={dimensionDraft.time_value_type}
+          onChange={(event) => setDimensionDraft({...dimensionDraft,
+            time_value_type: event.target.value})}>
+          {['datetime', 'date', 'string'].map((item) => <MenuItem key={item}
+            value={item}>{item}</MenuItem>)}
+        </TextField>
         <Button onClick={addDimension} disabled={!dimensionDraft.field}>
           {gettext('Add')}</Button>
       </Box>
@@ -3400,15 +3435,16 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         onClick={() => addFilter('cross_filters')}>
         {gettext('Add cross-filter')}</Button>
       <Box sx={{display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, mt: 1}}>
+        gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, mt: 1}}>
         <TextField select label={gettext('Time operation')}
           value={query.time_intelligence?.operation || ''}
           onChange={(event) => setQuery({...query, time_intelligence:
             event.target.value ? {...query.time_intelligence,
               operation: event.target.value} : {}})}>
           <MenuItem value="">{gettext('None')}</MenuItem>
-          <MenuItem value="as_of">{gettext('As of')}</MenuItem>
-          <MenuItem value="range">{gettext('Time range')}</MenuItem>
+          {(semantic.capabilities.time_intelligence_operations || [])
+            .map((operation) => <MenuItem key={operation} value={operation}>
+              {operation.replaceAll('_', ' ')}</MenuItem>)}
         </TextField>
         <TextField select label={gettext('Time dimension')}
           value={query.time_intelligence?.dimension_id || ''}
@@ -3419,16 +3455,91 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             .map((item) => <MenuItem key={item.id}
               value={item.id}>{item.name}</MenuItem>)}
         </TextField>
-        <TextField label={gettext('Start / as-of value')}
+        {['as_of', 'range'].includes(
+          query.time_intelligence?.operation
+        ) && <TextField label={gettext('Start / as-of value')}
           value={query.time_intelligence?.start || ''}
           onChange={(event) => setQuery({...query, time_intelligence: {
-            ...query.time_intelligence, start: event.target.value}})} />
-        <TextField label={gettext('End value')}
-          disabled={query.time_intelligence?.operation !== 'range'}
+            ...query.time_intelligence, start: event.target.value}})} />}
+        {query.time_intelligence?.operation === 'range' && <TextField
+          label={gettext('End value')}
           value={query.time_intelligence?.end || ''}
           onChange={(event) => setQuery({...query, time_intelligence: {
-            ...query.time_intelligence, end: event.target.value}})} />
+            ...query.time_intelligence, end: event.target.value}})} />}
+        {['period_to_date', 'period_comparison'].includes(
+          query.time_intelligence?.operation
+        ) && <TextField select label={gettext('Period')}
+          value={query.time_intelligence?.period || ''}
+          onChange={(event) => setQuery({...query, time_intelligence: {
+            ...query.time_intelligence, period: event.target.value}})}>
+          {(semantic.capabilities.time_intelligence_periods || [])
+            .map((period) => <MenuItem key={period} value={period}>
+              {period.replaceAll('_', ' ')}</MenuItem>)}
+        </TextField>}
+        {['period_to_date', 'period_comparison'].includes(
+          query.time_intelligence?.operation
+        ) && <TextField label={gettext('Anchor date or datetime')}
+          value={query.time_intelligence?.anchor || ''}
+          onChange={(event) => setQuery({...query, time_intelligence: {
+            ...query.time_intelligence, anchor: event.target.value}})} />}
       </Box>
+      {(semantic.capabilities.analytical_window_operations || []).length > 0 &&
+      <Box sx={{mt: 2}}>
+        <Box component="h4">{gettext('Native analytical windows')}</Box>
+        <Box sx={{display: 'grid', gridTemplateColumns:
+          '1fr 1fr 1fr 1fr 1fr 1fr 1fr auto', gap: 1}}>
+          <TextField label={gettext('Output ID')} value={windowDraft.id}
+            onChange={(event) => setWindowDraft({...windowDraft,
+              id: event.target.value})} />
+          <TextField select label={gettext('Measure')}
+            value={windowDraft.measure_id} onChange={(event) =>
+              setWindowDraft({...windowDraft, measure_id: event.target.value})}>
+            {definition.measures.map((item) => <MenuItem key={item.id}
+              value={item.id}>{item.name}</MenuItem>)}
+          </TextField>
+          <TextField select label={gettext('Window operation')}
+            value={windowDraft.operation} onChange={(event) =>
+              setWindowDraft({...windowDraft, operation: event.target.value})}>
+            {semantic.capabilities.analytical_window_operations.map((item) =>
+              <MenuItem key={item} value={item}>
+                {item.replaceAll('_', ' ')}</MenuItem>)}
+          </TextField>
+          <TextField select SelectProps={{multiple: true}}
+            label={gettext('Partition levels')}
+            value={windowDraft.partition_by} onChange={(event) =>
+              setWindowDraft({...windowDraft,
+                partition_by: event.target.value})}>
+            {levelOptions.map((item) => <MenuItem key={item.id}
+              value={item.id}>{item.name}</MenuItem>)}
+          </TextField>
+          <TextField select label={gettext('Order level')}
+            value={windowDraft.order_level} onChange={(event) =>
+              setWindowDraft({...windowDraft,
+                order_level: event.target.value})}>
+            {levelOptions.map((item) => <MenuItem key={item.id}
+              value={item.id}>{item.name}</MenuItem>)}
+          </TextField>
+          <TextField select label={gettext('Direction')}
+            value={windowDraft.direction} onChange={(event) =>
+              setWindowDraft({...windowDraft, direction: event.target.value})}>
+            <MenuItem value="asc">asc</MenuItem>
+            <MenuItem value="desc">desc</MenuItem>
+          </TextField>
+          <TextField type="number" label={gettext('Frame / lag')}
+            inputProps={{min: 1, max: 10000}} value={windowDraft.frame_size}
+            onChange={(event) => setWindowDraft({...windowDraft,
+              frame_size: event.target.value})} />
+          <Button disabled={!windowDraft.measure_id ||
+            !windowDraft.order_level} onClick={addWindow}>
+            {gettext('Add window')}</Button>
+        </Box>
+        {(query.windows || []).map((window, index) => <Box key={window.id}
+          sx={{mt: 1}}>{window.id}: {window.operation}({window.measure_id})
+          <Button onClick={() => setQuery({...query, windows:
+            query.windows.filter((_item, position) => position !== index)})}>
+            {gettext('Remove')}</Button>
+        </Box>)}
+      </Box>}
       <Box sx={{display: 'flex', gap: 1, mt: 1, alignItems: 'center'}}>
         <TextField type="number" label={gettext('Cell limit')} value={query.limit}
           onChange={(event) => setQuery({...query, limit: Number(event.target.value)})} />

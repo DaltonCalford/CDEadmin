@@ -99,6 +99,14 @@ class SemanticModelService:
         model_family = (
             provider_value.get('model_family') if provider_value else None
         )
+        time_capabilities = (
+            provider_value.get('time_intelligence', {})
+            if provider_value else {}
+        )
+        window_capabilities = (
+            provider_value.get('analytical_windows', {})
+            if provider_value else {}
+        )
         return {
             'contract_version': '1.0.0',
             'designer': True,
@@ -117,6 +125,15 @@ class SemanticModelService:
             'drill_through': True,
             'cross_filtering': True,
             'time_intelligence': True,
+            'time_intelligence_operations': copy.deepcopy(
+                time_capabilities.get('operations', [])
+            ),
+            'time_intelligence_periods': copy.deepcopy(
+                time_capabilities.get('periods', [])
+            ),
+            'analytical_window_operations': copy.deepcopy(
+                window_capabilities.get('operations', [])
+            ),
             'parameters': True,
             'chart_builder': True,
             'dashboard_builder': True,
@@ -466,6 +483,7 @@ class SemanticModelService:
                 ),
                 'dimension_count': len(model['dimensions']),
                 'measure_count': len(query['measures']),
+                'window_count': len(query['windows']),
             },
             'provider_diagnostics': provider_diagnostics,
             'provider_diagnostics_available': callable(callback),
@@ -483,6 +501,12 @@ class SemanticModelService:
         levels = []
         for axis in ('pages', 'rows', 'columns'):
             levels.extend(query['axes'][axis])
+        if query['time_intelligence'].get(
+                'operation') == 'period_comparison':
+            levels.append('__semantic_period')
+        output_measures = query['measures'] + [
+            item['id'] for item in query['windows']
+        ]
         cells = []
         for record in records:
             if not isinstance(record, dict):
@@ -492,15 +516,18 @@ class SemanticModelService:
             cells.append({
                 'coordinates': {item: record.get(item) for item in levels},
                 'measures': {
-                    item: record.get(item) for item in query['measures']
+                    item: record.get(item) for item in output_measures
                 },
             })
         return {
             'family': 'cellset', 'axes': query['axes'],
-            'levels': levels, 'measures': query['measures'],
+            'levels': levels, 'measures': output_measures,
             'cells': cells, 'records': copy.deepcopy(records),
-            'formats': {item['id']: item.get('format', '')
-                        for item in model['measures']},
+            'formats': {
+                **{item['id']: item.get('format', '')
+                   for item in model['measures']},
+                **{item['id']: '' for item in query['windows']},
+            },
             'drill': {'supported': True, 'active_levels': levels},
             'slice': copy.deepcopy(query['filters']),
         }

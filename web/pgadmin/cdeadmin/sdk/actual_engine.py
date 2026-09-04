@@ -32,6 +32,13 @@ CONTRACT_VERSION = '1.1.0'
 EVIDENCE_REFERENCE = 'cde-prep-150:actual-engine-pilots-20260831'
 TABULAR_RENDERER_ID = 'cdeadmin.result.tabular.legacy-grid'
 TABULAR_COMPONENT = 'SchemaView/DataGridView'
+SEMANTIC_TIME_OPERATIONS = (
+    'as_of', 'range', 'period_to_date', 'period_comparison',
+)
+SEMANTIC_WINDOW_OPERATIONS = (
+    'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+    'percent_change', 'rank', 'dense_rank',
+)
 
 
 class PilotProviderError(RuntimeError):
@@ -88,6 +95,8 @@ class PilotProfile:
     semantic_materialization_kind: str | None = None
     semantic_materialization_defaults: Mapping[str, Any] | None = None
     semantic_compiler_kind: str | None = None
+    semantic_time_operations: tuple[str, ...] = ()
+    semantic_window_operations: tuple[str, ...] = ()
 
     def __post_init__(self):
         fields = (
@@ -112,6 +121,13 @@ class PilotProfile:
                     f'{name} must be unique and non-empty'
                 )
             if any(not isinstance(item, str) or not item for item in values):
+                raise PilotProviderError(f'{name} contains an invalid value')
+        for name in (
+            'semantic_time_operations', 'semantic_window_operations',
+        ):
+            values = getattr(self, name)
+            if len(values) != len(set(values)) or any(
+                    not isinstance(item, str) or not item for item in values):
                 raise PilotProviderError(f'{name} contains an invalid value')
         for name in ('minimum_version', 'maximum_version_exclusive'):
             value = getattr(self, name)
@@ -302,6 +318,7 @@ class ActualEnginePilotProvider:
             self.profile.semantic_sql_dialect is not None or
             self.profile.semantic_compiler_kind is not None
         )
+        sql_compiler = self.profile.semantic_sql_dialect is not None
         return {
             'provider_id': self.profile.provider_id,
             'engine_id': self.profile.engine_id,
@@ -313,9 +330,27 @@ class ActualEnginePilotProvider:
                 self.profile.language_profile if available else None
             ),
             'compiler_kind': self.profile.semantic_compiler_kind or (
-                'sql' if self.profile.semantic_sql_dialect is not None
+                'sql' if sql_compiler
                 else None
             ),
+            'time_intelligence': {
+                'operations': list(
+                    self.profile.semantic_time_operations or (
+                        SEMANTIC_TIME_OPERATIONS if sql_compiler else ()
+                    )
+                ),
+                'periods': [
+                    'day', 'week', 'month', 'quarter', 'year',
+                    'fiscal_quarter', 'fiscal_year',
+                ],
+            },
+            'analytical_windows': {
+                'operations': list(
+                    self.profile.semantic_window_operations or (
+                        SEMANTIC_WINDOW_OPERATIONS if sql_compiler else ()
+                    )
+                ),
+            },
             'materialization': {
                 'execution_available': (
                     self.profile.semantic_materialization_kind is not None
