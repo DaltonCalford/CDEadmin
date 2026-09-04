@@ -1148,6 +1148,12 @@ class MongoDBClient:
                         kind, [database_name], name, generation, native,
                     ))
                     collection_count += 1
+                    if kind == 'collection':
+                        resources.append(self._resource(
+                            'aggregation-pipeline', [database_name, name],
+                            'Aggregation pipeline', generation, native,
+                            virtual=True,
+                        ))
                     validator = info.get('options', {}).get('validator')
                     if validator:
                         resources.append(self._resource(
@@ -1332,7 +1338,7 @@ class MongoDBClient:
     ADMIN_OPERATIONS = {
         'deployment': frozenset({'inspect', 'execute'}),
         'replica-set': frozenset({'inspect', 'alter', 'execute'}),
-        'shard': frozenset({'inspect', 'alter', 'execute'}),
+        'shard': frozenset({'inspect', 'execute'}),
         'router': frozenset({'inspect', 'execute'}),
         'database': frozenset({'inspect', 'drop'}),
         'collection': frozenset({
@@ -1353,6 +1359,7 @@ class MongoDBClient:
         'zone': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'balancer': frozenset({'inspect', 'execute'}),
         'change-stream': frozenset({'inspect', 'execute'}),
+        'aggregation-pipeline': frozenset({'inspect', 'execute'}),
         'profiling': frozenset({'inspect', 'execute'}),
         'current-operation': frozenset({'inspect', 'execute'}),
         'server-log': frozenset({'inspect'}),
@@ -1373,6 +1380,36 @@ class MongoDBClient:
         catalog['native_planner'] = 'pymongo-command-planner'
         catalog['query_language'] = 'mongodb-query-api-json'
         catalog['document_encoding'] = 'mongodb-canonical-extended-json'
+        catalog['experience_families'] = ['document']
+
+        def declaration(*resource_kinds):
+            return {
+                'status': 'supported',
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in resource_kinds
+                },
+                'reason': (
+                    'MongoDB objects and operations are discovered and '
+                    'executed through the native PyMongo provider.'
+                ),
+                'evidence': ['mongodb-native-query-and-admin-api'],
+            }
+
+        catalog['concept_declarations'] = {'document': {
+            'databases': declaration('database'),
+            'collections': declaration('collection'),
+            'documents': declaration('document'),
+            'validation_rules': declaration('validator'),
+            'indexes': declaration('index'),
+            'views': declaration('view'),
+            'aggregation_pipelines': declaration('aggregation-pipeline'),
+            'users_and_roles': declaration('user', 'role', 'privilege'),
+            'replica_sets_and_sharding': declaration(
+                'replica-set', 'shard', 'router'
+            ),
+        }}
         # These operations create a child of a selected native container.
         # The generic catalog cannot express that relationship itself.
         target_kinds = {
@@ -1407,6 +1444,36 @@ class MongoDBClient:
                     operation['required_permissions'] = [
                         'filesystem', 'execute',
                     ]
+                if (
+                    resource.get('resource_kind') == 'aggregation-pipeline'
+                    and operation.get('operation_id') == 'execute'
+                ):
+                    operation.update({
+                        'title': 'Run aggregation pipeline',
+                        'mutation_class': 'read',
+                        'confirmation_required': False,
+                        'form': {
+                            'form_id': 'mongodb-aggregation-pipeline',
+                            'title': 'Run aggregation pipeline',
+                            'fields': [{
+                                'field_id': 'pipeline',
+                                'label': 'Pipeline stages',
+                                'control': 'json', 'required': True,
+                                'json_type': 'array', 'default': [],
+                            }, {
+                                'field_id': 'options',
+                                'label': 'Execution options',
+                                'control': 'json', 'required': False,
+                                'json_type': 'object', 'default': {},
+                            }, {
+                                'field_id': 'max_documents',
+                                'label': 'Maximum result documents',
+                                'control': 'number', 'required': False,
+                                'default': 100, 'minimum': 1,
+                                'maximum': MAX_RESULT_DOCUMENTS,
+                            }],
+                        },
+                    })
         return catalog
 
     @staticmethod
@@ -1463,6 +1530,24 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind == 'aggregation-pipeline' and operation == 'execute':
+            pipeline = draft.get('pipeline')
+            if not isinstance(pipeline, list) or any(
+                    not isinstance(stage, Mapping) for stage in pipeline):
+                errors.append({
+                    'field_id': 'pipeline', 'code': 'type',
+                    'message': 'Aggregation pipeline must be an array of '
+                               'stage objects.',
+                })
+            elif any(
+                set(stage).intersection({'$out', '$merge'})
+                for stage in pipeline
+            ):
+                errors.append({
+                    'field_id': 'pipeline', 'code': 'mutation_stage',
+                    'message': 'Read-only aggregation cannot use $out or '
+                               '$merge.',
+                })
         if kind in {'collection', 'view'} and operation == 'create':
             options = draft.get('options', {})
             if not isinstance(options, Mapping) or not isinstance(
@@ -1701,6 +1786,10 @@ class MongoDBClient:
             self._apply_index(database, operation, draft, native)
         elif kind == 'validator':
             self._apply_validator(database, operation, draft, native)
+        elif kind == 'aggregation-pipeline':
+            return self._apply_aggregation_pipeline(
+                database, draft, collection_name
+            )
         elif kind == 'user':
             self._apply_user(database, operation, draft, native, route)
         elif kind == 'role':
@@ -1719,6 +1808,57 @@ class MongoDBClient:
                 'MongoDB visual administration operation is unavailable'
             )
         return {'acknowledged': True, 'operation': operation}
+
+    def _apply_aggregation_pipeline(self, database, draft, collection_name):
+        if not collection_name:
+            raise MongoDBClientError(
+                'MongoDB aggregation collection is unavailable'
+            )
+        pipeline = draft.get('pipeline')
+        if not isinstance(pipeline, list) or any(
+                not isinstance(stage, Mapping) for stage in pipeline):
+            raise MongoDBClientError(
+                'MongoDB aggregation pipeline is invalid'
+            )
+        if any(
+            set(stage).intersection({'$out', '$merge'}) for stage in pipeline
+        ):
+            raise MongoDBClientError(
+                'MongoDB read-only aggregation cannot mutate data'
+            )
+        options = _mapping(draft.get('options', {}), 'aggregation options')
+        allowed = {
+            'allowDiskUse', 'batchSize', 'bypassDocumentValidation',
+            'collation', 'comment', 'hint', 'let', 'maxAwaitTimeMS',
+            'maxTimeMS',
+        }
+        unknown = sorted(set(options).difference(allowed))
+        if unknown:
+            raise MongoDBClientError(
+                'MongoDB aggregation options are unsupported: ' +
+                ', '.join(unknown)
+            )
+        maximum = _bounded_int(
+            draft.get('max_documents'), 100, 1, MAX_RESULT_DOCUMENTS,
+            'maximum result documents',
+        )
+        cursor = database[collection_name].aggregate(pipeline, **options)
+        try:
+            values = list(islice(cursor, maximum + 1))
+        finally:
+            close = getattr(cursor, 'close', None)
+            if callable(close):
+                close()
+        truncated = len(values) > maximum
+        values = values[:maximum]
+        return {
+            'acknowledged': True, 'operation': 'execute',
+            'observation': {
+                'documents': [self._extended_json(item) for item in values],
+                'document_count': len(values), 'truncated': truncated,
+            },
+            'driver_observation_only': True,
+        }
 
     def _inspect_admin(self, client, database, kind, native):
         try:

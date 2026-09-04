@@ -253,7 +253,7 @@ class MongoDBProviderTests(unittest.TestCase):
             'cdeadmin.result.document.tree', PROFILE.result_renderer_id
         )
         self.assertEqual('documents', PROFILE.result_records_field)
-        self.assertEqual(25, len(PROFILE.resource_kinds))
+        self.assertEqual(26, len(PROFILE.resource_kinds))
 
     def test_exact_runtime_and_structured_route_are_driver_owned(self):
         created = []
@@ -560,7 +560,7 @@ class MongoDBProviderTests(unittest.TestCase):
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
             'deployment', 'replica-set', 'database', 'collection',
-            'validator', 'index', 'change-stream',
+            'validator', 'index', 'change-stream', 'aggregation-pipeline',
         }.issubset(kinds))
         collection = next(
             item for item in resources
@@ -575,6 +575,10 @@ class MongoDBProviderTests(unittest.TestCase):
         value = client()
         provider = MongoDBPilotProvider(context(), Permissions(), value)
         descriptor = provider.visual_admin_descriptor()
+        coverage = descriptor['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
         document = next(
             item for item in descriptor['objects']
             if item['resource_kind'] == 'document'
@@ -612,6 +616,59 @@ class MongoDBProviderTests(unittest.TestCase):
         self.assertEqual(
             'pymongo', plan['command_preview']['driver']
         )
+
+    def test_aggregation_workspace_is_typed_bounded_and_read_only(self):
+        provider = MongoDBPilotProvider(
+            context(), Permissions(), client()
+        )
+        descriptor = provider.visual_admin_descriptor()
+        workspace = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'aggregation-pipeline'
+        )
+        execute = next(
+            item for item in workspace['operations']
+            if item['operation_id'] == 'execute'
+        )
+        self.assertEqual('read', execute['mutation_class'])
+        self.assertFalse(execute['confirmation_required'])
+        self.assertEqual(
+            'mongodb-aggregation-pipeline', execute['form']['form_id']
+        )
+        target = {
+            'resource_kind': 'aggregation-pipeline',
+            'extensions': {'mongodb': {'native': {
+                'database': 'qualification', 'collection': 'widgets',
+            }}},
+        }
+        plan = provider.plan_visual_admin({
+            'resource_kind': 'aggregation-pipeline',
+            'operation_id': 'execute', 'target_resource': target,
+            'draft': {
+                'pipeline': [{'$match': {'name': 'first'}}],
+                'options': {}, 'max_documents': 1,
+            },
+            '_provider_route': {
+                'host': 'localhost', 'database': 'qualification',
+            },
+        })
+        result = provider.apply_visual_admin({
+            'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'], 'confirmed': False,
+        })['provider_result']['observation']
+        self.assertEqual(1, result['document_count'])
+        self.assertFalse(result['truncated'])
+        blocked = provider.validate_visual_admin({
+            'resource_kind': 'aggregation-pipeline',
+            'operation_id': 'execute', 'target_resource': target,
+            'draft': {
+                'pipeline': [{'$merge': 'other'}], 'options': {},
+            },
+            '_provider_route': {
+                'host': 'localhost', 'database': 'qualification',
+            },
+        })
+        self.assertFalse(blocked['valid'])
 
     def test_advanced_route_streaming_and_change_stream_cancellation(self):
         created = []

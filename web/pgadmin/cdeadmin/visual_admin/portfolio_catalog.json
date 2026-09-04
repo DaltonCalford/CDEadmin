@@ -426,6 +426,7 @@
         {"resource_kind": "zone", "title": "Shard zone", "operation_profile": "topology"},
         {"resource_kind": "balancer", "title": "Balancer", "operation_profile": "operational"},
         {"resource_kind": "change-stream", "title": "Change stream", "operation_profile": "operational"},
+        {"resource_kind": "aggregation-pipeline", "title": "Aggregation pipeline", "operation_profile": "operational"},
         {"resource_kind": "profiling", "title": "Database profiler", "operation_profile": "operational"},
         {"resource_kind": "current-operation", "title": "Current operation", "operation_profile": "operational"},
         {"resource_kind": "server-log", "title": "Server log", "operation_profile": "read_only"},

@@ -379,6 +379,7 @@ def verify(binary, server_log):
             required = {
                 'deployment', 'replica-set', 'database', 'collection',
                 'document', 'index', 'validator', 'user', 'change-stream',
+                'aggregation-pipeline',
             }
             document_request = {
                 **request, 'database': runtime.database,
@@ -468,7 +469,7 @@ def verify(binary, server_log):
 
         def admin_gate():
             descriptor = provider.visual_admin_descriptor()
-            if len(descriptor['objects']) != 25:
+            if len(descriptor['objects']) != 26:
                 raise RuntimeError('MongoDB administration catalog incomplete')
             database_target = next(
                 item for item in provider.list_resources(request)
@@ -515,6 +516,11 @@ def verify(binary, server_log):
                 item['display_name'] == renamed_collection
             )
             collection_name = renamed_collection
+            pipeline_target = next(
+                item for item in current
+                if item['resource_kind'] == 'aggregation-pipeline' and
+                item['authority_path'][-2] == collection_name
+            )
             _apply(provider, {
                 'resource_kind': 'collection', 'operation_id': 'insert',
                 'target_resource': target,
@@ -524,6 +530,18 @@ def verify(binary, server_log):
                 },
                 '_provider_route': route,
             })
+            pipeline_result = _apply(provider, {
+                'resource_kind': 'aggregation-pipeline',
+                'operation_id': 'execute',
+                'target_resource': pipeline_target,
+                'draft': {
+                    'pipeline': [{'$match': {'key': 'bulk-one'}}],
+                    'options': {}, 'max_documents': 10,
+                },
+                '_provider_route': route,
+            })['provider_result']['observation']
+            if pipeline_result['document_count'] != 1:
+                raise RuntimeError('aggregation workspace result is invalid')
             _apply(provider, {
                 'resource_kind': 'collection', 'operation_id': 'update',
                 'target_resource': target,
@@ -968,6 +986,71 @@ def verify(binary, server_log):
         runtime.stop()
 
     passed = all(value == 'passed' for value in categories.values())
+    object_evidence = {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'mongodb', 'exact_profile': '8.2.6',
+        'evidence_scope': 'document-navigator-and-editor-operations',
+        'raw_commands_used': False, 'concepts': {},
+        'passed_resource_operations': {}, 'operation_failures': {},
+    }
+    if categories['admin'] == 'passed':
+        operations = {
+            'database': ['drop', 'inspect'],
+            'collection': [
+                'alter', 'create', 'delete', 'drop', 'insert', 'inspect',
+                'rename', 'update',
+            ],
+            'document': ['delete', 'insert', 'inspect', 'update'],
+            'validator': ['alter', 'create', 'drop', 'inspect'],
+            'index': ['alter', 'create', 'drop', 'inspect'],
+            'view': ['alter', 'create', 'drop', 'inspect'],
+            'aggregation-pipeline': ['execute', 'inspect'],
+            'user': [
+                'alter', 'create', 'drop', 'grant', 'inspect', 'revoke',
+            ],
+            'role': [
+                'alter', 'create', 'drop', 'grant', 'inspect', 'revoke',
+            ],
+            'privilege': ['inspect'],
+            'replica-set': ['inspect'],
+        }
+        object_evidence['passed_resource_operations'] = operations
+        object_evidence['concepts'] = {'document': {
+            'databases': {'status': 'passed', 'operations': {
+                'database': operations['database'],
+            }},
+            'collections': {'status': 'passed', 'operations': {
+                'collection': operations['collection'],
+            }},
+            'documents': {'status': 'passed', 'operations': {
+                'document': operations['document'],
+            }},
+            'validation_rules': {'status': 'passed', 'operations': {
+                'validator': operations['validator'],
+            }},
+            'indexes': {'status': 'passed', 'operations': {
+                'index': operations['index'],
+            }},
+            'views': {'status': 'passed', 'operations': {
+                'view': operations['view'],
+            }},
+            'aggregation_pipelines': {
+                'status': 'passed', 'operations': {
+                    'aggregation-pipeline': operations[
+                        'aggregation-pipeline'
+                    ],
+                },
+            },
+            'users_and_roles': {'status': 'passed', 'operations': {
+                kind: operations[kind]
+                for kind in ('user', 'role', 'privilege')
+            }},
+            'replica_sets_and_sharding': {
+                'status': 'passed', 'operations': {
+                    'replica-set': operations['replica-set'],
+                },
+            },
+        }}
     return {
         'schema': 'cdeadmin.mongodb-provider-live-verification.v1',
         'engine_id': 'mongodb',
@@ -983,6 +1066,7 @@ def verify(binary, server_log):
         'common_transaction_finality_interpreted': False,
         'temporary_account_removed': runtime.account_removed,
         'server_log': str(server_log.resolve()),
+        'object_experience_evidence': object_evidence,
     }
 
 
@@ -991,6 +1075,7 @@ def main():
     parser.add_argument('--mongod', type=Path, required=True)
     parser.add_argument('--server-log', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--object-evidence', type=Path)
     args = parser.parse_args()
     if not args.mongod.is_file():
         parser.error('--mongod must identify an installed binary')
@@ -1000,6 +1085,14 @@ def main():
         json.dumps(result, indent=2, sort_keys=True) + '\n',
         encoding='utf-8',
     )
+    if args.object_evidence:
+        args.object_evidence.parent.mkdir(parents=True, exist_ok=True)
+        args.object_evidence.write_text(
+            json.dumps(
+                result['object_experience_evidence'], indent=2,
+                sort_keys=True,
+            ) + '\n', encoding='utf-8',
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result['activation_ready'] else 1
 

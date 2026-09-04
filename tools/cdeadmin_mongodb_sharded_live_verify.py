@@ -552,19 +552,17 @@ def verify(mongod, mongos, log_root):
             _apply(direct_provider, direct_route, 'replica-set', 'alter',
                    target, {'changes': {'config': config},
                             'definition': '', 'online': True})
-            # A single-member primary correctly refuses replSetFreeze. Prove
-            # the provider returns that native refusal without converting it
-            # into a successful failover observation.
-            try:
-                _apply(direct_provider, direct_route, 'replica-set', 'execute',
-                       target, {
-                           'action': 'freeze', 'arguments': {'seconds': 0},
-                           'confirmation': 'unfreeze-member',
-                       })
-            except Exception:
-                pass
-            else:
-                raise RuntimeError('primary freeze refusal was not preserved')
+            _apply(direct_provider, direct_route, 'replica-set', 'execute',
+                   target, {
+                       'action': 'step_down',
+                       'arguments': {'seconds': 1, 'force': True},
+                       'confirmation': 'step-down-primary',
+                   })
+            recovered = runtime._wait_primary(
+                runtime.ports['shard_one'], 'cde-shard-one',
+                runtime.username, runtime.password,
+            )
+            recovered.close()
             client.close()
             direct_provider.close()
 
@@ -693,6 +691,34 @@ def verify(mongod, mongos, log_root):
             provider.close()
         runtime.stop()
     passed = all(value == 'passed' for value in categories.values())
+    topology_operations = {}
+    if categories['sharded_discovery'] == 'passed':
+        topology_operations.update({
+            'shard': ['inspect'], 'router': ['inspect'],
+        })
+    if categories['topology_mutation'] == 'passed':
+        topology_operations.update({
+            'shard': ['execute', 'inspect'],
+            'router': ['execute', 'inspect'],
+        })
+    if categories['replica_set_admin'] == 'passed':
+        topology_operations['replica-set'] = [
+            'alter', 'execute', 'inspect',
+        ]
+    object_evidence = {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'mongodb', 'exact_profile': '8.2.6',
+        'evidence_scope': 'document-sharded-topology-operations',
+        'raw_commands_used': False,
+        'passed_resource_operations': topology_operations,
+        'operation_failures': {}, 'concepts': {},
+    }
+    if topology_operations:
+        object_evidence['concepts'] = {'document': {
+            'replica_sets_and_sharding': {
+                'status': 'passed', 'operations': topology_operations,
+            },
+        }}
     return {
         'schema': 'cdeadmin.mongodb-sharded-live-verification.v1',
         'engine_id': 'mongodb', 'exact_profile': '8.2.6',
@@ -703,6 +729,7 @@ def verify(mongod, mongos, log_root):
         'common_transaction_finality_interpreted': False,
         'secret_values_exported': False,
         'log_root': str(log_root.resolve()),
+        'object_experience_evidence': object_evidence,
     }
 
 
@@ -712,6 +739,7 @@ def main():
     parser.add_argument('--mongos', type=Path, required=True)
     parser.add_argument('--log-root', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--object-evidence', type=Path)
     args = parser.parse_args()
     result = verify(args.mongod, args.mongos, args.log_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -719,6 +747,14 @@ def main():
         json.dumps(result, indent=2, sort_keys=True) + '\n',
         encoding='utf-8',
     )
+    if args.object_evidence:
+        args.object_evidence.parent.mkdir(parents=True, exist_ok=True)
+        args.object_evidence.write_text(
+            json.dumps(
+                result['object_experience_evidence'], indent=2,
+                sort_keys=True,
+            ) + '\n', encoding='utf-8',
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result['activation_ready'] else 1
 

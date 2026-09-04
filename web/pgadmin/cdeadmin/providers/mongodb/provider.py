@@ -24,7 +24,8 @@ PROFILE = PilotProfile(
         'collection', 'view', 'document', 'index', 'validator', 'user',
         'role', 'privilege', 'zone', 'balancer', 'change-stream',
         'profiling', 'current-operation', 'server-log', 'statistics',
-        'backup', 'restore', 'import', 'export', 'shell',
+        'aggregation-pipeline', 'backup', 'restore', 'import', 'export',
+        'shell',
     ),
     admin_tools=(
         'mongosh', 'backup-restore', 'replica-set-admin', 'sharding-admin',
