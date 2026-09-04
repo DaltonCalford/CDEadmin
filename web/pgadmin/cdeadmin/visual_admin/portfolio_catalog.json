@@ -669,6 +669,7 @@
         {"resource_kind": "keyspace", "title": "Keyspace", "operation_profile": "namespace"},
         {"resource_kind": "key-range", "title": "Key range", "operation_profile": "data_container"},
         {"resource_kind": "raw-key", "title": "Raw key/value", "operation_profile": "data_item"},
+        {"resource_kind": "ttl", "title": "Key expiration", "operation_profile": "definition", "exclude_operations": ["rename"]},
         {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "read_only"},
         {"resource_kind": "lock", "title": "Lock", "operation_profile": "read_only"},
         {"resource_kind": "placement-rule", "title": "Placement rule", "operation_profile": "topology"},

@@ -143,6 +143,15 @@
         "maximum": 2
       },
       {
+        "field_id": "enable_ttl",
+        "route_key": "enable_ttl",
+        "label": "Enable API v1 TTL encoding",
+        "control": "boolean",
+        "group": "TiKV protocol",
+        "default": false,
+        "visible_when": {"field_id": "api_version", "equals": 1}
+      },
+      {
         "field_id": "pd_http_scheme",
         "route_key": "pd_http_scheme",
         "label": "PD metadata scheme",
@@ -206,6 +215,6 @@
     "client_state": "pinned_client_go_helper",
     "runtime_state": "exact_runtime_qualified",
     "activation_gate": "passed",
-    "helper_sha256": "e073268dcbf5687f24643ffec87871f540ef59c2334e24a7d9ecc6037f060e17"
+    "helper_sha256": "3c83fb272cd1107df961c8a551433745b8d7759415f4cabdeb0e8cf8a99223e7"
   }
 }

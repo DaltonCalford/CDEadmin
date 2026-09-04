@@ -54,6 +54,7 @@ def parser():
     value.add_argument('--api-version', type=int, choices=(1, 2), default=1)
     value.add_argument('--allow-cluster-mutation', action='store_true')
     value.add_argument('--output', type=Path)
+    value.add_argument('--object-evidence', type=Path)
     return value
 
 
@@ -150,6 +151,7 @@ def verify(args):
     scheduler_paused = False
     label_created = False
     identity = None
+    resource_kinds = []
     started = time.time()
 
     try:
@@ -159,6 +161,9 @@ def verify(args):
         if identity['version'] != PROFILE.exact_version:
             raise RuntimeError('TiKV exact runtime identity changed')
         resources = provider.list_resources({'route': route})
+        resource_kinds = sorted({
+            item['resource_kind'] for item in resources
+        })
         store = _target(resources, 'store')
         scheduler = _target(
             resources, 'scheduler', 'balance-leader-scheduler'
@@ -228,6 +233,7 @@ def verify(args):
         'engine_id': 'tikv',
         'expected_runtime': PROFILE.exact_version,
         'runtime_identity': identity,
+        'resource_kinds': resource_kinds,
         'temporary_label_key': label_key,
         'operations': operations,
         'cleanup': cleanup,
@@ -238,6 +244,45 @@ def verify(args):
         'completed_at': time.time(),
         'failures': failures,
         'passed': not failures,
+    }
+
+
+def object_evidence(evidence):
+    """Translate directly observed PD operations into gate evidence."""
+    if not evidence.get('passed'):
+        raise RuntimeError('failed TiKV control run cannot become evidence')
+    kinds = set(evidence.get('resource_kinds', []))
+    inspected = {
+        kind: ['inspect'] for kind in (
+            'cluster', 'store', 'region', 'peer', 'scheduler',
+            'configuration',
+        ) if kind in kinds
+    }
+    cluster_operations = dict(inspected)
+    exercised = {}
+    for item in evidence.get('operations', []):
+        kind, operation = item['operation'].split('.', 1)
+        exercised.setdefault(kind, []).append(operation)
+    for kind, operations in exercised.items():
+        cluster_operations.setdefault(kind, []).extend(operations)
+        cluster_operations[kind] = sorted(set(cluster_operations[kind]))
+    replication = {
+        kind: ['inspect'] for kind in (
+            'region', 'peer', 'placement-rule'
+        ) if kind in kinds
+    }
+    return {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'tikv', 'exact_profile': '8.5.6',
+        'run_id': f"tikv-control-{evidence['started_at']}",
+        'concepts': {'key_value': {
+            'replication': {
+                'status': 'passed', 'operations': replication,
+            },
+            'sentinel_or_cluster_state': {
+                'status': 'passed', 'operations': cluster_operations,
+            },
+        }},
     }
 
 
@@ -257,6 +302,12 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(document + '\n', encoding='utf-8')
+    if args.object_evidence and evidence.get('passed'):
+        value = json.dumps(
+            object_evidence(evidence), indent=2, sort_keys=True
+        ) + '\n'
+        args.object_evidence.parent.mkdir(parents=True, exist_ok=True)
+        args.object_evidence.write_text(value, encoding='utf-8')
     return 0 if evidence['passed'] else 1
 
 

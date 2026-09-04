@@ -4,7 +4,7 @@ from pgadmin.cdeadmin.sdk import ActualEnginePilotProvider, PilotProfile
 from ..native_distributed import (
     NativeDistributedClient,
 )
-from .client import CONTROL_OPERATIONS
+from .client import ADMIN_OPERATIONS
 
 PROFILE = PilotProfile(
     'org.cdeadmin.tikv', 'tikv-native', 'tikv', 'TiKV', '8.5.6',
@@ -13,7 +13,8 @@ PROFILE = PilotProfile(
     'tikv-transaction-native', 'key_value',
     ('cluster', 'store', 'region', 'peer', 'keyspace', 'key-range',
      'raw-key', 'transaction', 'lock', 'placement-rule', 'scheduler',
-     'configuration', 'backup', 'restore', 'import-job', 'coprocessor'),
+     'configuration', 'ttl', 'backup', 'restore', 'import-job',
+     'coprocessor'),
     ('pd-ctl', 'tikv-ctl', 'br', 'cdc'),
     language_mime_type='application/vnd.tikv.operation+json',
     result_renderer_kind='key-value',
@@ -22,13 +23,7 @@ PROFILE = PilotProfile(
     result_records_field='entries', result_export_formats=('json', 'jsonl'),
     result_worker_required=True,
 )
-OPERATIONS = {kind: {'inspect'} for kind in PROFILE.resource_kinds}
-OPERATIONS['raw-key'] = {'inspect', 'insert', 'update', 'delete'}
-OPERATIONS['key-range'] = {'inspect', 'insert', 'update', 'delete'}
-for _control_operation in CONTROL_OPERATIONS:
-    OPERATIONS.setdefault(_control_operation.resource_kind, {'inspect'}).add(
-        _control_operation.operation_id
-    )
+OPERATIONS = ADMIN_OPERATIONS
 
 
 class TiKVProvider(ActualEnginePilotProvider):

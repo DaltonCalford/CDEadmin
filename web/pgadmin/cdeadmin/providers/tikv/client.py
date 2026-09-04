@@ -288,6 +288,24 @@ CONTROL_OPERATIONS = (
 
 CONTROL_CATALOG = ControlPlaneCatalog('tikv', CONTROL_OPERATIONS)
 
+ADMIN_OPERATIONS = {
+    'cluster': {'inspect'}, 'store': {'inspect'},
+    'region': {'inspect'}, 'peer': {'inspect'},
+    'keyspace': {'inspect'},
+    'key-range': {'inspect', 'insert', 'update', 'delete'},
+    'raw-key': {'inspect', 'insert', 'update', 'delete'},
+    'ttl': {'inspect', 'create', 'alter', 'drop'},
+    'transaction': {'inspect'}, 'lock': {'inspect'},
+    'placement-rule': {'inspect'}, 'scheduler': {'inspect'},
+    'configuration': {'inspect'}, 'backup': {'inspect'},
+    'restore': {'inspect'}, 'import-job': {'inspect'},
+    'coprocessor': {'inspect'},
+}
+for _control_operation in CONTROL_OPERATIONS:
+    ADMIN_OPERATIONS.setdefault(
+        _control_operation.resource_kind, {'inspect'}
+    ).add(_control_operation.operation_id)
+
 
 class TiKVBackend:
     """Forward bounded operations to the provider-owned TiKV helper.
@@ -357,6 +375,14 @@ class TiKVBackend:
                 'TiKV API version must be 1 or 2') from exc
         if result['api_version'] not in (1, 2):
             raise NativeDistributedError('TiKV API version must be 1 or 2')
+        enable_ttl = result.get(
+            'enable_ttl', result['api_version'] == 2)
+        if not isinstance(enable_ttl, bool):
+            raise NativeDistributedError(
+                'TiKV TTL enablement must be boolean')
+        result['enable_ttl'] = (
+            True if result['api_version'] == 2 else enable_ttl
+        )
         result['pd_http_scheme'] = str(
             result.get('pd_http_scheme', 'http')).lower()
         if result['pd_http_scheme'] not in ('http', 'https'):
@@ -495,7 +521,7 @@ class TiKVBackend:
             keyspaces = self._pd(
                 route, '/pd/api/v2/keyspaces?limit=10000'
             ).get('keyspaces', [])
-            for row in keyspaces[:self.MAX_RECORDS]:
+            for row in keyspaces[:2000]:
                 if isinstance(row, dict) and row.get('name'):
                     values.append(resource(
                         'keyspace', [], row['name'], generation, row
@@ -505,7 +531,14 @@ class TiKVBackend:
                 'maximum_page_size': self.MAX_RECORDS,
             },
         ))
-        for row in self._pd(route, '/pd/api/v1/stores').get('stores', []):
+        values.append(resource(
+            'ttl', [], 'key-expiration-browser', generation, {
+                'ttl_enabled': route['enable_ttl'],
+                'api_version': route['api_version'],
+            },
+        ))
+        for row in self._pd(
+                route, '/pd/api/v1/stores').get('stores', [])[:1000]:
             if not isinstance(row, dict):
                 continue
             store = row.get('store', {})
@@ -513,17 +546,29 @@ class TiKVBackend:
                 values.append(resource(
                     'store', [], store['id'], generation, store))
         regions = self._pd(route, '/pd/api/v1/regions').get('regions', [])
-        for row in regions[:self.MAX_RECORDS]:
+        for row in regions[:2000]:
+            if len(values) >= self.MAX_RECORDS - 256:
+                break
             if isinstance(row, dict) and row.get('id') is not None:
                 values.append(resource(
                     'region', [], row['id'], generation, row
                 ))
+                for peer in row.get('peers', []):
+                    if len(values) >= self.MAX_RECORDS - 256:
+                        break
+                    if isinstance(peer, dict) and peer.get('id') is not None:
+                        values.append(resource(
+                            'peer', [row['id']], peer['id'], generation,
+                            peer,
+                        ))
         schedulers = self._pd_document(
             route, '/pd/api/v1/schedulers'
         )
         if isinstance(schedulers, dict):
             schedulers = schedulers.get('schedulers', [])
         for name in schedulers if isinstance(schedulers, list) else []:
+            if len(values) >= self.MAX_RECORDS - 2:
+                break
             if isinstance(name, str):
                 values.append(resource(
                     'scheduler', [], name, generation
@@ -532,6 +577,8 @@ class TiKVBackend:
         if isinstance(rules, dict):
             rules = rules.get('rules', [])
         for row in rules if isinstance(rules, list) else []:
+            if len(values) >= self.MAX_RECORDS - 1:
+                break
             if not isinstance(row, dict) or not row.get('group_id') or not (
                     row.get('id')):
                 continue
@@ -539,6 +586,13 @@ class TiKVBackend:
                 'placement-rule', [row['group_id']], row['id'], generation,
                 row,
             ))
+        values.append(resource(
+            'configuration', [], 'storage-api', generation, {
+                'api_version': route['api_version'],
+                'ttl_enabled': route['enable_ttl'],
+                'transaction_mode': route['transaction_mode'],
+            },
+        ))
         return values
 
     @staticmethod
@@ -548,6 +602,7 @@ class TiKVBackend:
             'transaction_model': 'tikv-provider-native',
             'automatic_mutation_retry_by_cdeadmin': False,
             'configured_transaction_mode': handle['transaction_mode'],
+            'ttl_enabled': handle['enable_ttl'],
             'operation_timeout_seconds': handle['operation_timeout'],
             'isolation': 'snapshot-isolation',
         }
@@ -581,13 +636,14 @@ class TiKVBackend:
             raise NativeDistributedError('TiKV command must be JSON')
         operation = command.get('operation')
         if operation not in {
-                'get', 'put', 'delete', 'compare_and_swap', 'scan',
-                'transaction'}:
+                'get', 'put', 'put_with_ttl', 'get_key_ttl', 'delete',
+                'compare_and_swap', 'scan', 'transaction'}:
             raise NativeDistributedError('TiKV operation is unsupported')
         value = {
             'operation': operation,
             'pd_endpoints': list(route['pd_endpoints']),
             'api_version': route['api_version'],
+            'enable_ttl': route['enable_ttl'],
             'operation_timeout_seconds': route['operation_timeout'],
             'transaction_mode': route['transaction_mode'],
         }
@@ -595,10 +651,18 @@ class TiKVBackend:
             if route.get(field):
                 value[field] = route[field]
         if operation in {
-                'get', 'put', 'delete', 'compare_and_swap'}:
+                'get', 'put', 'put_with_ttl', 'get_key_ttl', 'delete',
+                'compare_and_swap'}:
             value['key_base64'] = cls._encoded(command, 'key', True)
-        if operation in {'put', 'compare_and_swap'}:
+        if operation in {'put', 'put_with_ttl', 'compare_and_swap'}:
             value['value_base64'] = cls._encoded(command, 'value', True)
+        if operation == 'put_with_ttl':
+            ttl = command.get('ttl_seconds')
+            if isinstance(ttl, bool) or not isinstance(ttl, int) or not (
+                    1 <= ttl <= 315360000):
+                raise NativeDistributedError(
+                    'TiKV TTL must be between 1 and 315360000 seconds')
+            value['ttl_seconds'] = ttl
         if operation == 'compare_and_swap' and (
                 'previous_value' in command or
                 'previous_value_base64' in command):
@@ -613,7 +677,15 @@ class TiKVBackend:
                 raise NativeDistributedError(
                     'TiKV scan limit is outside approved bounds')
             value['limit'] = limit
+            include_ttl = command.get('include_ttl', False)
+            if not isinstance(include_ttl, bool):
+                raise NativeDistributedError(
+                    'TiKV include_ttl must be boolean')
+            value['include_ttl'] = include_ttl
         if operation == 'transaction':
+            if route['api_version'] == 1 and route['enable_ttl']:
+                raise NativeDistributedError(
+                    'TiKV TxnKV requires API v2 when RawKV TTL is enabled')
             keys = command.get('keys', [])
             mutations = command.get('mutations', [])
             if not isinstance(keys, list) or not isinstance(mutations, list):
@@ -728,7 +800,8 @@ class TiKVBackend:
             'key_value', 'entries', rows,
             {'fields': [
                 'key', 'value', 'found', 'accepted', 'previous_value',
-                'swapped', 'key_base64', 'value_base64',
+                'swapped', 'ttl_seconds_remaining', 'key_base64',
+                'value_base64',
             ]}, native,
         )
 
@@ -754,6 +827,144 @@ class TiKVBackend:
         )
         value = CONTROL_CATALOG.apply(value)
         value['transaction_authority'] = 'tikv-client-go-native'
+        value['experience_families'] = ['key_value']
+        value['native_outcomes_are_opaque'] = True
+        value['automatic_mutation_retry'] = False
+        available_operations = {
+            kind: sorted(operations)
+            for kind, operations in ADMIN_OPERATIONS.items()
+        }
+
+        def declaration(*resource_kinds, reason, operation_obligations=None):
+            return {
+                'status': 'supported',
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': copy.deepcopy(
+                    operation_obligations or {
+                        kind: available_operations.get(kind, [])
+                        for kind in resource_kinds
+                    }
+                ),
+                'reason': reason,
+                'evidence': ['tikv-8.5.6-native-client-go-and-pd-api'],
+            }
+
+        value['concept_declarations'] = {'key_value': {
+            'key_browsing': declaration(
+                'key-range', 'raw-key',
+                reason=(
+                    'Bounded native RawKV scans expose ordered byte keys and '
+                    'provider-issued row identities.'
+                ),
+                operation_obligations={'key-range': ['inspect']},
+            ),
+            'data_type_editing': declaration(
+                'key-range', 'raw-key',
+                reason=(
+                    'RawKV byte keys and values use explicit UTF-8 or base64 '
+                    'forms without inventing Redis data types.'
+                ),
+                operation_obligations={
+                    'key-range': ['insert', 'update', 'delete'],
+                },
+            ),
+            'ttl_inspection': declaration(
+                'ttl',
+                reason=(
+                    'Native RawKV GetKeyTTL is available when storage TTL is '
+                    'enabled for API v1 or intrinsically by API v2.'
+                ),
+                operation_obligations={'ttl': ['inspect']},
+            ),
+            'expiration_management': declaration(
+                'ttl',
+                reason=(
+                    'Native PutWithTTL sets expiration; removing expiration '
+                    'performs the provider-defined value rewrite with TTL '
+                    'zero.'
+                ),
+                operation_obligations={
+                    'ttl': ['create', 'alter', 'drop'],
+                },
+            ),
+            'streams': 'not_applicable',
+            'pubsub': 'not_applicable',
+            'consumer_groups': 'not_applicable',
+            'modules': 'not_applicable',
+            'acls': 'not_applicable',
+            'replication': declaration(
+                'region', 'peer', 'placement-rule',
+                reason=(
+                    'PD Regions, peers and placement rules are TiKV native '
+                    'replication and replica-placement controls.'
+                ),
+            ),
+            'sentinel_or_cluster_state': declaration(
+                'cluster', 'store', 'region', 'peer', 'scheduler',
+                'configuration',
+                reason=(
+                    'PD cluster, store, Region, peer, scheduler and storage '
+                    'configuration surfaces replace Redis Sentinel semantics.'
+                ),
+            ),
+        }}
+        ttl_forms = {
+            'inspect': (
+                'Inspect key expiration', [
+                    {'field_id': 'key', 'label': 'Key', 'control': 'text',
+                     'required': True},
+                    {'field_id': 'key_encoding', 'label': 'Key encoding',
+                     'control': 'select', 'required': False,
+                     'default': 'utf8', 'options': [
+                         {'value': 'utf8', 'label': 'UTF-8'},
+                         {'value': 'base64', 'label': 'Base64'},
+                     ]},
+                ],
+            ),
+            'create': ('Set key expiration', None),
+            'alter': ('Replace key expiration', None),
+            'drop': ('Remove key expiration', None),
+        }
+        replacement_fields = [
+            {'field_id': 'key', 'label': 'Key', 'control': 'text',
+             'required': True},
+            {'field_id': 'key_encoding', 'label': 'Key encoding',
+             'control': 'select', 'required': False, 'default': 'utf8',
+             'options': [
+                 {'value': 'utf8', 'label': 'UTF-8'},
+                 {'value': 'base64', 'label': 'Base64'},
+             ]},
+            {'field_id': 'value', 'label': 'Replacement value',
+             'control': 'text', 'required': True},
+            {'field_id': 'value_encoding', 'label': 'Value encoding',
+             'control': 'select', 'required': False, 'default': 'utf8',
+             'options': [
+                 {'value': 'utf8', 'label': 'UTF-8'},
+                 {'value': 'base64', 'label': 'Base64'},
+             ]},
+        ]
+        for resource in value.get('objects', []):
+            if resource.get('resource_kind') != 'ttl':
+                continue
+            for operation in resource.get('operations', []):
+                operation_id = operation.get('operation_id')
+                if operation_id not in ttl_forms:
+                    continue
+                title, fields = ttl_forms[operation_id]
+                if fields is None:
+                    fields = copy.deepcopy(replacement_fields)
+                    if operation_id != 'drop':
+                        fields.append({
+                            'field_id': 'ttl_seconds',
+                            'label': 'TTL (seconds)', 'control': 'number',
+                            'required': True, 'minimum': 1,
+                            'maximum': 315360000,
+                        })
+                operation['form'] = {
+                    'form_id': f'tikv-ttl-{operation_id}',
+                    'title': title,
+                    'fields': fields,
+                }
         return value
 
     @staticmethod
@@ -769,6 +980,32 @@ class TiKVBackend:
                 return {'errors': [{
                     'field_id': None,
                     'code': 'invalid_control_plane_request',
+                    'message': str(exc),
+                }]}
+            return {'errors': []}
+        if request.get('resource_kind') == 'ttl':
+            operation = request.get('operation_id')
+            if operation not in {'inspect', 'create', 'alter', 'drop'}:
+                return {'errors': []}
+            try:
+                route = TiKVBackend._route(request)
+                if not route['enable_ttl']:
+                    raise NativeDistributedError(
+                        'TiKV TTL is disabled for this API v1 route')
+                draft = request.get('draft') or {}
+                decode_value(draft, 'key')
+                if operation != 'inspect':
+                    decode_value(draft, 'value')
+                ttl = draft.get('ttl_seconds')
+                if operation in {'create', 'alter'} and (
+                    isinstance(ttl, bool) or not isinstance(ttl, int) or
+                    not 1 <= ttl <= 315360000
+                ):
+                    raise NativeDistributedError(
+                        'TiKV TTL must be between 1 and 315360000 seconds')
+            except NativeDistributedError as exc:
+                return {'errors': [{
+                    'field_id': None, 'code': 'invalid_ttl_request',
                     'message': str(exc),
                 }]}
             return {'errors': []}
@@ -796,6 +1033,33 @@ class TiKVBackend:
                 'impact': copy.deepcopy(compiled['impact']),
                 'receipt': {
                     'planner': 'tikv-pd-control-plane.v1',
+                    'provider_finality_authority': True,
+                    'automatic_mutation_retry': False,
+                },
+            }
+        if request.get('resource_kind') == 'ttl':
+            operation = request['operation_id']
+            return {
+                'command_preview': {
+                    'operation': operation,
+                    'resource_kind': 'ttl',
+                    'native_operation': (
+                        'get_key_ttl' if operation == 'inspect' else
+                        'put_with_ttl' if operation in {'create', 'alter'}
+                        else 'put'
+                    ),
+                    'provider_constructed': True,
+                },
+                'provider_payload': copy.deepcopy(dict(request)),
+                'warnings': ([] if operation in {'inspect', 'create'} else [{
+                    'code': 'value_rewrite_required',
+                    'message': (
+                        'TiKV changes expiration by replacing the supplied '
+                        'value; the native RawKV API has no TTL-only mutation.'
+                    ),
+                }]),
+                'receipt': {
+                    'planner': 'tikv-native-ttl.v1',
                     'provider_finality_authority': True,
                     'automatic_mutation_retry': False,
                 },
@@ -830,10 +1094,55 @@ class TiKVBackend:
                 'provider_finality_only': True,
                 'automatic_mutation_retry_by_cdeadmin': False,
             }
-        if operation == 'inspect':
+        if payload.get('resource_kind') == 'ttl':
+            route = self._route(payload)
+            if not route['enable_ttl']:
+                raise NativeDistributedError(
+                    'TiKV TTL is disabled for this API v1 route')
+            draft = payload.get('draft') or {}
+            command = {
+                'operation': (
+                    'get_key_ttl' if operation == 'inspect' else
+                    'put_with_ttl' if operation in {'create', 'alter'}
+                    else 'put'
+                ),
+                'key_base64': base64.b64encode(
+                    decode_value(draft, 'key')
+                ).decode('ascii'),
+            }
+            if operation != 'inspect':
+                command['value_base64'] = base64.b64encode(
+                    decode_value(draft, 'value')
+                ).decode('ascii')
+            if operation in {'create', 'alter'}:
+                command['ttl_seconds'] = draft['ttl_seconds']
+            rows, native = self._run_helper(route, command)
+            native['expiration_change_semantics'] = (
+                'read_only' if operation == 'inspect' else
+                'value_rewrite_with_ttl' if operation in {'create', 'alter'}
+                else 'value_rewrite_with_ttl_zero'
+            )
             return {
-                'accepted': True,
-                'resource': payload.get('target_resource'),
+                'accepted': True, 'records': rows, 'native': native,
+                'native_operation': operation,
+                'provider_finality_only': True,
+                'automatic_mutation_retry_by_cdeadmin': False,
+            }
+        if operation == 'inspect':
+            target = payload.get('target_resource') or {}
+            resource_id = target.get('resource_id')
+            matching = [
+                item for item in self.list_resources(payload)
+                if item.get('resource_id') == resource_id
+            ]
+            if len(matching) != 1:
+                raise NativeDistributedError(
+                    'TiKV native resource observation is unavailable')
+            return {
+                'accepted': True, 'resource': matching[0],
+                'provider_observation_only': True,
+                'provider_finality_only': True,
+                'automatic_mutation_retry_by_cdeadmin': False,
             }
         if payload['resource_kind'] not in {'raw-key', 'key-range'} or (
                 operation not in {
@@ -858,7 +1167,7 @@ class TiKVBackend:
                     decode_value(draft, 'value')
                 ).decode('ascii'),
             }
-        else:
+        elif operation == 'update':
             key, original = self._row_identities.consume(
                 route, target, draft.get('selector')
             )
@@ -871,27 +1180,27 @@ class TiKVBackend:
                     original
                 ).decode('ascii'),
             }
-            if operation == 'update':
-                command['value_base64'] = base64.b64encode(
-                    decode_value(draft, 'value')
-                ).decode('ascii')
-            else:
-                command['value_base64'] = base64.b64encode(
-                    original
-                ).decode('ascii')
+            command['value_base64'] = base64.b64encode(
+                decode_value(draft, 'value')
+            ).decode('ascii')
+        else:
+            key, _original = self._row_identities.consume(
+                route, target, draft.get('selector')
+            )
+            command = {
+                'operation': 'delete',
+                'key_base64': base64.b64encode(key).decode('ascii'),
+            }
         rows, native = self._run_helper(route, command)
-        if not rows or rows[0].get('swapped') is not True:
+        if operation in {'insert', 'update'} and (
+                not rows or rows[0].get('swapped') is not True):
             raise NativeDistributedError(
                 'TiKV key changed after it was displayed'
                 if operation != 'insert' else 'TiKV key already exists'
             )
         if operation == 'delete':
-            self._run_helper(route, {
-                'operation': 'delete',
-                'key_base64': command['key_base64'],
-            })
-            native['identity_revalidated_before_delete'] = True
-            native['conditional_delete_atomic'] = False
+            native['provider_native_single_delete'] = True
+            native['conditional_delete_claimed'] = False
         return {
             'accepted': True, 'records': rows,
             'native': native, 'native_operation': operation,
@@ -1573,6 +1882,7 @@ class TiKVBackend:
             'start_key': request.get('start_key', ''),
             'end_key': request.get('end_key', ''),
             'limit': request.get('limit', 100),
+            'include_ttl': route['enable_ttl'],
         })
         for row in rows:
             try:
@@ -1588,6 +1898,8 @@ class TiKVBackend:
                 'key': row.get('key'), 'key_base64': row['key_base64'],
                 'value': row.get('value'),
                 'value_base64': row['value_base64'],
+                'ttl_seconds_remaining': row.get(
+                    'ttl_seconds_remaining'),
             }
             row['identity_token'] = self._row_identities.issue(
                 route, target, key, value
@@ -1599,6 +1911,8 @@ class TiKVBackend:
                 {'name': 'key_base64', 'key': False, 'editable': False},
                 {'name': 'value', 'key': False, 'editable': True},
                 {'name': 'value_base64', 'key': False, 'editable': True},
+                {'name': 'ttl_seconds_remaining', 'key': False,
+                 'editable': False},
             ],
             'rows': rows, 'native': native, 'editable': True,
             'complete': len(rows) < request.get('limit', 100),

@@ -43,6 +43,7 @@ type request struct {
 	TLSCertificate          string     `json:"tls_certificate"`
 	TLSKey                  string     `json:"tls_key"`
 	APIVersion              int32      `json:"api_version"`
+	EnableTTL               bool       `json:"enable_ttl"`
 	Key                     string     `json:"key_base64"`
 	Value                   string     `json:"value_base64"`
 	Keys                    []string   `json:"keys_base64"`
@@ -51,18 +52,21 @@ type request struct {
 	StartKey                string     `json:"start_key_base64"`
 	EndKey                  string     `json:"end_key_base64"`
 	Limit                   int        `json:"limit"`
+	IncludeTTL              bool       `json:"include_ttl"`
+	TTLSeconds              uint64     `json:"ttl_seconds"`
 	Mutations               []mutation `json:"mutations"`
 	OperationTimeoutSeconds int        `json:"operation_timeout_seconds"`
 	TransactionMode         string     `json:"transaction_mode"`
 }
 
 type record struct {
-	Key      string `json:"key_base64,omitempty"`
-	Value    string `json:"value_base64,omitempty"`
-	Found    *bool  `json:"found,omitempty"`
-	Accepted *bool  `json:"accepted,omitempty"`
-	Previous string `json:"previous_value_base64,omitempty"`
-	Swapped  *bool  `json:"swapped,omitempty"`
+	Key      string  `json:"key_base64,omitempty"`
+	Value    string  `json:"value_base64,omitempty"`
+	Found    *bool   `json:"found,omitempty"`
+	Accepted *bool   `json:"accepted,omitempty"`
+	Previous string  `json:"previous_value_base64,omitempty"`
+	Swapped  *bool   `json:"swapped,omitempty"`
+	TTL      *uint64 `json:"ttl_seconds_remaining,omitempty"`
 }
 
 type response struct {
@@ -86,9 +90,12 @@ func encode(value []byte) string {
 	return base64.StdEncoding.EncodeToString(value)
 }
 
-func apiVersion(value int32) (kvrpcpb.APIVersion, error) {
-	switch value {
+func apiVersion(value request) (kvrpcpb.APIVersion, error) {
+	switch value.APIVersion {
 	case 1:
+		if value.EnableTTL {
+			return kvrpcpb.APIVersion_V1TTL, nil
+		}
 		return kvrpcpb.APIVersion_V1, nil
 	case 2:
 		return kvrpcpb.APIVersion_V2, nil
@@ -119,7 +126,7 @@ func validateRequest(value request) error {
 			return errors.New("PD endpoint is invalid")
 		}
 	}
-	if _, err := apiVersion(value.APIVersion); err != nil {
+	if _, err := apiVersion(value); err != nil {
 		return err
 	}
 	if (value.TLSCertificate == "") != (value.TLSKey == "") {
@@ -133,6 +140,9 @@ func validateRequest(value request) error {
 	}
 	if value.TransactionMode != "" && value.TransactionMode != "optimistic" && value.TransactionMode != "pessimistic" {
 		return errors.New("transaction_mode is invalid")
+	}
+	if value.Operation == "transaction" && value.APIVersion == 1 && value.EnableTTL {
+		return errors.New("TxnKV requires API v2 when RawKV TTL is enabled")
 	}
 	return nil
 }
@@ -165,7 +175,7 @@ func configureLogging() error {
 }
 
 func rawRequest(ctx context.Context, value request) (response, error) {
-	version, err := apiVersion(value.APIVersion)
+	version, err := apiVersion(value)
 	if err != nil {
 		return response{}, err
 	}
@@ -197,15 +207,32 @@ func rawRequest(ctx context.Context, value request) (response, error) {
 		result.Records = []record{{
 			Key: encode(key), Value: encode(item), Found: boolPointer(item != nil),
 		}}
-	case "put":
+	case "put", "put_with_ttl":
 		item, err := decode(value.Value, "value_base64")
 		if err != nil {
 			return response{}, err
 		}
-		if err := client.Put(ctx, key, item); err != nil {
+		if value.Operation == "put_with_ttl" && value.TTLSeconds == 0 {
+			return response{}, errors.New("ttl_seconds must be greater than zero")
+		}
+		if value.Operation == "put_with_ttl" && !value.EnableTTL && value.APIVersion != 2 {
+			return response{}, errors.New("TiKV TTL is not enabled for this route")
+		}
+		if err := client.PutWithTTL(ctx, key, item, value.TTLSeconds); err != nil {
 			return response{}, errors.New("TiKV RawKV put failed")
 		}
 		result.Records = []record{{Key: encode(key), Accepted: boolPointer(true)}}
+	case "get_key_ttl":
+		if !value.EnableTTL && value.APIVersion != 2 {
+			return response{}, errors.New("TiKV TTL is not enabled for this route")
+		}
+		ttl, err := client.GetKeyTTL(ctx, key)
+		if err != nil {
+			return response{}, errors.New("TiKV RawKV TTL read failed")
+		}
+		result.Records = []record{{
+			Key: encode(key), Found: boolPointer(ttl != nil), TTL: ttl,
+		}}
 	case "delete":
 		if err := client.Delete(ctx, key); err != nil {
 			return response{}, errors.New("TiKV RawKV delete failed")
@@ -251,6 +278,16 @@ func rawRequest(ctx context.Context, value request) (response, error) {
 		result.Records = make([]record, len(keys))
 		for index := range keys {
 			result.Records[index] = record{Key: encode(keys[index]), Value: encode(values[index])}
+			if value.IncludeTTL {
+				if !value.EnableTTL && value.APIVersion != 2 {
+					return response{}, errors.New("TiKV TTL is not enabled for this route")
+				}
+				ttl, err := client.GetKeyTTL(ctx, keys[index])
+				if err != nil {
+					return response{}, errors.New("TiKV RawKV TTL read failed")
+				}
+				result.Records[index].TTL = ttl
+			}
 		}
 	default:
 		return response{}, errors.New("RawKV operation is unsupported")
@@ -259,7 +296,7 @@ func rawRequest(ctx context.Context, value request) (response, error) {
 }
 
 func transactionRequest(ctx context.Context, value request) (response, error) {
-	version, err := apiVersion(value.APIVersion)
+	version, err := apiVersion(value)
 	if err != nil {
 		return response{}, err
 	}

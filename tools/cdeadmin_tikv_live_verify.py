@@ -51,8 +51,10 @@ def arguments():
     parser.add_argument('--pd-endpoint', action='append', required=True)
     parser.add_argument('--helper-path', type=Path, required=True)
     parser.add_argument('--api-version', type=int, choices=(1, 2), default=1)
+    parser.add_argument('--enable-ttl', action='store_true')
     parser.add_argument('--allow-mutation', action='store_true')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--object-evidence', type=Path)
     return parser.parse_args()
 
 
@@ -82,7 +84,7 @@ def execute(provider, session_id, operation, sequence):
 
 def apply_visual(provider, route, target, operation, draft):
     request = {
-        'resource_kind': 'key-range', 'operation_id': operation,
+        'resource_kind': target['resource_kind'], 'operation_id': operation,
         'draft': draft, '_provider_route': route,
         'target_resource': target,
     }
@@ -103,7 +105,7 @@ def apply_visual(provider, route, target, operation, draft):
     if result['transaction_finality_interpreted_by_common_code']:
         raise RuntimeError('common visual code interpreted TiKV finality')
     return {
-        'operation': f'key-range.{operation}',
+        'operation': f'{target["resource_kind"]}.{operation}',
         'provider_constructed': bool(
             plan.get('command_preview', {}).get('provider_constructed')
         ),
@@ -118,6 +120,7 @@ def apply_visual(provider, route, target, operation, draft):
         'identity_revalidated_before_delete': native_observation.get(
             'identity_revalidated_before_delete'
         ),
+        'records': native.get('records', []),
     }
 
 
@@ -139,12 +142,14 @@ def verify(args):
         'route_id': 'tikv-mutation-live-gate',
         'pd_endpoints': args.pd_endpoint,
         'api_version': args.api_version,
+        'enable_ttl': bool(args.enable_ttl or args.api_version == 2),
     }
     prefix = f'cdeadmin/qualification/{uuid.uuid4()}'
     raw_first = f'{prefix}/raw/first'
     transaction_first = f'{prefix}/transaction/first'
     transaction_second = f'{prefix}/transaction/second'
     visual_key = f'{prefix}/visual'
+    ttl_key = f'{prefix}/ttl'
     evidence = {
         'schema': 'cdeadmin.tikv-native-live-verification.v1',
         'engine_id': 'tikv',
@@ -159,6 +164,7 @@ def verify(args):
     }
     session_id = None
     visual_key_created = False
+    ttl_key_created = False
     failures = []
 
     def step(name, operation):
@@ -277,6 +283,50 @@ def verify(args):
             }),
         }
         visual_key_created = False
+
+        if route['enable_ttl']:
+            ttl = next(
+                item for item in provider.list_resources({'route': route})
+                if item['resource_kind'] == 'ttl'
+            )
+            evidence['steps']['ttl_create'] = {
+                'status': 'passed',
+                **apply_visual(provider, route, ttl, 'create', {
+                    'key': ttl_key, 'value': 'ttl-one', 'ttl_seconds': 300,
+                }),
+            }
+            ttl_key_created = True
+            inspected = apply_visual(
+                provider, route, ttl, 'inspect', {'key': ttl_key}
+            )
+            evidence['steps']['ttl_inspect'] = {
+                'status': 'passed', **inspected,
+            }
+            remaining = inspected['records'][0].get(
+                'ttl_seconds_remaining')
+            if not isinstance(remaining, int) or not 0 < remaining <= 300:
+                failures.append('ttl_inspect: remaining TTL is invalid')
+            evidence['steps']['ttl_alter'] = {
+                'status': 'passed',
+                **apply_visual(provider, route, ttl, 'alter', {
+                    'key': ttl_key, 'value': 'ttl-two', 'ttl_seconds': 600,
+                }),
+            }
+            evidence['steps']['ttl_drop'] = {
+                'status': 'passed',
+                **apply_visual(provider, route, ttl, 'drop', {
+                    'key': ttl_key, 'value': 'ttl-two',
+                }),
+            }
+            persistent = apply_visual(
+                provider, route, ttl, 'inspect', {'key': ttl_key}
+            )
+            evidence['steps']['ttl_persistent_inspect'] = {
+                'status': 'passed', **persistent,
+            }
+            if persistent['records'][0].get(
+                    'ttl_seconds_remaining') != 0:
+                failures.append('ttl_drop: key did not become persistent')
     except Exception as exc:
         failures.append(f'setup: {type(exc).__name__}: {exc}')
     finally:
@@ -284,6 +334,10 @@ def verify(args):
             if visual_key_created:
                 step('cleanup_visual', {
                     'operation': 'delete', 'key': visual_key,
+                })
+            if ttl_key_created:
+                step('cleanup_ttl', {
+                    'operation': 'delete', 'key': ttl_key,
                 })
             step('cleanup_raw', {
                 'operation': 'delete', 'key': raw_first,
@@ -301,6 +355,34 @@ def verify(args):
     return evidence
 
 
+def object_evidence(evidence):
+    """Translate only directly exercised operations into gate evidence."""
+    if not evidence.get('passed'):
+        raise RuntimeError('failed TiKV verification cannot become evidence')
+    operations = {
+        'key_browsing': {'key-range': ['inspect']},
+        'data_type_editing': {
+            'key-range': ['delete', 'insert', 'update'],
+        },
+    }
+    if 'ttl_inspect' in evidence.get('steps', {}):
+        operations.update({
+            'ttl_inspection': {'ttl': ['inspect']},
+            'expiration_management': {
+                'ttl': ['alter', 'create', 'drop'],
+            },
+        })
+    return {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'tikv', 'exact_profile': '8.5.6',
+        'run_id': f"tikv-native-{evidence['started_at']}",
+        'concepts': {'key_value': {
+            concept: {'status': 'passed', 'operations': values}
+            for concept, values in operations.items()
+        }},
+    }
+
+
 def main():
     args = arguments()
     try:
@@ -316,6 +398,12 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(document + '\n', encoding='utf-8')
+    if args.object_evidence and evidence.get('passed'):
+        value = json.dumps(
+            object_evidence(evidence), indent=2, sort_keys=True
+        ) + '\n'
+        args.object_evidence.parent.mkdir(parents=True, exist_ok=True)
+        args.object_evidence.write_text(value, encoding='utf-8')
     return 0 if evidence['passed'] else 1
 
 

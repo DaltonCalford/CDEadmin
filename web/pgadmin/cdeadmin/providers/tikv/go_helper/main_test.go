@@ -4,11 +4,20 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 )
 
 func TestAPIVersionRejectsUnknownValue(t *testing.T) {
-	if _, err := apiVersion(3); err == nil {
+	if _, err := apiVersion(request{APIVersion: 3}); err == nil {
 		t.Fatal("unknown API version was accepted")
+	}
+}
+
+func TestAPIVersionSelectsV1TTLExplicitly(t *testing.T) {
+	version, err := apiVersion(request{APIVersion: 1, EnableTTL: true})
+	if err != nil || version != kvrpcpb.APIVersion_V1TTL {
+		t.Fatalf("API v1 TTL was not selected: %v, %v", version, err)
 	}
 }
 
@@ -36,6 +45,18 @@ func TestValidateRequestBoundsAndTLS(t *testing.T) {
 	valid.TLSCertificate = "client.pem"
 	if err := validateRequest(valid); err == nil {
 		t.Fatal("TLS certificate without key was accepted")
+	}
+}
+
+func TestValidateRequestRejectsTxnKVWithV1TTL(t *testing.T) {
+	value := request{
+		PDEndpoints: []string{"127.0.0.1:2379"},
+		APIVersion:  1,
+		EnableTTL:   true,
+		Operation:   "transaction",
+	}
+	if err := validateRequest(value); err == nil {
+		t.Fatal("TxnKV with API v1 TTL was accepted")
 	}
 }
 

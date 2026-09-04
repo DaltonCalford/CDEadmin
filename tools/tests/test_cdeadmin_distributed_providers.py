@@ -3106,6 +3106,72 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertFalse(
             result.native['automatic_mutation_retry_by_cdeadmin'])
 
+    def test_tikv_ttl_helper_request_is_explicit_and_bounded(self):
+        backend = TiKVBackend(helper_path=sys.executable)
+        route = backend._route({'route': {
+            'pd_endpoints': ['127.0.0.1:2379'],
+            'api_version': 1, 'enable_ttl': True,
+        }})
+        request = backend._helper_request(route, {
+            'operation': 'put_with_ttl', 'key': 'key', 'value': 'value',
+            'ttl_seconds': 90,
+        })
+        self.assertTrue(request['enable_ttl'])
+        self.assertEqual(90, request['ttl_seconds'])
+        self.assertEqual('a2V5', request['key_base64'])
+        with self.assertRaisesRegex(NativeDistributedError, 'TTL must be'):
+            backend._helper_request(route, {
+                'operation': 'put_with_ttl', 'key': 'key',
+                'value': 'value', 'ttl_seconds': 0,
+            })
+        with self.assertRaisesRegex(NativeDistributedError, 'requires API v2'):
+            backend._helper_request(route, {
+                'operation': 'transaction', 'keys': [], 'mutations': [],
+            })
+
+    def test_tikv_visual_delete_is_one_native_delete_without_cas(self):
+        calls = []
+
+        def runner(_arguments, **options):
+            request = json.loads(options['input'])
+            calls.append(request)
+            return SimpleNamespace(
+                returncode=0,
+                stdout=json.dumps({
+                    'records': [{
+                        'key_base64': request['key_base64'],
+                        'accepted': True,
+                    }],
+                    'native': {'operation': request['operation']},
+                    'provider_finality_only': True,
+                }).encode('utf-8'),
+                stderr=b'',
+            )
+
+        backend = TiKVBackend(helper_path=sys.executable, runner=runner)
+        route = backend._route({'route': {
+            'pd_endpoints': ['127.0.0.1:2379'],
+        }})
+        target = {
+            'resource_id': 'key-range:bounded-key-browser',
+            'resource_kind': 'key-range',
+            'display_path': ['bounded-key-browser'],
+        }
+        token = backend._row_identities.issue(
+            route, target, b'key', b'original'
+        )
+        result = backend.apply_admin_operation({
+            'provider_payload': {
+                'resource_kind': 'key-range', 'operation_id': 'delete',
+                'target_resource': target,
+                'draft': {'selector': {'identity_token': token}},
+                '_provider_route': route,
+            },
+        })
+        self.assertEqual(['delete'], [item['operation'] for item in calls])
+        self.assertTrue(result['native']['provider_native_single_delete'])
+        self.assertFalse(result['native']['conditional_delete_claimed'])
+
     def test_tikv_control_plane_is_typed_and_pd_compiled(self):
         keys = {
             (item.resource_kind, item.operation_id)
