@@ -4,7 +4,7 @@ from pgadmin.cdeadmin.sdk import ActualEnginePilotProvider, PilotProfile
 from ..native_distributed import (
     NativeDistributedClient,
 )
-from .client import CONTROL_OPERATIONS
+from .client import ADMIN_OPERATIONS
 
 
 PROFILE = PilotProfile(
@@ -24,20 +24,7 @@ PROFILE = PilotProfile(
     result_worker_required=True,
 )
 
-OPERATIONS = {
-    'cluster': {'inspect'}, 'coordinator': {'inspect'},
-    'process': {'inspect'}, 'configuration': {'inspect'},
-    'tenant': {'inspect'}, 'directory': {'inspect', 'create', 'drop'},
-    'subspace': {'inspect'},
-    'key-range': {'inspect', 'insert', 'update', 'delete'},
-    'key': {'inspect', 'insert', 'update', 'delete'},
-    'transaction': {'inspect'}, 'watch': {'inspect'},
-    'backup': {'inspect'}, 'restore': {'inspect'},
-}
-for _control_operation in CONTROL_OPERATIONS:
-    OPERATIONS.setdefault(_control_operation.resource_kind, {'inspect'}).add(
-        _control_operation.operation_id
-    )
+OPERATIONS = ADMIN_OPERATIONS
 
 
 class FoundationDBProvider(ActualEnginePilotProvider):
@@ -49,6 +36,7 @@ def create_provider(context, permissions, client=None):
     if client is None:
         from .client import FoundationDBBackend
         client = NativeDistributedClient(
-            PROFILE, FoundationDBBackend(permissions.acquire_secret), OPERATIONS
+            PROFILE, FoundationDBBackend(permissions.acquire_secret),
+            OPERATIONS,
         )
     return FoundationDBProvider(context, permissions, client)

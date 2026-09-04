@@ -181,6 +181,21 @@ CONTROL_OPERATIONS = (
 
 CONTROL_CATALOG = ControlPlaneCatalog('foundationdb', CONTROL_OPERATIONS)
 
+ADMIN_OPERATIONS = {
+    'cluster': {'inspect'}, 'coordinator': {'inspect'},
+    'process': {'inspect'}, 'configuration': {'inspect'},
+    'tenant': {'inspect'}, 'directory': {'inspect', 'create', 'drop'},
+    'subspace': {'inspect'},
+    'key-range': {'inspect', 'insert', 'update', 'delete'},
+    'key': {'inspect', 'insert', 'update', 'delete'},
+    'transaction': {'inspect'}, 'watch': {'inspect'},
+    'backup': {'inspect'}, 'restore': {'inspect'},
+}
+for _control_operation in CONTROL_OPERATIONS:
+    ADMIN_OPERATIONS.setdefault(
+        _control_operation.resource_kind, {'inspect'}
+    ).add(_control_operation.operation_id)
+
 
 class FoundationDBBackend:
     MAX_CLI_BYTES = 4 * 1024 * 1024
@@ -492,6 +507,63 @@ class FoundationDBBackend:
         )
         value = CONTROL_CATALOG.apply(value)
         value['transaction_authority'] = 'foundationdb-native-transaction'
+        value['experience_families'] = ['key_value']
+        available_operations = {
+            kind: sorted(operations)
+            for kind, operations in ADMIN_OPERATIONS.items()
+        }
+
+        def declaration(*resource_kinds, status='supported', reason):
+            return {
+                'status': status,
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: available_operations.get(kind, [])
+                    for kind in resource_kinds
+                },
+                'reason': reason,
+                'evidence': [
+                    'foundationdb-7.3-native-api-and-control-plane',
+                ],
+            }
+
+        value['concept_declarations'] = {'key_value': {
+            'key_browsing': declaration(
+                'key-range', 'key',
+                reason=(
+                    'FoundationDB ordered byte-key ranges and individual '
+                    'keys are navigated through bounded native range reads.'
+                ),
+            ),
+            'data_type_editing': declaration(
+                'key-range', 'key',
+                reason=(
+                    'FoundationDB byte keys and values use explicit UTF-8 '
+                    'or base64 forms without inventing Redis data types.'
+                ),
+            ),
+            'ttl_inspection': 'not_applicable',
+            'expiration_management': 'not_applicable',
+            'streams': 'not_applicable',
+            'pubsub': 'not_applicable',
+            'consumer_groups': 'not_applicable',
+            'modules': 'not_applicable',
+            'acls': 'not_applicable',
+            'replication': declaration(
+                'configuration', 'process',
+                reason=(
+                    'Native redundancy, storage roles and data '
+                    'distribution replace user-managed replicas.'
+                ),
+            ),
+            'sentinel_or_cluster_state': declaration(
+                'cluster', 'coordinator', 'process', 'configuration',
+                reason=(
+                    'Cluster status, coordinators, processes and '
+                    'configuration expose FoundationDB topology directly.'
+                ),
+            ),
+        }}
         return value
 
     @staticmethod
