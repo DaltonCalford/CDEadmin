@@ -47,5 +47,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Administration tool workspace", "control": "text", "group": "Neo4j operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
     ]
   },
-  "provenance": {"purpose": "CDE-PREP-150 Neo4j exact-profile pilot", "protocol": "bolt", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified_community", "activation_gate": "passed_community_surface", "live_evidence_reference": "cde-neo4j-live:neo4j-2026.04.0-community:20260901"}
+  "provenance": {"purpose": "CDE-PREP-150 Neo4j exact-profile pilot", "protocol": "bolt", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified_community", "activation_gate": "passed_community_surface_full_graph_activation_blocked", "live_evidence_reference": "cde-neo4j-object-live:neo4j-2026.04.0-community:20260903", "object_experience_state": "22_of_31_operations_live_enterprise_and_gds_required_for_full_activation"}
 }

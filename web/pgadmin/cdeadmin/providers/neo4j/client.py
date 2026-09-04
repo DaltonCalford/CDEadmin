@@ -111,11 +111,15 @@ def _bounded_int(value, default, minimum, maximum, label):
 
 
 def _record_data(record):
+    # Neo4j ``Record.data()`` is a convenience export that recursively turns
+    # Node and Relationship values into plain property dictionaries. Preserve
+    # the native values so element IDs, labels and relationship endpoints
+    # remain available to graph editors and result renderers.
+    if isinstance(record, Mapping):
+        return dict(record)
     data = getattr(record, 'data', None)
     if callable(data):
         return data()
-    if isinstance(record, Mapping):
-        return dict(record)
     return {'value': record}
 
 
@@ -159,6 +163,8 @@ class Neo4jClient:
         'setting': frozenset({'inspect'}),
         'transaction': frozenset({'inspect', 'execute'}),
         'query': frozenset({'inspect', 'execute'}),
+        'query-plan': frozenset({'inspect', 'execute'}),
+        'graph-projection': frozenset({'inspect', 'create', 'drop'}),
         'user': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',
         }),
@@ -174,7 +180,9 @@ class Neo4jClient:
         'consistency-check': frozenset({'inspect', 'execute'}),
     }
 
-    def __init__(self, secret_acquirer=None, module=None):
+    def __init__(
+        self, secret_acquirer=None, module=None, gds_surface_sha256=None,
+    ):
         try:
             self.module = module or importlib.import_module('neo4j')
         except (ImportError, ModuleNotFoundError) as exc:
@@ -196,6 +204,16 @@ class Neo4jClient:
             )
         self._connector = connector
         self._secret_acquirer = secret_acquirer
+        if gds_surface_sha256 is not None and (
+                not isinstance(gds_surface_sha256, str) or
+                len(gds_surface_sha256) != 64 or any(
+                    char not in '0123456789abcdef'
+                    for char in gds_surface_sha256.lower()
+                )):
+            raise Neo4jClientError(
+                'GDS external-surface digest must be a SHA-256 value'
+            )
+        self._gds_surface_sha256 = gds_surface_sha256
         self._drivers: list[object] = []
         self._sessions: list[_Neo4jSession] = []
         self._results: list[_Neo4jResult] = []
@@ -667,6 +685,9 @@ class Neo4jClient:
                 value = getattr(counters, name, None)
                 if value is not None:
                     statistics[name] = value
+        plan = getattr(summary, 'profile', None) or getattr(
+            summary, 'plan', None
+        )
         return {
             'query_type': str(getattr(summary, 'query_type', '')),
             'result_available_after_ms': getattr(
@@ -676,8 +697,36 @@ class Neo4jClient:
                 summary, 'result_consumed_after', None
             ),
             'counters': statistics,
+            'query_plan': cls._query_plan(plan),
             'driver_observation_only': True,
             'common_finality_inference': False,
+        }
+
+    @classmethod
+    def _query_plan(cls, plan, depth=0, budget=None):
+        if plan is None:
+            return None
+        if budget is None:
+            budget = [1000]
+        if depth >= 64 or budget[0] <= 0:
+            return {'truncated': True}
+        budget[0] -= 1
+        children = getattr(plan, 'children', ()) or ()
+        return {
+            'operator_type': str(getattr(plan, 'operator_type', '')),
+            'identifiers': sorted(
+                str(item) for item in (
+                    getattr(plan, 'identifiers', ()) or ()
+                )
+            ),
+            'arguments': cls._json_value(
+                getattr(plan, 'arguments', {}) or {}
+            ),
+            'children': [
+                cls._query_plan(child, depth + 1, budget)
+                for child in children
+                if budget[0] > 0
+            ],
         }
 
     @classmethod
@@ -831,6 +880,49 @@ class Neo4jClient:
                         resources.append(self._resource(
                             'query', query_name, row
                         ))
+            graph_rows = self._rows(
+                graph,
+                'MATCH (n) OPTIONAL MATCH (n)-[r]->(m) '
+                'RETURN n, r, m LIMIT 500',
+            )
+            seen_nodes = set()
+            seen_relationships = set()
+            for row in graph_rows:
+                for field in ('n', 'm'):
+                    node = row.get(field)
+                    if not isinstance(node, Mapping) or node.get(
+                            'kind') != 'node':
+                        continue
+                    element_id = str(node.get('element_id'))
+                    if element_id in seen_nodes:
+                        continue
+                    seen_nodes.add(element_id)
+                    resources.append(self._resource(
+                        'node', element_id, node
+                    ))
+                relationship = row.get('r')
+                if not isinstance(relationship, Mapping) or relationship.get(
+                        'kind') != 'relationship':
+                    continue
+                element_id = str(relationship.get('element_id'))
+                if element_id in seen_relationships:
+                    continue
+                seen_relationships.add(element_id)
+                resources.append(self._resource(
+                    'relationship', element_id, relationship
+                ))
+            try:
+                projections = self._rows(
+                    graph, 'CALL gds.graph.list() YIELD * RETURN *'
+                )
+            except Exception:
+                projections = []
+            for projection in projections[:2000]:
+                name = projection.get('graphName')
+                if name is not None:
+                    resources.append(self._resource(
+                        'graph-projection', str(name), projection
+                    ))
         finally:
             if graph is not None:
                 graph.close()
@@ -841,6 +933,14 @@ class Neo4jClient:
         resources.append(self._resource(
             'graph', database, {'name': database, 'database': database},
         ))
+        plan_workspace = self._resource(
+            'query-plan', 'Cypher query plans', {
+                'name': 'Cypher query plans', 'database': database,
+                'workspace': True,
+            },
+        )
+        plan_workspace['is_virtual'] = True
+        resources.append(plan_workspace)
         for kind, name in (
             ('backup', 'Database backup'),
             ('restore', 'Database restore'),
@@ -901,6 +1001,9 @@ class Neo4jClient:
         }
 
     def supports_admin_operation(self, resource_kind, operation_id):
+        if resource_kind == 'graph-projection' and not getattr(
+                self, '_gds_surface_sha256', None):
+            return False
         return operation_id in self.ADMIN_OPERATIONS.get(
             resource_kind, frozenset()
         )
@@ -910,6 +1013,53 @@ class Neo4jClient:
         catalog['query_language'] = 'cypher'
         catalog['graph_identity'] = 'elementId'
         catalog['transaction_authority'] = 'neo4j-driver-and-server'
+        catalog['experience_families'] = ['graph']
+
+        def declaration(*resource_kinds, status='supported', reason=None):
+            return {
+                'status': status,
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in resource_kinds
+                },
+                'reason': reason or (
+                    'Neo4j graph objects and operations are provider-owned '
+                    'through the Bolt/Cypher surface.'
+                ),
+                'evidence': ['neo4j-2026.04-native-bolt-catalog'],
+            }
+
+        catalog['concept_declarations'] = {'graph': {
+            'databases': declaration('database'),
+            'nodes': declaration('node'),
+            'relationships': declaration('relationship'),
+            'labels': declaration('label', status='read_only'),
+            'constraints': declaration('constraint'),
+            'indexes': declaration('index'),
+            'procedures': declaration('procedure'),
+            'graph_projections': {
+                'status': 'supported',
+                'resource_kinds': ['graph-projection'],
+                'operation_obligations': {
+                    'graph-projection': sorted(
+                        self.ADMIN_OPERATIONS['graph-projection']
+                    ),
+                },
+                'external_surface': 'neo4j-graph-data-science-plugin',
+                'external_surface_digest_required': True,
+                'reason': (
+                    'Graph projections belong to the separately versioned '
+                    'Neo4j Graph Data Science plugin. The base provider keeps '
+                    'the workspace visible but blocked until a plugin profile '
+                    'and live surface digest are qualified.'
+                ),
+                'evidence': ['neo4j-gds-external-surface-required'],
+            },
+            'transactions': declaration('transaction'),
+            'query_plans': declaration('query-plan'),
+            'cluster_members': declaration('server'),
+        }}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             for operation in resource.get('operations', []):
@@ -958,6 +1108,71 @@ class Neo4jClient:
                             'field_id': 'confirmation',
                             'label': 'Confirmation', 'control': 'text',
                             'required': True,
+                        }],
+                    }
+                if kind == 'query-plan':
+                    operation['form'] = {
+                        'form_id': 'neo4j-query-plan',
+                        'title': 'Neo4j query plan',
+                        'fields': ([{
+                            'field_id': 'source',
+                            'label': 'Cypher query', 'control': 'code',
+                            'required': True,
+                            'max_length': MAX_QUERY_BYTES,
+                        }, {
+                            'field_id': 'parameters',
+                            'label': 'Query parameters', 'control': 'json',
+                            'required': False, 'default': {},
+                        }, {
+                            'field_id': 'mode',
+                            'label': 'Plan mode', 'control': 'select',
+                            'required': True, 'default': 'explain',
+                            'options': [
+                                {'value': 'explain', 'label': 'Explain'},
+                                {'value': 'profile', 'label': 'Profile'},
+                            ],
+                        }] if operation['operation_id'] == 'execute' else [])
+                    }
+                if kind == 'procedure' and operation[
+                        'operation_id'] == 'execute':
+                    operation['form'] = {
+                        'form_id': 'neo4j-procedure-execute',
+                        'title': 'Run Neo4j procedure',
+                        'fields': [{
+                            'field_id': 'action', 'label': 'Action',
+                            'control': 'select', 'required': True,
+                            'default': 'execute', 'options': [{
+                                'value': 'execute', 'label': 'Execute',
+                            }],
+                        }, {
+                            'field_id': 'arguments',
+                            'label': 'Positional arguments',
+                            'control': 'json', 'required': False,
+                            'default': [],
+                        }],
+                    }
+                if kind == 'graph-projection' and operation[
+                        'operation_id'] == 'create':
+                    operation['form'] = {
+                        'form_id': 'neo4j-gds-graph-project',
+                        'title': 'Create GDS graph projection',
+                        'fields': [{
+                            'field_id': 'name', 'label': 'Graph name',
+                            'control': 'text', 'required': True,
+                            'max_length': 1024,
+                        }, {
+                            'field_id': 'node_projection',
+                            'label': 'Node projection', 'control': 'json',
+                            'required': True,
+                        }, {
+                            'field_id': 'relationship_projection',
+                            'label': 'Relationship projection',
+                            'control': 'json', 'required': True,
+                        }, {
+                            'field_id': 'configuration',
+                            'label': 'Projection configuration',
+                            'control': 'json', 'json_type': 'object',
+                            'required': False, 'default': {},
                         }],
                     }
         return catalog
@@ -1050,6 +1265,53 @@ class Neo4jClient:
                         'User creation requires a credential reference.'
                     ),
                 })
+        if kind == 'query-plan' and operation == 'execute':
+            source = draft.get('source')
+            if not isinstance(source, str) or not source.strip():
+                errors.append({
+                    'field_id': 'source', 'code': 'query_required',
+                    'message': 'A Cypher query is required.',
+                })
+            elif len(source.encode('utf-8')) > MAX_QUERY_BYTES:
+                errors.append({
+                    'field_id': 'source', 'code': 'query_too_large',
+                    'message': 'The Cypher query exceeds the safety limit.',
+                })
+            if not isinstance(draft.get('parameters', {}), Mapping):
+                errors.append({
+                    'field_id': 'parameters', 'code': 'object_required',
+                    'message': 'Query parameters must be an object.',
+                })
+            if draft.get('mode', 'explain') not in {'explain', 'profile'}:
+                errors.append({
+                    'field_id': 'mode', 'code': 'mode_invalid',
+                    'message': 'Plan mode must be explain or profile.',
+                })
+        if kind == 'procedure' and operation == 'execute' and not isinstance(
+                draft.get('arguments', []), list):
+            errors.append({
+                'field_id': 'arguments', 'code': 'array_required',
+                'message': 'Procedure arguments must be a JSON array.',
+            })
+        if kind == 'graph-projection' and operation == 'create':
+            admitted_types = (str, list, Mapping)
+            for field_id in (
+                    'node_projection', 'relationship_projection'):
+                if not isinstance(draft.get(field_id), admitted_types):
+                    errors.append({
+                        'field_id': field_id,
+                        'code': 'projection_required',
+                        'message': (
+                            'Projection must be a label/type string, array '
+                            'or object.'
+                        ),
+                    })
+            if not isinstance(draft.get('configuration', {}), Mapping):
+                errors.append({
+                    'field_id': 'configuration',
+                    'code': 'object_required',
+                    'message': 'Projection configuration must be an object.',
+                })
         return {'errors': errors}
 
     def plan_admin_operation(self, request):
@@ -1139,11 +1401,17 @@ class Neo4jClient:
             )
         if kind in {'index', 'constraint'}:
             return self._schema_command(kind, operation, draft, native)
+        if kind == 'graph-projection':
+            return self._graph_projection_command(
+                operation, draft, native
+            )
         if kind in {'user', 'role', 'privilege'}:
             return self._security_command(
                 kind, operation, draft, native, route
             )
-        if kind in {'dbms', 'server', 'transaction', 'query', 'procedure'}:
+        if kind in {
+                'dbms', 'server', 'transaction', 'query', 'query-plan',
+                'procedure'}:
             return self._operational_command(kind, operation, draft, native)
         raise Neo4jClientError(
             'Neo4j administration operation is unavailable'
@@ -1332,6 +1600,8 @@ class Neo4jClient:
             'setting': 'SHOW SETTINGS YIELD * RETURN *',
             'transaction': 'SHOW TRANSACTIONS YIELD * RETURN *',
             'query': 'SHOW TRANSACTIONS YIELD * RETURN *',
+            'query-plan': 'EXPLAIN RETURN 1 AS cdeadmin_plan_probe',
+            'graph-projection': 'CALL gds.graph.list($graph_name)',
             'user': 'SHOW USERS YIELD * RETURN *',
             'role': 'SHOW ROLES YIELD * RETURN *',
             'privilege': 'SHOW PRIVILEGES YIELD * RETURN *',
@@ -1346,7 +1616,13 @@ class Neo4jClient:
         }
         if kind not in statements:
             raise Neo4jClientError('Neo4j inspect operation is unavailable')
-        return statements[kind], {'id': native.get('element_id')}
+        parameters = {'id': native.get('element_id')}
+        if kind == 'graph-projection':
+            parameters = {'graph_name': _identifier(
+                native.get('graphName') or native.get('name'),
+                'GDS graph name',
+            )}
+        return statements[kind], parameters
 
     @staticmethod
     def _properties(value, label):
@@ -1466,6 +1742,49 @@ class Neo4jClient:
                     'RETURN $id AS deletedElementId', {'id': element_id},
                 )
         raise Neo4jClientError('graph data operation is unavailable')
+
+    @staticmethod
+    def _graph_projection_command(operation, draft, native):
+        if operation == 'create':
+            name = _identifier(draft.get('name'), 'GDS graph name')
+            node_projection = draft.get('node_projection')
+            relationship_projection = draft.get(
+                'relationship_projection'
+            )
+            admitted = (str, list, Mapping)
+            if not isinstance(node_projection, admitted) or not isinstance(
+                    relationship_projection, admitted):
+                raise Neo4jClientError(
+                    'GDS projections must be strings, arrays or objects'
+                )
+            configuration = _mapping(
+                draft.get('configuration', {}),
+                'GDS projection configuration',
+            )
+            return (
+                'CALL gds.graph.project($graph_name, $node_projection, '
+                '$relationship_projection, $configuration)',
+                {
+                    'graph_name': name,
+                    'node_projection': copy.deepcopy(node_projection),
+                    'relationship_projection': copy.deepcopy(
+                        relationship_projection
+                    ),
+                    'configuration': configuration,
+                },
+            )
+        if operation == 'drop':
+            name = _identifier(
+                native.get('graphName') or native.get('name'),
+                'GDS graph name',
+            )
+            return (
+                'CALL gds.graph.drop($graph_name, $fail_if_missing)',
+                {'graph_name': name, 'fail_if_missing': False},
+            )
+        raise Neo4jClientError(
+            'GDS graph projection operation is unavailable'
+        )
 
     @staticmethod
     def _database_command(kind, operation, draft, native):
@@ -2156,6 +2475,22 @@ class Neo4jClient:
     @staticmethod
     def _operational_command(kind, operation, draft, native):
         action = str(draft.get('action', '')).lower()
+        if kind == 'query-plan' and operation == 'execute':
+            source = draft.get('source')
+            if not isinstance(source, str) or not source.strip():
+                raise Neo4jClientError('Cypher query must not be empty')
+            source = source.strip()
+            if len(source.encode('utf-8')) > MAX_QUERY_BYTES:
+                raise Neo4jClientError(
+                    'Cypher query exceeds the safety limit'
+                )
+            mode = str(draft.get('mode', 'explain')).lower()
+            if mode not in {'explain', 'profile'}:
+                raise Neo4jClientError('query plan mode is invalid')
+            parameters = _mapping(
+                draft.get('parameters', {}), 'query plan parameters'
+            )
+            return f'{mode.upper()} {source}', parameters
         if kind == 'dbms' and action == 'clear-query-caches':
             return 'CALL db.clearQueryCaches() YIELD * RETURN *', {}
         if kind == 'server':
@@ -2192,14 +2527,23 @@ class Neo4jClient:
                 _quoted(part, 'procedure name part')
                 for part in procedure.split('.')
             )
-            arguments = _mapping(
-                draft.get('arguments', {}), 'procedure arguments'
-            )
-            if arguments:
+            arguments = draft.get('arguments', [])
+            if not isinstance(arguments, list):
                 raise Neo4jClientError(
-                    'procedure arguments require a dedicated visual form'
+                    'procedure arguments must be an array'
                 )
-            return f'CALL {source}() YIELD * RETURN *', {}
+            if len(arguments) > MAX_PROPERTIES:
+                raise Neo4jClientError(
+                    'procedure argument count exceeds the safety limit'
+                )
+            parameters = {
+                f'argument_{index}': value
+                for index, value in enumerate(arguments)
+            }
+            parameter_source = ', '.join(
+                f'$argument_{index}' for index in range(len(arguments))
+            )
+            return f'CALL {source}({parameter_source})', parameters
         if kind == 'transaction' and action == 'terminate':
             value = native.get('transactionId') or draft.get(
                 'arguments', {}

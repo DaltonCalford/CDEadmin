@@ -31,6 +31,7 @@ from pgadmin.cdeadmin.providers.neo4j.client import (  # noqa: E402
     Neo4jClient,
     Neo4jClientError,
     Neo4jDependencyError,
+    _record_data,
 )
 from pgadmin.cdeadmin.providers.neo4j.provider import (  # noqa: E402
     Neo4jPilotProvider,
@@ -275,7 +276,7 @@ class Neo4jProviderTests(unittest.TestCase):
             'cdeadmin.result.graph.canvas', PROFILE.result_renderer_id
         )
         self.assertEqual('graphs', PROFILE.result_records_field)
-        self.assertEqual(27, len(PROFILE.resource_kinds))
+        self.assertEqual(29, len(PROFILE.resource_kinds))
         renderer = next(
             item for item in builtin_renderers()
             if item.renderer_id == 'cdeadmin.result.graph.canvas'
@@ -389,6 +390,20 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertFalse(transaction['common_finality_inference'])
         self.assertFalse(transaction['retry_decision_owned_by_common_code'])
 
+    def test_record_conversion_does_not_flatten_native_graph_values(self):
+        node = Node('4:preserved', ['Person'], name='Ada')
+
+        class FlatteningRecord(dict):
+            def data(self):
+                return {'n': dict(self['n'])}
+
+        value = Neo4jClient._json_value(_record_data(
+            FlatteningRecord(n=node)
+        ))
+        self.assertEqual('node', value['n']['kind'])
+        self.assertEqual('4:preserved', value['n']['element_id'])
+        self.assertEqual(['Person'], value['n']['labels'])
+
     def test_discovery_is_category_isolated_and_includes_graph(self):
         adapter, _connector = client()
         resources = adapter.list_resources({'route': route()})
@@ -396,7 +411,8 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue({
             'dbms', 'database', 'composite-database', 'graph', 'label',
             'relationship-type', 'property', 'index', 'constraint',
-            'user', 'role', 'privilege',
+            'user', 'role', 'privilege', 'node', 'relationship',
+            'query-plan',
         }.issubset(kinds))
 
     def test_graph_page_and_node_create_use_parameters(self):
@@ -524,6 +540,104 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertEqual('neo4j-driver-and-server', descriptor[
             'transaction_authority'
         ])
+        coverage = descriptor['concept_coverage']
+        self.assertTrue(coverage['declaration_ready'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        self.assertEqual(
+            ['graph'],
+            [item['family_id'] for item in coverage['families']],
+        )
+        projection_create = next(
+            item for item in by_kind['graph-projection']['operations']
+            if item['operation_id'] == 'create'
+        )
+        self.assertFalse(projection_create['native_supported'])
+        self.assertIn(
+            'provider_operation_unavailable', projection_create['blockers']
+        )
+
+    def test_gds_operations_require_a_bound_external_surface_digest(self):
+        adapter, connector = client()
+        self.assertFalse(adapter.supports_admin_operation(
+            'graph-projection', 'create'
+        ))
+        qualified = Neo4jClient(
+            lambda *_args: SecretLease(),
+            SimpleNamespace(
+                __version__='6.3.0',
+                GraphDatabase=SimpleNamespace(driver=connector),
+            ),
+            gds_surface_sha256='a' * 64,
+        )
+        self.assertTrue(qualified.supports_admin_operation(
+            'graph-projection', 'create'
+        ))
+        statement, parameters = qualified._graph_projection_command(
+            'create', {
+                'name': 'recommendations',
+                'node_projection': ['Person', 'Product'],
+                'relationship_projection': {
+                    'PURCHASED': {'orientation': 'NATURAL'},
+                },
+                'configuration': {'readConcurrency': 2},
+            }, {},
+        )
+        self.assertEqual(
+            'CALL gds.graph.project($graph_name, $node_projection, '
+            '$relationship_projection, $configuration)', statement,
+        )
+        self.assertEqual('recommendations', parameters['graph_name'])
+        self.assertEqual(
+            {'readConcurrency': 2}, parameters['configuration']
+        )
+
+    def test_query_plan_workspace_is_bounded_and_parameterized(self):
+        adapter, _connector = client()
+        statement, parameters = adapter._operational_command(
+            'query-plan', 'execute', {
+                'source': 'MATCH (n) WHERE n.name = $name RETURN n',
+                'parameters': {'name': 'Ada'},
+                'mode': 'explain',
+            }, {'workspace': True},
+        )
+        self.assertEqual(
+            'EXPLAIN MATCH (n) WHERE n.name = $name RETURN n', statement
+        )
+        self.assertEqual({'name': 'Ada'}, parameters)
+        plan = SimpleNamespace(
+            operator_type='ProduceResults', identifiers=['n'],
+            arguments={'EstimatedRows': 1.0}, children=[SimpleNamespace(
+                operator_type='AllNodesScan', identifiers=['n'],
+                arguments={}, children=[],
+            )],
+        )
+        summary = adapter._summary(SimpleNamespace(
+            counters=None, query_type='r', result_available_after=1,
+            result_consumed_after=2, plan=plan, profile=None,
+        ))
+        self.assertEqual(
+            'ProduceResults', summary['query_plan']['operator_type']
+        )
+        self.assertEqual(
+            'AllNodesScan',
+            summary['query_plan']['children'][0]['operator_type'],
+        )
+
+    def test_procedure_workspace_uses_bounded_positional_parameters(self):
+        adapter, _connector = client()
+        statement, parameters = adapter._operational_command(
+            'procedure', 'execute', {
+                'action': 'execute', 'arguments': ['Person', 10],
+            }, {'name': 'db.index.vector.queryNodes'},
+        )
+        self.assertEqual(
+            'CALL `db`.`index`.`vector`.`queryNodes`('
+            '$argument_0, $argument_1)', statement,
+        )
+        self.assertEqual(
+            {'argument_0': 'Person', 'argument_1': 10}, parameters
+        )
 
     def test_manifest_records_exact_live_community_qualification(self):
         manifest = json.loads((
@@ -532,9 +646,15 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue(manifest['enabled'])
         self.assertTrue(manifest['production_registration'])
         self.assertEqual('experimental', manifest['support_state'])
-        self.assertEqual('passed_community_surface', manifest[
-            'provenance'
-        ]['activation_gate'])
+        self.assertEqual(
+            'passed_community_surface_full_graph_activation_blocked',
+            manifest['provenance']['activation_gate'],
+        )
+        self.assertEqual(
+            '22_of_31_operations_live_enterprise_and_gds_required_for_full_'
+            'activation',
+            manifest['provenance']['object_experience_state'],
+        )
 
 
 if __name__ == '__main__':

@@ -483,6 +483,8 @@
         {"resource_kind": "setting", "title": "Setting", "operation_profile": "read_only"},
         {"resource_kind": "transaction", "title": "Transaction", "operation_profile": "operational"},
         {"resource_kind": "query", "title": "Query", "operation_profile": "operational"},
+        {"resource_kind": "query-plan", "title": "Query plan workspace", "operation_profile": "operational"},
+        {"resource_kind": "graph-projection", "title": "Graph projection", "operation_profile": "definition"},
         {"resource_kind": "user", "title": "User", "operation_profile": "security"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},

@@ -27,7 +27,7 @@
     },
     {
       "order": 4, "engine_id": "neo4j", "exact_profile": "2026.04.0", "provider_id": "org.cdeadmin.neo4j", "profile_id": "neo4j-native", "protocol_id": "bolt",
-      "provider_state": "production_experimental_provider", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified", "qualification_scope": "community", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-neo4j-live:neo4j-2026.04.0-community:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "neo4j_6.3.0_installed", "runtime_state": "verified", "qualification_scope": "community", "unit_suite": "passed", "live_suite": "passed", "object_experience_state": "community_22_of_31_operations_full_activation_blocked", "live_evidence_reference": "cde-neo4j-object-live:neo4j-2026.04.0-community:20260903",
       "manifest": "neo4j/provider_manifest.json", "source_packet": "neo4j/2026.04.0", "source_manifest_sha256": "e9a3136eda5ef7e0d136cd313d75687b5ef5404936795f44089cf9625cdeab61", "source_archive_sha256": "3715dc68863a34b7db5309a8b14c2bd43f74ac99016d8d04d72742a6b15be633"
     },
     {

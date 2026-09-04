@@ -24,6 +24,7 @@ PROFILE = PilotProfile(
         'graph', 'node', 'label', 'relationship', 'relationship-type',
         'property', 'index', 'constraint', 'procedure', 'function',
         'setting', 'transaction', 'query', 'user', 'role', 'privilege',
+        'query-plan', 'graph-projection',
         'backup', 'restore', 'import', 'export', 'shell',
         'consistency-check',
     ),

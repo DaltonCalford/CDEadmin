@@ -1,0 +1,92 @@
+##########################################################################
+#
+# CDEadmin - Multi-engine Database Administration
+#
+# Copyright (C) 2013 - 2026, The pgAdmin Development Team
+# This software is released under the PostgreSQL Licence
+#
+##########################################################################
+
+"""Neo4j provider-specific graph object-experience gate tests."""
+
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import ModuleType
+
+
+ROOT = Path(__file__).resolve().parents[2]
+WEB = ROOT / 'web'
+for path in (ROOT, WEB):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+if 'pgadmin' not in sys.modules:
+    package = ModuleType('pgadmin')
+    package.__path__ = [str(WEB / 'pgadmin')]
+    sys.modules['pgadmin'] = package
+
+from tools.cdeadmin_neo4j_live_gate import (  # noqa: E402
+    COMMUNITY_OBJECT_OPERATIONS, FULL_OBJECT_OPERATIONS, _object_evidence,
+)
+from tools.cdeadmin_neo4j_object_experience_gate import (  # noqa: E402
+    audit, provider_catalog,
+)
+
+
+class Neo4jObjectExperienceGateTests(unittest.TestCase):
+
+    def test_graph_provider_declaration_is_structurally_complete(self):
+        result = audit()
+        coverage = result['coverage']
+        self.assertTrue(result['structural_complete'])
+        self.assertFalse(result['live_complete'])
+        self.assertEqual(0, coverage['undeclared_count'])
+        self.assertEqual(0, coverage['blocking_missing_count'])
+        self.assertEqual(11, coverage['live_evidence_missing_count'])
+        self.assertEqual(31, coverage['live_operation_missing_count'])
+        self.assertEqual(
+            ['graph'],
+            [item['family_id'] for item in coverage['families']],
+        )
+
+    def test_community_evidence_records_only_proven_operations(self):
+        evidence = _object_evidence(
+            'unit-community', COMMUNITY_OBJECT_OPERATIONS
+        )
+        self.assertFalse(evidence['passed'])
+        self.assertEqual(
+            ['alter', 'create', 'drop'],
+            evidence['operation_failures']['database'],
+        )
+        self.assertEqual(
+            ['alter', 'execute', 'inspect'],
+            evidence['operation_failures']['server'],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'evidence.json'
+            path.write_text(json.dumps(evidence), encoding='utf-8')
+            coverage = provider_catalog([path])['concept_coverage']
+        self.assertFalse(coverage['activation_ready'])
+        self.assertEqual(2, coverage['live_evidence_missing_count'])
+        self.assertEqual(9, coverage['live_operation_missing_count'])
+
+    def test_enterprise_and_gds_evidence_can_complete_the_gate(self):
+        evidence = _object_evidence(
+            'unit-full', FULL_OBJECT_OPERATIONS, 'a' * 64
+        )
+        self.assertTrue(evidence['passed'])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'evidence.json'
+            path.write_text(json.dumps(evidence), encoding='utf-8')
+            coverage = provider_catalog([path])['concept_coverage']
+        self.assertTrue(coverage['activation_ready'])
+        self.assertEqual(0, coverage['live_evidence_missing_count'])
+        self.assertEqual(0, coverage['live_operation_missing_count'])
+
+
+if __name__ == '__main__':
+    unittest.main()
