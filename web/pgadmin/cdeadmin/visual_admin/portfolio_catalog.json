@@ -167,6 +167,7 @@
         {"resource_kind": "datacenter", "title": "Datacenter", "operation_profile": "topology"},
         {"resource_kind": "node", "title": "Node", "operation_profile": "topology"},
         {"resource_kind": "keyspace", "title": "Keyspace", "operation_profile": "namespace"},
+        {"resource_kind": "replication", "title": "Replication policy", "operation_profile": "definition"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
@@ -175,7 +176,8 @@
         {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
         {"resource_kind": "aggregate", "title": "Aggregate", "operation_profile": "definition"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
-        {"resource_kind": "permission", "title": "Permission", "operation_profile": "security"}
+        {"resource_kind": "permission", "title": "Permission", "operation_profile": "security"},
+        {"resource_kind": "compaction", "title": "Compaction operations", "operation_profile": "operational"}
       ]
     },
     {

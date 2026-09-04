@@ -19,7 +19,8 @@ PROFILE = PilotProfile(
     result_kind='wide_column',
     resource_kinds=(
         'cluster', 'datacenter', 'node', 'keyspace', 'table', 'column',
-        'index', 'materialized-view', 'user-defined-type', 'function',
+        'replication', 'index', 'materialized-view', 'user-defined-type',
+        'function',
         'aggregate', 'role', 'permission', 'query', 'tracing-session',
         'repair', 'compaction', 'snapshot', 'backup', 'restore', 'shell',
     ),

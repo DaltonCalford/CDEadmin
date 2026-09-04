@@ -199,6 +199,16 @@ def _literal(value: object) -> str:
     raise CassandraClientError('value cannot be represented safely in CQL')
 
 
+def _json_literal(value: object, label: str) -> object:
+    """Decode a form-supplied JSON scalar or collection without CQL text."""
+    if not isinstance(value, str) or not value.strip():
+        raise CassandraClientError(f'{label} must be JSON')
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        raise CassandraClientError(f'{label} must be valid JSON') from None
+
+
 class CassandraClient:
     """Synchronous, bounded adapter over Apache Cassandra Python Driver."""
 
@@ -272,12 +282,13 @@ class CassandraClient:
         'datacenter': frozenset({'inspect'}),
         'node': frozenset({'inspect'}),
         'keyspace': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'replication': frozenset({'inspect', 'alter'}),
         'table': frozenset({
             'inspect', 'create', 'alter', 'insert', 'update', 'delete',
             'drop',
         }),
         'column': frozenset({
-            'inspect', 'create', 'alter', 'rename', 'drop',
+            'inspect', 'create', 'rename', 'drop',
         }),
         'index': frozenset({'inspect', 'create', 'drop'}),
         'materialized-view': frozenset({'inspect', 'create', 'drop'}),
@@ -1074,6 +1085,18 @@ class CassandraClient:
                 if row.get('table_name'):
                     parent.extend(['table', row['table_name']])
                 resources.append(self._resource(kind, name, row, parent))
+        for row in discovered.get('keyspace', []):
+            name = row.get('keyspace_name')
+            if not name:
+                continue
+            resources.append(self._resource(
+                'replication', name, {
+                    'name': name,
+                    'keyspace_name': name,
+                    'replication': copy.deepcopy(row.get('replication', {})),
+                    'durable_writes': row.get('durable_writes'),
+                }, ['keyspace', name],
+            ))
         for kind, name in self.VIRTUAL_RESOURCES:
             item = self._resource(
                 kind, name, {'name': name, 'tool_resource': True}
@@ -1135,8 +1158,43 @@ class CassandraClient:
         )
         catalog['transaction_authority'] = 'cassandra-driver-and-server'
         catalog['native_outcomes_are_opaque'] = True
+        catalog['experience_families'] = ['wide_column']
+
+        def declaration(*resource_kinds):
+            return {
+                'status': 'supported',
+                'resource_kinds': list(resource_kinds),
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in resource_kinds
+                },
+                'reason': (
+                    'Cassandra wide-column objects and operations are '
+                    'provider-owned through CQL v5 and bounded nodetool '
+                    'administration.'
+                ),
+                'evidence': ['cassandra-5.0.8-native-wide-column-catalog'],
+            }
+
+        if catalog.get('engine_id') == 'cassandra':
+            catalog['concept_declarations'] = {'wide_column': {
+                'keyspaces': declaration('keyspace'),
+                'tables': declaration('table'),
+                'columns': declaration('column'),
+                'types': declaration('user-defined-type'),
+                'materialized_views': declaration('materialized-view'),
+                'replication_and_compaction': declaration(
+                    'replication', 'compaction'
+                ),
+            }}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
+            resource['operations'] = [
+                operation for operation in resource.get('operations', [])
+                if self.supports_admin_operation(
+                    kind, operation['operation_id']
+                )
+            ]
             for operation in resource.get('operations', []):
                 op = operation['operation_id']
                 form = self._admin_form(kind, op)
@@ -1164,6 +1222,16 @@ class CassandraClient:
             ])
             return self._form(f'cassandra-keyspace-{operation}',
                               f'{operation.title()} keyspace', fields)
+        if kind == 'replication' and operation == 'alter':
+            return self._form(
+                'cassandra-replication-alter',
+                'Alter keyspace replication', [
+                    f('replication', 'Replication strategy', 'json', True,
+                      default={'class': 'NetworkTopologyStrategy'}),
+                    f('durable_writes', 'Durable writes', 'boolean', False,
+                      default=True),
+                ]
+            )
         if kind == 'table' and operation == 'create':
             return self._form('cassandra-table-create', 'Create table', [
                 f('keyspace', 'Keyspace', required=True),
@@ -1262,7 +1330,8 @@ class CassandraClient:
                                   f('final_function', 'Final function',
                                     required=False),
                                   f('initial_condition',
-                                    'Initial condition', 'json', False),
+                                    'Initial condition (JSON value)',
+                                    'code', False, max_length=65536),
                               ])
         if kind == 'role' and operation in {'create', 'alter'}:
             fields = [] if operation == 'alter' else [
@@ -1329,6 +1398,11 @@ class CassandraClient:
             ):
                 raise CassandraClientError(
                     'function body cannot contain the CQL $$ delimiter'
+                )
+            if (kind == 'aggregate' and operation == 'create' and
+                    'initial_condition' in draft):
+                _json_literal(
+                    draft['initial_condition'], 'aggregate initial condition'
                 )
         except CassandraClientError as exc:
             errors.append({
@@ -1486,9 +1560,10 @@ class CassandraClient:
         native = payload.get('native', {})
         if operation == 'inspect':
             return {'statements': self._inspect_statements(kind, native)}
-        if kind == 'keyspace':
+        if kind in {'keyspace', 'replication'}:
             return {'statements': [self._keyspace_statement(
-                operation, draft, native
+                'alter' if kind == 'replication' else operation,
+                draft, native
             )]}
         if kind == 'table':
             return {'statements': self._table_statements(
@@ -1922,7 +1997,9 @@ class CassandraClient:
         if draft.get('final_function'):
             source += ' FINALFUNC ' + _quoted(draft['final_function'])
         if 'initial_condition' in draft:
-            source += ' INITCOND ' + _literal(draft['initial_condition'])
+            source += ' INITCOND ' + _literal(_json_literal(
+                draft['initial_condition'], 'aggregate initial condition'
+            ))
         return {'source': source, 'parameters': (),
                 'values_parameterized': False}
 
@@ -2025,6 +2102,14 @@ class CassandraClient:
         raise CassandraClientError('permission resource is invalid')
 
     def _inspect_statements(self, kind, native):
+        if kind == 'role':
+            return [{
+                'source': 'LIST ROLES OF ' + _quoted(
+                    native.get('role'), 'role'
+                ),
+                'parameters': (),
+                'values_parameterized': False,
+            }]
         mapping = {
             'cluster': ('SELECT * FROM system.local', ()),
             'datacenter': ('SELECT * FROM system.peers_v2 '
@@ -2035,6 +2120,9 @@ class CassandraClient:
             'keyspace': ('SELECT * FROM system_schema.keyspaces '
                          'WHERE keyspace_name = %s',
                          (native.get('keyspace_name'),)),
+            'replication': ('SELECT * FROM system_schema.keyspaces '
+                            'WHERE keyspace_name = %s',
+                            (native.get('keyspace_name'),)),
             'table': ('SELECT * FROM system_schema.tables WHERE '
                       'keyspace_name = %s AND table_name = %s',
                       (native.get('keyspace_name'), native.get('table_name'))),
@@ -2064,7 +2152,6 @@ class CassandraClient:
                           'keyspace_name = %s AND aggregate_name = %s',
                           (native.get('keyspace_name'),
                            native.get('aggregate_name'))),
-            'role': ('LIST ROLES OF ' + _quoted(native.get('role')), ()),
             'permission': ('LIST ALL PERMISSIONS', ()),
             'query': ('SELECT * FROM system_views.clients', ()),
             'tracing-session': ('SELECT * FROM system_traces.sessions WHERE '

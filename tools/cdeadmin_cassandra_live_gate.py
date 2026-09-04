@@ -52,8 +52,27 @@ EXPECTED_DRIVER = '3.30.1'
 CATEGORIES = (
     'dependency', 'runtime', 'topology', 'resource', 'cql',
     'wide_column_result', 'native_outcome', 'schema', 'data_crud',
-    'consistency', 'security', 'fault', 'tooling', 'tls',
+    'consistency', 'security', 'fault', 'tooling', 'object_operations', 'tls',
 )
+OBJECT_OPERATIONS = {
+    'keyspace': {'inspect', 'create', 'alter', 'drop'},
+    'table': {
+        'inspect', 'create', 'alter', 'insert', 'update', 'delete', 'drop',
+    },
+    'column': {'inspect', 'create', 'rename', 'drop'},
+    'user-defined-type': {'inspect', 'create', 'alter', 'drop'},
+    'materialized-view': {'inspect', 'create', 'drop'},
+    'replication': {'inspect', 'alter'},
+    'compaction': {'inspect', 'execute'},
+}
+CONCEPT_BINDINGS = {
+    'keyspaces': ('keyspace',),
+    'tables': ('table',),
+    'columns': ('column',),
+    'types': ('user-defined-type',),
+    'materialized_views': ('materialized-view',),
+    'replication_and_compaction': ('replication', 'compaction'),
+}
 
 
 class _Lease:
@@ -107,6 +126,7 @@ def parser():
     value.add_argument('--expected-nodes', type=int, default=3)
     value.add_argument('--workspace', type=Path, required=True)
     value.add_argument('--output', type=Path)
+    value.add_argument('--object-output', type=Path)
     return value
 
 
@@ -157,7 +177,8 @@ def _apply(provider, request):
     except Exception as exc:
         raise RuntimeError(f'{label} failed: {exc}') from exc
     native = result['provider_result']
-    if native.get('accepted') is not True:
+    if native.get('accepted') is not True and native.get(
+            'driver_observation_only') is not True:
         raise RuntimeError('Cassandra did not accept the provider plan')
     if native.get('transaction_finality_interpreted_by_common_code'):
         raise RuntimeError('common code interpreted Cassandra finality')
@@ -256,6 +277,9 @@ def verify(args, password):
     categories = {name: 'not_run' for name in CATEGORIES}
     details = {}
     failures = []
+    observed_operations = {
+        kind: set() for kind in OBJECT_OPERATIONS
+    }
     session = None
     resources = []
     table_target = None
@@ -346,7 +370,8 @@ def verify(args, password):
         expected_objects = {
             'cluster', 'datacenter', 'node', 'keyspace', 'table',
             'column', 'index', 'materialized-view', 'user-defined-type',
-            'function', 'aggregate', 'role', 'permission',
+            'function', 'aggregate', 'role', 'permission', 'replication',
+            'compaction',
         }
         observed = {item['resource_kind'] for item in descriptor['objects']}
         if observed != expected_objects:
@@ -551,6 +576,12 @@ def verify(args, password):
         )}
 
     category('schema', schema_gate)
+    if categories['schema'] == 'passed':
+        observed_operations['keyspace'].update({'create', 'alter'})
+        observed_operations['table'].update({'create', 'alter'})
+        observed_operations['column'].update({'create', 'rename', 'drop'})
+        observed_operations['user-defined-type'].update({'create', 'alter'})
+        observed_operations['materialized-view'].add('create')
 
     def data_gate():
         nonlocal identity_token
@@ -595,6 +626,8 @@ def verify(args, password):
                 'identity_policy': page['identity_policy']}
 
     category('data_crud', data_gate)
+    if categories['data_crud'] == 'passed':
+        observed_operations['table'].update({'insert', 'update', 'delete'})
 
     def consistency_gate():
         if session is None:
@@ -751,6 +784,79 @@ def verify(args, password):
 
     category('tooling', tooling_gate)
 
+    def object_operations_gate():
+        if table_target is None:
+            raise RuntimeError('wide-column object targets are unavailable')
+
+        def observe(kind, operation, draft=None, target=None):
+            result = _apply(
+                provider, _request(
+                    route, kind, operation, draft=draft, target=target
+                )
+            )
+            observed_operations[kind].add(operation)
+            return result
+
+        keyspace_target = _target(
+            'keyspace', keyspace, {'keyspace_name': keyspace}
+        )
+        replication_target = _target(
+            'replication', keyspace, {'keyspace_name': keyspace}
+        )
+        column_target = _target('column', 'item_id', {
+            'keyspace_name': keyspace, 'table_name': table,
+            'column_name': 'item_id', 'kind': 'clustering',
+        })
+        type_target = _target('user-defined-type', type_name, {
+            'keyspace_name': keyspace, 'type_name': type_name,
+        })
+        view_target = _target('materialized-view', view_name, {
+            'keyspace_name': keyspace, 'view_name': view_name,
+        })
+        compaction_target = _target(
+            'compaction', 'Compaction operations', {
+                'name': 'Compaction operations', 'tool_resource': True,
+            }
+        )
+        observe('keyspace', 'inspect', target=keyspace_target)
+        observe('table', 'inspect', target=table_target)
+        observe('column', 'inspect', target=column_target)
+        observe('user-defined-type', 'inspect', target=type_target)
+        observe('materialized-view', 'inspect', target=view_target)
+        observe('replication', 'inspect', target=replication_target)
+        observe('replication', 'alter', {
+            'replication': {
+                'class': 'NetworkTopologyStrategy',
+                args.local_dc: args.expected_nodes,
+            },
+            'durable_writes': True,
+        }, replication_target)
+        observe('compaction', 'inspect', target=compaction_target)
+        observe('compaction', 'execute', {
+            'action': 'compact', 'arguments': {'keyspace': keyspace},
+            'confirmation': 'compact-keyspace',
+        }, compaction_target)
+        observe('materialized-view', 'drop', {
+            'confirmation': 'drop-view',
+        }, view_target)
+        observe('user-defined-type', 'drop', {
+            'confirmation': 'drop-type',
+        }, type_target)
+        observe('table', 'drop', {
+            'confirmation': 'drop-table',
+        }, table_target)
+        observe('keyspace', 'drop', {
+            'confirmation': 'drop-keyspace',
+        }, keyspace_target)
+        return {
+            'passed_resource_operations': {
+                kind: sorted(operations)
+                for kind, operations in observed_operations.items()
+            },
+        }
+
+    category('object_operations', object_operations_gate)
+
     def tls_gate():
         if args.tls_mode == 'disabled':
             raise RuntimeError('TLS mode was not selected for this run')
@@ -819,6 +925,47 @@ def verify(args, password):
         'transaction_finality_interpreted_by_common_code': False,
         'credential_material_recorded': False,
     }
+    passed_operations = {
+        kind: sorted(operations)
+        for kind, operations in observed_operations.items() if operations
+    }
+    missing_operations = {
+        kind: sorted(required.difference(observed_operations[kind]))
+        for kind, required in OBJECT_OPERATIONS.items()
+        if required.difference(observed_operations[kind])
+    }
+    concepts = {}
+    for concept, kinds in CONCEPT_BINDINGS.items():
+        if all(
+            OBJECT_OPERATIONS[kind].issubset(observed_operations[kind])
+            for kind in kinds
+        ):
+            concepts[concept] = {
+                'status': 'passed',
+                'operations': {
+                    kind: passed_operations[kind] for kind in kinds
+                },
+            }
+    report['object_evidence'] = {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'cassandra',
+        'exact_profile': EXPECTED_SERVER,
+        'run_id': run_id,
+        'evidence_scope': (
+            'wide-column-navigator-and-object-editor-operations'
+        ),
+        'raw_commands_used_for_provider_operations': False,
+        'common_transaction_finality_interpreted': False,
+        'automatic_mutation_retry': False,
+        'passed_resource_operations': passed_operations,
+        'missing_resource_operations': missing_operations,
+        'operation_failures': [
+            item for item in failures
+            if item.get('category') == 'object_operations'
+        ],
+        'concepts': {'wide_column': concepts},
+        'passed': report['required_passed'] and not missing_operations,
+    }
     return report
 
 
@@ -832,6 +979,14 @@ def main(argv=None):
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(output + '\n', encoding='utf-8')
+    if args.object_output:
+        args.object_output.parent.mkdir(parents=True, exist_ok=True)
+        args.object_output.write_text(
+            json.dumps(
+                report['object_evidence'], indent=2, sort_keys=True
+            ) + '\n',
+            encoding='utf-8',
+        )
     print(output)
     return 0 if report['required_passed'] else 1
 

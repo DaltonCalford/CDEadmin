@@ -412,7 +412,8 @@ class CassandraProviderTests(unittest.TestCase):
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
             'cluster', 'datacenter', 'node', 'keyspace', 'table', 'column',
-            'role', 'permission', 'repair', 'snapshot', 'shell',
+            'replication', 'role', 'permission', 'repair', 'snapshot',
+            'shell',
         }.issubset(kinds))
         columns = [item for item in resources
                    if item['resource_kind'] == 'column']
@@ -444,6 +445,33 @@ class CassandraProviderTests(unittest.TestCase):
                 'keyspace': 'qualification', 'name': 'bad',
                 'fields': [{'name': 'field', 'type': 'text); DROP KEYSPACE'}],
             }, {})
+
+    def test_inspection_and_aggregate_json_scalar_compile_independently(self):
+        adapter, _factory = client()
+        inspected = adapter.plan_admin_operation({
+            'resource_kind': 'keyspace', 'operation_id': 'inspect',
+            'target_resource': {
+                'extensions': {'cassandra': {'native': {
+                    'keyspace_name': 'qualification',
+                }}},
+            },
+            'draft': {}, '_provider_route': route(),
+        })
+        self.assertIn(
+            'system_schema.keyspaces',
+            inspected['command_preview']['statements'][0],
+        )
+        aggregate = adapter.plan_admin_operation({
+            'resource_kind': 'aggregate', 'operation_id': 'create',
+            'draft': {
+                'keyspace': 'qualification', 'name': 'sum_int',
+                'argument_types': ['int'], 'state_function': 'sum_state',
+                'state_type': 'int', 'initial_condition': '0',
+            }, '_provider_route': route(),
+        })
+        self.assertIn(
+            'INITCOND 0', aggregate['command_preview']['statements'][0]
+        )
 
     def test_column_rename_is_limited_to_primary_key_columns(self):
         adapter, _factory = client()
@@ -562,6 +590,11 @@ class CassandraProviderTests(unittest.TestCase):
             item for item in table['operations']
             if item['operation_id'] == 'create'
         )['execution_available'])
+        column = next(item for item in descriptor['objects']
+                      if item['resource_kind'] == 'column')
+        self.assertNotIn('alter', {
+            item['operation_id'] for item in column['operations']
+        })
         manifest = json.loads((
             WEB / 'pgadmin/cdeadmin/providers/cassandra/'
             'provider_manifest.json'
