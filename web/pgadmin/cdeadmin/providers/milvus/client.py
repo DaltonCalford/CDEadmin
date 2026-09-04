@@ -31,6 +31,20 @@ _HOST = re.compile(
     r'|\[[0-9A-Fa-f:.]+\])$'
 )
 _NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,254}$')
+_VECTOR_INDEX_TYPES = (
+    'AUTOINDEX', 'FLAT', 'IVF_FLAT', 'IVF_SQ8', 'IVF_PQ', 'HNSW',
+    'SCANN', 'DISKANN', 'BIN_FLAT', 'BIN_IVF_FLAT',
+    'SPARSE_INVERTED_INDEX', 'SPARSE_WAND', 'GPU_BRUTE_FORCE',
+    'GPU_IVF_FLAT', 'GPU_IVF_PQ', 'GPU_CAGRA',
+)
+_METRIC_TYPES = (
+    'COSINE', 'L2', 'IP', 'HAMMING', 'JACCARD', 'BM25',
+)
+_FIELD_TYPES = (
+    'BOOL', 'INT8', 'INT16', 'INT32', 'INT64', 'FLOAT', 'DOUBLE',
+    'VARCHAR', 'JSON', 'ARRAY', 'FLOAT_VECTOR', 'BINARY_VECTOR',
+    'FLOAT16_VECTOR', 'BFLOAT16_VECTOR', 'SPARSE_FLOAT_VECTOR',
+)
 
 
 class MilvusClientError(PilotProviderError):
@@ -96,6 +110,33 @@ def _integer(value, label, default, minimum, maximum):
     return value
 
 
+def _string_list(value, label, required=False):
+    if value is None:
+        value = []
+    if not isinstance(value, list) or (required and not value):
+        raise MilvusClientError(f'{label} must be an array')
+    result = [_name(item, f'{label} item') for item in value]
+    if len(result) != len(set(result)):
+        raise MilvusClientError(f'{label} must not contain duplicates')
+    return result
+
+
+def _property_mode(value, label):
+    value = value or 'unchanged'
+    if value not in {'unchanged', 'enabled', 'disabled', 'clear'}:
+        raise MilvusClientError(f'{label} mode is invalid')
+    return value
+
+
+def _json_literal(value, label):
+    if value is None or not isinstance(value, str) or not value.strip():
+        raise MilvusClientError(f'{label} must contain a JSON value')
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise MilvusClientError(f'{label} is not valid JSON') from exc
+
+
 class MilvusClientAdapter:
     """Optional-client adapter retaining all Milvus semantics in-provider."""
 
@@ -107,7 +148,7 @@ class MilvusClientAdapter:
             'inspect', 'create', 'alter', 'rename', 'insert', 'update',
             'delete', 'drop'
         }),
-        'field': frozenset({'inspect'}),
+        'field': frozenset({'inspect', 'create', 'alter'}),
         'partition': frozenset({
             'inspect', 'create', 'insert', 'update', 'delete', 'drop'
         }),
@@ -431,6 +472,20 @@ class MilvusClientAdapter:
         to_dict = getattr(value, 'to_dict', None)
         if callable(to_dict):
             return cls._json_value(to_dict(), depth + 1)
+        list_fields = getattr(value, 'ListFields', None)
+        if callable(list_fields):
+            return {
+                descriptor.name: cls._json_value(item, depth + 1)
+                for descriptor, item in list_fields()
+            }
+        attributes = getattr(value, '__dict__', None)
+        if isinstance(attributes, Mapping):
+            return {
+                str(key).removeprefix('_'): cls._json_value(
+                    item, depth + 1
+                )
+                for key, item in attributes.items()
+            }
         return str(value)
 
     @staticmethod
@@ -470,106 +525,196 @@ class MilvusClientAdapter:
         }
 
     @staticmethod
-    def _call(client, method, default, *args, **kwargs):
+    def _invoke(client, method, *args, **kwargs):
         callback = getattr(client, method, None)
         if not callable(callback):
-            return copy.deepcopy(default)
+            raise MilvusDependencyError(
+                f'PyMilvus 2.6.5 does not provide {method}'
+            )
         try:
             return callback(*args, **kwargs)
-        except Exception:
-            return copy.deepcopy(default)
+        except MilvusClientError:
+            raise
+        except Exception as exc:
+            raise MilvusClientError(
+                f'Milvus {method} failed ({type(exc).__name__})'
+            ) from None
 
     def list_resources(self, request):
         client, route = self._connect(request)
         try:
             resources = [self._resource(
                 'cluster', route['host'],
-                {'host': route['host'], 'port': route['port']},
+                {
+                    'host': route['host'], 'port': route['port'],
+                    'version': self._invoke(client, 'get_server_version'),
+                },
                 ['cluster', route['host']],
             )]
-            databases = self._call(
-                client, 'list_databases', [route['database']]
-            )
+            databases = self._invoke(client, 'list_databases')
             for database in databases:
+                native = self._invoke(
+                    client, 'describe_database', db_name=database
+                )
                 resources.append(self._resource(
-                    'database', database, {'name': database},
+                    'database', database, {'name': database, **native},
                     ['database', database]
                 ))
-            groups = self._call(client, 'list_resource_groups', [])
+            groups = self._invoke(client, 'list_resource_groups')
             for group in groups:
+                native = self._invoke(
+                    client, 'describe_resource_group', name=group
+                )
                 resources.append(self._resource(
-                    'resource-group', group, {'name': group},
+                    'resource-group', group,
+                    {'name': group, **self._json_value(native)},
                     ['resource-group', group]
                 ))
-            collections = client.list_collections()
-            for collection in collections:
-                description = self._call(
-                    client, 'describe_collection', {
-                        'collection_name': collection},
-                    collection_name=collection,
-                )
-                resources.append(self._resource(
-                    'collection', collection, description,
-                    ['collection', collection]
-                ))
-                for field in description.get('fields', []) if isinstance(
-                        description, Mapping) else []:
-                    name = field.get('name') or field.get('field_name')
-                    if name:
-                        resources.append(self._resource(
-                            'field', name, {
-                                'collection_name': collection, **field},
-                            ['field', collection, name]
-                        ))
-                for partition in self._call(
-                    client, 'list_partitions', [], collection_name=collection
-                ):
+            for database in databases:
+                self._invoke(client, 'use_database', db_name=database)
+                collections = self._invoke(client, 'list_collections')
+                for collection in collections:
+                    description = self._invoke(
+                        client, 'describe_collection',
+                        collection_name=collection,
+                    )
+                    statistics = self._invoke(
+                        client, 'get_collection_stats',
+                        collection_name=collection,
+                    )
+                    native = {
+                        **description, 'database': database,
+                        'statistics': statistics,
+                    }
                     resources.append(self._resource(
-                        'partition', partition,
-                        {'collection_name': collection, 'name': partition},
-                        ['partition', collection, partition]
+                        'collection', collection, native,
+                        ['database', database, 'collection', collection]
                     ))
-                for index in self._call(
-                    client, 'list_indexes', [], collection_name=collection
-                ):
-                    native = self._call(
-                        client, 'describe_index', {'index_name': index},
-                        collection_name=collection, index_name=index,
+                    for field in description.get('fields', []):
+                        name = field.get('name') or field.get('field_name')
+                        if name:
+                            resources.append(self._resource(
+                                'field', name, {
+                                    'database': database,
+                                    'collection_name': collection, **field,
+                                },
+                                ['database', database, 'collection',
+                                 collection, 'field', name]
+                            ))
+                    for partition in self._invoke(
+                        client, 'list_partitions',
+                        collection_name=collection,
+                    ):
+                        partition_stats = self._invoke(
+                            client, 'get_partition_stats',
+                            collection_name=collection,
+                            partition_name=partition,
+                        )
+                        resources.append(self._resource(
+                            'partition', partition, {
+                                'database': database,
+                                'collection_name': collection,
+                                'name': partition,
+                                'statistics': partition_stats,
+                            },
+                            ['database', database, 'collection', collection,
+                             'partition', partition]
+                        ))
+                    for index in self._invoke(
+                        client, 'list_indexes',
+                        collection_name=collection,
+                    ):
+                        index_native = self._invoke(
+                            client, 'describe_index',
+                            collection_name=collection, index_name=index,
+                        )
+                        resources.append(self._resource(
+                            'vector-index', index, {
+                                'database': database,
+                                'collection_name': collection,
+                                **index_native,
+                            },
+                            ['database', database, 'collection', collection,
+                             'vector-index', index]
+                        ))
+                    state = self._invoke(
+                        client, 'get_load_state',
+                        collection_name=collection,
                     )
                     resources.append(self._resource(
-                        'vector-index', index,
-                        {'collection_name': collection, **native},
-                        ['vector-index', collection, index]
+                        'load-state', collection, {
+                            'database': database,
+                            'collection_name': collection,
+                            'state': state,
+                        },
+                        ['database', database, 'collection', collection,
+                         'load-state']
                     ))
-                state = self._call(
-                    client, 'get_load_state', {'state': 'unknown'},
-                    collection_name=collection,
-                )
-                resources.append(self._resource(
-                    'load-state', collection,
-                    {'collection_name': collection, 'state': state},
-                    ['load-state', collection]
-                ))
-                for alias in self._call(
-                    client, 'list_aliases', [], collection_name=collection
-                ):
-                    resources.append(self._resource(
-                        'alias', alias,
-                        {'name': alias, 'collection_name': collection},
-                        ['alias', collection, alias]
-                    ))
-            for user in self._call(client, 'list_users', []):
+                    alias_listing = self._invoke(
+                        client, 'list_aliases',
+                        collection_name=collection,
+                    )
+                    aliases = (
+                        alias_listing.get('aliases', [])
+                        if isinstance(alias_listing, Mapping)
+                        else alias_listing
+                    )
+                    if not isinstance(aliases, list):
+                        raise MilvusClientError(
+                            'Milvus alias listing has an invalid shape'
+                        )
+                    for alias in aliases:
+                        alias_native = self._invoke(
+                            client, 'describe_alias', alias=alias
+                        )
+                        resources.append(self._resource(
+                            'alias', alias, {
+                                'database': database,
+                                'collection_name': collection,
+                                'name': alias, **alias_native,
+                            },
+                            ['database', database, 'alias', alias]
+                        ))
+            self._invoke(client, 'use_database', db_name=route['database'])
+            for user in self._invoke(client, 'list_users'):
                 name = user.get('user_name') if isinstance(
                     user, Mapping) else user
+                native = self._invoke(
+                    client, 'describe_user', user_name=name
+                )
                 resources.append(self._resource(
-                    'user', name, self._json_value(user), ['user', name]
+                    'user', name, self._json_value(native), ['user', name]
                 ))
-            for role in self._call(client, 'list_roles', []):
+                resources.append(self._resource(
+                    'credential', name, {
+                        'user_name': name,
+                        'credential_material_exposed': False,
+                    }, ['user', name, 'credential']
+                ))
+            for role in self._invoke(client, 'list_roles'):
                 name = role.get('role_name') if isinstance(
                     role, Mapping) else role
+                native = self._invoke(
+                    client, 'describe_role', role_name=name
+                )
                 resources.append(self._resource(
-                    'role', name, self._json_value(role), ['role', name]
+                    'role', name, self._json_value(native), ['role', name]
                 ))
+                privileges = native.get('privileges', []) if isinstance(
+                    native, Mapping
+                ) else []
+                for ordinal, privilege in enumerate(privileges):
+                    privilege = self._json_value(privilege)
+                    privilege_name = ':'.join(str(privilege.get(key, '*'))
+                                              for key in (
+                                                  'object_type',
+                                                  'object_name', 'privilege',
+                                              ))
+                    resources.append(self._resource(
+                        'privilege', privilege_name, {
+                            'role_name': name, **privilege,
+                        }, ['role', name, 'privilege', ordinal]
+                    ))
             resources.append(self._resource(
                 'compaction', 'compaction', {'engine_owned': True}
             ))
@@ -591,8 +736,8 @@ class MilvusClientAdapter:
     def describe_security(self, request):
         client, _route = self._connect(request)
         try:
-            users = self._call(client, 'list_users', [])
-            roles = self._call(client, 'list_roles', [])
+            users = self._invoke(client, 'list_users')
+            roles = self._invoke(client, 'list_roles')
             native = {
                 'authorization_model': 'milvus-rbac',
                 'users': self._json_value(users),
@@ -620,6 +765,297 @@ class MilvusClientAdapter:
         return {'field_id': field_id, 'label': label, 'control': control,
                 'required': required, **values}
 
+    @staticmethod
+    def _property_options():
+        return [
+            {'value': 'unchanged', 'label': 'Leave unchanged'},
+            {'value': 'enabled', 'label': 'Enabled'},
+            {'value': 'disabled', 'label': 'Disabled'},
+            {'value': 'clear', 'label': 'Clear property'},
+        ]
+
+    @staticmethod
+    def _set_property_options():
+        return [
+            {'value': 'unchanged', 'label': 'Leave unchanged'},
+            {'value': 'enabled', 'label': 'Enabled'},
+            {'value': 'disabled', 'label': 'Disabled'},
+        ]
+
+    @staticmethod
+    def _mode_change(draft, field, native_key, changes, clear):
+        mode = _property_mode(draft.get(field), field)
+        if mode in {'enabled', 'disabled'}:
+            changes[native_key] = mode == 'enabled'
+        elif mode == 'clear':
+            clear.append(native_key)
+
+    @classmethod
+    def _database_property_changes(cls, draft):
+        changes, clear = {}, []
+        numeric = (
+            ('max_collections', 'database.max.collections', 1, 65536),
+            ('replica_number', 'database.replica.number', 1, 1024),
+        )
+        for field, native_key, minimum, maximum in numeric:
+            if draft.get(field) is not None:
+                changes[native_key] = str(_integer(
+                    draft[field], field, minimum, minimum, maximum
+                ))
+            if draft.get('clear_' + field):
+                if field in draft and draft.get(field) is not None:
+                    raise MilvusClientError(
+                        f'{field} cannot be set and cleared together'
+                    )
+                clear.append(native_key)
+        groups = _string_list(
+            draft.get('resource_groups', []), 'resource groups'
+        )
+        if groups:
+            changes['database.resource_groups'] = ','.join(groups)
+        if draft.get('clear_resource_groups'):
+            if groups:
+                raise MilvusClientError(
+                    'resource groups cannot be set and cleared together'
+                )
+            clear.append('database.resource_groups')
+        for field, native_key in (
+            ('deny_writes_mode', 'database.force.deny.writing'),
+            ('deny_reads_mode', 'database.force.deny.reading'),
+            ('deny_ddl_mode', 'database.force.deny.ddl'),
+        ):
+            cls._mode_change(draft, field, native_key, changes, clear)
+        if changes and clear:
+            raise MilvusClientError(
+                'database properties must be set or cleared in one request, '
+                'not both'
+            )
+        return changes, clear
+
+    @classmethod
+    def _collection_property_changes(cls, draft):
+        changes, clear = {}, []
+        if draft.get('ttl_seconds') is not None:
+            changes['collection.ttl.seconds'] = str(_integer(
+                draft['ttl_seconds'], 'TTL seconds', 0, 0, 315360000
+            ))
+        if draft.get('clear_ttl'):
+            if draft.get('ttl_seconds') is not None:
+                raise MilvusClientError(
+                    'TTL cannot be set and cleared together'
+                )
+            clear.append('collection.ttl.seconds')
+        if draft.get('replica_number') is not None:
+            changes['collection.replica.number'] = str(_integer(
+                draft['replica_number'], 'replica number', 1, 1, 1024
+            ))
+        if draft.get('clear_replica_number'):
+            if draft.get('replica_number') is not None:
+                raise MilvusClientError(
+                    'replica number cannot be set and cleared together'
+                )
+            clear.append('collection.replica.number')
+        groups = _string_list(
+            draft.get('resource_groups', []), 'resource groups'
+        )
+        if groups:
+            changes['collection.resource_groups'] = ','.join(groups)
+        if draft.get('clear_resource_groups'):
+            if groups:
+                raise MilvusClientError(
+                    'resource groups cannot be set and cleared together'
+                )
+            clear.append('collection.resource_groups')
+        cls._mode_change(
+            draft, 'mmap_mode', 'mmap.enabled', changes, clear
+        )
+        cls._mode_change(
+            draft, 'partition_key_isolation_mode',
+            'partitionkey.isolation', changes, clear,
+        )
+        if changes and clear:
+            raise MilvusClientError(
+                'collection properties must be set or cleared in one '
+                'request, not both'
+            )
+        if not changes and not clear:
+            raise MilvusClientError(
+                'collection alteration requires a property change'
+            )
+        return changes, clear
+
+    @staticmethod
+    def _index_parameters(draft):
+        index_type = draft.get('index_type', 'AUTOINDEX')
+        if index_type not in _VECTOR_INDEX_TYPES:
+            raise MilvusClientError('index type is invalid')
+        metric = draft.get('metric_type', 'COSINE')
+        if metric not in _METRIC_TYPES:
+            raise MilvusClientError('metric type is invalid')
+        vector_type = draft.get('vector_data_type', 'FLOAT_VECTOR')
+        if vector_type not in {
+            'FLOAT_VECTOR', 'BINARY_VECTOR', 'FLOAT16_VECTOR',
+            'BFLOAT16_VECTOR', 'SPARSE_FLOAT_VECTOR',
+        }:
+            raise MilvusClientError('vector field data type is invalid')
+        binary_index = index_type in {'BIN_FLAT', 'BIN_IVF_FLAT'}
+        sparse_index = index_type in {
+            'SPARSE_INVERTED_INDEX', 'SPARSE_WAND'
+        }
+        if binary_index != (vector_type == 'BINARY_VECTOR'):
+            raise MilvusClientError(
+                'binary vectors and binary index types must be selected '
+                'together'
+            )
+        if sparse_index != (vector_type == 'SPARSE_FLOAT_VECTOR'):
+            raise MilvusClientError(
+                'sparse vectors and sparse index types must be selected '
+                'together'
+            )
+        if binary_index and metric not in {'HAMMING', 'JACCARD'}:
+            raise MilvusClientError(
+                'binary indexes require HAMMING or JACCARD distance'
+            )
+        if sparse_index and metric not in {'IP', 'BM25'}:
+            raise MilvusClientError(
+                'sparse indexes require IP or BM25 scoring'
+            )
+        if not binary_index and not sparse_index and metric not in {
+            'COSINE', 'L2', 'IP'
+        }:
+            raise MilvusClientError(
+                'dense vector indexes require COSINE, L2, or IP distance'
+            )
+        params = {}
+        if index_type.startswith('IVF_') or index_type in {
+            'SCANN', 'BIN_IVF_FLAT', 'GPU_IVF_FLAT', 'GPU_IVF_PQ'
+        }:
+            params['nlist'] = _integer(
+                draft.get('nlist'), 'nlist', 1024, 1, 65536
+            )
+        if index_type == 'HNSW':
+            params.update({
+                'M': _integer(draft.get('hnsw_m'), 'HNSW M', 16, 2, 2048),
+                'efConstruction': _integer(
+                    draft.get('ef_construction'), 'efConstruction',
+                    200, 1, 65536,
+                ),
+            })
+        if index_type in {'IVF_PQ', 'GPU_IVF_PQ'}:
+            params.update({
+                'm': _integer(draft.get('pq_m'), 'PQ m', 4, 1, 65536),
+                'nbits': _integer(
+                    draft.get('nbits'), 'PQ nbits', 8, 1, 64
+                ),
+            })
+        if index_type in {'SPARSE_INVERTED_INDEX', 'SPARSE_WAND'}:
+            ratio = draft.get('drop_ratio_build', 0.0)
+            if isinstance(ratio, bool) or not isinstance(ratio, (int, float)) \
+                    or not 0 <= ratio <= 1:
+                raise MilvusClientError(
+                    'sparse drop ratio must be between zero and one'
+                )
+            params['drop_ratio_build'] = ratio
+        if index_type == 'SCANN':
+            params['with_raw_data'] = bool(
+                draft.get('with_raw_data', True)
+            )
+        if index_type == 'GPU_CAGRA':
+            build_algorithm = draft.get('build_algo', 'IVF_PQ')
+            if build_algorithm not in {'IVF_PQ', 'NN_DESCENT'}:
+                raise MilvusClientError(
+                    'CAGRA build algorithm is invalid'
+                )
+            params.update({
+                'intermediate_graph_degree': _integer(
+                    draft.get('intermediate_graph_degree'),
+                    'intermediate graph degree', 64, 1, 4096,
+                ),
+                'graph_degree': _integer(
+                    draft.get('graph_degree'), 'graph degree', 32, 1, 4096
+                ),
+                'build_algo': build_algorithm,
+            })
+        return index_type, metric, params
+
+    def _field_type_options(self, draft, data_type):
+        options = {
+            'nullable': bool(draft.get('nullable', True)),
+        }
+        if draft.get('description'):
+            options['desc'] = _text(
+                draft.get('description'), 'field description', 4096
+            )
+        if draft.get('default_value_json') is not None:
+            options['default_value'] = _json_literal(
+                draft.get('default_value_json'), 'default value'
+            )
+        if data_type == 'VARCHAR':
+            options['max_length'] = _integer(
+                draft.get('max_length'), 'maximum string length',
+                65535, 1, 65535,
+            )
+        if data_type == 'ARRAY':
+            element = draft.get('element_type')
+            if element not in _FIELD_TYPES or element == 'ARRAY' or (
+                'VECTOR' in str(element)
+            ):
+                raise MilvusClientError('array element type is invalid')
+            options['element_type'] = self._data_type(element)
+            options['max_capacity'] = _integer(
+                draft.get('max_capacity'), 'maximum array capacity',
+                4096, 1, 4096,
+            )
+        if data_type in {
+            'FLOAT_VECTOR', 'BINARY_VECTOR', 'FLOAT16_VECTOR',
+            'BFLOAT16_VECTOR',
+        }:
+            options['dim'] = _integer(
+                draft.get('dimension'), 'vector dimension',
+                128, 1, 65535,
+            )
+        return options
+
+    def _data_type(self, name):
+        data_types = getattr(self.module, 'DataType', None)
+        value = getattr(data_types, name, None) if data_types else None
+        if value is None:
+            raise MilvusDependencyError(
+                f'PyMilvus 2.6.5 datatype {name!r} is unavailable'
+            )
+        return value
+
+    def _resource_group_config(self, draft):
+        requested = _integer(
+            draft.get('requested_nodes'), 'requested nodes', 0, 0, 65536
+        )
+        limit = _integer(
+            draft.get('limit_nodes'), 'limit nodes', 0, 0, 65536
+        )
+        if limit and requested > limit:
+            raise MilvusClientError(
+                'requested nodes cannot exceed the resource-group limit'
+            )
+        transfer_from = _string_list(
+            draft.get('transfer_from', []), 'transfer from'
+        )
+        transfer_to = _string_list(
+            draft.get('transfer_to', []), 'transfer to'
+        )
+        types = getattr(getattr(self.module, 'client', None), 'types', None)
+        factory = getattr(types, 'ResourceGroupConfig', None)
+        if not callable(factory):
+            raise MilvusDependencyError(
+                'PyMilvus 2.6.5 resource-group configuration is unavailable'
+            )
+        return factory(
+            requests={'node_num': requested}, limits={'node_num': limit},
+            transfer_from=[{'resource_group': value}
+                           for value in transfer_from],
+            transfer_to=[{'resource_group': value}
+                         for value in transfer_to],
+        )
+
     @classmethod
     def _form(cls, kind, operation):
         f = cls._field
@@ -634,6 +1070,14 @@ class MilvusClientAdapter:
                           'number', True, default=128),
                         f('primary_field_name', 'Primary field',
                           required=True, default='id'),
+                        f('primary_id_type', 'Primary ID type', 'select',
+                          True, default='int', options=[
+                              {'value': 'int', 'label': '64-bit integer'},
+                              {'value': 'string', 'label': 'String'},
+                          ]),
+                        f('primary_max_length',
+                          'Maximum primary string length', 'number', False,
+                          minimum=1, maximum=65535),
                         f('vector_field_name', 'Vector field',
                           required=True, default='vector'),
                         f('metric_type', 'Metric', 'select', True,
@@ -647,6 +1091,66 @@ class MilvusClientAdapter:
                         f('schema', 'Advanced schema (optional)', 'json',
                           False),
                     ]}
+        if kind == 'collection' and operation == 'alter':
+            return {
+                'form_id': 'milvus-collection-alter',
+                'title': 'Alter collection properties',
+                'fields': [
+                    f('ttl_seconds', 'Entity TTL (seconds)', 'number', False,
+                      minimum=0, maximum=315360000),
+                    f('mmap_mode', 'Memory mapping', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                    f('partition_key_isolation_mode',
+                      'Partition-key isolation', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                    f('replica_number', 'Default replica count', 'number',
+                      False, minimum=1, maximum=1024),
+                    f('resource_groups', 'Default resource groups', 'json',
+                      False, default=[]),
+                    f('clear_ttl', 'Clear entity TTL', 'boolean', True,
+                      default=False),
+                    f('clear_replica_number', 'Clear replica count',
+                      'boolean', True, default=False),
+                    f('clear_resource_groups', 'Clear resource groups',
+                      'boolean', True, default=False),
+                ],
+            }
+        if kind == 'field' and operation == 'create':
+            return {
+                'form_id': 'milvus-field-create',
+                'title': 'Add collection field',
+                'fields': [
+                    f('collection_name', 'Collection', required=True),
+                    f('name', 'Field name', required=True),
+                    f('data_type', 'Data type', 'select', True,
+                      options=[{'value': value, 'label': value}
+                               for value in _FIELD_TYPES]),
+                    f('description', 'Description'),
+                    f('nullable', 'Nullable', 'boolean', True, default=True),
+                    f('default_value_json', 'Default value (JSON literal)',
+                      'text', False),
+                    f('max_length', 'Maximum string length', 'number', False,
+                      minimum=1, maximum=65535),
+                    f('element_type', 'Array element type', 'select', False,
+                      options=[{'value': value, 'label': value}
+                               for value in _FIELD_TYPES
+                               if 'VECTOR' not in value and value != 'ARRAY']),
+                    f('max_capacity', 'Maximum array capacity', 'number',
+                      False, minimum=1, maximum=4096),
+                    f('dimension', 'Vector dimension', 'number', False,
+                      minimum=1, maximum=65535),
+                ],
+            }
+        if kind == 'field' and operation == 'alter':
+            return {
+                'form_id': 'milvus-field-alter',
+                'title': 'Alter field properties',
+                'fields': [
+                    f('mmap_mode', 'Memory mapping', 'select', True,
+                      default='unchanged',
+                      options=cls._set_property_options()),
+                ],
+            }
         if kind in {'collection', 'partition'} and operation in {
                 'insert', 'update'}:
             return {'form_id': f'milvus-entity-{operation}',
@@ -654,7 +1158,7 @@ class MilvusClientAdapter:
                         f('collection_name', 'Collection', required=True),
                         f('partition_name', 'Partition'),
                         f('data', 'Entities', 'json', True, default=[]),
-            ]}
+                    ]}
         if kind in {'collection', 'partition'} and operation == 'delete':
             return {'form_id': 'milvus-entity-delete',
                     'title': 'Delete entities',
@@ -667,19 +1171,65 @@ class MilvusClientAdapter:
                           True,
                           default=False),
                     ]}
-        if kind == 'vector-index' and operation in {'create', 'alter'}:
-            return {'form_id': f'milvus-index-{operation}',
-                    'title': f'{operation.title()} vector index', 'fields': [
+        if kind == 'vector-index' and operation == 'create':
+            return {'form_id': 'milvus-index-create',
+                    'title': 'Create vector index', 'fields': [
                         f('collection_name', 'Collection', required=True),
                         f('field_name', 'Vector field', required=True),
                         f('index_name', 'Index name', required=True),
-                        f('index_type', 'Index type',
-                          required=True, default='AUTOINDEX'),
-                        f('metric_type', 'Metric', required=True,
-                          default='COSINE'),
-                        f('params', 'Index parameters', 'json', True,
-                          default={}),
-            ]}
+                        f('vector_data_type', 'Vector field data type',
+                          'select', True, default='FLOAT_VECTOR', options=[
+                              {'value': value, 'label': value}
+                              for value in (
+                                  'FLOAT_VECTOR', 'BINARY_VECTOR',
+                                  'FLOAT16_VECTOR', 'BFLOAT16_VECTOR',
+                                  'SPARSE_FLOAT_VECTOR',
+                              )
+                          ]),
+                        f('index_type', 'Index type', 'select', True,
+                          default='AUTOINDEX', options=[
+                              {'value': value, 'label': value}
+                              for value in _VECTOR_INDEX_TYPES
+                          ]),
+                        f('metric_type', 'Metric', 'select', True,
+                          default='COSINE', options=[
+                              {'value': value, 'label': value}
+                              for value in _METRIC_TYPES
+                          ]),
+                        f('nlist', 'IVF cluster count', 'number', False,
+                          minimum=1, maximum=65536),
+                        f('hnsw_m', 'HNSW connections', 'number', False,
+                          minimum=2, maximum=2048),
+                        f('ef_construction', 'HNSW build breadth', 'number',
+                          False, minimum=1, maximum=65536),
+                        f('pq_m', 'PQ subquantizers', 'number', False,
+                          minimum=1, maximum=65536),
+                        f('nbits', 'PQ bits', 'number', False,
+                          minimum=1, maximum=64),
+                        f('drop_ratio_build', 'Sparse drop ratio', 'number',
+                          False, minimum=0, maximum=1),
+                        f('with_raw_data', 'SCANN retains raw vectors',
+                          'boolean', False),
+                        f('intermediate_graph_degree',
+                          'CAGRA intermediate graph degree', 'number', False,
+                          minimum=1, maximum=4096),
+                        f('graph_degree', 'CAGRA graph degree', 'number',
+                          False, minimum=1, maximum=4096),
+                        f('build_algo', 'CAGRA build algorithm', 'select',
+                          False, options=[
+                              {'value': 'IVF_PQ', 'label': 'IVF_PQ'},
+                              {'value': 'NN_DESCENT', 'label': 'NN_DESCENT'},
+                          ]),
+                    ]}
+        if kind == 'vector-index' and operation == 'alter':
+            return {
+                'form_id': 'milvus-index-alter',
+                'title': 'Alter vector index properties',
+                'fields': [
+                    f('mmap_mode', 'Memory mapping', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                ],
+            }
         if kind == 'partition' and operation == 'create':
             return {'form_id': 'milvus-partition-create',
                     'title': 'Create partition', 'fields': [
@@ -701,6 +1251,14 @@ class MilvusClientAdapter:
                                    {'value': 'release', 'label': 'Release'}]),
                         f('replica_number', 'Replica count',
                           'number', True, default=1),
+                        f('resource_groups', 'Resource groups', 'json', False,
+                          default=[]),
+                        f('load_fields', 'Fields to load', 'json', False,
+                          default=[]),
+                        f('skip_dynamic_field', 'Skip dynamic field',
+                          'boolean', True, default=False),
+                        f('refresh', 'Refresh an existing load', 'boolean',
+                          True, default=False),
                         f('acknowledge_operation', 'Confirm operation',
                           'boolean',
                           True, default=False),
@@ -709,18 +1267,63 @@ class MilvusClientAdapter:
             return {'form_id': 'milvus-compaction-execute',
                     'title': 'Compact collection', 'fields': [
                         f('collection_name', 'Collection', required=True),
+                        f('compaction_kind', 'Compaction kind', 'select', True,
+                          default='merge', options=[
+                              {'value': 'merge', 'label': 'Merge'},
+                              {'value': 'clustering', 'label': 'Clustering'},
+                              {'value': 'level-zero', 'label': 'Level zero'},
+                          ]),
                         f('acknowledge_operation', 'Confirm operation',
                           'boolean',
                           True, default=False),
                     ]}
-        if kind in {'database',
-                    'resource-group'} and operation in {'create', 'alter'}:
-            return {'form_id': f'milvus-{kind}-{operation}',
-                    'title': f'{operation.title()} {kind}', 'fields': [
-                        f('name', 'Name', required=operation == 'create'),
-                        f('properties', 'Properties', 'json', True,
-                          default={}),
-            ]}
+        if kind == 'database' and operation in {'create', 'alter'}:
+            return {
+                'form_id': f'milvus-database-{operation}',
+                'title': f'{operation.title()} database',
+                'fields': [
+                    f('name', 'Name', required=operation == 'create'),
+                    f('max_collections', 'Maximum collections', 'number',
+                      False, minimum=1, maximum=65536),
+                    f('replica_number', 'Default replica count', 'number',
+                      False, minimum=1, maximum=1024),
+                    f('resource_groups', 'Default resource groups', 'json',
+                      False, default=[]),
+                    f('deny_writes_mode', 'Deny writes', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                    f('deny_reads_mode', 'Deny reads', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                    f('deny_ddl_mode', 'Deny DDL', 'select', True,
+                      default='unchanged', options=cls._property_options()),
+                    f('clear_max_collections', 'Clear maximum collections',
+                      'boolean', True, default=False),
+                    f('clear_replica_number', 'Clear replica count',
+                      'boolean', True, default=False),
+                    f('clear_resource_groups', 'Clear resource groups',
+                      'boolean', True, default=False),
+                ],
+            }
+        if kind == 'resource-group' and operation == 'create':
+            return {
+                'form_id': 'milvus-resource-group-create',
+                'title': 'Create resource group',
+                'fields': [f('name', 'Name', required=True)],
+            }
+        if kind == 'resource-group' and operation == 'alter':
+            return {
+                'form_id': 'milvus-resource-group-alter',
+                'title': 'Configure resource group',
+                'fields': [
+                    f('requested_nodes', 'Requested query nodes', 'number',
+                      True, default=0, minimum=0, maximum=65536),
+                    f('limit_nodes', 'Maximum query nodes', 'number', True,
+                      default=0, minimum=0, maximum=65536),
+                    f('transfer_from', 'Transfer nodes from', 'json', False,
+                      default=[]),
+                    f('transfer_to', 'Transfer nodes to', 'json', False,
+                      default=[]),
+                ],
+            }
         if kind in {'user', 'credential'} and operation == 'create':
             return {'form_id': f'milvus-{kind}-{operation}',
                     'title': f'{operation.title()} {kind}', 'fields': [
@@ -763,16 +1366,65 @@ class MilvusClientAdapter:
                 f('acknowledge_drop', 'Confirm drop', 'boolean', True,
                   default=False)
             ]}
-        return {'form_id': f'milvus-{kind}-{operation}',
-                'title': operation.title(), 'fields': [
-                    f('properties', 'Properties', 'json', True, default={})
-        ]}
+        raise MilvusClientError(
+            f'Milvus has no typed form for {kind}.{operation}'
+        )
 
     def visual_admin_catalog(self, catalog):
         catalog['native_planner'] = 'pymilvus-structured-planner'
         catalog['query_language'] = 'Milvus query/search JSON'
         catalog['consistency_authority'] = 'milvus'
         catalog['common_finality_interpretation'] = False
+        catalog['experience_families'] = ['vector']
+
+        def declaration(resource_kinds, operation_kinds, reason, evidence):
+            return {
+                'status': 'supported', 'resource_kinds': resource_kinds,
+                'operation_obligations': {
+                    kind: sorted(self.ADMIN_OPERATIONS[kind])
+                    for kind in operation_kinds
+                },
+                'reason': reason, 'evidence': [evidence],
+            }
+
+        catalog['concept_declarations'] = {'vector': {
+            'collections': declaration(
+                ['collection'], ('collection',),
+                'Collections have native schema, property, entity-grid and '
+                'lifecycle editors backed by PyMilvus 2.6.5.',
+                'milvus-2.6.5-vector-collections',
+            ),
+            'fields': declaration(
+                ['field'], ('field',),
+                'Fields are discovered from collection schemas and support '
+                'native dynamic-field addition and property alteration.',
+                'milvus-2.6.5-vector-fields',
+            ),
+            'indexes': declaration(
+                ['vector-index'], ('vector-index',),
+                'Vector indexes use algorithm-aware typed build controls and '
+                'native index-property lifecycle operations.',
+                'milvus-2.6.5-vector-indexes',
+            ),
+            'partitions': declaration(
+                ['partition'], ('partition',),
+                'Partitions expose native statistics, entity-grid mutations '
+                'and lifecycle operations.',
+                'milvus-2.6.5-vector-partitions',
+            ),
+            'load_state': declaration(
+                ['load-state'], ('load-state',),
+                'Collection and partition load state is queried and changed '
+                'through explicit load/release controls.',
+                'milvus-2.6.5-load-state',
+            ),
+            'resource_groups': declaration(
+                ['resource-group'], ('resource-group',),
+                'Resource groups expose live capacity, nodes, replicas and '
+                'typed request/limit/transfer policy administration.',
+                'milvus-2.6.5-resource-groups',
+            ),
+        }}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             resource['operations'] = [
@@ -801,14 +1453,173 @@ class MilvusClientAdapter:
                     'acknowledge_operation'):
                 raise MilvusClientError(
                     'operation acknowledgement is required')
+            target = self._native_target(request.get('target_resource'))
+            name = (
+                target.get('name') or target.get('collection_name') or
+                target.get('field_name') or target.get('index_name') or
+                draft.get('name')
+            )
+            if kind == 'database' and operation in {'create', 'alter'}:
+                if operation == 'create':
+                    _name(name, 'database')
+                changes, clear = self._database_property_changes(draft)
+                if operation == 'create' and clear:
+                    raise MilvusClientError(
+                        'database creation cannot clear properties'
+                    )
+                if operation == 'alter' and not changes and not clear:
+                    raise MilvusClientError(
+                        'database alteration requires a property change'
+                    )
+            if kind == 'resource-group':
+                if operation == 'create':
+                    _name(name, 'resource group')
+                elif operation == 'alter':
+                    _name(name, 'resource group')
+                    self._resource_group_config(draft)
             if kind == 'collection' and operation == 'create':
+                _name(name, 'collection')
                 schema = draft.get('schema')
                 if schema is None:
                     _integer(
                         draft.get('dimension'), 'dimension', 128, 1, 65535
                     )
+                    primary = _name(
+                        draft.get('primary_field_name', 'id'), 'primary field'
+                    )
+                    vector = _name(
+                        draft.get('vector_field_name', 'vector'),
+                        'vector field',
+                    )
+                    if primary == vector:
+                        raise MilvusClientError(
+                            'primary and vector fields must be distinct'
+                        )
+                    if draft.get('metric_type', 'COSINE') not in {
+                        'COSINE', 'L2', 'IP'
+                    }:
+                        raise MilvusClientError('metric type is invalid')
+                    id_type = draft.get('primary_id_type', 'int')
+                    if id_type not in {'int', 'string'}:
+                        raise MilvusClientError(
+                            'primary ID type is invalid'
+                        )
+                    if id_type == 'string':
+                        _integer(
+                            draft.get('primary_max_length'),
+                            'maximum primary string length', 65535, 1, 65535,
+                        )
                 else:
                     self._validate_schema(schema)
+            if kind == 'collection' and operation == 'alter':
+                self._collection_property_changes(draft)
+            if kind == 'collection' and operation == 'rename':
+                _name(draft.get('new_name'), 'new collection name')
+            if kind in {'collection', 'partition'} and operation in {
+                'insert', 'update', 'delete'
+            }:
+                _name(
+                    draft.get('collection_name') or
+                    target.get('collection_name'), 'collection',
+                )
+                if draft.get('partition_name'):
+                    _name(draft['partition_name'], 'partition')
+                if operation in {'insert', 'update'}:
+                    if not isinstance(draft.get('data'), list) or not draft[
+                        'data'
+                    ] or not all(isinstance(item, Mapping)
+                                 for item in draft['data']):
+                        raise MilvusClientError(
+                            'entity data must be a non-empty object array'
+                        )
+                elif not draft.get('filter') and draft.get('ids') is None:
+                    raise MilvusClientError(
+                        'delete requires a filter or primary IDs'
+                    )
+            if kind == 'field' and operation == 'create':
+                _name(
+                    draft.get('collection_name') or
+                    target.get('collection_name'), 'collection',
+                )
+                _name(name, 'field')
+                data_type = draft.get('data_type')
+                if data_type not in _FIELD_TYPES:
+                    raise MilvusClientError('field data type is invalid')
+                self._field_type_options(draft, data_type)
+            if kind == 'field' and operation == 'alter':
+                field_mode = _property_mode(
+                    draft.get('mmap_mode'), 'mmap'
+                )
+                if field_mode not in {'enabled', 'disabled'}:
+                    raise MilvusClientError(
+                        'field alteration requires a property change'
+                    )
+            if kind == 'vector-index' and operation == 'create':
+                _name(draft.get('collection_name'), 'collection')
+                _name(draft.get('field_name'), 'field')
+                _name(draft.get('index_name'), 'index')
+                self._index_parameters(draft)
+            if kind == 'vector-index' and operation == 'alter':
+                if _property_mode(
+                    draft.get('mmap_mode'), 'mmap'
+                ) == 'unchanged':
+                    raise MilvusClientError(
+                        'index alteration requires a property change'
+                    )
+            if kind == 'partition' and operation == 'create':
+                _name(draft.get('collection_name'), 'collection')
+                _name(name, 'partition')
+            if kind == 'alias' and operation in {'create', 'alter'}:
+                _name(draft.get('collection_name'), 'collection')
+                _name(name, 'alias')
+            if kind == 'load-state' and operation == 'execute':
+                if draft.get('action') not in {'load', 'release'}:
+                    raise MilvusClientError('load-state action is invalid')
+                if draft.get('action') == 'load':
+                    _integer(
+                        draft.get('replica_number'), 'replica number',
+                        1, 1, 1024,
+                    )
+                    _string_list(
+                        draft.get('resource_groups', []), 'resource groups'
+                    )
+                    _string_list(
+                        draft.get('load_fields', []), 'load fields'
+                    )
+            if kind == 'compaction' and operation == 'execute':
+                _name(draft.get('collection_name'), 'collection')
+                if draft.get('compaction_kind', 'merge') not in {
+                    'merge', 'clustering', 'level-zero'
+                }:
+                    raise MilvusClientError('compaction kind is invalid')
+            if kind in {'user', 'credential'} and operation == 'create':
+                _name(name, 'user')
+                _text(
+                    draft.get('password_reference'),
+                    'password secret reference',
+                )
+            if kind in {'user', 'credential'} and operation == 'alter':
+                _name(name, 'user')
+                _text(
+                    draft.get('current_password_reference'),
+                    'current password secret reference',
+                )
+                _text(
+                    draft.get('new_password_reference'),
+                    'new password secret reference',
+                )
+            if kind == 'role' and operation == 'create':
+                _name(name, 'role')
+            if kind == 'user' and operation in {'grant', 'revoke'}:
+                _name(draft.get('user_name') or name, 'user')
+                _name(draft.get('role_name'), 'role')
+            if kind in {'role', 'privilege'} and operation in {
+                'grant', 'revoke'
+            }:
+                _name(draft.get('role_name'), 'role')
+                _text(draft.get('object_type'), 'object type')
+                _text(draft.get('object_name'), 'object name')
+                _text(draft.get('privilege'), 'privilege')
         except MilvusClientError as exc:
             errors.append({'field_id': None,
                            'code': 'milvus_native_validation',
@@ -863,31 +1674,49 @@ class MilvusClientAdapter:
         name = (target.get('name') or target.get('collection_name') or
                 draft.get('name'))
         if operation == 'inspect':
-            return {'resource_kind': kind, 'target': self._safe_target(target)}
+            return self._inspect_admin(client, route, kind, target)
         if route['read_only']:
             raise MilvusClientError('read-only route refused mutation')
         if kind == 'database':
+            changes, clear = self._database_property_changes(draft)
             if operation == 'create':
                 return client.create_database(
                     db_name=_name(name),
-                    properties=draft.get('properties') or {},
+                    properties=changes,
                 )
             if operation == 'alter':
+                if clear:
+                    return client.drop_database_properties(
+                        db_name=_name(name), property_keys=clear,
+                    )
                 return client.alter_database_properties(
-                    db_name=_name(name),
-                    properties=draft.get('properties') or {},
+                    db_name=_name(name), properties=changes,
                 )
             return client.drop_database(db_name=_name(name))
         if kind == 'resource-group':
             if operation == 'create':
                 return client.create_resource_group(
-                    resource_group=_name(name),
-                    config=draft.get('properties') or {})
+                    name=_name(name, 'resource group')
+                )
             if operation == 'alter':
                 return client.update_resource_groups(
-                    configs={_name(name): draft.get('properties') or {}}
+                    configs={
+                        _name(name, 'resource group'):
+                        self._resource_group_config(draft)
+                    }
                 )
-            return client.drop_resource_group(resource_group=_name(name))
+            return client.drop_resource_group(
+                name=_name(name, 'resource group')
+            )
+        database = (
+            target.get('database') or draft.get('database') or
+            route['database']
+        )
+        if kind in {
+            'collection', 'field', 'partition', 'vector-index', 'alias',
+            'load-state', 'compaction',
+        }:
+            self._invoke(client, 'use_database', db_name=_name(database))
         if kind == 'collection':
             collection = _name(
                 name or draft.get('collection_name'),
@@ -911,6 +1740,7 @@ class MilvusClientAdapter:
                             draft.get('primary_field_name', 'id'),
                             'primary field'
                         ),
+                        'id_type': draft.get('primary_id_type', 'int'),
                         'vector_field_name': _name(
                             draft.get('vector_field_name', 'vector'),
                             'vector field'
@@ -921,11 +1751,20 @@ class MilvusClientAdapter:
                             draft.get('enable_dynamic_field', True)
                         ),
                     }
+                    if arguments['id_type'] == 'string':
+                        arguments['max_length'] = _integer(
+                            draft.get('primary_max_length'),
+                            'maximum primary string length', 65535, 1, 65535,
+                        )
                 return client.create_collection(**arguments)
             if operation == 'alter':
+                changes, clear = self._collection_property_changes(draft)
+                if clear:
+                    return client.drop_collection_properties(
+                        collection_name=collection, property_keys=clear,
+                    )
                 return client.alter_collection_properties(
-                    collection_name=collection,
-                    properties=draft.get('properties') or {},
+                    collection_name=collection, properties=changes,
                 )
             if operation == 'rename':
                 return client.rename_collection(
@@ -934,6 +1773,24 @@ class MilvusClientAdapter:
                 )
             if operation == 'drop':
                 return client.drop_collection(collection_name=collection)
+        if kind == 'field':
+            collection = _name(
+                draft.get('collection_name') or
+                target.get('collection_name'), 'collection',
+            )
+            field = _name(name, 'field')
+            if operation == 'create':
+                data_type = draft['data_type']
+                return client.add_collection_field(
+                    collection_name=collection, field_name=field,
+                    data_type=self._data_type(data_type),
+                    **self._field_type_options(draft, data_type),
+                )
+            mode = _property_mode(draft.get('mmap_mode'), 'mmap')
+            return client.alter_collection_field(
+                collection_name=collection, field_name=field,
+                field_params={'mmap.enabled': mode == 'enabled'},
+            )
         if kind in {'collection', 'partition'} and operation in {
                 'insert', 'update', 'delete'}:
             collection = _name(
@@ -987,18 +1844,28 @@ class MilvusClientAdapter:
                 target.get('index_name') or name,
                 'index',
             )
-            if operation == 'drop' or operation == 'alter':
-                result = client.drop_index(collection_name=collection,
-                                           index_name=index_name)
-                if operation == 'drop':
-                    return result
+            if operation == 'drop':
+                return client.drop_index(
+                    collection_name=collection, index_name=index_name
+                )
+            if operation == 'alter':
+                mode = _property_mode(draft.get('mmap_mode'), 'mmap')
+                if mode == 'clear':
+                    return client.drop_index_properties(
+                        collection_name=collection, index_name=index_name,
+                        property_keys=['mmap.enabled'],
+                    )
+                return client.alter_index_properties(
+                    collection_name=collection, index_name=index_name,
+                    properties={'mmap.enabled': mode == 'enabled'},
+                )
+            index_type, metric_type, index_parameters = \
+                self._index_parameters(draft)
             params = client.prepare_index_params()
             params.add_index(
                 field_name=_name(draft['field_name'], 'field'),
-                index_name=index_name, index_type=_text(
-                    draft['index_type'], 'index type'),
-                metric_type=_text(draft['metric_type'], 'metric type'),
-                params=_mapping(draft.get('params', {}), 'index parameters'),
+                index_name=index_name, index_type=index_type,
+                metric_type=metric_type, params=index_parameters,
             )
             return client.create_index(collection_name=collection,
                                        index_params=params)
@@ -1021,34 +1888,58 @@ class MilvusClientAdapter:
                 target.get('collection_name') or name,
                 'collection')
             if draft['action'] == 'load':
-                return client.load_collection(
-                    collection_name=collection,
-                    replica_number=_integer(
+                groups = _string_list(
+                    draft.get('resource_groups', []), 'resource groups'
+                )
+                fields = _string_list(
+                    draft.get('load_fields', []), 'load fields'
+                )
+                arguments = {
+                    'collection_name': collection,
+                    'replica_number': _integer(
                         draft.get('replica_number'), 'replica count',
                         1, 1, 1024,
                     ),
+                    'skip_load_dynamic_field': bool(
+                        draft.get('skip_dynamic_field')
+                    ),
+                    'refresh': bool(draft.get('refresh')),
+                }
+                if groups:
+                    arguments['resource_groups'] = groups
+                if fields:
+                    arguments['load_fields'] = fields
+                return client.load_collection(
+                    **arguments
                 )
             return client.release_collection(collection_name=collection)
         if kind == 'compaction' and operation == 'execute':
+            compaction_kind = draft.get('compaction_kind', 'merge')
             return client.compact(
-                collection_name=_name(draft['collection_name'], 'collection')
+                collection_name=_name(
+                    draft['collection_name'], 'collection'
+                ),
+                is_clustering=compaction_kind == 'clustering',
+                is_l0=compaction_kind == 'level-zero',
             )
         if kind in {'user', 'credential'} and operation in {'create', 'alter'}:
             user = _name(name, 'user')
             if operation == 'create':
-                password = self._admin_secret(
-                    draft['password_reference'], route
+                return self._with_admin_secrets(
+                    route, {'password': draft['password_reference']},
+                    lambda secrets: client.create_user(
+                        user_name=user, password=secrets['password']
+                    ),
                 )
-                return client.create_user(user_name=user, password=password)
-            current_password = self._admin_secret(
-                draft['current_password_reference'], route
-            )
-            new_password = self._admin_secret(
-                draft['new_password_reference'], route
-            )
-            return client.update_password(
-                user_name=user, old_password=current_password,
-                new_password=new_password
+            return self._with_admin_secrets(
+                route, {
+                    'current': draft['current_password_reference'],
+                    'new': draft['new_password_reference'],
+                },
+                lambda secrets: client.update_password(
+                    user_name=user, old_password=secrets['current'],
+                    new_password=secrets['new'],
+                ),
             )
         if kind == 'user' and operation in {'grant', 'revoke'}:
             callback = (
@@ -1080,6 +1971,126 @@ class MilvusClientAdapter:
             )
         raise MilvusClientError('administration operation is unavailable')
 
+    def _inspect_admin(self, client, route, kind, target):
+        name = (
+            target.get('name') or target.get('collection_name') or
+            target.get('field_name') or target.get('index_name')
+        )
+        database = target.get('database') or route['database']
+        if kind == 'cluster':
+            return {
+                'version': self._invoke(client, 'get_server_version'),
+                'databases': self._invoke(client, 'list_databases'),
+                'resource_groups': self._invoke(
+                    client, 'list_resource_groups'
+                ),
+            }
+        if kind == 'database':
+            return self._invoke(
+                client, 'describe_database', db_name=_name(name, 'database')
+            )
+        if kind == 'resource-group':
+            return self._json_value(self._invoke(
+                client, 'describe_resource_group',
+                name=_name(name, 'resource group'),
+            ))
+        if kind in {
+            'collection', 'field', 'partition', 'vector-index', 'alias',
+            'load-state', 'compaction',
+        }:
+            self._invoke(client, 'use_database', db_name=_name(database))
+        collection = target.get('collection_name')
+        if kind == 'collection':
+            collection = _name(name, 'collection')
+            return {
+                'definition': self._invoke(
+                    client, 'describe_collection',
+                    collection_name=collection,
+                ),
+                'statistics': self._invoke(
+                    client, 'get_collection_stats',
+                    collection_name=collection,
+                ),
+                'load_state': self._invoke(
+                    client, 'get_load_state',
+                    collection_name=collection,
+                ),
+                'aliases': self._invoke(
+                    client, 'list_aliases', collection_name=collection,
+                ),
+            }
+        if kind == 'field':
+            definition = self._invoke(
+                client, 'describe_collection',
+                collection_name=_name(collection, 'collection'),
+            )
+            field_name = _name(name, 'field')
+            field = next((
+                item for item in definition.get('fields', [])
+                if (item.get('name') or item.get('field_name')) == field_name
+            ), None)
+            if field is None:
+                raise MilvusClientError('Milvus field is unavailable')
+            return field
+        if kind == 'partition':
+            partition = _name(name, 'partition')
+            collection = _name(collection, 'collection')
+            return {
+                'exists': self._invoke(
+                    client, 'has_partition', collection_name=collection,
+                    partition_name=partition,
+                ),
+                'statistics': self._invoke(
+                    client, 'get_partition_stats',
+                    collection_name=collection, partition_name=partition,
+                ),
+                'load_state': self._invoke(
+                    client, 'get_load_state', collection_name=collection,
+                    partition_name=partition,
+                ),
+            }
+        if kind == 'vector-index':
+            return self._invoke(
+                client, 'describe_index',
+                collection_name=_name(collection, 'collection'),
+                index_name=_name(name, 'index'),
+            )
+        if kind == 'alias':
+            return self._invoke(
+                client, 'describe_alias', alias=_name(name, 'alias')
+            )
+        if kind == 'load-state':
+            return self._invoke(
+                client, 'get_load_state',
+                collection_name=_name(collection or name, 'collection'),
+            )
+        if kind == 'compaction':
+            job_id = target.get('job_id')
+            if job_id is None:
+                return {
+                    'collection_name': collection,
+                    'job_id_required_for_state': True,
+                }
+            job_id = _integer(
+                job_id, 'compaction job ID', 0, 0, 2**63 - 1
+            )
+            return {
+                'job_id': job_id,
+                'state': self._invoke(
+                    client, 'get_compaction_state', job_id=job_id
+                ),
+            }
+        if kind in {'user', 'credential'}:
+            return self._invoke(
+                client, 'describe_user', user_name=_name(name, 'user')
+            )
+        if kind in {'role', 'privilege'}:
+            role = target.get('role_name') or name
+            return self._invoke(
+                client, 'describe_role', role_name=_name(role, 'role')
+            )
+        raise MilvusClientError('resource inspection is unavailable')
+
     def read_admin_rows(self, request):
         client, route = self._connect({
             'route': request.get('_provider_route')
@@ -1102,11 +2113,21 @@ class MilvusClientAdapter:
             if isinstance(filter_value, Mapping):
                 filter_value = filter_value.get('expression', '')
             filter_value = str(filter_value or '')
+            arguments = {
+                'collection_name': _name(collection, 'collection'),
+                'filter': filter_value, 'output_fields': ['*'],
+                'limit': limit, 'offset': offset,
+                'timeout': route['operation_timeout'],
+                'consistency_level': route['consistency_level'],
+            }
+            resource = request.get('target_resource') or {}
+            if resource.get('resource_kind') == 'partition':
+                partition = target.get('partition_name') or target.get('name')
+                arguments['partition_names'] = [
+                    _name(partition, 'partition')
+                ]
             result = client.query(
-                collection_name=_name(collection, 'collection'),
-                filter=filter_value, output_fields=['*'], limit=limit,
-                offset=offset, timeout=route['operation_timeout'],
-                consistency_level=route['consistency_level'],
+                **arguments
             )
             records = self._normalize_matches(result)
             return {
@@ -1155,11 +2176,30 @@ class MilvusClientAdapter:
 
     @classmethod
     def _validate_schema(cls, value):
+        if isinstance(value, Mapping):
+            unknown_schema = sorted(set(value).difference({
+                'fields', 'auto_id', 'enable_dynamic_field',
+            }))
+            if unknown_schema:
+                raise MilvusClientError(
+                    'advanced schema contains unknown properties: '
+                    f'{unknown_schema}'
+                )
+            for option in ('auto_id', 'enable_dynamic_field'):
+                if option in value and not isinstance(value[option], bool):
+                    raise MilvusClientError(
+                        f'advanced schema {option} must be boolean'
+                    )
         admitted = {
-            'name', 'datatype', 'is_primary', 'auto_id', 'dim',
+            'name', 'datatype', 'is_primary', 'dim',
             'max_length', 'nullable', 'default_value', 'element_type',
             'max_capacity', 'is_partition_key', 'is_clustering_key',
         }
+        names = set()
+        primary_fields = []
+        vector_fields = []
+        partition_keys = []
+        clustering_keys = []
         for field in cls._schema_fields(value):
             field = _mapping(field, 'schema field')
             unknown = sorted(set(field).difference(admitted))
@@ -1167,8 +2207,103 @@ class MilvusClientAdapter:
                 raise MilvusClientError(
                     f'schema field contains unknown properties: {unknown}'
                 )
-            _name(field.get('name'), 'schema field')
-            _text(field.get('datatype'), 'schema field datatype', 64)
+            name = _name(field.get('name'), 'schema field')
+            if name in names:
+                raise MilvusClientError(
+                    f'advanced schema field {name!r} is duplicated'
+                )
+            names.add(name)
+            datatype = _text(
+                field.get('datatype'), 'schema field datatype', 64
+            ).upper()
+            if datatype not in _FIELD_TYPES:
+                raise MilvusClientError(
+                    f'Milvus datatype {datatype!r} is unavailable'
+                )
+            for option in (
+                'is_primary', 'nullable', 'is_partition_key',
+                'is_clustering_key',
+            ):
+                if option in field and not isinstance(field[option], bool):
+                    raise MilvusClientError(
+                        f'schema field {option} must be boolean'
+                    )
+            if field.get('is_primary'):
+                primary_fields.append((name, datatype, field))
+            if 'VECTOR' in datatype:
+                vector_fields.append(name)
+                if datatype != 'SPARSE_FLOAT_VECTOR':
+                    dimension = _integer(
+                        field.get('dim'), f'{name} vector dimension',
+                        0, 1, 65535,
+                    )
+                    if datatype == 'BINARY_VECTOR' and dimension % 8:
+                        raise MilvusClientError(
+                            'binary vector dimension must be divisible by 8'
+                        )
+                elif 'dim' in field:
+                    raise MilvusClientError(
+                        'sparse vector fields do not accept a dimension'
+                    )
+            elif 'dim' in field:
+                raise MilvusClientError(
+                    f'non-vector field {name!r} cannot define a dimension'
+                )
+            if datatype == 'VARCHAR':
+                _integer(
+                    field.get('max_length'), f'{name} maximum length',
+                    0, 1, 65535,
+                )
+            elif 'max_length' in field:
+                raise MilvusClientError(
+                    f'non-string field {name!r} cannot define max_length'
+                )
+            if datatype == 'ARRAY':
+                element = field.get('element_type')
+                if element not in _FIELD_TYPES or element == 'ARRAY' or (
+                    'VECTOR' in str(element)
+                ):
+                    raise MilvusClientError(
+                        f'array field {name!r} has an invalid element type'
+                    )
+                _integer(
+                    field.get('max_capacity'), f'{name} maximum capacity',
+                    4096, 1, 4096,
+                )
+            elif {'element_type', 'max_capacity'}.intersection(field):
+                raise MilvusClientError(
+                    f'non-array field {name!r} has array-only properties'
+                )
+            if field.get('is_partition_key'):
+                partition_keys.append(name)
+            if field.get('is_clustering_key'):
+                clustering_keys.append(name)
+        if len(primary_fields) != 1:
+            raise MilvusClientError(
+                'advanced schema requires exactly one primary field'
+            )
+        primary_name, primary_type, primary = primary_fields[0]
+        if primary_type not in {'INT64', 'VARCHAR'}:
+            raise MilvusClientError(
+                'primary field must use INT64 or VARCHAR'
+            )
+        if primary.get('nullable') or 'default_value' in primary:
+            raise MilvusClientError(
+                f'primary field {primary_name!r} cannot be nullable or '
+                'define a default'
+            )
+        if not vector_fields:
+            raise MilvusClientError(
+                'advanced vector schema requires at least one vector field'
+            )
+        if len(partition_keys) > 1:
+            raise MilvusClientError(
+                'advanced schema permits at most one partition key'
+            )
+        if len(clustering_keys) > 1:
+            raise MilvusClientError(
+                'advanced schema permits at most one clustering key'
+            )
 
     def _build_schema(self, client, definition, draft):
         self._validate_schema(definition)
@@ -1211,14 +2346,36 @@ class MilvusClientAdapter:
             )
         return schema
 
-    def _admin_secret(self, reference, route):
-        changed = copy.deepcopy(route)
-        changed['credential_reference_id'] = _text(
-            reference, 'password secret reference'
-        )
-        return self._with_password(changed, lambda value: _text(
-            value, 'resolved password', 65536
-        ), purpose='administer')
+    def _with_admin_secrets(self, route, references, callback):
+        if not callable(self.secret_acquirer):
+            raise MilvusClientError('secret acquisition is unavailable')
+        principal = route.get('principal_reference')
+        if not principal:
+            raise MilvusClientError(
+                'administrative secrets require a principal reference'
+            )
+        bindings = [
+            (label, _text(reference, f'{label} secret reference'))
+            for label, reference in references.items()
+        ]
+
+        def acquire(index, values):
+            if index == len(bindings):
+                return callback(values)
+            label, reference = bindings[index]
+            lease = self.secret_acquirer(
+                reference, principal, 'administer', 'database_password'
+            )
+            with lease:
+                return lease.use(lambda view: acquire(index + 1, {
+                    **values,
+                    label: _text(
+                        bytes(view).decode('utf-8'), 'resolved password',
+                        65536,
+                    ),
+                }))
+
+        return acquire(0, {})
 
     @staticmethod
     def _native_target(target):

@@ -400,7 +400,7 @@
       "engine_id": "milvus", "engine_name": "Milvus", "reference_profile": "2.6.5", "model_family": "vector-analytic",
       "objects": [
         {"resource_kind": "cluster", "title": "Cluster", "operation_profile": "topology"},
-        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"},
+        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "namespace"},
         {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
         {"resource_kind": "collection", "title": "Collection", "operation_profile": "data_container"},
         {"resource_kind": "field", "title": "Field", "operation_profile": "definition"},

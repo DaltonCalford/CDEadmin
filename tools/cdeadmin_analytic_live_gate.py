@@ -658,6 +658,27 @@ def _opensearch(client, sql_client, route, run_id, destructive):
 
 def _milvus(client, route, run_id, destructive):
     evidence = {}
+    required_operations = {
+        'collection': {
+            'inspect', 'create', 'alter', 'rename', 'insert', 'update',
+            'delete', 'drop',
+        },
+        'field': {'inspect', 'create', 'alter'},
+        'vector-index': {'inspect', 'create', 'alter', 'drop'},
+        'partition': {
+            'inspect', 'create', 'insert', 'update', 'delete', 'drop',
+        },
+        'load-state': {'inspect', 'execute'},
+        'resource-group': {'inspect', 'create', 'alter', 'drop'},
+    }
+    observed = {kind: set() for kind in required_operations}
+
+    def admin(kind, operation, draft, target=None):
+        result = _admin(client, route, kind, operation, draft, target)
+        if kind in observed:
+            observed[kind].add(operation)
+        return result
+
     identity = client.runtime_identity({'route': route})
     if identity['version'] != EXPECTED['milvus']:
         raise RuntimeError('Milvus exact identity changed')
@@ -670,25 +691,153 @@ def _milvus(client, route, run_id, destructive):
         evidence['destructive_scope'] = 'not_admitted'
         return evidence
     collection = f'cdeadmin_{run_id}'
-    target = _target('milvus', 'collection', name=collection)
-    created = False
+    renamed_collection = f'cdeadmin_renamed_{run_id}'
+    partition = f'partition_{run_id}'
+    index = f'index_{run_id}'
+    alias = f'alias_{run_id}'
+    resource_group = f'group_{run_id}'
+    collection_target = _target(
+        'milvus', 'collection', name=collection, database=route['database']
+    )
+    partition_target = _target(
+        'milvus', 'partition', name=partition,
+        collection_name=collection, database=route['database'],
+    )
+    index_target = _target(
+        'milvus', 'vector-index', name=index,
+        collection_name=collection, database=route['database'],
+    )
+    alias_target = _target(
+        'milvus', 'alias', name=alias,
+        collection_name=collection, database=route['database'],
+    )
+    load_target = _target(
+        'milvus', 'load-state', collection_name=collection,
+        database=route['database'],
+    )
+    group_target = _target(
+        'milvus', 'resource-group', name=resource_group,
+    )
+    collection_created = False
+    partition_created = False
+    index_created = False
+    alias_created = False
+    group_created = False
     try:
-        _admin(client, route, 'collection', 'create', {
-            'name': collection, 'dimension': 4,
-            'primary_field_name': 'id', 'vector_field_name': 'vector',
-            'metric_type': 'COSINE', 'auto_id': False,
-            'enable_dynamic_field': True,
+        admin('resource-group', 'create', {'name': resource_group})
+        group_created = True
+        admin('resource-group', 'inspect', {}, group_target)
+        admin('resource-group', 'alter', {
+            'requested_nodes': 0, 'limit_nodes': 1,
+            'transfer_from': [], 'transfer_to': [],
+        }, group_target)
+
+        admin('collection', 'create', {
+            'name': collection,
+            'schema': {
+                'auto_id': False,
+                'enable_dynamic_field': True,
+                'fields': [
+                    {
+                        'name': 'id', 'datatype': 'INT64',
+                        'is_primary': True,
+                    },
+                    {
+                        'name': 'vector', 'datatype': 'FLOAT_VECTOR',
+                        'dim': 4,
+                    },
+                    {
+                        'name': 'title', 'datatype': 'VARCHAR',
+                        'max_length': 100, 'nullable': True,
+                    },
+                ],
+            },
         })
-        created = True
-        _admin(client, route, 'collection', 'insert', {
+        collection_created = True
+        admin('collection', 'inspect', {}, collection_target)
+        admin('collection', 'alter', {
+            'ttl_seconds': 3600,
+        }, collection_target)
+        admin('load-state', 'execute', {
+            'action': 'release', 'acknowledge_operation': True,
+        }, load_target)
+        admin('field', 'create', {
+            'collection_name': collection, 'name': 'quality',
+            'data_type': 'INT64', 'nullable': True,
+            'default_value_json': '0',
+        })
+        field_target = _target(
+            'milvus', 'field', name='quality',
+            collection_name=collection, database=route['database'],
+        )
+        admin('field', 'inspect', {}, field_target)
+        admin('field', 'alter', {
+            'mmap_mode': 'enabled',
+        }, field_target)
+        admin('partition', 'create', {
+            'collection_name': collection, 'name': partition,
+        })
+        partition_created = True
+        admin('partition', 'inspect', {}, partition_target)
+        admin('vector-index', 'create', {
+            'collection_name': collection, 'field_name': 'vector',
+            'index_name': index, 'index_type': 'HNSW',
+            'metric_type': 'COSINE', 'hnsw_m': 16,
+            'ef_construction': 64,
+        })
+        index_created = True
+        admin('vector-index', 'inspect', {}, index_target)
+        admin('vector-index', 'alter', {
+            'mmap_mode': 'enabled',
+        }, index_target)
+        _admin(client, route, 'alias', 'create', {
+            'collection_name': collection, 'name': alias,
+        })
+        alias_created = True
+        _admin(client, route, 'alias', 'inspect', {}, alias_target)
+
+        discovered = client.list_resources({'route': route})
+        discovered_kinds = {
+            item['resource_kind'] for item in discovered
+        }
+        required_discovery = {
+            'collection', 'field', 'partition', 'vector-index', 'alias',
+            'load-state', 'resource-group', 'credential', 'privilege',
+        }
+        if not required_discovery.issubset(discovered_kinds):
+            raise RuntimeError(
+                'Milvus navigator omitted native objects: '
+                f'{sorted(required_discovery.difference(discovered_kinds))}'
+            )
+        evidence['resource_kinds'] = sorted(
+            set(evidence['resource_kinds']).union(discovered_kinds)
+        )
+
+        admin('collection', 'insert', {
             'collection_name': collection,
             'data': [{'id': 1, 'vector': [0.1, 0.2, 0.3, 0.4],
-                      'title': 'analytic gate'}],
-        }, target)
-        _admin(client, route, 'load-state', 'execute', {
+                      'title': 'analytic gate', 'quality': 1}],
+        }, collection_target)
+        admin('partition', 'insert', {
+            'collection_name': collection, 'partition_name': partition,
+            'data': [{'id': 2, 'vector': [0.2, 0.3, 0.4, 0.5],
+                      'title': 'partition gate', 'quality': 2}],
+        }, partition_target)
+        admin('collection', 'update', {
+            'collection_name': collection,
+            'data': [{'id': 1, 'vector': [0.1, 0.2, 0.3, 0.4],
+                      'title': 'analytic gate updated', 'quality': 3}],
+        }, collection_target)
+        admin('partition', 'update', {
+            'collection_name': collection, 'partition_name': partition,
+            'data': [{'id': 2, 'vector': [0.2, 0.3, 0.4, 0.5],
+                      'title': 'partition gate updated', 'quality': 4}],
+        }, partition_target)
+        admin('load-state', 'execute', {
             'action': 'load', 'replica_number': 1,
             'acknowledge_operation': True,
-        }, _target('milvus', 'load-state', collection_name=collection))
+        }, load_target)
+        admin('load-state', 'inspect', {}, load_target)
         session = client.open_session({'route': route})
         try:
             found = client.describe_result(client.execute(session, {
@@ -702,13 +851,146 @@ def _milvus(client, route, run_id, destructive):
             session.close()
         if not found['payload']['matches']:
             raise RuntimeError('Milvus did not return the inserted vector')
+        rows = client.read_admin_rows({
+            '_provider_route': route,
+            'target_resource': collection_target,
+            'filter': {'expression': 'id >= 1'}, 'limit': 10,
+        })
+        if len(rows['records']) != 2 or not rows['editable']:
+            raise RuntimeError('Milvus entity grid round trip changed')
+        partition_rows = client.read_admin_rows({
+            '_provider_route': route,
+            'target_resource': partition_target,
+            'filter': {'expression': 'id >= 1'}, 'limit': 10,
+        })
+        if [item.get('id') for item in partition_rows['records']] != [2]:
+            raise RuntimeError('Milvus partition grid scope changed')
+        admin('collection', 'delete', {
+            'collection_name': collection, 'ids': [1],
+            'acknowledge_delete': True,
+        }, collection_target)
+        admin('partition', 'delete', {
+            'collection_name': collection, 'partition_name': partition,
+            'ids': [2], 'acknowledge_delete': True,
+        }, partition_target)
+        admin('load-state', 'execute', {
+            'action': 'release', 'acknowledge_operation': True,
+        }, load_target)
+        _admin(
+            client, route, 'alias', 'drop',
+            {'acknowledge_drop': True}, alias_target,
+        )
+        alias_created = False
+        admin(
+            'vector-index', 'drop', {'acknowledge_drop': True}, index_target,
+        )
+        index_created = False
+        admin(
+            'partition', 'drop', {'acknowledge_drop': True}, partition_target,
+        )
+        partition_created = False
+        admin('collection', 'rename', {
+            'new_name': renamed_collection,
+        }, collection_target)
+        collection_target = _target(
+            'milvus', 'collection', name=renamed_collection,
+            database=route['database'],
+        )
+        load_target = _target(
+            'milvus', 'load-state', collection_name=renamed_collection,
+            database=route['database'],
+        )
+        collection = renamed_collection
+        admin(
+            'collection', 'drop', {'acknowledge_drop': True},
+            collection_target,
+        )
+        collection_created = False
+        admin('resource-group', 'alter', {
+            'requested_nodes': 0, 'limit_nodes': 0,
+            'transfer_from': [], 'transfer_to': [],
+        }, group_target)
+        admin(
+            'resource-group', 'drop', {'acknowledge_drop': True}, group_target,
+        )
+        group_created = False
         evidence['mutation_vector_round_trip'] = True
     finally:
-        if created:
+        if collection_created:
+            if alias_created:
+                _admin(
+                    client, route, 'alias', 'drop',
+                    {'acknowledge_drop': True}, alias_target,
+                )
             _admin(
-                client, route, 'collection', 'drop',
-                {'acknowledge_drop': True}, target,
+                client, route, 'load-state', 'execute',
+                {'action': 'release', 'acknowledge_operation': True},
+                load_target,
             )
+            if index_created:
+                admin(
+                    'vector-index', 'drop', {'acknowledge_drop': True},
+                    index_target,
+                )
+            if partition_created:
+                admin(
+                    'partition', 'drop', {'acknowledge_drop': True},
+                    partition_target,
+                )
+            admin(
+                'collection', 'drop', {'acknowledge_drop': True},
+                collection_target,
+            )
+        if group_created:
+            admin('resource-group', 'alter', {
+                'requested_nodes': 0, 'limit_nodes': 0,
+                'transfer_from': [], 'transfer_to': [],
+            }, group_target)
+            admin(
+                'resource-group', 'drop', {'acknowledge_drop': True},
+                group_target,
+            )
+    concepts = {'vector': {
+        concept: {
+            'status': 'passed',
+            'operations': {
+                kind: sorted(observed[kind]) for kind in kinds
+            },
+        }
+        for concept, kinds in {
+            'collections': ('collection',),
+            'fields': ('field',),
+            'indexes': ('vector-index',),
+            'partitions': ('partition',),
+            'load_state': ('load-state',),
+            'resource_groups': ('resource-group',),
+        }.items()
+    }}
+    missing = {
+        kind: sorted(required.difference(observed[kind]))
+        for kind, required in required_operations.items()
+        if required.difference(observed[kind])
+    }
+    if missing:
+        raise RuntimeError(f'Milvus object operations are missing: {missing}')
+    evidence['object_operations'] = {
+        kind: sorted(operations) for kind, operations in observed.items()
+    }
+    evidence['object_evidence'] = {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'milvus', 'exact_profile': '2.6.5',
+        'evidence_scope': 'vector-object-operations',
+        'concepts': concepts,
+        'passed_resource_operations': {
+            kind: sorted(operations) for kind, operations in observed.items()
+        },
+        'missing_resource_operations': missing,
+        'operation_failures': [],
+        'raw_commands_used_for_provider_operations': False,
+        'automatic_mutation_retry': False,
+        'common_transaction_finality_interpreted': False,
+        'passed': not missing,
+    }
     return evidence
 
 

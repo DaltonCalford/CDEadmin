@@ -262,6 +262,12 @@ class FakeMilvusClient:
     def list_databases(self):
         return ['default']
 
+    def describe_database(self, db_name):
+        return {'name': db_name}
+
+    def use_database(self, db_name):
+        self.arguments['db_name'] = db_name
+
     def list_collections(self):
         return ['vectors']
 
@@ -271,8 +277,17 @@ class FakeMilvusClient:
             'fields': [{'name': 'id'}, {'name': 'embedding'}],
         }
 
+    def get_collection_stats(self, collection_name):
+        return {'collection_name': collection_name, 'row_count': 1}
+
     def list_partitions(self, collection_name):
         return ['_default']
+
+    def get_partition_stats(self, collection_name, partition_name):
+        return {
+            'collection_name': collection_name,
+            'partition_name': partition_name, 'row_count': 1,
+        }
 
     def list_indexes(self, collection_name):
         return ['embedding_idx']
@@ -285,16 +300,37 @@ class FakeMilvusClient:
 
     def list_aliases(self, collection_name):
         self._record('list_aliases', collection_name=collection_name)
-        return ['vectors_alias']
+        return {
+            'aliases': ['vectors_alias'],
+            'collection_name': collection_name, 'db_name': 'default',
+        }
+
+    def describe_alias(self, alias):
+        return {'alias': alias, 'collection_name': 'vectors'}
 
     def list_users(self):
         return ['root']
 
+    def describe_user(self, user_name):
+        return {'user_name': user_name, 'roles': ['admin']}
+
     def list_roles(self):
         return ['admin']
 
+    def describe_role(self, role_name):
+        return {
+            'role_name': role_name,
+            'privileges': [{
+                'object_type': 'Collection', 'object_name': '*',
+                'privilege': 'DescribeCollection',
+            }],
+        }
+
     def list_resource_groups(self):
         return ['default']
+
+    def describe_resource_group(self, name):
+        return {'name': name, 'capacity': 1}
 
     def search(self, **arguments):
         self._record('search', **arguments)
@@ -869,13 +905,27 @@ class AnalyticProviderTests(unittest.TestCase):
             'route': {'host': '127.0.0.1', 'port': 19530}
         })}
         self.assertTrue({'cluster', 'database', 'collection', 'field',
-                         'partition', 'vector-index', 'load-state'} <= kinds)
+                         'partition', 'vector-index', 'load-state', 'alias',
+                         'credential', 'privilege'} <= kinds)
         page = client.read_admin_rows({
             '_provider_route': {'host': '127.0.0.1', 'port': 19530},
             'target_resource': {'native': {'collection_name': 'vectors'}},
             'filter': {'expression': ''}, 'limit': 100,
         })
         self.assertEqual('one', page['records'][0]['title'])
+        client.read_admin_rows({
+            '_provider_route': {'host': '127.0.0.1', 'port': 19530},
+            'target_resource': {
+                'resource_kind': 'partition',
+                'native': {
+                    'collection_name': 'vectors', 'name': '_default',
+                },
+            },
+            'filter': {'expression': ''}, 'limit': 100,
+        })
+        self.assertEqual(
+            ['_default'], created[-1].calls[-1][1]['partition_names']
+        )
         plan = client.plan_admin_operation({
             'resource_kind': 'collection', 'operation_id': 'create',
             'draft': {'name': 'new_vectors', 'dimension': 16,
@@ -915,6 +965,63 @@ class AnalyticProviderTests(unittest.TestCase):
             MilvusClientAdapter(module=SimpleNamespace()).open_session({
                 'route': {'host': '127.0.0.1'}
             })
+
+    def test_milvus_vector_forms_and_schema_validation_are_native(self):
+        client = MilvusClientAdapter(module=SimpleNamespace(
+            MilvusClient=FakeMilvusClient, DataType=FakeDataType,
+        ))
+        catalog = client.visual_admin_catalog(catalog_for_engine('milvus'))
+        self.assertEqual(['vector'], catalog['experience_families'])
+        self.assertEqual(6, len(catalog['concept_declarations']['vector']))
+        for resource in catalog['objects']:
+            for operation in resource['operations']:
+                self.assertNotIn(
+                    'properties',
+                    {field['field_id']
+                     for field in operation['form']['fields']},
+                    f"{resource['resource_kind']}."
+                    f"{operation['operation_id']} used a generic form",
+                )
+        create = next(
+            operation for resource in catalog['objects']
+            if resource['resource_kind'] == 'collection'
+            for operation in resource['operations']
+            if operation['operation_id'] == 'create'
+        )
+        self.assertIn('primary_id_type', {
+            field['field_id'] for field in create['form']['fields']
+        })
+        field_create = next(
+            operation for resource in catalog['objects']
+            if resource['resource_kind'] == 'field'
+            for operation in resource['operations']
+            if operation['operation_id'] == 'create'
+        )
+        self.assertIn('default_value_json', {
+            field['field_id'] for field in field_create['form']['fields']
+        })
+
+        base = {
+            'resource_kind': 'collection', 'operation_id': 'create',
+            '_provider_route': {'host': '127.0.0.1', 'port': 19530},
+        }
+        for schema in (
+            {'fields': [
+                {'name': 'id', 'datatype': 'INT64', 'is_primary': True},
+                {'name': 'id', 'datatype': 'FLOAT_VECTOR', 'dim': 4},
+            ]},
+            {'fields': [
+                {'name': 'id', 'datatype': 'INT64', 'is_primary': True},
+            ]},
+            {'fields': [
+                {'name': 'id', 'datatype': 'INT64', 'is_primary': True},
+                {'name': 'bits', 'datatype': 'BINARY_VECTOR', 'dim': 7},
+            ]},
+        ):
+            result = client.validate_admin_operation({
+                **base, 'draft': {'name': 'vectors', 'schema': schema},
+            })
+            self.assertTrue(result['errors'])
 
 
 if __name__ == '__main__':
