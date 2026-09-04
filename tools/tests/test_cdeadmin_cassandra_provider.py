@@ -308,7 +308,7 @@ class CassandraProviderTests(unittest.TestCase):
         self.assertFalse(renderer.fixture_safe)
         self.assertTrue(renderer.worker_required)
         self.assertEqual(
-            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}),
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
             renderer.export_formats,
         )
 

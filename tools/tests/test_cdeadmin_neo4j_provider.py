@@ -317,7 +317,7 @@ class Neo4jProviderTests(unittest.TestCase):
         )
         self.assertFalse(renderer.fixture_safe)
         self.assertEqual(
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}),
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
             renderer.export_formats,
         )
 

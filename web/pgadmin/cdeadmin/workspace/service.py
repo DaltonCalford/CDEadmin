@@ -729,6 +729,7 @@ class ProviderWorkspaceService:
             'xlsx': ('application/vnd.openxmlformats-officedocument.'
                      'spreadsheetml.sheet'),
             'svg': 'image/svg+xml',
+            'pdf': 'application/pdf',
         }
         return {
             **exported,

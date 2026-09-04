@@ -754,7 +754,8 @@ class ActualEnginePilotProvider:
             'export_policy': {
                 'enabled': True,
                 'formats': list(dict.fromkeys((
-                    *provider.profile.result_export_formats, 'xlsx', 'svg',
+                    *provider.profile.result_export_formats,
+                    'xlsx', 'svg', 'pdf',
                 ))),
                 'max_records': 10000,
                 'max_bytes': 8 * 1024 * 1024,

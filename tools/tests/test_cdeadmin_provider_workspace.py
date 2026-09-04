@@ -408,6 +408,13 @@ class ProviderWorkspaceTests(unittest.TestCase):
         self.assertTrue(base64.b64decode(
             spreadsheet['content_base64']
         ).startswith(b'PK'))
+        pdf = self.workspace.export_result(server, {
+            'result_id': result_id, 'format': 'pdf',
+        })
+        self.assertEqual('application/pdf', pdf['media_type'])
+        self.assertTrue(base64.b64decode(
+            pdf['content_base64']
+        ).startswith(b'%PDF-'))
         compared = self.workspace.compare_results(server, {
             'left_result_id': result_id, 'right_result_id': result_id,
         })

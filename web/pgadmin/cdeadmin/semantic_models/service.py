@@ -149,7 +149,7 @@ class SemanticModelService:
             'metric_certification': True,
             'query_diagnostics': True,
             'result_reproducibility': True,
-            'export': ['csv', 'json', 'jsonl', 'xlsx', 'svg'],
+            'export': ['csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'],
             'provider_compiler': provider_value,
             'analytical_profile': analytical_profile(model_family),
             'execution_available': bool(

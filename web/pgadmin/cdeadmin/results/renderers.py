@@ -16,10 +16,31 @@ import io
 import json
 import math
 import zipfile
+from pathlib import Path
+from threading import Lock
 from xml.sax.saxutils import escape
 from typing import Any, Mapping
 
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import (
+    LongTable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle,
+)
+
 from .models import RendererContribution
+
+
+PDF_MAX_ROWS = 1000
+PDF_MAX_COLUMNS = 24
+PDF_MAX_CELL_CHARACTERS = 256
+_PDF_FONT_NAME = 'CDEadminRoboto'
+_PDF_FONT_BOLD_NAME = 'CDEadminRobotoBold'
+_PDF_FONT_LOCK = Lock()
 
 
 def render_tabular(metadata, records):
@@ -119,6 +140,8 @@ def export_json(_metadata, records, export_format):
         return export_xlsx(_metadata, records)
     if export_format == 'svg':
         return export_svg(_metadata, records)
+    if export_format == 'pdf':
+        return export_pdf(_metadata, records)
     if export_format == 'jsonl':
         return b''.join(
             json.dumps(
@@ -291,6 +314,117 @@ def export_svg(metadata, records):
     ).encode('utf-8')
 
 
+def _pdf_fonts():
+    """Register CDEadmin-shipped fonts once per rendering process."""
+    registered = set(pdfmetrics.getRegisteredFontNames())
+    if {_PDF_FONT_NAME, _PDF_FONT_BOLD_NAME}.issubset(registered):
+        return
+    font_root = Path(__file__).resolve().parents[2] / 'static' / 'fonts'
+    regular = font_root / 'Roboto-Regular.ttf'
+    bold = font_root / 'Roboto-Bold.ttf'
+    if not regular.is_file() or not bold.is_file():
+        raise RuntimeError('CDEadmin PDF fonts are unavailable')
+    with _PDF_FONT_LOCK:
+        registered = set(pdfmetrics.getRegisteredFontNames())
+        if _PDF_FONT_NAME not in registered:
+            pdfmetrics.registerFont(TTFont(_PDF_FONT_NAME, str(regular)))
+        if _PDF_FONT_BOLD_NAME not in registered:
+            pdfmetrics.registerFont(TTFont(_PDF_FONT_BOLD_NAME, str(bold)))
+
+
+def _pdf_page(canvas, document):
+    """Draw inert CDEadmin page identity and pagination."""
+    canvas.saveState()
+    canvas.setFont(_PDF_FONT_NAME, 7)
+    canvas.setFillColor(colors.HexColor('#52606d'))
+    canvas.drawString(document.leftMargin, 8 * mm, 'CDEadmin result export')
+    canvas.drawRightString(
+        document.pagesize[0] - document.rightMargin,
+        8 * mm,
+        f'Page {document.page}',
+    )
+    canvas.restoreState()
+
+
+def export_pdf(metadata, records):
+    """Create a bounded, font-embedded, paginated PDF result table."""
+    _pdf_fonts()
+    rows = _tabular_rows(metadata, records)
+    original_columns = len(rows[0]) if rows else 0
+    original_records = max(0, len(rows) - 1)
+    columns = min(original_columns, PDF_MAX_COLUMNS)
+    visible = [row[:columns] for row in rows[:PDF_MAX_ROWS + 1]]
+    omitted_rows = max(0, original_records - PDF_MAX_ROWS)
+    omitted_columns = max(0, original_columns - PDF_MAX_COLUMNS)
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output, pagesize=landscape(A4), title='CDEadmin Result',
+        author='CDEadmin', subject='Provider result export',
+        leftMargin=10 * mm, rightMargin=10 * mm,
+        topMargin=12 * mm, bottomMargin=14 * mm,
+        pageCompression=1, invariant=1,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CDEadminPDFTitle', parent=styles['Title'],
+        fontName=_PDF_FONT_BOLD_NAME, fontSize=14, leading=17,
+        alignment=TA_CENTER, textColor=colors.HexColor('#172b4d'),
+    )
+    cell_style = ParagraphStyle(
+        'CDEadminPDFCell', parent=styles['BodyText'],
+        fontName=_PDF_FONT_NAME, fontSize=6.5, leading=8,
+        textColor=colors.HexColor('#172b4d'),
+    )
+    header_style = ParagraphStyle(
+        'CDEadminPDFHeader', parent=cell_style,
+        fontName=_PDF_FONT_BOLD_NAME, textColor=colors.white,
+    )
+    story = [Paragraph('CDEadmin Result', title_style), Spacer(1, 4 * mm)]
+    if columns:
+        table_rows = []
+        for row_number, row in enumerate(visible):
+            style = header_style if row_number == 0 else cell_style
+            table_rows.append([
+                Paragraph(_xml_text(value, PDF_MAX_CELL_CHARACTERS), style)
+                for value in row
+            ])
+        width = (
+            document.pagesize[0] - document.leftMargin - document.rightMargin
+        )
+        table = LongTable(
+            table_rows, repeatRows=1,
+            colWidths=[width / columns] * columns,
+            splitByRow=1, splitInRow=1, hAlign='LEFT',
+        )
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#172b4d')),
+            ('GRID', (0, 0), (-1, -1), 0.25,
+             colors.HexColor('#bcccdc')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), (
+                colors.white, colors.HexColor('#f5f7fa'),
+            )),
+        ]))
+        story.append(table)
+    else:
+        story.append(Paragraph('No tabular columns.', cell_style))
+    notices = []
+    if omitted_rows:
+        notices.append(f'{omitted_rows} additional rows omitted')
+    if omitted_columns:
+        notices.append(f'{omitted_columns} additional columns omitted')
+    if notices:
+        story.extend((PageBreak(), Paragraph(
+            'Export bounds: ' + '; '.join(notices) + '.', cell_style
+        )))
+    document.build(story, onFirstPage=_pdf_page, onLaterPages=_pdf_page)
+    return output.getvalue()
+
+
 def export_portable(metadata, records, export_format):
     if export_format in {'json', 'jsonl'}:
         return export_json(metadata, records, export_format)
@@ -298,6 +432,8 @@ def export_portable(metadata, records, export_format):
         return export_xlsx(metadata, records)
     if export_format == 'svg':
         return export_svg(metadata, records)
+    if export_format == 'pdf':
+        return export_pdf(metadata, records)
     return export_tabular(metadata, records, export_format)
 
 
@@ -306,6 +442,8 @@ def export_tabular(metadata, records, export_format):
         return export_xlsx(metadata, records)
     if export_format == 'svg':
         return export_svg(metadata, records)
+    if export_format == 'pdf':
+        return export_pdf(metadata, records)
     if export_format in {'json', 'jsonl'}:
         return export_json(metadata, records, export_format)
     output = io.StringIO(newline='')
@@ -323,7 +461,7 @@ def builtin_renderers():
             'SchemaView/DataGridView',
             render_tabular,
             export_tabular,
-            frozenset({'csv', 'json', 'xlsx', 'svg'}),
+            frozenset({'csv', 'json', 'xlsx', 'svg', 'pdf'}),
             fixture_safe=True,
             worker_required=False,
         ),
@@ -338,7 +476,7 @@ def builtin_renderers():
             frozenset({'document'}),
             'cdeadmin/results/DocumentTreeView',
             render_document, export_json,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}),
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
             False, True,
         ),
         RendererContribution(
@@ -346,7 +484,8 @@ def builtin_renderers():
             frozenset({'document'}),
             'cdeadmin/results/BitemporalDocumentView',
             render_bitemporal_document, export_tabular,
-            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
+            False, True,
         ),
         RendererContribution(
             'cdeadmin.result.graph.fixture',
@@ -359,7 +498,7 @@ def builtin_renderers():
             frozenset({'graph'}),
             'cdeadmin/results/GraphView',
             render_graph, export_json,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}),
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
             False, True,
         ),
         RendererContribution(
@@ -367,7 +506,7 @@ def builtin_renderers():
             frozenset({'key_value'}),
             'cdeadmin/results/KeyValueView',
             render_key_value, export_json,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}), False, True,
         ),
         RendererContribution(
             'cdeadmin.result.key-value.fixture',
@@ -388,7 +527,8 @@ def builtin_renderers():
             frozenset({'time_series'}),
             'cdeadmin/results/TimeSeriesView',
             render_time_series, export_tabular,
-            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
+            False, True,
         ),
         RendererContribution(
             'cdeadmin.result.vector.fixture',
@@ -401,7 +541,7 @@ def builtin_renderers():
             frozenset({'vector'}),
             'cdeadmin/results/VectorView',
             render_vector, export_json,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}), False, True,
         ),
         RendererContribution(
             'cdeadmin.result.search.fixture',
@@ -414,7 +554,7 @@ def builtin_renderers():
             frozenset({'search'}),
             'cdeadmin/results/SearchView',
             render_search, export_json,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}), False, True,
         ),
         RendererContribution(
             'cdeadmin.result.spatial.fixture',
@@ -434,20 +574,22 @@ def builtin_renderers():
             frozenset({'columnar'}),
             'cdeadmin/results/ColumnarView',
             render_columnar, export_tabular,
-            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
+            False, True,
         ),
         RendererContribution(
             'cdeadmin.result.wide-column.grid',
             frozenset({'wide_column'}),
             'cdeadmin/results/WideColumnView',
             render_wide_column, export_tabular,
-            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg'}), False, True,
+            frozenset({'csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'}),
+            False, True,
         ),
         RendererContribution(
             'cdeadmin.result.cellset.pivot',
             frozenset({'cellset'}),
             'cdeadmin/results/CubePivotView',
             render_cellset, export_portable,
-            frozenset({'json', 'jsonl', 'xlsx', 'svg'}), True, True,
+            frozenset({'json', 'jsonl', 'xlsx', 'svg', 'pdf'}), True, True,
         ),
     )

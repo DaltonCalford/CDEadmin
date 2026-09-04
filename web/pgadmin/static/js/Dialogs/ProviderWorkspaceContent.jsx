@@ -2523,7 +2523,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   });
   const [reportDraft, setReportDraft] = useState({
     id: 'report', name: 'Report', dashboard_id: '', schedule_id: '',
-    export_formats: 'json,csv,xlsx,svg',
+    export_formats: 'json,csv,xlsx,svg,pdf',
   });
   const [windowDraft, setWindowDraft] = useState({
     id: 'window', measure_id: '', operation: 'running_sum',

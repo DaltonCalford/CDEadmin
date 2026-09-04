@@ -61,6 +61,7 @@ pymilvus==2.6.5
 neo4j==6.3.0
 cassandra-driver==3.30.1
 redis==6.4.0
+reportlab==5.0.*
 clickhouse-connect==1.8.0
 influxdb3-python==0.21.0
 opensearch-py[kerberos]==3.2.0

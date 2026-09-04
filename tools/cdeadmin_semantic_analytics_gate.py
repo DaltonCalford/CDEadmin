@@ -78,10 +78,11 @@ def _integration_failures(root):
             'exact_data_replay_requires_provider_snapshot',
         ),
         'web/pgadmin/cdeadmin/results/renderers.py': (
-            'def export_xlsx', 'def export_svg', 'inlineStr',
+            'def export_xlsx', 'def export_svg', 'def export_pdf',
+            'inlineStr', 'TTFont',
         ),
         'web/pgadmin/cdeadmin/workspace/service.py': (
-            'spreadsheetml.sheet', 'image/svg+xml',
+            'spreadsheetml.sheet', 'image/svg+xml', 'application/pdf',
         ),
         'web/pgadmin/static/js/Dialogs/ProviderWorkspaceContent.jsx': (
             'Semantic relationship diagram', 'Declared grain fields',

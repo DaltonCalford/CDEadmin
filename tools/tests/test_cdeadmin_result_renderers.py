@@ -15,6 +15,8 @@ import copy
 import io
 import json
 import multiprocessing
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -55,6 +57,7 @@ from pgadmin.cdeadmin.results import (  # noqa: E402
 )
 from pgadmin.cdeadmin.results.renderers import (  # noqa: E402
     export_json,
+    export_pdf,
     export_svg,
     export_xlsx,
     render_document,
@@ -425,6 +428,53 @@ class DescriptorLimitTests(unittest.TestCase):
 
 class ProductionRendererTests(unittest.TestCase):
 
+    def test_pdf_export_embeds_unicode_fonts_and_has_no_active_content(self):
+        content = export_pdf({'schema': {'columns': [
+            {'name': 'name'}, {'name': 'value'},
+        ]}}, ({'name': 'Café Привет', 'value': '<script>bad</script>'},))
+        self.assertTrue(content.startswith(b'%PDF-'))
+        self.assertIn(b'%%EOF', content)
+        self.assertIn(b'/FontFile2', content)
+        self.assertIn(b'/ToUnicode', content)
+        self.assertNotIn(b'/JavaScript', content)
+        self.assertNotIn(b'/OpenAction', content)
+        if shutil.which('pdftotext'):
+            extracted = subprocess.run(
+                ['pdftotext', '-', '-'], input=content,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=True,
+            ).stdout.decode('utf-8')
+            self.assertIn('Café Привет', extracted)
+            self.assertIn('<script>bad</script>', extracted)
+
+    def test_pdf_export_is_deterministic_and_reports_bounds(self):
+        records = [{'value': index} for index in range(1002)]
+        metadata = {'schema': {'columns': [{'name': 'value'}]}}
+        first = export_pdf(metadata, records)
+        second = export_pdf(metadata, records)
+        self.assertEqual(first, second)
+        if shutil.which('pdftotext'):
+            extracted = subprocess.run(
+                ['pdftotext', '-', '-'], input=first,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=True,
+            ).stdout.decode('utf-8')
+            self.assertIn('2 additional rows omitted', extracted)
+            self.assertNotIn('\n1000\n', extracted)
+        columns = [{'name': f'column_{index}'} for index in range(30)]
+        row = {
+            f'column_{index}': 'bounded-value-' * 100 for index in range(30)
+        }
+        wide = export_pdf({'schema': {'columns': columns}}, [row])
+        self.assertTrue(wide.startswith(b'%PDF-'))
+        if shutil.which('pdftotext'):
+            extracted = subprocess.run(
+                ['pdftotext', '-', '-'], input=wide,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                check=True,
+            ).stdout.decode('utf-8')
+            self.assertIn('6 additional columns omitted', extracted)
+
     def test_xlsx_export_is_valid_formula_safe_office_open_xml(self):
         content = export_xlsx({'schema': {'columns': [
             {'name': 'name'}, {'name': 'amount'}, {'name': 'identifier'},
@@ -579,6 +629,18 @@ class ProductionRendererTests(unittest.TestCase):
             2.0,
         )
         self.assertEqual('document', actual['family'])
+
+    def test_pdf_export_crosses_real_worker_boundary(self):
+        executor = ProcessRendererExecutor()
+        content = executor.run(
+            export_json,
+            {'schema': {'columns': [{'name': 'value'}]}},
+            ({'value': 'worker PDF'},),
+            3.0,
+            'pdf',
+        )
+        self.assertTrue(content.startswith(b'%PDF-'))
+        self.assertIn(b'/FontFile2', content)
 
     def test_worker_timeout_terminates_isolated_process(self):
         before = {process.pid for process in multiprocessing.active_children()}

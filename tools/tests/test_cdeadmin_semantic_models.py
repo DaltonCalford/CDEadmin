@@ -355,7 +355,7 @@ class SemanticModelTests(unittest.TestCase):
         value['reports'] = [{
             'id': 'daily_revenue', 'name': 'Daily revenue',
             'dashboard_id': 'executive', 'schedule_id': 'daily',
-            'export_formats': ['json', 'csv'], 'parameters': {},
+            'export_formats': ['json', 'csv', 'pdf'], 'parameters': {},
         }]
         checked = validate_model(value)
         self.assertEqual('fact', checked['sources'][0]['classification'])
