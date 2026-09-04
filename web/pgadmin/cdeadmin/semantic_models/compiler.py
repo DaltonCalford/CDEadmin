@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import copy
 from decimal import Decimal
 
 from .models import SemanticModelError, validate_model, validate_query
@@ -54,6 +55,9 @@ def compile_sql(model_value, query_value, dialect):
         for item in query['axes'][axis]:
             if item not in axis_ids:
                 axis_ids.append(item)
+    drill = query['drill']
+    if drill['mode'] == 'down' and drill.get('target_level') not in axis_ids:
+        axis_ids.append(drill['target_level'])
     selections = [
         f"{field(levels[item]['field'])} AS {quote(item)}"
         for item in axis_ids
@@ -96,8 +100,22 @@ def compile_sql(model_value, query_value, dialect):
         return f'({left} {operators[node["operator"]]} {right})'
 
     for measure_id in query['measures']:
-        expression = measure_expression(measure_id)
+        measure = measures[measure_id]
+        if drill['mode'] == 'through':
+            if measure.get('expression') is not None or not measure.get(
+                    'field'):
+                raise SemanticModelError(
+                    'drill-through requires field-backed measures'
+                )
+            expression = field(measure['field'])
+        else:
+            expression = measure_expression(measure_id)
         selections.append(f'{expression} AS {quote(measure_id)}')
+    detail_aliases = []
+    for index, reference in enumerate(drill['detail_fields']):
+        alias = f'detail_{index + 1}_{reference["field"]}'
+        detail_aliases.append(alias)
+        selections.append(f'{field(reference)} AS {quote(alias)}')
     if not selections:
         raise SemanticModelError('semantic query has no projection')
 
@@ -130,13 +148,37 @@ def compile_sql(model_value, query_value, dialect):
     if joined != set(sources):
         raise SemanticModelError('every source must be connected by a join')
 
-    filters = model['default_filters'] + query['filters']
-    predicates = [_compile_filter(item, field, dialect) for item in filters]
+    parameter_values = {
+        item['id']: item.get('default') for item in model['parameters']
+        if 'default' in item
+    }
+    parameter_values.update(query['parameters'])
+    filters = (
+        model['default_filters'] + model['security']['row_filters'] +
+        query['filters'] + query['cross_filters']
+    )
+    predicates = [
+        _compile_filter(item, field, dialect, parameter_values)
+        for item in filters
+    ]
+    time_intelligence = query['time_intelligence']
+    if time_intelligence:
+        dimension = next(
+            item for item in model['dimensions']
+            if item['id'] == time_intelligence['dimension_id']
+        )
+        time_field = field(dimension['field'])
+        start = _literal(time_intelligence['start'], dialect)
+        if time_intelligence['operation'] == 'as_of':
+            predicates.append(f'{time_field} <= {start}')
+        else:
+            end = _literal(time_intelligence['end'], dialect)
+            predicates.append(f'{time_field} BETWEEN {start} AND {end}')
     source = 'SELECT ' + ', '.join(selections) + ' FROM ' + from_clause
     if predicates:
         source += ' WHERE ' + ' AND '.join(predicates)
     group_fields = [field(levels[item]['field']) for item in axis_ids]
-    if group_fields and any(
+    if drill['mode'] != 'through' and group_fields and any(
         measures[item]['aggregation'] != 'none' or
         measures[item].get('expression') is not None
         for item in query['measures']
@@ -160,6 +202,9 @@ def compile_sql(model_value, query_value, dialect):
         'projection': {
             'axes': query['axes'], 'levels': axis_ids,
             'measures': query['measures'], 'totals': query['totals'],
+            'drill': copy.deepcopy(drill),
+            'detail_fields': detail_aliases,
+            'time_intelligence': copy.deepcopy(time_intelligence),
         },
         'warnings': ([] if not query['totals'] or dialect.get(
             'supports_rollup'
@@ -186,9 +231,17 @@ def _literal(value, dialect):
     raise SemanticModelError('filter value type is not portable')
 
 
-def _compile_filter(item, field, dialect):
+def _compile_filter(item, field, dialect, parameters=None):
     left = field(item['field'])
     operator = item.get('operator', 'eq')
+    if item.get('parameter_id') is not None:
+        parameter_id = item['parameter_id']
+        if parameter_id not in (parameters or {}):
+            raise SemanticModelError(
+                f'query parameter {parameter_id!r} has no value'
+            )
+        item = dict(item)
+        item['value'] = parameters[parameter_id]
     unary = {'is_null': 'IS NULL', 'is_not_null': 'IS NOT NULL'}
     if operator in unary:
         return f'{left} {unary[operator]}'

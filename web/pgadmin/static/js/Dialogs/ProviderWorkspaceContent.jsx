@@ -15,6 +15,7 @@ import {
   MenuItem, Tab, Tabs, TextField,
 } from '@mui/material';
 import getApiInstance from '../api_instance';
+import BaseChart from '../chartjs';
 import { ModalContent, ModalFooter } from '../components/ModalContent';
 
 function errorMessage(error) {
@@ -1691,6 +1692,53 @@ function ResultView({rendered}) {
 
 ResultView.propTypes = {rendered: PropTypes.object};
 
+function SemanticChartView({chart, rendered}) {
+  const records = rendered?.view_model?.records || [];
+  const chartType = chart.chart_type;
+  if (['table', 'pivot', 'graph', 'vector-neighbors'].includes(chartType)) {
+    return <ResultView rendered={rendered} />;
+  }
+  const xField = chart.encodings?.x;
+  const yField = chart.encodings?.y;
+  const points = records.map((record, index) => ({
+    label: String(record?.[xField] ?? index + 1),
+    x: Number(record?.[xField]),
+    y: Number(record?.[yField]),
+  })).filter((point) => Number.isFinite(point.y));
+  if (!points.length) {
+    return <Alert severity="info" sx={{mt: 1}}>
+      {gettext('The provider result has no numeric values for this chart encoding.')}
+    </Alert>;
+  }
+  if (chartType === 'metric') {
+    return <Box aria-label={gettext('Semantic metric result')}
+      sx={{fontSize: '2rem', fontWeight: 'bold', mt: 1}}>{points[0].y}</Box>;
+  }
+  const nativeType = chartType === 'area' || chartType === 'timeline' ?
+    'line' : chartType === 'histogram' ? 'bar' : chartType;
+  const data = nativeType === 'scatter' ? {
+    datasets: [{label: chart.name, data: points.filter((point) =>
+      Number.isFinite(point.x)).map((point) => ({x: point.x, y: point.y})),
+    backgroundColor: '#4c9bd6'}],
+  } : {
+    labels: points.map((point) => point.label),
+    datasets: [{label: chart.name, data: points.map((point) => point.y),
+      backgroundColor: '#4c9bd6', borderColor: '#2878b5',
+      fill: chartType === 'area'}],
+  };
+  return <Box aria-label={gettext('Semantic chart result')}
+    sx={{height: 260, mt: 1}}>
+    <BaseChart id={`semantic-chart-${chart.id}`} type={nativeType}
+      data={data} options={{responsive: true, maintainAspectRatio: false,
+        parsing: true, plugins: {legend: {display: true}}}} />
+  </Box>;
+}
+
+SemanticChartView.propTypes = {
+  chart: PropTypes.object.isRequired,
+  rendered: PropTypes.object.isRequired,
+};
+
 function ResultControls({rendered, history, post, onRendered, setError,
   setBusy}) {
   const [comparison, setComparison] = useState(null);
@@ -2328,26 +2376,37 @@ function portableId(value, fallback='item') {
   return (/^[A-Za-z]/.test(text) ? text : `item_${text}`).slice(0, 128);
 }
 
-function emptySemanticModel(resources) {
+function emptySemanticModel(resources, analyticalProfile=null) {
+  const sourceKinds = analyticalProfile?.source_kinds ||
+    ['table', 'collection', 'index'];
   const resource = (resources || []).find((item) =>
-    ['table', 'collection', 'index'].includes(item.resource_kind)
+    sourceKinds.includes(item.resource_kind)
   );
   const relation = resource?.display_path || [resource?.display_name || 'source'];
   return {
     contract_version: '1.0.0', name: gettext('New semantic model'),
+    semantic_family: analyticalProfile?.semantic_family || 'relational',
     description: '', sources: resource ? [{
       id: 'source', resource_id: resource.resource_id,
-      relation, alias: 'source',
-    }] : [], joins: [], dimensions: [], measures: [], default_filters: [],
-    materializations: [], security: {}, annotations: {},
+      relation, alias: 'source', source_kind: resource.resource_kind,
+      classification: analyticalProfile?.source_classifications?.[0] || 'fact',
+      grain: [], provider_config: {},
+    }] : [], joins: [], relationships: [], dimensions: [], measures: [],
+    parameters: [], default_filters: [], materializations: [],
+    security: {row_filters: [], tenant_filter: null, roles: []},
+    visualizations: [], dashboards: [], schedules: [], reports: [],
+    annotations: {},
   };
 }
 
 function SemanticModelWorkspace({semantic, resources, post, setError}) {
+  const analyticalProfile = semantic?.capabilities?.analytical_profile || {};
   const [items, setItems] = useState(semantic?.items || []);
   const [selectedId, setSelectedId] = useState('');
   const [record, setRecord] = useState(null);
-  const [definition, setDefinition] = useState(emptySemanticModel(resources));
+  const [definition, setDefinition] = useState(
+    emptySemanticModel(resources, analyticalProfile)
+  );
   const [panel, setPanel] = useState('model');
   const [working, setWorking] = useState(false);
   const [validation, setValidation] = useState(null);
@@ -2358,13 +2417,22 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const [materializationPlan, setMaterializationPlan] = useState(null);
   const [occurrenceId, setOccurrenceId] = useState(null);
   const [rendered, setRendered] = useState(null);
+  const [resultHistory, setResultHistory] = useState([]);
+  const [diagnostics, setDiagnostics] = useState(null);
+  const [activeChartId, setActiveChartId] = useState(null);
+  const [reportResults, setReportResults] = useState([]);
+  const [detailFieldsDraft, setDetailFieldsDraft] = useState('');
   const [query, setQuery] = useState({
     axes: {rows: [], columns: [], pages: []}, measures: [], filters: [],
     totals: false, limit: 500,
+    parameters: {}, cross_filters: [], drill: {
+      mode: 'summary', target_level: null, detail_fields: [],
+    }, time_intelligence: {},
   });
   const [dimensionDraft, setDimensionDraft] = useState({
     id: 'dimension', name: 'Dimension', source_id: 'source', field: '',
-    hierarchy: 'default', level: 'level',
+    hierarchy: 'default', level: 'level', dimension_kind: 'attribute',
+    time_role: 'calendar-time', timezone: 'UTC',
   });
   const [hierarchyDraft, setHierarchyDraft] = useState({
     dimension_id: '', id: 'hierarchy', name: 'Hierarchy',
@@ -2375,7 +2443,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   });
   const [measureDraft, setMeasureDraft] = useState({
     id: 'measure', name: 'Measure', source_id: 'source', field: '',
-    aggregation: 'sum', format: '',
+    aggregation: 'sum', format: '', measure_kind: 'aggregate',
+    certification_status: 'uncertified', certification_owner: '',
   });
   const [calculationDraft, setCalculationDraft] = useState({
     id: 'calculation', name: 'Calculated measure', left: '', right: '',
@@ -2383,7 +2452,12 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   });
   const [joinDraft, setJoinDraft] = useState({
     left_source: '', right_source: '', left_field: '', right_field: '',
-    join_type: 'inner',
+    join_type: 'inner', cardinality: 'many-to-one',
+  });
+  const [relationshipDraft, setRelationshipDraft] = useState({
+    from_source: '', to_source: '', relationship_kind:
+      analyticalProfile?.relationship_kinds?.[0] || 'native-edge',
+    name: 'Relationship',
   });
   const [filterDraft, setFilterDraft] = useState({
     source_id: 'source', field: '', operator: 'eq', value: '',
@@ -2391,8 +2465,31 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const [materializationDraft, setMaterializationDraft] = useState({
     id: 'rollup', name: 'Rollup', strategy: 'provider_managed', enabled: false,
   });
+  const [parameterDraft, setParameterDraft] = useState({
+    id: 'parameter', name: 'Parameter', type: 'string', required: false,
+    default: '',
+  });
+  const [securityDraft, setSecurityDraft] = useState({
+    source_id: 'source', field: '', operator: 'eq', value: '',
+    principal_claim: 'user_id',
+  });
+  const [chartDraft, setChartDraft] = useState({
+    id: 'chart', name: 'Chart', chart_type: 'bar', x: '', y: '',
+  });
+  const [dashboardDraft, setDashboardDraft] = useState({
+    id: 'dashboard', name: 'Dashboard', visualization_id: '',
+  });
+  const [scheduleDraft, setScheduleDraft] = useState({
+    id: 'schedule', name: 'Schedule', expression: '0 8 * * *',
+    timezone: 'UTC', enabled: false,
+  });
+  const [reportDraft, setReportDraft] = useState({
+    id: 'report', name: 'Report', dashboard_id: '', schedule_id: '',
+    export_formats: 'json,csv',
+  });
   const sourceResources = (resources || []).filter((item) =>
-    ['table', 'collection', 'index'].includes(item.resource_kind)
+    (analyticalProfile.source_kinds || ['table', 'collection', 'index'])
+      .includes(item.resource_kind)
   );
   const columnResources = (resources || []).filter((item) =>
     ['column', 'field'].includes(item.resource_kind)
@@ -2462,7 +2559,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     try {
       await call('semantic_model_delete', {model_id: record.model_id,
         expected_revision: record.revision});
-      setRecord(null); setSelectedId(''); setDefinition(emptySemanticModel(resources));
+      setRecord(null); setSelectedId('');
+      setDefinition(emptySemanticModel(resources, analyticalProfile));
       await refreshList();
     } catch (requestError) { setError(errorMessage(requestError)); }
     finally { setWorking(false); }
@@ -2497,13 +2595,13 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       }));
     } catch (requestError) { setError(errorMessage(requestError)); }
   };
-  const compile = async (execute=false) => {
+  const compile = async (execute=false, queryValue=query) => {
     setWorking(true); setError(null); setRendered(null);
     try {
       const value = await call(execute ? 'semantic_query_execute' :
         'semantic_query_compile', {
         model_id: record?.model_id, definition: record ? undefined : definition,
-        query,
+        query: queryValue,
       });
       setCompiled(value.compiled);
       if (execute) {
@@ -2511,6 +2609,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         setOccurrenceId(id);
         const response = await post({action: 'poll', occurrence_id: id});
         setRendered(response.rendered_result);
+        setResultHistory((current) => [...current, response.rendered_result]);
         if (response.occurrence?.operation?.terminal) setOccurrenceId(null);
       }
     } catch (requestError) { setError(errorMessage(requestError)); }
@@ -2527,6 +2626,9 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     setDefinition((current) => ({...current, sources: [...current.sources, {
       id, resource_id: resource.resource_id,
       relation: resource.display_path || [resource.display_name], alias: id,
+      source_kind: resource.resource_kind,
+      classification: analyticalProfile.source_classifications?.[0] || 'fact',
+      grain: [], provider_config: {},
     }]}));
   };
   const addDimension = () => {
@@ -2535,6 +2637,12 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     setDefinition((current) => ({...current, dimensions: [...current.dimensions, {
       id, name: dimensionDraft.name,
       field: {source_id: dimensionDraft.source_id, field: dimensionDraft.field},
+      dimension_kind: dimensionDraft.dimension_kind,
+      time_intelligence: dimensionDraft.dimension_kind === 'time' ? {
+        role: dimensionDraft.time_role, calendar: 'gregorian',
+        timezone: dimensionDraft.timezone, fiscal_year_start_month: 1,
+      } : null,
+      provider_config: {},
       hierarchies: [{id: portableId(dimensionDraft.hierarchy),
         name: dimensionDraft.hierarchy, levels: [{id: level, name: level,
           field: {source_id: dimensionDraft.source_id,
@@ -2574,12 +2682,17 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       name: measureDraft.name, aggregation: measureDraft.aggregation,
       field: measureDraft.aggregation === 'count' && !measureDraft.field ? null :
         {source_id: measureDraft.source_id, field: measureDraft.field},
-      format: measureDraft.format}],
+      format: measureDraft.format, measure_kind: measureDraft.measure_kind,
+      certification: {status: measureDraft.certification_status,
+        owner: measureDraft.certification_owner, definition: ''}}],
   }));
   const addCalculation = () => setDefinition((current) => ({...current,
     measures: [...current.measures, {
       id: portableId(calculationDraft.id), name: calculationDraft.name,
       aggregation: 'none', field: null, format: calculationDraft.format,
+      measure_kind: 'calculated', certification: {
+        status: 'uncertified', owner: '', definition: '',
+      },
       expression: {operator: calculationDraft.operator,
         left: {measure: calculationDraft.left},
         right: {measure: calculationDraft.right}},
@@ -2588,17 +2701,156 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const addJoin = () => setDefinition((current) => ({...current,
     joins: [...current.joins, {id: `join_${current.joins.length + 1}`,
       left_source: joinDraft.left_source, right_source: joinDraft.right_source,
-      join_type: joinDraft.join_type, predicates: [{operator: 'eq',
+      join_type: joinDraft.join_type, cardinality: joinDraft.cardinality,
+      predicates: [{operator: 'eq',
         left: {source_id: joinDraft.left_source, field: joinDraft.left_field},
         right: {source_id: joinDraft.right_source, field: joinDraft.right_field}}]}],
   }));
-  const addFilter = () => {
+  const addRelationship = () => setDefinition((current) => ({...current,
+    relationships: [...(current.relationships || []), {
+      id: `relationship_${(current.relationships || []).length + 1}`,
+      name: relationshipDraft.name,
+      from_source: relationshipDraft.from_source,
+      to_source: relationshipDraft.to_source,
+      relationship_kind: relationshipDraft.relationship_kind,
+      provider_config: {},
+    }],
+  }));
+  const addFilter = (target='filters') => {
     let value = filterDraft.value;
     try { value = JSON.parse(value); } catch { /* retain text member */ }
-    setQuery((current) => ({...current, filters: [...current.filters, {
+    setQuery((current) => ({...current, [target]: [...(current[target] || []), {
       field: {source_id: filterDraft.source_id, field: filterDraft.field},
       operator: filterDraft.operator, value,
     }]}));
+  };
+  const addParameter = () => {
+    let defaultValue = parameterDraft.default;
+    if (defaultValue !== '' && ['integer', 'number', 'boolean', 'array']
+      .includes(parameterDraft.type)) {
+      try {
+        defaultValue = JSON.parse(defaultValue);
+      } catch {
+        setError(gettext('The parameter default must be valid JSON for its type.'));
+        return;
+      }
+    }
+    setDefinition((current) => ({...current,
+      parameters: [...(current.parameters || []), {
+        id: portableId(parameterDraft.id), name: parameterDraft.name,
+        type: parameterDraft.type, required: parameterDraft.required,
+        ...(defaultValue === '' ? {} : {default: defaultValue}),
+        allowed_values: [],
+      }],
+    }));
+  };
+  const addSecurityFilter = () => {
+    let value = securityDraft.value;
+    try { value = JSON.parse(value); } catch { /* retain text member */ }
+    setDefinition((current) => ({...current, security: {
+      ...(current.security || {}),
+      row_filters: [...(current.security?.row_filters || []), {
+        field: {source_id: securityDraft.source_id,
+          field: securityDraft.field},
+        operator: securityDraft.operator, value,
+      }],
+    }}));
+  };
+  const addChart = () => setDefinition((current) => ({...current,
+    visualizations: [...(current.visualizations || []), {
+      id: portableId(chartDraft.id), name: chartDraft.name,
+      chart_type: chartDraft.chart_type, query: {...query},
+      encodings: {x: chartDraft.x, y: chartDraft.y},
+    }],
+  }));
+  const addDashboard = () => setDefinition((current) => ({...current,
+    dashboards: [...(current.dashboards || []), {
+      id: portableId(dashboardDraft.id), name: dashboardDraft.name,
+      cross_filtering: true, tiles: dashboardDraft.visualization_id ? [{
+        visualization_id: dashboardDraft.visualization_id,
+        layout: {x: 0, y: 0, width: 6, height: 4},
+      }] : [],
+    }],
+  }));
+  const addDashboardTile = (dashboardId, visualizationId) => {
+    if (!visualizationId) return;
+    setDefinition((current) => ({...current,
+      dashboards: current.dashboards.map((dashboard) =>
+        dashboard.id === dashboardId && !dashboard.tiles.some((tile) =>
+          tile.visualization_id === visualizationId) ? {...dashboard,
+            tiles: [...dashboard.tiles, {
+              visualization_id: visualizationId,
+              layout: {x: 0, y: dashboard.tiles.length * 4,
+                width: 6, height: 4},
+            }],
+          } : dashboard),
+    }));
+  };
+  const addSchedule = () => setDefinition((current) => ({...current,
+    schedules: [...(current.schedules || []), {
+      id: portableId(scheduleDraft.id), name: scheduleDraft.name,
+      expression: scheduleDraft.expression, timezone: scheduleDraft.timezone,
+      enabled: scheduleDraft.enabled, delivery: {},
+    }],
+  }));
+  const addReport = () => setDefinition((current) => ({...current,
+    reports: [...(current.reports || []), {
+      id: portableId(reportDraft.id), name: reportDraft.name,
+      dashboard_id: reportDraft.dashboard_id || null,
+      schedule_id: reportDraft.schedule_id || null,
+      export_formats: reportDraft.export_formats.split(',')
+        .map((item) => item.trim()).filter(Boolean),
+      parameters: {},
+    }],
+  }));
+  const runReport = async (report) => {
+    const dashboard = (definition.dashboards || []).find((item) =>
+      item.id === report.dashboard_id);
+    const charts = (dashboard?.tiles || []).map((tile) =>
+      (definition.visualizations || []).find((item) =>
+        item.id === tile.visualization_id)).filter(Boolean);
+    if (!charts.length) {
+      setError(gettext('The report dashboard has no chart queries.'));
+      return;
+    }
+    setWorking(true); setError(null); setReportResults([]);
+    try {
+      const results = [];
+      for (const chart of charts) {
+        const value = await call('semantic_query_execute', {
+          model_id: record?.model_id,
+          definition: record ? undefined : definition,
+          query: {...chart.query, parameters: {
+            ...(chart.query.parameters || {}), ...(report.parameters || {}),
+          }},
+        });
+        const response = await post({action: 'poll',
+          occurrence_id: value.occurrence.occurrence_id});
+        results.push({chart, rendered: response.rendered_result});
+      }
+      setReportResults(results);
+      setResultHistory((current) => [...current,
+        ...results.map((item) => item.rendered)]);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const runChart = (chart) => {
+    setActiveChartId(chart.id);
+    return compile(true, chart.query);
+  };
+  const runDiagnostics = async () => {
+    setWorking(true); setError(null);
+    try {
+      setDiagnostics(await call('semantic_query_diagnostics', {
+        model_id: record?.model_id,
+        definition: record ? undefined : definition, query,
+      }));
+      setPanel('diagnostics');
+    } catch (requestError) { setError(errorMessage(requestError)); }
+    finally { setWorking(false); }
   };
   const planMaterialization = async (materializationId) => {
     if (!record) return;
@@ -2631,7 +2883,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           {item.name} — {item.status} r{item.revision}</MenuItem>)}
       </TextField>
       <Button onClick={() => {setRecord(null); setSelectedId('');
-        setDefinition(emptySemanticModel(resources));}}>{gettext('New')}</Button>
+        setDefinition(emptySemanticModel(resources, analyticalProfile));}}>
+        {gettext('New')}</Button>
       <Button variant="contained" disabled={working || record?.status === 'published'}
         onClick={save}>{gettext('Save')}</Button>
       <Button disabled={working} onClick={validate}>{gettext('Validate')}</Button>
@@ -2646,17 +2899,27 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     </Box>
     <Tabs value={panel} onChange={(_event, value) => setPanel(value)} sx={{mt: 1}}>
       <Tab value="model" label={gettext('Model')} />
+      <Tab value="relationships" label={gettext('Relationships')} />
       <Tab value="dimensions" label={gettext('Dimensions & hierarchies')} />
       <Tab value="measures" label={gettext('Measures')} />
       <Tab value="query" label={gettext('Cube query')} />
+      <Tab value="security" label={gettext('Parameters & security')} />
+      <Tab value="presentation" label={gettext('Charts & dashboards')} />
+      <Tab value="reports" label={gettext('Reports & schedules')} />
       <Tab value="materializations" label={gettext('Materializations')} />
       <Tab value="lineage" label={gettext('Lineage')} />
+      <Tab value="diagnostics" label={gettext('Diagnostics')} />
       <Tab value="revisions" label={gettext('Revisions')} />
     </Tabs>
     {validation && <Alert severity={validation.valid ? 'success' : 'error'} sx={{mt: 1}}>
       {validation.valid ? gettext('Model is valid.') :
         (validation.errors || []).map((item) => item.message).join(' ')}</Alert>}
     {panel === 'model' && <Box sx={{display: 'grid', gap: 1, mt: 2}}>
+      <Alert severity="info">
+        {analyticalProfile.title || gettext('Provider analytical model')}
+        {' · '}{gettext('Grain')}: {analyticalProfile.grain_vocabulary ||
+          gettext('provider-defined')}
+      </Alert>
       <TextField label={gettext('Model name')} value={definition.name}
         onChange={(event) => setDefinition({...definition, name: event.target.value})} />
       <TextField multiline minRows={2} label={gettext('Description')}
@@ -2664,7 +2927,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           setDefinition({...definition, description: event.target.value})} />
       <Box component="strong">{gettext('Data sources')}</Box>
       {(definition.sources || []).map((source, index) => <Box key={source.id}
-        sx={{display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto', gap: 1}}>
+        sx={{display: 'grid',
+          gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr 2fr auto', gap: 1}}>
         <TextField label={gettext('Source ID')} value={source.id}
           onChange={(event) => setDefinition({...definition, sources:
             definition.sources.map((item, position) => position === index ?
@@ -2678,6 +2942,30 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           onChange={(event) => setDefinition({...definition, sources:
             definition.sources.map((item, position) => position === index ?
               {...item, alias: event.target.value} : item)})} />
+        <TextField select label={gettext('Source kind')}
+          value={source.source_kind || 'table'}
+          onChange={(event) => setDefinition({...definition, sources:
+            definition.sources.map((item, position) => position === index ?
+              {...item, source_kind: event.target.value} : item)})}>
+          {(analyticalProfile.source_kinds || [source.source_kind]).map((kind) =>
+            <MenuItem key={kind} value={kind}>{kind}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Classification')}
+          value={source.classification || 'fact'}
+          onChange={(event) => setDefinition({...definition, sources:
+            definition.sources.map((item, position) => position === index ?
+              {...item, classification: event.target.value} : item)})}>
+          {(analyticalProfile.source_classifications || ['fact']).map((kind) =>
+            <MenuItem key={kind} value={kind}>{kind}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Declared grain fields')}
+          value={(source.grain || []).map((item) => item.field).join(',')}
+          onChange={(event) => setDefinition({...definition, sources:
+            definition.sources.map((item, position) => position === index ?
+              {...item, grain: event.target.value.split(',').map((field) =>
+                field.trim()).filter(Boolean).map((field) => ({
+                source_id: source.id, field,
+              }))} : item)})} />
         <Button onClick={() => setDefinition({...definition, sources:
           definition.sources.filter((_item, position) => position !== index)})}>
           {gettext('Remove')}</Button>
@@ -2693,11 +2981,15 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         return {...current, sources: [...current.sources, {
           id: `source_${suffix}`, resource_id: `semantic:manual:${suffix}`,
           relation: ['schema', 'relation'], alias: `source_${suffix}`,
+          source_kind: analyticalProfile.source_kinds?.[0] || 'table',
+          classification: analyticalProfile.source_classifications?.[0] ||
+            'fact', grain: [], provider_config: {},
         }]};
       })}>{gettext('Add source path manually')}</Button>
       {definition.sources.length > 1 && <>
         <Box component="strong">{gettext('Join designer')}</Box>
-        <Box sx={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: 1}}>
+        <Box sx={{display: 'grid',
+          gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr auto', gap: 1}}>
           {['left_source', 'right_source'].map((side) => <TextField select key={side}
             label={side.replace('_', ' ')} value={joinDraft[side]}
             onChange={(event) => setJoinDraft({...joinDraft, [side]: event.target.value})}>
@@ -2711,14 +3003,68 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             onChange={(event) => setJoinDraft({...joinDraft, join_type: event.target.value})}>
             {['inner', 'left', 'right', 'full'].map((item) =>
               <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField>
+          <TextField select label={gettext('Cardinality')}
+            value={joinDraft.cardinality} onChange={(event) =>
+              setJoinDraft({...joinDraft, cardinality: event.target.value})}>
+            {['one-to-one', 'one-to-many', 'many-to-one', 'many-to-many']
+              .map((item) => <MenuItem key={item}
+                value={item}>{item}</MenuItem>)}
+          </TextField>
           <Button onClick={addJoin}>{gettext('Add join')}</Button>
         </Box>
         {(definition.joins || []).map((join) => <Box key={join.id}>
-          {join.left_source} {join.join_type} {join.right_source}</Box>)}
+          {join.left_source} {join.join_type} {join.right_source} ({
+            join.cardinality})</Box>)}
       </>}
     </Box>}
+    {panel === 'relationships' && <Box sx={{mt: 2}}>
+      <Alert severity="info">
+        {gettext('The diagram uses declared model relationships. Native graph, document, search, vector, and temporal relationships remain provider-described metadata.')}
+      </Alert>
+      <Box aria-label={gettext('Semantic relationship diagram')}
+        sx={{display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap',
+          mt: 2, p: 2, border: 1, borderColor: 'divider'}}>
+        {definition.sources.map((source) => <Box key={source.id}
+          sx={{p: 1, border: 1, borderColor: 'primary.main'}}>
+          <Box component="strong">{source.id}</Box>
+          <Box>{source.classification} · {source.source_kind}</Box>
+        </Box>)}
+        {[...(definition.joins || []), ...(definition.relationships || [])]
+          .map((relationship) => <Box key={relationship.id} sx={{p: 1}}>
+            {(relationship.left_source || relationship.from_source)} → {
+              relationship.right_source || relationship.to_source} ({
+              relationship.relationship_kind || relationship.join_type})
+          </Box>)}
+      </Box>
+      <Box component="h3">{gettext('Provider-native relationship')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 1}}>
+        <TextField label={gettext('Name')} value={relationshipDraft.name}
+          onChange={(event) => setRelationshipDraft({...relationshipDraft,
+            name: event.target.value})} />
+        {['from_source', 'to_source'].map((field) => <TextField select
+          key={field} label={field.replace('_', ' ')}
+          value={relationshipDraft[field]} onChange={(event) =>
+            setRelationshipDraft({...relationshipDraft,
+              [field]: event.target.value})}>
+          {definition.sources.map((source) => <MenuItem key={source.id}
+            value={source.id}>{source.id}</MenuItem>)}
+        </TextField>)}
+        <TextField select label={gettext('Relationship kind')}
+          value={relationshipDraft.relationship_kind}
+          onChange={(event) => setRelationshipDraft({...relationshipDraft,
+            relationship_kind: event.target.value})}>
+          {(analyticalProfile.relationship_kinds || ['native-edge'])
+            .map((kind) => <MenuItem key={kind} value={kind}>{kind}</MenuItem>)}
+        </TextField>
+        <Button disabled={!relationshipDraft.from_source ||
+          !relationshipDraft.to_source} onClick={addRelationship}>
+          {gettext('Add relationship')}</Button>
+      </Box>
+    </Box>}
     {panel === 'dimensions' && <Box sx={{mt: 2}}>
-      <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(6, 1fr) auto', gap: 1}}>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: 'repeat(9, 1fr) auto', gap: 1}}>
         <TextField label={gettext('Dimension ID')} value={dimensionDraft.id}
           onChange={(event) => setDimensionDraft({...dimensionDraft, id: event.target.value})} />
         <TextField label={gettext('Name')} value={dimensionDraft.name}
@@ -2734,12 +3080,39 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             hierarchy: event.target.value})} />
         <TextField label={gettext('Level')} value={dimensionDraft.level}
           onChange={(event) => setDimensionDraft({...dimensionDraft, level: event.target.value})} />
+        <TextField select label={gettext('Dimension kind')}
+          value={dimensionDraft.dimension_kind} onChange={(event) =>
+            setDimensionDraft({...dimensionDraft,
+              dimension_kind: event.target.value})}>
+          {(analyticalProfile.dimension_kinds || ['attribute']).map((kind) =>
+            <MenuItem key={kind} value={kind}>{kind}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Time role')}
+          disabled={dimensionDraft.dimension_kind !== 'time'}
+          value={dimensionDraft.time_role} onChange={(event) =>
+            setDimensionDraft({...dimensionDraft,
+              time_role: event.target.value})}>
+          {['calendar-time', 'fiscal-time', 'event-time', 'processing-time',
+            'valid-time', 'system-time'].map((role) => <MenuItem key={role}
+            value={role}>{role}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Timezone')}
+          disabled={dimensionDraft.dimension_kind !== 'time'}
+          value={dimensionDraft.timezone} onChange={(event) =>
+            setDimensionDraft({...dimensionDraft,
+              timezone: event.target.value})} />
         <Button onClick={addDimension} disabled={!dimensionDraft.field}>
           {gettext('Add')}</Button>
       </Box>
       {(definition.dimensions || []).map((dimension, index) => <Box key={dimension.id}
         sx={{p: 1, mt: 1, border: 1, borderColor: 'divider'}}>
-        <Box component="strong">{dimension.name}</Box> — {dimension.field.source_id}.{dimension.field.field}
+        <Box component="strong">{dimension.name}</Box> — {
+          dimension.dimension_kind || 'attribute'} — {
+          dimension.field.source_id}.{dimension.field.field}
+        {dimension.time_intelligence && <Box component="span" sx={{ml: 1}}>
+          {dimension.time_intelligence.role} / {
+            dimension.time_intelligence.timezone}
+        </Box>}
         {(dimension.hierarchies || []).map((hierarchy) => <Box key={hierarchy.id}>
           <Box component="strong">{hierarchy.name}</Box>:
           {(hierarchy.levels || []).map((level) => <Box component="span"
@@ -2799,7 +3172,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           .map((item) => item.display_name).join(', ')}</Alert>}
     </Box>}
     {panel === 'measures' && <Box sx={{mt: 2}}>
-      <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(6, 1fr) auto', gap: 1}}>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: 'repeat(9, 1fr) auto', gap: 1}}>
         {['id', 'name', 'field', 'format'].map((name) => <TextField key={name}
           label={name} value={measureDraft[name]} onChange={(event) =>
             setMeasureDraft({...measureDraft, [name]: event.target.value})} />)}
@@ -2812,6 +3186,24 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             aggregation: event.target.value})}>{['sum', 'count', 'count_distinct',
             'min', 'max', 'avg', 'none'].map((item) => <MenuItem key={item}
             value={item}>{item}</MenuItem>)}</TextField>
+        <TextField select label={gettext('Measure kind')}
+          value={measureDraft.measure_kind} onChange={(event) =>
+            setMeasureDraft({...measureDraft,
+              measure_kind: event.target.value})}>
+          {(analyticalProfile.measure_kinds || ['aggregate']).map((kind) =>
+            <MenuItem key={kind} value={kind}>{kind}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Certification')}
+          value={measureDraft.certification_status} onChange={(event) =>
+            setMeasureDraft({...measureDraft,
+              certification_status: event.target.value})}>
+          {['uncertified', 'candidate', 'certified', 'deprecated'].map((item) =>
+            <MenuItem key={item} value={item}>{item}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Metric owner')}
+          value={measureDraft.certification_owner} onChange={(event) =>
+            setMeasureDraft({...measureDraft,
+              certification_owner: event.target.value})} />
         <Button onClick={addMeasure}>{gettext('Add')}</Button>
       </Box>
       <Box component="strong" sx={{display: 'block', mt: 2}}>
@@ -2839,12 +3231,48 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       </Box>
       {(definition.measures || []).map((measure, index) => <Box key={measure.id}
         sx={{p: 1, mt: 1, border: 1, borderColor: 'divider'}}>
-        {measure.name}: {measure.aggregation}({measure.field?.field || '*'}) {measure.format}
+        {measure.name}: {measure.aggregation}({measure.field?.field || '*'}) {
+          measure.format} — {measure.measure_kind || 'aggregate'} — {
+          measure.certification?.status || 'uncertified'}
         <Button onClick={() => setDefinition({...definition, measures:
           definition.measures.filter((_item, position) => position !== index)})}>
           {gettext('Remove')}</Button></Box>)}
     </Box>}
     {panel === 'query' && <Box sx={{mt: 2}}>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 2fr 2fr', gap: 1, mb: 1}}>
+        <TextField select label={gettext('Drill mode')}
+          value={query.drill?.mode || 'summary'} onChange={(event) =>
+            setQuery({...query, drill: {...query.drill,
+              mode: event.target.value}})}>
+          {['summary', 'down', 'through'].map((mode) => <MenuItem key={mode}
+            value={mode}>{mode}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Drill-down target')}
+          value={query.drill?.target_level || ''} onChange={(event) =>
+            setQuery({...query, drill: {...query.drill,
+              target_level: event.target.value || null}})}>
+          <MenuItem value="">{gettext('None')}</MenuItem>
+          {levelOptions.map((item) => <MenuItem key={item.id}
+            value={item.id}>{item.name}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Parameter values (JSON)')}
+          value={JSON.stringify(query.parameters || {})}
+          onChange={(event) => {try {
+            setQuery({...query, parameters: JSON.parse(event.target.value)});
+          } catch {/* retain last valid parameter object */}}} />
+        <TextField label={gettext('Drill-through fields (source.field, ...)')}
+          value={detailFieldsDraft} onChange={(event) => {
+            const text = event.target.value;
+            setDetailFieldsDraft(text);
+            setQuery({...query, drill: {...query.drill, detail_fields: text
+              .split(',').map((item) => item.trim()).filter(Boolean)
+              .map((item) => {
+                const [source_id, ...fieldParts] = item.split('.');
+                return {source_id, field: fieldParts.join('.')};
+              }).filter((item) => item.source_id && item.field)}});
+          }} />
+      </Box>
       <Box sx={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1}}>
         {['rows', 'columns', 'pages'].map((axis) => <TextField select key={axis}
           SelectProps={{multiple: true}} label={axis} value={query.axes[axis]}
@@ -2871,12 +3299,46 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             <MenuItem key={item} value={item}>{item}</MenuItem>)}</TextField>
         <TextField label={gettext('Member value (text or JSON)')} value={filterDraft.value}
           onChange={(event) => setFilterDraft({...filterDraft, value: event.target.value})} />
-        <Button onClick={addFilter} disabled={!filterDraft.field}>{gettext('Add slice')}</Button>
+        <Button onClick={() => addFilter('filters')}
+          disabled={!filterDraft.field}>{gettext('Add slice')}</Button>
       </Box>
       {(query.filters || []).map((item, index) => <Box key={index} sx={{mt: 1}}>
         {item.field.source_id}.{item.field.field} {item.operator} {JSON.stringify(item.value)}
         <Button onClick={() => setQuery({...query, filters: query.filters.filter(
           (_value, position) => position !== index)})}>{gettext('Remove')}</Button></Box>)}
+      <Button disabled={!filterDraft.field}
+        onClick={() => addFilter('cross_filters')}>
+        {gettext('Add cross-filter')}</Button>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 1, mt: 1}}>
+        <TextField select label={gettext('Time operation')}
+          value={query.time_intelligence?.operation || ''}
+          onChange={(event) => setQuery({...query, time_intelligence:
+            event.target.value ? {...query.time_intelligence,
+              operation: event.target.value} : {}})}>
+          <MenuItem value="">{gettext('None')}</MenuItem>
+          <MenuItem value="as_of">{gettext('As of')}</MenuItem>
+          <MenuItem value="range">{gettext('Time range')}</MenuItem>
+        </TextField>
+        <TextField select label={gettext('Time dimension')}
+          value={query.time_intelligence?.dimension_id || ''}
+          onChange={(event) => setQuery({...query, time_intelligence: {
+            ...query.time_intelligence, dimension_id: event.target.value}})}>
+          <MenuItem value="">{gettext('None')}</MenuItem>
+          {definition.dimensions.filter((item) => item.time_intelligence)
+            .map((item) => <MenuItem key={item.id}
+              value={item.id}>{item.name}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Start / as-of value')}
+          value={query.time_intelligence?.start || ''}
+          onChange={(event) => setQuery({...query, time_intelligence: {
+            ...query.time_intelligence, start: event.target.value}})} />
+        <TextField label={gettext('End value')}
+          disabled={query.time_intelligence?.operation !== 'range'}
+          value={query.time_intelligence?.end || ''}
+          onChange={(event) => setQuery({...query, time_intelligence: {
+            ...query.time_intelligence, end: event.target.value}})} />
+      </Box>
       <Box sx={{display: 'flex', gap: 1, mt: 1, alignItems: 'center'}}>
         <TextField type="number" label={gettext('Cell limit')} value={query.limit}
           onChange={(event) => setQuery({...query, limit: Number(event.target.value)})} />
@@ -2888,6 +3350,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         <Button variant="contained" disabled={working ||
           !semantic.capabilities.execution_available} onClick={() => compile(true)}>
           {gettext('Run cube query')}</Button>
+        <Button disabled={working || !semantic.capabilities.execution_available}
+          onClick={runDiagnostics}>{gettext('Query diagnostics')}</Button>
         {occurrenceId && <Button onClick={async () => {
           const response = await post({action: 'poll', occurrence_id: occurrenceId});
           setRendered(response.rendered_result);
@@ -2899,7 +3363,260 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       {compiled && <Box component="pre" sx={{mt: 1, p: 1,
         bgcolor: 'background.default', whiteSpace: 'pre-wrap'}}>
         {compiled.source}</Box>}
+      {rendered && <ResultControls rendered={rendered} history={resultHistory}
+        post={post} onRendered={setRendered} setError={setError}
+        setBusy={setWorking} />}
       {rendered && <ResultView rendered={rendered} />}
+    </Box>}
+    {panel === 'security' && <Box sx={{mt: 2}}>
+      <Box component="h3">{gettext('Query parameters')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr auto auto', gap: 1}}>
+        <TextField label={gettext('Parameter ID')} value={parameterDraft.id}
+          onChange={(event) => setParameterDraft({...parameterDraft,
+            id: event.target.value})} />
+        <TextField label={gettext('Name')} value={parameterDraft.name}
+          onChange={(event) => setParameterDraft({...parameterDraft,
+            name: event.target.value})} />
+        <TextField select label={gettext('Type')} value={parameterDraft.type}
+          onChange={(event) => setParameterDraft({...parameterDraft,
+            type: event.target.value})}>
+          {['string', 'integer', 'number', 'boolean', 'date', 'datetime',
+            'array'].map((type) => <MenuItem key={type}
+            value={type}>{type}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Default')} value={parameterDraft.default}
+          onChange={(event) => setParameterDraft({...parameterDraft,
+            default: event.target.value})} />
+        <FormControlLabel control={<Checkbox checked={parameterDraft.required}
+          onChange={(event) => setParameterDraft({...parameterDraft,
+            required: event.target.checked})} />}
+        label={gettext('Required')} />
+        <Button onClick={addParameter}>{gettext('Add parameter')}</Button>
+      </Box>
+      {(definition.parameters || []).map((parameter, index) => <Box
+        key={parameter.id} sx={{mt: 1}}>{parameter.name} ({parameter.type})
+        <Button onClick={() => setDefinition({...definition,
+          parameters: definition.parameters.filter(
+            (_item, position) => position !== index)})}>
+          {gettext('Remove')}</Button>
+      </Box>)}
+      <Box component="h3">{gettext('Row-level security')}</Box>
+      <Alert severity="info">
+        {gettext('Security filters are structured model policy and are compiled by the provider. Tenant values come only from trusted server-side principal claims.')}
+      </Alert>
+      <Box sx={{display: 'grid', mt: 1,
+        gridTemplateColumns: '1fr 1fr 1fr 2fr auto', gap: 1}}>
+        <TextField select label={gettext('Policy source')}
+          value={definition.sources.some((source) =>
+            source.id === securityDraft.source_id) ?
+            securityDraft.source_id : ''} onChange={(event) =>
+            setSecurityDraft({...securityDraft,
+              source_id: event.target.value})}>
+          {definition.sources.map((source) => <MenuItem key={source.id}
+            value={source.id}>{source.id}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Policy field')} value={securityDraft.field}
+          onChange={(event) => setSecurityDraft({...securityDraft,
+            field: event.target.value})} />
+        <TextField select label={gettext('Policy operator')}
+          value={securityDraft.operator} onChange={(event) =>
+            setSecurityDraft({...securityDraft,
+              operator: event.target.value})}>
+          {['eq', 'ne', 'lt', 'lte', 'gt', 'gte', 'in', 'not_in',
+            'between', 'is_null', 'is_not_null'].map((item) =>
+            <MenuItem key={item} value={item}>{item}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Policy value (text or JSON)')}
+          value={securityDraft.value} onChange={(event) =>
+            setSecurityDraft({...securityDraft, value: event.target.value})} />
+        <Button disabled={!securityDraft.field} onClick={addSecurityFilter}>
+          {gettext('Add row policy')}</Button>
+      </Box>
+      <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
+        {(definition.security?.row_filters || []).map((item, index) =>
+          <Box key={index}>{item.field.source_id}.{item.field.field} {
+            item.operator} {JSON.stringify(item.value)}
+          <Button onClick={() => setDefinition({...definition, security: {
+            ...definition.security, row_filters:
+              definition.security.row_filters.filter(
+                (_value, position) => position !== index),
+          }})}>{gettext('Remove')}</Button></Box>)}
+      </Box>
+      <Box component="h3">{gettext('Tenant filtering')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr auto', gap: 1}}>
+        <TextField select label={gettext('Tenant source')}
+          value={definition.sources.some((source) =>
+            source.id === securityDraft.source_id) ?
+            securityDraft.source_id : ''} onChange={(event) =>
+            setSecurityDraft({...securityDraft,
+              source_id: event.target.value})}>
+          {definition.sources.map((source) => <MenuItem key={source.id}
+            value={source.id}>{source.id}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Tenant field')} value={securityDraft.field}
+          onChange={(event) => setSecurityDraft({...securityDraft,
+            field: event.target.value})} />
+        <TextField label={gettext('Trusted principal claim')}
+          value={securityDraft.principal_claim}
+          helperText={gettext('Bound server-side from the authenticated CDEadmin user')}
+          InputProps={{readOnly: true}} />
+        <Button disabled={!securityDraft.field} onClick={() =>
+          setDefinition({...definition, security: {
+            ...(definition.security || {}), tenant_filter: {
+              field: {source_id: securityDraft.source_id,
+                field: securityDraft.field},
+              principal_claim: securityDraft.principal_claim, required: true,
+            },
+          }})}>{gettext('Set tenant filter')}</Button>
+      </Box>
+    </Box>}
+    {panel === 'presentation' && <Box sx={{mt: 2}}>
+      <Box component="h3">{gettext('Chart builder')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: 1}}>
+        {['id', 'name', 'x', 'y'].map((field) => <TextField key={field}
+          label={field} value={chartDraft[field]} onChange={(event) =>
+            setChartDraft({...chartDraft, [field]: event.target.value})} />)}
+        <TextField select label={gettext('Chart type')}
+          value={chartDraft.chart_type} onChange={(event) =>
+            setChartDraft({...chartDraft, chart_type: event.target.value})}>
+          {['table', 'pivot', 'bar', 'line', 'area', 'scatter', 'pie',
+            'metric', 'histogram', 'timeline', 'graph',
+            'vector-neighbors'].map((type) => <MenuItem key={type}
+            value={type}>{type}</MenuItem>)}
+        </TextField>
+        <Button onClick={addChart} disabled={!query.measures.length}>
+          {gettext('Add chart')}</Button>
+      </Box>
+      <Box sx={{display: 'grid', mt: 1,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1}}>
+        {(definition.visualizations || []).map((chart) => <Box key={chart.id}
+          sx={{p: 1, border: 1, borderColor: 'divider'}}>
+          <Box component="strong">{chart.name}</Box>
+          <Box>{chart.chart_type} · {chart.encodings?.x || 'x'} → {
+            chart.encodings?.y || 'y'}</Box>
+          <Button disabled={!semantic.capabilities.execution_available || working}
+            onClick={() => runChart(chart)}>{gettext('Run chart query')}</Button>
+          {activeChartId === chart.id && rendered && <Box sx={{mt: 1}}>
+            <SemanticChartView chart={chart} rendered={rendered} />
+          </Box>}
+        </Box>)}
+      </Box>
+      <Box component="h3">{gettext('Dashboard builder')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr auto', gap: 1}}>
+        <TextField label={gettext('Dashboard ID')} value={dashboardDraft.id}
+          onChange={(event) => setDashboardDraft({...dashboardDraft,
+            id: event.target.value})} />
+        <TextField label={gettext('Dashboard name')} value={dashboardDraft.name}
+          onChange={(event) => setDashboardDraft({...dashboardDraft,
+            name: event.target.value})} />
+        <TextField select label={gettext('Initial chart')}
+          value={dashboardDraft.visualization_id} onChange={(event) =>
+            setDashboardDraft({...dashboardDraft,
+              visualization_id: event.target.value})}>
+          <MenuItem value="">{gettext('None')}</MenuItem>
+          {(definition.visualizations || []).map((chart) => <MenuItem
+            key={chart.id} value={chart.id}>{chart.name}</MenuItem>)}
+        </TextField>
+        <Button onClick={addDashboard}>{gettext('Add dashboard')}</Button>
+      </Box>
+      {(definition.dashboards || []).map((dashboard) => <Box key={dashboard.id}
+        sx={{p: 1, mt: 1, border: 1, borderColor: 'divider'}}>
+        <Box component="strong">{dashboard.name}</Box> · {
+          dashboard.cross_filtering ? gettext('cross-filtering enabled') :
+            gettext('independent tiles')}
+        <Box>{dashboard.tiles.map((tile, index) => <Box key={
+          tile.visualization_id}>{tile.visualization_id}
+          <Button onClick={() => setDefinition({...definition,
+            dashboards: definition.dashboards.map((item) =>
+              item.id === dashboard.id ? {...item,
+                tiles: item.tiles.filter(
+                  (_tile, position) => position !== index),
+              } : item),
+          })}>{gettext('Remove tile')}</Button>
+        </Box>)}</Box>
+        <Box sx={{display: 'flex', gap: 1, mt: 1}}>
+          <TextField select label={gettext('Chart to add')}
+            value={dashboardDraft.visualization_id} onChange={(event) =>
+              setDashboardDraft({...dashboardDraft,
+                visualization_id: event.target.value})}>
+            <MenuItem value="">{gettext('None')}</MenuItem>
+            {(definition.visualizations || []).map((chart) => <MenuItem
+              key={chart.id} value={chart.id}>{chart.name}</MenuItem>)}
+          </TextField>
+          <Button disabled={!dashboardDraft.visualization_id}
+            onClick={() => addDashboardTile(
+              dashboard.id, dashboardDraft.visualization_id
+            )}>{gettext('Add tile')}</Button>
+        </Box>
+      </Box>)}
+    </Box>}
+    {panel === 'reports' && <Box sx={{mt: 2}}>
+      <Box component="h3">{gettext('Report schedules')}</Box>
+      {!semantic.capabilities.scheduled_report_execution && <Alert
+        severity="warning">
+        {gettext('Schedule definitions are stored, but this provider has not activated a report scheduler. CDEadmin will not claim or infer scheduled execution.')}
+      </Alert>}
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr auto auto', gap: 1, mt: 1}}>
+        {['id', 'name', 'expression', 'timezone'].map((field) => <TextField
+          key={field} label={field} value={scheduleDraft[field]}
+          onChange={(event) => setScheduleDraft({...scheduleDraft,
+            [field]: event.target.value})} />)}
+        <FormControlLabel control={<Checkbox checked={scheduleDraft.enabled}
+          onChange={(event) => setScheduleDraft({...scheduleDraft,
+            enabled: event.target.checked})} />} label={gettext('Enabled')} />
+        <Button onClick={addSchedule}>{gettext('Add schedule')}</Button>
+      </Box>
+      <Box component="h3">{gettext('Report builder')}</Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr 2fr auto', gap: 1}}>
+        {['id', 'name'].map((field) => <TextField key={field} label={field}
+          value={reportDraft[field]} onChange={(event) =>
+            setReportDraft({...reportDraft, [field]: event.target.value})} />)}
+        <TextField select label={gettext('Dashboard')}
+          value={reportDraft.dashboard_id} onChange={(event) =>
+            setReportDraft({...reportDraft,
+              dashboard_id: event.target.value})}>
+          <MenuItem value="">{gettext('None')}</MenuItem>
+          {(definition.dashboards || []).map((dashboard) => <MenuItem
+            key={dashboard.id} value={dashboard.id}>{dashboard.name}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Schedule')}
+          value={reportDraft.schedule_id} onChange={(event) =>
+            setReportDraft({...reportDraft,
+              schedule_id: event.target.value})}>
+          <MenuItem value="">{gettext('Manual')}</MenuItem>
+          {(definition.schedules || []).map((schedule) => <MenuItem
+            key={schedule.id} value={schedule.id}>{schedule.name}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Export formats')}
+          value={reportDraft.export_formats} onChange={(event) =>
+            setReportDraft({...reportDraft,
+              export_formats: event.target.value})} />
+        <Button onClick={addReport}>{gettext('Add report')}</Button>
+      </Box>
+      {(definition.reports || []).map((report) => <Box key={report.id}
+        sx={{mt: 1, p: 1, border: 1, borderColor: 'divider'}}>
+        <Box component="strong">{report.name}</Box> · {
+          report.export_formats.join(', ')} · {report.schedule_id ||
+            gettext('manual')}
+        <Button disabled={!semantic.capabilities.execution_available}
+          onClick={() => runReport(report)}>{gettext('Run report')}</Button>
+      </Box>)}
+      {reportResults.map(({chart, rendered: reportResult}) => <Box
+        key={chart.id} sx={{mt: 2}}>
+        <Box component="h4">{chart.name}</Box>
+        <ResultControls rendered={reportResult} history={resultHistory}
+          post={post} onRendered={(value) => setReportResults((current) =>
+            current.map((item) => item.chart.id === chart.id ? {
+              ...item, rendered: value,
+            } : item))} setError={setError} setBusy={setWorking} />
+        <SemanticChartView chart={chart} rendered={reportResult} />
+      </Box>)}
     </Box>}
     {panel === 'materializations' && <Box sx={{mt: 2}}>
       <Alert severity="info">{gettext('Materialization definitions are portable intent. Creation and refresh remain provider-planned operations.')}</Alert>
@@ -2944,6 +3661,16 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         sx={{p: 0.5}}><Box component="code">{node.kind}</Box> {node.label}</Box>)}
       {(lineage?.edges || []).map((edge, index) => <Box key={index}
         sx={{ml: 2}}>{edge.from} → {edge.to} ({edge.kind})</Box>)}
+    </Box>}
+    {panel === 'diagnostics' && <Box sx={{mt: 2}}>
+      <Button disabled={working || !semantic.capabilities.execution_available}
+        onClick={runDiagnostics}>{gettext('Refresh query diagnostics')}</Button>
+      {diagnostics ? <Box component="pre" sx={{p: 1,
+        bgcolor: 'background.default', overflow: 'auto', maxHeight: 520,
+        whiteSpace: 'pre-wrap'}}>{JSON.stringify(diagnostics, null, 2)}</Box> :
+        <Alert severity="info" sx={{mt: 1}}>
+          {gettext('Compile the query to obtain provider diagnostics and a reproducibility manifest.')}
+        </Alert>}
     </Box>}
     {panel === 'revisions' && <Box sx={{mt: 2}}>
       <Button disabled={history.length < 2} onClick={compareLatest}>

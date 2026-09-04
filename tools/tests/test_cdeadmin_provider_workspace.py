@@ -39,7 +39,9 @@ from pgadmin.cdeadmin.results import (  # noqa: E402
     InlineRendererExecutor,
     ResultService,
 )
+from pgadmin.cdeadmin.semantic_models import SemanticModelService  # noqa: E402
 from pgadmin.cdeadmin.workspace import (  # noqa: E402
+    ProviderWorkspaceError,
     ProviderWorkspaceService,
 )
 from pgadmin.cdeadmin.visual_admin.provider import (  # noqa: E402
@@ -571,6 +573,58 @@ class ProviderWorkspaceTests(unittest.TestCase):
             'observation_response_unavailable',
             audited['events'][-1]['event_kind'],
         )
+
+    def test_semantic_result_reproducibility_without_finality_claim(self):
+        self.workspace.semantic_model_service = SemanticModelService(
+            repository=object()
+        )
+        server = SimpleNamespace(user_id=21)
+        definition = {
+            'name': 'Count rows', 'semantic_family': 'relational',
+            'sources': [{
+                'id': 'items', 'resource_id': 'table:items',
+                'relation': ['items'], 'alias': 'items',
+                'source_kind': 'table', 'classification': 'fact',
+                'grain': [], 'provider_config': {},
+            }],
+            'joins': [], 'relationships': [], 'dimensions': [],
+            'measures': [{
+                'id': 'row_count', 'name': 'Rows', 'aggregation': 'count',
+                'field': None, 'measure_kind': 'aggregate',
+            }],
+        }
+        request = {'axes': {'rows': [], 'columns': [], 'pages': []},
+                   'measures': ['row_count'], 'filters': [], 'limit': 10}
+        executed = self.workspace.semantic_model_action(
+            server, 'semantic_query_execute', {
+                'definition': definition, 'query': request,
+            }
+        )
+        rendered = self.workspace.poll(
+            server, executed['occurrence']['occurrence_id']
+        )['rendered_result']
+        reproducibility = rendered['reproducibility']
+        self.assertEqual(64, len(reproducibility['rendered_page_digest']))
+        self.assertTrue(
+            reproducibility['exact_data_replay_requires_provider_snapshot']
+        )
+        self.assertFalse(
+            reproducibility['common_layer_infers_snapshot_or_finality']
+        )
+
+    def test_workspace_rejects_cross_family_semantic_model(self):
+        self.workspace.semantic_model_service = SemanticModelService(
+            repository=object()
+        )
+        with self.assertRaisesRegex(
+                ProviderWorkspaceError, 'does not match'):
+            self.workspace.semantic_model_action(
+                SimpleNamespace(user_id=22), 'semantic_model_validate', {
+                    'definition': {
+                        'name': 'Wrong family', 'semantic_family': 'graph',
+                    },
+                }
+            )
 
 
 if __name__ == '__main__':

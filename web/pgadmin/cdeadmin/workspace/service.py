@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
+import json
 import threading
 
 from pgadmin.cdeadmin.resources import ResourceRef
@@ -201,11 +203,15 @@ class ProviderWorkspaceService:
                                request.get('model_id'))
         if action == 'semantic_model_create':
             return service.create(user_id, context.endpoint_id,
-                                  request.get('definition'))
+                                  self._semantic_definition(
+                                      context, request.get('definition')
+                                  ))
         if action == 'semantic_model_update':
             return service.update(
                 user_id, context.endpoint_id, request.get('model_id'),
-                request.get('expected_revision'), request.get('definition')
+                request.get('expected_revision'), self._semantic_definition(
+                    context, request.get('definition')
+                )
             )
         if action == 'semantic_model_status':
             return service.set_status(
@@ -232,10 +238,17 @@ class ProviderWorkspaceService:
                 request.get('left_revision'), request.get('right_revision')
             )
         if action == 'semantic_model_validate':
-            return service.validate(request.get('definition'))
+            return service.validate(self._semantic_definition(
+                context, request.get('definition')
+            ))
         if action == 'semantic_model_lineage':
-            return service.lineage(request.get('definition'))
-        if action in {'semantic_query_compile', 'semantic_query_execute'}:
+            return service.lineage(self._semantic_definition(
+                context, request.get('definition')
+            ))
+        if action in {
+            'semantic_query_compile', 'semantic_query_execute',
+            'semantic_query_diagnostics',
+        }:
             return self._semantic_query_action(
                 server, context, action, request
             )
@@ -244,6 +257,26 @@ class ProviderWorkspaceService:
                 server, context, request
             )
         raise ProviderWorkspaceError('semantic model action is unavailable')
+
+    def _semantic_definition(self, context, value):
+        if not isinstance(value, dict):
+            raise ProviderWorkspaceError(
+                'semantic model definition must be an object'
+            )
+        definition = copy.deepcopy(value)
+        binding = self.endpoint_service.provider_registry.resolve(context)
+        capabilities = self.semantic_model_service.capabilities(
+            binding.instance
+        )
+        expected = capabilities['analytical_profile']['semantic_family']
+        declared = definition.get('semantic_family')
+        if declared is None:
+            definition['semantic_family'] = expected
+        elif declared != expected:
+            raise ProviderWorkspaceError(
+                'semantic model family does not match the endpoint provider'
+            )
+        return definition
 
     def _semantic_materialization_plan(self, server, context, request):
         user_id = self._principal_id(server)
@@ -288,6 +321,7 @@ class ProviderWorkspaceService:
     def _semantic_query_action(self, server, context, action, request):
         service = self.semantic_model_service
         user_id = self._principal_id(server)
+        record = None
         if request.get('model_id'):
             record = service.get(
                 user_id, context.endpoint_id, request['model_id']
@@ -297,7 +331,31 @@ class ProviderWorkspaceService:
             model = request.get('definition')
         query = request.get('query')
         binding = self.endpoint_service.provider_registry.resolve(context)
-        compiled = service.compile(binding.instance, model, query)
+        security_context = {
+            'claims': {'user_id': self._principal_id(server)},
+        }
+        if action == 'semantic_query_diagnostics':
+            diagnostics = service.diagnostics(
+                binding.instance, model, query,
+                security_context=security_context,
+            )
+            diagnostics['reproducibility']['model_id'] = (
+                record['model_id'] if record else None
+            )
+            diagnostics['reproducibility']['model_revision'] = (
+                record['revision'] if record else None
+            )
+            return diagnostics
+        compiled = service.compile(
+            binding.instance, model, query,
+            security_context=security_context,
+        )
+        compiled['reproducibility']['model_id'] = (
+            record['model_id'] if record else None
+        )
+        compiled['reproducibility']['model_revision'] = (
+            record['revision'] if record else None
+        )
         response = {'compiled': compiled}
         if action == 'semantic_query_compile':
             return response
@@ -324,6 +382,9 @@ class ProviderWorkspaceService:
                 'endpoint_id': context.endpoint_id,
                 'model': copy.deepcopy(model),
                 'query': copy.deepcopy(query),
+                'reproducibility': copy.deepcopy(
+                    compiled['reproducibility']
+                ),
             }
         return response
 
@@ -613,6 +674,17 @@ class ProviderWorkspaceService:
                 rendered['view_model'] = self.semantic_model_service.cellset(
                     semantic['model'], semantic['query'], records
                 )
+                rendered['reproducibility'] = {
+                    **copy.deepcopy(semantic['reproducibility']),
+                    'rendered_page_digest': hashlib.sha256(json.dumps(
+                        rendered['view_model'], sort_keys=True,
+                        separators=(',', ':'), ensure_ascii=False,
+                        default=repr,
+                    ).encode('utf-8')).hexdigest(),
+                    'provider_snapshot': None,
+                    'exact_data_replay_requires_provider_snapshot': True,
+                    'common_layer_infers_snapshot_or_finality': False,
+                }
         return response
 
     def result_page(self, server, request):

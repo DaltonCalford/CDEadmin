@@ -18,6 +18,7 @@ from .models import (
     validate_query,
 )
 from .service import DatabaseSemanticModelRepository, SemanticModelService
+from .profiles import SEMANTIC_PROFILE_SCHEMA, analytical_profile
 
 
 APP_EXTENSION_KEY = 'cdeadmin_semantic_model_service'
@@ -36,4 +37,5 @@ __all__ = (
     'DatabaseSemanticModelRepository', 'SemanticCompilationUnavailable',
     'SemanticModelConflict', 'SemanticModelError', 'SemanticModelService',
     'init_app', 'public_model', 'validate_model', 'validate_query',
+    'SEMANTIC_PROFILE_SCHEMA', 'analytical_profile',
 )

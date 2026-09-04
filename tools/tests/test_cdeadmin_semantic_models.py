@@ -35,7 +35,9 @@ from pgadmin.cdeadmin.semantic_models import (  # noqa: E402
     SemanticModelConflict,
     SemanticModelError,
     SemanticModelService,
+    validate_query,
     validate_model,
+    analytical_profile,
 )
 from pgadmin.cdeadmin.semantic_models.compiler import compile_sql  # noqa: E402
 
@@ -277,6 +279,210 @@ class SemanticModelTests(unittest.TestCase):
         value = model()
         value['measures'][0]['field']['source_id'] = 'missing'
         with self.assertRaises(SemanticModelError):
+            validate_model(value)
+
+    def test_provider_families_publish_native_analytical_vocabularies(self):
+        relational = analytical_profile('relational')
+        graph = analytical_profile('graph')
+        search = analytical_profile('search-analytic')
+        vector = analytical_profile('vector-analytic')
+        temporal = analytical_profile('time-series-analytic')
+        self.assertIn('fact', relational['source_classifications'])
+        self.assertIn('native-edge', graph['relationship_kinds'])
+        self.assertIn('keyword-facet', search['dimension_kinds'])
+        self.assertIn('similarity-band', vector['dimension_kinds'])
+        self.assertIn('window', temporal['dimension_kinds'])
+        self.assertNotEqual(
+            graph['dimension_kinds'], relational['dimension_kinds']
+        )
+
+    def test_complete_product_model_validates_and_extends_lineage(self):
+        value = model()
+        value['sources'][0].update({
+            'source_kind': 'table', 'classification': 'fact',
+            'grain': [{'source_id': 'sales', 'field': 'sale_id'}],
+        })
+        value['dimensions'][0].update({
+            'dimension_kind': 'time', 'time_intelligence': {
+                'role': 'calendar-time', 'calendar': 'gregorian',
+                'timezone': 'UTC', 'fiscal_year_start_month': 1,
+            },
+        })
+        value['measures'][0]['certification'] = {
+            'status': 'certified', 'owner': 'Finance',
+            'definition': 'Recognized revenue',
+        }
+        value['parameters'] = [{
+            'id': 'region_parameter', 'name': 'Region', 'type': 'string',
+            'required': False, 'default': 'North', 'allowed_values': [],
+        }]
+        value['visualizations'] = [{
+            'id': 'revenue_chart', 'name': 'Revenue by region',
+            'chart_type': 'bar', 'query': query(),
+            'encodings': {'x': 'region_level', 'y': 'revenue'},
+        }]
+        value['dashboards'] = [{
+            'id': 'executive', 'name': 'Executive',
+            'cross_filtering': True, 'tiles': [{
+                'visualization_id': 'revenue_chart', 'layout': {'x': 0},
+            }],
+        }]
+        value['schedules'] = [{
+            'id': 'daily', 'name': 'Daily', 'expression': '0 8 * * *',
+            'timezone': 'UTC', 'enabled': True, 'delivery': {},
+        }]
+        value['reports'] = [{
+            'id': 'daily_revenue', 'name': 'Daily revenue',
+            'dashboard_id': 'executive', 'schedule_id': 'daily',
+            'export_formats': ['json', 'csv'], 'parameters': {},
+        }]
+        checked = validate_model(value)
+        self.assertEqual('fact', checked['sources'][0]['classification'])
+        self.assertEqual(
+            'certified', checked['measures'][0]['certification']['status']
+        )
+        lineage = self.service.lineage(value)
+        self.assertIn('report:daily_revenue', {
+            item['id'] for item in lineage['nodes']
+        })
+        self.assertIn('published-as', {
+            item['kind'] for item in lineage['edges']
+        })
+
+    def test_parameters_cross_filters_and_drill_through_compile(self):
+        value = model()
+        value['parameters'] = [{
+            'id': 'region_parameter', 'name': 'Region', 'type': 'string',
+            'required': True, 'allowed_values': [],
+        }]
+        request = query()
+        request.update({
+            'parameters': {'region_parameter': 'North'},
+            'cross_filters': [{
+                'field': {'source_id': 'sales', 'field': 'region_name'},
+                'operator': 'eq', 'parameter_id': 'region_parameter',
+            }],
+            'drill': {'mode': 'through', 'target_level': None,
+                      'detail_fields': [{
+                          'source_id': 'sales', 'field': 'region_name',
+                      }]},
+        })
+        compiled = self.service.compile(SQLProvider(), value, request)
+        self.assertNotIn('SUM(', compiled['source'])
+        self.assertIn("= 'North'", compiled['source'])
+        self.assertIn('detail_1_region_name', compiled['source'])
+
+    def test_parameter_types_and_allowed_values_are_enforced(self):
+        value = model()
+        value['parameters'] = [{
+            'id': 'minimum_sales', 'name': 'Minimum sales',
+            'type': 'integer', 'required': False, 'default': 10,
+            'allowed_values': [10, 20],
+        }]
+        checked = validate_model(value)
+        self.assertEqual(10, checked['parameters'][0]['default'])
+        request = query()
+        request['parameters'] = {'minimum_sales': '10'}
+        with self.assertRaisesRegex(
+                SemanticModelError, 'does not match type integer'):
+            validate_query(checked, request)
+        request['parameters'] = {'minimum_sales': 30}
+        with self.assertRaisesRegex(
+                SemanticModelError, 'not allowed'):
+            validate_query(checked, request)
+
+    def test_time_intelligence_compiles_declared_range(self):
+        value = model()
+        value['dimensions'][0]['time_intelligence'] = {
+            'role': 'event-time', 'calendar': 'gregorian',
+            'timezone': 'UTC', 'fiscal_year_start_month': 1,
+        }
+        request = query()
+        request['time_intelligence'] = {
+            'dimension_id': 'region', 'operation': 'range',
+            'start': '2026-01-01', 'end': '2026-03-31',
+        }
+        compiled = self.service.compile(SQLProvider(), value, request)
+        self.assertIn(
+            '"region_name" BETWEEN \'2026-01-01\' AND \'2026-03-31\'',
+            compiled['source'],
+        )
+        self.assertEqual(
+            'range', compiled['projection']['time_intelligence']['operation']
+        )
+
+    def test_saved_chart_requires_a_valid_semantic_query(self):
+        value = model()
+        value['visualizations'] = [{
+            'id': 'broken_chart', 'name': 'Broken chart',
+            'chart_type': 'bar', 'query': {}, 'encodings': {},
+        }]
+        with self.assertRaisesRegex(
+                SemanticModelError, 'query.measures must not be empty'):
+            validate_model(value)
+
+    def test_tenant_filter_is_bound_only_from_trusted_security_context(self):
+        value = model()
+        value['security'] = {'row_filters': [], 'roles': [],
+                             'tenant_filter': {
+            'field': {'source_id': 'sales', 'field': 'tenant_id'},
+            'principal_claim': 'tenant_id', 'required': True,
+        }}
+        with self.assertRaisesRegex(
+                SemanticModelError, 'tenant identity'):
+            self.service.compile(SQLProvider(), value, query())
+        compiled = self.service.compile(
+            SQLProvider(), value, query(),
+            security_context={'claims': {'tenant_id': 'tenant-one'}},
+        )
+        self.assertIn("tenant_id\" = 'tenant-one'", compiled['source'])
+
+    def test_role_security_fails_closed_without_a_matching_role(self):
+        value = model()
+        value['security'] = {'row_filters': [], 'tenant_filter': None,
+                             'roles': [{
+                                 'id': 'finance_policy', 'name': 'finance',
+                                 'principal_claim': 'teams', 'filters': [{
+                                     'field': {
+                                         'source_id': 'sales',
+                                         'field': 'region_name',
+                                     },
+                                     'operator': 'eq', 'value': 'North',
+                                 }],
+                             }]}
+        with self.assertRaisesRegex(
+                SemanticModelError, 'no semantic security role'):
+            self.service.compile(
+                SQLProvider(), value, query(),
+                security_context={'claims': {'teams': ['sales']}},
+            )
+        compiled = self.service.compile(
+            SQLProvider(), value, query(),
+            security_context={'claims': {'teams': ['finance']}},
+        )
+        self.assertIn("region_name\" = 'North'", compiled['source'])
+
+    def test_diagnostics_include_stable_reproducibility_fingerprints(self):
+        first = self.service.diagnostics(SQLProvider(), model(), query())
+        second = self.service.diagnostics(SQLProvider(), model(), query())
+        self.assertEqual(
+            first['reproducibility']['compiled_digest'],
+            second['reproducibility']['compiled_digest'],
+        )
+        self.assertTrue(first['reproducibility'][
+            'exact_data_replay_requires_provider_snapshot'
+        ])
+        self.assertFalse(first['provider_diagnostics_available'])
+
+    def test_invalid_dashboard_and_report_references_fail_closed(self):
+        value = model()
+        value['dashboards'] = [{
+            'id': 'broken', 'name': 'Broken', 'tiles': [{
+                'visualization_id': 'missing', 'layout': {},
+            }],
+        }]
+        with self.assertRaisesRegex(
+                SemanticModelError, 'unknown visualization'):
             validate_model(value)
 
 

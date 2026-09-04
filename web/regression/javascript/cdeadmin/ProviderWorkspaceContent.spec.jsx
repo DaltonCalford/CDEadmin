@@ -71,6 +71,17 @@ const bootstrap = {
       lineage: true, query_builder: true, pivot_cellset: true,
       execution_available: true,
       provider_compiler: {execution_available: true},
+      scheduled_report_execution: false,
+      analytical_profile: {
+        title: 'Relational and multidimensional',
+        semantic_family: 'relational',
+        source_kinds: ['table', 'view', 'materialized-view'],
+        source_classifications: ['fact', 'dimension', 'bridge', 'lookup'],
+        dimension_kinds: ['attribute', 'time', 'geography'],
+        relationship_kinds: ['join', 'bridge'],
+        measure_kinds: ['aggregate', 'calculated'],
+        grain_vocabulary: 'fact-key',
+      },
     },
   },
 };
@@ -890,11 +901,83 @@ describe('ProviderWorkspaceContent', () => {
       endpointUrl="/workspace/1" initialTab="semantic" />);
     expect(await screen.findByLabelText('Model name')).toBeInTheDocument();
     expect(screen.getByText('Dimensions & hierarchies')).toBeInTheDocument();
+    expect(screen.getByText('Relationships')).toBeInTheDocument();
     expect(screen.getByText('Measures')).toBeInTheDocument();
     expect(screen.getByText('Cube query')).toBeInTheDocument();
+    expect(screen.getByText('Parameters & security')).toBeInTheDocument();
+    expect(screen.getByText('Charts & dashboards')).toBeInTheDocument();
+    expect(screen.getByText('Reports & schedules')).toBeInTheDocument();
     expect(screen.getByText('Materializations')).toBeInTheDocument();
     expect(screen.getByText('Lineage')).toBeInTheDocument();
+    expect(screen.getByText('Diagnostics')).toBeInTheDocument();
     expect(screen.getAllByText('Revisions')).toHaveLength(2);
+    expect(screen.getByText(/Relational and multidimensional/))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByText('Cube query'));
+    expect(screen.getByLabelText('Time operation')).toBeInTheDocument();
+    expect(screen.getByLabelText('Drill-through fields (source.field, ...)'))
+      .toBeInTheDocument();
+  });
+
+  it('uses provider-family vocabulary in the semantic model designer', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: [{
+        resource_id: 'node:person', resource_kind: 'node',
+        display_name: 'Person', display_path: ['graph', 'Person'],
+      }]},
+      semantic_models: {...bootstrap.semantic_models, capabilities: {
+        ...bootstrap.semantic_models.capabilities,
+        analytical_profile: {
+          title: 'Graph analytics', semantic_family: 'graph',
+          source_kinds: ['graph', 'node', 'relationship'],
+          source_classifications: ['node-set', 'relationship-set', 'path-set'],
+          dimension_kinds: ['label', 'property', 'path', 'community'],
+          relationship_kinds: ['native-edge', 'path-pattern'],
+          measure_kinds: ['property-aggregate', 'path-count', 'score'],
+          grain_vocabulary: 'node-relationship-path',
+        },
+      }},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="semantic" />);
+    expect(await screen.findByText(/Graph analytics/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Source kind'}))
+      .toHaveTextContent('node');
+    expect(screen.getByRole('combobox', {name: 'Classification'}))
+      .toHaveTextContent('node-set');
+    fireEvent.click(screen.getByText('Relationships'));
+    expect(await screen.findByLabelText('Semantic relationship diagram'))
+      .toHaveTextContent('node-set · node');
+    expect(screen.getByRole('combobox', {name: 'Relationship kind'}))
+      .toHaveTextContent('native-edge');
+  });
+
+  it('provides security, chart, dashboard, report and diagnostics workspaces', async () => {
+    api.post.mockResolvedValue({data: {data: {
+      schema: 'cdeadmin.semantic-query-diagnostics.v1',
+      reproducibility: {model_digest: 'model-digest'},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="semantic" />);
+    fireEvent.click(await screen.findByText('Parameters & security'));
+    expect(screen.getByText('Row-level security')).toBeInTheDocument();
+    expect(screen.getByLabelText('Policy field')).toBeInTheDocument();
+    expect(screen.getByLabelText('Trusted principal claim')).toHaveValue('user_id');
+    expect(screen.getByText('Tenant filtering')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Charts & dashboards'));
+    expect(screen.getByText('Chart builder')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard builder')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Reports & schedules'));
+    expect(screen.getByText('Report builder')).toBeInTheDocument();
+    expect(screen.getByText(/has not activated a report scheduler/))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.click(screen.getByText('Refresh query diagnostics'));
+    expect(await screen.findByText(/model-digest/)).toBeInTheDocument();
+    expect(api.post).toHaveBeenLastCalledWith('/workspace/1', {
+      action: 'semantic_query_diagnostics', request: expect.any(Object),
+    });
   });
 
   it('renders semantic query results in the pivot workspace', async () => {
