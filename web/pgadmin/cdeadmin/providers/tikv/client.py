@@ -1082,18 +1082,52 @@ class TiKVBackend:
                 payload.get('resource_kind'), operation):
             route = self._route(payload)
             compiled = self._control_request(payload)
+            pre_dispatch_observation = None
+            if payload.get('resource_kind') == 'region':
+                regions = self._pd(
+                    route, '/pd/api/v1/regions'
+                ).get('regions', [])
+                records = self._pd_document(
+                    route, '/pd/api/v1/operators/records'
+                )
+                if not isinstance(records, list):
+                    records = []
+                target_region_id = self._target_value(
+                    payload, numeric=True
+                )
+                pre_dispatch_observation = {
+                    'region_ids': [
+                        item.get('id') for item in regions
+                        if isinstance(item, dict) and
+                        item.get('id') is not None
+                    ][:self.MAX_RECORDS],
+                    'target_region': next((
+                        copy.deepcopy(item) for item in regions
+                        if isinstance(item, dict) and
+                        item.get('id') == target_region_id
+                    ), None),
+                    'operator_records': [
+                        item[:4096] for item in records[-512:]
+                        if isinstance(item, str)
+                    ],
+                }
             results = []
             for item in compiled['requests']:
                 results.append(self._pd_mutate(
                     route, item['method'], item['path'], item.get('body')
                 ))
-            return {
+            result = {
                 'accepted': True,
                 'provider_responses': results,
                 'impact': copy.deepcopy(compiled['impact']),
                 'provider_finality_only': True,
                 'automatic_mutation_retry_by_cdeadmin': False,
             }
+            if pre_dispatch_observation is not None:
+                result['pre_dispatch_observation'] = (
+                    pre_dispatch_observation
+                )
+            return result
         if payload.get('resource_kind') == 'ttl':
             route = self._route(payload)
             if not route['enable_ttl']:
@@ -1322,6 +1356,8 @@ class TiKVBackend:
     @staticmethod
     def _operator_request(name, region_id, draft):
         body = {'name': name, 'region_id': region_id}
+        if name == 'merge-region':
+            body['source_region_id'] = body.pop('region_id')
         fields = {
             'transfer-leader': ('to_store_id',),
             'add-peer': ('store_id',),
@@ -1675,7 +1711,11 @@ class TiKVBackend:
         kind = plan['resource_kind']
         operation = plan['operation_id']
         if kind == 'store' and operation == 'evict_leaders':
-            document = self._pd_document(route, '/pd/api/v1/schedulers')
+            document = self._pd_document(
+                route,
+                '/pd/api/v1/scheduler-config/'
+                'evict-leader-scheduler/list',
+            )
         elif kind == 'cluster':
             path = (
                 '/pd/api/v1/stores/limit'
@@ -1700,13 +1740,31 @@ class TiKVBackend:
         elif kind == 'scheduler':
             path = '/pd/api/v1/schedulers'
             if operation in {'pause', 'resume'}:
-                path += '?status=paused'
+                name = self._target_value(payload)
+                path += '/diagnostic/' + urllib.parse.quote(name, safe='')
             document = self._pd_document(route, path)
         elif kind == 'region':
             region_id = self._target_value(payload, numeric=True)
-            document = self._pd(
-                route, f'/pd/api/v1/region/id/{region_id}'
+            regions = self._pd(
+                route, '/pd/api/v1/regions'
+            ).get('regions', [])
+            document = next((
+                copy.deepcopy(item) for item in regions
+                if isinstance(item, dict) and item.get('id') == region_id
+            ), {'id': region_id, 'region_absent': True})
+            records = self._pd_document(
+                route, '/pd/api/v1/operators/records'
             )
+            document['_cdeadmin_region_ids'] = [
+                item.get('id') for item in regions
+                if isinstance(item, dict) and item.get('id') is not None
+            ][:self.MAX_RECORDS]
+            document['_cdeadmin_operator_records'] = [
+                item[:4096] for item in (
+                    records[-512:]
+                    if isinstance(records, list) else []
+                ) if isinstance(item, str)
+            ]
         elif kind == 'placement-rule':
             document = self._pd_document(
                 route, '/pd/api/v1/config/rules'
@@ -1760,10 +1818,10 @@ class TiKVBackend:
         reason = 'provider_state_does_not_match_requested_state'
         if kind == 'store' and operation == 'evict_leaders':
             store_id = self._target_value(payload, numeric=True)
-            expected = f'evict-leader-scheduler-{store_id}'
-            confirmed = expected in self._document_list(
-                document, 'schedulers'
-            )
+            ranges = document.get('store-id-ranges', {}) if isinstance(
+                document, dict
+            ) else {}
+            confirmed = str(store_id) in ranges
         elif kind == 'keyspace' and isinstance(document, dict):
             expected_name = self._keyspace_name(
                 payload, creating=operation == 'create'
@@ -1816,17 +1874,21 @@ class TiKVBackend:
                     if isinstance(item, dict)
                 )
         elif kind == 'scheduler':
-            schedulers = self._document_list(document, 'schedulers')
             name = draft.get('scheduler_name') if operation == 'create' else (
                 self._target_value(payload)
             )
             if operation in {'create', 'drop'}:
+                schedulers = self._document_list(document, 'schedulers')
                 confirmed = (
                     (name in schedulers) == (operation == 'create')
                 )
             elif operation in {'pause', 'resume'}:
+                status = str(document.get('status', '')).lower() if (
+                    isinstance(document, dict)
+                ) else ''
                 confirmed = (
-                    (name in schedulers) == (operation == 'pause')
+                    status == 'paused' if operation == 'pause' else
+                    status in {'normal', 'pending', 'scheduling'}
                 )
         elif kind == 'placement-rule':
             group_id, rule_id = self._rule_identity(payload)
@@ -1839,9 +1901,19 @@ class TiKVBackend:
             if confirmed and operation in {'create', 'alter'}:
                 requested = self._rule_body(payload)
                 observed = matching[0]
+                defaults = {
+                    'start_key': '', 'end_key': '',
+                    'location_labels': [], 'label_constraints': [],
+                    'override': False, 'isolation_level': '', 'index': 0,
+                }
                 confirmed = all(
-                    observed.get(field) == requested.get(field)
-                    for field in {'group_id', 'id', 'role', 'count'}
+                    observed.get(field, defaults.get(field)) ==
+                    requested.get(field, defaults.get(field))
+                    for field in {
+                        'group_id', 'id', 'role', 'count', 'start_key',
+                        'end_key', 'location_labels', 'label_constraints',
+                        'override', 'isolation_level', 'index',
+                    }
                 )
         elif kind == 'region' and isinstance(document, dict):
             peers = document.get('peers') or []
@@ -1850,11 +1922,23 @@ class TiKVBackend:
                 item.get('store_id') for item in peers
                 if isinstance(item, dict)
             }
+            peer_roles = {
+                item.get('store_id'): str(
+                    item.get('role_name', '')
+                ).lower()
+                for item in peers if isinstance(item, dict)
+            }
             if operation == 'transfer_leader':
                 confirmed = leader.get('store_id') == draft.get(
                     'to_store_id')
-            elif operation in {'add_peer', 'add_learner'}:
-                confirmed = draft.get('store_id') in stores
+            elif operation == 'add_peer':
+                confirmed = peer_roles.get(
+                    draft.get('store_id')
+                ) in {'voter', 'incomingvoter'}
+            elif operation == 'add_learner':
+                confirmed = peer_roles.get(
+                    draft.get('store_id')
+                ) in {'learner', 'demotinglearner'}
             elif operation == 'remove_peer':
                 confirmed = draft.get('store_id') not in stores
             elif operation == 'transfer_peer':
@@ -1862,8 +1946,63 @@ class TiKVBackend:
                     draft.get('from_store_id') not in stores and
                     draft.get('to_store_id') in stores
                 )
-            elif operation == 'split':
-                reason = 'split_requires_region_lineage_observation'
+            elif operation in {'split', 'scatter', 'merge'}:
+                result = request.get('provider_result') or {}
+                baseline = result.get('pre_dispatch_observation') or {}
+                previous_records = set(
+                    baseline.get('operator_records') or []
+                )
+                current_records = document.get(
+                    '_cdeadmin_operator_records') or []
+                native_terms = {
+                    'split': ('split',),
+                    'scatter': ('scatter',),
+                    'merge': ('merge',),
+                }[operation]
+                region_id = self._target_value(payload, numeric=True)
+                target_region = draft.get('target_region_id')
+                terminal_record = next((
+                    item for item in current_records
+                    if item not in previous_records and
+                    ' finished ' in item and (
+                        (
+                            operation == 'merge' and
+                            f'merge: region {region_id} to '
+                            f'{target_region}' in item
+                        ) or (
+                            operation != 'merge' and
+                            f'region:{region_id}(' in item and
+                            any(
+                                term in item.lower()
+                                for term in native_terms
+                            )
+                        )
+                    )
+                ), None)
+                before_ids = set(baseline.get('region_ids') or [])
+                after_ids = set(
+                    document.get('_cdeadmin_region_ids') or []
+                )
+                if operation == 'split':
+                    confirmed = bool(
+                        terminal_record and len(after_ids) > len(before_ids)
+                    )
+                elif operation == 'merge':
+                    confirmed = bool(
+                        terminal_record and region_id not in after_ids and
+                        target_region in after_ids and
+                        len(after_ids) < len(before_ids)
+                    )
+                else:
+                    confirmed = bool(
+                        terminal_record and region_id in after_ids and
+                        peers and leader.get('store_id') in stores
+                    )
+                if not confirmed:
+                    reason = (
+                        f'{operation}_requires_new_finished_operator_record_'
+                        'and_matching_region_lineage'
+                    )
         return {
             'confirmed': confirmed,
             'reason': None if confirmed else reason,

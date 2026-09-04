@@ -3242,7 +3242,8 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual({
             'name': 'transfer-leader', 'region_id': 91,
             'to_store_id': 3,
-        }, calls[0]['body'])
+        }, calls[-1]['body'])
+        self.assertIn('pre_dispatch_observation', result)
         self.assertFalse(
             result['automatic_mutation_retry_by_cdeadmin'])
 
@@ -3289,7 +3290,7 @@ class DistributedProviderTests(unittest.TestCase):
                 },
                 'draft': {'target_region_id': 92},
             }, 'POST', '/pd/api/v1/operators', {
-                'name': 'merge-region', 'region_id': 91,
+                'name': 'merge-region', 'source_region_id': 91,
                 'target_region_id': 92,
             }),
             ({
@@ -3443,6 +3444,163 @@ class DistributedProviderTests(unittest.TestCase):
             NativeDistributedError, 'label constraint'
         ):
             backend.plan_admin_operation(request)
+
+    def test_tikv_region_post_state_requires_role_and_new_lineage(self):
+        backend = TiKVBackend(helper_path=sys.executable)
+        payload = {
+            'resource_kind': 'region', 'operation_id': 'add_learner',
+            'target_resource': {
+                'resource_id': 'region:91', 'display_path': ['91'],
+            },
+            'draft': {'store_id': 7},
+            '_provider_route': {'pd_endpoints': ['127.0.0.1:2379']},
+        }
+        request = {
+            'plan': {'resource_kind': 'region',
+                     'operation_id': 'add_learner'},
+            'provider_payload': payload,
+        }
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'id': 91, 'peers': [
+                    {'store_id': 7, 'role_name': 'Voter'},
+                ], 'leader': {'store_id': 7},
+            },
+        }
+        self.assertFalse(
+            backend.validate_admin_post_state(request)['confirmed']
+        )
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'id': 91, 'peers': [
+                    {'store_id': 7, 'role_name': 'Learner'},
+                ], 'leader': {'store_id': 8},
+            },
+        }
+        self.assertTrue(
+            backend.validate_admin_post_state(request)['confirmed']
+        )
+
+        request['plan']['operation_id'] = 'split'
+        payload['operation_id'] = 'split'
+        payload['draft'] = {'policy': 'usekey', 'keys': ['6162']}
+        request['provider_result'] = {
+            'pre_dispatch_observation': {
+                'region_ids': [91],
+                'operator_records': ['old split finished record'],
+            },
+        }
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'id': 91, 'peers': [
+                    {'store_id': 7, 'role_name': 'Voter'},
+                ], 'leader': {'store_id': 7},
+                '_cdeadmin_region_ids': [91, 92],
+                '_cdeadmin_operator_records': [
+                    'old split finished record',
+                    'split region:91(1,1) finished (0s)',
+                ],
+            },
+        }
+        self.assertTrue(
+            backend.validate_admin_post_state(request)['confirmed']
+        )
+
+    def test_tikv_placement_rule_post_state_checks_every_field(self):
+        backend = TiKVBackend(helper_path=sys.executable)
+        payload = {
+            'resource_kind': 'placement-rule',
+            'operation_id': 'alter',
+            'target_resource': {
+                'resource_id': 'placement-rule:pd:test',
+                'display_path': ['pd', 'test'],
+            },
+            'draft': {
+                'role': 'voter', 'count': 3, 'start_key': '',
+                'end_key': '', 'location_labels': [], 'constraints': [],
+                'override': True, 'rule_index': 101,
+            },
+            '_provider_route': {'pd_endpoints': ['127.0.0.1:2379']},
+        }
+        request = {
+            'plan': {'resource_kind': 'placement-rule',
+                     'operation_id': 'alter'},
+            'provider_payload': payload,
+        }
+        observed = {
+            'group_id': 'pd', 'id': 'test', 'role': 'voter', 'count': 3,
+            'start_key': '', 'end_key': '', 'location_labels': [],
+            'label_constraints': [], 'override': True, 'index': 100,
+        }
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': [observed],
+        }
+        self.assertFalse(
+            backend.validate_admin_post_state(request)['confirmed']
+        )
+        observed['index'] = 101
+        self.assertTrue(
+            backend.validate_admin_post_state(request)['confirmed']
+        )
+
+    def test_tikv_scheduler_and_eviction_use_native_state(self):
+        backend = TiKVBackend(helper_path=sys.executable)
+        scheduler_payload = {
+            'resource_kind': 'scheduler', 'operation_id': 'pause',
+            'target_resource': {
+                'resource_id': 'scheduler:balance-leader-scheduler',
+                'display_path': ['balance-leader-scheduler'],
+            },
+            'draft': {'delay_seconds': 30},
+            '_provider_route': {'pd_endpoints': ['127.0.0.1:2379']},
+        }
+        scheduler_request = {
+            'plan': {'resource_kind': 'scheduler',
+                     'operation_id': 'pause'},
+            'provider_payload': scheduler_payload,
+        }
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'name': 'balance-leader-scheduler', 'status': 'paused',
+            },
+        }
+        self.assertTrue(backend.validate_admin_post_state(
+            scheduler_request
+        )['confirmed'])
+        scheduler_request['plan']['operation_id'] = 'resume'
+        scheduler_payload['operation_id'] = 'resume'
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'name': 'balance-leader-scheduler', 'status': 'normal',
+            },
+        }
+        self.assertTrue(backend.validate_admin_post_state(
+            scheduler_request
+        )['confirmed'])
+
+        evict_payload = {
+            'resource_kind': 'store', 'operation_id': 'evict_leaders',
+            'target_resource': {
+                'resource_id': 'store:24', 'display_path': ['24'],
+            },
+            'draft': {},
+            '_provider_route': {'pd_endpoints': ['127.0.0.1:2379']},
+        }
+        evict_request = {
+            'plan': {'resource_kind': 'store',
+                     'operation_id': 'evict_leaders'},
+            'provider_payload': evict_payload,
+        }
+        backend.inspect_admin_operation = lambda _request: {
+            'provider_document': {
+                'store-id-ranges': {'24': [
+                    {'start-key': '', 'end-key': ''},
+                ]},
+            },
+        }
+        self.assertTrue(
+            backend.validate_admin_post_state(evict_request)['confirmed']
+        )
 
     def test_tikv_helper_boundary_rejects_invalid_control_data(self):
         backend = TiKVBackend(helper_path=sys.executable)
