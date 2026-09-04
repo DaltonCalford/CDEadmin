@@ -138,6 +138,29 @@ class SemanticModelTests(unittest.TestCase):
         self.repository = MemoryRepository()
         self.service = SemanticModelService(self.repository)
 
+    def test_schedule_delivery_metadata_is_declarative_and_secret_free(self):
+        value = model()
+        value['schedules'] = [{
+            'id': 'daily', 'name': 'Daily', 'expression': '0 8 * * *',
+            'timezone': 'UTC', 'enabled': False,
+            'delivery': {
+                'profile_id': 'operations-mail', 'format': 'pdf',
+                'target': {'recipients': ['owner@example.test']},
+            },
+        }]
+        value['reports'] = [{
+            'id': 'daily-report', 'name': 'Daily report',
+            'schedule_id': 'daily', 'export_formats': ['pdf'],
+        }]
+        checked = validate_model(value)
+        self.assertEqual(
+            'operations-mail',
+            checked['schedules'][0]['delivery']['profile_id'],
+        )
+        value['schedules'][0]['delivery']['password'] = 'must-not-persist'
+        with self.assertRaisesRegex(SemanticModelError, 'unsupported fields'):
+            validate_model(value)
+
     def test_validation_and_provider_compilation_are_structured(self):
         checked = validate_model(model())
         self.assertEqual(['sales'], checked['_symbols']['source_ids'])

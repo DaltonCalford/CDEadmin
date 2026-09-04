@@ -9,6 +9,7 @@
 
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import ProviderWorkspaceContent, {
+  ResultControls,
   semanticCrossFilter,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
@@ -123,6 +124,38 @@ describe('ProviderWorkspaceContent', () => {
       });
     expect(semanticCrossFilter(definition, {encodings: {x: 'measure'}},
       {value: 42})).toBeNull();
+  });
+
+  it('delivers a retained export through a named server-side profile', async () => {
+    const post = jest.fn().mockResolvedValue({
+      state: 'delivered', automatic_retry: false,
+    });
+    render(<ResultControls rendered={{
+      descriptor: {result_id: 'result-one', export_formats: ['pdf']},
+      page: {},
+    }} history={[]} post={post} onRendered={jest.fn()}
+    setError={jest.fn()} setBusy={jest.fn()} allowedFormats={['pdf']}
+    deliveryProfiles={[{
+      profile_id: 'archive', label: 'Report archive', kind: 's3',
+      allowed_formats: ['pdf'],
+    }]} />);
+    fireEvent.change(screen.getByLabelText('Object filename'), {
+      target: {value: 'quarterly-report.pdf'},
+    });
+    fireEvent.click(screen.getByText('Deliver'));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({
+      action: 'result_delivery', request: {
+        request_key: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+        ),
+        result_id: 'result-one', format: 'pdf', profile_id: 'archive',
+        target: {object_name: 'quarterly-report.pdf'},
+      },
+    }));
+    expect(await screen.findByText(/Delivery state.*delivered/))
+      .toBeInTheDocument();
+    expect(screen.getByText(/Automatic retry is disabled/))
+      .toBeInTheDocument();
   });
 
   it('loads provider resources through the workspace endpoint', async () => {

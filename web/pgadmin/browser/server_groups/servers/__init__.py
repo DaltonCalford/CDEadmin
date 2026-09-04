@@ -71,6 +71,7 @@ from pgadmin.cdeadmin.core import (
 from pgadmin.cdeadmin.data_studio import DataStudioError
 from pgadmin.cdeadmin.resources import ResourceGraphError
 from pgadmin.cdeadmin.results import ResultRegistryError
+from pgadmin.cdeadmin.report_delivery import ReportDeliveryError
 from pgadmin.cdeadmin.semantic_models import SemanticModelError
 from pgadmin.cdeadmin.visual_admin import VisualAdminError
 from pgadmin.cdeadmin.workspace import (
@@ -2151,6 +2152,12 @@ class ServerNode(PGChildNodeView):
                     payload = service.compare_results(
                         server, data.get('request') or {}
                     )
+                elif action == 'result_delivery':
+                    payload = service.deliver_result(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'result_delivery_list':
+                    payload = service.list_result_deliveries(server)
                 elif action == 'transaction':
                     payload = service.transaction(
                         server, data.get('session_id')
@@ -2227,6 +2234,7 @@ class ServerNode(PGChildNodeView):
             DataStudioError,
             ResourceGraphError,
             ResultRegistryError,
+            ReportDeliveryError,
             VisualAdminError,
             SemanticModelError,
         ):

@@ -524,9 +524,55 @@ def validate_model(value: Mapping[str, Any]) -> dict[str, Any]:
             schedule.get('timezone', 'UTC'), 'schedule.timezone', 128
         )
         schedule['enabled'] = bool(schedule.get('enabled', False))
-        schedule['delivery'] = mapping(
+        delivery = mapping(
             schedule.get('delivery', {}), 'schedule.delivery'
         )
+        unsupported = set(delivery).difference({
+            'profile_id', 'format', 'target',
+        })
+        if unsupported:
+            raise SemanticModelError(
+                'schedule delivery contains unsupported fields'
+            )
+        if delivery:
+            delivery['profile_id'] = required_text(
+                delivery.get('profile_id'),
+                'schedule.delivery.profile_id', 128,
+            )
+            delivery['format'] = required_text(
+                delivery.get('format'), 'schedule.delivery.format', 16
+            )
+            if delivery['format'] not in EXPORT_FORMATS:
+                raise SemanticModelError(
+                    'schedule delivery export format is unsupported'
+                )
+            target = mapping(
+                delivery.get('target'), 'schedule.delivery.target'
+            )
+            target_fields = set(target)
+            if target_fields == {'recipients'}:
+                recipients = array(
+                    target['recipients'],
+                    'schedule.delivery.target.recipients', 50,
+                )
+                if not recipients:
+                    raise SemanticModelError(
+                        'schedule delivery recipients must not be empty'
+                    )
+                target['recipients'] = [required_text(
+                    item, 'schedule.delivery.target.recipient', 320
+                ) for item in recipients]
+            elif target_fields == {'object_name'}:
+                target['object_name'] = required_text(
+                    target['object_name'],
+                    'schedule.delivery.target.object_name', 255,
+                )
+            else:
+                raise SemanticModelError(
+                    'schedule delivery target shape is unsupported'
+                )
+            delivery['target'] = target
+        schedule['delivery'] = delivery
     model['schedules'] = schedules
 
     reports = array(model.get('reports', []), 'model.reports', 128)

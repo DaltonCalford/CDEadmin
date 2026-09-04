@@ -410,6 +410,15 @@ MAIL_USERNAME = ''
 MAIL_PASSWORD = ''
 MAIL_DEBUG = False
 
+# Named, server-side report delivery profiles. Profile credentials are never
+# included in semantic-model definitions or browser responses. SMTP profiles
+# require authenticated SMTP plus TLS/SSL and an explicit recipient allowlist.
+# S3 profiles use the boto3 credential chain/profile or an assumed role and a
+# fixed bucket/prefix. See docs/en_US/report_delivery.rst.
+CDEADMIN_REPORT_DELIVERY_PROFILES = {}
+CDEADMIN_REPORT_DELIVERY_RETENTION_DAYS = 90
+CDEADMIN_REPORT_DELIVERY_STALE_SECONDS = 600
+
 # Flask-Security overrides Flask-Mail's MAIL_DEFAULT_SENDER setting, so
 # that should be set as such:
 SECURITY_EMAIL_SENDER = 'no-reply@localhost'

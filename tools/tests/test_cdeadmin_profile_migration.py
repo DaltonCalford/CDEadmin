@@ -490,7 +490,7 @@ class ProfileMigrationSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_semantic_models_v1'}, revisions - predecessors
+            {'cde_report_delivery_v1'}, revisions - predecessors
         )
 
 

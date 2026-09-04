@@ -717,6 +717,11 @@ class EndpointProfile(db.Model):
         back_populates='endpoint',
         cascade=CASCADE_STR
     )
+    report_delivery_occurrences = db.relationship(
+        'CDEReportDeliveryOccurrence',
+        back_populates='endpoint',
+        cascade=CASCADE_STR
+    )
 
 
 class SemanticModelDefinition(db.Model):
@@ -779,6 +784,55 @@ class SemanticModelRevision(db.Model):
     created_at = db.Column(db.DateTime(), nullable=False)
     model = db.relationship(
         'SemanticModelDefinition', back_populates='revisions'
+    )
+
+
+class CDEReportDeliveryOccurrence(db.Model):
+    """Durable, secret-free record of one report delivery attempt."""
+    __tablename__ = 'cde_report_delivery_occurrence'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'endpoint_id', 'request_key',
+            name='uq_cde_report_delivery_request'
+        ),
+        db.CheckConstraint(
+            "state IN ('prepared', 'delivering', 'delivered', 'failed', "
+            "'outcome_unknown')",
+            name='ck_cde_report_delivery_state'
+        ),
+        db.CheckConstraint(
+            "channel IN ('smtp', 's3')",
+            name='ck_cde_report_delivery_channel'
+        ),
+        db.CheckConstraint(
+            "export_format IN ('csv', 'json', 'jsonl', 'xlsx', 'svg', "
+            "'pdf')",
+            name='ck_cde_report_delivery_format'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    request_key = db.Column(db.String(36), nullable=False)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    endpoint_id = db.Column(
+        db.String(36), db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    result_id = db.Column(db.String(128), nullable=False)
+    profile_id = db.Column(db.String(128), nullable=False)
+    channel = db.Column(db.String(16), nullable=False)
+    export_format = db.Column(db.String(16), nullable=False)
+    intent_digest = db.Column(db.String(64), nullable=False)
+    target_summary = db.Column(db.Text(), nullable=False)
+    state = db.Column(db.String(32), nullable=False)
+    provider_receipt = db.Column(db.Text(), nullable=True)
+    error_type = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    started_at = db.Column(db.DateTime(), nullable=True)
+    completed_at = db.Column(db.DateTime(), nullable=True)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='report_delivery_occurrences'
     )
 
 

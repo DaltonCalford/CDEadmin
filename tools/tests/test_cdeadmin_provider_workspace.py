@@ -173,6 +173,28 @@ class EndpointService:
         return self._workspace
 
 
+class DeliveryService:
+    def __init__(self):
+        self.request = None
+
+    @staticmethod
+    def catalog():
+        return {'manual_delivery': True, 'profiles': [{
+            'profile_id': 'archive', 'kind': 's3', 'label': 'Archive',
+        }], 'automatic_scheduling': False}
+
+    def deliver(self, user_id, endpoint_id, request):
+        self.request = (user_id, endpoint_id, request)
+        return {
+            'state': 'delivered', 'occurrence_id': str(uuid.uuid4()),
+            'automatic_retry': False,
+        }
+
+    @staticmethod
+    def list(_user_id, _endpoint_id):
+        return [{'state': 'delivered'}]
+
+
 def context():
     endpoint_id = uuid.uuid4()
 
@@ -420,6 +442,33 @@ class ProviderWorkspaceTests(unittest.TestCase):
         })
         self.assertEqual(0, compared['changed_count'])
         self.assertFalse(compared['semantic_equality_inferred'])
+
+    def test_authenticated_owner_can_deliver_a_bounded_retained_export(self):
+        delivery = DeliveryService()
+        self.workspace.report_delivery_service = delivery
+        server = SimpleNamespace(user_id=11)
+        session = self.workspace.open_session(server, 'mysql-sql')
+        executed = self.workspace.execute(
+            server, session['session_id'], 'SELECT 42'
+        )
+        rendered = self.workspace.poll(
+            server, executed['occurrence_id']
+        )['rendered_result']
+        result_id = rendered['descriptor']['result_id']
+        result = self.workspace.deliver_result(server, {
+            'request_key': str(uuid.uuid4()), 'result_id': result_id,
+            'format': 'pdf', 'profile_id': 'archive',
+            'target': {'object_name': 'report.pdf'},
+        })
+        self.assertEqual('delivered', result['state'])
+        self.assertEqual(11, delivery.request[0])
+        self.assertEqual(self.context.endpoint_id, delivery.request[1])
+        self.assertTrue(delivery.request[2]['content'].startswith(b'%PDF-'))
+        self.assertEqual('application/pdf', delivery.request[2]['media_type'])
+        self.assertEqual(
+            [{'state': 'delivered'}],
+            self.workspace.list_result_deliveries(server)['items'],
+        )
 
     def test_bulk_mutations_are_previewed_and_explicitly_confirmed(self):
         server = SimpleNamespace(user_id=11)

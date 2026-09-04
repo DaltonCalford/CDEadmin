@@ -18,6 +18,7 @@ upstream attribution.
 
    getting_started
    cdeadmin_hard_fork
+   report_delivery
    external_database
    connecting
    managing_cluster_objects

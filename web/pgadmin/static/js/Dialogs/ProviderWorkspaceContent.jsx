@@ -68,6 +68,17 @@ function downloadBase64(payload) {
   URL.revokeObjectURL(link.href);
 }
 
+function deliveryRequestId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const values = new Uint8Array(16);
+  window.crypto.getRandomValues(values);
+  values[6] = (values[6] & 0x0f) | 0x40;
+  values[8] = (values[8] & 0x3f) | 0x80;
+  return [...values].map((value, index) =>
+    `${index === 4 || index === 6 || index === 8 || index === 10 ? '-' : ''}${
+      value.toString(16).padStart(2, '0')}`).join('');
+}
+
 function resourceHierarchy(groups, expanded, filtering) {
   const rows = [];
   groups.forEach((group) => {
@@ -1770,10 +1781,23 @@ SemanticChartView.propTypes = {
   onSelect: PropTypes.func,
 };
 
-function ResultControls({rendered, history, post, onRendered, setError,
-  setBusy, allowedFormats}) {
+export function ResultControls({rendered, history, post, onRendered, setError,
+  setBusy, allowedFormats, deliveryProfiles=[]}) {
   const [comparison, setComparison] = useState(null);
+  const [deliveryProfileId, setDeliveryProfileId] = useState(
+    deliveryProfiles[0]?.profile_id || '');
+  const [deliveryTarget, setDeliveryTarget] = useState('');
+  const [deliveryFormat, setDeliveryFormat] = useState('');
+  const [deliveryOccurrence, setDeliveryOccurrence] = useState(null);
   const resultId = rendered?.descriptor?.result_id;
+  const exportFormats = (rendered?.descriptor?.export_formats || []).filter(
+    (format) => !allowedFormats || allowedFormats.includes(format));
+  const deliveryProfile = deliveryProfiles.find(
+    (item) => item.profile_id === deliveryProfileId);
+  const deliverableFormats = exportFormats.filter((format) =>
+    deliveryProfile?.allowed_formats?.includes(format));
+  const selectedDeliveryFormat = deliverableFormats.includes(deliveryFormat) ?
+    deliveryFormat : (deliverableFormats[0] || '');
   const previous = [...history].reverse().find((item) =>
     item.descriptor?.result_id !== resultId);
   const perform = async (callback) => {
@@ -1796,8 +1820,7 @@ function ResultControls({rendered, history, post, onRendered, setError,
           result_id: resultId, cursor: rendered.page.next_cursor,
           page_size: rendered.page.page_size || 500,
         }})))}>{gettext('Next result page')}</Button>
-      {(rendered.descriptor?.export_formats || []).filter((format) =>
-        !allowedFormats || allowedFormats.includes(format)).map((format) =>
+      {exportFormats.map((format) =>
         <Button key={format} onClick={() => perform(async () => downloadBase64(
           await post({action: 'result_export', request: {
             result_id: resultId, format,
@@ -1809,6 +1832,49 @@ function ResultControls({rendered, history, post, onRendered, setError,
           right_result_id: resultId,
         }})))}>{gettext('Compare with previous result')}</Button>
     </Box>
+    {deliveryProfiles.length > 0 && <Box sx={{display: 'grid', mt: 1,
+      gridTemplateColumns: '1fr 1fr 2fr auto', gap: 1}}
+    aria-label={gettext('Authenticated report delivery')}>
+      <TextField select label={gettext('Delivery profile')}
+        value={deliveryProfileId} onChange={(event) => {
+          setDeliveryProfileId(event.target.value);
+          setDeliveryFormat('');
+          setDeliveryOccurrence(null);
+        }}>
+        {deliveryProfiles.map((profile) => <MenuItem
+          key={profile.profile_id} value={profile.profile_id}>
+          {profile.label} ({profile.kind.toUpperCase()})
+        </MenuItem>)}
+      </TextField>
+      <TextField select label={gettext('Delivery format')}
+        value={selectedDeliveryFormat} onChange={(event) =>
+          setDeliveryFormat(event.target.value)}>
+        {deliverableFormats.map((format) => <MenuItem key={format}
+          value={format}>{format.toUpperCase()}</MenuItem>)}
+      </TextField>
+      <TextField value={deliveryTarget} onChange={(event) =>
+        setDeliveryTarget(event.target.value)} label={deliveryProfile?.kind ===
+        'smtp' ? gettext('Recipients (comma separated)') :
+        gettext('Object filename')} />
+      <Button disabled={!deliveryProfile || !selectedDeliveryFormat ||
+        !deliveryTarget.trim()} onClick={() => perform(async () => {
+        const target = deliveryProfile.kind === 'smtp' ? {
+          recipients: deliveryTarget.split(',').map((item) => item.trim())
+            .filter(Boolean),
+        } : {object_name: deliveryTarget.trim()};
+        setDeliveryOccurrence(await post({action: 'result_delivery',
+          request: {
+            request_key: deliveryRequestId(), result_id: resultId,
+            format: selectedDeliveryFormat,
+            profile_id: deliveryProfile.profile_id, target,
+          }}));
+      })}>{gettext('Deliver')}</Button>
+    </Box>}
+    {deliveryOccurrence && <Alert sx={{mt: 1}} severity={
+      deliveryOccurrence.state === 'delivered' ? 'success' : 'warning'}>
+      {gettext('Delivery state')}: {deliveryOccurrence.state}. {
+        gettext('Automatic retry is disabled.')}
+    </Alert>}
     {comparison && <Box component="pre"
       aria-label={gettext('Result comparison')}
       sx={{p: 1, mt: 1, overflow: 'auto', maxHeight: 260,
@@ -1826,6 +1892,7 @@ ResultControls.propTypes = {
   setError: PropTypes.func.isRequired,
   setBusy: PropTypes.func.isRequired,
   allowedFormats: PropTypes.array,
+  deliveryProfiles: PropTypes.array,
 };
 
 function DocumentDataGrid({catalog, resources, post, setError}) {
@@ -3841,7 +3908,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             current.map((item) => item.chart.id === chart.id ? {
               ...item, rendered: value,
             } : item))} setError={setError} setBusy={setWorking}
-          allowedFormats={report.export_formats} />
+          allowedFormats={report.export_formats}
+          deliveryProfiles={semantic.delivery?.profiles || []} />
         <SemanticChartView chart={chart} rendered={reportResult} />
       </Box>)}
     </Box>}

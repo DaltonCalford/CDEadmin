@@ -45,6 +45,7 @@
       "cdeadmin_data_studio",
       "cdeadmin_result_service",
       "cdeadmin_semantic_model_service",
+      "cdeadmin_report_delivery_service",
       "cdeadmin_operation_bus",
       "cdeadmin_provider_workspace"
     ]

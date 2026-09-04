@@ -45,6 +45,7 @@ class ProviderWorkspaceService:
     def __init__(
         self, endpoint_service, resource_service, studio_service,
         result_service, semantic_model_service=None, operation_bus=None,
+        report_delivery_service=None,
     ):
         self.endpoint_service = endpoint_service
         self.resource_service = resource_service
@@ -52,6 +53,7 @@ class ProviderWorkspaceService:
         self.result_service = result_service
         self.semantic_model_service = semantic_model_service
         self.operation_bus = operation_bus
+        self.report_delivery_service = report_delivery_service
         self._semantic_executions = {}
         self._semantic_lock = threading.RLock()
 
@@ -106,11 +108,54 @@ class ProviderWorkspaceService:
                     'items': self.semantic_model_service.list(
                         self._principal_id(server), context.endpoint_id
                     ),
+                    'delivery': self.report_delivery_service.catalog()
+                    if self.report_delivery_service is not None else {
+                        'manual_delivery': False, 'profiles': [],
+                        'automatic_scheduling': False,
+                    },
                 } if self.semantic_model_service is not None else {
                     'capabilities': {'designer': False}, 'items': [],
                 }
             ),
         }
+
+    def deliver_result(self, server, request):
+        """Deliver a bounded export under the authenticated endpoint owner."""
+        if self.report_delivery_service is None:
+            raise ProviderWorkspaceError(
+                'report delivery service is not initialized'
+            )
+        if not isinstance(request, dict) or set(request) != {
+                'request_key', 'result_id', 'format', 'profile_id', 'target'}:
+            raise ProviderWorkspaceError('result delivery request is invalid')
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        exported = self.result_service.export(
+            request.get('result_id'), request.get('format'),
+            endpoint_id=context.endpoint_id,
+        )
+        content = exported.pop('content')
+        export_format = request.get('format')
+        return self.report_delivery_service.deliver(
+            self._principal_id(server), context.endpoint_id, {
+                **request, 'content': content,
+                'media_type': self._export_media_type(export_format),
+                'filename': (
+                    f"cdeadmin-result-{request.get('result_id')}."
+                    f'{export_format}'
+                ),
+            }
+        )
+
+    def list_result_deliveries(self, server):
+        """Return secret-free durable delivery occurrences for this owner."""
+        if self.report_delivery_service is None:
+            raise ProviderWorkspaceError(
+                'report delivery service is not initialized'
+            )
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        return {'items': self.report_delivery_service.list(
+            self._principal_id(server), context.endpoint_id
+        )}
 
     def resource_page(self, server, request):
         """Return the next generation-bound root navigator page."""
@@ -723,22 +768,23 @@ class ProviderWorkspaceService:
             result_id, export_format, endpoint_id=context.endpoint_id
         )
         content = exported.pop('content')
+        return {
+            **exported,
+            'content_base64': base64.b64encode(content).decode('ascii'),
+            'media_type': self._export_media_type(export_format),
+            'filename': f'cdeadmin-result-{result_id}.{export_format}',
+        }
+
+    @staticmethod
+    def _export_media_type(export_format):
         media_types = {
             'csv': 'text/csv', 'json': 'application/json',
             'jsonl': 'application/x-ndjson',
             'xlsx': ('application/vnd.openxmlformats-officedocument.'
                      'spreadsheetml.sheet'),
-            'svg': 'image/svg+xml',
-            'pdf': 'application/pdf',
+            'svg': 'image/svg+xml', 'pdf': 'application/pdf',
         }
-        return {
-            **exported,
-            'content_base64': base64.b64encode(content).decode('ascii'),
-            'media_type': media_types.get(
-                export_format, 'application/octet-stream'
-            ),
-            'filename': f'cdeadmin-result-{result_id}.{export_format}',
-        }
+        return media_types.get(export_format, 'application/octet-stream')
 
     def compare_results(self, server, request):
         """Compare two retained redacted presentations from one endpoint."""
@@ -807,13 +853,14 @@ class ProviderWorkspaceService:
 def init_app(
     app, endpoint_service, resource_service, studio_service, result_service,
     semantic_model_service=None, operation_bus=None,
+    report_delivery_service=None,
 ):
     existing = app.extensions.get(APP_EXTENSION_KEY)
     if existing is not None:
         return existing
     service = ProviderWorkspaceService(
         endpoint_service, resource_service, studio_service, result_service,
-        semantic_model_service, operation_bus,
+        semantic_model_service, operation_bus, report_delivery_service,
     )
     app.extensions[APP_EXTENSION_KEY] = service
     return service
