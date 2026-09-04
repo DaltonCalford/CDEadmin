@@ -122,6 +122,7 @@ class FakeRedis:
         self.streams = {b'stream': [(b'1-0', {b'f': b'v'})]}
         self.vectors = {b'vectors': {b'item': [b'1', b'0']}}
         self.commands = []
+        self.selected_cluster_node = None
 
     def close(self):
         self.closed = True
@@ -131,6 +132,10 @@ class FakeRedis:
 
     def get_default_node(self):
         return object()
+
+    def get_node(self, host=None, port=None, node_name=None):
+        self.selected_cluster_node = (host, port, node_name)
+        return ClusterNode(host, port)
 
     def get_redis_connection(self, _node):
         return self
@@ -475,6 +480,59 @@ class RedisProviderTestCase(unittest.TestCase):
             (b'PUBLISH', b'events', b'ready'),
             compiled['commands'][0],
         )
+
+    def test_ttl_uses_expiry_form_and_bitmap_delete_is_native(self):
+        form = self.client._admin_form('ttl', 'create')
+        self.assertEqual(
+            ['milliseconds', 'condition'],
+            [field['field_id'] for field in form['fields']],
+        )
+        compiled = self.client._compile_admin({
+            'resource_kind': 'bitmap', 'operation_id': 'delete',
+            'draft': {'selector': {'offset': 0}},
+            'native': {'key': 'bits'}, '_provider_route': route(),
+        })
+        self.assertEqual((b'DEL', b'bits'), compiled['commands'][0])
+
+    def test_sentinel_operations_have_safe_nonexecuting_previews(self):
+        sentinel_route = {**route(), 'sentinel_service': 'primary'}
+        target_value = {'service': 'primary'}
+        altered = self.client._compile_admin({
+            'resource_kind': 'sentinel', 'operation_id': 'alter',
+            'draft': {'changes': {'down-after-milliseconds': 5000}},
+            'native': target_value, '_provider_route': sentinel_route,
+        }, preview=True)
+        reset = self.client._compile_admin({
+            'resource_kind': 'sentinel', 'operation_id': 'execute',
+            'draft': {'action': 'reset', 'arguments': {}},
+            'native': target_value, '_provider_route': sentinel_route,
+        }, preview=True)
+        self.assertEqual(b'SET', altered['commands'][0][1])
+        self.assertEqual(b'RESET', reset['commands'][0][1])
+
+    def test_cluster_control_plane_routes_to_discovered_owner_node(self):
+        cluster = FakeRedis(None)
+        selected = self.client._node_admin_client(
+            cluster, {'topology_mode': 'cluster'}, 'cluster-slot',
+            {'host': '127.0.0.2', 'port': 16380},
+        )
+        self.assertIs(cluster, selected)
+        self.assertEqual(
+            ('127.0.0.2', 16380, None), cluster.selected_cluster_node
+        )
+
+    def test_cluster_slot_resources_retain_owner_endpoint(self):
+        resources = self.client._cluster_resources(
+            'node-one 127.0.0.2:16380@26380 master - 0 0 1 '
+            'connected 0-100',
+            'generation-one',
+        )
+        slot = next(
+            item for item in resources
+            if item['resource_kind'] == 'cluster-slot'
+        )
+        self.assertEqual('127.0.0.2', slot['native']['host'])
+        self.assertEqual(16380, slot['native']['port'])
 
     def test_row_identity_is_route_bound_single_use_and_concurrent(self):
         page = self.client.read_admin_rows({

@@ -1112,8 +1112,13 @@ class RedisClient:
             if len(columns) < 8:
                 continue
             node_id, address, flags = columns[0], columns[1], columns[2]
+            endpoint = address.split('@', 1)[0].split(',', 1)[0]
+            host, separator, port = endpoint.rpartition(':')
+            node_host = host.strip('[]') if separator else None
+            node_port = int(port) if separator and port.isdigit() else None
             node = {
                 'node_id': node_id, 'address': address,
+                'host': node_host, 'port': node_port,
                 'flags': flags.split(','), 'master_id': columns[3],
                 'ping_sent': columns[4], 'pong_received': columns[5],
                 'config_epoch': columns[6], 'link_state': columns[7],
@@ -1125,7 +1130,10 @@ class RedisClient:
             for slot in columns[8:]:
                 resources.append(self._resource(
                     'cluster-slot', slot,
-                    {'slot_range': slot, 'node_id': node_id},
+                    {
+                        'slot_range': slot, 'node_id': node_id,
+                        'host': node_host, 'port': node_port,
+                    },
                     parent=node_id, generation=generation,
                 ))
         return resources
@@ -1265,7 +1273,12 @@ class RedisClient:
         name = request.get('display_name') or target.get('key') or kind
         try:
             client, topology, route = self._connect(request)
-            native = self._inspect_native(client, kind, target, route)
+            inspection_client = self._node_admin_client(
+                client, route, kind, target
+            )
+            native = self._inspect_native(
+                inspection_client, kind, target, route
+            )
             return self._resource(
                 kind, str(name), native,
                 parent=f'db{route["database"]}',
@@ -1324,6 +1337,21 @@ class RedisClient:
             'stream': ('XRANGE', key, '-', '+', 'COUNT', MAX_PAGE_SIZE),
             'vector-set': ('VRANGE', key, '-', '+', MAX_PAGE_SIZE),
         }
+        if data_type == 'geospatial':
+            members = client.zrange(key, 0, MAX_PAGE_SIZE - 1)
+            positions = client.geopos(key, *members) if members else []
+            return self._json_value([
+                {
+                    'member': member,
+                    'longitude': position[0] if position else None,
+                    'latitude': position[1] if position else None,
+                }
+                for member, position in zip(members, positions)
+            ])
+        if data_type == 'bitmap':
+            return self._json_value(client.get(key))
+        if data_type == 'hyperloglog':
+            return {'estimated_cardinality': client.pfcount(key)}
         command = commands.get(data_type)
         if command is None:
             return None
@@ -1431,6 +1459,21 @@ class RedisClient:
         f = self._field
         if operation == 'inspect':
             return self._form('redis-inspect', 'Inspect', [])
+        if kind == 'ttl' and operation in {'create', 'alter'}:
+            return self._form(
+                f'redis-ttl-{operation}', f'{operation.title()} expiry', [
+                    f('milliseconds', 'Expiry in milliseconds', 'number',
+                      True),
+                    f('condition', 'Condition', 'select', False,
+                      default='none', options=[
+                          {'value': 'none', 'label': 'Always'},
+                          {'value': 'nx', 'label': 'Only without expiry'},
+                          {'value': 'xx', 'label': 'Only with expiry'},
+                          {'value': 'gt', 'label': 'Only if greater'},
+                          {'value': 'lt', 'label': 'Only if less'},
+                      ]),
+                ],
+            )
         if kind in self.DATA_KINDS:
             if operation == 'rename':
                 return self._form('redis-key-rename', 'Rename key', [
@@ -1516,21 +1559,6 @@ class RedisClient:
                       max_length=MAX_COMMAND_BYTES),
                     f('replace', 'Replace existing library', 'boolean', False,
                       default=operation == 'alter'),
-                ],
-            )
-        if kind == 'ttl' and operation in {'create', 'alter'}:
-            return self._form(
-                f'redis-ttl-{operation}', f'{operation.title()} expiry', [
-                    f('milliseconds', 'Expiry in milliseconds', 'number',
-                      True),
-                    f('condition', 'Condition', 'select', False,
-                      default='none', options=[
-                          {'value': 'none', 'label': 'Always'},
-                          {'value': 'nx', 'label': 'Only without expiry'},
-                          {'value': 'xx', 'label': 'Only with expiry'},
-                          {'value': 'gt', 'label': 'Only if greater'},
-                          {'value': 'lt', 'label': 'Only if less'},
-                      ]),
                 ],
             )
         if kind in {'transaction', 'pipeline'} and operation == 'execute':
@@ -1651,7 +1679,12 @@ class RedisClient:
             if kind == 'sentinel':
                 return self._apply_sentinel(topology, payload, route)
             compiled = self._compile_admin(payload, preview=False)
-            result = self._execute_compiled(client, compiled, payload, route)
+            execution_client = self._node_admin_client(
+                client, route, kind, payload.get('native')
+            )
+            result = self._execute_compiled(
+                execution_client, compiled, payload, route
+            )
             return {
                 'provider_owned': True,
                 'native_outcome': result['outcome'],
@@ -1666,6 +1699,24 @@ class RedisClient:
             }
         finally:
             self._close_native(client, topology)
+
+    @staticmethod
+    def _node_admin_client(client, route, kind, native=None):
+        if (
+            route.get('topology_mode') == 'cluster' and
+            kind in {'cluster-slot', 'node', 'replica'}
+        ):
+            native = native if isinstance(native, Mapping) else {}
+            host, port = native.get('host'), native.get('port')
+            node = client.get_node(host=host, port=port) if (
+                host is not None and port is not None
+            ) else client.get_default_node()
+            if node is None:
+                raise RedisClientError(
+                    'Redis cluster administration target node is unavailable'
+                )
+            return client.get_redis_connection(node)
+        return client
 
     def _execute_compiled(self, client, compiled, payload, route):
         commands = compiled.get('commands', [])
@@ -1795,6 +1846,38 @@ class RedisClient:
                 'transactional': kind == 'transaction',
                 'watch_keys': watch,
             }
+        if kind == 'sentinel':
+            service = native.get(
+                'service', payload.get('_provider_route', {}).get(
+                    'sentinel_service'
+                )
+            )
+            service = _binary(service, 'Sentinel service')
+            if operation == 'alter':
+                changes = _mapping(draft.get('changes'), 'Sentinel changes')
+                if len(changes) != 1:
+                    raise RedisClientError(
+                        'Sentinel alteration accepts exactly one setting'
+                    )
+                key, value = next(iter(changes.items()))
+                return {'commands': [(
+                    b'SENTINEL', b'SET', service,
+                    _binary(key, 'Sentinel setting'),
+                    _binary(value, 'Sentinel setting value'),
+                )]}
+            if operation == 'execute':
+                action = _text(
+                    draft.get('action'), 'Sentinel action'
+                ).lower()
+                commands = {
+                    'failover': (b'SENTINEL', b'FAILOVER', service),
+                    'reset': (b'SENTINEL', b'RESET', service),
+                }
+                if action not in commands:
+                    raise RedisClientError(
+                        'Sentinel action is not admitted'
+                    )
+                return {'commands': [commands[action]]}
         if kind == 'consumer-group':
             return self._compile_consumer_group(operation, draft, native)
         if kind == 'consumer' and operation == 'drop':
@@ -2124,6 +2207,8 @@ class RedisClient:
                                 _binary(value, 'stream value')))
             return {'commands': [tuple(command)]}
         if kind == 'bitmap':
+            if operation == 'delete':
+                return {'commands': [(b'DEL', key)]}
             if operation == 'update' and identity_edit:
                 item = _mapping(values, 'bitmap change')
                 return {'commands': [(b'SET', key, _binary(
