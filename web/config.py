@@ -419,6 +419,16 @@ CDEADMIN_REPORT_DELIVERY_PROFILES = {}
 CDEADMIN_REPORT_DELIVERY_RETENTION_DAYS = 90
 CDEADMIN_REPORT_DELIVERY_STALE_SECONDS = 600
 
+# Unattended report execution is fail-closed until an operator supplies an
+# AES-256-GCM key ring and active key ID. Values are base64-encoded 32-byte
+# keys supplied through config_local.py or its secret-injection mechanism.
+CDEADMIN_REPORT_WORKER_KEYS = {}
+CDEADMIN_REPORT_WORKER_ACTIVE_KEY_ID = None
+CDEADMIN_REPORT_WORKER_LEASE_SECONDS = 300
+CDEADMIN_REPORT_MAX_LATENESS_SECONDS = 3600
+CDEADMIN_REPORT_WORKER_POLL_INTERVAL = 0.1
+CDEADMIN_REPORT_WORKER_MAX_POLLS = 600
+
 # Flask-Security overrides Flask-Mail's MAIL_DEFAULT_SENDER setting, so
 # that should be set as such:
 SECURITY_EMAIL_SENDER = 'no-reply@localhost'

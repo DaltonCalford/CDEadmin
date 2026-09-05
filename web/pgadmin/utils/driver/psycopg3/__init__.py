@@ -23,7 +23,7 @@ import psycopg
 from threading import Lock
 
 import config
-from pgadmin.model import Server
+from pgadmin.model import Server, SharedServer
 from pgadmin.utils.server_access import get_server, \
     get_user_server_query
 from pgadmin.utils.exception import ObjectGone
@@ -163,6 +163,24 @@ class Driver(BaseDriver):
             return manager
 
         return managers[str(sid)]
+
+    @staticmethod
+    def delegated_connection_manager(sid, owner_id, source_kind='server'):
+        """Create an owner-bound manager without an interactive session."""
+        if isinstance(sid, bool) or not isinstance(sid, int) or (
+                isinstance(owner_id, bool) or not isinstance(owner_id, int)):
+            raise ObjectGone(gettext("Server not found."))
+        source_type = {
+            'server': Server, 'sharedserver': SharedServer,
+        }.get(source_kind)
+        if source_type is None:
+            raise ObjectGone(gettext("Server not found."))
+        server = source_type.query.filter_by(
+            id=sid, user_id=owner_id
+        ).first()
+        if server is None:
+            raise ObjectGone(gettext("Server not found."))
+        return ServerManager(server, session_backed=False)
 
     def version(self):
         """

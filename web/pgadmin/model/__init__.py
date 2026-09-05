@@ -722,6 +722,9 @@ class EndpointProfile(db.Model):
         back_populates='endpoint',
         cascade=CASCADE_STR
     )
+    report_delegations = db.relationship(
+        'CDEReportDelegation', back_populates='endpoint', cascade=CASCADE_STR
+    )
 
 
 class SemanticModelDefinition(db.Model):
@@ -833,6 +836,121 @@ class CDEReportDeliveryOccurrence(db.Model):
     completed_at = db.Column(db.DateTime(), nullable=True)
     endpoint = db.relationship(
         'EndpointProfile', back_populates='report_delivery_occurrences'
+    )
+
+
+class CDEReportDelegation(db.Model):
+    """Revocable user authorization for one unattended report."""
+    __tablename__ = 'cde_report_delegation'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'endpoint_id', 'model_id', 'report_id',
+            name='uq_cde_report_delegation_scope'
+        ),
+        db.CheckConstraint(
+            "state IN ('active', 'revoked', 'expired')",
+            name='ck_cde_report_delegation_state'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    endpoint_id = db.Column(
+        db.String(36), db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    model_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_semantic_model.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    report_id = db.Column(db.String(128), nullable=False)
+    schedule_id = db.Column(db.String(128), nullable=False)
+    route_id = db.Column(db.String(128), nullable=False)
+    primary_secret_kind = db.Column(db.String(128), nullable=True)
+    endpoint_generation = db.Column(db.String(64), nullable=False)
+    model_revision = db.Column(db.Integer, nullable=False)
+    definition_digest = db.Column(db.String(64), nullable=False)
+    delivery_scope = db.Column(db.Text(), nullable=False)
+    state = db.Column(db.String(16), nullable=False)
+    credential_generation = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    updated_at = db.Column(db.DateTime(), nullable=False)
+    expires_at = db.Column(db.DateTime(), nullable=False)
+    revoked_at = db.Column(db.DateTime(), nullable=True)
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='report_delegations'
+    )
+    credentials = db.relationship(
+        'CDEReportDelegatedCredential', back_populates='delegation',
+        cascade=CASCADE_STR
+    )
+    occurrences = db.relationship(
+        'CDEReportScheduleOccurrence', back_populates='delegation',
+        cascade=CASCADE_STR
+    )
+
+
+class CDEReportDelegatedCredential(db.Model):
+    """One authenticated-encryption envelope scoped to a delegation."""
+    __tablename__ = 'cde_report_delegated_credential'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'delegation_id', 'secret_kind',
+            name='uq_cde_report_delegated_secret_kind'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    delegation_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_report_delegation.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    secret_kind = db.Column(db.String(128), nullable=False)
+    key_id = db.Column(db.String(64), nullable=False)
+    encrypted_value = db.Column(db.Text(), nullable=False)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    delegation = db.relationship(
+        'CDEReportDelegation', back_populates='credentials'
+    )
+
+
+class CDEReportScheduleOccurrence(db.Model):
+    """Durable claim and provider-outcome record for one scheduled instant."""
+    __tablename__ = 'cde_report_schedule_occurrence'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'delegation_id', 'scheduled_for',
+            name='uq_cde_report_schedule_instant'
+        ),
+        db.CheckConstraint(
+            "state IN ('scheduled', 'claimed', 'executing', 'delivering', "
+            "'delivered', 'failed', 'cancel_requested', 'cancelled', "
+            "'outcome_unknown')",
+            name='ck_cde_report_schedule_state'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    delegation_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_report_delegation.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    scheduled_for = db.Column(db.DateTime(), nullable=False)
+    state = db.Column(db.String(32), nullable=False)
+    claim_token_digest = db.Column(db.String(64), nullable=True)
+    claimed_by = db.Column(db.String(128), nullable=True)
+    lease_expires_at = db.Column(db.DateTime(), nullable=True)
+    phase = db.Column(db.String(32), nullable=False)
+    progress = db.Column(db.Text(), nullable=False)
+    delivery_occurrence_ids = db.Column(db.Text(), nullable=True)
+    error_type = db.Column(db.String(128), nullable=True)
+    created_at = db.Column(db.DateTime(), nullable=False)
+    updated_at = db.Column(db.DateTime(), nullable=False)
+    completed_at = db.Column(db.DateTime(), nullable=True)
+    delegation = db.relationship(
+        'CDEReportDelegation', back_populates='occurrences'
     )
 
 

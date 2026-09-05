@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from contextlib import ExitStack
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -640,11 +641,20 @@ class PostgreSQLProvider:
         database_id = route.get('database_id')
         if database_id is not None:
             database_id = _required_int(route, 'database_id')
-        manager = self._driver.connection_manager(server_id)
+        principal = route.get('principal_reference', '')
+        if principal.startswith('worker:'):
+            owner_id = _required_int(route, 'owner_id')
+            manager = self._driver.delegated_connection_manager(
+                server_id, owner_id,
+                route.get('source_kind', 'server'),
+            )
+        else:
+            manager = self._driver.connection_manager(server_id)
         connection_id = str(route.get('connection_id') or uuid.uuid4())
         connection = manager.connection(
             did=database_id, conn_id=connection_id
         )
+        self._connect_delegated_route(connection, manager, route)
         session_id = str(uuid.uuid4())
         self._sessions[session_id] = _SessionState(
             server_id, database_id, connection_id, connection
@@ -668,6 +678,48 @@ class PostgreSQLProvider:
             'limits': {},
             'extensions': {'postgresql': {'provider_owned': True}},
         }
+
+    def _connect_delegated_route(self, connection, manager, route):
+        """Connect a worker route without synthesizing an interactive user."""
+        references = dict(route.get('credential_references', {}))
+        primary = route.get('credential_reference_id')
+        primary_kind = route.get('credential_kind', 'database_password')
+        if primary is not None:
+            references.setdefault(primary_kind, primary)
+        if not references:
+            return
+        unsupported = set(references).difference({
+            'database_password', 'tunnel_password',
+        })
+        if unsupported:
+            raise PostgreSQLProviderError(
+                'PostgreSQL delegated credential kind is unsupported'
+            )
+        principal = route.get('principal_reference')
+        if not isinstance(principal, str) or not principal.startswith(
+                'worker:'):
+            raise PostgreSQLProviderError(
+                'PostgreSQL delegated route principal is invalid'
+            )
+        values = {}
+        with ExitStack() as stack:
+            for kind, reference_id in references.items():
+                lease = stack.enter_context(self.permissions.acquire_secret(
+                    reference_id, principal, 'connect', kind
+                ))
+                values[kind] = lease.use(
+                    lambda value: bytes(value).decode('utf-8')
+                )
+            status, error = connection.connect(
+                user=manager.user,
+                password=values.get('database_password'),
+                tunnel_password=values.get('tunnel_password', ''),
+            )
+            values.clear()
+        if not status:
+            raise PostgreSQLProviderError(
+                'PostgreSQL delegated connection failed: ' + str(error)
+            )
 
     def describe_transaction(self, request):
         payload = _mapping(request)

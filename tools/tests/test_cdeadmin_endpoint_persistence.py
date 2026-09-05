@@ -104,6 +104,9 @@ class EndpointPersistenceSourceTests(unittest.TestCase):
             'cde_semantic_model',
             'cde_semantic_model_revision',
             'cde_report_delivery_occurrence',
+            'cde_report_delegation',
+            'cde_report_delegated_credential',
+            'cde_report_schedule_occurrence',
         ):
             self.assertIn(f"__tablename__ = '{table}'", source)
 
@@ -133,7 +136,7 @@ class EndpointPersistenceSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_report_delivery_v1'}, revisions - predecessors
+            {'cde_report_scheduler_v1'}, revisions - predecessors
         )
 
     def test_model_keeps_legacy_passwords_out_of_endpoint_json(self):

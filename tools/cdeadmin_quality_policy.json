@@ -1,7 +1,7 @@
 {
   "schema": "cdeadmin.quality-policy.v1",
   "baseline_id": "pgadmin4-9.17-bc58657d3d3a-20260831",
-  "source_budget_revision": "cde-apache-ignite-full-admin-20260904",
+  "source_budget_revision": "cde-durable-report-scheduler-20260904",
   "production_provider_roots": [
     "web/pgadmin/cdeadmin/providers"
   ],
@@ -46,6 +46,7 @@
       "cdeadmin_result_service",
       "cdeadmin_semantic_model_service",
       "cdeadmin_report_delivery_service",
+      "cdeadmin_report_scheduler_service",
       "cdeadmin_operation_bus",
       "cdeadmin_provider_workspace"
     ]

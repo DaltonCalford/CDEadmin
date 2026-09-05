@@ -490,7 +490,7 @@ class ProfileMigrationSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_report_delivery_v1'}, revisions - predecessors
+            {'cde_report_scheduler_v1'}, revisions - predecessors
         )
 
 

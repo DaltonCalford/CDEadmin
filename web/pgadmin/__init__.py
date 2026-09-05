@@ -593,6 +593,9 @@ def create_app(app_name=None):
     from pgadmin.cdeadmin.report_delivery import (
         init_app as init_cde_report_delivery,
     )
+    from pgadmin.cdeadmin.report_scheduler import (
+        init_app as init_cde_report_scheduler,
+    )
     from pgadmin.cdeadmin.results import init_app as init_cde_results
     from pgadmin.cdeadmin.security import init_app as init_cde_security
     from pgadmin.cdeadmin.semantic_models import (
@@ -610,9 +613,14 @@ def create_app(app_name=None):
     cde_studio = init_cde_data_studio(app, cde_registry, cde_results)
     cde_semantic_models = init_cde_semantic_models(app)
     cde_report_delivery = init_cde_report_delivery(app)
+    cde_report_scheduler = init_cde_report_scheduler(
+        app, cde_endpoints, cde_security, cde_semantic_models,
+        cde_report_delivery, cde_studio, cde_results,
+    )
     init_cde_workspace(
         app, cde_endpoints, cde_resources, cde_studio, cde_results,
         cde_semantic_models, cde_operations, cde_report_delivery,
+        cde_report_scheduler,
     )
     authenticate.init_app(app)
     heartbeat.init_app(app)

@@ -23,8 +23,8 @@ from pgadmin.utils import get_complete_file_path
 from pgadmin.utils.crypto import decrypt
 from pgadmin.utils.master_password import process_masterpass_disabled
 from .connection import Connection
-from pgadmin.model import Server, User
-from pgadmin.utils.exception import ConnectionLost, SSHTunnelConnectionLost,\
+from pgadmin.model import Server, SharedServer, User
+from pgadmin.utils.exception import ConnectionLost, SSHTunnelConnectionLost, \
     CryptKeyMissing
 from pgadmin.utils.master_password import get_crypt_key
 from pgadmin.utils.exception import ObjectGone
@@ -47,7 +47,11 @@ class ServerManager(object):
     """
     _INFORMATION_MSG = gettext("Information is not available.")
 
-    def __init__(self, server):
+    def __init__(self, server, session_backed=True):
+        self.session_backed = session_backed is True
+        self.delegated_owner_id = (
+            None if self.session_backed else server.user_id
+        )
         self.connections = dict()
         self.local_bind_host = '127.0.0.1'
         self.local_bind_port = None
@@ -59,7 +63,7 @@ class ServerManager(object):
 
     def update(self, server):
         assert (server is not None)
-        assert (isinstance(server, Server))
+        assert (isinstance(server, (Server, SharedServer)))
 
         self.ver = None
         self.sversion = None
@@ -247,7 +251,7 @@ WHERE db.oid = {0}""".format(did))
                                 "Could not find the specified database."
                             ))
 
-        if not get_crypt_key()[0] and (
+        if self.session_backed and not get_crypt_key()[0] and (
                 config.SERVER_MODE or not config.USE_OS_SECRET_STORAGE):
             # the reason its not connected might be missing key
             raise CryptKeyMissing()
@@ -517,6 +521,8 @@ WHERE db.oid = {0}""".format(did))
                 conn.password = passwd
 
     def update_session(self):
+        if not self.session_backed:
+            return
         managers = session['__pgsql_server_managers'] \
             if '__pgsql_server_managers' in session else dict()
         updated_mgr = self.as_dict()
@@ -558,12 +564,20 @@ WHERE db.oid = {0}""".format(did))
         SSHTunnelForwarder class.
         :return: True if tunnel is successfully created else error message.
         """
-        # Fetch Logged in User Details.
-        user = User.query.filter_by(id=current_user.id).first()
+        # Interactive callers are bound to current_user. A delegated manager
+        # is already bound to the exact server owner by Driver.
+        user = (
+            User.query.filter_by(id=current_user.id).first()
+            if self.session_backed else
+            User.query.filter_by(id=self.delegated_owner_id).first()
+        )
         if user is None:
             return False, gettext("Unauthorized request.")
 
-        if tunnel_password is not None and tunnel_password != '':
+        if (
+            self.session_backed and tunnel_password is not None and
+            tunnel_password != ''
+        ):
             crypt_key_present, crypt_key = get_crypt_key()
             if not crypt_key_present:
                 raise CryptKeyMissing()
@@ -680,7 +694,7 @@ WHERE db.oid = {0}""".format(did))
                 with_complete_path = False
                 orig_value = value
                 # Getting complete file path if the key is one of the below.
-                if key in ['passfile', 'sslcert', 'sslkey','sslcrl',
+                if key in ['passfile', 'sslcert', 'sslkey', 'sslcrl',
                            'sslcrldir'] or \
                         (key == 'sslrootcert' and value != 'system'):
                     with_complete_path = True

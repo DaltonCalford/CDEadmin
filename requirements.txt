@@ -26,6 +26,7 @@ boto3==1.42.*; python_version <= '3.9'
 boto3==1.43.*; python_version > '3.9'
 certifi==2026.7.22
 cryptography==50.0.*
+croniter==6.0.*
 Flask-Babel==4.0.*
 Flask-Compress==1.*
 Flask-Login==0.*

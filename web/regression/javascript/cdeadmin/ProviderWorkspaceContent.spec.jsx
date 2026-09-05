@@ -1037,7 +1037,12 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByText('Dashboard builder')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Reports & schedules'));
     expect(screen.getByText('Report builder')).toBeInTheDocument();
-    expect(screen.getByText(/has not activated a report scheduler/))
+    expect(screen.getByLabelText('Delivery profile')).toBeInTheDocument();
+    expect(screen.getByLabelText('Scheduled export format'))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText('Recipients or object filename'))
+      .toBeInTheDocument();
+    expect(screen.getByText(/operator-configured worker authority/))
       .toBeInTheDocument();
     fireEvent.click(screen.getByText('Diagnostics'));
     fireEvent.click(screen.getByText('Refresh query diagnostics'));

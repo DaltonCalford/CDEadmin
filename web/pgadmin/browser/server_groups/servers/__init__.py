@@ -72,6 +72,7 @@ from pgadmin.cdeadmin.data_studio import DataStudioError
 from pgadmin.cdeadmin.resources import ResourceGraphError
 from pgadmin.cdeadmin.results import ResultRegistryError
 from pgadmin.cdeadmin.report_delivery import ReportDeliveryError
+from pgadmin.cdeadmin.report_scheduler import ReportSchedulerError
 from pgadmin.cdeadmin.semantic_models import SemanticModelError
 from pgadmin.cdeadmin.visual_admin import VisualAdminError
 from pgadmin.cdeadmin.workspace import (
@@ -2219,6 +2220,12 @@ class ServerNode(PGChildNodeView):
                     payload = service.semantic_model_action(
                         server, action, data.get('request') or {}
                     )
+                elif isinstance(action, str) and action.startswith(
+                    'report_scheduler_'
+                ):
+                    payload = service.report_scheduler_action(
+                        server, action, data.get('request') or {}
+                    )
                 else:
                     raise ProviderWorkspaceError(
                         'workspace action is unavailable'
@@ -2235,6 +2242,7 @@ class ServerNode(PGChildNodeView):
             ResourceGraphError,
             ResultRegistryError,
             ReportDeliveryError,
+            ReportSchedulerError,
             VisualAdminError,
             SemanticModelError,
         ):

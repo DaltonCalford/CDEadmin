@@ -32,9 +32,9 @@ from pgadmin.utils import get_complete_file_path
 from pgadmin.utils.ajax import internal_server_error
 from ..abstract import BaseConnection
 from .cursor import DictCursor, AsyncDictCursor, AsyncDictServerCursor
-from .typecast import register_binary_data_typecasters,\
-    register_global_typecasters, register_string_typecasters,\
-    register_binary_typecasters, register_array_to_string_typecasters,\
+from .typecast import register_binary_data_typecasters, \
+    register_global_typecasters, register_string_typecasters, \
+    register_binary_typecasters, register_array_to_string_typecasters, \
     register_numeric_typecasters, ALL_JSON_TYPES
 from .encoding import get_encoding, configure_driver_encodings
 from pgadmin.utils.text_sanitize import sanitize_external_text
@@ -275,7 +275,12 @@ class Connection(BaseConnection):
 
         manager = self.manager
 
-        crypt_key_present, crypt_key = get_crypt_key()
+        if getattr(manager, 'session_backed', True):
+            crypt_key_present, crypt_key = get_crypt_key()
+        else:
+            # A delegated worker supplies plaintext through its short-lived
+            # secret lease. It never uses the interactive master-key session.
+            crypt_key_present, crypt_key = True, None
         if not crypt_key_present:
             raise CryptKeyMissing()
         password, encpass, is_update_password = \

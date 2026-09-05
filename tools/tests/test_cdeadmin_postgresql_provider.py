@@ -101,11 +101,36 @@ class FakePermissions:
         if permission_id not in self.allowed:
             raise RuntimeError(f'denied: {permission_id}')
 
+    def acquire_secret(self, reference_id, principal, purpose, expected_kind):
+        self.calls.append((
+            'secret', reference_id, principal, purpose, expected_kind,
+        ))
+        return FakeLease(b'delegated-password')
+
+
+class FakeLease:
+    def __init__(self, value):
+        self.value = value
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
 
 class FakeConnection:
     def __init__(self):
         self.executions = []
         self.cancelled = []
+        self.connect_calls = []
+
+    def connect(self, **values):
+        self.connect_calls.append(values)
+        return True, None
 
     def transaction_status(self):
         return 2
@@ -131,6 +156,7 @@ class FakeConnection:
 class FakeManager:
     version = 18.3
     server_type = 'pg'
+    user = 'postgres'
 
     def __init__(self, connection=None):
         self._connection = connection or FakeConnection()
@@ -148,6 +174,12 @@ class FakeDriver:
 
     def connection_manager(self, server_id):
         self.server_ids.append(server_id)
+        return self.manager
+
+    def delegated_connection_manager(
+        self, server_id, owner_id, source_kind='server'
+    ):
+        self.server_ids.append((server_id, owner_id, source_kind))
         return self.manager
 
     @staticmethod
@@ -323,6 +355,23 @@ class PostgreSQLProviderContractTests(unittest.TestCase):
             transaction['provider_payload']['interpretation'],
         )
         self.assertEqual('42601', diagnostic['code'])
+
+    def test_delegated_session_uses_owner_bound_manager_and_secret_lease(self):
+        session = self.provider.open_session({'route': {
+            'server_id': 7, 'owner_id': 11,
+            'principal_reference': 'worker:delegation-one',
+            'credential_reference_id': str(uuid.uuid4()),
+            'credential_kind': 'database_password',
+        }})
+        self.assertEqual([(7, 11, 'server')], self.driver.server_ids)
+        self.assertEqual(
+            'worker:delegation-one', session['principal_reference']
+        )
+        self.assertEqual([{
+            'user': 'postgres',
+            'password': 'delegated-password',
+            'tunnel_password': '',
+        }], self.driver.manager._connection.connect_calls)
 
     def test_semantic_query_uses_preserved_postgresql_execution(self):
         session = self.provider.open_session({

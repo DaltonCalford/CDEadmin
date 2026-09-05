@@ -2523,6 +2523,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   const [dashboardResults, setDashboardResults] = useState({});
   const [dashboardSelections, setDashboardSelections] = useState({});
   const [reportResults, setReportResults] = useState([]);
+  const [delegations, setDelegations] = useState(semantic?.delegations || []);
+  const [scheduleOccurrences, setScheduleOccurrences] = useState([]);
   const [detailFieldsDraft, setDetailFieldsDraft] = useState('');
   const [query, setQuery] = useState({
     axes: {rows: [], columns: [], pages: []}, measures: [], filters: [],
@@ -2586,7 +2588,8 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
   });
   const [scheduleDraft, setScheduleDraft] = useState({
     id: 'schedule', name: 'Schedule', expression: '0 8 * * *',
-    timezone: 'UTC', enabled: false,
+    timezone: 'UTC', enabled: false, delivery_profile_id: '',
+    delivery_format: 'pdf', delivery_target: '',
   });
   const [reportDraft, setReportDraft] = useState({
     id: 'report', name: 'Report', dashboard_id: '', schedule_id: '',
@@ -2915,7 +2918,16 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     schedules: [...(current.schedules || []), {
       id: portableId(scheduleDraft.id), name: scheduleDraft.name,
       expression: scheduleDraft.expression, timezone: scheduleDraft.timezone,
-      enabled: scheduleDraft.enabled, delivery: {},
+      enabled: scheduleDraft.enabled,
+      delivery: scheduleDraft.delivery_profile_id ? {
+        profile_id: scheduleDraft.delivery_profile_id,
+        format: scheduleDraft.delivery_format,
+        target: (semantic.delivery?.profiles || []).find((item) =>
+          item.profile_id === scheduleDraft.delivery_profile_id)?.kind ===
+            'smtp' ? {recipients: scheduleDraft.delivery_target.split(',')
+              .map((item) => item.trim()).filter(Boolean)} :
+          {object_name: scheduleDraft.delivery_target.trim()},
+      } : {},
     }],
   }));
   const addReport = () => setDefinition((current) => ({...current,
@@ -2961,6 +2973,33 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
     } finally {
       setWorking(false);
     }
+  };
+  const refreshScheduler = async (reportId=null) => {
+    const [grants, occurrences] = await Promise.all([
+      call('report_scheduler_list'),
+      call('report_scheduler_occurrences', {report_id: reportId}),
+    ]);
+    setDelegations(grants.items || []);
+    setScheduleOccurrences(occurrences.items || []);
+  };
+  const authorizeReport = async (report) => {
+    setWorking(true); setError(null);
+    try {
+      await call('report_scheduler_authorize', {
+        model_id: record.model_id, report_id: report.id,
+        expires_in_days: 30,
+      });
+      await refreshScheduler(report.id);
+    } catch (requestError) { setError(errorMessage(requestError)); }
+    finally { setWorking(false); }
+  };
+  const revokeReport = async (report) => {
+    setWorking(true); setError(null);
+    try {
+      await call('report_scheduler_revoke', {report_id: report.id});
+      await refreshScheduler(report.id);
+    } catch (requestError) { setError(errorMessage(requestError)); }
+    finally { setWorking(false); }
   };
   const runChart = (chart) => {
     setActiveChartId(chart.id);
@@ -3851,7 +3890,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
       <Box component="h3">{gettext('Report schedules')}</Box>
       {!semantic.capabilities.scheduled_report_execution && <Alert
         severity="warning">
-        {gettext('Schedule definitions are stored, but this provider has not activated a report scheduler. CDEadmin will not claim or infer scheduled execution.')}
+        {gettext('Schedule definitions are stored, but automatic execution requires provider query execution and operator-configured worker authority. CDEadmin will not claim or infer scheduled execution until both are available.')}
       </Alert>}
       <Box sx={{display: 'grid',
         gridTemplateColumns: '1fr 1fr 1fr 1fr auto auto', gap: 1, mt: 1}}>
@@ -3863,6 +3902,29 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           onChange={(event) => setScheduleDraft({...scheduleDraft,
             enabled: event.target.checked})} />} label={gettext('Enabled')} />
         <Button onClick={addSchedule}>{gettext('Add schedule')}</Button>
+      </Box>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: '1fr 1fr 2fr', gap: 1, mt: 1}}>
+        <TextField select label={gettext('Delivery profile')}
+          value={scheduleDraft.delivery_profile_id} onChange={(event) =>
+            setScheduleDraft({...scheduleDraft,
+              delivery_profile_id: event.target.value})}>
+          <MenuItem value="">{gettext('No delivery')}</MenuItem>
+          {(semantic.delivery?.profiles || []).map((profile) => <MenuItem
+            key={profile.profile_id} value={profile.profile_id}>
+            {profile.label}</MenuItem>)}
+        </TextField>
+        <TextField select label={gettext('Scheduled export format')}
+          value={scheduleDraft.delivery_format} onChange={(event) =>
+            setScheduleDraft({...scheduleDraft,
+              delivery_format: event.target.value})}>
+          {['csv', 'json', 'jsonl', 'xlsx', 'svg', 'pdf'].map((format) =>
+            <MenuItem key={format} value={format}>{format}</MenuItem>)}
+        </TextField>
+        <TextField label={gettext('Recipients or object filename')}
+          value={scheduleDraft.delivery_target} onChange={(event) =>
+            setScheduleDraft({...scheduleDraft,
+              delivery_target: event.target.value})} />
       </Box>
       <Box component="h3">{gettext('Report builder')}</Box>
       <Box sx={{display: 'grid',
@@ -3899,6 +3961,32 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
             gettext('manual')}
         <Button disabled={!semantic.capabilities.execution_available}
           onClick={() => runReport(report)}>{gettext('Run report')}</Button>
+        {record?.status === 'published' && report.schedule_id &&
+          semantic.capabilities.scheduled_report_execution && <>
+            {!delegations.some((item) => item.report_id === report.id &&
+              item.state === 'active') ? <Button disabled={working}
+                onClick={() => authorizeReport(report)}>
+                {gettext('Authorize schedule')}</Button> : <Button
+                disabled={working} onClick={() => revokeReport(report)}>
+                {gettext('Revoke schedule')}</Button>}
+            <Button disabled={working} onClick={() => refreshScheduler(
+              report.id)}>{gettext('Refresh occurrences')}</Button>
+          </>}
+      </Box>)}
+      {scheduleOccurrences.map((item) => <Box key={item.occurrence_id}
+        aria-label={gettext('Scheduled report occurrence')} sx={{mt: 1}}>
+        {item.report_id} · {item.scheduled_for} · {item.state} · {item.phase}
+        {['scheduled', 'claimed', 'executing', 'delivering'].includes(
+          item.state) && <Button disabled={working} onClick={async () => {
+          setWorking(true);
+          try {
+            await call('report_scheduler_cancel', {
+              occurrence_id: item.occurrence_id,
+            });
+            await refreshScheduler(item.report_id);
+          } catch (requestError) { setError(errorMessage(requestError)); }
+          finally { setWorking(false); }
+        }}>{gettext('Cancel scheduled occurrence')}</Button>}
       </Box>)}
       {reportResults.map(({report, chart, rendered: reportResult}) => <Box
         key={chart.id} sx={{mt: 2}}>

@@ -45,7 +45,7 @@ class ProviderWorkspaceService:
     def __init__(
         self, endpoint_service, resource_service, studio_service,
         result_service, semantic_model_service=None, operation_bus=None,
-        report_delivery_service=None,
+        report_delivery_service=None, report_scheduler_service=None,
     ):
         self.endpoint_service = endpoint_service
         self.resource_service = resource_service
@@ -54,6 +54,7 @@ class ProviderWorkspaceService:
         self.semantic_model_service = semantic_model_service
         self.operation_bus = operation_bus
         self.report_delivery_service = report_delivery_service
+        self.report_scheduler_service = report_scheduler_service
         self._semantic_executions = {}
         self._semantic_lock = threading.RLock()
 
@@ -102,7 +103,7 @@ class ProviderWorkspaceService:
             ),
             'semantic_models': (
                 {
-                    'capabilities': self.semantic_model_service.capabilities(
+                    'capabilities': self._semantic_capabilities(
                         binding.instance
                     ),
                     'items': self.semantic_model_service.list(
@@ -113,11 +114,70 @@ class ProviderWorkspaceService:
                         'manual_delivery': False, 'profiles': [],
                         'automatic_scheduling': False,
                     },
+                    'scheduler': self.report_scheduler_service.catalog()
+                    if self.report_scheduler_service is not None else {
+                        'automatic_scheduling': False,
+                    },
+                    'delegations': self.report_scheduler_service.list_grants(
+                        self._principal_id(server), context.endpoint_id
+                    ) if self.report_scheduler_service is not None else [],
                 } if self.semantic_model_service is not None else {
                     'capabilities': {'designer': False}, 'items': [],
                 }
             ),
         }
+
+    def _semantic_capabilities(self, provider):
+        capabilities = self.semantic_model_service.capabilities(provider)
+        capabilities['scheduled_report_execution'] = bool(
+            capabilities.get('execution_available') and
+            self.report_scheduler_service is not None and
+            self.report_scheduler_service.available
+        )
+        return capabilities
+
+    def report_scheduler_action(self, server, action, request):
+        """Apply authenticated owner actions to unattended report grants."""
+        if self.report_scheduler_service is None:
+            raise ProviderWorkspaceError(
+                'report scheduler service is not initialized'
+            )
+        if not isinstance(request, dict):
+            raise ProviderWorkspaceError(
+                'report scheduler request must be an object'
+            )
+        endpoint = getattr(server, 'endpoint_profile', None)
+        if endpoint is None:
+            raise ProviderWorkspaceError(
+                'report scheduler endpoint is unavailable'
+            )
+        user_id = self._principal_id(server)
+        service = self.report_scheduler_service
+        if action == 'report_scheduler_authorize':
+            return service.authorize(
+                server, request.get('model_id'), request.get('report_id'),
+                request.get('expires_in_days', 30),
+            )
+        if action == 'report_scheduler_revoke':
+            return service.revoke(
+                user_id, endpoint.id, request.get('report_id')
+            )
+        if action == 'report_scheduler_list':
+            return {'items': service.list_grants(
+                user_id, endpoint.id
+            )}
+        if action == 'report_scheduler_occurrences':
+            return {'items': service.occurrences(
+                user_id, endpoint.id, request.get('report_id')
+            )}
+        if action == 'report_scheduler_cancel':
+            return service.cancel(
+                user_id, endpoint.id,
+                request.get('occurrence_id'),
+            )
+        raise ProviderWorkspaceError(
+            'report scheduler action is unavailable'
+        )
 
     def deliver_result(self, server, request):
         """Deliver a bounded export under the authenticated endpoint owner."""
@@ -853,7 +913,7 @@ class ProviderWorkspaceService:
 def init_app(
     app, endpoint_service, resource_service, studio_service, result_service,
     semantic_model_service=None, operation_bus=None,
-    report_delivery_service=None,
+    report_delivery_service=None, report_scheduler_service=None,
 ):
     existing = app.extensions.get(APP_EXTENSION_KEY)
     if existing is not None:
@@ -861,6 +921,7 @@ def init_app(
     service = ProviderWorkspaceService(
         endpoint_service, resource_service, studio_service, result_service,
         semantic_model_service, operation_bus, report_delivery_service,
+        report_scheduler_service,
     )
     app.extensions[APP_EXTENSION_KEY] = service
     return service
