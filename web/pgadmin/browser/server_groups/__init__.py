@@ -46,6 +46,13 @@ def get_icon_css_class(is_shared_group, default_val='icon-server_group'):
 SG_NOT_FOUND_ERROR = 'The specified server group could not be found.'
 
 
+def navigator_group_label(group):
+    """Use CDEadmin terminology for the built-in navigator root."""
+    if group.is_first_user_group:
+        return gettext('Connectors')
+    return group.name
+
+
 class ServerGroupModule(BrowserPluginModule):
     _NODE_TYPE = "server_group"
     node_icon = "icon-%s" % _NODE_TYPE
@@ -72,7 +79,7 @@ class ServerGroupModule(BrowserPluginModule):
             yield self.generate_browser_node(
                 "%d" % (group.id),
                 None,
-                group.name,
+                navigator_group_label(group),
                 icon_class,
                 True,
                 self.node_type,
@@ -412,7 +419,7 @@ class ServerGroupView(NodeView):
                     self.blueprint.generate_browser_node(
                         "%d" % group.id,
                         None,
-                        group.name,
+                        navigator_group_label(group),
                         icon_class,
                         True,
                         self.node_type,
@@ -438,7 +445,7 @@ class ServerGroupView(NodeView):
             nodes = self.blueprint.generate_browser_node(
                 "%d" % (group.id),
                 None,
-                group.name,
+                navigator_group_label(group),
                 icon_class,
                 True,
                 self.node_type,

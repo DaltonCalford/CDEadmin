@@ -178,6 +178,7 @@ module.exports = [{
             'pure|pgadmin.tools.user_management',
             'pure|pgadmin.browser.bgprocessmanager',
             'pure|pgadmin.node.server_group',
+            'pure|pgadmin.node.engine_type',
             'pure|pgadmin.node.server',
             'pure|pgadmin.node.database',
             'pure|pgadmin.node.role',

@@ -197,7 +197,7 @@ def server_icon_and_background(is_connected, manager, server):
 
 class ServerModule(sg.ServerGroupPluginModule):
     _NODE_TYPE = "server"
-    LABEL = gettext("Servers")
+    LABEL = gettext("Connectors")
 
     @property
     def node_type(self):

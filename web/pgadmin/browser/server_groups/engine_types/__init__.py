@@ -154,15 +154,16 @@ blueprint = EngineTypeModule(__name__)
 
 class EngineTypeNode(NodeView):
     node_type = EngineTypeModule._NODE_TYPE
-    node_label = 'Engine type'
+    node_label = 'Connector'
     parent_ids = [{'type': 'int', 'id': 'gid'}]
     ids = [{'type': 'string', 'id': 'eid'}]
     operations = {
         'nodes': [{'get': 'node'}, {'get': 'nodes'}],
+        'children': [{'get': 'children'}],
     }
 
-    @pga_login_required
-    def nodes(self, gid, eid=None):
+    def _connector_children(self, gid, eid):
+        """Build the endpoints and servers below an engine connector."""
         engines = dict(supported_engine_types())
         if eid not in engines:
             return bad_request(errormsg=gettext(
@@ -193,6 +194,15 @@ class EngineTypeNode(NodeView):
             gid, eid, parent_id=f'engine_type_{eid}'
         ))
         return make_json_response(data=nodes)
+
+    @pga_login_required
+    def nodes(self, gid, eid=None):
+        return self._connector_children(gid, eid)
+
+    @pga_login_required
+    def children(self, gid, eid):
+        """Return the endpoints and servers below an engine connector."""
+        return self._connector_children(gid, eid)
 
     @pga_login_required
     def node(self, gid, eid):

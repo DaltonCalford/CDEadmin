@@ -85,7 +85,7 @@ define('pgadmin.node.server', [
           name: 'create_server_on_engine', node: 'engine_type', module: this,
           applies: ['object', 'context'], callback: 'register_engine_server',
           category: 'register', priority: 1,
-          label: gettext('Register server / instance...'),
+          label: gettext('Register server / instance for this connector...'),
           data: {action: 'create'}, enable: 'canCreate',
           permission: AllPermissionTypes.OBJECT_REGISTER_SERVER
         },{

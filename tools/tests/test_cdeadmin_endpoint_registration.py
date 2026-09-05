@@ -129,6 +129,29 @@ class RegistrationProfileTests(unittest.TestCase):
             self.assertNotIn('<script', source)
             self.assertNotIn('data:image', source)
 
+    def test_engine_connectors_are_loadable_and_expose_localhost(self):
+        connector_root = WEB / 'pgadmin/browser/server_groups/engine_types'
+        backend = (connector_root / '__init__.py').read_text(
+            encoding='utf-8'
+        )
+        frontend = (
+            connector_root / 'static/js/engine_type.js'
+        ).read_text(encoding='utf-8')
+        server_groups = (
+            WEB / 'pgadmin/browser/server_groups/__init__.py'
+        ).read_text(encoding='utf-8')
+        webpack = (WEB / 'webpack.config.js').read_text(encoding='utf-8')
+        shim = (WEB / 'webpack.shim.js').read_text(encoding='utf-8')
+
+        self.assertIn("'children': [{'get': 'children'}]", backend)
+        self.assertIn("f'{eid}__localhost'", backend)
+        self.assertIn("label: gettext('Connector')", frontend)
+        self.assertIn("parent_type: 'server_group'", frontend)
+        self.assertIn('Refresh connector availability...', frontend)
+        self.assertIn("gettext('Connectors')", server_groups)
+        self.assertIn("'pure|pgadmin.node.engine_type'", webpack)
+        self.assertIn("'pgadmin.node.engine_type':", shim)
+
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(
             EndpointRegistrationError, 'not active'

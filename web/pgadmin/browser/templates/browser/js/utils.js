@@ -77,7 +77,7 @@ define('pgadmin.browser.utils',
 
   // Define list of nodes on which Query tool option doesn't appears
   let unsupported_nodes = pgAdmin.unsupported_nodes = [
-     'server_group', 'server', 'coll-tablespace', 'tablespace',
+     'server_group', 'engine_type', 'server', 'coll-tablespace', 'tablespace',
      'coll-role', 'role', 'coll-resource_group', 'resource_group',
      'coll-database', 'coll-pga_job', 'coll-pga_schedule', 'coll-pga_jobstep',
      'pga_job', 'pga_schedule', 'pga_jobstep',

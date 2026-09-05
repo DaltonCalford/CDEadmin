@@ -23,7 +23,7 @@ export default function checkNodeVisibility(node_type) {
 
   // Exclude non-applicable nodes
   let nodes_not_supported = [
-    'server_group', 'server', 'catalog_object_column',
+    'server_group', 'engine_type', 'server', 'catalog_object_column',
   ];
   if(_.indexOf(nodes_not_supported, node_type) >= 0) {
     return true;
