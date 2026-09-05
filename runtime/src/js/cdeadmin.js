@@ -18,6 +18,11 @@ import { setupMenu } from './menu.js';
 import contextMenu from 'electron-context-menu';
 import { setupDownloader } from './downloader.js';
 import { setupAutoUpdater, updateConfigAndMenus } from './autoUpdaterHandler.js';
+import {
+  publicDisplay,
+  validatePlacementEvent,
+  validateWindowRegistration,
+} from './workspaceProtocol.js';
 
 const configStore = new Store({
   defaults: {
@@ -34,6 +39,8 @@ let cdeadminMainScreen = null;
 
 let configureWindow = null,
   viewLogWindow = null;
+
+const workspaceWindows = new Map();
 
 let serverPort = 5051;
 let UUID = crypto.randomUUID();
@@ -516,6 +523,109 @@ ipcMain.handle('checkPortAvailable', async (_e, fixedPort)=>{
   }
 });
 ipcMain.handle('openConfigure', openConfigure);
+
+function workspaceWindowForSender(event) {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if(!window || window.isDestroyed()) {
+    throw new Error('Workspace window is unavailable.');
+  }
+  if(!event.sender.getURL().startsWith(baseUrl)) {
+    throw new Error('Workspace window origin is invalid.');
+  }
+  return window;
+}
+
+function workspaceDisplayList() {
+  const primaryId = screen.getPrimaryDisplay().id;
+  return screen.getAllDisplays().map(
+    (display) => publicDisplay(display, primaryId),
+  );
+}
+
+function moveWindowToDisplay(window, display) {
+  const current = window.getNormalBounds();
+  const area = display.workArea;
+  const width = Math.min(Math.max(current.width, 640), area.width);
+  const height = Math.min(Math.max(current.height, 480), area.height);
+  const bounds = {
+    x: area.x + Math.max(0, Math.floor((area.width - width) / 2)),
+    y: area.y + Math.max(0, Math.floor((area.height - height) / 2)),
+    width,
+    height,
+  };
+  window.setBounds(bounds);
+  return {
+    display: publicDisplay(display, screen.getPrimaryDisplay().id),
+    bounds: window.getBounds(),
+  };
+}
+
+ipcMain.handle('workspace-window:register', (event, details) => {
+  const window = workspaceWindowForSender(event);
+  const registration = validateWindowRegistration(details);
+  const existing = workspaceWindows.get(event.sender.id);
+  const windowId = registration.windowId || existing?.windowId ||
+    `window:${crypto.randomUUID()}`;
+  const workspaceIds = [...new Set([
+    ...(existing?.workspaceIds ?? []), registration.workspaceId,
+  ])];
+  const record = Object.freeze({
+    ...registration, windowId, workspaceIds: Object.freeze(workspaceIds),
+  });
+  workspaceWindows.set(event.sender.id, record);
+  if(!existing) {
+    const senderId = event.sender.id;
+    window.once('closed', () => workspaceWindows.delete(senderId));
+  }
+  return record;
+});
+
+ipcMain.handle('workspace-window:list-displays', (event) => {
+  workspaceWindowForSender(event);
+  return workspaceDisplayList();
+});
+
+ipcMain.handle('workspace-window:move-to-display', (event, displayId) => {
+  const window = workspaceWindowForSender(event);
+  const display = screen.getAllDisplays().find(
+    (item) => String(item.id) === String(displayId),
+  );
+  if(!display) throw new Error('Requested display is unavailable.');
+  return moveWindowToDisplay(window, display);
+});
+
+ipcMain.handle(
+  'workspace-window:move-to-adjacent-display', (event, direction) => {
+    if(!['next', 'previous'].includes(direction)) {
+      throw new TypeError('Display direction is invalid.');
+    }
+    const window = workspaceWindowForSender(event);
+    const displays = screen.getAllDisplays();
+    const current = screen.getDisplayMatching(window.getBounds());
+    const index = displays.findIndex((item) => item.id === current.id);
+    const offset = direction === 'next' ? 1 : -1;
+    const target = displays[(index + offset + displays.length) % displays.length];
+    return moveWindowToDisplay(window, target);
+  },
+);
+
+ipcMain.on('workspace-window:placement', (event, details) => {
+  try {
+    workspaceWindowForSender(event);
+    const placement = validatePlacementEvent(details);
+    BrowserWindow.getAllWindows().forEach((window) => {
+      if(window.isDestroyed() || window.webContents.id === event.sender.id) {
+        return;
+      }
+      const target = workspaceWindows.get(window.webContents.id);
+      if(target) {
+        window.webContents.send('workspace-window:placement', placement);
+      }
+    });
+  } catch (error) {
+    misc.writeServerLog(`Rejected workspace placement event: ${error.message}`);
+  }
+});
 
 
 app.whenReady().then(() => {

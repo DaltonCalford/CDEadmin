@@ -18,7 +18,10 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import gettext from 'sources/gettext';
 
 import { DefaultButton, PrimaryButton } from '../components/Buttons';
-import { ModalContent, ModalFooter } from '../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+  DialogFooter as ModalFooter,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 import { FormFooterMessage, InputText, MESSAGE_TYPE } from '../components/FormComponents';
 
 export default function RenameTabContent({ panelId, panelDocker, closeModal}) {

@@ -23,7 +23,13 @@ import FormatListNumberedRoundedIcon from '@mui/icons-material/FormatListNumbere
 import HelpIcon from '@mui/icons-material/HelpRounded';
 import {QUERY_TOOL_EVENTS, CONNECTION_STATUS, MODAL_DIALOGS} from '../QueryToolConstants';
 import { QueryToolConnectionContext, QueryToolContext, QueryToolEventsContext } from '../QueryToolComponent';
-import { PgMenu, PgMenuDivider, PgMenuItem, usePgMenuGroup, PgSubMenu} from '../../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuDivider as PgMenuDivider,
+  MenuItem as PgMenuItem,
+  SubMenu as PgSubMenu,
+  useMenuGroup as usePgMenuGroup,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import gettext from 'sources/gettext';
 import { useKeyboardShortcuts } from '../../../../../../static/js/custom_hooks';
 import url_for from 'sources/url_for';
@@ -32,7 +38,9 @@ import { InputSelectNonSearch } from '../../../../../../static/js/components/For
 import PropTypes from 'prop-types';
 import CustomPropTypes from '../../../../../../static/js/custom_prop_types';
 import ConfirmTransactionContent from '../dialogs/ConfirmTransactionContent';
-import { LayoutDocker } from '../../../../../../static/js/helpers/Layout';
+import {
+  WorkspaceController as LayoutDocker,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import CloseRunningDialog from '../dialogs/CloseRunningDialog';
 
 const StyledBox = styled(Box)(({theme}) => ({

@@ -105,6 +105,11 @@ def _cde_registration(server):
     return registration_profile_for_endpoint(endpoint)
 
 
+def _cde_navigator_parent(profile):
+    from pgadmin.browser.server_groups.engine_types import navigator_engine_id
+    return f"engine_type_{navigator_engine_id(profile['engine_id'])}"
+
+
 def has_any(data, keys):
     """
     Checks any one of the keys present in the data given
@@ -327,7 +332,17 @@ class ServerModule(sg.ServerGroupPluginModule):
     @with_object_filters
     @pga_login_required
     def get_nodes(self, gid, object_filters):
-        """Return a JSON document listing the server groups for the user"""
+        """Servers are exposed by engine roots, not directly by a group."""
+        # Keep this registered module available for its menus and routes. The
+        # engine_type module owns navigator enumeration.
+        if False:  # pragma: no cover - retain generator protocol
+            yield None
+
+    def engine_nodes(self, gid, engine_id, parent_id):
+        """Yield registered servers belonging to one logical engine root."""
+        from pgadmin.browser.server_groups.engine_types import (
+            navigator_engine_id,
+        )
 
         hide_shared_server = get_preferences()
         servers = get_user_server_query().filter(
@@ -346,7 +361,8 @@ class ServerModule(sg.ServerGroupPluginModule):
             server_type = 'pg'
             user_info = None
 
-            if not self.has_tag(server, object_filters):
+            profile = _cde_registration(server)
+            if navigator_engine_id(profile['engine_id']) != engine_id:
                 continue
 
             try:
@@ -365,15 +381,15 @@ class ServerModule(sg.ServerGroupPluginModule):
                 errmsg = str(e)
             yield self.generate_browser_node(
                 "%d" % (server.id),
-                gid,
+                parent_id,
                 server.name,
                 server_icon_and_background(connected, manager, server),
                 True,
                 self.node_type,
                 connected=connected,
                 server_type=server_type,
-                version=manager.version,
-                db=manager.db,
+                version=manager.version if manager is not None else None,
+                db=manager.db if manager is not None else None,
                 user=user_info,
                 in_recovery=in_recovery,
                 wal_pause=wal_paused,
@@ -387,10 +403,16 @@ class ServerModule(sg.ServerGroupPluginModule):
                 username=server.username,
                 shared=server.shared,
                 is_kerberos_conn=bool(server.kerberos_conn),
-                gss_authenticated=manager.gss_authenticated,
+                gss_authenticated=(
+                    manager.gss_authenticated
+                    if manager is not None else False
+                ),
                 cloud_status=server.cloud_status,
                 description=server.comment,
-                tags=server.tags
+                tags=server.tags,
+                cde_profile_id=profile['profile_id'],
+                cde_endpoint=(profile['workflow'] == 'provider_endpoint'),
+                cde_engine_id=engine_id,
             )
 
     @property
@@ -649,6 +671,25 @@ class ServerNode(PGChildNodeView):
                     ),
                 )
             nodes = []
+            database_targets = workspace.get('database_targets', {})
+            for target in database_targets.get('targets', []):
+                target_id = target['target_id']
+                nodes.append({
+                    'id': f'cde_database_target_{target_id}',
+                    'label': (
+                        f"{target['display_name']}"
+                        f"{' (active)' if target['active'] else ''}"
+                    ),
+                    'icon': 'icon-database',
+                    'inode': False,
+                    '_type': 'cde_database_target',
+                    '_id': target_id,
+                    '_pid': sid,
+                    'module': 'pgadmin.node.server',
+                    'cde_database': target['database'],
+                    'cde_database_active': target['active'],
+                    'cde_endpoint': True,
+                })
             for resource in workspace['resource_page']['items']:
                 resource_id = resource['resource_id']
                 node_id = hashlib.sha256(
@@ -787,7 +828,7 @@ class ServerNode(PGChildNodeView):
             res.append(
                 self.blueprint.generate_browser_node(
                     "%d" % (server.id),
-                    gid,
+                    _cde_navigator_parent(profile),
                     server.name,
                     server_icon_and_background(connected, manager, server),
                     True,
@@ -872,7 +913,7 @@ class ServerNode(PGChildNodeView):
         return make_json_response(
             result=self.blueprint.generate_browser_node(
                 "%d" % (server.id),
-                gid,
+                _cde_navigator_parent(profile),
                 server.name,
                 server_icon_and_background(connected, manager, server),
                 True,
@@ -1271,7 +1312,8 @@ class ServerNode(PGChildNodeView):
 
         return jsonify(
             node=self.blueprint.generate_browser_node(
-                "%d" % (server.id), server.servergroup_id,
+                "%d" % (server.id),
+                _cde_navigator_parent(_cde_registration(server)),
                 server.name,
                 server_icon_and_background(
                     connected, manager, sharedserver)
@@ -1585,7 +1627,7 @@ class ServerNode(PGChildNodeView):
     @pga_login_required
     def create(self, gid):
         """Add a server node to the settings database"""
-        required_args = ['name', 'db']
+        required_args = ['name']
 
         data = request.form if request.form else json.loads(
             request.data
@@ -1635,6 +1677,12 @@ class ServerNode(PGChildNodeView):
         # Some fields can be provided with service file so they are optional
         if provider_endpoint and not embedded_endpoint:
             required_args.extend(['host', 'port', 'username'])
+            if endpoint_registration.get(
+                'database_targeting', {}
+            ).get('mode', 'required') == 'required':
+                required_args.append('db')
+        elif embedded_endpoint:
+            required_args.append('db')
         elif 'service' in data and not data['service']:
             required_args.extend([
                 'host',
@@ -1642,8 +1690,11 @@ class ServerNode(PGChildNodeView):
                 'username',
             ])
             required_args.append('role')
+            required_args.append('db')
+        elif not provider_endpoint:
+            required_args.append('db')
         for arg in required_args:
-            if arg not in data:
+            if arg not in data or data[arg] is None:
                 return make_json_response(
                     status=410,
                     success=0,
@@ -1773,6 +1824,17 @@ class ServerNode(PGChildNodeView):
                         server.password = encrypt(data['password'], crypt_key)
             db.session.add(server)
             db.session.commit()
+            if provider_endpoint and data.get('db') and (
+                endpoint_registration.get(
+                    'database_targeting', {}
+                ).get('multiple')
+            ):
+                endpoint_service_for_app(
+                    current_app
+                ).retain_created_database(server, {
+                    'database': data['db'],
+                    'display_name': data['db'].rsplit('/', 1)[-1],
+                })
             connected = False
             verification = None
             user = None
@@ -1879,7 +1941,8 @@ class ServerNode(PGChildNodeView):
 
             return jsonify(
                 node=self.blueprint.generate_browser_node(
-                    "%d" % server.id, server.servergroup_id,
+                    "%d" % server.id,
+                    _cde_navigator_parent(endpoint_registration),
                     server.name,
                     server_icon_and_background(connected, manager, server),
                     True,
@@ -2121,6 +2184,12 @@ class ServerNode(PGChildNodeView):
                         current_app
                     ).delete_route(
                         server, route_request.get('route_id')
+                    )
+                elif isinstance(action, str) and action.startswith(
+                    'database_target_'
+                ):
+                    payload = service.database_target_action(
+                        server, action, data.get('request') or {}
                     )
                 elif action == 'open_session':
                     payload = service.open_session(

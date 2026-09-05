@@ -25,7 +25,10 @@ import CodeMirror from '../../../../../../static/js/components/ReactCodeMirror';
 import { DefaultButton } from '../../../../../../static/js/components/Buttons';
 import { useDelayedCaller, useForceUpdate } from '../../../../../../static/js/custom_hooks';
 import Loader from 'sources/components/Loader';
-import { LayoutDockerContext, LAYOUT_EVENTS } from '../../../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  WorkspaceContext as LayoutDockerContext,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import PropTypes from 'prop-types';
 import { parseApiError } from '../../../../../../static/js/api_instance';
 import * as clipboard from '../../../../../../static/js/clipboard';

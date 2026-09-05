@@ -18,7 +18,9 @@ import gettext from 'sources/gettext';
 import Loader from 'sources/components/Loader';
 import { Box } from '@mui/material';
 import { ResultSetToolbar } from './ResultSetToolbar';
-import { LayoutDockerContext } from '../../../../../../static/js/helpers/Layout';
+import {
+  WorkspaceContext as LayoutDockerContext,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import { GeometryViewer } from './GeometryViewer';
 import Explain from '../../../../../../static/js/Explain';
 import { QuerySources } from './QueryHistory';

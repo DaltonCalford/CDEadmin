@@ -15,6 +15,11 @@ import {IFileTreeXTriggerEvents, FileTreeXEvent } from '../types';
 import { Notificar } from 'notificar';
 import _ from 'lodash';
 import DoubleClickHandler from './DoubleClickHandler';
+import {
+  descriptorFromTreeMetadata,
+  treeNodeAriaLabel,
+} from 'sources/cdeadmin_ui/navigation/TreeNode';
+import {ObjectIcon} from 'sources/cdeadmin_ui/icons';
 interface IItemRendererXProps {
     /**
      * In this implementation, decoration are null when item is `PromptHandle`
@@ -81,6 +86,11 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
     const extraClasses = item._metadata.data.extraClasses ? item._metadata.data.extraClasses.join(' ') : '';
 
     const tags = item._metadata.data?.tags ?? [];
+    const descriptor = descriptorFromTreeMetadata(
+      item._metadata.data,
+      item.children?.length ?? 0
+    );
+    const isSelected = decorations?.classlist?.includes('active') ?? false;
 
     return (
       <DoubleClickHandler onDoubleClick={this.handleDoubleClick} onSingleClick={this.handleClick}>
@@ -96,9 +106,18 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
           onMouseEnter={this.handleMouseEnter}
           onMouseLeave={this.handleMouseLeave}
           onKeyDown={()=>{/* taken care by parent */}}
+          role="treeitem"
+          aria-label={treeNodeAriaLabel(descriptor)}
+          aria-expanded={fileOrDir === 'directory' ? isDirExpanded : undefined}
+          aria-selected={isSelected}
+          aria-disabled={!descriptor.capabilities.enabled}
+          data-node-kind={descriptor.kind}
+          data-object-type={descriptor.objectType}
+          data-provider-id={descriptor.providerId || undefined}
+          data-engine-id={descriptor.engineId || undefined}
           // required for rendering context menus when opened through context menu button on keyboard
           ref={this.handleDivRef}
-          draggable={true}>
+          draggable={descriptor.capabilities.draggable}>
 
           {!isNewPrompt && fileOrDir === 'directory' ?
             <i className={cn('directory-toggle', isDirExpanded ? 'open' : '')} />
@@ -106,8 +125,13 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
           }
 
           <span className='file-label'>{
-            item._metadata?.data?.icon ?
-              <i className={cn('file-icon', item._metadata?.data?.icon ? item._metadata.data.icon : fileOrDir)} /> : null
+            descriptor.iconKey ?
+              <ObjectIcon
+                className="file-icon"
+                decorative
+                iconKey={descriptor.iconKey}
+                objectType={descriptor.objectType}
+              /> : null
           }
           <span className='file-name'>
             { _.unescape(this.props.item.getMetadata('data')._label)}

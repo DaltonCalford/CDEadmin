@@ -545,6 +545,54 @@ class RelationalInventoryTests(unittest.TestCase):
 
 class RelationalDBAPIClientTests(unittest.TestCase):
 
+    def test_server_scope_uses_distinct_connector_and_blocks_sessions(self):
+        calls = []
+
+        class Handle:
+            def __init__(self, kind):
+                self.kind = kind
+
+            def close(self):
+                calls.append(('close', self.kind))
+
+        module = SimpleNamespace(
+            connect=lambda **kwargs: calls.append(('database', kwargs)),
+            connect_server=lambda **_kwargs: Handle('server'),
+        )
+        profile = installed_sqlite_profile()
+        client = RelationalDBAPIClient(RelationalClientConfig(
+            profile=profile, module_name='server-scope-test',
+            version_query='SELECT sqlite_version()',
+            connect_arguments=lambda route: {'database': route['database']},
+            metadata_reader=lambda _connection, _request: [],
+            server_route=lambda route: not route.get('database'),
+            server_connector_name='connect_server',
+            server_connect_arguments=lambda route: {'server': route['host']},
+            server_identity_reader=lambda _server, _request: {
+                'engine_id': profile.engine_id,
+                'version': profile.exact_version,
+                'build_id': 'server-scope-test',
+                'protocol_id': profile.protocol_id,
+            },
+            server_metadata_reader=lambda _server, _request: [{
+                'resource_id': 'server:test', 'resource_kind': 'server',
+                'display_name': 'test', 'authority_path': ['server', 'test'],
+                'generation': 'one',
+            }],
+        ), module)
+        request = {'route': {'host': 'server.example'}}
+        self.assertEqual(
+            'server-scope-test', client.runtime_identity(request)['build_id']
+        )
+        self.assertEqual(
+            'server:test', client.list_resources(request)[0]['resource_id']
+        )
+        self.assertEqual([('close', 'server'), ('close', 'server')], calls)
+        with self.assertRaisesRegex(
+            RelationalClientError, 'select or create a database'
+        ):
+            client.open_session(request)
+
     def setUp(self):
         self.profile = installed_sqlite_profile()
         self.client = sqlite_client(self.profile)

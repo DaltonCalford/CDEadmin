@@ -67,7 +67,7 @@ export const PgSubMenu = (({label, alignCheck, ...props})=>{
 });
 
 PgSubMenu.propTypes = {
-  label: PropTypes.string,
+  label: PropTypes.node,
   alignCheck: PropTypes.bool
 };
 

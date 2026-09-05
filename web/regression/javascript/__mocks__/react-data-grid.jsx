@@ -9,7 +9,13 @@ export const DataGrid = (
   }
 ) => {
   const ele = useRef();
-  return <div id={props.id} ref={ele} data-test="react-data-grid"/>;
+  return <div
+    id={props.id}
+    ref={ele}
+    data-test="react-data-grid"
+    data-row-height={props.rowHeight}
+    data-header-row-height={props.headerRowHeight}
+  />;
 };
 
 DataGrid.displayName = 'DataGrid';

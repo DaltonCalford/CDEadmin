@@ -58,6 +58,9 @@ from pgadmin.cdeadmin.sdk import (  # noqa: E402
 from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
     ProviderVisualAdministration,
 )
+from pgadmin.cdeadmin.visual_admin.catalog import (  # noqa: E402
+    catalog_for_engine,
+)
 
 
 class Permissions:
@@ -142,6 +145,21 @@ def request(route, operation, draft, target=None):
 
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
+
+    def test_firebird_database_create_form_requires_server_path(self):
+        database = next(
+            item for item in catalog_for_engine('firebird')['objects']
+            if item['resource_kind'] == 'database'
+        )
+        create = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'create'
+        )
+        self.assertEqual('firebird_database_create', create['form_id'])
+        self.assertEqual(
+            ['database_path'],
+            [field['field_id'] for field in create['form']['fields']],
+        )
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

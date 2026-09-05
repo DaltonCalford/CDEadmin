@@ -9,7 +9,7 @@
 
 import React, { useMemo } from 'react';
 import gettext from 'sources/gettext';
-import PgTable from '../../../../static/js/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import { getDeleteCell, getEditCell } from '../../../../static/js/components/PgReactTableStyled';
 import RoleDialog from './RoleDialog';
 import Loader from 'sources/components/Loader';

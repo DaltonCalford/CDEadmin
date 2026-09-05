@@ -14,7 +14,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseIcon from '@mui/icons-material/Close';
 import gettext from 'sources/gettext';
 import { losslessJSONParser, prettifyJSONString, prettifyJSONValue } from './json_utils';
-import JsonEditor from '../../../../../../static/js/components/JsonEditor';
+import JsonEditor from 'sources/cdeadmin_ui/editors/DocumentEditor';
 import { shouldWarnForLargeJSON } from './json_editor_warning';
 import PropTypes from 'prop-types';
 import { RowInfoContext } from '.';

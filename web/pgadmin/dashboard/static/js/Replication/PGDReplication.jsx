@@ -11,7 +11,7 @@ import { Box, Grid, useTheme } from '@mui/material';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import gettext from 'sources/gettext';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import getApiInstance, { parseApiError } from '../../../../static/js/api_instance';
 import SectionContainer from '../components/SectionContainer';
 import RefreshButton from '../components/RefreshButtons';

@@ -58,6 +58,8 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
       onClick={this.handleClick}
       onScroll={this.props.onScroll}
       ref={this.wrapperRef}
+      role="tree"
+      aria-label={this.props.ariaLabel || 'Object explorer'}
       style={{
         height: height || 'calc(100vh - 60px)',
         width: '100%',
@@ -72,7 +74,7 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
             height={height}
             width={width}
             model={model}
-            itemHeight={FileTreeItem.renderHeight}
+            itemHeight={this.props.itemHeight || FileTreeItem.renderHeight}
             onReady={this.handleTreeReady}
             disableCache={disableCache || false}
           >

@@ -10,7 +10,12 @@
 import {useEffect, useMemo, useState } from 'react';
 import AppMenuBar from './AppMenuBar';
 import ObjectBreadcrumbs from './components/ObjectBreadcrumbs';
-import Layout, { LAYOUT_EVENTS, LayoutDocker, getDefaultGroup } from './helpers/Layout';
+import {
+  getDefaultGroup,
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  Workspace as Layout,
+  WorkspaceController as LayoutDocker,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import gettext from 'sources/gettext';
 import ObjectExplorer from './tree/ObjectExplorer';
 import Properties from '../../misc/properties/Properties';

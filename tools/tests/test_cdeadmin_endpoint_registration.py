@@ -11,10 +11,13 @@
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 import sys
 import unittest
 import uuid
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
@@ -88,6 +91,44 @@ class RegistrationProfileTests(unittest.TestCase):
         self.assertTrue(all(item['default_port'] is None for item in embedded))
         self.assertTrue(all(not item['requires_secret'] for item in embedded))
 
+    def test_each_logical_engine_has_a_safe_svg_navigator_icon(self):
+        profiles = registration_profiles()
+        engines = {
+            'opensearch' if item['engine_id'] == 'opensearch_sql_ppl'
+            else item['engine_id']
+            for item in profiles
+        }
+        module_path = WEB / 'pgadmin/browser/server_groups/engine_types/' \
+            '__init__.py'
+        syntax = ast.parse(module_path.read_text(encoding='utf-8'))
+        labels = next(
+            ast.literal_eval(node.value)
+            for node in syntax.body
+            if isinstance(node, ast.Assign) and any(
+                isinstance(target, ast.Name) and
+                target.id == 'ENGINE_LABELS'
+                for target in node.targets
+            )
+        )
+        self.assertLessEqual(engines, set(labels))
+
+        icon_root = module_path.parent / 'static/img'
+        icons = {path.stem for path in icon_root.glob('*.svg')}
+        self.assertEqual(set(labels), icons)
+        css_template = (
+            module_path.parent / 'templates/css/engine_types.css'
+        ).read_text(encoding='utf-8')
+        declared_icons = set(re.findall(
+            r"'([a-z][a-z0-9_]*)'", css_template.split('%}', 1)[0]
+        ))
+        self.assertEqual(set(labels), declared_icons)
+        for engine_id in labels:
+            path = icon_root / f'{engine_id}.svg'
+            ElementTree.parse(path)
+            source = path.read_text(encoding='utf-8').casefold()
+            self.assertNotIn('<script', source)
+            self.assertNotIn('data:image', source)
+
     def test_unknown_profile_fails_closed(self):
         with self.assertRaisesRegex(
             EndpointRegistrationError, 'not active'
@@ -138,6 +179,23 @@ class RegistrationProfileTests(unittest.TestCase):
             EndpointRegistrationError, 'interface is not active'
         ):
             registration_interface('postgresql', 'ysql')
+
+    def test_firebird_admits_a_verified_server_without_a_database(self):
+        profile = registration_profile('firebird-native')
+        self.assertEqual('optional', profile['database_targeting']['mode'])
+        self.assertTrue(profile['database_targeting']['multiple'])
+        self.assertTrue(
+            profile['database_targeting']['server_verification']
+        )
+        route = provider_route_options(profile, {
+            'cde_route_database_create_root': '/srv/firebird/databases',
+        }, {
+            'host': 'firebird.example', 'port': 3050, 'user': 'SYSDBA',
+        })
+        self.assertNotIn('database', route)
+        self.assertEqual(
+            '/srv/firebird/databases', route['database_create_root']
+        )
 
     def test_catalog_is_defensive_and_implementation_neutral(self):
         profiles = registration_profiles()
@@ -730,6 +788,35 @@ class EndpointVerificationTests(unittest.TestCase):
         self.assertEqual(route.id, result['route_id'])
         self.assertNotIn('credential_reference_id', result)
         self.assertNotIn('principal_reference', result)
+
+    def test_active_database_target_composes_over_server_route(self):
+        route = SimpleNamespace(
+            id='route-one', priority=0,
+            configuration=json.dumps({
+                'host': 'firebird.example', 'port': 3050,
+                'database': '/legacy/route-level.fdb',
+            }),
+        )
+        endpoint = SimpleNamespace(
+            secret_references=[], routes=[route],
+            database_targets=[SimpleNamespace(
+                id='database-one', active=True,
+                database='/srv/firebird/inventory.fdb',
+            )],
+        )
+        service = EndpointService(SimpleNamespace(), SimpleNamespace(
+            secrets=SimpleNamespace(register_resolver=lambda *_args: None)
+        ))
+        value, _reference = service._route_and_reference(
+            SimpleNamespace(user_id=7), endpoint, {
+                'requires_secret': False,
+                'database_targeting': {'multiple': True},
+            }
+        )
+        self.assertEqual(
+            '/srv/firebird/inventory.fdb', value['database']
+        )
+        self.assertEqual('database-one', value['database_target_id'])
 
     def test_verification_route_contains_reference_but_no_secret(self):
         endpoint_id = str(uuid.uuid4())

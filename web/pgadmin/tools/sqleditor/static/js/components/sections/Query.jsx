@@ -11,7 +11,10 @@ import { QueryToolContext, QueryToolEventsContext } from '../QueryToolComponent'
 import CodeMirror from '../../../../../../static/js/components/ReactCodeMirror';
 import { PANELS, QUERY_TOOL_EVENTS, MODAL_DIALOGS } from '../QueryToolConstants';
 import url_for from 'sources/url_for';
-import { LayoutDockerContext, LAYOUT_EVENTS } from '../../../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  WorkspaceContext as LayoutDockerContext,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import ConfirmSaveContent from '../../../../../../static/js/Dialogs/ConfirmSaveContent';
 import gettext from 'sources/gettext';
 import { isMac } from '../../../../../../static/js/keyboard_shortcuts';

@@ -16,7 +16,10 @@ import CloseIcon from '@mui/icons-material/CloseRounded';
 import HelpIcon from '@mui/icons-material/Help';
 
 import { DefaultButton, PgIconButton } from '../components/Buttons';
-import { ModalContent, ModalFooter }from '../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+  DialogFooter as ModalFooter,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 
 export default function UrlDialogContent({ url, helpFile, onClose }) {
   return (

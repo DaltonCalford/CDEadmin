@@ -46,7 +46,7 @@ const StyledDiv = styled('div')(({theme})=>({
       zIndex: 1,
 
       '& .pgrt-header-row': {
-        height: '34px',
+        minHeight: 'max(34px, var(--cde-grid-row-height, 30px))',
         display: 'flex',
 
         '& .pgrt-header-cell': {
@@ -102,7 +102,7 @@ const StyledDiv = styled('div')(({theme})=>({
             ...theme.mixins.panelBorder.bottom,
             ...theme.mixins.panelBorder.right,
             position: 'relative',
-            height: '30px',
+            height: 'var(--cde-grid-row-height, 30px)',
             display: 'flex',
             alignItems: 'flex-start',
             backgroundColor: theme.otherVars.tableBg,

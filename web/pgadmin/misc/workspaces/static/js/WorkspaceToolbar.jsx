@@ -19,7 +19,9 @@ import PropTypes from 'prop-types';
 import { styled } from '@mui/material/styles';
 import { AllPermissionTypes, WORKSPACES } from '../../../../browser/static/js/constants';
 import { useWorkspace } from './WorkspaceProvider';
-import { LAYOUT_EVENTS } from '../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import gettext from 'sources/gettext';
 import withCheckPermission from '../../../../browser/static/js/withCheckPermission';
 
@@ -165,4 +167,3 @@ export default function WorkspaceToolbar() {
     </Root>
   );
 }
-

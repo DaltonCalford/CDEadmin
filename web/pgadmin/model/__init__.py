@@ -36,7 +36,7 @@ import config
 #
 ##########################################################################
 
-SCHEMA_VERSION = 55
+SCHEMA_VERSION = 56
 
 ##########################################################################
 #
@@ -53,6 +53,7 @@ db = SQLAlchemy(
 USER_ID = 'user.id'
 SERVER_ID = 'server.id'
 ENDPOINT_ID = 'cde_endpoint.id'
+WORKSPACE_ID = 'cde_workspace.id'
 CASCADE_STR = "all, delete-orphan"
 
 
@@ -514,6 +515,227 @@ class ApplicationState(db.Model, UserScopedMixin):
     tool_data = db.Column(PgAdminDbBinaryString())
 
 
+class CDEWorkspace(db.Model, UserScopedMixin):
+    """Persist one owner-scoped CDEadmin application workspace."""
+    __tablename__ = 'cde_workspace'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'user_id', 'name', name='uq_cde_workspace_owner_name'
+        ),
+        db.UniqueConstraint(
+            'user_id', 'workspace_key', name='uq_cde_workspace_owner_key'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    workspace_key = db.Column(db.String(256), nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    revision = db.Column(db.Integer, nullable=False, default=0)
+    layout_reference = db.Column(db.String(256), nullable=True)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    windows = db.relationship(
+        'CDEWorkspaceWindow', back_populates='workspace',
+        cascade=CASCADE_STR
+    )
+    tools = db.relationship(
+        'CDEToolInstance', back_populates='workspace', cascade=CASCADE_STR
+    )
+    move_tokens = db.relationship(
+        'CDEWorkspaceMoveToken', back_populates='workspace',
+        cascade=CASCADE_STR
+    )
+
+
+class CDEWorkspaceWindow(db.Model, UserScopedMixin):
+    """Persist a browser or desktop window participating in a workspace."""
+    __tablename__ = 'cde_workspace_window'
+    __table_args__ = (
+        db.CheckConstraint(
+            "role IN ('main', 'detached-tool', 'secondary-workspace')",
+            name='ck_cde_workspace_window_role'
+        ),
+        db.UniqueConstraint(
+            'workspace_id', 'window_key',
+            name='uq_cde_workspace_window_scope'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    workspace_id = db.Column(
+        db.String(36), db.ForeignKey(WORKSPACE_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    window_key = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(32), nullable=False, default='main')
+    device_profile_id = db.Column(db.String(128), nullable=True)
+    display_fingerprint = db.Column(db.String(256), nullable=True)
+    placement = db.Column(db.Text(), nullable=False, default='{}')
+    revision = db.Column(db.Integer, nullable=False, default=0)
+    clean_close = db.Column(db.Boolean(), nullable=False, default=False)
+    last_seen_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    workspace = db.relationship('CDEWorkspace', back_populates='windows')
+
+
+class CDEToolInstance(db.Model, UserScopedMixin):
+    """Persist a secret-free tool descriptor and authoritative placement."""
+    __tablename__ = 'cde_tool_instance'
+    __table_args__ = (
+        db.CheckConstraint(
+            "placement_mode IN ('docked', 'floating', 'detached')",
+            name='ck_cde_tool_placement_mode'
+        ),
+        db.UniqueConstraint(
+            'workspace_id', 'restore_reference',
+            name='uq_cde_tool_restore_reference'
+        ),
+        db.UniqueConstraint(
+            'workspace_id', 'tool_key', name='uq_cde_tool_scope'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    workspace_id = db.Column(
+        db.String(36), db.ForeignKey(WORKSPACE_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    tool_key = db.Column(db.String(256), nullable=False)
+    tool_kind = db.Column(db.String(64), nullable=False)
+    descriptor_schema = db.Column(db.String(64), nullable=False)
+    descriptor = db.Column(db.Text(), nullable=False)
+    restore_reference = db.Column(db.String(256), nullable=False)
+    window_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_workspace_window.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    dock_area = db.Column(db.String(256), nullable=False)
+    tab_order = db.Column(db.Integer, nullable=False, default=0)
+    placement_mode = db.Column(db.String(16), nullable=False)
+    placement_revision = db.Column(db.Integer, nullable=False, default=0)
+    checkpoint_revision = db.Column(db.Integer, nullable=False, default=0)
+    dirty = db.Column(db.Boolean(), nullable=False, default=False)
+    transaction_state = db.Column(
+        db.String(32), nullable=False, default='unknown'
+    )
+    connection_state = db.Column(
+        db.String(32), nullable=False, default='unknown'
+    )
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    workspace = db.relationship('CDEWorkspace', back_populates='tools')
+    checkpoints = db.relationship(
+        'CDEToolCheckpoint', back_populates='tool', cascade=CASCADE_STR
+    )
+    move_tokens = db.relationship(
+        'CDEWorkspaceMoveToken', back_populates='tool', cascade=CASCADE_STR
+    )
+
+
+class CDEToolCheckpoint(db.Model, UserScopedMixin):
+    """Persist references needed to reconstruct a tool, never its payload."""
+    __tablename__ = 'cde_tool_checkpoint'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'tool_instance_id', 'revision',
+            name='uq_cde_tool_checkpoint_revision'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    tool_instance_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_tool_instance.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    revision = db.Column(db.Integer, nullable=False)
+    checkpoint_reference = db.Column(db.String(256), nullable=False)
+    view_state = db.Column(db.Text(), nullable=False, default='{}')
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    tool = db.relationship('CDEToolInstance', back_populates='checkpoints')
+
+
+class CDEWorkspaceMoveToken(db.Model, UserScopedMixin):
+    """Persist an expiring, one-use, optimistic tool-move authorization."""
+    __tablename__ = 'cde_workspace_move_token'
+    __table_args__ = (
+        db.CheckConstraint(
+            "status IN ('prepared', 'acknowledged', 'committed', "
+            "'aborted', 'expired')",
+            name='ck_cde_workspace_move_token_status'
+        ),
+        db.UniqueConstraint(
+            'user_id', 'idempotency_key',
+            name='uq_cde_workspace_move_idempotency'
+        ),
+        db.UniqueConstraint(
+            'token_digest', name='uq_cde_workspace_move_digest'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    token_digest = db.Column(db.String(64), nullable=False)
+    workspace_id = db.Column(
+        db.String(36), db.ForeignKey(WORKSPACE_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    tool_instance_id = db.Column(
+        db.String(36),
+        db.ForeignKey('cde_tool_instance.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    source_window_id = db.Column(db.String(36), nullable=False)
+    destination_window_id = db.Column(db.String(36), nullable=True)
+    source_revision = db.Column(db.Integer, nullable=False)
+    checkpoint_revision = db.Column(db.Integer, nullable=False)
+    destination_placement = db.Column(db.Text(), nullable=False)
+    idempotency_key = db.Column(db.String(128), nullable=False)
+    status = db.Column(db.String(16), nullable=False, default='prepared')
+    expires_at = db.Column(db.DateTime(), nullable=False)
+    acknowledged_at = db.Column(db.DateTime(), nullable=True)
+    committed_at = db.Column(db.DateTime(), nullable=True)
+    aborted_at = db.Column(db.DateTime(), nullable=True)
+    failure_reason = db.Column(db.String(256), nullable=True)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    workspace = db.relationship(
+        'CDEWorkspace', back_populates='move_tokens'
+    )
+    tool = db.relationship('CDEToolInstance', back_populates='move_tokens')
+
+
 class Database(db.Model):
     """
     Define a Database.
@@ -689,6 +911,10 @@ class EndpointProfile(db.Model):
     )
     routes = db.relationship(
         'EndpointRoute', back_populates='endpoint', cascade=CASCADE_STR
+    )
+    database_targets = db.relationship(
+        'EndpointDatabaseTarget', back_populates='endpoint',
+        cascade=CASCADE_STR
     )
     secret_references = db.relationship(
         'EndpointSecretReference',
@@ -995,6 +1221,47 @@ class EndpointRoute(db.Model):
     priority = db.Column(db.Integer(), nullable=False)
     configuration = db.Column(db.Text(), nullable=False, default='{}')
     endpoint = db.relationship('EndpointProfile', back_populates='routes')
+
+
+class EndpointDatabaseTarget(db.Model):
+    """A database attachment owned by a server/instance endpoint.
+
+    Routes describe how to reach a server and remain available for failover.
+    Database targets are deliberately separate: two databases on one server
+    are not alternate network routes and must never participate in retry or
+    failover selection.
+    """
+    __tablename__ = 'cde_endpoint_database_target'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'endpoint_id', 'database',
+            name='uq_cde_endpoint_database_target'
+        ),
+        db.CheckConstraint(
+            'active >= 0 AND active <= 1',
+            name='ck_cde_endpoint_database_target_active'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    endpoint_id = db.Column(
+        db.String(36),
+        db.ForeignKey(ENDPOINT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    display_name = db.Column(db.String(256), nullable=False)
+    database = db.Column(db.Text(), nullable=False)
+    configuration = db.Column(db.Text(), nullable=False, default='{}')
+    active = db.Column(db.Boolean(), nullable=False, default=False)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    endpoint = db.relationship(
+        'EndpointProfile', back_populates='database_targets'
+    )
 
 
 class EndpointSecretReference(db.Model):

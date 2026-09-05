@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { styled } from '@mui/material/styles';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
 import { BgProcessManagerEvents, BgProcessManagerProcessState } from './BgProcessConstants';

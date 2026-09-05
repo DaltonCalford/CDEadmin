@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 import React, { useCallback, useContext, useEffect, useMemo } from 'react';
 import { DataGrid, Row } from 'react-data-grid';
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import PropTypes from 'prop-types';
 import CustomPropTypes from '../custom_prop_types';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -137,6 +137,12 @@ CustomRow.propTypes = {
 export default function PgReactDataGrid({gridRef, className, hasSelectColumn=true, onItemEnter, onItemSelect,
   onItemClick, noRowsText, noRowsIcon,...props}) {
 
+  const theme = useTheme();
+  const presentationRowHeight = theme.cdeadminPresentation?.gridRowHeight;
+  const rowHeight = presentationRowHeight ?? props.rowHeight;
+  const headerRowHeight = presentationRowHeight ?
+    Math.max(presentationRowHeight, props.headerRowHeight ?? 0) :
+    props.headerRowHeight;
   let finalClassName = ['ReactGrid-root'];
   hasSelectColumn && finalClassName.push('ReactGrid-hasSelectColumn');
   props.enableCellSelect && finalClassName.push('ReactGrid-cellSelection');
@@ -162,6 +168,8 @@ export default function PgReactDataGrid({gridRef, className, hasSelectColumn=tru
           noRowsFallback: <Box textAlign="center" gridColumn="1/-1" p={1}>{noRowsIcon}{noRowsText || gettext('No rows found.')}</Box>,
         }}
         {...props}
+        rowHeight={rowHeight}
+        headerRowHeight={headerRowHeight}
       />
     </GridContextUtils.Provider>
   );

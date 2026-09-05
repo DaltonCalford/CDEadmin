@@ -190,12 +190,26 @@ def _validate_document(document: Mapping[str, Any]) -> dict[str, Any]:
             resource['title'] = _required_string(
                 resource.get('title'), f'{engine_id}.{kind}.title'
             )
+            operation_forms = resource.pop('operation_forms', {})
+            if not isinstance(operation_forms, Mapping) or any(
+                not isinstance(operation_id, str) or
+                form_id not in normalized_forms
+                for operation_id, form_id in operation_forms.items()
+            ):
+                raise VisualAdminCatalogError(
+                    f'{engine_id}.{kind}.operation_forms is invalid'
+                )
             resource['operations'] = []
             excluded = frozenset(resource.pop('exclude_operations', ()))
             for operation in normalized_profiles[profile_id]:
                 if operation['operation_id'] in excluded:
                     continue
                 expanded = copy.deepcopy(operation)
+                override_form = operation_forms.get(
+                    expanded['operation_id']
+                )
+                if override_form is not None:
+                    expanded['form_id'] = override_form
                 expanded['form'] = copy.deepcopy(
                     normalized_forms[expanded['form_id']]
                 )

@@ -9,7 +9,7 @@
 
 import React, { useEffect } from 'react';
 import { Box, styled, Tab, Tabs } from '@mui/material';
-import TabPanel from '../../../../static/js/components/TabPanel';
+import TabPanel from 'sources/cdeadmin_ui/navigation/TabPanel';
 import url_for from 'sources/url_for';
 import Users from './Users';
 import Permissions from './Permissions';

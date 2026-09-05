@@ -506,12 +506,24 @@ class RelationalAdministration:
 
     def _compile_database_create(self, request):
         name = request['draft'].get('name')
-        if not isinstance(name, str) or not re.fullmatch(
-            r'[A-Za-z0-9][A-Za-z0-9_.-]{0,254}', name
-        ) or '..' in name:
+        requested_path = request['draft'].get('database_path')
+        if requested_path is None and (
+            not isinstance(name, str) or not re.fullmatch(
+                r'[A-Za-z0-9][A-Za-z0-9_.-]{0,254}', name
+            ) or '..' in name
+        ):
             raise RelationalClientError(
                 'database name must be a safe unqualified file name'
             )
+        if requested_path is not None and (
+            not isinstance(requested_path, str) or
+            not requested_path.strip() or len(requested_path) > 4096 or
+            any(
+                character in requested_path
+                for character in ('\x00', '\r', '\n')
+            )
+        ):
+            raise RelationalClientError('database path is invalid')
         route = request.get('_provider_route')
         root = route.get('database_create_root') if isinstance(
             route, Mapping
@@ -535,7 +547,9 @@ class RelationalAdministration:
                 'endpoint has no approved database creation root'
             )
         extension = self.dialect.database_extension
-        filename = name if name.endswith(extension) else name + extension
+        filename = None
+        if requested_path is None:
+            filename = name if name.endswith(extension) else name + extension
         if mode == 'embedded-file':
             root_path = os.path.realpath(root)
             database = os.path.realpath(os.path.join(root_path, filename))
@@ -546,8 +560,14 @@ class RelationalAdministration:
             driver_operation = 'embedded-create-database'
         elif mode == 'firebird-driver':
             root_path = posixpath.normpath(root)
+            if not posixpath.isabs(root_path):
+                raise RelationalClientError(
+                    'Firebird database creation root must be absolute'
+                )
+            requested = requested_path.strip() if requested_path else filename
             database_path = posixpath.normpath(
-                posixpath.join(root_path, filename)
+                requested if posixpath.isabs(requested)
+                else posixpath.join(root_path, requested)
             )
             if not (
                 database_path == root_path or

@@ -13,12 +13,22 @@ import * as pgadminUtils from '../../utils';
 
 import { Directory } from 'react-aspen';
 import { ManageTreeNodes } from '../tree_nodes';
-import { FileTreeX, TreeModelX } from '../../components/PgTree';
-import ContextMenu from '../../components/ContextMenu';
+import {
+  Tree as CDETree,
+  TreeModel as CDETreeModel,
+} from 'sources/cdeadmin_ui/navigation/Tree';
+import ContextMenu from 'sources/cdeadmin_ui/navigation/ContextMenu';
+import {
+  descriptorFromTreeMetadata,
+} from 'sources/cdeadmin_ui/navigation/TreeNode';
+import {
+  treeActionRegistry,
+} from 'sources/cdeadmin_ui/navigation/TreeActions';
 import { generateNodeUrl } from '../../../../browser/static/js/node_ajax';
 import { copyToClipboard } from '../../clipboard';
 import { usePgAdmin } from '../../PgAdminProvider';
 import ObjectExplorerFilter from './ObjectExplorerFilter';
+import gettext from 'sources/gettext';
 
 function postTreeReady(b) {
   const draggableTypes = [
@@ -102,6 +112,8 @@ function postTreeReady(b) {
 
 export default function ObjectExplorer() {
   const [contextPos, setContextPos] = React.useState(null);
+  const [contextNode, setContextNode] = React.useState(null);
+  const [contextItem, setContextItem] = React.useState(null);
   const pgAdmin = usePgAdmin();
   const contextMenuItems = pgAdmin.Browser.BrowserContextMenu;
   const [treeModelLoaded, setTreeModelLoaded] = useState(false);
@@ -135,7 +147,7 @@ export default function ObjectExplorer() {
       },
     };
 
-    treeModelXRef.current = new TreeModelX(host, MOUNT_POINT);
+    treeModelXRef.current = new CDETreeModel(host, MOUNT_POINT);
 
     treeModelXRef.current.root.ensureLoaded().then(()=>{
       setTreeModelLoaded(true);
@@ -180,6 +192,10 @@ export default function ObjectExplorer() {
     ev.preventDefault();
     if(item) {
       await pgAdmin.Browser.tree.select(item);
+      setContextNode(descriptorFromTreeMetadata(
+        item._metadata?.data ?? {}, item.children?.length ?? 0
+      ));
+      setContextItem(item);
       setContextPos({x: ev.clientX, y: ev.clientY});
     }
   }, []);
@@ -188,9 +204,16 @@ export default function ObjectExplorer() {
     return <span>Loading...</span>;
   }
 
+  const providerMenuItems = contextNode ? treeActionRegistry.resolve({
+    node: contextNode,
+    item: contextItem,
+    tree: pgAdmin.Browser.tree,
+  }, contextMenuItems) : [];
+
   return (
     <>
-      <FileTreeX
+      <CDETree
+        ariaLabel={gettext('Database object explorer')}
         model={treeModelXRef.current}
         onReady={itemHandle}
         create={create} update={update} remove={remove}
@@ -200,8 +223,11 @@ export default function ObjectExplorer() {
         }}
       />
       <ObjectExplorerFilter />
-      <ContextMenu position={contextPos} onClose={()=>setContextPos(null)}
-        menuItems={contextMenuItems} label="Object Context Menu" />
+      <ContextMenu position={contextPos} onClose={()=>{
+        setContextPos(null);
+        setContextNode(null);
+        setContextItem(null);
+      }} menuItems={providerMenuItems} label="Object Context Menu" />
     </>
   );
 }

@@ -12,7 +12,7 @@ import getApiInstance from 'sources/api_instance';
 import { Box } from '@mui/material';
 import { generateCollectionURL } from '../../browser/static/js/node_ajax';
 import gettext from 'sources/gettext';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import PropTypes from 'prop-types';
 import { PgButtonGroup, PgIconButton } from '../../static/js/components/Buttons';
 import DeleteIcon from '@mui/icons-material/Delete';

@@ -68,8 +68,10 @@ export interface IFileTreeXHandle extends IFileTreeHandle {
 }
 
 export interface IFileTreeXProps {
-    height: number
+    height: number | string
     width: number
+    itemHeight?: number
+    ariaLabel?: string
     model: TreeModelX
 
     /**

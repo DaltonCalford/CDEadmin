@@ -30,6 +30,14 @@ import pgadminOverride from './overrides/pgadmin.classes.override';
 import reactAspenOverride from './overrides/reactaspen.override';
 import usePreferences from '../../../preferences/static/js/store';
 import szhMenuOverride from './overrides/szhmenu.override';
+import {
+  presentationCssVariables,
+  presentationThemeOverrides,
+  readAccessibilitySafeMode,
+  resolvePresentation,
+  safeModePreferences,
+  writeAccessibilitySafeMode,
+} from '../cdeadmin_ui/foundations/presentation';
 
 /* Common settings across all themes */
 let basicSettings = createTheme();
@@ -381,7 +389,7 @@ basicSettings = createTheme(basicSettings, {
 });
 
 /* Get the final theme after merging base theme with selected theme */
-function getFinalTheme(baseTheme) {
+function getFinalTheme(baseTheme, presentation) {
   let mixins = {
     panelBorder: {
       border: '1px solid '+baseTheme.otherVars.borderColor,
@@ -414,7 +422,7 @@ function getFinalTheme(baseTheme) {
       flexGrow: 1,
     },
     fontSourceCode: {
-      fontFamily: basicSettings.typography.fontFamilySourceCode,
+      fontFamily: baseTheme.typography.fontFamilySourceCode,
     }
   };
 
@@ -426,16 +434,32 @@ function getFinalTheme(baseTheme) {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
+          html: {
+            ...presentationCssVariables(presentation),
+            fontSize: `${presentation.scale}%`,
+          },
           body: {
             fontFamily: baseTheme.typography.fontFamily,
             fontSize: '0.875rem',
-            lineHeight: '1.43em',
-            letterSpacing: '0.01071em',
+            lineHeight: `${presentation.lineHeight}em`,
+            letterSpacing: `${presentation.letterSpacing}em`,
             height: '100vh',
           },
+          ':focus-visible': {
+            outline: `${presentation.focusWidth}px solid ${presentation.colors.focus}`,
+            outlineOffset: `${presentation.focusOffset}px`,
+          },
+          ...(presentation.reduceMotion ? {
+            '*, *::before, *::after': {
+              scrollBehavior: 'auto !important',
+              transitionDuration: '0.01ms !important',
+              animationDuration: '0.01ms !important',
+              animationIterationCount: '1 !important',
+            },
+          } : {}),
           '::-webkit-scrollbar,::-webkit-scrollbar-corner': {
-            width: '1rem !important',
-            height: '1rem !important',
+            width: `${presentation.scrollbarSize}px !important`,
+            height: `${presentation.scrollbarSize}px !important`,
             background: baseTheme.otherVars.scroll.barBackgroundColor
           },
           '::-webkit-scrollbar-thumb': {
@@ -486,6 +510,13 @@ function getFinalTheme(baseTheme) {
           ...pgadminOverride(baseTheme),
           ...reactAspenOverride(baseTheme),
           ...szhMenuOverride(baseTheme)
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            minHeight: `${presentation.controlHeight}px`,
+          },
         },
       },
       MuiOutlinedInput:  {
@@ -551,6 +582,7 @@ function getFinalTheme(baseTheme) {
       MuiTabs: {
         styleOverrides: {
           root: {
+            minHeight: `${presentation.controlHeight}px`,
             backgroundColor: baseTheme.otherVars.headerBg,
             ...mixins.panelBorder.bottom
           },
@@ -603,10 +635,10 @@ function getFinalTheme(baseTheme) {
             }
           },
           sizeSmall: {
-            height: '28px',
+            height: `${presentation.controlHeight}px`,
           },
           inputSizeSmall: {
-            height: '16px', // + 12px of padding = 28px;
+            height: `calc(${presentation.controlHeight}px - 12px)`,
           },
         }
       },
@@ -634,8 +666,13 @@ function getFinalTheme(baseTheme) {
         styleOverrides: {
           root: {
             color: baseTheme.palette.text.primary,
+            minHeight: `${presentation.targetSize}px`,
+            minWidth: `${presentation.targetSize}px`,
+            '& svg': {
+              fontSize: `${presentation.iconScale / 100}em`,
+            },
             '&.Mui-disabled': {
-              color: 'abc',
+              color: baseTheme.custom.icon.disabledContrastText,
             }
           }
         }
@@ -668,7 +705,7 @@ function getFinalTheme(baseTheme) {
         styleOverrides: {
           groupedHorizontal : {
             '&:not(:first-of-type)': {
-              borderLeft: 'abc'
+              borderLeft: `1px solid ${baseTheme.otherVars.borderColor}`
             }
           },
           middleButton: {
@@ -688,16 +725,16 @@ function getFinalTheme(baseTheme) {
           },
           colorPrimary: {
             '&.Mui-disabled': {
-              color: 'abc',
+              color: baseTheme.custom.checkbox.disabled,
               '& + .MuiSwitch-track': {
-                backgroundColor: 'abc',
+                backgroundColor: baseTheme.custom.checkbox.disabled,
               }
             }
           },
           switchBase: {
             padding: baseTheme.spacing(0.5),
             '&.Mui-disabled': {
-              color: 'abc',
+              color: baseTheme.custom.checkbox.disabled,
               '& + .MuiSwitch-track': {
                 opacity: baseTheme.palette.action.disabledOpacity,
               }
@@ -721,6 +758,8 @@ function getFinalTheme(baseTheme) {
         styleOverrides: {
           root: {
             padding: '0px',
+            minWidth: `${presentation.targetSize}px`,
+            minHeight: `${presentation.targetSize}px`,
             color: baseTheme.custom.checkbox.borderColor,
           },
 
@@ -735,6 +774,8 @@ function getFinalTheme(baseTheme) {
         styleOverrides: {
           root: {
             padding: '0px',
+            minWidth: `${presentation.targetSize}px`,
+            minHeight: `${presentation.targetSize}px`,
             color: baseTheme.custom.checkbox.borderColor,
           },
 
@@ -749,10 +790,11 @@ function getFinalTheme(baseTheme) {
         styleOverrides: {
           root: {
             padding: '3px 16px 3px 4px',
-            color: 'abc',
+            minHeight: `${presentation.controlHeight}px`,
+            color: baseTheme.palette.text.primary,
             textTransform: 'initial',
             '&:hover':{
-              backgroundColor: 'abc',
+              backgroundColor: baseTheme.palette.default.hoverMain,
             },
             '&.Mui-selected': {
               color: baseTheme.palette.primary.contrastTextLight ?? baseTheme.palette.primary.main,
@@ -872,6 +914,7 @@ function getFinalTheme(baseTheme) {
       MuiTab: {
         styleOverrides: {
           root: {
+            minHeight: `${presentation.controlHeight}px`,
             '&:not(.Mui-disabled).MuiTab-textColorPrimary':{
               color: baseTheme.palette.text.primary,
             },
@@ -915,13 +958,26 @@ function parseSystemTheme(selectedTheme) {
 /* In future, this will be moved to App container */
 export default function Theme({children}) {
   const prefStore = usePreferences();
+  const miscPreferences = prefStore?.getPreferencesForModule('misc') || {};
+  const [safeMode, setSafeMode] = useState(() =>
+    readAccessibilitySafeMode(window.localStorage)
+  );
   const selectedTheme =
-    prefStore?.getPreferencesForModule('misc')?.theme ||
+    miscPreferences.theme ||
     window.theme ||
     'light';
+  const effectiveSelectedTheme = safeMode ? 'high_contrast' : selectedTheme;
+  const effectivePreferences = safeMode ?
+    safeModePreferences(miscPreferences) : miscPreferences;
 
   // Initialize theme state
-  const [theme, setTheme] = useState(parseSystemTheme(selectedTheme).theme);
+  const [theme, setTheme] = useState(
+    parseSystemTheme(effectiveSelectedTheme).theme
+  );
+  const [systemReduceMotion, setSystemReduceMotion] = useState(
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+    false
+  );
 
   // Memoize the theme object
   const themeObj = useMemo(()=>{
@@ -934,12 +990,19 @@ export default function Theme({children}) {
       baseTheme = getHightContrastTheme(baseTheme);
       break;
     }
-    return getFinalTheme(baseTheme);
-  }, [theme]);
+    const presentation = resolvePresentation(effectivePreferences, baseTheme, {
+      systemReduceMotion,
+    });
+    baseTheme = createTheme(
+      baseTheme,
+      presentationThemeOverrides(presentation)
+    );
+    return getFinalTheme(baseTheme, presentation);
+  }, [theme, prefStore?.version, systemReduceMotion, safeMode]);
 
   // Handle theme updates
   useEffect(() => {
-    let {theme, systemMatchMedia} = parseSystemTheme(selectedTheme);
+    let {theme, systemMatchMedia} = parseSystemTheme(effectiveSelectedTheme);
     setTheme(theme);
 
     const updateTheme = (event) => {
@@ -951,7 +1014,57 @@ export default function Theme({children}) {
     return () => {
       systemMatchMedia?.removeEventListener('change', updateTheme);
     };
-  },[selectedTheme]);
+  },[effectiveSelectedTheme]);
+
+  useEffect(() => {
+    const media = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)'
+    );
+    if(!media) return undefined;
+    const updateMotion = (event) => setSystemReduceMotion(event.matches);
+    setSystemReduceMotion(media.matches);
+    media.addEventListener?.('change', updateMotion);
+    return () => media.removeEventListener?.('change', updateMotion);
+  }, []);
+
+  useEffect(() => {
+    const setMode = (enabled) => {
+      setSafeMode(enabled);
+      writeAccessibilitySafeMode(window.localStorage, enabled);
+    };
+    const onKeyDown = (event) => {
+      if(event.ctrlKey && event.shiftKey && !event.altKey &&
+          !event.metaKey && (event.key === '0' || event.code === 'Digit0')) {
+        event.preventDefault();
+        setMode(!safeMode);
+      }
+    };
+    const onSafeModeRequest = (event) => {
+      setMode(event.detail?.enabled ?? true);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener(
+      'cdeadmin:accessibility-safe-mode', onSafeModeRequest
+    );
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener(
+        'cdeadmin:accessibility-safe-mode', onSafeModeRequest
+      );
+    };
+  }, [safeMode]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const presentation = themeObj.cdeadminPresentation;
+    root.dataset.cdeadminProfile = presentation.profileId;
+    root.dataset.cdeadminDensity = presentation.density;
+    root.dataset.cdeadminMotion = presentation.reduceMotion ?
+      'reduced' : 'full';
+    root.dataset.cdeadminPresentationWarnings =
+      presentation.warnings.join(',');
+    root.dataset.cdeadminSafeMode = safeMode ? 'true' : 'false';
+  }, [themeObj, safeMode]);
 
   return (
     <ThemeProvider theme={themeObj}>

@@ -61,6 +61,7 @@ export default function reactAspenOverride(theme) {
       alignItems: 'center',
       whiteSpace: 'nowrap',
       padding: '2px 0',
+      minHeight: 'var(--cde-tree-row-height, 28px)',
       paddingLeft: '2px',
       cursor: 'default',
 
@@ -183,7 +184,7 @@ export default function reactAspenOverride(theme) {
       i: {
         display: 'inline-block',
         font: 'normal normal normal 18px/1 "Font Awesome 5 Free"',
-        fontSize: '18px',
+        fontSize: 'var(--cde-icon-scale, 18px)',
         textAlign: 'center',
         height: '21px !important',
         width: '20px !important',

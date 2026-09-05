@@ -172,6 +172,10 @@ class EndpointService:
     def workspace(self, _server):
         return self._workspace
 
+    @staticmethod
+    def database_catalog(_server):
+        return []
+
 
 class DeliveryService:
     def __init__(self):

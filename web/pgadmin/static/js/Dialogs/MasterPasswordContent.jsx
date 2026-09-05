@@ -18,7 +18,10 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import HelpIcon from '@mui/icons-material/Help';
 import { DefaultButton, PrimaryButton, PgIconButton } from '../components/Buttons';
 import { FormFooterMessage, FormNote, InputText, MESSAGE_TYPE } from '../components/FormComponents';
-import { ModalContent, ModalFooter } from '../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+  DialogFooter as ModalFooter,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 
 export default function MasterPasswordContent({ closeModal, onResetPassowrd, onOK, onCancel, setHeight, isPWDPresent, data, keyringName}) {
   const containerRef = useRef();

@@ -18,7 +18,10 @@ import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded
 import QueryBuilderRoundedIcon from '@mui/icons-material/QueryBuilderRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import ReportProblemRoundedIcon from '@mui/icons-material/ReportProblemRounded';
-import { PgMenu, PgMenuItem } from '../../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuItem as PgMenuItem,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import gettext from 'sources/gettext';
 import RotateLeftRoundedIcon from '@mui/icons-material/RotateLeftRounded';
 import PropTypes from 'prop-types';

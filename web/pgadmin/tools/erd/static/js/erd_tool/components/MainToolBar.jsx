@@ -31,7 +31,11 @@ import FormatColorTextRoundedIcon from '@mui/icons-material/FormatColorTextRound
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 
-import { PgMenu, PgMenuItem, usePgMenuGroup } from '../../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuItem as PgMenuItem,
+  useMenuGroup as usePgMenuGroup,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import gettext from 'sources/gettext';
 import url_for from 'sources/url_for';
 import PropTypes from 'prop-types';

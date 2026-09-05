@@ -114,8 +114,10 @@ class ServerGroupModule(BrowserPluginModule):
         Override the default register function to automagically register
         sub-modules at once.
         """
-        from .servers import blueprint as module
-        self.submodules.append(module)
+        from .engine_types import blueprint as engine_types
+        self.submodules.append(engine_types)
+        from .servers import blueprint as servers
+        self.submodules.append(servers)
         super().register(app, options)
 
 

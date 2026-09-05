@@ -8,7 +8,11 @@
 //////////////////////////////////////////////////////////////
 import React, {useCallback, useRef, useMemo, useState, useEffect} from 'react';
 import _ from 'lodash';
-import Layout, { LayoutDocker, LAYOUT_EVENTS } from '../../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  Workspace as Layout,
+  WorkspaceController as LayoutDocker,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import EventBus from '../../../../../static/js/helpers/EventBus';
 import Query from './sections/Query';
 import { ConnectionBar } from './sections/ConnectionBar';

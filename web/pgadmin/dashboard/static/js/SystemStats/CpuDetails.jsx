@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import { useState, useEffect, useRef, useReducer, useMemo } from 'react';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
 import {getGCD, getEpoch} from 'sources/utils';

@@ -26,6 +26,7 @@ export default function rcdockOverride(theme) {
       },
       '& .dock-bar': {
         paddingLeft: 0,
+        minHeight: 'var(--cde-control-height, 28px)',
         backgroundColor: theme.palette.background.default,
         ...theme.mixins.panelBorder.bottom,
         '& .dock-nav-wrap': {
@@ -117,6 +118,7 @@ export default function rcdockOverride(theme) {
         },
         '& > div': {
           padding: '4px 8px',
+          minHeight: 'var(--cde-target-size, 24px)',
           '&:focus': {
             outline: '1px solid '+theme.otherVars.activeBorder,
             outlineOffset: '-1px',
@@ -138,7 +140,7 @@ export default function rcdockOverride(theme) {
           }
         },
         '& .dock-tab-icon': {
-          fontSize: '1rem',
+          fontSize: 'var(--cde-icon-scale, 1rem)',
           marginRight: '4px'
         }
       },
@@ -149,7 +151,7 @@ export default function rcdockOverride(theme) {
       '& .dock-vbox, & .dock-hbox .dock-vbox': {
         '& .dock-divider': {
           flexBasis: '1px',
-          transform: 'scaleY(8)',
+          transform: 'scaleY(var(--cde-resize-handle-size, 8))',
           '&::before': {
             backgroundColor: theme.otherVars.borderColor,
             display: 'block',
@@ -163,7 +165,7 @@ export default function rcdockOverride(theme) {
       '& .dock-hbox, & .dock-vbox .dock-hbox': {
         '& .dock-divider': {
           flexBasis: '1px',
-          transform: 'scaleX(8)',
+          transform: 'scaleX(var(--cde-resize-handle-size, 8))',
           '&::before': {
             backgroundColor: theme.otherVars.borderColor,
             display: 'block',

@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { ModalContent } from '../../../../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 import gettext from 'sources/gettext';
 import { Box } from '@mui/material';
 import { DefaultButton, PrimaryButton } from '../../../../../../static/js/components/Buttons';

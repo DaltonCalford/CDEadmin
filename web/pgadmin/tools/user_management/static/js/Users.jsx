@@ -11,7 +11,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { getDeleteCell, getEditCell, getSwitchCell } from '../../../../static/js/components/PgReactTableStyled';
 import gettext from 'sources/gettext';
 import getApiInstance, { parseApiError } from '../../../../static/js/api_instance';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import url_for from 'sources/url_for';
 import { BROWSER_PANELS } from '../../../../browser/static/js/constants';
 import ErrorBoundary from '../../../../static/js/helpers/ErrorBoundary';

@@ -34,6 +34,11 @@ from tools.cdeadmin_relational_provider_live_verify import (  # noqa: E402
     _FirebirdAccount,
     verify,
 )
+from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
+    _server_arguments,
+    _server_identity,
+    _server_resources,
+)
 
 
 def _free_port():
@@ -111,6 +116,48 @@ def _wait_for_server(process, port, timeout=15.0):
     raise RuntimeError('Firebird server did not become ready')
 
 
+def _verify_server_scope(host, port, password, creation_root):
+    """Exercise the provider's database-free service-manager attachment."""
+    import firebird.driver as firebird_driver
+
+    route = {
+        'host': host,
+        'port': port,
+        'user': 'SYSDBA',
+        'database_create_root': str(creation_root),
+        'auth_plugin_list': 'Srp256,Srp,Legacy_Auth',
+        'trusted_auth': False,
+        'wire_crypt': 'Required',
+    }
+    arguments = _server_arguments(route, firebird_driver)
+    arguments['password'] = password
+    service = firebird_driver.connect_server(**arguments)
+    try:
+        identity = _server_identity(service, {'route': route})
+        resources = _server_resources(service, {
+            'route': route,
+            'capability_generation': 'exact-live-server-scope',
+        })
+    finally:
+        service.close()
+    if identity['engine_id'] != 'firebird':
+        raise RuntimeError('Firebird server-scope identity did not match')
+    server = next((
+        item for item in resources if item['resource_kind'] == 'server'
+    ), None)
+    if server is None or server.get('native', {}).get('scope') != 'server':
+        raise RuntimeError('Firebird server-scope resource was unavailable')
+    return {
+        'database_required': False,
+        'verified_runtime': identity,
+        'server_resource': server,
+        'service_operation_count': sum(
+            item['resource_kind'] == 'service-operation'
+            for item in resources
+        ),
+    }
+
+
 def run(runtime_source, server_log):
     runtime_source = runtime_source.resolve()
     required = (
@@ -147,6 +194,9 @@ def run(runtime_source, server_log):
             )
             try:
                 _wait_for_server(process, port)
+                server_scope = _verify_server_scope(
+                    '127.0.0.1', port, password, root
+                )
                 account = _FirebirdAccount(
                     '127.0.0.1', port, database, 'SYSDBA', password
                 )
@@ -164,6 +214,7 @@ def run(runtime_source, server_log):
         final_source_fingerprint = _runtime_fingerprint(runtime_source)
         source_modified = source_fingerprint != final_source_fingerprint
         result['isolated_runtime_clone'] = True
+        result['server_scope_evidence'] = server_scope
         result['source_runtime_sha256'] = source_fingerprint
         result['source_runtime_modified'] = source_modified
         result['server_stopped'] = process.returncode is not None

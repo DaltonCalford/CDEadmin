@@ -31,7 +31,9 @@ import EventBus from '../../../../../../static/js/helpers/EventBus';
 import { ERD_EVENTS } from '../ERDConstants';
 import getApiInstance, { callFetch, parseApiError } from '../../../../../../static/js/api_instance';
 import { openSocket, socketApiGet } from '../../../../../../static/js/socket_instance';
-import { LAYOUT_EVENTS } from '../../../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import usePreferences from '../../../../../../preferences/static/js/store';
 import pgAdmin from 'sources/pgadmin';
 import { styled } from '@mui/material/styles';

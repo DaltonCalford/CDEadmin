@@ -122,7 +122,8 @@ export class MenuItem {
       'name', 'label', 'priority', 'module', 'callback', 'data', 'enable',
       'category', 'target', 'url', 'node', 'single',
       'checked', 'below', 'menu_items', 'is_checkbox', 'action', 'applies', 'is_native_only', 'type',
-      'permission',
+      'permission', 'iconKey', 'intent', 'disabledReason',
+      'requiresConfirmation',
     ];
     this.shortcut = options.shortcut;
     let defaults = {
@@ -156,6 +157,10 @@ export class MenuItem {
       type: [true, false].includes(this.checked) ? 'checkbox' : this.type,
       checked: this.checked,
       shortcut: this.shortcut,
+      iconKey: this.iconKey,
+      intent: this.intent,
+      disabledReason: this.disabledReason,
+      requiresConfirmation: this.requiresConfirmation,
     };
   }
 

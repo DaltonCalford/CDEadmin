@@ -24,7 +24,9 @@ import {AzureCredentials, AzureInstanceDetails, AzureDatabaseDetails, checkClust
 import { GoogleCredentials, GoogleInstanceDetails, GoogleDatabaseDetails, validateGoogleStep2, validateGoogleStep3 } from './google';
 import EventBus from '../../../../static/js/helpers/EventBus';
 import { CLOUD_PROVIDERS, CLOUD_PROVIDERS_LABELS } from './cloud_constants';
-import { LAYOUT_EVENTS } from '../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 
 export const CloudWizardEventsContext = React.createContext();
 

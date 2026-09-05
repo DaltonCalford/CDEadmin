@@ -131,6 +131,30 @@ module.exports = [
     }
   },
   {
+    files: [
+      'pgadmin/cdeadmin/**/*.{js,jsx,ts,tsx}',
+      'pgadmin/browser/server_groups/engine_types/**/*.{js,jsx,ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: [
+            '@mui/*',
+            'rc-dock',
+            'react-select',
+            'react-select/*',
+            'react-data-grid',
+            '@codemirror/*',
+            'chart.js',
+            'react-draggable',
+            'react-dnd',
+          ],
+          message: 'Provider UI must use the public CDEadmin design system.',
+        }],
+      }],
+    },
+  },
+  {
     'files': ['**/*{spec,test}.{js,jsx}', './regression/javascript/**/*.{js}'],
     ...jest.configs['flat/recommended'],
     rules: {

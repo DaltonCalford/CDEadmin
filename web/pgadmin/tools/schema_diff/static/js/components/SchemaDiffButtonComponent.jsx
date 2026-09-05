@@ -21,7 +21,11 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { DefaultButton, PgButtonGroup, PgIconButton, PrimaryButton } from '../../../../../static/js/components/Buttons';
 import { FilterIcon } from '../../../../../static/js/components/ExternalIcon';
-import { PgMenu, PgMenuItem, usePgMenuGroup } from '../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuItem as PgMenuItem,
+  useMenuGroup as usePgMenuGroup,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import { FILTER_NAME, MENUS, MENUS_COMPARE_CONSTANT, SCHEMA_DIFF_EVENT, IGNORE_OPTION } from '../SchemaDiffConstants';
 import { SchemaDiffContext, SchemaDiffEventsContext } from './SchemaDiffComponent';
 import withCheckPermission from '../../../../../browser/static/js/withCheckPermission';

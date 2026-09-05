@@ -287,14 +287,21 @@ export default function Editor({
     if (!checkIsMounted()) return;
     let pref = preferencesStore.getPreferencesForModule('sqleditor');
     let editorPref = preferencesStore.getPreferencesForModule('editor');
+    let accessibilityPref =
+      preferencesStore.getPreferencesForModule('misc') || {};
     let newConfigExtn = [];
 
     const fontSize = calcFontSize(editorPref.sql_font_size);
+    const accessibilityFont =
+      accessibilityPref.accessibility_monospace_font_family?.trim();
+    const editorFont = accessibilityFont || editorPref.sql_font_family;
     newConfigExtn.push(EditorView.theme({
       '& .cm-scroller .cm-content': {
         fontSize: fontSize,
         fontVariantLigatures: editorPref.sql_font_ligatures ? 'normal' : 'none',
-        fontFamily: `${editorPref.sql_font_family}, ${theme.typography.fontFamilySourceCode}`,
+        fontFamily: `${editorFont}, ${theme.typography.fontFamilySourceCode}`,
+        lineHeight: 'var(--cde-line-height, normal)',
+        letterSpacing: 'var(--cde-letter-spacing, normal)',
       },
       '.cm-gutters': {
         fontSize: fontSize,
@@ -407,7 +414,8 @@ export default function Editor({
       'fast': 600,
     };
     newConfigExtn.push(drawSelection({
-      cursorBlinkRate: CURSOR_BLINK_RATE_MAP[editorPref.cursor_blink_rate] ?? 1200
+      cursorBlinkRate: theme.cdeadminPresentation?.reduceMotion ? 0 :
+        CURSOR_BLINK_RATE_MAP[editorPref.cursor_blink_rate] ?? 1200
     }));
 
     // add fold service conditionally
@@ -418,7 +426,7 @@ export default function Editor({
     editor.current.dispatch({
       effects: configurables.current.reconfigure(newConfigExtn)
     });
-  }, [preferencesStore]);
+  }, [preferencesStore, theme]);
 
   useMemo(() => {
     if (!checkIsMounted()) return;

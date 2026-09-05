@@ -13,7 +13,9 @@ import { QUERY_TOOL_EVENTS } from '../QueryToolConstants';
 
 const StyledTextarea = styled('textarea')(({theme}) => ({
   whiteSpace: 'pre-wrap',
-  fontFamily: '"Source Code Pro", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  fontFamily: theme.typography.fontFamilySourceCode,
+  lineHeight: 'var(--cde-line-height, normal)',
+  letterSpacing: 'var(--cde-letter-spacing, normal)',
   padding: '5px 10px',
   overflow: 'auto',
   height: '100%',

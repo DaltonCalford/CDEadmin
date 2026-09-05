@@ -8,6 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import PropTypes from 'prop-types';
+import {SafeText} from '../cdeadmin_ui/feedback/SafeText';
 
 // SafeMessage renders externally-derived text without interpreting any
 // HTML. Newlines are preserved via white-space: pre-wrap so a multi-line
@@ -15,14 +16,7 @@ import PropTypes from 'prop-types';
 // a database server, driver, OS process, remote API, or other untrusted
 // channel.
 export function SafeMessage({text, ...rest}) {
-  return (
-    <span
-      style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        overflowWrap: 'anywhere'}}
-      {...rest}>
-      {text ?? ''}
-    </span>
-  );
+  return <SafeText text={text} {...rest} />;
 }
 
 SafeMessage.propTypes = {

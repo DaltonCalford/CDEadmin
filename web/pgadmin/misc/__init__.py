@@ -94,6 +94,160 @@ class MiscModule(PgAdminModule):
                 'preview of the theme.'
             )
         )
+
+        profile_options = [
+            {'label': gettext('Classic compatibility'), 'value': 'classic'},
+            {'label': gettext('CDEadmin standard'),
+             'value': 'cdeadmin_standard'},
+            {'label': gettext('System adaptive'),
+             'value': 'system_adaptive'},
+            {'label': gettext('High contrast light'),
+             'value': 'high_contrast_light'},
+            {'label': gettext('High contrast dark'),
+             'value': 'high_contrast_dark'},
+            {'label': gettext('Low vision'), 'value': 'low_vision'},
+            {'label': gettext('Motor assistance'),
+             'value': 'motor_assistance'},
+            {'label': gettext('Reduced motion'), 'value': 'reduced_motion'},
+            {'label': gettext('Compact expert'), 'value': 'compact_expert'},
+        ]
+        self.preference.register(
+            'accessibility', 'accessibility_profile',
+            gettext('Accessibility profile'), 'options', 'classic',
+            category_label=gettext('Accessibility and personalization'),
+            options=profile_options,
+            control_props={'allowClear': False, 'creatable': False},
+            help_str=gettext(
+                'Select a reviewed presentation profile. Custom values below '
+                'override the selected profile; -1 uses the profile value.'
+            )
+        )
+        self.preference.register(
+            'accessibility', 'accessibility_ui_font_family',
+            gettext('Interface font family'), 'text', '',
+            category_label=gettext('Accessibility and personalization'),
+            allow_blanks=True,
+            help_str=gettext(
+                'Leave blank to use the selected profile and theme font.'
+            )
+        )
+        self.preference.register(
+            'accessibility', 'accessibility_monospace_font_family',
+            gettext('Editor and data font family'), 'text', '',
+            category_label=gettext('Accessibility and personalization'),
+            allow_blanks=True,
+            help_str=gettext(
+                'Leave blank to use the selected profile and theme '
+                'monospace font.'
+            )
+        )
+
+        numeric_accessibility_preferences = [
+            ('accessibility_ui_scale', gettext('Interface scale (%)'),
+             'integer', -1, -1, 300),
+            ('accessibility_icon_scale', gettext('Icon scale (%)'),
+             'integer', -1, -1, 300),
+            ('accessibility_line_height', gettext('Text line height'),
+             'numeric', -1, -1, 2.5),
+            ('accessibility_letter_spacing', gettext('Letter spacing (em)'),
+             'numeric', -1, -1, 0.2),
+            ('accessibility_control_height',
+             gettext('Minimum control height (pixels)'),
+             'integer', -1, -1, 72),
+            ('accessibility_target_size',
+             gettext('Minimum activation target (pixels)'),
+             'integer', -1, -1, 72),
+            ('accessibility_target_spacing',
+             gettext('Minimum target spacing (pixels)'),
+             'integer', -1, -1, 24),
+            ('accessibility_scrollbar_size',
+             gettext('Scrollbar size (pixels)'),
+             'integer', -1, -1, 48),
+            ('accessibility_resize_handle_size',
+             gettext('Resize handle target size (pixels)'),
+             'integer', -1, -1, 32),
+            ('accessibility_panel_gap',
+             gettext('Panel spacing (pixels)'),
+             'integer', -1, -1, 32),
+            ('accessibility_tree_row_height',
+             gettext('Object explorer row height (pixels)'),
+             'integer', -1, -1, 72),
+            ('accessibility_grid_row_height',
+             gettext('Data grid row height (pixels)'),
+             'integer', -1, -1, 96),
+            ('accessibility_focus_width',
+             gettext('Keyboard focus indicator width (pixels)'),
+             'integer', -1, -1, 8),
+            ('accessibility_focus_offset',
+             gettext('Keyboard focus indicator offset (pixels)'),
+             'integer', -1, -1, 6),
+        ]
+        for name, label, field_type, default, minimum, maximum in \
+                numeric_accessibility_preferences:
+            self.preference.register(
+                'accessibility', name, label, field_type, default,
+                category_label=gettext('Accessibility and personalization'),
+                min_val=minimum, max_val=maximum,
+                help_str=gettext(
+                    'Use -1 to inherit the selected accessibility profile.'
+                )
+            )
+
+        self.preference.register(
+            'accessibility', 'accessibility_density',
+            gettext('Control and information density'), 'options', 'profile',
+            category_label=gettext('Accessibility and personalization'),
+            options=[
+                {'label': gettext('Use profile'), 'value': 'profile'},
+                {'label': gettext('Compact'), 'value': 'compact'},
+                {'label': gettext('Standard'), 'value': 'standard'},
+                {'label': gettext('Comfortable'), 'value': 'comfortable'},
+                {'label': gettext('Touch'), 'value': 'touch'},
+            ],
+            control_props={'allowClear': False, 'creatable': False}
+        )
+        self.preference.register(
+            'accessibility', 'accessibility_motion',
+            gettext('Animation and motion'), 'options', 'profile',
+            category_label=gettext('Accessibility and personalization'),
+            options=[
+                {'label': gettext('Use profile'), 'value': 'profile'},
+                {'label': gettext('Follow system'), 'value': 'system'},
+                {'label': gettext('Reduce motion'), 'value': 'reduce'},
+                {'label': gettext('Full motion'), 'value': 'full'},
+            ],
+            control_props={'allowClear': False, 'creatable': False},
+            help_str=gettext(
+                'Reduced motion disables nonessential transitions and '
+                'animation.'
+            )
+        )
+
+        color_preferences = [
+            ('accessibility_color_canvas', gettext('Canvas color')),
+            ('accessibility_color_panel', gettext('Panel color')),
+            ('accessibility_color_text', gettext('Primary text color')),
+            ('accessibility_color_muted_text',
+             gettext('Secondary text color')),
+            ('accessibility_color_primary', gettext('Primary action color')),
+            ('accessibility_color_focus', gettext('Focus indicator color')),
+            ('accessibility_color_border', gettext('Control border color')),
+            ('accessibility_color_selection', gettext('Selection color')),
+            ('accessibility_color_success', gettext('Success status color')),
+            ('accessibility_color_warning', gettext('Warning status color')),
+            ('accessibility_color_error', gettext('Error status color')),
+        ]
+        for name, label in color_preferences:
+            self.preference.register(
+                'accessibility_colors', name, label, 'text', '',
+                category_label=gettext('Accessibility colors'),
+                allow_blanks=True,
+                help_str=gettext(
+                    'Optional #RRGGBB value. Unsafe text, border, or focus '
+                    'contrast falls back to the selected theme.'
+                )
+            )
+
         self.preference.register(
             'user_interface', 'layout',
             gettext("Layout"), 'options', 'workspace',

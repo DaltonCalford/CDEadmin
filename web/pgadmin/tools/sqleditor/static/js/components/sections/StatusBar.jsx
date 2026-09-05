@@ -15,7 +15,11 @@ import { QUERY_TOOL_EVENTS } from '../QueryToolConstants';
 import { useStopwatch } from '../../../../../../static/js/custom_hooks';
 import { QueryToolEventsContext } from '../QueryToolComponent';
 import gettext from 'sources/gettext';
-import { PgMenu, PgMenuItem, usePgMenuGroup } from '../../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuItem as PgMenuItem,
+  useMenuGroup as usePgMenuGroup,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import PropTypes from 'prop-types';
 import { getEnterKeyHandler } from '../../../../../../static/js/utils';
 

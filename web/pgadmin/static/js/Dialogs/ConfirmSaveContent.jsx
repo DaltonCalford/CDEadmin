@@ -1,4 +1,7 @@
-import { ModalContent, ModalFooter } from '../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+  DialogFooter as ModalFooter,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 import gettext from 'sources/gettext';
 import { Box } from '@mui/material';
 import { DefaultButton, PrimaryButton } from '../components/Buttons';

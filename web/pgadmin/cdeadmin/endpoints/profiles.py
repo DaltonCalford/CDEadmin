@@ -344,6 +344,38 @@ def _load_profiles():
             raise EndpointRegistrationError(
                 'embedded endpoint registration must not declare a port'
             )
+        targeting = registration.get('database_targeting', {})
+        if not isinstance(targeting, dict):
+            raise EndpointRegistrationError(
+                'endpoint database_targeting must be an object'
+            )
+        targeting = {
+            'mode': targeting.get('mode', 'required'),
+            'multiple': targeting.get('multiple') is True,
+            'server_verification': (
+                targeting.get('server_verification') is True
+            ),
+            'create_and_activate': (
+                targeting.get('create_and_activate') is True
+            ),
+        }
+        if targeting['mode'] not in {'required', 'optional'}:
+            raise EndpointRegistrationError(
+                'endpoint database targeting mode is invalid'
+            )
+        if route_kind == 'embedded_file' and (
+            targeting['mode'] != 'required' or
+            targeting['server_verification'] or targeting['multiple']
+        ):
+            raise EndpointRegistrationError(
+                'embedded endpoints require one database file'
+            )
+        if targeting['server_verification'] and (
+            route_kind != 'network' or targeting['mode'] != 'optional'
+        ):
+            raise EndpointRegistrationError(
+                'server verification requires an optional network database'
+            )
         display_name = _required(
             registration['display_name'], 'display_name'
         )
@@ -395,6 +427,7 @@ def _load_profiles():
             'connection_fields': connection_fields,
             'secret_fields': secret_fields,
             'connection_capabilities': _capabilities(registration),
+            'database_targeting': targeting,
             'default': registration.get('default') is True,
             'available': True,
         })
@@ -517,6 +550,11 @@ def registration_profile_for_endpoint(endpoint):
         'connection_fields': [],
         'secret_fields': [],
         'connection_capabilities': normalize_connection_capabilities(None),
+        'database_targeting': {
+            'mode': 'required', 'multiple': False,
+            'server_verification': False,
+            'create_and_activate': False,
+        },
     }
 
 

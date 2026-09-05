@@ -14,7 +14,10 @@ import { DefaultButton, PrimaryButton } from '../components/Buttons';
 import CloseIcon from '@mui/icons-material/CloseRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PropTypes from 'prop-types';
-import { ModalContent, ModalFooter } from '../../../static/js/components/ModalContent';
+import {
+  DialogContent as ModalContent,
+  DialogFooter as ModalFooter,
+} from 'sources/cdeadmin_ui/overlays/DialogLayout';
 import { InputText } from '../components/FormComponents';
 import { isEmptyString } from '../../../static/js/validators';
 

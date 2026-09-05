@@ -123,7 +123,9 @@ def _route_arguments(route, module=None):
     )
     if not configured or module is None:
         return result
-    database = result.pop('database')
+    database = result.pop('database', None)
+    if not database:
+        return result
     material = {
         name: route.get(name) for name in (
             'host', 'port', 'database', 'trusted_auth', 'timeout',
@@ -144,6 +146,9 @@ def _route_arguments(route, module=None):
         server.port.value = (
             str(route['port']) if route.get('port') is not None else None
         )
+        server.user.value = route.get('user')
+        server.trusted_auth.value = bool(route.get('trusted_auth'))
+        server.auth_plugin_list.value = route.get('auth_plugin_list')
         config = module.driver_config.get_database(database_name)
         if config is None:
             config = module.driver_config.register_database(database_name)
@@ -178,6 +183,96 @@ def _route_arguments(route, module=None):
     if route.get('dbkey_scope'):
         result['dbkey_scope'] = module.DBKeyScope[route['dbkey_scope']]
     return result
+
+
+def _server_route(route):
+    return not isinstance(route.get('database'), str) or not (
+        route['database'].strip()
+    )
+
+
+def _server_arguments(route, module):
+    """Build a Firebird service-manager attachment without a database."""
+    material = {
+        name: route.get(name) for name in (
+            'host', 'port', 'trusted_auth', 'auth_plugin_list',
+            'wire_config', 'wire_crypt', 'wire_compression',
+        )
+    }
+    digest = hashlib.sha256(json.dumps(
+        material, sort_keys=True, separators=(',', ':'),
+    ).encode('utf-8')).hexdigest()[:24]
+    server_name = f'cde_service_{digest}'
+    with _CONFIG_LOCK:
+        server = module.driver_config.get_server(server_name)
+        if server is None:
+            server = module.driver_config.register_server(server_name)
+        server.host.value = route.get('host')
+        server.port.value = (
+            str(route['port']) if route.get('port') is not None else None
+        )
+        server.user.value = route.get('user')
+        server.trusted_auth.value = bool(route.get('trusted_auth'))
+        server.auth_plugin_list.value = route.get('auth_plugin_list')
+        wire_options = []
+        if route.get('wire_crypt'):
+            if route['wire_crypt'] not in {
+                'Disabled', 'Enabled', 'Required'
+            }:
+                raise RelationalClientError(
+                    'Firebird wire encryption policy is invalid'
+                )
+            wire_options.append(f'WireCrypt={route["wire_crypt"]}')
+        if route.get('wire_compression'):
+            wire_options.append('WireCompression=true')
+        if route.get('wire_config'):
+            wire_options.append(str(route['wire_config']))
+        server.config.value = '\n'.join(wire_options) or None
+    result = {'server': server_name}
+    if not route.get('trusted_auth') and route.get('user'):
+        result['user'] = route['user']
+    if route.get('role'):
+        result['role'] = route['role']
+    return result
+
+
+def _server_identity(server, _request):
+    version = _version((server.info.version,))
+    return {
+        'engine_id': PROFILE.engine_id,
+        'version': version,
+        'build_id': f'{PROFILE.engine_id}:{version}:service-manager',
+        'protocol_id': PROFILE.protocol_id,
+    }
+
+
+def _server_resources(server, request):
+    generation = str(request.get('capability_generation') or 'current')
+    info = server.info
+    resources = [{
+        'resource_id': 'server:Firebird',
+        'resource_kind': 'server',
+        'display_name': 'Firebird',
+        'display_path': ['Firebird'],
+        'authority_path': ['server', 'Firebird'],
+        'generation': generation,
+        'native': {
+            'version': str(info.version),
+            'architecture': str(info.architecture),
+            'home_directory': str(info.home_directory),
+            'connection_count': int(info.connection_count),
+            'scope': 'server',
+        },
+    }]
+    resources.extend({
+        'resource_id': f'service-operation:{name}',
+        'resource_kind': 'service-operation',
+        'display_name': name,
+        'display_path': ['Firebird', 'Services', name],
+        'authority_path': ['server', 'service-operation', name],
+        'generation': generation,
+    } for name in PROFILE.admin_tools)
+    return resources
 
 
 def _version(row):
@@ -388,6 +483,13 @@ def _create_client(permissions):
             _initialize_connection(connection, route, module)
         ),
         administration=ADMINISTRATION,
+        server_route=_server_route,
+        server_connector_name='connect_server',
+        server_connect_arguments=lambda route: _server_arguments(
+            route, module
+        ),
+        server_identity_reader=_server_identity,
+        server_metadata_reader=_server_resources,
     ), module)
 
 

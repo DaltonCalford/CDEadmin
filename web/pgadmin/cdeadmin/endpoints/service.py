@@ -370,8 +370,154 @@ class EndpointService:
             'supports_multiple_routes': profile['route_kind'] == 'network',
             'default_port': profile.get('default_port'),
             'connection_fields': profile.get('connection_fields', []),
+            'database_targeting': profile.get('database_targeting', {}),
             'routes': routes,
         }
+
+    def database_catalog(self, server):
+        """Return database targets without confusing them with routes."""
+        endpoint, profile = self._managed_endpoint(server)
+        targeting = profile.get('database_targeting', {})
+        targets = [self._database_target_value(item) for item in sorted(
+            endpoint.database_targets,
+            key=lambda item: (not item.active, item.display_name, item.id),
+        )]
+        legacy_database = None
+        if not targets:
+            route = min(
+                endpoint.routes,
+                key=lambda item: (item.priority, item.id),
+                default=None,
+            )
+            if route is not None:
+                legacy_database = self._route_configuration(route).get(
+                    'database'
+                )
+        return {
+            'endpoint_id': endpoint.id,
+            'mode': targeting.get('mode', 'required'),
+            'multiple': targeting.get('multiple') is True,
+            'server_verification': (
+                targeting.get('server_verification') is True
+            ),
+            'create_and_activate': (
+                targeting.get('create_and_activate') is True
+            ),
+            'active_target_id': next((
+                item['target_id'] for item in targets if item['active']
+            ), None),
+            'legacy_route_database': legacy_database,
+            'targets': targets,
+        }
+
+    def attach_database(self, server, data):
+        """Verify, retain and activate one database on an existing server."""
+        from pgadmin.model import EndpointDatabaseTarget, db
+
+        endpoint, profile = self._managed_endpoint(server)
+        self._require_multiple_database_targeting(profile)
+        database, display_name = self._database_target_input(data)
+        existing = next((
+            item for item in endpoint.database_targets
+            if item.database == database
+        ), None)
+        self._verify_database_target(server, endpoint, profile, database)
+        for item in endpoint.database_targets:
+            item.active = False
+        if existing is None:
+            existing = EndpointDatabaseTarget(
+                id=str(uuid.uuid4()), endpoint_id=endpoint.id,
+                display_name=display_name, database=database,
+                configuration='{}', active=True,
+            )
+            db.session.add(existing)
+        else:
+            existing.display_name = display_name
+            existing.active = True
+        self._remove_route_databases(endpoint)
+        endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
+
+    def activate_database(self, server, target_id):
+        """Verify and select an already retained database target."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        self._require_multiple_database_targeting(profile)
+        target = self._owned_database_target(endpoint, target_id)
+        self._verify_database_target(
+            server, endpoint, profile, target.database
+        )
+        for item in endpoint.database_targets:
+            item.active = item.id == target.id
+        endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
+
+    def disconnect_database(self, server):
+        """Return an endpoint to server scope after verifying that scope."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        targeting = self._require_multiple_database_targeting(profile)
+        if not targeting.get('server_verification'):
+            raise EndpointRegistrationError(
+                'the endpoint cannot operate without a database'
+            )
+        self._verify_database_target(
+            server, endpoint, profile, None
+        )
+        for item in endpoint.database_targets:
+            item.active = False
+        self._remove_route_databases(endpoint)
+        endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
+
+    def delete_database_target(self, server, target_id):
+        """Forget an attachment; this never drops the provider database."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        self._require_multiple_database_targeting(profile)
+        target = self._owned_database_target(endpoint, target_id)
+        was_active = target.active
+        db.session.delete(target)
+        if was_active:
+            endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
+
+    def retain_created_database(self, server, target):
+        """Activate a provider-created database after its driver succeeds."""
+        from pgadmin.model import EndpointDatabaseTarget, db
+
+        endpoint, profile = self._managed_endpoint(server)
+        targeting = profile.get('database_targeting', {})
+        if not targeting.get('create_and_activate'):
+            return None
+        database, display_name = self._database_target_input(target)
+        for item in endpoint.database_targets:
+            item.active = False
+        model = next((
+            item for item in endpoint.database_targets
+            if item.database == database
+        ), None)
+        if model is None:
+            model = EndpointDatabaseTarget(
+                id=str(uuid.uuid4()), endpoint_id=endpoint.id,
+                display_name=display_name, database=database,
+                configuration='{}', active=True,
+            )
+            db.session.add(model)
+        else:
+            model.display_name = display_name
+            model.active = True
+        self._remove_route_databases(endpoint)
+        endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
 
     def create_route(self, server, data):
         """Create a validated alternate route for one network endpoint."""
@@ -448,6 +594,102 @@ class EndpointService:
         return endpoint, registration_profile(endpoint.profile_id)
 
     @staticmethod
+    def _require_multiple_database_targeting(profile):
+        targeting = profile.get('database_targeting', {})
+        if not targeting.get('multiple'):
+            raise EndpointRegistrationError(
+                'the endpoint does not support database target management'
+            )
+        return targeting
+
+    @staticmethod
+    def _database_target_input(data):
+        if not isinstance(data, dict):
+            raise EndpointRegistrationError(
+                'database target input must be an object'
+            )
+        database = data.get('database')
+        if not isinstance(database, str) or not database.strip():
+            raise EndpointRegistrationError(
+                'database target must not be empty'
+            )
+        database = database.strip()
+        if len(database) > 4096 or any(
+            character in database for character in ('\x00', '\r', '\n')
+        ):
+            raise EndpointRegistrationError(
+                'database target is invalid'
+            )
+        display_name = data.get('display_name')
+        if display_name is None:
+            display_name = database.rsplit('/', 1)[-1]
+        if not isinstance(display_name, str) or not display_name.strip() or (
+            len(display_name.strip()) > 256
+        ):
+            raise EndpointRegistrationError(
+                'database target display name is invalid'
+            )
+        return database, display_name.strip()
+
+    @staticmethod
+    def _database_target_value(target):
+        try:
+            configuration = json.loads(target.configuration)
+        except (TypeError, ValueError):
+            configuration = {}
+        return {
+            'target_id': target.id,
+            'display_name': target.display_name,
+            'database': target.database,
+            'configuration': configuration,
+            'active': bool(target.active),
+        }
+
+    @classmethod
+    def _remove_route_databases(cls, endpoint):
+        for route_model in endpoint.routes:
+            configuration = cls._route_configuration(route_model)
+            if 'database' in configuration:
+                configuration.pop('database')
+                route_model.configuration = cls._encoded_route(configuration)
+
+    @staticmethod
+    def _owned_database_target(endpoint, target_id):
+        target_id = str(target_id or '')
+        target = next((
+            item for item in endpoint.database_targets
+            if item.id == target_id
+        ), None)
+        if target is None:
+            raise EndpointRegistrationError(
+                'database target is unavailable'
+            )
+        return target
+
+    def _verify_database_target(self, server, endpoint, profile, database):
+        context = self._context(endpoint, VERIFY_PERMISSIONS)
+        candidates = self.route_health.candidates(
+            endpoint.id, endpoint.routes
+        )
+        for route_model in candidates:
+            route, _reference = self._route_and_reference(
+                server, endpoint, profile, route_model=route_model,
+                database_override=database,
+            )
+            try:
+                self.provider_registry.resolve(
+                    context
+                ).instance.discover_endpoint({'route': route})
+            except Exception:
+                self.route_health.record_failure(endpoint.id, route_model.id)
+                continue
+            self.route_health.record_success(endpoint.id, route_model.id)
+            return
+        raise EndpointRegistrationError(
+            'database target verification failed'
+        )
+
+    @staticmethod
     def _owned_route(endpoint, route_id):
         route_id = str(route_id or '')
         model = next(
@@ -515,6 +757,12 @@ class EndpointService:
                     'embedded endpoint route is incomplete'
                 )
             return result
+        if profile.get('database_targeting', {}).get('multiple'):
+            if data.get('database') not in {None, ''}:
+                raise EndpointRegistrationError(
+                    'databases must be managed as endpoint database targets'
+                )
+            result.pop('database', None)
         for field in ('host', 'user', 'database'):
             if field in data:
                 value = data[field]
@@ -632,7 +880,7 @@ class EndpointService:
 
     def _route_and_reference(
         self, server, endpoint, profile=True, requires_secret=None,
-        route_model=None,
+        route_model=None, database_override=Ellipsis,
     ):
         if requires_secret is not None:
             profile = requires_secret
@@ -645,6 +893,22 @@ class EndpointService:
                 'endpoint route or credential reference is unavailable'
             )
         route = json.loads(route_model.configuration)
+        if database_override is not Ellipsis:
+            if database_override is None:
+                route.pop('database', None)
+            else:
+                route['database'] = database_override
+        elif isinstance(profile, dict) and profile.get(
+            'database_targeting', {}
+        ).get('multiple'):
+            active = next((
+                item for item in endpoint.database_targets if item.active
+            ), None)
+            if active is not None:
+                route['database'] = active.database
+                route['database_target_id'] = active.id
+            else:
+                route.pop('database', None)
         route['route_id'] = route_model.id
         if isinstance(profile, dict) and profile.get('secret_fields'):
             fields = active_secret_fields(profile, route)

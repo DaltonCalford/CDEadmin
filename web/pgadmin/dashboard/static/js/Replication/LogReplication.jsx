@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 
 import gettext from 'sources/gettext';
 import ReplicationSlotsSchema from './schema_ui/replication_slots.ui';
-import PgTable from 'sources/components/PgTable';
+import {DataTable as PgTable} from 'sources/cdeadmin_ui/data/DataTable';
 import getApiInstance, { parseApiError } from '../../../../static/js/api_instance';
 import SectionContainer from '../components/SectionContainer';
 import ReplicationStatsSchema from './schema_ui/replication_stats.ui';

@@ -1,0 +1,16 @@
+{% set engines = ['apache_ignite', 'cassandra', 'clickhouse', 'cockroachdb',
+  'dolt', 'duckdb', 'firebird', 'foundationdb', 'immudb', 'influxdb',
+  'mariadb', 'milvus', 'mongodb', 'mysql', 'neo4j', 'opensearch',
+  'postgresql', 'redis', 'scratchbird', 'sqlite', 'tidb', 'tikv', 'vitess',
+  'xtdb',
+  'yugabytedb'] %}
+{% for engine in engines %}
+.icon-engine-type-{{ engine }} {
+  background-image: url('{{ url_for('NODE-engine_type.static', filename='img/' + engine + '.svg') }}') !important;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain !important;
+  width: 1.3em;
+  height: 1.3em;
+}
+{% endfor %}

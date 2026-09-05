@@ -97,12 +97,19 @@
     "requires_secret": true,
     "default_port": 3050,
     "default": false,
+    "database_targeting": {
+      "mode": "optional",
+      "multiple": true,
+      "server_verification": true,
+      "create_and_activate": true
+    },
     "target_adapter_version": "firebird-driver-1.10.11",
     "connection_capability_set": "firebird-driver-v1",
     "secret_fields": [
       {"field_id": "password", "secret_kind": "database_password", "label": "Password", "group": "Firebird authentication", "primary": true, "visible_when": {"field_id": "trusted_auth", "equals": false}}
     ],
     "connection_fields": [
+      {"field_id": "database_create_root", "route_key": "database_create_root", "label": "Approved database creation root", "control": "text", "group": "Firebird database lifecycle", "required": true, "help": "Absolute path on the Firebird server under which CDEadmin may create database files."},
       {"field_id": "auth_plugin_list", "route_key": "auth_plugin_list", "label": "Authentication plugin preference list", "control": "text", "group": "Firebird authentication", "default": "Srp256,Srp,Legacy_Auth"},
       {"field_id": "trusted_auth", "route_key": "trusted_auth", "label": "Use trusted authentication", "control": "boolean", "group": "Firebird authentication", "default": false},
       {"field_id": "role", "route_key": "role", "label": "Initial role", "control": "text", "group": "Firebird session"},

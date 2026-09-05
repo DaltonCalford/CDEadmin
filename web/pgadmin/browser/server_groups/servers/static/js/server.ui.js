@@ -250,6 +250,11 @@ export default class ServerSchema extends BaseUISchema {
       'embedded_file';
   }
 
+  requiresDatabase(state) {
+    const profile = endpointProfiles.get(state.cde_profile_id);
+    return !profile || profile.database_targeting?.mode !== 'optional';
+  }
+
   hasTypedSecrets(state) {
     return Boolean(
       endpointProfiles.get(state.cde_profile_id)?.secret_fields?.length
@@ -375,6 +380,8 @@ export default class ServerSchema extends BaseUISchema {
             port: profile.default_port,
             connect_now: !providerEndpoint,
             cde_verify_now: providerEndpoint,
+            db: profile.database_targeting?.mode === 'optional' ?
+              null : state.db,
             service: providerEndpoint ? null : state.service,
             role: providerEndpoint ? null : state.role,
             kerberos_conn: providerEndpoint ? false : state.kerberos_conn,
@@ -474,8 +481,7 @@ export default class ServerSchema extends BaseUISchema {
         id: 'host', label: gettext('Host name/address'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], disabled: obj.isShared,
         deps: ['cde_profile_id'],
-        visible: (state) => !obj.isEmbeddedEndpoint(state) &&
-          !obj.hasTypedSecrets(state),
+        visible: (state) => !obj.isEmbeddedEndpoint(state),
         depChange: (state)=>{
           if(obj.origData.host != state.host && !obj.isNew(state) && state.connected){
             obj.informText = gettext(
@@ -503,7 +509,12 @@ export default class ServerSchema extends BaseUISchema {
       },{
         id: 'db', label: gettext('Database / file'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnectedOrShared,
-        noEmpty: true,
+        deps: ['cde_profile_id'],
+        noEmpty: false,
+        helpMessage: gettext(
+          'Optional for server-level engine profiles. A database can be '+
+          'created, attached, or selected later in the provider workspace.'
+        ),
       },{
         id: 'username', label: gettext('Username'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'],
@@ -532,7 +543,8 @@ export default class ServerSchema extends BaseUISchema {
         group: gettext('Connection'),
         mode: ['create', 'edit'],
         deps: ['kerberos_conn', 'save_password', 'cde_profile_id'],
-        visible: (state) => !obj.isEmbeddedEndpoint(state),
+        visible: (state) => !obj.isEmbeddedEndpoint(state) &&
+          !obj.hasTypedSecrets(state),
         controlProps: {
           maxLength: null,
           autoComplete: 'new-password'
@@ -771,6 +783,12 @@ export default class ServerSchema extends BaseUISchema {
       setError('db', null);
       return false;
     }
+
+    if (this.requiresDatabase(state) && isEmptyString(state.db)) {
+      setError('db', gettext('Database must be specified.'));
+      return true;
+    }
+    setError('db', null);
 
     if (isEmptyString(state.service)) {
       errmsg = gettext('Either Host name or Service must be specified.');

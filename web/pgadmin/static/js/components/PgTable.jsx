@@ -10,7 +10,7 @@
 import React, { useMemo, useRef } from 'react';
 import _ from 'lodash';
 
-import { Box } from '@mui/material';
+import { Box, useTheme } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import {
   useReactTable,
@@ -40,17 +40,15 @@ import { PgReactTable, PgReactTableBody, PgReactTableCell, PgReactTableHeader, P
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 
-const ROW_HEIGHT = 30;
-
-function TableRow({index, style, schema, row, measureElement}) {
+function TableRow({index, style, schema, row, measureElement, rowHeight}) {
   const rowRef = React.useRef();
 
   React.useEffect(() => {
     if (rowRef.current) {
-      if (rowRef.current.style.height == `${ROW_HEIGHT}px`) return;
+      if (rowRef.current.style.height == `${rowHeight}px`) return;
       measureElement(rowRef.current);
     }
-  }, [row.getIsExpanded()]);
+  }, [row.getIsExpanded(), rowHeight]);
 
   return (
     <PgReactTableRow data-index={index} ref={rowRef} style={style}>
@@ -81,6 +79,7 @@ TableRow.propTypes = {
   row: PropTypes.object,
   schema: PropTypes.object,
   measureElement: PropTypes.func,
+  rowHeight: PropTypes.number,
 };
 
 
@@ -108,6 +107,8 @@ export function Table({
   columns, data, hasSelectRow, schema, sortOptions, tableProps, searchVal,
   loadNextPage, ...props
 }) {
+  const theme = useTheme();
+  const rowHeight = theme.cdeadminPresentation?.gridRowHeight ?? 30;
   const { schemaState } = useSchemaState({
     schema: getTableSchema(schema),
     getInitData: null,
@@ -226,7 +227,7 @@ export function Table({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => tableRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     measureElement:
       typeof window !== 'undefined' &&
         navigator.userAgent.indexOf('Firefox') === -1
@@ -252,6 +253,7 @@ export function Table({
                 index={virtualRow.index} key={virtualRow.index}
                 row={row} schema={schema}
                 measureElement={virtualizer.measureElement}
+                rowHeight={rowHeight}
                 style={{
                   // This should always be a `style` as it changes on scroll.
                   transform: `translateY(${virtualRow.start}px)`,

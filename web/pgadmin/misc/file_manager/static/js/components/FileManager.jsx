@@ -24,7 +24,12 @@ import GetAppRoundedIcon from '@mui/icons-material/GetAppRounded';
 import gettext from 'sources/gettext';
 import { FormFooterMessage, InputSelectNonSearch, InputText, MESSAGE_TYPE } from '../../../../../static/js/components/FormComponents';
 import ListView from './ListView';
-import { PgMenu, PgMenuDivider, PgMenuItem, usePgMenuGroup } from '../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuDivider as PgMenuDivider,
+  MenuItem as PgMenuItem,
+  useMenuGroup as usePgMenuGroup,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import getApiInstance, { parseApiError } from '../../../../../static/js/api_instance';
 import Loader from 'sources/components/Loader';
 import url_for from 'sources/url_for';

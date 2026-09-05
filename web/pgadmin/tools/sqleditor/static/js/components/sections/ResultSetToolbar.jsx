@@ -28,7 +28,10 @@ import AllInboxRoundedIcon from '@mui/icons-material/AllInboxRounded';
 
 import {QUERY_TOOL_EVENTS} from '../QueryToolConstants';
 import { QueryToolContext, QueryToolEventsContext } from '../QueryToolComponent';
-import { PgMenu, PgMenuItem } from '../../../../../../static/js/components/Menu';
+import {
+  Menu as PgMenu,
+  MenuItem as PgMenuItem,
+} from 'sources/cdeadmin_ui/navigation/Menu';
 import gettext from 'sources/gettext';
 import { useKeyboardShortcuts } from '../../../../../../static/js/custom_hooks';
 import CopyData from '../QueryToolDataGrid/CopyData';

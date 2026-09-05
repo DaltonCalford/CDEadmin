@@ -94,6 +94,9 @@ class ProviderWorkspaceService:
                 ),
             },
             'languages': list(self.studio_service.languages(context)),
+            'database_targets': self.endpoint_service.database_catalog(
+                server
+            ),
             'resource_page': page,
             'visual_admin': visual_admin,
             'operational_workspace': (
@@ -126,6 +129,35 @@ class ProviderWorkspaceService:
                 }
             ),
         }
+
+    def database_target_action(self, server, action, request):
+        """Manage server-owned database attachments and refresh resources."""
+        request = request or {}
+        if not isinstance(request, dict):
+            raise ProviderWorkspaceError(
+                'database target request must be an object'
+            )
+        if action == 'database_target_list':
+            return self.endpoint_service.database_catalog(server)
+        if action == 'database_target_attach':
+            result = self.endpoint_service.attach_database(server, request)
+        elif action == 'database_target_activate':
+            result = self.endpoint_service.activate_database(
+                server, request.get('target_id')
+            )
+        elif action == 'database_target_disconnect':
+            result = self.endpoint_service.disconnect_database(server)
+        elif action == 'database_target_delete':
+            result = self.endpoint_service.delete_database_target(
+                server, request.get('target_id')
+            )
+        else:
+            raise ProviderWorkspaceError(
+                'database target action is unavailable'
+            )
+        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        self.resource_service.invalidate(context)
+        return result
 
     def _semantic_capabilities(self, provider):
         capabilities = self.semantic_model_service.capabilities(provider)
@@ -519,6 +551,15 @@ class ProviderWorkspaceService:
         operation = result.get('control_operation')
         if isinstance(operation, dict):
             self._record_visual_admin_audit(server, context, operation)
+        created_target = result.get('provider_result', {}).get(
+            'endpoint_database_target'
+        ) if isinstance(result.get('provider_result'), dict) else None
+        if isinstance(created_target, dict):
+            result['database_targets'] = (
+                self.endpoint_service.retain_created_database(
+                    server, created_target
+                )
+            )
         self.resource_service.invalidate(context)
         return result
 
@@ -915,6 +956,9 @@ def init_app(
     semantic_model_service=None, operation_bus=None,
     report_delivery_service=None, report_scheduler_service=None,
 ):
+    from .transfer import init_app as init_transfer_app
+
+    init_transfer_app(app)
     existing = app.extensions.get(APP_EXTENSION_KEY)
     if existing is not None:
         return existing

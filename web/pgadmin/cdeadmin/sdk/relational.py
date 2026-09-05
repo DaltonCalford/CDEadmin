@@ -90,6 +90,22 @@ class RelationalClientConfig:
     connection_initializer: Callable[
         [object, Mapping[str, Any]], None
     ] | None = field(default=None, repr=False, compare=False)
+    server_route: Callable[[Mapping[str, Any]], bool] | None = field(
+        default=None, repr=False, compare=False
+    )
+    server_connector_name: str | None = None
+    server_connect_arguments: Callable[
+        [Mapping[str, Any]], Mapping[str, Any]
+    ] | None = field(default=None, repr=False, compare=False)
+    server_connect_positional: Callable[
+        [Mapping[str, Any]], Sequence[object]
+    ] | None = field(default=None, repr=False, compare=False)
+    server_identity_reader: Callable[
+        [object, Mapping[str, Any]], Mapping[str, Any]
+    ] | None = field(default=None, repr=False, compare=False)
+    server_metadata_reader: Callable[
+        [object, Mapping[str, Any]], list[dict]
+    ] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         if not isinstance(self.profile, PilotProfile):
@@ -158,6 +174,36 @@ class RelationalClientConfig:
             raise RelationalClientError(
                 'connection_initializer must be callable'
             )
+        server_values = (
+            self.server_route, self.server_connector_name,
+            self.server_connect_arguments, self.server_identity_reader,
+            self.server_metadata_reader,
+        )
+        if any(value is not None for value in server_values):
+            if not all(value is not None for value in server_values):
+                raise RelationalClientError(
+                    'server-level relational hooks must be complete'
+                )
+            if not isinstance(self.server_connector_name, str) or not (
+                self.server_connector_name.strip()
+            ):
+                raise RelationalClientError(
+                    'server_connector_name must not be empty'
+                )
+            for name in (
+                'server_route', 'server_connect_arguments',
+                'server_identity_reader', 'server_metadata_reader',
+            ):
+                if not callable(getattr(self, name)):
+                    raise RelationalClientError(
+                        f'{name} must be callable'
+                    )
+        if self.server_connect_positional is not None and not callable(
+            self.server_connect_positional
+        ):
+            raise RelationalClientError(
+                'server_connect_positional must be callable'
+            )
 
 
 @dataclass
@@ -185,6 +231,16 @@ class RelationalDBAPIClient:
                 'relational client dependency has no approved connector'
             )
         self._connector = connector
+        self._server_connector = None
+        if config.server_connector_name is not None:
+            self._server_connector = getattr(
+                self.module, config.server_connector_name, None
+            )
+            if not callable(self._server_connector):
+                raise RelationalDependencyError(
+                    'relational client dependency has no approved '
+                    'server connector'
+                )
         self._connections: list[object] = []
         self._tokens: list[_ResultToken] = []
 
@@ -220,7 +276,30 @@ class RelationalDBAPIClient:
                 ) from None
         return connection
 
-    def _invoke_connector(self, request, connector, overrides=None):
+    def _uses_server_scope(self, request):
+        if self.config.server_route is None:
+            return False
+        return bool(self.config.server_route(self._route(request)))
+
+    def _connect_server(self, request):
+        if self._server_connector is None:
+            raise RelationalClientError(
+                'server-level connection is unavailable'
+            )
+        connection = self._invoke_connector(
+            request, self._server_connector,
+            connect_arguments=self.config.server_connect_arguments,
+            connect_positional=(
+                self.config.server_connect_positional or (lambda _route: ())
+            ),
+        )
+        self._connections.append(connection)
+        return connection
+
+    def _invoke_connector(
+        self, request, connector, overrides=None, *,
+        connect_arguments=None, connect_positional=None,
+    ):
         route = self._route(request)
         reference_id = route.pop('credential_reference_id', None)
         principal = route.pop('principal_reference', None)
@@ -234,8 +313,10 @@ class RelationalDBAPIClient:
         references = dict(references)
         if reference_id is not None:
             references.setdefault(primary_kind, reference_id)
-        args = tuple(self.config.connect_positional(route))
-        kwargs = dict(self.config.connect_arguments(route))
+        positional = connect_positional or self.config.connect_positional
+        arguments = connect_arguments or self.config.connect_arguments
+        args = tuple(positional(route))
+        kwargs = dict(arguments(route))
         kwargs.update(dict(overrides or {}))
         try:
             if not references:
@@ -321,10 +402,34 @@ class RelationalDBAPIClient:
         return {
             'driver_operation': driver_operation,
             'driver_returned': True,
+            'endpoint_database_target': {
+                'database': database,
+                'display_name': str(database).rsplit('/', 1)[-1],
+            },
             'transaction_finality_interpreted_by_common_code': False,
         }
 
     def runtime_identity(self, request, handle=None):
+        if handle is None and self._uses_server_scope(request):
+            connection = self._connect_server(request)
+            try:
+                value = self.config.server_identity_reader(
+                    connection, request
+                )
+                if not isinstance(value, Mapping):
+                    raise RelationalClientError(
+                        'server identity reader must return a mapping'
+                    )
+                return copy.deepcopy(dict(value))
+            except RelationalClientError:
+                raise
+            except Exception as exc:
+                raise RelationalClientError(
+                    'relational server verification failed '
+                    f'({type(exc).__name__})'
+                ) from None
+            finally:
+                self._forget_and_close(connection)
         temporary = handle is None
         connection = handle or self._connect(request)
         cursor = None
@@ -353,6 +458,10 @@ class RelationalDBAPIClient:
                 self._forget_and_close(connection)
 
     def open_session(self, request):
+        if self._uses_server_scope(request):
+            raise RelationalClientError(
+                'select or create a database before opening a query session'
+            )
         return self._connect(request)
 
     def describe_transaction(self, handle):
@@ -390,6 +499,19 @@ class RelationalDBAPIClient:
             ) from None
 
     def list_resources(self, request):
+        if self._uses_server_scope(request):
+            connection = self._connect_server(request)
+            try:
+                rows = self.config.server_metadata_reader(
+                    connection, request
+                )
+                if not isinstance(rows, list):
+                    raise RelationalClientError(
+                        'server metadata reader must return a list'
+                    )
+                return copy.deepcopy(rows)
+            finally:
+                self._forget_and_close(connection)
         connection = self._connect(request)
         try:
             rows = self.config.metadata_reader(connection, request)

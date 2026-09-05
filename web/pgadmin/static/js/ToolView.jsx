@@ -15,6 +15,12 @@ import PropTypes from 'prop-types';
 import LayoutIframeTab from './helpers/Layout/LayoutIframeTab';
 import { LAYOUT_EVENTS } from './helpers/Layout';
 import { useApplicationState } from '../../settings/static/ApplicationStateProvider';
+import {
+  createToolDescriptor,
+  TOOL_KINDS,
+  toolKindFromPanelId,
+} from './cdeadmin_ui/workspace/ToolDescriptor';
+import {toolFactoryRegistry} from './cdeadmin_ui/workspace/ToolRegistry';
 
 
 function ToolForm({actionUrl, params}) {
@@ -38,10 +44,78 @@ ToolForm.propTypes = {
   params: PropTypes.object,
 };
 
-export function getToolTabParams(panelId, toolUrl, formParams, tabParams, restore=false) {
+const TOOL_ICON_KEYS = Object.freeze({
+  [TOOL_KINDS.QUERY_EDITOR]: 'tool.query',
+  [TOOL_KINDS.NATIVE_TERMINAL]: 'tool.query',
+  [TOOL_KINDS.ERD]: 'tool.erd',
+  [TOOL_KINDS.SCHEMA_DIFF]: 'tool.dataflow',
+  [TOOL_KINDS.DEBUGGER]: 'tool.query',
+  [TOOL_KINDS.GENERIC]: 'tool.query',
+});
+
+function registerIframeToolFactories() {
+  const definitions = [
+    [TOOL_KINDS.QUERY_EDITOR, true, true, true],
+    [TOOL_KINDS.NATIVE_TERMINAL, true, false, true],
+    [TOOL_KINDS.ERD, true, true, true],
+    [TOOL_KINDS.SCHEMA_DIFF, true, true, true],
+    [TOOL_KINDS.DEBUGGER, false, false, true],
+    [TOOL_KINDS.GENERIC, false, false, false],
+  ];
+  definitions.forEach(([toolKind, detachable, duplicable,
+    requiresLiveSession])=>{
+    if(toolFactoryRegistry.has(toolKind)) return;
+    toolFactoryRegistry.register({
+      toolKind,
+      detachable,
+      duplicable,
+      requiresLiveSession,
+      restore: (descriptor, context)=>{
+        if(!context.toolUrl) {
+          throw new Error(`Restore URL is unavailable for ${descriptor.toolInstanceId}.`);
+        }
+        return getToolTabParams(
+          descriptor.toolInstanceId,
+          context.toolUrl,
+          context.formParams,
+          context.tabParams,
+          true,
+          descriptor
+        );
+      },
+    });
+  });
+}
+
+export function getToolTabParams(panelId, toolUrl, formParams, tabParams,
+  restore=false, suppliedDescriptor=null) {
   if(tabParams?.internal?.orig_title){
     tabParams.title = tabParams.internal.isDirty ? tabParams.internal.title.slice(0, -1): tabParams.internal.title;
   }
+
+  const toolKind = toolKindFromPanelId(panelId);
+  const capabilities = toolFactoryRegistry.capabilities(toolKind);
+  const toolDescriptor = createToolDescriptor(suppliedDescriptor ?? {
+    toolInstanceId: panelId,
+    toolKind,
+    restoreRef: panelId,
+    presentation: {
+      title: tabParams?.title ?? panelId,
+      iconKey: TOOL_ICON_KEYS[toolKind],
+    },
+    placement: {
+      workspaceId: tabParams?.workSpace ?? 'default',
+      windowId: 'main',
+      dockArea: 'main',
+      revision: 0,
+    },
+    state: {
+      dirty: Boolean(tabParams?.internal?.isDirty),
+      transactionState: 'unknown',
+      connectionState: 'unknown',
+    },
+    capabilities,
+  });
 
   return {
     id: panelId,
@@ -53,6 +127,8 @@ export function getToolTabParams(panelId, toolUrl, formParams, tabParams, restor
     ),
     closable: true,
     manualClose: true,
+    detachable: tabParams?.detachable ?? toolDescriptor.capabilities.detachable,
+    toolDescriptor,
     ...tabParams,
     cache: false,
     group: 'playground',
@@ -60,9 +136,12 @@ export function getToolTabParams(panelId, toolUrl, formParams, tabParams, restor
       toolUrl: toolUrl,
       formParams: formParams,
       tabParams: tabParams,
+      toolDescriptor,
     },
   };
 }
+
+registerIframeToolFactories();
 
 export default function ToolView({dockerObj}) {
   const pgAdmin = usePgAdmin();

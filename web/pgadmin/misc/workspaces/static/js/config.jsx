@@ -10,7 +10,9 @@
 import gettext from 'sources/gettext';
 import { BROWSER_PANELS, WORKSPACES } from '../../../../browser/static/js/constants';
 import WorkspaceWelcomePage from './WorkspaceWelcomePage';
-import { LayoutDocker } from '../../../../static/js/helpers/Layout';
+import {
+  WorkspaceController as LayoutDocker,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 
 const welcomeQueryToolPanelData = [{
   id: BROWSER_PANELS.WELCOME_QUERY_TOOL, title: gettext('Welcome'), content: <WorkspaceWelcomePage mode={WORKSPACES.QUERY_TOOL} />, closable: true, group: 'playground'

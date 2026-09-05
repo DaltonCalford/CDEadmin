@@ -35,7 +35,10 @@ import {
   getCollectionValue,
   showResetPrefModal
 } from './PreferencesHelper';
-import { LAYOUT_EVENTS, LayoutDockerContext } from '../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  WorkspaceContext as LayoutDockerContext,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import LeftTree from './LeftTree';
 import RightPreference from './RightPreference';
 

@@ -15,7 +15,10 @@ import gettext from 'sources/gettext';
 import url_for from 'sources/url_for';
 import Loader from 'sources/components/Loader';
 
-import Layout, { LayoutDocker } from '../../../../../static/js/helpers/Layout';
+import {
+  Workspace as Layout,
+  WorkspaceController as LayoutDocker,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import EventBus from '../../../../../static/js/helpers/EventBus';
 import getApiInstance, { callFetch } from '../../../../../static/js/api_instance';
 

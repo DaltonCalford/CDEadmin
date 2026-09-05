@@ -4429,8 +4429,10 @@ function ConnectionRouteWorkspace({post, setError}) {
         host: draft.host,
         port: Number(draft.port),
         user: draft.user,
-        database: draft.database,
       });
+      if (!catalog.database_targeting?.multiple) {
+        value.database = draft.database;
+      }
     }
     (catalog.connection_fields || []).filter((field) =>
       fieldVisible(field, draft)).forEach((field) => {
@@ -4502,7 +4504,9 @@ function ConnectionRouteWorkspace({post, setError}) {
     </Box>
     <Box sx={{display: 'grid', gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
       {(catalog.supports_multiple_routes ?
-        ['host', 'port', 'user', 'database', 'priority'] :
+        ['host', 'port', 'user',
+          ...(catalog.database_targeting?.multiple ? [] : ['database']),
+          'priority'] :
         ['priority']).map((name) =>
         <TextField key={name} label={gettext(name)} value={draft[name]}
           type={['port', 'priority'].includes(name) ? 'number' : 'text'}
@@ -4522,6 +4526,83 @@ function ConnectionRouteWorkspace({post, setError}) {
 }
 
 ConnectionRouteWorkspace.propTypes = {
+  post: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+};
+
+function DatabaseTargetWorkspace({initialCatalog, post, setError}) {
+  const [catalog, setCatalog] = useState(initialCatalog);
+  const [database, setDatabase] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [selected, setSelected] = useState(
+    initialCatalog?.active_target_id || ''
+  );
+  const [working, setWorking] = useState(false);
+
+  const apply = async (action, request={}) => {
+    setWorking(true); setError(null);
+    try {
+      const value = await post({action, request});
+      setCatalog(value);
+      setSelected(value.active_target_id || '');
+      if (action === 'database_target_attach') {
+        setDatabase(''); setDisplayName('');
+      }
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally { setWorking(false); }
+  };
+
+  if (!catalog?.multiple) return null;
+  return <Box sx={{p: 2, borderBottom: 1, borderColor: 'divider'}}>
+    <Box component="h2" sx={{mt: 0}}>{gettext('Database targets')}</Box>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('A server endpoint can exist without a database. Database targets are independent of network failover routes; attaching or forgetting a target never creates or drops the database.')}
+    </Alert>
+    <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
+      <TextField label={gettext('Database filename, path, or native name')}
+        value={database} onChange={(event) => setDatabase(event.target.value)} />
+      <TextField label={gettext('Display name (optional)')}
+        value={displayName}
+        onChange={(event) => setDisplayName(event.target.value)} />
+    </Box>
+    <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
+      <Button variant="contained" disabled={working || !database.trim()}
+        onClick={() => apply('database_target_attach', {
+          database, display_name: displayName || undefined,
+        })}>{gettext('Verify and attach')}</Button>
+      {catalog.server_verification && <Button disabled={working ||
+        !catalog.active_target_id}
+      onClick={() => apply('database_target_disconnect')}>
+        {gettext('Use server scope')}</Button>}
+    </Box>
+    {catalog.legacy_route_database && <Alert severity="warning" sx={{mt: 2}}>
+      {gettext('This endpoint has a legacy route-level database. Reattach it below to migrate it into the multi-database target catalog.')}
+      {' '}{catalog.legacy_route_database}
+    </Alert>}
+    {catalog.targets.length > 0 && <Box sx={{display: 'flex', gap: 1,
+      mt: 2, alignItems: 'center', flexWrap: 'wrap'}}>
+      <TextField select label={gettext('Retained database target')}
+        value={selected} sx={{minWidth: 360}}
+        onChange={(event) => setSelected(event.target.value)}>
+        {catalog.targets.map((target) => <MenuItem key={target.target_id}
+          value={target.target_id}>{`${target.active ? '● ' : ''}${
+            target.display_name} — ${target.database}`}</MenuItem>)}
+      </TextField>
+      <Button disabled={working || !selected ||
+        selected === catalog.active_target_id}
+      onClick={() => apply('database_target_activate', {target_id: selected})}>
+        {gettext('Verify and connect')}</Button>
+      <Button color="error" disabled={working || !selected}
+        onClick={() => apply('database_target_delete', {target_id: selected})}>
+        {gettext('Forget target')}</Button>
+    </Box>}
+  </Box>;
+}
+
+DatabaseTargetWorkspace.propTypes = {
+  initialCatalog: PropTypes.object,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
 };
@@ -5008,7 +5089,12 @@ export default function ProviderWorkspaceContent({
           resources={resourcePage?.items || []}
           post={post} setError={setError} />}
       {workspace && tab === 'connections' &&
-        <ConnectionRouteWorkspace post={post} setError={setError} />}
+        <Box sx={{overflow: 'auto', flex: 1}}>
+          <DatabaseTargetWorkspace
+            initialCatalog={workspace.database_targets}
+            post={post} setError={setError} />
+          <ConnectionRouteWorkspace post={post} setError={setError} />
+        </Box>}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&
         <DocumentDataGrid catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}

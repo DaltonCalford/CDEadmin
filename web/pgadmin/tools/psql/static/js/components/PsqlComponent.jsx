@@ -21,7 +21,9 @@ import { copyToClipboard } from '../../../../../static/js/clipboard';
 import 'pgadmin.browser.keyboard';
 import gettext from 'sources/gettext';
 import { useApplicationState } from '../../../../../settings/static/ApplicationStateProvider';
-import { LAYOUT_EVENTS } from '../../../../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 
 const Root = styled(Box)(()=>({
   width: '100%',

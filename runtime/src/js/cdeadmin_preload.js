@@ -38,4 +38,33 @@ contextBridge.exposeInMainWorld('electronUI', {
     ipcRenderer.removeAllListeners('notifyAppAutoUpdate'); // Clean up previous listeners
     ipcRenderer.on('notifyAppAutoUpdate', (_, data) => callback(data));
   },
+  workspaceWindows: {
+    getCapabilities: () => ({
+      nativeWindowPlacement: true,
+      exactDisplayPlacement: process.platform !== 'linux' ||
+        process.env.XDG_SESSION_TYPE !== 'wayland',
+      crossWindowDrag: false,
+      sameOriginCoordination: true,
+    }),
+    registerWindow: (details) => ipcRenderer.invoke(
+      'workspace-window:register', details,
+    ),
+    listDisplays: () => ipcRenderer.invoke('workspace-window:list-displays'),
+    moveToDisplay: (displayId) => ipcRenderer.invoke(
+      'workspace-window:move-to-display', displayId,
+    ),
+    moveToAdjacentDisplay: (direction) => ipcRenderer.invoke(
+      'workspace-window:move-to-adjacent-display', direction,
+    ),
+    notifyPlacement: (details) => ipcRenderer.send(
+      'workspace-window:placement', details,
+    ),
+    onPlacement: (callback) => {
+      const listener = (_event, details) => callback(details);
+      ipcRenderer.on('workspace-window:placement', listener);
+      return () => ipcRenderer.removeListener(
+        'workspace-window:placement', listener,
+      );
+    },
+  },
 });

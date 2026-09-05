@@ -16,12 +16,32 @@ from .service import (
     init_app,
     service_for_app,
 )
+from .transfer import (
+    APP_EXTENSION_KEY as TRANSFER_APP_EXTENSION_KEY,
+    WorkspaceTransferConflict,
+    WorkspaceTransferError,
+    WorkspaceTransferExpired,
+    WorkspaceTransferNotFound,
+    WorkspaceTransferRepository,
+    WorkspaceTransferService,
+    service_for_app as transfer_service_for_app,
+    validate_descriptor,
+)
 
 
 __all__ = (
     'APP_EXTENSION_KEY',
+    'TRANSFER_APP_EXTENSION_KEY',
     'ProviderWorkspaceError',
     'ProviderWorkspaceService',
+    'WorkspaceTransferConflict',
+    'WorkspaceTransferError',
+    'WorkspaceTransferExpired',
+    'WorkspaceTransferNotFound',
+    'WorkspaceTransferRepository',
+    'WorkspaceTransferService',
     'init_app',
     'service_for_app',
+    'transfer_service_for_app',
+    'validate_descriptor',
 )

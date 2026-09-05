@@ -15,7 +15,10 @@ import SchemaView from 'sources/SchemaView';
 import gettext from 'sources/gettext';
 import { generateNodeUrl } from '../../browser/static/js/node_ajax';
 import { usePgAdmin } from '../../static/js/PgAdminProvider';
-import { LAYOUT_EVENTS, LayoutDockerContext } from '../../static/js/helpers/Layout';
+import {
+  WORKSPACE_EVENTS as LAYOUT_EVENTS,
+  WorkspaceContext as LayoutDockerContext,
+} from 'sources/cdeadmin_ui/workspace/Workspace';
 import usePreferences from '../../preferences/static/js/store';
 import PropTypes from 'prop-types';
 import _ from 'lodash';

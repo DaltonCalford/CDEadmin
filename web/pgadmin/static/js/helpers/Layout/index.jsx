@@ -29,6 +29,25 @@ import ToolView, { getToolTabParams } from '../../ToolView';
 import { ApplicationStateProvider, useApplicationState } from '../../../../settings/static/ApplicationStateProvider';
 import { BROWSER_PANELS, WORKSPACES } from '../../../../browser/static/js/constants';
 import pgWindow from 'sources/window';
+import {createWorkspaceHost} from 'sources/cdeadmin_ui/workspace/WorkspaceHost';
+import {toolFactoryRegistry} from 'sources/cdeadmin_ui/workspace/ToolRegistry';
+
+export const WORKSPACE_PLACEMENTS = Object.freeze({
+  BEFORE: 'before-tab',
+  AFTER: 'after-tab',
+  TAB: 'middle',
+  LEFT: 'left',
+  RIGHT: 'right',
+  TOP: 'top',
+  BOTTOM: 'bottom',
+  FLOAT: 'float',
+  DETACH: 'new-window',
+  MAXIMIZE: 'maximize',
+});
+
+const VALID_WORKSPACE_PLACEMENTS = new Set(
+  Object.values(WORKSPACE_PLACEMENTS)
+);
 
 export function TabTitle({id, closable, defaultInternal}) {
   const layoutDocker = React.useContext(LayoutDockerContext);
@@ -169,6 +188,7 @@ export class LayoutDocker {
 
     this.layoutObj = null;
     this.eventBus = new EventBus();
+    this.workspaceHost = createWorkspaceHost();
   }
 
   close(panelId, force=false) {
@@ -296,6 +316,133 @@ export class LayoutDocker {
       let tgtPanel = this.layoutObj.find(refTabId);
       this.layoutObj.dockMove(LayoutDocker.getPanel(panelData), tgtPanel, direction);
     }
+  }
+
+  place(panelId, placement, targetId=null) {
+    if(!VALID_WORKSPACE_PLACEMENTS.has(placement)) {
+      throw new TypeError(`Unsupported workspace placement: ${placement}`);
+    }
+    const source = this.find(panelId);
+    if(!source || !this.layoutObj) {
+      return false;
+    }
+
+    const toolDescriptor = source.metaData?.toolDescriptor ??
+      source.internal?.toolDescriptor;
+    if(placement === WORKSPACE_PLACEMENTS.DETACH) {
+      if(!toolDescriptor) {
+        this.eventBus.fireEvent(
+          LAYOUT_EVENTS.PLACEMENT_FAILED, panelId, placement,
+          'This panel has no durable tool descriptor.'
+        );
+        return false;
+      }
+      const readiness = this.workspaceHost.prepareDetach(toolDescriptor);
+      if(!readiness.allowed) {
+        this.eventBus.fireEvent(
+          LAYOUT_EVENTS.PLACEMENT_FAILED, panelId, placement, readiness.reason
+        );
+        return false;
+      }
+      this.eventBus.fireEvent(
+        LAYOUT_EVENTS.DETACH_PREPARED, panelId, readiness.descriptor
+      );
+    }
+
+    let target = targetId ? this.find(targetId) : source.parent;
+    if([WORKSPACE_PLACEMENTS.FLOAT, WORKSPACE_PLACEMENTS.DETACH,
+      WORKSPACE_PLACEMENTS.MAXIMIZE].includes(placement)) {
+      target = null;
+    }
+    if(!target && placement !== WORKSPACE_PLACEMENTS.FLOAT &&
+      placement !== WORKSPACE_PLACEMENTS.DETACH &&
+      placement !== WORKSPACE_PLACEMENTS.MAXIMIZE) {
+      return false;
+    }
+    if([WORKSPACE_PLACEMENTS.BEFORE, WORKSPACE_PLACEMENTS.AFTER]
+      .includes(placement) && !targetId) {
+      return false;
+    }
+
+    this.layoutObj.dockMove(source, target, placement);
+    if(toolDescriptor) {
+      this.workspaceHost.publishPlacement(toolDescriptor, placement);
+    }
+    this.eventBus.fireEvent(LAYOUT_EVENTS.CHANGE, panelId, placement);
+    return true;
+  }
+
+  moveAdjacent(panelId, placement) {
+    if(![WORKSPACE_PLACEMENTS.BEFORE, WORKSPACE_PLACEMENTS.AFTER]
+      .includes(placement)) {
+      throw new TypeError('Adjacent movement requires before-tab or after-tab.');
+    }
+    const panel = this.find(panelId);
+    const siblings = panel?.parent?.tabs ?? [];
+    const index = siblings.findIndex((tab)=>tab.id === panelId);
+    const targetIndex = placement === WORKSPACE_PLACEMENTS.BEFORE ?
+      index - 1 : index + 1;
+    if(index < 0 || targetIndex < 0 || targetIndex >= siblings.length) {
+      return false;
+    }
+    return this.place(panelId, placement, siblings[targetIndex].id);
+  }
+
+  async moveWindowToAdjacentDisplay(direction) {
+    try {
+      const result = await this.workspaceHost.moveToAdjacentDisplay(direction);
+      this.eventBus.fireEvent(
+        LAYOUT_EVENTS.WINDOW_DISPLAY_CHANGED, direction, result
+      );
+      return true;
+    } catch (error) {
+      this.eventBus.fireEvent(
+        LAYOUT_EVENTS.PLACEMENT_FAILED, null, 'display', error.message
+      );
+      return false;
+    }
+  }
+
+  listPlacementTargets(panelId) {
+    const source = this.find(panelId);
+    const targets = [];
+    const visit = (node) => {
+      if(!node) return;
+      if(node.children) {
+        node.children.forEach(visit);
+      } else if(node.tabs?.length && node !== source?.parent) {
+        const active = node.tabs.find((tab)=>tab.id === node.activeId) ??
+          node.tabs[0];
+        targets.push(Object.freeze({
+          id: active.id,
+          label: String(active.internal?.title ?? active.id),
+        }));
+      }
+    };
+    const layout = this.layoutObj?.getLayout?.();
+    visit(layout?.dockbox);
+    visit(layout?.floatbox);
+    return Object.freeze(targets);
+  }
+
+  getPlacementCapabilities(panelId) {
+    const panel = this.find(panelId);
+    const siblings = panel?.parent?.tabs ?? [];
+    const index = siblings.findIndex((tab)=>tab.id === panelId);
+    return Object.freeze({
+      before: index > 0,
+      after: index >= 0 && index < siblings.length - 1,
+      split: Boolean(panel?.parent),
+      attach: this.listPlacementTargets(panelId).length > 0,
+      float: panel?.internal?.floatable !== false,
+      detach: Boolean(panel?.internal?.detachable &&
+        panel?.metaData?.toolDescriptor &&
+        this.workspaceHost.capabilities().popoutWindow),
+      detachReason: panel?.internal?.detachable &&
+        !this.workspaceHost.capabilities().popoutWindow ?
+        'This host cannot open another application window.' : '',
+      host: this.workspaceHost.capabilities(),
+    });
   }
 
   loadLayout(savedLayout) {
@@ -451,7 +598,9 @@ export class LayoutDocker {
     this.eventBus.fireEvent(LAYOUT_EVENTS.RESET);
   }
 
-  static getPanel({icon, title, closable, tooltip, renamable, manualClose, bgcolor, fgcolor, server_id, ...attrs}) {
+  static getPanel({icon, title, closable, tooltip, renamable, manualClose,
+    detachable=false, floatable=false, toolDescriptor, bgcolor, fgcolor,
+    server_id, ...attrs}) {
     const internal = {
       icon: icon,
       title: title,
@@ -459,6 +608,9 @@ export class LayoutDocker {
       closable: _.isUndefined(closable) ? manualClose : closable,
       renamable: renamable,
       manualClose: manualClose,
+      detachable: detachable,
+      floatable: floatable,
+      toolDescriptor: toolDescriptor,
       bgcolor: bgcolor,
       fgcolor: fgcolor,
       server_id: server_id, // Store server_id to enable color updates when server properties change
@@ -579,14 +731,23 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
   const { deleteToolData } = useApplicationState();
 
   useEffect(()=>{
-    layoutDockerObj.eventBus.registerListener(LAYOUT_EVENTS.REMOVE, (panelId)=>{
+    layoutDockerObj.workspaceHost.registerWindow({
+      workspaceId: layoutId || 'default',
+      role: 'workspace',
+    }).catch(()=>{/* Browser hosts have no registration service. */});
+    const removeListener = layoutDockerObj.eventBus.registerListener(LAYOUT_EVENTS.REMOVE, (panelId)=>{
       layoutDockerObj.close(panelId);
       deleteToolData(panelId);
     });
 
-    layoutDockerObj.eventBus.registerListener(LAYOUT_EVENTS.CONTEXT, (e, id, extraMenus)=>{
+    const contextListener = layoutDockerObj.eventBus.registerListener(LAYOUT_EVENTS.CONTEXT, (e, id, extraMenus)=>{
       setContextPos([{x: e.clientX, y: e.clientY}, id, extraMenus]);
     });
+    return ()=>{
+      removeListener?.();
+      contextListener?.();
+      layoutDockerObj.workspaceHost.dispose();
+    };
   }, []);
 
   useEffect(()=>{
@@ -620,7 +781,9 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
       if(_.isUndefined(panelData.tabs)) {
         if(panelData.internal.closable) {
           ret.push({
+            id: 'close-tool',
             label: gettext('Close'),
+            iconKey: 'action.cancel',
             callback: ()=>{
               layoutDockerObj.close(panelId);
             }
@@ -628,6 +791,7 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
         }
         if(panelData.parent?.tabs?.length > 1) {
           ret.push({
+            id: 'close-other-tools',
             label: gettext('Close Others'),
             callback: ()=>{
               layoutDockerObj.closeAll(panelId, true);
@@ -636,6 +800,7 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
         }
       }
       ret.push({
+        id: 'close-all-tools',
         label: gettext('Close All'),
         callback: ()=>{
           layoutDockerObj.closeAll(panelId);
@@ -646,9 +811,89 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
           type: 'separator',
         }, {
           label: gettext('Rename'),
+          id: 'rename-tool',
+          iconKey: 'action.rename',
           callback: ()=>{
             showRenameTab(panelId, layoutDockerObj);
           }
+        });
+      }
+      const placement = layoutDockerObj.getPlacementCapabilities(panelId);
+      ret.push({type: 'separator'});
+      if(placement.before) {
+        ret.push({
+          id: 'move-tool-before',
+          label: gettext('Move Before'),
+          callback: ()=>layoutDockerObj.moveAdjacent(
+            panelId, WORKSPACE_PLACEMENTS.BEFORE),
+        });
+      }
+      if(placement.after) {
+        ret.push({
+          id: 'move-tool-after',
+          label: gettext('Move After'),
+          callback: ()=>layoutDockerObj.moveAdjacent(
+            panelId, WORKSPACE_PLACEMENTS.AFTER),
+        });
+      }
+      if(placement.split) {
+        [
+          [gettext('Move to Left Panel'), WORKSPACE_PLACEMENTS.LEFT],
+          [gettext('Move to Right Panel'), WORKSPACE_PLACEMENTS.RIGHT],
+          [gettext('Move to Top Panel'), WORKSPACE_PLACEMENTS.TOP],
+          [gettext('Move to Bottom Panel'), WORKSPACE_PLACEMENTS.BOTTOM],
+        ].forEach(([label, direction])=>ret.push({
+          id: `move-tool-${direction}`,
+          label,
+          callback: ()=>layoutDockerObj.place(panelId, direction),
+        }));
+      }
+      if(placement.attach) {
+        ret.push({
+          id: 'attach-tool-as-tab',
+          label: gettext('Attach as Tab'),
+          iconKey: 'action.attach',
+          getMenuItems: ()=>layoutDockerObj.listPlacementTargets(panelId)
+            .map((target)=>({
+              id: `attach-tool-${target.id}`,
+              label: target.label,
+              callback: ()=>layoutDockerObj.place(
+                panelId, WORKSPACE_PLACEMENTS.TAB, target.id),
+            })),
+        });
+      }
+      if(placement.float) {
+        ret.push({
+          id: 'float-tool',
+          label: gettext('Move to Floating Panel'),
+          callback: ()=>layoutDockerObj.place(
+            panelId, WORKSPACE_PLACEMENTS.FLOAT),
+        });
+      }
+      if(panelData.internal?.detachable) {
+        ret.push({
+          id: 'detach-tool',
+          label: gettext('Detach to New Window'),
+          iconKey: 'action.detach',
+          enabled: placement.detach,
+          disabledReason: placement.detachReason,
+          callback: ()=>layoutDockerObj.place(
+            panelId, WORKSPACE_PLACEMENTS.DETACH),
+        });
+      }
+      if(placement.host.nativeWindowPlacement) {
+        ret.push({
+          id: 'move-window-next-display',
+          label: gettext('Move Window to Next Display'),
+          iconKey: 'action.move',
+          callback: ()=>layoutDockerObj
+            .moveWindowToAdjacentDisplay('next'),
+        }, {
+          id: 'move-window-previous-display',
+          label: gettext('Move Window to Previous Display'),
+          iconKey: 'action.move',
+          callback: ()=>layoutDockerObj
+            .moveWindowToAdjacentDisplay('previous'),
         });
       }
     }
@@ -694,6 +939,13 @@ export default function Layout({groups, noContextGroups, getLayoutInstance, layo
 
   const loadTab = (tab)=>{
     const tabData = flatDefaultLayout.find((t)=>t.id == tab.id);
+    if(tab.metaData?.toolDescriptor) {
+      return toolFactoryRegistry.restore(tab.metaData.toolDescriptor, {
+        toolUrl: tab.metaData.toolUrl,
+        formParams: tab.metaData.formParams,
+        tabParams: tab.metaData.tabParams,
+      });
+    }
     if(!tabData && tab.metaData) {
       return LayoutDocker.getPanel(getToolTabParams(tab.id, tab.metaData.toolUrl, tab.metaData.formParams, tab.metaData.tabParams, tab.metaData?.restore));
     }
@@ -772,5 +1024,8 @@ export const LAYOUT_EVENTS = {
   CONTEXT: 'context',
   CHANGE: 'change',
   REFRESH_TITLE: 'refresh-title',
-  RESET: 'reset'
+  RESET: 'reset',
+  DETACH_PREPARED: 'detach-prepared',
+  PLACEMENT_FAILED: 'placement-failed',
+  WINDOW_DISPLAY_CHANGED: 'window-display-changed',
 };

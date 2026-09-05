@@ -14,6 +14,12 @@
         {"field_id": "options", "label": "Engine-specific options", "control": "json", "required": false, "default": {}}
       ]
     },
+    "firebird_database_create": {
+      "title": "Create Firebird database",
+      "fields": [
+        {"field_id": "database_path", "label": "Database filename or absolute server path", "control": "text", "required": true, "max_length": 4096}
+      ]
+    },
     "alter": {
       "title": "Alter",
       "fields": [
@@ -284,7 +290,7 @@
       "engine_id": "firebird", "engine_name": "Firebird", "reference_profile": "5.0.4", "model_family": "relational-mga",
       "objects": [
         {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
-        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace", "operation_forms": {"create": "firebird_database_create"}},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},

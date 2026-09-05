@@ -10,24 +10,54 @@
 import { PgMenu, PgMenuDivider, PgMenuItem, PgSubMenu } from './Menu';
 import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
+import {Icon} from 'sources/cdeadmin_ui/icons';
+import {normalizeTreeActions} from 'sources/cdeadmin_ui/navigation/TreeActions';
+
+function ActionLabel({action}) {
+  return <span style={{display: 'inline-flex', alignItems: 'center', gap: '0.5em'}}>
+    {action.iconKey && <Icon iconKey={action.iconKey} decorative />}
+    <span>{action.label}</span>
+  </span>;
+}
+
+ActionLabel.propTypes = {
+  action: PropTypes.object.isRequired,
+};
 
 export default function ContextMenu({menuItems, position, onClose, label='context'}) {
-  const getPgMenuItem = (menuItem, i)=>{
+  const actions = normalizeTreeActions(menuItems);
+  const renderMenuItem = (menuItem, key)=>{
     if(menuItem.type == 'separator') {
-      return <PgMenuDivider key={i}/>;
+      return <PgMenuDivider key={key}/>;
+    }
+    if(menuItem.children?.length) {
+      return <PgSubMenu
+        key={key}
+        label={<ActionLabel action={menuItem} />}
+      >
+        {menuItem.children.map((child, index)=>renderMenuItem(
+          child, `${key}-${child.id ?? index}`
+        ))}
+      </PgSubMenu>;
     }
     const hasCheck = typeof menuItem.checked == 'boolean';
 
     return <PgMenuItem
-      key={i}
-      disabled={menuItem.isDisabled}
+      key={key}
+      disabled={!menuItem.enabled}
+      aria-disabled={!menuItem.enabled}
+      title={menuItem.disabledReason || undefined}
       onClick={()=>{
-        menuItem.callback();
+        menuItem.execute?.();
       }}
       hasCheck={hasCheck}
       checked={menuItem.checked}
-      shortcut={menuItem.shortcut} 
-    >{menuItem.label}</PgMenuItem>;
+      shortcut={menuItem.shortcut}
+      datalabel={menuItem.label}
+      data-action-id={menuItem.id}
+      data-action-intent={menuItem.intent}
+      data-requires-confirmation={menuItem.requiresConfirmation || undefined}
+    ><ActionLabel action={menuItem} /></PgMenuItem>;
   };
 
   return (
@@ -36,26 +66,17 @@ export default function ContextMenu({menuItems, position, onClose, label='contex
         x: position?.x,
         y: position?.y
       }}
-      open={Boolean(position) && menuItems.length !=0}
+      open={Boolean(position) && actions.length !=0}
       onClose={onClose}
       label={label}
       portal
     >
-      {menuItems.length !=0 && menuItems.map((menuItem, i)=>{
-        const submenus = menuItem.getMenuItems?.();
-        if(submenus) {
-          return <PgSubMenu key={label+'-'+menuItem.label} label={menuItem.label}>
-            {submenus.map((submenuItem, si)=>{
-              return getPgMenuItem(submenuItem, i+'-'+si);
-            })}
-          </PgSubMenu>;
-        }
-        return getPgMenuItem(menuItem, i);
-      })}
-      {menuItems.length == 0 && getPgMenuItem({
-        label: gettext('No options'),
-        isDisabled: true,
-      }, 0)}
+      {actions.length !=0 && actions.map((menuItem, i)=>renderMenuItem(
+        menuItem, menuItem.id ?? i
+      ))}
+      {actions.length == 0 && <PgMenuItem disabled>
+        {gettext('No options')}
+      </PgMenuItem>}
     </PgMenu>
   );
 }
