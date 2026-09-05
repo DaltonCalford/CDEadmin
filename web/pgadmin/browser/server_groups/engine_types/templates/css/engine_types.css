@@ -13,4 +13,14 @@
   width: 1.3em;
   height: 1.3em;
 }
+.icon-engine-type-{{ engine }}-unavailable {
+  background-image: url('{{ url_for('NODE-engine_type.static', filename='img/' + engine + '.svg') }}') !important;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain !important;
+  filter: grayscale(1);
+  opacity: 0.42;
+  width: 1.3em;
+  height: 1.3em;
+}
 {% endfor %}

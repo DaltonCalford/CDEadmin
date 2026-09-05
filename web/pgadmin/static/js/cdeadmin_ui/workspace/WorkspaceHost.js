@@ -208,7 +208,7 @@ export class WorkspaceHost {
   }
 
   dispose() {
-    this.channel?.close();
+    if(typeof this.channel?.close === 'function') this.channel.close();
     this.channel = null;
   }
 }

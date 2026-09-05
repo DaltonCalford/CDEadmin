@@ -47,6 +47,7 @@ describe('ServerSchema', ()=>{
     expect(setError).toHaveBeenCalledWith('gid', 'Server group must be specified.');
 
     state.gid = 1;
+    state.db = 'postgres';
     schemaObj.validate(state, setError);
     expect(setError).toHaveBeenCalledWith('host', 'Either Host name or Service must be specified.');
 
@@ -117,5 +118,36 @@ describe('ServerSchema', ()=>{
       db: '/srv/cdeadmin/data/example.sqlite',
     };
     expect(schemaObj.validate(state, jest.fn())).toBe(false);
+  });
+
+  it('registers a server-scoped provider without a database', ()=>{
+    const state = {
+      gid: 1, cde_profile_id: 'qualified-native',
+      host: 'localhost', port: 1234, username: 'admin',
+      db: null, service: null, use_ssh_tunnel: false,
+    };
+    const setError = jest.fn();
+    expect(schemaObj.requiresDatabase(state)).toBe(false);
+    expect(schemaObj.validate(state, setError)).toBe(false);
+    expect(setError).toHaveBeenCalledWith('db', null);
+  });
+
+  it('locks an engine-specific form to that engine interfaces', ()=>{
+    const engineSchema = new ServerSchema([], 0, {
+      cde_profile_id: 'qualified-native',
+    }, {engineId: 'qualified'});
+    const profileField = engineSchema.baseFields.find(
+      (field) => field.id === 'cde_profile_id'
+    );
+    const databaseField = engineSchema.baseFields.find(
+      (field) => field.id === 'db'
+    );
+    expect(profileField.options).toEqual([{
+      label: 'Qualified engine', value: 'qualified-native',
+    }]);
+    expect(profileField.visible()).toBe(false);
+    expect(databaseField.visible({
+      cde_profile_id: 'qualified-native',
+    })).toBe(false);
   });
 });

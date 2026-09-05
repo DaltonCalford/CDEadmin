@@ -563,6 +563,76 @@ describe('ProviderWorkspaceContent', () => {
     expect(result).toHaveTextContent('true');
   });
 
+  it('creates a database from the engine-specific connection form', async () => {
+    const databaseTargets = {
+      multiple: true, server_verification: true,
+      active_target_id: null, legacy_route_database: null, targets: [],
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      endpoint: {
+        ...bootstrap.endpoint, route_management_available: true,
+      },
+      database_targets: databaseTargets,
+      visual_admin: {
+        ...bootstrap.visual_admin,
+        objects: [{
+          ...bootstrap.visual_admin.objects[0],
+          operations: [{
+            ...bootstrap.visual_admin.objects[0].operations[0],
+            blockers: [], execution_available: true,
+          }],
+        }],
+      },
+    }}});
+    api.post.mockImplementation((_url, payload) => {
+      const responses = {
+        route_list: {
+          supports_multiple_routes: false, default_port: 3050,
+          database_targeting: {multiple: true}, connection_fields: [],
+          routes: [{
+            route_id: 'route-one', priority: 1,
+            configuration: {host: 'localhost', port: 3050, user: 'SYSDBA'},
+            health: {},
+          }],
+        },
+        visual_admin_validate: {valid: true, errors: []},
+        visual_admin_plan: {
+          state: 'ready', execution_available: true,
+          plan_id: 'database-plan', plan_digest: 'database-digest',
+        },
+        visual_admin_apply: {
+          provider_result: {driver_returned: true},
+          database_targets: {
+            ...databaseTargets, active_target_id: 'database-one',
+            targets: [{
+              target_id: 'database-one', active: true,
+              display_name: 'sample.fdb', database: '/data/sample.fdb',
+            }],
+          },
+        },
+        resource_refresh: bootstrap.resource_page,
+      };
+      return Promise.resolve({data: {data: responses[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="connections" />);
+    fireEvent.change(await screen.findByRole('textbox', {name: /Name/}), {
+      target: {value: 'sample.fdb'},
+    });
+    fireEvent.click(screen.getByText('Validate and preview'));
+    await screen.findByText(/database-plan/);
+    fireEvent.click(screen.getByText('Create database'));
+    expect(await screen.findByText(/completed the database operation/))
+      .toBeInTheDocument();
+    expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'visual_admin_apply', request: {
+        plan_id: 'database-plan', plan_digest: 'database-digest',
+        confirmed: false,
+      },
+    });
+  });
+
   it('renders and submits typed provider multiselect fields', async () => {
     const readyBootstrap = {
       ...bootstrap,

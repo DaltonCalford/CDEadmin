@@ -13,6 +13,7 @@ import { showServerPassword, showEndpointVerification, showProviderWorkspace, sh
 import _ from 'lodash';
 import getApiInstance, { parseApiError } from '../../../../../static/js/api_instance';
 import { AllPermissionTypes } from '../../../../static/js/constants';
+import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
 
 define('pgadmin.node.server', [
   'sources/gettext', 'sources/url_for',
@@ -81,10 +82,12 @@ define('pgadmin.node.server', [
         });
 
         pgBrowser.add_menus([{
-          name: 'create_server_on_sg', node: 'server_group', module: this,
-          applies: ['object', 'context'], callback: 'show_obj_properties',
-          category: 'register', priority: 1, label: gettext('Server...'),
-          data: {action: 'create'}, enable: 'canCreate', permission: AllPermissionTypes.OBJECT_REGISTER_SERVER
+          name: 'create_server_on_engine', node: 'engine_type', module: this,
+          applies: ['object', 'context'], callback: 'register_engine_server',
+          category: 'register', priority: 1,
+          label: gettext('Register server / instance...'),
+          data: {action: 'create'}, enable: 'canCreate',
+          permission: AllPermissionTypes.OBJECT_REGISTER_SERVER
         },{
           name: 'disconnect_all_servers', node: 'server_group', module: this,
           applies: ['object','context'], callback: 'disconnect_all_servers',
@@ -92,8 +95,9 @@ define('pgadmin.node.server', [
           data:{action: 'disconnect_all'}, enable: 'can_disconnect_all'
         },{
           name: 'create_server', node: 'server', module: this,
-          applies: ['object', 'context'], callback: 'show_obj_properties',
-          category: 'register', priority: 3, label: gettext('Server...'),
+          applies: ['object', 'context'], callback: 'register_engine_server',
+          category: 'register', priority: 3,
+          label: gettext('Register another server / instance...'),
           shortcut_preference: ['browser', 'sub_menu_create'],
           data: {action: 'create'}, enable: 'canCreate', permission: AllPermissionTypes.OBJECT_REGISTER_SERVER
         },{
@@ -123,6 +127,15 @@ define('pgadmin.node.server', [
           applies: ['object', 'context'], callback: 'browse_cde_endpoint',
           category: 'connect', priority: 5,
           label: gettext('Browse Resources...'),
+          enable: function(node) {
+            return node?._type === 'server' && node?.cde_endpoint &&
+              node?.runtime_verification_state === 'verified';
+          },
+        },{
+          name: 'manage_cde_databases', node: 'server', module: this,
+          applies: ['object', 'context'], callback: 'manage_cde_databases',
+          category: 'connect', priority: 6,
+          label: gettext('Create / register database...'),
           enable: function(node) {
             return node?._type === 'server' && node?.cde_endpoint &&
               node?.runtime_verification_state === 'verified';
@@ -253,8 +266,49 @@ define('pgadmin.node.server', [
         return _.some(item.children, (child) => pgAdmin.Browser.tree.getData(child).connected);
       },
       callbacks: {
+        register_engine_server: function(args) {
+          const tree = pgBrowser.tree;
+          let item = args?.item || tree.selected();
+          const selected = item ? tree.itemData(item) : undefined;
+          if (!selected) return false;
+          let engineId = selected.engine_id || selected.cde_engine_id;
+          if (!engineId && selected.cde_profile_id) {
+            engineId = endpointProfiles.get(
+              selected.cde_profile_id)?.engine_id;
+          }
+          if (engineId === 'opensearch_sql_ppl') engineId = 'opensearch';
+          const profiles = endpointProfiles.interfaces(engineId);
+          if (!profiles.length) return false;
+          while (item && tree.itemData(item)?._type !== 'server_group') {
+            item = tree.hasParent(item) ? tree.parent(item) : null;
+          }
+          if (!item) return false;
+          const profile = profiles.find((candidate) =>
+            candidate.profile_id === selected.cde_profile_id) || profiles[0];
+          const initialData = {
+            name: gettext('%s on localhost',
+              profile.engine_display_name || profile.display_name),
+            cde_profile_id: profile.profile_id,
+            host: profile.route_kind === 'network' ? 'localhost' : '',
+            port: profile.default_port,
+            db: profile.database_targeting?.mode === 'optional' ? null : '',
+            connect_now: profile.workflow !== 'provider_endpoint',
+            cde_verify_now: profile.workflow === 'provider_endpoint',
+          };
+          pgAdmin.Browser.Node.callbacks.show_obj_properties.call(
+            this, {
+              action: 'create', item, initialData,
+              panelTitle: gettext('Register %s server / instance',
+                profile.engine_display_name || profile.display_name),
+            }
+          );
+          return false;
+        },
         browse_cde_endpoint: function(args) {
           return this.open_cde_workspace(args, 'resources');
+        },
+        manage_cde_databases: function(args) {
+          return this.open_cde_workspace(args, 'connections');
         },
         open_cde_data_studio: function(args) {
           return this.open_cde_workspace(args, 'studio');
@@ -594,7 +648,12 @@ define('pgadmin.node.server', [
           pgBrowser.psql.psql_tool(d, i, true);
         }
       },
-      getSchema: (treeNodeInfo, itemNodeData)=>{
+      getSchema: (treeNodeInfo, itemNodeData, initialData)=>{
+        const initialProfile = endpointProfiles.get(
+          initialData?.cde_profile_id
+        );
+        let engineId = initialProfile?.engine_id;
+        if (engineId === 'opensearch_sql_ppl') engineId = 'opensearch';
         return new ServerSchema(
           getNodeListById(pgBrowser.Nodes['server_group'], treeNodeInfo, itemNodeData, {},
           // Filter out shared servers group, it should not be visible.
@@ -602,7 +661,9 @@ define('pgadmin.node.server', [
           itemNodeData.user_id,
           {
             gid: treeNodeInfo['server_group']._id,
-          }
+            ...(initialData || {}),
+          },
+          {engineId}
         );
       },
       connection_lost: function(i, resp) {

@@ -7,7 +7,10 @@
 #
 ##########################################################################
 
-"""Engine-family roots for the CDEadmin connection navigator."""
+"""Engine-family roots and local endpoint discovery for the navigator."""
+
+import importlib.util
+import socket
 
 from flask import render_template
 from flask_babel import gettext
@@ -67,6 +70,56 @@ def supported_engine_types():
     )
 
 
+_EMBEDDED_MODULES = {
+    'duckdb': 'duckdb',
+    'sqlite': 'sqlite3',
+}
+
+
+def localhost_engine_status(engine_id):
+    """Return a passive, credential-free local availability observation."""
+    profiles = [
+        profile for profile in registration_profiles()
+        if navigator_engine_id(profile['engine_id']) == engine_id
+    ]
+    embedded = [
+        profile for profile in profiles
+        if profile['route_kind'] == 'embedded_file'
+    ]
+    if embedded:
+        module_name = _EMBEDDED_MODULES.get(engine_id)
+        available = bool(
+            module_name and importlib.util.find_spec(module_name) is not None
+        )
+        return {
+            'available': available,
+            'observation': 'embedded-driver-available' if available else
+            'embedded-driver-unavailable',
+            'ports': [],
+            'profile_ids': [item['profile_id'] for item in profiles],
+        }
+
+    listening = []
+    ports = sorted({
+        profile['default_port'] for profile in profiles
+        if isinstance(profile.get('default_port'), int)
+    })
+    for port in ports:
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=0.15):
+                listening.append(port)
+        except OSError:
+            continue
+    return {
+        'available': bool(listening),
+        'observation': 'tcp-listener-detected' if listening else
+        'no-default-port-listener',
+        'ports': ports,
+        'listening_ports': listening,
+        'profile_ids': [item['profile_id'] for item in profiles],
+    }
+
+
 class EngineTypeModule(ServerGroupPluginModule):
     _NODE_TYPE = 'engine_type'
 
@@ -118,7 +171,25 @@ class EngineTypeNode(NodeView):
         from pgadmin.browser.server_groups.servers import (
             blueprint as server_blueprint,
         )
-        nodes = list(server_blueprint.engine_nodes(
+        status = localhost_engine_status(eid)
+        local_label = gettext('localhost')
+        if not status['available']:
+            local_label = gettext('localhost (not detected)')
+        nodes = [self.blueprint.generate_browser_node(
+            f'{eid}__localhost', f'engine_type_{eid}', local_label,
+            f'icon-engine-type-{eid}' + (
+                '' if status['available'] else '-unavailable'
+            ),
+            False, self.node_type,
+            engine_id=eid,
+            localhost_placeholder=True,
+            localhost_available=status['available'],
+            localhost_observation=status['observation'],
+            localhost_ports=status.get('ports', []),
+            localhost_listening_ports=status.get('listening_ports', []),
+            cde_profile_ids=status['profile_ids'],
+        )]
+        nodes.extend(server_blueprint.engine_nodes(
             gid, eid, parent_id=f'engine_type_{eid}'
         ))
         return make_json_response(data=nodes)

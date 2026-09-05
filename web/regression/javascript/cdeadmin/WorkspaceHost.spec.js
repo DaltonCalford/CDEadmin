@@ -83,6 +83,17 @@ describe('CDEadmin workspace host capabilities', () => {
       .rejects.toThrow('unavailable');
   });
 
+  it('disposes safely when a host supplies a partial channel shim', () => {
+    const host = new WorkspaceHost({
+      open: jest.fn(),
+      BroadcastChannel: function() {
+        return {postMessage: jest.fn()};
+      },
+    });
+    expect(() => host.dispose()).not.toThrow();
+    expect(host.channel).toBeNull();
+  });
+
   it('prepares authority before exposing a transferable descriptor', async () => {
     const transferClient = {
       ensureWorkspace: jest.fn(()=>Promise.resolve({revision: 0})),

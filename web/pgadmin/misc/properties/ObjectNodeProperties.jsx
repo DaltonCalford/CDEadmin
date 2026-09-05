@@ -23,7 +23,7 @@ import usePreferences from '../../preferences/static/js/store';
 import PropTypes from 'prop-types';
 import _ from 'lodash';
 
-export default function ObjectNodeProperties({panelId, node, treeNodeInfo, nodeData, actionType, formType, onEdit, onSave, onClose,
+export default function ObjectNodeProperties({panelId, node, treeNodeInfo, nodeData, initialData, actionType, formType, onEdit, onSave, onClose,
   isActive, setIsStale, isStale}) {
   const layoutDocker = React.useContext(LayoutDockerContext);
   const nodeType = nodeData?._type;
@@ -56,8 +56,8 @@ export default function ObjectNodeProperties({panelId, node, treeNodeInfo, nodeD
   const treeNodeId = objToString(treeNodeInfo);
 
   let schema = useMemo(
-    () => node.getSchema(treeNodeInfo, nodeData),
-    [treeNodeId]
+    () => node.getSchema(treeNodeInfo, nodeData, initialData),
+    [treeNodeId, initialData]
   );
 
   // We only have two actionTypes, 'create' and 'edit' to initiate the dialog,
@@ -80,7 +80,7 @@ export default function ObjectNodeProperties({panelId, node, treeNodeInfo, nodeD
   /* Called when dialog is opened in edit mode, promise required */
   let initData = ()=>new Promise((resolve, reject)=>{
     if(actionType === 'create' && !isActionTypeCopy) {
-      resolve({});
+      resolve(initialData || {});
     } else {
       // Do not call the API if tab is not active.
       if(!isActive && actionType == 'properties') {
@@ -280,6 +280,7 @@ ObjectNodeProperties.propTypes = {
   node: PropTypes.func,
   treeNodeInfo: PropTypes.object,
   nodeData: PropTypes.object,
+  initialData: PropTypes.object,
   actionType: PropTypes.string,
   formType: PropTypes.string,
   onEdit: PropTypes.func,

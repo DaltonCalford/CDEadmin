@@ -2925,7 +2925,7 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         target: (semantic.delivery?.profiles || []).find((item) =>
           item.profile_id === scheduleDraft.delivery_profile_id)?.kind ===
             'smtp' ? {recipients: scheduleDraft.delivery_target.split(',')
-              .map((item) => item.trim()).filter(Boolean)} :
+            .map((item) => item.trim()).filter(Boolean)} :
           {object_name: scheduleDraft.delivery_target.trim()},
       } : {},
     }],
@@ -3963,15 +3963,15 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
           onClick={() => runReport(report)}>{gettext('Run report')}</Button>
         {record?.status === 'published' && report.schedule_id &&
           semantic.capabilities.scheduled_report_execution && <>
-            {!delegations.some((item) => item.report_id === report.id &&
+          {!delegations.some((item) => item.report_id === report.id &&
               item.state === 'active') ? <Button disabled={working}
-                onClick={() => authorizeReport(report)}>
-                {gettext('Authorize schedule')}</Button> : <Button
-                disabled={working} onClick={() => revokeReport(report)}>
-                {gettext('Revoke schedule')}</Button>}
-            <Button disabled={working} onClick={() => refreshScheduler(
-              report.id)}>{gettext('Refresh occurrences')}</Button>
-          </>}
+              onClick={() => authorizeReport(report)}>
+              {gettext('Authorize schedule')}</Button> : <Button
+              disabled={working} onClick={() => revokeReport(report)}>
+              {gettext('Revoke schedule')}</Button>}
+          <Button disabled={working} onClick={() => refreshScheduler(
+            report.id)}>{gettext('Refresh occurrences')}</Button>
+        </>}
       </Box>)}
       {scheduleOccurrences.map((item) => <Box key={item.occurrence_id}
         aria-label={gettext('Scheduled report occurrence')} sx={{mt: 1}}>
@@ -4530,14 +4530,47 @@ ConnectionRouteWorkspace.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
-function DatabaseTargetWorkspace({initialCatalog, post, setError}) {
+function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
+  setError, onRefresh}) {
   const [catalog, setCatalog] = useState(initialCatalog);
+  const lifecycleObject = useMemo(() => {
+    const objects = visualCatalog?.objects || [];
+    const preferred = [
+      'database', 'keyspace', 'namespace', 'catalog', 'bucket',
+    ];
+    return preferred.map((kind) => objects.find((item) =>
+      item.resource_kind === kind && item.operations?.some((operation) =>
+        operation.operation_id === 'create'))).find(Boolean) || null;
+  }, [visualCatalog]);
+  const createOperation = lifecycleObject?.operations?.find(
+    (operation) => operation.operation_id === 'create'
+  );
+  const createFields = createOperation?.form?.fields || [];
+  const [mode, setMode] = useState('create');
   const [database, setDatabase] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [draft, setDraft] = useState({});
+  const [validation, setValidation] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [result, setResult] = useState(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [selected, setSelected] = useState(
     initialCatalog?.active_target_id || ''
   );
   const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    setDraft(Object.fromEntries(createFields.map((field) =>
+      [field.field_id, initialFieldValue(field)])));
+    setValidation(null);
+    setPlan(null);
+    setResult(null);
+    setConfirmed(false);
+  }, [createOperation?.operation_id, lifecycleObject?.resource_kind]);
+
+  useEffect(() => {
+    if (!createOperation && catalog?.multiple) setMode('attach');
+  }, [catalog?.multiple, createOperation]);
 
   const apply = async (action, request={}) => {
     setWorking(true); setError(null);
@@ -4553,30 +4586,123 @@ function DatabaseTargetWorkspace({initialCatalog, post, setError}) {
     } finally { setWorking(false); }
   };
 
-  if (!catalog?.multiple) return null;
+  const createRequest = () => ({
+    resource_kind: lifecycleObject.resource_kind,
+    operation_id: createOperation.operation_id,
+    target_resource: null,
+    draft: Object.fromEntries(createFields.filter((field) => {
+      const value = draft[field.field_id];
+      return field.required || (value !== '' && value !== null &&
+        value !== undefined && !(Array.isArray(value) && value.length === 0));
+    }).map((field) => [field.field_id, draft[field.field_id]])),
+  });
+
+  const previewCreate = async () => {
+    setWorking(true); setError(null); setPlan(null); setResult(null);
+    try {
+      const checked = await post({
+        action: 'visual_admin_validate', request: createRequest(),
+      });
+      setValidation(checked);
+      if (checked.valid) {
+        setPlan(await post({
+          action: 'visual_admin_plan', request: createRequest(),
+        }));
+      }
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally { setWorking(false); }
+  };
+
+  const applyCreate = async () => {
+    setWorking(true); setError(null);
+    try {
+      const value = await post({
+        action: 'visual_admin_apply', request: {
+          plan_id: plan.plan_id,
+          plan_digest: plan.plan_digest,
+          confirmed,
+        },
+      });
+      setResult(value);
+      if (value.database_targets) {
+        setCatalog(value.database_targets);
+        setSelected(value.database_targets.active_target_id || '');
+      }
+      setPlan(null);
+      onRefresh?.();
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally { setWorking(false); }
+  };
+
+  if (!catalog?.multiple && !createOperation) return null;
   return <Box sx={{p: 2, borderBottom: 1, borderColor: 'divider'}}>
-    <Box component="h2" sx={{mt: 0}}>{gettext('Database targets')}</Box>
+    <Box component="h2" sx={{mt: 0}}>
+      {gettext('Create or register a database')}
+    </Box>
     <Alert severity="info" sx={{mb: 2}}>
-      {gettext('A server endpoint can exist without a database. Database targets are independent of network failover routes; attaching or forgetting a target never creates or drops the database.')}
+      {gettext('This form is engine-specific. Creating uses the provider lifecycle contract; registering verifies an existing native database without creating it. Server credentials and network routes remain independent.')}
     </Alert>
-    <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
-      <TextField label={gettext('Database filename, path, or native name')}
-        value={database} onChange={(event) => setDatabase(event.target.value)} />
-      <TextField label={gettext('Display name (optional)')}
-        value={displayName}
-        onChange={(event) => setDisplayName(event.target.value)} />
-    </Box>
-    <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
-      <Button variant="contained" disabled={working || !database.trim()}
-        onClick={() => apply('database_target_attach', {
-          database, display_name: displayName || undefined,
-        })}>{gettext('Verify and attach')}</Button>
-      {catalog.server_verification && <Button disabled={working ||
+    {catalog?.multiple && createOperation && <TextField select fullWidth
+      sx={{mb: 2}} label={gettext('Database action')} value={mode}
+      onChange={(event) => setMode(event.target.value)}>
+      <MenuItem value="attach">{gettext('Register existing database')}</MenuItem>
+      <MenuItem value="create">{gettext('Create new database')}</MenuItem>
+    </TextField>}
+    {catalog?.multiple && mode === 'attach' && <>
+      <Box sx={{display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
+        <TextField label={gettext('Database filename, path, or native name')}
+          value={database} onChange={(event) => setDatabase(event.target.value)} />
+        <TextField label={gettext('Display name (optional)')}
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)} />
+      </Box>
+      <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
+        <Button variant="contained" disabled={working || !database.trim()}
+          onClick={() => apply('database_target_attach', {
+            database, display_name: displayName || undefined,
+          })}>{gettext('Verify and attach')}</Button>
+        {catalog.server_verification && <Button disabled={working ||
         !catalog.active_target_id}
-      onClick={() => apply('database_target_disconnect')}>
-        {gettext('Use server scope')}</Button>}
-    </Box>
+        onClick={() => apply('database_target_disconnect')}>
+          {gettext('Use server scope')}</Button>}
+      </Box>
+    </>}
+    {createOperation && (!catalog?.multiple || mode === 'create') && <>
+      <Box sx={{display: 'flex', flexDirection: 'column', gap: 2}}>
+        {createFields.filter((field) => fieldVisible(field, draft)).map(
+          (field) => <VisualAdminField key={field.field_id} field={field}
+            value={draft[field.field_id]}
+            onChange={(value) => setDraft((current) => ({
+              ...current, [field.field_id]: value,
+            }))} />)}
+      </Box>
+      {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
+        {validation.errors.map((item) => item.message).join(' ')}
+      </Alert>}
+      {plan && <Box component="pre" sx={{mt: 2, p: 1, overflow: 'auto',
+        maxHeight: 240, bgcolor: 'background.default'}}>
+        {JSON.stringify(plan, null, 2)}
+      </Box>}
+      {result && <Alert severity="success" sx={{mt: 2}}>
+        {gettext('The provider completed the database operation. Refreshing the engine navigator will show the provider-observed result.')}
+      </Alert>}
+      {createOperation.confirmation_required && plan?.state === 'ready' &&
+        <FormControlLabel control={<Checkbox checked={confirmed}
+          onChange={(event) => setConfirmed(event.target.checked)} />}
+        label={gettext('I confirm this provider-planned database creation.')} />}
+      <Box sx={{display: 'flex', gap: 1, mt: 2}}>
+        <Button variant="contained" disabled={working}
+          onClick={previewCreate}>{gettext('Validate and preview')}</Button>
+        <Button color="warning" disabled={working ||
+          plan?.state !== 'ready' || !plan?.execution_available ||
+          (createOperation.confirmation_required && !confirmed)}
+        onClick={applyCreate}>{gettext('Create database')}</Button>
+        {working && <CircularProgress size={24} />}
+      </Box>
+    </>}
     {catalog.legacy_route_database && <Alert severity="warning" sx={{mt: 2}}>
       {gettext('This endpoint has a legacy route-level database. Reattach it below to migrate it into the multi-database target catalog.')}
       {' '}{catalog.legacy_route_database}
@@ -4603,8 +4729,10 @@ function DatabaseTargetWorkspace({initialCatalog, post, setError}) {
 
 DatabaseTargetWorkspace.propTypes = {
   initialCatalog: PropTypes.object,
+  visualCatalog: PropTypes.object,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  onRefresh: PropTypes.func,
 };
 
 function parseCsv(source) {
@@ -5001,8 +5129,10 @@ export default function ProviderWorkspaceContent({
         <Tab value="operations" label={gettext('Operations & Health')} />
         <Tab value="semantic" label={gettext('Cubes & Semantic Models')} />
         <Tab value="movement" label={gettext('Import & Bulk')} />
-        {workspace?.endpoint?.route_management_available &&
-          <Tab value="connections" label={gettext('Connections')} />}
+        {(initialTab === 'connections' ||
+          workspace?.endpoint?.route_management_available) &&
+          <Tab value="connections"
+            label={gettext('Databases & Connections')} />}
         {workspace?.visual_admin?.model_family === 'document' &&
           <Tab value="streams" label={gettext('Change streams')} />}
       </Tabs>
@@ -5092,7 +5222,9 @@ export default function ProviderWorkspaceContent({
         <Box sx={{overflow: 'auto', flex: 1}}>
           <DatabaseTargetWorkspace
             initialCatalog={workspace.database_targets}
-            post={post} setError={setError} />
+            visualCatalog={workspace.visual_admin}
+            post={post} setError={setError}
+            onRefresh={refreshResources} />
           <ConnectionRouteWorkspace post={post} setError={setError} />
         </Box>}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&

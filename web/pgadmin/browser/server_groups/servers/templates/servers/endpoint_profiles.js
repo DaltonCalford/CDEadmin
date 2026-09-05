@@ -13,6 +13,9 @@ define(
   function() {
     const profiles = {{ profiles | tojson }};
     const defaultProfile = profiles.find((profile) => profile.default);
+    const navigatorEngineId = (profile) =>
+      profile.engine_id === 'opensearch_sql_ppl' ?
+        'opensearch' : profile.engine_id;
     return {
       profiles,
       defaultProfile,
@@ -24,7 +27,7 @@ define(
         protocolId: profile.protocol_id,
       })),
       interfaces: (engineId) => profiles.filter(
-        (profile) => profile.engine_id === engineId
+        (profile) => navigatorEngineId(profile) === engineId
       ),
       get: (profileId) => profiles.find(
         (profile) => profile.profile_id === profileId

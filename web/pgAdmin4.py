@@ -83,6 +83,20 @@ class ReverseProxied():
 ##########################################################################
 config.SETTINGS_SCHEMA_VERSION = SCHEMA_VERSION
 
+# Include the source revision in static asset URLs. CDEadmin is developed and
+# tested between upstream-style version releases, so the inherited numeric
+# application version alone is not sufficient to invalidate browser caches.
+try:
+    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                           'commit_hash')) as commit_file:
+        config.COMMIT_HASH = commit_file.readline().strip()
+except FileNotFoundError:
+    config.COMMIT_HASH = None
+if config.COMMIT_HASH:
+    config.APP_VERSION_INT = '{}-{}'.format(
+        config.APP_VERSION_INT, config.COMMIT_HASH.split()[0][:12]
+    )
+
 # Check if the database exists. If it does not, create it.
 setup_db_required = False
 if not os.path.isfile(config.SQLITE_PATH):
@@ -94,16 +108,6 @@ if not os.path.isfile(config.SQLITE_PATH):
 ##########################################################################
 app = create_app()
 app.config['sessions'] = dict()
-
-# We load the file here instead of evaluate config
-# as we don't know the path of this file in evaluate config
-# commit_hash file resides in the web directory
-try:
-    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                           'commit_hash')) as f:
-        config.COMMIT_HASH = f.readline().strip()
-except FileNotFoundError as _:
-    config.COMMIT_HASH = None
 
 if setup_db_required:
     setup.setup_db(app)

@@ -176,7 +176,8 @@ export function getConnectionParameters() {
 };
 
 export default class ServerSchema extends BaseUISchema {
-  constructor(serverGroupOptions=[], userId=0, initValues={}) {
+  constructor(serverGroupOptions=[], userId=0, initValues={},
+    registrationContext={}) {
     super({
       gid: undefined,
       id: undefined,
@@ -221,6 +222,10 @@ export default class ServerSchema extends BaseUISchema {
     this.paramSchema = new VariableSchema(getConnectionParameters(), null, null, ['name', 'keyword', 'value']);
     this.tagsSchema = new TagsSchema();
     this.userId = userId;
+    this.registrationEngineId = registrationContext.engineId || null;
+    this.registrationProfiles = this.registrationEngineId ?
+      endpointProfiles.interfaces(this.registrationEngineId) :
+      endpointProfiles.profiles;
     _.bindAll(this, 'isShared');
   }
 
@@ -361,10 +366,16 @@ export default class ServerSchema extends BaseUISchema {
         disabled: obj.isShared,
       },
       {
-        id: 'cde_profile_id', label: gettext('Engine / interface profile'),
+        id: 'cde_profile_id', label: this.registrationEngineId ?
+          gettext('Interface profile') : gettext('Engine / interface profile'),
         type: 'select',
-        options: endpointProfiles.options, controlProps: {allowClear: false},
+        options: endpointProfiles.options.filter((option) =>
+          this.registrationProfiles.some((profile) =>
+            profile.profile_id === option.value)),
+        controlProps: {allowClear: false},
         mode: ['properties', 'create'], noEmpty: true,
+        visible: () => !this.registrationEngineId ||
+          this.registrationProfiles.length > 1,
         helpMessage: gettext(
           'Select the native interface used by this endpoint. Engines with '+
           'multiple interfaces, such as YugabyteDB, expose each interface '+
@@ -510,6 +521,7 @@ export default class ServerSchema extends BaseUISchema {
         id: 'db', label: gettext('Database / file'), type: 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnectedOrShared,
         deps: ['cde_profile_id'],
+        visible: (state) => obj.requiresDatabase(state),
         noEmpty: false,
         helpMessage: gettext(
           'Optional for server-level engine profiles. A database can be '+

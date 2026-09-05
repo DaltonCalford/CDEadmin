@@ -361,7 +361,7 @@ define('pgadmin.browser.node', [
         let t = pgBrowser.tree,
           nodeItem = args?.item || item || t.selected(),
           nodeData = nodeItem ? t.itemData(nodeItem) : undefined,
-          panelTitle = this.title(nodeData, args.action),
+          panelTitle = args.panelTitle || this.title(nodeData, args.action),
           treeNodeInfo = pgBrowser.tree.getTreeNodeHierarchy(nodeItem);
 
         if (!nodeData)
@@ -420,6 +420,7 @@ define('pgadmin.browser.node', [
             treeNodeInfo: treeNodeInfo,
             item: nodeItem,
             nodeData: nodeData,
+            initialData: args.initialData,
             actionType: 'create',
             onSave: onSave,
             onClose: onClose,
