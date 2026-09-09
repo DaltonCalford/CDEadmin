@@ -81,4 +81,36 @@ describe('CDEadmin tree-node contract', () => {
     expect(Object.isFrozen(node.capabilities)).toBe(true);
     expect(node.capabilities.editable).toBe(true);
   });
+
+  it('normalizes checkbox and radio metadata for visual tree nodes', () => {
+    const checked = descriptorFromTreeMetadata({
+      id: 'connector:firebird',
+      _label: 'Firebird',
+      _type: 'engine_type',
+      checkable: true,
+      check_state: 'mixed',
+      check_label: 'Show Firebird connector',
+    });
+    const radio = descriptorFromTreeMetadata({
+      id: 'route:primary',
+      _label: 'Primary route',
+      _type: 'route',
+      check_type: 'radio',
+      check_group: 'route',
+      checked: true,
+    });
+
+    expect(checked.check).toEqual(expect.objectContaining({
+      type: 'checkbox',
+      checked: false,
+      indeterminate: true,
+      label: 'Show Firebird connector',
+    }));
+    expect(radio.check).toEqual(expect.objectContaining({
+      type: 'radio',
+      checked: true,
+      group: 'route',
+    }));
+    expect(Object.isFrozen(checked.check)).toBe(true);
+  });
 });

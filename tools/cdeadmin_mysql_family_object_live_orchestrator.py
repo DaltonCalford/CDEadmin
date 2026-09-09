@@ -114,7 +114,9 @@ def _image_identity(image):
     }
 
 
-def run(engine, image, server_log, startup_timeout=300):
+def run(
+        engine, image, server_log, startup_timeout=300,
+        dialect_qualification=False):
     if engine not in IMAGES:
         raise ValueError('unsupported MySQL-family qualification engine')
     identity = _image_identity(image)
@@ -129,13 +131,19 @@ def run(engine, image, server_log, startup_timeout=300):
     started = False
     result = None
     try:
-        _run([
+        command = [
             'docker', 'run', '-d', '--rm', '--name', container,
             '-e', environment, '-p', f'127.0.0.1::{PORT}', image,
-        ])
+        ]
+        if engine == 'mariadb':
+            command.extend(['--log-bin=mariadb-bin', '--server-id=1'])
+        _run(command)
         started = True
         port = _wait_until_ready(engine, container, startup_timeout)
-        result = verify(engine, '127.0.0.1', port)
+        result = verify(
+            engine, '127.0.0.1', port,
+            dialect_qualification=dialect_qualification,
+        )
     finally:
         server_log.parent.mkdir(parents=True, exist_ok=True)
         if started:
@@ -165,10 +173,15 @@ def main(argv=None):
     parser.add_argument('--object-output', type=Path, required=True)
     parser.add_argument('--server-log', type=Path, required=True)
     parser.add_argument('--startup-timeout', type=int, default=300)
+    parser.add_argument(
+        '--dialect-qualification', action='store_true',
+        help='Exercise generated SQL before activating its exact contract.',
+    )
     options = parser.parse_args(argv)
     result = run(
         options.engine, options.image or IMAGES[options.engine],
         options.server_log, startup_timeout=options.startup_timeout,
+        dialect_qualification=options.dialect_qualification,
     )
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(
@@ -193,7 +206,11 @@ def main(argv=None):
         'credential_values_exported': False,
         'server_stopped': result['server_stopped'],
     }, indent=2, sort_keys=True))
-    return 0 if result['activation_ready'] else 1
+    ready = (
+        result['dialect_qualification_ready']
+        if options.dialect_qualification else result['activation_ready']
+    )
+    return 0 if ready else 1
 
 
 if __name__ == '__main__':

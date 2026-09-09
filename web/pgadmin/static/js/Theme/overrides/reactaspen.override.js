@@ -9,6 +9,13 @@
 
 
 export default function reactAspenOverride(theme) {
+  const reducedMotionLoader =
+    'html[data-cdeadmin-motion="reduced"] '
+    + '.file-entry button.directory-toggle.loading';
+  const forcedColorGuides =
+    '.file-entry span.tree-branch-segment:before, '
+    + '.file-entry span.tree-branch-segment:after, '
+    + '.file-entry span.tree-node-terminal.leaf:before';
   return {
     '.drag-tree-node': {
       position: 'absolute',
@@ -41,6 +48,28 @@ export default function reactAspenOverride(theme) {
       height: '100%',
     },
 
+    '@keyframes cde-tree-spin': {
+      to: {transform: 'rotate(360deg)'},
+    },
+
+    [reducedMotionLoader]: {
+      animation: 'none',
+      backgroundColor: theme.palette.primary.main,
+      borderColor: theme.palette.primary.main,
+      opacity: 0.7,
+    },
+
+    '@media (forced-colors: active)': {
+      [forcedColorGuides]: {
+        backgroundColor: 'CanvasText',
+      },
+      '.file-entry button.directory-toggle': {
+        borderColor: 'CanvasText',
+        color: 'CanvasText',
+        forcedColorAdjust: 'auto',
+      },
+    },
+
     '.file-tree>': {
       div: {
         position: 'absolute' + ' !important',
@@ -65,49 +94,130 @@ export default function reactAspenOverride(theme) {
       paddingLeft: '2px',
       cursor: 'default',
 
-      '&:before': {
-        content: '""',
-        background: theme.palette.grey[400],
-        position: 'absolute',
-        width: '1px',
+      'span.tree-branch': {
+        alignSelf: 'stretch',
+        display: 'inline-flex',
+        flexShrink: 0,
         height: '100%',
-        // set box-shadow to show tree indent guide.
-        boxShadow: `'-16px 0 0 0' + theme.palette.grey[400],
-          '-32px 0 0 0' + theme.palette.grey[400],
-          '-48px 0 0 0' + theme.palette.grey[400],
-          '-64px 0 0 0' + theme.palette.grey[400],
-          '-80px 0 0 0' + theme.palette.grey[400],
-          '-96px 0 0 0' + theme.palette.grey[400],
-          '-112px 0 0 0' + theme.palette.grey[400],
-          '-128px 0 0 0' + theme.palette.grey[400],
-          '-144px 0 0 0' + theme.palette.grey[400],
-          '-160px 0 0 0' + theme.palette.grey[400],
-          '-176px 0 0 0' + theme.palette.grey[400],
-          '-192px 0 0 0' + theme.palette.grey[400],
-          '-208px 0 0 0' + theme.palette.grey[400],
-          '-224px 0 0 0' + theme.palette.grey[400],
-          '-240px 0 0 0' + theme.palette.grey[400],
-          '-256px 0 0 0' + theme.palette.grey[400],
-          '-272px 0 0 0' + theme.palette.grey[400],
-          '-288px 0 0 0' + theme.palette.grey[400],
-          '-304px 0 0 0' + theme.palette.grey[400],
-          '-320px 0 0 0' + theme.palette.grey[400],
-          '-336px 0 0 0' + theme.palette.grey[400],
-          '-352px 0 0 0' + theme.palette.grey[400],
-          '-368px 0 0 0' + theme.palette.grey[400],
-          '-384px 0 0 0' + theme.palette.grey[400],
-          '-400px 0 0 0' + theme.palette.grey[400],
-          '-416px 0 0 0' + theme.palette.grey[400],
-          '-432px 0 0 0' + theme.palette.grey[400],
-          '-448px 0 0 0' + theme.palette.grey[400],
-          '-464px 0 0 0' + theme.palette.grey[400],
-          '-480px 0 0 0' + theme.palette.grey[400],
-          '-496px 0 0 0' + theme.palette.grey[400],
-          '-512px 0 0 0' + theme.palette.grey[400],
-          '-528px 0 0 0' + theme.palette.grey[400],
-          '-544px 0 0 0' + theme.palette.grey[400],
-          '-544px 0 0 0' + theme.palette.grey[400],
-          '-560px 0 0 0' + theme.palette.grey[400]`,
+        pointerEvents: 'none',
+      },
+
+      'span.tree-branch-segment': {
+        display: 'inline-block',
+        flex: '0 0 var(--cde-tree-indent, 18px)',
+        height: '100%',
+        position: 'relative',
+        width: 'var(--cde-tree-indent, 18px)',
+
+        '&.ancestor.continues:before, &.current:before': {
+          backgroundColor: 'var(--cde-tree-guide-color, '
+            + theme.otherVars.tree.textFg + ')',
+          content: '""',
+          left: '50%',
+          position: 'absolute',
+          top: '-2px',
+          width: 'var(--cde-tree-guide-width, 1px)',
+          height: 'calc(100% + 4px)',
+        },
+
+        '&.current.is-last:before': {
+          height: 'calc(50% + 2px)',
+        },
+
+        '&.current:after': {
+          backgroundColor: 'var(--cde-tree-guide-color, '
+            + theme.otherVars.tree.textFg + ')',
+          content: '""',
+          height: 'var(--cde-tree-guide-width, 1px)',
+          left: '50%',
+          position: 'absolute',
+          top: '50%',
+          width: 'calc(50% + '
+            + '(var(--cde-tree-expander-size, 16px) / 2) + 2px)',
+        },
+      },
+
+      'button.directory-toggle, span.tree-node-terminal': {
+        flex: '0 0 var(--cde-tree-expander-size, 16px)',
+        height: 'var(--cde-tree-expander-size, 16px)',
+        margin: '0 2px',
+        position: 'relative',
+        width: 'var(--cde-tree-expander-size, 16px)',
+        zIndex: 1,
+      },
+
+      'button.directory-toggle': {
+        appearance: 'none',
+        backgroundColor: theme.otherVars.tree.inputBg,
+        border: 'var(--cde-tree-guide-width, 1px) solid '
+          + 'var(--cde-tree-guide-color, ' + theme.palette.grey[500] + ')',
+        borderRadius: '2px',
+        color: theme.otherVars.tree.textFg,
+        cursor: 'pointer',
+        padding: 0,
+
+        '&:before, &:after': {
+          backgroundColor: 'currentColor',
+          content: '""',
+          left: '25%',
+          position: 'absolute',
+          top: 'calc(50% - (var(--cde-tree-guide-width, 1px) / 2))',
+          width: '50%',
+          height: 'var(--cde-tree-guide-width, 1px)',
+        },
+
+        '&:after': {
+          left: 'calc(50% - (var(--cde-tree-guide-width, 1px) / 2))',
+          top: '25%',
+          width: 'var(--cde-tree-guide-width, 1px)',
+          height: '50%',
+        },
+
+        '&.open:after': {
+          display: 'none',
+        },
+
+        '&.loading': {
+          borderColor: 'transparent',
+          borderRadius: '50%',
+          borderTopColor: theme.palette.primary.main,
+          animation: 'cde-tree-spin var(--cde-motion-slow, 300ms) linear infinite',
+          '&:before, &:after': {
+            display: 'none',
+          },
+        },
+
+        '&:focus-visible': {
+          outline: 'var(--cde-focus-width, 2px) solid '
+            + 'var(--cde-color-focus, ' + theme.palette.primary.main + ')',
+          outlineOffset: 'var(--cde-focus-offset, 1px)',
+        },
+      },
+
+      'span.tree-node-terminal.leaf:before': {
+        backgroundColor: 'var(--cde-tree-guide-color, '
+          + theme.otherVars.tree.textFg + ')',
+        borderRadius: '50%',
+        content: '""',
+        height: 'calc(2px + var(--cde-tree-guide-width, 1px))',
+        left: 'calc(50% - 1px)',
+        position: 'absolute',
+        top: 'calc(50% - 1px)',
+        width: 'calc(2px + var(--cde-tree-guide-width, 1px))',
+      },
+
+      'input.tree-node-check': {
+        accentColor: theme.palette.primary.main,
+        cursor: 'pointer',
+        flex: '0 0 auto',
+        height: 'calc(var(--cde-tree-expander-size, 16px) - 2px)',
+        margin: '0 4px 0 1px',
+        width: 'calc(var(--cde-tree-expander-size, 16px) - 2px)',
+      },
+
+      '&.disabled': {
+        cursor: 'not-allowed',
+        opacity: 0.58,
       },
 
       '&.big': {
@@ -196,50 +306,8 @@ export default function reactAspenOverride(theme) {
           display: 'inline-block',
         },
 
-        '&.directory-toggle': {
-          '&:before': {
-            backgroundPosition: '6px center !important',
-            fontFamily: '"Font Awesome 5 Free"',
-            content: '"\\f054"',
-            borderStyle: 'none',
-            marginLeft: '5px',
-            fontWeight: 900,
-            right: '15px',
-            top: '3px',
-            fontSize: '0.6rem',
-            lineHeight: 2,
-          },
-
-          '&.open:before': {
-            backgroundPosition: '-14px center !important',
-            fontFamily: theme.typography.fontFamilyIcon,
-            content: '"\\f078"',
-            borderStyle: 'none',
-            marginLeft: '5px',
-            fontWeight: 900,
-            transform: 'none !important',
-          },
-
-          '&.loading:before': {
-            content: '""',
-            fontFamily: theme.typography.fontFamilyIcon,
-            borderStyle: 'none',
-            background: theme.otherVars.iconLoaderSmall + ' 0 0 no-repeat',
-            backgroundPosition: 'center !important',
-          },
-        },
       },
 
-      '&.prompt.new .file-label, &.file .file-label': {
-        marginLeft: '18px',
-      },
-
-      // Set the tree depth CSS from depth
-      ...Object.fromEntries(
-        new Array(50).fill(0).map((v, i) => {
-          return ['&.depth-' + i, { paddingLeft: 16 * (i - 1) + 'px' }];
-        })
-      ),
     },
   };
 }

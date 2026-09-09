@@ -46,13 +46,14 @@ const StyledDiv = styled('div')(({theme})=>({
       zIndex: 1,
 
       '& .pgrt-header-row': {
-        minHeight: 'max(34px, var(--cde-grid-row-height, 30px))',
+        minHeight: 'var(--cde-grid-header-height, 34px)',
         display: 'flex',
 
         '& .pgrt-header-cell': {
           position: 'relative',
           fontWeight: theme.typography.fontWeightBold,
-          padding: theme.spacing(0.5),
+          paddingInline: 'var(--cde-grid-cell-padding, 8px)',
+          paddingBlock: theme.spacing(0.5),
           textAlign: 'left',
           alignContent: 'center',
           backgroundColor: theme.otherVars.tableBg,
@@ -98,7 +99,8 @@ const StyledDiv = styled('div')(({theme})=>({
 
           '& .pgrd-row-cell': {
             margin: 0,
-            padding: theme.spacing(0.25, 0.5),
+            paddingInline: 'var(--cde-grid-cell-padding, 8px)',
+            paddingBlock: theme.spacing(0.25),
             ...theme.mixins.panelBorder.bottom,
             ...theme.mixins.panelBorder.right,
             position: 'relative',
@@ -191,7 +193,7 @@ export function PgReactTableCell(
     classNames.push(cell.column.columnDef.dataClassName);
   }
 
-  classNames.push(className);
+  className && classNames.push(className);
 
   return (
     <div ref={ref} key={cell.id} style={{
@@ -226,7 +228,8 @@ export function PgReactTableRow (
   }
 ) {
   return (
-    <div className={['pgrt-row', className].join(' ')} ref={ref} {...props}>
+    <div className={['pgrt-row', className].filter(Boolean).join(' ')}
+      ref={ref} {...props}>
       {children}
     </div>
   );
@@ -246,7 +249,8 @@ export function PgReactTableRowContent(
   }
 ) {
   return (
-    <div className={['pgrt-row-content', className].join(' ')} ref={ref} {...props}>
+    <div className={['pgrt-row-content', className].filter(Boolean).join(' ')}
+      ref={ref} {...props}>
       {children}
     </div>
   );

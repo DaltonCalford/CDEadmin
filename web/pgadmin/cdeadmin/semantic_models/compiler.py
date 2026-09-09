@@ -12,22 +12,88 @@
 from __future__ import annotations
 
 import copy
+import re
 from decimal import Decimal
+from typing import Mapping
 
 from .models import SemanticModelError, validate_model, validate_query
 
 
 def compile_sql(model_value, query_value, dialect):
     """Compile a validated model only when invoked by an owning provider."""
+    if not isinstance(dialect, Mapping) or dialect.get(
+            'contract_complete') is not True:
+        raise SemanticModelError(
+            'provider semantic SQL dialect contract is incomplete'
+        )
+    required = {
+        'language_profile', 'quote_open', 'quote_close',
+        'supports_rollup', 'limit_style', 'true_literal', 'false_literal',
+        'time_operations', 'window_operations',
+    }
+    missing = sorted(required.difference(dialect))
+    if missing:
+        raise SemanticModelError(
+            'provider semantic SQL dialect contract is missing: ' +
+            ', '.join(missing)
+        )
+    if dialect['limit_style'] not in {'limit', 'rows'}:
+        raise SemanticModelError(
+            'provider semantic SQL limit style is unsupported'
+        )
+    rollup_style = dialect.get('rollup_style', 'function')
+    if rollup_style not in {'function', 'with_rollup'}:
+        raise SemanticModelError(
+            'provider semantic SQL rollup style is unsupported'
+        )
+    rollup_allows_order_by = dialect.get(
+        'rollup_allows_order_by', True
+    )
+    if not isinstance(rollup_allows_order_by, bool):
+        raise SemanticModelError(
+            'provider semantic SQL rollup ordering flag is invalid'
+        )
+    window_input_cast = dialect.get('window_input_cast')
+    if window_input_cast is not None and (
+        not isinstance(window_input_cast, str) or
+        re.fullmatch(
+            r'[A-Za-z][A-Za-z0-9_]*(?:\(\d+(?:,\s*\d+)?\))?',
+            window_input_cast,
+        ) is None
+    ):
+        raise SemanticModelError(
+            'provider semantic SQL window input cast is invalid'
+        )
+    percent_change_result_cast = dialect.get(
+        'percent_change_result_cast'
+    )
+    if percent_change_result_cast is not None and (
+        not isinstance(percent_change_result_cast, str) or
+        re.fullmatch(
+            r'[A-Za-z][A-Za-z0-9_]*(?:\(\d+(?:,\s*\d+)?\))?',
+            percent_change_result_cast,
+        ) is None
+    ):
+        raise SemanticModelError(
+            'provider semantic SQL percent-change result cast is invalid'
+        )
+    percent_change_numerator_cast = dialect.get(
+        'percent_change_numerator_cast'
+    )
+    if percent_change_numerator_cast is not None and (
+        not isinstance(percent_change_numerator_cast, str) or
+        re.fullmatch(
+            r'[A-Za-z][A-Za-z0-9_]*(?:\(\d+(?:,\s*\d+)?\))?',
+            percent_change_numerator_cast,
+        ) is None
+    ):
+        raise SemanticModelError(
+            'provider semantic SQL percent-change numerator cast is invalid'
+        )
     model = validate_model(model_value)
     query = validate_query(model, query_value)
-    time_operations = frozenset(dialect.get('time_operations', (
-        'as_of', 'range', 'period_to_date', 'period_comparison',
-    )))
-    window_operations = frozenset(dialect.get('window_operations', (
-        'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
-        'percent_change', 'rank', 'dense_rank',
-    )))
+    time_operations = frozenset(dialect['time_operations'])
+    window_operations = frozenset(dialect['window_operations'])
     if query['time_intelligence'] and query['time_intelligence'][
             'operation'] not in time_operations:
         raise SemanticModelError(
@@ -41,8 +107,8 @@ def compile_sql(model_value, query_value, dialect):
             'provider does not admit requested analytical window operations: '
             + ', '.join(sorted(unavailable_windows))
         )
-    quote_open = dialect.get('quote_open', '"')
-    quote_close = dialect.get('quote_close', quote_open)
+    quote_open = dialect['quote_open']
+    quote_close = dialect['quote_close']
 
     def quote(value):
         return quote_open + str(value).replace(
@@ -130,6 +196,13 @@ def compile_sql(model_value, query_value, dialect):
             expression = field(measure['field'])
         else:
             expression = measure_expression(measure_id)
+            if query['windows'] and window_input_cast and any(
+                item['measure_id'] == measure_id
+                for item in query['windows']
+            ):
+                expression = (
+                    f'CAST({expression} AS {window_input_cast})'
+                )
         selections.append(f'{expression} AS {quote(measure_id)}')
     detail_aliases = []
     for index, reference in enumerate(drill['detail_fields']):
@@ -228,8 +301,15 @@ def compile_sql(model_value, query_value, dialect):
         for item in query['measures']
     ):
         group_keyword = 'GROUP BY'
-        if query['totals'] and dialect.get('supports_rollup'):
-            source += ' GROUP BY ROLLUP (' + ', '.join(group_fields) + ')'
+        if query['totals'] and dialect['supports_rollup']:
+            if rollup_style == 'with_rollup':
+                source += (
+                    ' GROUP BY ' + ', '.join(group_fields) + ' WITH ROLLUP'
+                )
+            else:
+                source += (
+                    ' GROUP BY ROLLUP (' + ', '.join(group_fields) + ')'
+                )
         else:
             source += ' ' + group_keyword + ' ' + ', '.join(group_fields)
     output_order = [quote(item) for item in axis_ids]
@@ -237,11 +317,17 @@ def compile_sql(model_value, query_value, dialect):
         output_order.append(quote('__semantic_period'))
     if query['windows']:
         source = _compile_sql_windows(
-            source, query['windows'], axis_ids, quote
+            source, query['windows'], axis_ids, quote,
+            percent_change_result_cast=percent_change_result_cast,
+            percent_change_numerator_cast=percent_change_numerator_cast,
         )
-    if output_order:
+    native_rollup_without_order = bool(
+        query['totals'] and dialect['supports_rollup'] and
+        not rollup_allows_order_by
+    )
+    if output_order and not native_rollup_without_order:
         source += ' ORDER BY ' + ', '.join(output_order)
-    if dialect.get('limit_style') == 'rows':
+    if dialect['limit_style'] == 'rows':
         source += f" ROWS 1 TO {query['limit']}"
     else:
         source += f" LIMIT {query['limit']}"
@@ -258,15 +344,22 @@ def compile_sql(model_value, query_value, dialect):
             'time_intelligence': copy.deepcopy(time_intelligence),
             'windows': copy.deepcopy(query['windows']),
         },
-        'warnings': ([] if not query['totals'] or dialect.get(
-            'supports_rollup'
-        ) else [
-            'Provider does not declare native rollup; totals are omitted.'
-        ]),
+        'warnings': (
+            [
+                'Provider does not declare native rollup; totals are omitted.'
+            ] if query['totals'] and not dialect['supports_rollup'] else
+            [
+                'Provider native rollup does not admit ORDER BY; rollup '
+                'order is provider-defined.'
+            ] if native_rollup_without_order and output_order else []
+        ),
     }
 
 
-def _compile_sql_windows(source, windows, axis_ids, quote):
+def _compile_sql_windows(
+        source, windows, axis_ids, quote,
+        percent_change_result_cast=None,
+        percent_change_numerator_cast=None):
     """Wrap an aggregate query with provider-admitted native windows."""
     admitted = set(axis_ids)
     for window in windows:
@@ -313,11 +406,21 @@ def _compile_sql_windows(source, windows, axis_ids, quote):
             if operation == 'delta':
                 value = f'({measure} - {previous})'
             else:
+                numerator = f'({measure} - {previous})'
+                if percent_change_numerator_cast:
+                    numerator = (
+                        f'CAST({numerator} AS '
+                        f'{percent_change_numerator_cast})'
+                    )
                 value = (
                     f'(CASE WHEN {previous} IS NULL OR {previous} = 0 '
-                    f'THEN NULL ELSE ({measure} - {previous}) / '
+                    f'THEN NULL ELSE {numerator} / '
                     f'{previous} END)'
                 )
+                if percent_change_result_cast:
+                    value = (
+                        f'CAST({value} AS {percent_change_result_cast})'
+                    )
         else:
             function = 'RANK' if operation == 'rank' else 'DENSE_RANK'
             rank_clause = (
@@ -335,9 +438,7 @@ def _literal(value, dialect):
     if value is None:
         return 'NULL'
     if isinstance(value, bool):
-        return dialect.get('true_literal', 'TRUE') if value else dialect.get(
-            'false_literal', 'FALSE'
-        )
+        return dialect['true_literal'] if value else dialect['false_literal']
     if (
         isinstance(value, (int, float, Decimal)) and
         not isinstance(value, bool)

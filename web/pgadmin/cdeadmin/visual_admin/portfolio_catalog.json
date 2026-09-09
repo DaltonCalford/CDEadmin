@@ -6,6 +6,60 @@
       "title": "Inspect",
       "fields": []
     },
+    "set_default": {
+      "title": "Set default",
+      "fields": [
+        {"field_id": "member", "label": "Member", "control": "text", "required": true}
+      ]
+    },
+    "replication_change": {
+      "title": "Configure replication channel",
+      "fields": [
+        {"field_id": "name", "label": "Channel name", "control": "text", "required": false}
+      ]
+    },
+    "replication_start": {
+      "title": "Start replication channel",
+      "fields": []
+    },
+    "replication_stop": {
+      "title": "Stop replication channel",
+      "fields": []
+    },
+    "replication_reset": {
+      "title": "Reset replication channel",
+      "fields": [
+        {"field_id": "confirmation", "label": "Confirmation", "control": "text", "required": true}
+      ]
+    },
+    "mariadb_set_global": {
+      "title": "Set MariaDB global system variable",
+      "fields": [
+        {"field_id": "value_mode", "label": "Value source", "control": "select", "required": true, "default": "VALUE", "options": [{"value": "VALUE", "label": "Specified value"}, {"value": "DEFAULT", "label": "Compiled default"}]},
+        {"field_id": "value", "label": "Global value", "control": "text", "required": false, "visible_when": {"field_id": "value_mode", "equals": "VALUE"}}
+      ]
+    },
+    "mariadb_session_termination": {
+      "title": "Terminate MariaDB session work",
+      "fields": [
+        {"field_id": "termination_mode", "label": "Termination mode", "control": "select", "required": true, "default": "SOFT", "options": [{"value": "SOFT", "label": "Soft"}, {"value": "HARD", "label": "Hard"}]},
+        {"field_id": "confirmation", "label": "Confirm process ID", "control": "text", "required": true}
+      ]
+    },
+    "mariadb_binary_log_purge": {
+      "title": "Purge MariaDB binary logs before selected file",
+      "fields": [
+        {"field_id": "confirmation", "label": "Confirm retained binary-log name", "control": "text", "required": true}
+      ]
+    },
+    "mariadb_binary_log_rotate": {
+      "title": "Rotate MariaDB binary log",
+      "fields": []
+    },
+    "mariadb_upgrade_check": {
+      "title": "Check whether this MariaDB server requires upgrade",
+      "fields": []
+    },
     "create": {
       "title": "Create",
       "fields": [
@@ -14,11 +68,521 @@
         {"field_id": "options", "label": "Engine-specific options", "control": "json", "required": false, "default": {}}
       ]
     },
+    "mysql_analyze_tables": {
+      "title": "Analyze MySQL tables and histograms",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "no_write_to_binlog", "label": "Do not write this maintenance statement to the binary log", "control": "boolean", "required": false, "default": false},
+        {"field_id": "histogram_action", "label": "Histogram action", "control": "select", "required": false, "default": "NONE", "options": [{"value": "NONE", "label": "Do not change histograms"}, {"value": "UPDATE", "label": "Update histogram"}, {"value": "DROP", "label": "Drop histogram"}]},
+        {"field_id": "histogram_columns", "label": "Histogram column names (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "histogram_buckets", "label": "Histogram buckets", "control": "number", "required": false, "default": 100, "minimum": 1, "maximum": 1024},
+        {"field_id": "histogram_auto_update", "label": "Automatically update the histogram", "control": "boolean", "required": false, "default": false},
+        {"field_id": "histogram_data", "label": "Exact histogram JSON data", "control": "json", "required": false}
+      ]
+    },
+    "mysql_check_tables": {
+      "title": "Check MySQL tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "check_options", "label": "Check options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "QUICK", "label": "Quick"}, {"value": "FAST", "label": "Fast"}, {"value": "MEDIUM", "label": "Medium"}, {"value": "EXTENDED", "label": "Extended"}, {"value": "CHANGED", "label": "Changed since last check"}, {"value": "FOR UPGRADE", "label": "For upgrade"}]}
+      ]
+    },
+    "mysql_optimize_tables": {
+      "title": "Optimize MySQL tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "no_write_to_binlog", "label": "Do not write this maintenance statement to the binary log", "control": "boolean", "required": false, "default": false}
+      ]
+    },
+    "mysql_repair_tables": {
+      "title": "Repair MySQL tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native MyISAM, ARCHIVE, or CSV table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "no_write_to_binlog", "label": "Do not write this maintenance statement to the binary log", "control": "boolean", "required": false, "default": false},
+        {"field_id": "repair_options", "label": "Repair options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "QUICK", "label": "Quick"}, {"value": "EXTENDED", "label": "Extended"}, {"value": "USE_FRM", "label": "Use FRM file"}]}
+      ]
+    },
+    "mysql_checksum_tables": {
+      "title": "Checksum MySQL tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "checksum_type", "label": "Checksum method", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Engine default"}, {"value": "QUICK", "label": "Quick"}, {"value": "EXTENDED", "label": "Extended"}]}
+      ]
+    },
+    "mariadb_analyze_tables": {
+      "title": "Analyze MariaDB tables and persistent statistics",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "binlog_mode", "label": "Binary-log mode", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Server default"}, {"value": "NO_WRITE_TO_BINLOG", "label": "Do not write to binary log"}, {"value": "LOCAL", "label": "Local only"}]},
+        {"field_id": "persistent_for", "label": "Persistent statistics", "control": "select", "required": false, "default": "NONE", "options": [{"value": "NONE", "label": "Do not collect persistent statistics"}, {"value": "ALL", "label": "All columns and indexes"}, {"value": "SPECIFIED", "label": "Specified columns and indexes"}]},
+        {"field_id": "persistent_columns", "label": "Persistent-statistics columns (JSON array, empty means none)", "control": "json", "required": false, "default": []},
+        {"field_id": "persistent_indexes", "label": "Persistent-statistics indexes (JSON array, empty means none)", "control": "json", "required": false, "default": []}
+      ]
+    },
+    "mariadb_check_objects": {
+      "title": "Check MariaDB tables or views",
+      "fields": [
+        {"field_id": "object_type", "label": "Object type", "control": "select", "required": true, "default": "TABLE", "options": [{"value": "TABLE", "label": "Tables"}, {"value": "VIEW", "label": "Views"}]},
+        {"field_id": "objects", "label": "Native object names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "check_options", "label": "Check options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "QUICK", "label": "Quick"}, {"value": "FAST", "label": "Fast"}, {"value": "MEDIUM", "label": "Medium"}, {"value": "EXTENDED", "label": "Extended"}, {"value": "CHANGED", "label": "Changed since last check"}, {"value": "FOR UPGRADE", "label": "For upgrade"}]}
+      ]
+    },
+    "mariadb_optimize_tables": {
+      "title": "Optimize MariaDB tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "binlog_mode", "label": "Binary-log mode", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Server default"}, {"value": "NO_WRITE_TO_BINLOG", "label": "Do not write to binary log"}, {"value": "LOCAL", "label": "Local only"}]},
+        {"field_id": "lock_wait_mode", "label": "Metadata-lock wait", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Server default"}, {"value": "WAIT", "label": "Wait for a fixed number of seconds"}, {"value": "NOWAIT", "label": "Do not wait"}]},
+        {"field_id": "lock_wait_seconds", "label": "Lock-wait seconds", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 4294967295}
+      ]
+    },
+    "mariadb_repair_objects": {
+      "title": "Repair MariaDB tables or views",
+      "fields": [
+        {"field_id": "object_type", "label": "Object type", "control": "select", "required": true, "default": "TABLE", "options": [{"value": "TABLE", "label": "Tables"}, {"value": "VIEW", "label": "Views"}]},
+        {"field_id": "objects", "label": "Native object names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "binlog_mode", "label": "Binary-log mode", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Server default"}, {"value": "NO_WRITE_TO_BINLOG", "label": "Do not write to binary log"}, {"value": "LOCAL", "label": "Local only"}]},
+        {"field_id": "repair_options", "label": "Repair options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "QUICK", "label": "Quick"}, {"value": "EXTENDED", "label": "Extended"}, {"value": "USE_FRM", "label": "Use FRM file"}, {"value": "FORCE", "label": "Force"}, {"value": "FOR UPGRADE", "label": "View: for upgrade"}, {"value": "FROM MYSQL", "label": "View: migrate from MySQL"}]}
+      ]
+    },
+    "mariadb_checksum_tables": {
+      "title": "Checksum MariaDB tables",
+      "fields": [
+        {"field_id": "tables", "label": "Native table names (JSON array)", "control": "json", "required": true, "default": []},
+        {"field_id": "checksum_type", "label": "Checksum method", "control": "select", "required": false, "default": "DEFAULT", "options": [{"value": "DEFAULT", "label": "Engine default"}, {"value": "QUICK", "label": "Quick"}, {"value": "EXTENDED", "label": "Extended"}]}
+      ]
+    },
+    "mariadb_backup_logical": {
+      "title": "Back up MariaDB database with mariadb-dump 12.2",
+      "fields": [
+        {"field_id": "path", "label": "New SQL dump file below the endpoint tool workspace", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "include_schema", "label": "Include database and object definitions", "control": "boolean", "required": false, "default": true},
+        {"field_id": "include_data", "label": "Include table data", "control": "boolean", "required": false, "default": true},
+        {"field_id": "single_transaction", "label": "Use one consistent transaction for transactional tables", "control": "boolean", "required": false, "default": true},
+        {"field_id": "lock_all_tables", "label": "Hold a global read lock for the entire dump", "control": "boolean", "required": false, "default": false},
+        {"field_id": "add_drop_database", "label": "Include DROP DATABASE before CREATE DATABASE", "control": "boolean", "required": false, "default": true},
+        {"field_id": "add_drop_table", "label": "Include DROP TABLE before each table", "control": "boolean", "required": false, "default": true},
+        {"field_id": "routines", "label": "Include stored functions and procedures", "control": "boolean", "required": false, "default": true},
+        {"field_id": "events", "label": "Include events", "control": "boolean", "required": false, "default": true},
+        {"field_id": "triggers", "label": "Include triggers", "control": "boolean", "required": false, "default": true},
+        {"field_id": "dump_history", "label": "Include system-versioned table history", "control": "boolean", "required": false, "default": false},
+        {"field_id": "as_of", "label": "Dump system-versioned rows as of this timestamp", "control": "text", "required": false, "max_length": 128},
+        {"field_id": "hex_blob", "label": "Write binary values in hexadecimal", "control": "boolean", "required": false, "default": true},
+        {"field_id": "order_by_primary", "label": "Write rows in primary-key order", "control": "boolean", "required": false, "default": false},
+        {"field_id": "extended_insert", "label": "Use multi-row INSERT statements", "control": "boolean", "required": false, "default": true},
+        {"field_id": "complete_insert", "label": "Include column names in INSERT statements", "control": "boolean", "required": false, "default": false},
+        {"field_id": "comments", "label": "Include dump comments", "control": "boolean", "required": false, "default": true},
+        {"field_id": "dump_date", "label": "Include completion date", "control": "boolean", "required": false, "default": true},
+        {"field_id": "default_character_set", "label": "Dump connection character set", "control": "text", "required": false, "default": "utf8mb4", "max_length": 64},
+        {"field_id": "tz_utc", "label": "Normalize timestamp columns to UTC", "control": "boolean", "required": false, "default": true},
+        {"field_id": "flush_logs", "label": "Flush server logs before the dump", "control": "boolean", "required": false, "default": false},
+        {"field_id": "replication_position", "label": "Replication coordinates", "control": "select", "required": false, "default": "NONE", "options": [{"value": "NONE", "label": "Do not emit CHANGE MASTER"}, {"value": "COMMENTED", "label": "Emit commented coordinates"}, {"value": "EXECUTABLE", "label": "Emit executable coordinates"}]},
+        {"field_id": "gtid", "label": "Use GTID coordinates with replication position", "control": "boolean", "required": false, "default": false},
+        {"field_id": "compress_connection", "label": "Compress the client/server connection", "control": "boolean", "required": false, "default": false},
+        {"field_id": "max_allowed_packet", "label": "Maximum packet bytes", "control": "number", "required": false, "default": 1073741824, "minimum": 4096, "maximum": 1073741824}
+      ]
+    },
+    "mariadb_restore_logical": {
+      "title": "Restore MariaDB database with mariadb 12.2",
+      "fields": [
+        {"field_id": "path", "label": "CDEadmin SQL dump file below the endpoint tool workspace", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "confirmation", "label": "Type the exact target database name to confirm restore", "control": "text", "required": true, "max_length": 64},
+        {"field_id": "abort_on_error", "label": "Abort at the first SQL error", "control": "boolean", "required": false, "default": true},
+        {"field_id": "binary_mode", "label": "Preserve binary input and disable unsafe client commands", "control": "boolean", "required": false, "default": true},
+        {"field_id": "default_character_set", "label": "Restore connection character set", "control": "text", "required": false, "default": "utf8mb4", "max_length": 64},
+        {"field_id": "compress_connection", "label": "Compress the client/server connection", "control": "boolean", "required": false, "default": false},
+        {"field_id": "max_allowed_packet", "label": "Maximum packet bytes", "control": "number", "required": false, "default": 1073741824, "minimum": 4096, "maximum": 1073741824},
+        {"field_id": "show_warnings", "label": "Return server warnings in the redacted observation", "control": "boolean", "required": false, "default": true},
+        {"field_id": "dry_run", "label": "Validate artifact metadata and checksum without restoring", "control": "boolean", "required": false, "default": false}
+      ]
+    },
+    "mysql_backup_logical": {
+      "title": "Back up MySQL database with MySQL Shell 9.7",
+      "fields": [
+        {"field_id": "path", "label": "New dump directory below the endpoint tool workspace", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "consistent", "label": "Create a consistent dump", "control": "boolean", "required": false, "default": true},
+        {"field_id": "skip_consistency_checks", "label": "Skip extra consistency checks", "control": "boolean", "required": false, "default": false},
+        {"field_id": "ddl_only", "label": "Dump definitions only", "control": "boolean", "required": false, "default": false},
+        {"field_id": "data_only", "label": "Dump data only", "control": "boolean", "required": false, "default": false},
+        {"field_id": "events", "label": "Include events", "control": "boolean", "required": false, "default": true},
+        {"field_id": "routines", "label": "Include routines", "control": "boolean", "required": false, "default": true},
+        {"field_id": "libraries", "label": "Include libraries", "control": "boolean", "required": false, "default": true},
+        {"field_id": "triggers", "label": "Include triggers", "control": "boolean", "required": false, "default": true},
+        {"field_id": "checksum", "label": "Write dump checksums", "control": "boolean", "required": false, "default": true},
+        {"field_id": "chunking", "label": "Split table data into chunks", "control": "boolean", "required": false, "default": true},
+        {"field_id": "bytes_per_chunk", "label": "Approximate bytes per chunk", "control": "text", "required": false, "default": "64M"},
+        {"field_id": "threads", "label": "Dump threads", "control": "number", "required": false, "default": 4, "minimum": 1, "maximum": 1024},
+        {"field_id": "max_rate", "label": "Maximum data read rate per thread", "control": "text", "required": false},
+        {"field_id": "compression", "label": "Dump compression", "control": "text", "required": false, "default": "zstd;level=1", "help": "Use none, gzip, gzip;level=0..9, zstd, or zstd;level=1..22."},
+        {"field_id": "default_character_set", "label": "Dump metadata character set", "control": "text", "required": false, "default": "utf8mb4"},
+        {"field_id": "tz_utc", "label": "Normalize timestamps to UTC", "control": "boolean", "required": false, "default": true},
+        {"field_id": "show_progress", "label": "Report progress", "control": "boolean", "required": false, "default": true},
+        {"field_id": "include_tables", "label": "Included schema.table names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_tables", "label": "Excluded schema.table names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_events", "label": "Included schema.event names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_events", "label": "Excluded schema.event names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_routines", "label": "Included schema.routine names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_routines", "label": "Excluded schema.routine names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_libraries", "label": "Included schema.library names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_libraries", "label": "Excluded schema.library names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_triggers", "label": "Included schema.table.trigger names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_triggers", "label": "Excluded schema.table.trigger names (JSON array)", "control": "json", "required": false},
+        {"field_id": "partitions", "label": "Included partitions by schema.table (JSON object)", "control": "json", "required": false},
+        {"field_id": "where", "label": "Table row filters by schema.table (JSON object)", "control": "json", "required": false},
+        {"field_id": "compatibility", "label": "Compatibility transformations (JSON array)", "control": "json", "required": false},
+        {"field_id": "target_version", "label": "Target MySQL version", "control": "text", "required": false},
+        {"field_id": "skip_upgrade_checks", "label": "Skip upgrade compatibility checks", "control": "boolean", "required": false, "default": false},
+        {"field_id": "dry_run", "label": "Validate without writing the dump", "control": "boolean", "required": false, "default": false}
+      ]
+    },
+    "mysql_restore_logical": {
+      "title": "Restore MySQL database with MySQL Shell 9.7",
+      "fields": [
+        {"field_id": "path", "label": "Completed dump directory below the endpoint tool workspace", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "confirmation", "label": "Type the exact target database name to confirm restore", "control": "text", "required": true, "max_length": 64},
+        {"field_id": "load_ddl", "label": "Load definitions", "control": "boolean", "required": false, "default": true},
+        {"field_id": "load_data", "label": "Load table data", "control": "boolean", "required": false, "default": true},
+        {"field_id": "load_indexes", "label": "Create indexes", "control": "boolean", "required": false, "default": true},
+        {"field_id": "load_users", "label": "Load users", "control": "boolean", "required": false, "default": false},
+        {"field_id": "checksum", "label": "Verify dump checksums", "control": "boolean", "required": false, "default": true},
+        {"field_id": "threads", "label": "Restore threads", "control": "number", "required": false, "default": 4, "minimum": 1, "maximum": 1024},
+        {"field_id": "background_threads", "label": "Background index threads", "control": "number", "required": false, "default": 4, "minimum": 0, "maximum": 1024},
+        {"field_id": "analyze_tables", "label": "Analyze restored tables", "control": "select", "required": false, "default": "off", "options": [{"value": "off", "label": "Off"}, {"value": "on", "label": "On"}, {"value": "histogram", "label": "Update histograms"}]},
+        {"field_id": "defer_table_indexes", "label": "Deferred index creation", "control": "select", "required": false, "default": "fulltext", "options": [{"value": "off", "label": "Do not defer"}, {"value": "fulltext", "label": "Defer full-text indexes"}, {"value": "all", "label": "Defer all secondary indexes"}]},
+        {"field_id": "create_invisible_pks", "label": "Create invisible primary keys when required", "control": "boolean", "required": false, "default": false},
+        {"field_id": "disable_bulk_load", "label": "Disable MySQL bulk-load extension", "control": "boolean", "required": false, "default": false},
+        {"field_id": "enable_local_infile", "label": "Temporarily enable the trusted server local_infile setting", "control": "boolean", "required": false, "default": false, "help": "MySQL Shell requires local_infile. CDEadmin restores its prior global value after the operation; this requires SYSTEM_VARIABLES_ADMIN."},
+        {"field_id": "drop_existing_objects", "label": "Drop conflicting existing objects", "control": "boolean", "required": false, "default": false},
+        {"field_id": "ignore_existing_objects", "label": "Ignore conflicting existing objects", "control": "boolean", "required": false, "default": false},
+        {"field_id": "ignore_version", "label": "Ignore dump/server version incompatibility", "control": "boolean", "required": false, "default": false},
+        {"field_id": "handle_grant_errors", "label": "Grant error handling", "control": "select", "required": false, "default": "abort", "options": [{"value": "abort", "label": "Abort"}, {"value": "drop_account", "label": "Drop affected account"}, {"value": "ignore", "label": "Ignore"}]},
+        {"field_id": "update_gtid_set", "label": "GTID_PURGED handling", "control": "select", "required": false, "default": "off", "options": [{"value": "off", "label": "Off"}, {"value": "replace", "label": "Replace"}, {"value": "append", "label": "Append"}]},
+        {"field_id": "skip_binlog", "label": "Disable binary logging during restore", "control": "boolean", "required": false, "default": false},
+        {"field_id": "reset_progress", "label": "Discard saved load progress", "control": "boolean", "required": false, "default": false},
+        {"field_id": "progress_file", "label": "Progress-state file below tool workspace", "control": "text", "required": false},
+        {"field_id": "max_bytes_per_transaction", "label": "Maximum bytes per transaction", "control": "text", "required": false},
+        {"field_id": "character_set", "label": "Input character set override", "control": "text", "required": false},
+        {"field_id": "schema", "label": "Target schema override", "control": "text", "required": false},
+        {"field_id": "session_init_sql", "label": "Per-session initialization statements (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_schemas", "label": "Included schemas (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_schemas", "label": "Excluded schemas (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_tables", "label": "Included schema.table names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_tables", "label": "Excluded schema.table names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_events", "label": "Included schema.event names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_events", "label": "Excluded schema.event names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_routines", "label": "Included schema.routine names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_routines", "label": "Excluded schema.routine names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_libraries", "label": "Included schema.library names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_libraries", "label": "Excluded schema.library names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_triggers", "label": "Included schema.table.trigger names (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_triggers", "label": "Excluded schema.table.trigger names (JSON array)", "control": "json", "required": false},
+        {"field_id": "include_users", "label": "Included accounts (JSON array)", "control": "json", "required": false},
+        {"field_id": "exclude_users", "label": "Excluded accounts (JSON array)", "control": "json", "required": false},
+        {"field_id": "show_metadata", "label": "Show dump metadata", "control": "boolean", "required": false, "default": false},
+        {"field_id": "show_progress", "label": "Report progress", "control": "boolean", "required": false, "default": true},
+        {"field_id": "wait_dump_timeout", "label": "Wait for an in-progress dump (seconds)", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 86400, "integer": false},
+        {"field_id": "dry_run", "label": "Validate without changing the server", "control": "boolean", "required": false, "default": false}
+      ]
+    },
     "firebird_database_create": {
       "title": "Create Firebird database",
       "fields": [
-        {"field_id": "database_path", "label": "Database filename or absolute server path", "control": "text", "required": true, "max_length": 4096}
+        {"field_id": "database_path", "label": "Absolute database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "page_size", "label": "Page size", "control": "select", "required": false, "default": "8192", "options": [{"value": "4096", "label": "4096"}, {"value": "8192", "label": "8192"}, {"value": "16384", "label": "16384"}, {"value": "32768", "label": "32768"}]},
+        {"field_id": "default_charset", "label": "Default character set", "control": "text", "required": false, "default": "UTF8", "max_length": 63},
+        {"field_id": "sql_dialect", "label": "Database SQL dialect", "control": "select", "required": false, "default": "3", "options": [{"value": "1", "label": "1"}, {"value": "3", "label": "3"}]},
+        {"field_id": "forced_writes", "label": "Force synchronous writes", "control": "boolean", "required": false, "default": true},
+        {"field_id": "reserve_space", "label": "Reserve page space for record versions", "control": "boolean", "required": false, "default": true}
       ]
+    },
+    "firebird_database_alter": {
+      "title": "Alter Firebird database properties",
+      "fields": [
+        {"field_id": "default_charset", "label": "Default character set", "control": "text", "required": false, "max_length": 63},
+        {"field_id": "linger_seconds", "label": "Linger time in seconds", "control": "number", "required": false, "minimum": 0, "maximum": 2147483647},
+        {"field_id": "drop_linger", "label": "Drop the configured linger time", "control": "boolean", "required": false, "default": false},
+        {"field_id": "default_sql_security", "label": "Default SQL security", "control": "select", "required": false, "options": [{"value": "DEFINER", "label": "Definer"}, {"value": "INVOKER", "label": "Invoker"}]}
+      ]
+    },
+    "sqlite_database_create": {
+      "title": "Create SQLite database file",
+      "fields": [
+        {"field_id": "name", "label": "Database filename", "control": "text", "required": true, "max_length": 255},
+        {"field_id": "page_size", "label": "Page size", "control": "select", "required": false, "default": "4096", "options": [{"value": "512", "label": "512"}, {"value": "1024", "label": "1024"}, {"value": "2048", "label": "2048"}, {"value": "4096", "label": "4096"}, {"value": "8192", "label": "8192"}, {"value": "16384", "label": "16384"}, {"value": "32768", "label": "32768"}, {"value": "65536", "label": "65536"}]},
+        {"field_id": "encoding", "label": "Text encoding", "control": "select", "required": false, "default": "UTF-8", "options": [{"value": "UTF-8", "label": "UTF-8"}, {"value": "UTF-16", "label": "UTF-16 (native byte order)"}, {"value": "UTF-16le", "label": "UTF-16 little-endian"}, {"value": "UTF-16be", "label": "UTF-16 big-endian"}]},
+        {"field_id": "auto_vacuum", "label": "Auto-vacuum mode", "control": "select", "required": false, "default": "NONE", "options": [{"value": "NONE", "label": "None"}, {"value": "FULL", "label": "Full"}, {"value": "INCREMENTAL", "label": "Incremental"}]},
+        {"field_id": "application_id", "label": "Application ID", "control": "number", "required": false, "default": 0, "minimum": -2147483648, "maximum": 2147483647},
+        {"field_id": "user_version", "label": "User version", "control": "number", "required": false, "default": 0, "minimum": -2147483648, "maximum": 2147483647}
+      ]
+    },
+    "sqlite_database_alter": {
+      "title": "Configure SQLite database file",
+      "fields": [
+        {"field_id": "journal_mode", "label": "Journal mode", "control": "select", "required": false, "options": [{"value": "DELETE", "label": "Delete"}, {"value": "TRUNCATE", "label": "Truncate"}, {"value": "PERSIST", "label": "Persist"}, {"value": "MEMORY", "label": "Memory"}, {"value": "WAL", "label": "Write-ahead log"}, {"value": "OFF", "label": "Off"}]},
+        {"field_id": "synchronous", "label": "Synchronous mode", "control": "select", "required": false, "options": [{"value": "OFF", "label": "Off"}, {"value": "NORMAL", "label": "Normal"}, {"value": "FULL", "label": "Full"}, {"value": "EXTRA", "label": "Extra"}]},
+        {"field_id": "auto_vacuum", "label": "Auto-vacuum mode", "control": "select", "required": false, "options": [{"value": "NONE", "label": "None"}, {"value": "FULL", "label": "Full"}, {"value": "INCREMENTAL", "label": "Incremental"}]},
+        {"field_id": "page_size", "label": "Page size", "control": "select", "required": false, "options": [{"value": "512", "label": "512"}, {"value": "1024", "label": "1024"}, {"value": "2048", "label": "2048"}, {"value": "4096", "label": "4096"}, {"value": "8192", "label": "8192"}, {"value": "16384", "label": "16384"}, {"value": "32768", "label": "32768"}, {"value": "65536", "label": "65536"}]},
+        {"field_id": "application_id", "label": "Application ID", "control": "number", "required": false, "minimum": -2147483648, "maximum": 2147483647},
+        {"field_id": "user_version", "label": "User version", "control": "number", "required": false, "minimum": -2147483648, "maximum": 2147483647},
+        {"field_id": "run_vacuum", "label": "Rebuild the database with VACUUM", "control": "boolean", "required": false, "default": false, "help": "Required when changing page size or auto-vacuum mode on an existing database."}
+      ]
+    },
+    "sqlite_database_drop": {
+      "title": "Delete SQLite database file",
+      "fields": [
+        {"field_id": "confirmation", "label": "Type the exact database path to confirm deletion", "control": "text", "required": true, "max_length": 4096}
+      ]
+    },
+    "sqlite_database_backup": {
+      "title": "Back up SQLite database",
+      "fields": [
+        {"field_id": "backup_path", "label": "Absolute backup database filename", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "overwrite", "label": "Replace an existing backup file", "control": "boolean", "required": false, "default": false}
+      ]
+    },
+    "sqlite_database_restore": {
+      "title": "Restore SQLite database",
+      "fields": [
+        {"field_id": "backup_path", "label": "Absolute backup database filename", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "confirmation", "label": "Type the active database path to confirm replacement", "control": "text", "required": true, "max_length": 4096}
+      ]
+    },
+    "sqlite_database_check": {
+      "title": "Check SQLite database",
+      "fields": [
+        {"field_id": "max_errors", "label": "Maximum reported errors", "control": "number", "required": false, "default": 100, "minimum": 1, "maximum": 10000}
+      ]
+    },
+    "sqlite_foreign_key_check": {
+      "title": "Check SQLite foreign keys",
+      "fields": [
+        {"field_id": "table", "label": "Optional table name", "control": "text", "required": false, "max_length": 255}
+      ]
+    },
+    "sqlite_database_action": {
+      "title": "Run SQLite database operation",
+      "fields": []
+    },
+    "sqlite_incremental_vacuum": {
+      "title": "Run SQLite incremental vacuum",
+      "fields": [
+        {"field_id": "pages", "label": "Maximum free-list pages (0 means all)", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 2147483647}
+      ]
+    },
+    "sqlite_named_database_action": {
+      "title": "Run SQLite object maintenance",
+      "fields": [
+        {"field_id": "target", "label": "Optional table or index name", "control": "text", "required": false, "max_length": 255}
+      ]
+    },
+    "sqlite_wal_checkpoint": {
+      "title": "Checkpoint SQLite write-ahead log",
+      "fields": [
+        {"field_id": "mode", "label": "Checkpoint mode", "control": "select", "required": false, "default": "PASSIVE", "options": [
+          {"value": "PASSIVE", "label": "Passive"},
+          {"value": "FULL", "label": "Full"},
+          {"value": "RESTART", "label": "Restart"},
+          {"value": "TRUNCATE", "label": "Truncate"}
+        ]}
+      ]
+    },
+    "duckdb_database_create": {
+      "title": "Create DuckDB database file",
+      "fields": [
+        {"field_id": "name", "label": "Database filename", "control": "text", "required": true, "max_length": 255, "help": "Created below the endpoint-approved root; .duckdb is added when omitted."},
+        {"field_id": "config", "label": "DuckDB creation configuration", "control": "json", "required": false, "default": {}, "help": "Named scalar options passed to DuckDB 1.5.2 while opening the new file."}
+      ]
+    },
+    "duckdb_database_drop": {
+      "title": "Delete DuckDB database file",
+      "fields": [
+        {"field_id": "confirmation", "label": "Type the exact database path to confirm deletion", "control": "text", "required": true, "max_length": 4096}
+      ]
+    },
+    "duckdb_database_action": {
+      "title": "Run DuckDB database operation",
+      "fields": []
+    },
+    "duckdb_database_export": {
+      "title": "Export DuckDB database",
+      "fields": [
+        {"field_id": "directory", "label": "Absolute empty export directory", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "format", "label": "Export format", "control": "select", "required": true, "default": "PARQUET", "options": [{"value": "PARQUET", "label": "Parquet"}, {"value": "CSV", "label": "CSV"}]}
+      ]
+    },
+    "duckdb_database_import": {
+      "title": "Import DuckDB database",
+      "fields": [
+        {"field_id": "directory", "label": "Absolute DuckDB export directory", "control": "text", "required": true, "max_length": 4096, "help": "The directory must contain schema.sql and load.sql from EXPORT DATABASE."}
+      ]
+    },
+    "firebird_backup_logical": {
+      "title": "Firebird logical backup (gbak)",
+      "fields": [
+        {"field_id": "backup_file", "label": "Backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "backup_flags", "label": "Backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IGNORE_CHECKSUMS", "label": "Ignore checksums"}, {"value": "IGNORE_LIMBO", "label": "Ignore limbo transactions"}, {"value": "METADATA_ONLY", "label": "Metadata only"}, {"value": "NO_GARBAGE_COLLECT", "label": "No garbage collection"}, {"value": "OLD_DESCRIPTIONS", "label": "Use old metadata descriptions"}, {"value": "NON_TRANSPORTABLE", "label": "Non-transportable"}, {"value": "CONVERT", "label": "Convert external tables to internal tables"}, {"value": "EXPAND", "label": "Create an uncompressed backup"}, {"value": "NO_TRIGGERS", "label": "Disable database triggers"}, {"value": "ZIP", "label": "Compressed backup"}, {"value": "DIRECT_IO", "label": "Direct I/O"}]},
+        {"field_id": "skip_data", "label": "Skip data for tables matching", "control": "text", "required": false},
+        {"field_id": "include_data", "label": "Include data for tables matching", "control": "text", "required": false},
+        {"field_id": "parallel_workers", "label": "Parallel workers", "control": "number", "required": false, "minimum": 1, "maximum": 128},
+        {"field_id": "statistics", "label": "Statistics letters (T, D, W, R)", "control": "text", "required": false, "max_length": 4},
+        {"field_id": "verbose", "label": "Verbose service output", "control": "boolean", "required": false, "default": true},
+        {"field_id": "verbose_interval", "label": "Verbose output interval", "control": "number", "required": false, "minimum": 1, "maximum": 2147483647},
+        {"field_id": "key_holder", "label": "Key-holder plugin", "control": "text", "required": false},
+        {"field_id": "key_name", "label": "Encryption key name", "control": "text", "required": false},
+        {"field_id": "crypt_plugin", "label": "Backup encryption plugin", "control": "text", "required": false},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_restore_logical": {
+      "title": "Firebird logical restore (gbak)",
+      "fields": [
+        {"field_id": "backup_file", "label": "Backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "additional_backup_files", "label": "Additional backup volume filenames (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "additional_database_files", "label": "Additional database filenames (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "database_file_pages", "label": "Database file page allocations (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "replace_existing", "label": "Replace an existing database", "control": "boolean", "required": false, "default": false},
+        {"field_id": "restore_flags", "label": "Restore options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "METADATA_ONLY", "label": "Metadata only"}, {"value": "DEACTIVATE_IDX", "label": "Deactivate indexes"}, {"value": "NO_SHADOW", "label": "Do not restore shadows"}, {"value": "NO_VALIDITY", "label": "Do not restore validity constraints"}, {"value": "ONE_AT_A_TIME", "label": "Commit each table"}, {"value": "USE_ALL_SPACE", "label": "Use all page space"}, {"value": "NO_TRIGGERS", "label": "Disable database triggers"}, {"value": "DIRECT_IO", "label": "Direct I/O"}]},
+        {"field_id": "page_size", "label": "Restored page size", "control": "select", "required": false, "options": [{"value": "4096", "label": "4096"}, {"value": "8192", "label": "8192"}, {"value": "16384", "label": "16384"}, {"value": "32768", "label": "32768"}]},
+        {"field_id": "page_buffers", "label": "Default page buffers", "control": "number", "required": false, "minimum": 0, "maximum": 2147483647},
+        {"field_id": "access_mode", "label": "Database access mode", "control": "select", "required": false, "default": "READ_WRITE", "options": [{"value": "READ_WRITE", "label": "Read/write"}, {"value": "READ_ONLY", "label": "Read only"}]},
+        {"field_id": "replica_mode", "label": "Restored database replica mode", "control": "select", "required": false, "options": [{"value": "NONE", "label": "Not a replica"}, {"value": "READ_ONLY", "label": "Read-only replica"}, {"value": "READ_WRITE", "label": "Read/write replica"}]},
+        {"field_id": "parallel_workers", "label": "Parallel workers", "control": "number", "required": false, "minimum": 1, "maximum": 128},
+        {"field_id": "statistics", "label": "Statistics letters (T, D, W, R)", "control": "text", "required": false, "max_length": 4},
+        {"field_id": "verbose", "label": "Verbose service output", "control": "boolean", "required": false, "default": true},
+        {"field_id": "verbose_interval", "label": "Verbose output interval", "control": "number", "required": false, "minimum": 1, "maximum": 2147483647},
+        {"field_id": "skip_data", "label": "Skip data for tables matching", "control": "text", "required": false},
+        {"field_id": "include_data", "label": "Include data for tables matching", "control": "text", "required": false},
+        {"field_id": "key_holder", "label": "Key-holder plugin", "control": "text", "required": false},
+        {"field_id": "key_name", "label": "Encryption key name", "control": "text", "required": false},
+        {"field_id": "crypt_plugin", "label": "Backup encryption plugin", "control": "text", "required": false},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_backup_physical": {
+      "title": "Firebird physical backup (nbackup)",
+      "fields": [
+        {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 255},
+        {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false},
+        {"field_id": "direct_io", "label": "Use direct I/O", "control": "boolean", "required": false, "default": false},
+        {"field_id": "backup_flags", "label": "Physical backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "NO_TRIGGERS", "label": "Disable database triggers"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_restore_physical": {
+      "title": "Firebird physical restore (nbackup)",
+      "fields": [
+        {"field_id": "backup_files", "label": "Ordered server backup filenames (JSON array)", "control": "json", "required": true},
+        {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "direct_io", "label": "Use direct I/O", "control": "boolean", "required": false, "default": false},
+        {"field_id": "restore_flags", "label": "Physical restore options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IN_PLACE", "label": "In-place"}, {"value": "SEQUENCE", "label": "Sequence mode"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_validate_database": {
+      "title": "Validate Firebird database", "fields": [
+        {"field_id": "include_table", "label": "Include table regex", "control": "text", "required": false},
+        {"field_id": "exclude_table", "label": "Exclude table regex", "control": "text", "required": false},
+        {"field_id": "include_index", "label": "Include index regex", "control": "text", "required": false},
+        {"field_id": "exclude_index", "label": "Exclude index regex", "control": "text", "required": false},
+        {"field_id": "lock_timeout", "label": "Lock timeout in seconds", "control": "number", "required": false, "default": 10, "minimum": -1, "maximum": 86400},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_repair_database": {
+      "title": "Repair Firebird database (gfix)", "fields": [
+        {"field_id": "repair_action", "label": "Repair action", "control": "select", "required": true, "default": "VALIDATE_DB", "options": [{"value": "VALIDATE_DB", "label": "Basic page validation"}, {"value": "CORRUPTION_CHECK", "label": "Full corruption check (no update)"}, {"value": "REPAIR", "label": "Full repair"}, {"value": "KILL_SHADOWS", "label": "Kill unavailable shadows"}, {"value": "ICU", "label": "Update ICU dependencies"}, {"value": "UPGRADE_DB", "label": "Upgrade database"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_sweep_database": {
+      "title": "Sweep Firebird database", "fields": [
+        {"field_id": "parallel_workers", "label": "Parallel workers", "control": "number", "required": false, "minimum": 1, "maximum": 128},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_database_statistics": {
+      "title": "Firebird database statistics (gstat)", "fields": [
+        {"field_id": "statistics_flags", "label": "Statistics sections", "control": "multiselect", "required": true, "default": ["HDR_PAGES"], "options": [{"value": "DATA_PAGES", "label": "Data pages"}, {"value": "DB_LOG", "label": "Database log"}, {"value": "HDR_PAGES", "label": "Header pages"}, {"value": "IDX_PAGES", "label": "Index pages"}, {"value": "SYS_RELATIONS", "label": "System relations"}, {"value": "RECORD_VERSIONS", "label": "Record versions"}, {"value": "NOCREATION", "label": "Suppress creation metadata"}, {"value": "ENCRYPTION", "label": "Encryption statistics"}]},
+        {"field_id": "tables", "label": "Restrict to tables (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_shutdown_database": {
+      "title": "Shut down Firebird database", "fields": [
+        {"field_id": "mode", "label": "Shutdown mode", "control": "select", "required": true, "default": "FULL", "options": [{"value": "MULTI", "label": "Multi-user maintenance"}, {"value": "SINGLE", "label": "Single-user maintenance"}, {"value": "FULL", "label": "Full shutdown"}]},
+        {"field_id": "method", "label": "Shutdown method", "control": "select", "required": true, "default": "DENY_ATTACHMENTS", "options": [{"value": "FORCED", "label": "Force shutdown"}, {"value": "DENY_ATTACHMENTS", "label": "Deny new attachments"}, {"value": "DENY_TRANSACTIONS", "label": "Deny new transactions"}]},
+        {"field_id": "shutdown_timeout", "label": "Timeout in seconds", "control": "number", "required": true, "default": 0, "minimum": 0, "maximum": 86400},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_bring_online": {
+      "title": "Bring Firebird database online", "fields": [
+        {"field_id": "mode", "label": "Online mode", "control": "select", "required": true, "default": "NORMAL", "options": [{"value": "NORMAL", "label": "Normal"}, {"value": "MULTI", "label": "Multi-user"}, {"value": "SINGLE", "label": "Single-user"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_page_cache_size": {
+      "title": "Set Firebird database page cache size", "fields": [
+        {"field_id": "page_buffers", "label": "Default page buffers", "control": "number", "required": true, "minimum": 0, "maximum": 2147483647},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_sweep_interval": {
+      "title": "Set Firebird automatic sweep interval", "fields": [
+        {"field_id": "sweep_interval", "label": "Sweep interval (transactions; 0 disables automatic sweep)", "control": "number", "required": true, "minimum": 0, "maximum": 2147483647},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_space_reservation": {
+      "title": "Set Firebird page space reservation", "fields": [
+        {"field_id": "mode", "label": "Page space policy", "control": "select", "required": true, "default": "RESERVE", "options": [{"value": "RESERVE", "label": "Reserve space for record versions"}, {"value": "USE_FULL", "label": "Use full data pages"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_write_mode": {
+      "title": "Set Firebird database write mode", "fields": [
+        {"field_id": "mode", "label": "Write mode", "control": "select", "required": true, "default": "SYNC", "options": [{"value": "SYNC", "label": "Synchronous forced writes"}, {"value": "ASYNC", "label": "Asynchronous writes"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_access_mode": {
+      "title": "Set Firebird database access mode", "fields": [
+        {"field_id": "mode", "label": "Access mode", "control": "select", "required": true, "default": "READ_WRITE", "options": [{"value": "READ_WRITE", "label": "Read/write"}, {"value": "READ_ONLY", "label": "Read only"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_sql_dialect": {
+      "title": "Set Firebird database SQL dialect", "fields": [
+        {"field_id": "sql_dialect", "label": "Database SQL dialect", "control": "select", "required": true, "default": "3", "options": [{"value": "1", "label": "Dialect 1"}, {"value": "3", "label": "Dialect 3"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_activate_shadow": {
+      "title": "Activate a Firebird database shadow", "fields": [
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_remove_linger": {
+      "title": "Remove Firebird database linger for the next attachment", "fields": [
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_fixup_database": {
+      "title": "Fix up Firebird database after a filesystem copy", "fields": [
+        {"field_id": "fixup_flags", "label": "Fixup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "SEQUENCE", "label": "Preserve replication sequence"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_set_replica_mode": {
+      "title": "Set Firebird database replica mode", "fields": [
+        {"field_id": "mode", "label": "Replica mode", "control": "select", "required": true, "default": "NONE", "options": [{"value": "NONE", "label": "Not a replica"}, {"value": "READ_ONLY", "label": "Read-only replica"}, {"value": "READ_WRITE", "label": "Read/write replica"}]},
+        {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
+      ]
+    },
+    "firebird_upgrade_database": {
+      "title": "Upgrade Firebird database ODS", "fields": []
     },
     "alter": {
       "title": "Alter",
@@ -100,6 +664,36 @@
       {"operation_id": "rename", "title": "Rename", "mutation_class": "admin", "form_id": "rename", "target_required": true},
       {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
     ],
+    "mysql_database": [
+      {"operation_id": "inspect", "title": "Database properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create database", "mutation_class": "admin", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter database", "mutation_class": "admin", "form_id": "alter", "target_required": true},
+      {"operation_id": "drop", "title": "Drop database", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "analyze_tables", "title": "Analyze tables and histograms", "mutation_class": "admin", "form_id": "mysql_analyze_tables", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "check_tables", "title": "Check tables", "mutation_class": "read", "form_id": "mysql_check_tables", "target_required": true, "required_permissions": ["data_read"]},
+      {"operation_id": "optimize_tables", "title": "Optimize tables", "mutation_class": "admin", "form_id": "mysql_optimize_tables", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "repair_tables", "title": "Repair tables", "mutation_class": "admin", "form_id": "mysql_repair_tables", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "checksum_tables", "title": "Checksum tables", "mutation_class": "read", "form_id": "mysql_checksum_tables", "target_required": true, "required_permissions": ["data_read"]},
+      {"operation_id": "backup_logical", "title": "Logical backup (MySQL Shell)", "mutation_class": "admin", "form_id": "mysql_backup_logical", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "restore_logical", "title": "Logical restore (MySQL Shell)", "mutation_class": "destructive", "form_id": "mysql_restore_logical", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]}
+    ],
+    "mariadb_database": [
+      {"operation_id": "inspect", "title": "Database properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create database", "mutation_class": "admin", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter database", "mutation_class": "admin", "form_id": "alter", "target_required": true},
+      {"operation_id": "drop", "title": "Drop database", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "analyze_tables", "title": "Analyze tables and persistent statistics", "mutation_class": "admin", "form_id": "mariadb_analyze_tables", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "check_objects", "title": "Check tables or views", "mutation_class": "read", "form_id": "mariadb_check_objects", "target_required": true, "required_permissions": ["data_read"]},
+      {"operation_id": "optimize_tables", "title": "Optimize tables", "mutation_class": "admin", "form_id": "mariadb_optimize_tables", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "repair_objects", "title": "Repair tables or views", "mutation_class": "admin", "form_id": "mariadb_repair_objects", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "checksum_tables", "title": "Checksum tables", "mutation_class": "read", "form_id": "mariadb_checksum_tables", "target_required": true, "required_permissions": ["data_read"]},
+      {"operation_id": "backup_logical", "title": "Logical backup (mariadb-dump)", "mutation_class": "admin", "form_id": "mariadb_backup_logical", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "restore_logical", "title": "Logical restore (mariadb client)", "mutation_class": "destructive", "form_id": "mariadb_restore_logical", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]}
+    ],
+    "mariadb_server": [
+      {"operation_id": "inspect", "title": "Server properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "check_upgrade_required", "title": "Check upgrade requirement (mariadb-upgrade)", "mutation_class": "read", "form_id": "mariadb_upgrade_check", "target_required": true, "required_permissions": ["upgrade_admin"]}
+    ],
     "definition": [
       {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
       {"operation_id": "create", "title": "Create", "mutation_class": "write", "form_id": "create", "target_required": false},
@@ -130,6 +724,7 @@
       {"operation_id": "rename", "title": "Rename", "mutation_class": "admin", "form_id": "rename", "target_required": true},
       {"operation_id": "grant", "title": "Grant", "mutation_class": "admin", "form_id": "grant", "target_required": true},
       {"operation_id": "revoke", "title": "Revoke", "mutation_class": "admin", "form_id": "revoke", "target_required": true},
+      {"operation_id": "set_default", "title": "Set default", "mutation_class": "admin", "form_id": "set_default", "target_required": true},
       {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
     ],
     "topology": [
@@ -140,6 +735,86 @@
     "operational": [
       {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
       {"operation_id": "execute", "title": "Run operation", "mutation_class": "admin", "form_id": "execute", "target_required": true, "confirmation_required": true}
+    ],
+    "mariadb_replication": [
+      {"operation_id": "inspect", "title": "Replication channel status", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create replication channel", "mutation_class": "admin", "form_id": "replication_change", "target_required": false},
+      {"operation_id": "alter", "title": "Change replication channel", "mutation_class": "admin", "form_id": "replication_change", "target_required": true},
+      {"operation_id": "start", "title": "Start replication channel", "mutation_class": "admin", "form_id": "replication_start", "target_required": true},
+      {"operation_id": "stop", "title": "Stop replication channel", "mutation_class": "admin", "form_id": "replication_stop", "target_required": true},
+      {"operation_id": "reset", "title": "Reset replication channel", "mutation_class": "destructive", "form_id": "replication_reset", "target_required": true, "confirmation_required": true}
+    ],
+    "mariadb_system_variable": [
+      {"operation_id": "inspect", "title": "System variable properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "set_global", "title": "Set runtime global value", "mutation_class": "admin", "form_id": "mariadb_set_global", "target_required": true, "required_permissions": ["maintenance_admin"]}
+    ],
+    "mariadb_session": [
+      {"operation_id": "inspect", "title": "Session and operation properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "terminate_query", "title": "Terminate current query", "mutation_class": "admin", "form_id": "mariadb_session_termination", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "terminate_connection", "title": "Terminate connection", "mutation_class": "destructive", "form_id": "mariadb_session_termination", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]}
+    ],
+    "mariadb_binary_log": [
+      {"operation_id": "inspect", "title": "Binary log properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "purge_before", "title": "Purge logs before this file", "mutation_class": "destructive", "form_id": "mariadb_binary_log_purge", "target_required": true, "confirmation_required": true, "required_permissions": ["replication_admin"]}
+    ],
+    "mariadb_binary_log_status": [
+      {"operation_id": "inspect", "title": "Binary log status", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "rotate", "title": "Rotate binary log", "mutation_class": "admin", "form_id": "mariadb_binary_log_rotate", "target_required": true, "required_permissions": ["replication_admin"]}
+    ],
+    "sqlite_database": [
+      {"operation_id": "inspect", "title": "Database file properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create database file", "mutation_class": "admin", "form_id": "sqlite_database_create", "target_required": false},
+      {"operation_id": "alter", "title": "Configure database file", "mutation_class": "admin", "form_id": "sqlite_database_alter", "target_required": true},
+      {"operation_id": "drop", "title": "Delete database file", "mutation_class": "destructive", "form_id": "sqlite_database_drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "backup", "title": "Online backup", "mutation_class": "admin", "form_id": "sqlite_database_backup", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "restore", "title": "Restore from backup", "mutation_class": "destructive", "form_id": "sqlite_database_restore", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]},
+      {"operation_id": "integrity_check", "title": "Integrity check", "mutation_class": "read", "form_id": "sqlite_database_check", "target_required": true},
+      {"operation_id": "quick_check", "title": "Quick integrity check", "mutation_class": "read", "form_id": "sqlite_database_check", "target_required": true},
+      {"operation_id": "foreign_key_check", "title": "Foreign-key check", "mutation_class": "read", "form_id": "sqlite_foreign_key_check", "target_required": true},
+      {"operation_id": "vacuum", "title": "Vacuum database", "mutation_class": "admin", "form_id": "sqlite_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "incremental_vacuum", "title": "Incremental vacuum", "mutation_class": "admin", "form_id": "sqlite_incremental_vacuum", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "optimize", "title": "Optimize query planner", "mutation_class": "admin", "form_id": "sqlite_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "analyze", "title": "Analyze statistics", "mutation_class": "admin", "form_id": "sqlite_named_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "reindex", "title": "Rebuild indexes", "mutation_class": "admin", "form_id": "sqlite_named_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "wal_checkpoint", "title": "WAL checkpoint", "mutation_class": "admin", "form_id": "sqlite_wal_checkpoint", "target_required": true, "required_permissions": ["maintenance_admin"]}
+    ],
+    "duckdb_database": [
+      {"operation_id": "inspect", "title": "Database file properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create database file", "mutation_class": "admin", "form_id": "duckdb_database_create", "target_required": false},
+      {"operation_id": "drop", "title": "Delete database file", "mutation_class": "destructive", "form_id": "duckdb_database_drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "checkpoint", "title": "Checkpoint database", "mutation_class": "admin", "form_id": "duckdb_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "force_checkpoint", "title": "Force checkpoint", "mutation_class": "admin", "form_id": "duckdb_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "vacuum", "title": "Vacuum database", "mutation_class": "admin", "form_id": "duckdb_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "analyze", "title": "Analyze statistics", "mutation_class": "admin", "form_id": "duckdb_database_action", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "export_database", "title": "Export database", "mutation_class": "admin", "form_id": "duckdb_database_export", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "import_database", "title": "Import database", "mutation_class": "admin", "form_id": "duckdb_database_import", "target_required": true, "required_permissions": ["restore_admin"]}
+    ],
+    "firebird_database": [
+      {"operation_id": "inspect", "title": "Database properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create database", "mutation_class": "admin", "form_id": "firebird_database_create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter database properties", "mutation_class": "admin", "form_id": "firebird_database_alter", "target_required": true},
+      {"operation_id": "drop", "title": "Drop database", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "backup_logical", "title": "Logical backup (gbak)", "mutation_class": "admin", "form_id": "firebird_backup_logical", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "restore_logical", "title": "Logical restore (gbak)", "mutation_class": "destructive", "form_id": "firebird_restore_logical", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]},
+      {"operation_id": "backup_physical", "title": "Physical backup (nbackup)", "mutation_class": "admin", "form_id": "firebird_backup_physical", "target_required": true, "required_permissions": ["backup_admin"]},
+      {"operation_id": "restore_physical", "title": "Physical restore (nbackup)", "mutation_class": "destructive", "form_id": "firebird_restore_physical", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]},
+      {"operation_id": "validate_database", "title": "Validate database", "mutation_class": "admin", "form_id": "firebird_validate_database", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "repair_database", "title": "Repair database (gfix)", "mutation_class": "destructive", "form_id": "firebird_repair_database", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "sweep_database", "title": "Sweep database", "mutation_class": "admin", "form_id": "firebird_sweep_database", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "database_statistics", "title": "Database statistics (gstat)", "mutation_class": "read", "form_id": "firebird_database_statistics", "target_required": true},
+      {"operation_id": "shutdown_database", "title": "Shut down database", "mutation_class": "destructive", "form_id": "firebird_shutdown_database", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "bring_online", "title": "Bring database online", "mutation_class": "admin", "form_id": "firebird_bring_online", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_page_cache_size", "title": "Set page cache size", "mutation_class": "admin", "form_id": "firebird_set_page_cache_size", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_sweep_interval", "title": "Set automatic sweep interval", "mutation_class": "admin", "form_id": "firebird_set_sweep_interval", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_space_reservation", "title": "Set page space reservation", "mutation_class": "admin", "form_id": "firebird_set_space_reservation", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_write_mode", "title": "Set write mode", "mutation_class": "admin", "form_id": "firebird_set_write_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_access_mode", "title": "Set access mode", "mutation_class": "admin", "form_id": "firebird_set_access_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_sql_dialect", "title": "Set SQL dialect", "mutation_class": "admin", "form_id": "firebird_set_sql_dialect", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "activate_shadow", "title": "Activate database shadow", "mutation_class": "destructive", "form_id": "firebird_activate_shadow", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "remove_linger", "title": "Remove linger for next attachment", "mutation_class": "admin", "form_id": "firebird_remove_linger", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "fixup_database", "title": "Fix up after filesystem copy", "mutation_class": "destructive", "form_id": "firebird_fixup_database", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "set_replica_mode", "title": "Set replica mode", "mutation_class": "admin", "form_id": "firebird_set_replica_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "upgrade_database", "title": "Upgrade database ODS", "mutation_class": "destructive", "form_id": "firebird_upgrade_database", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]}
     ]
   },
   "engines": [
@@ -269,7 +944,7 @@
     {
       "engine_id": "duckdb", "engine_name": "DuckDB", "reference_profile": "1.5.2", "model_family": "embedded-columnar-analytic-relational",
       "objects": [
-        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "duckdb_database"},
         {"resource_kind": "attached-database", "title": "Attached database", "operation_profile": "namespace"},
         {"resource_kind": "schema", "title": "Schema", "operation_profile": "namespace"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
@@ -290,7 +965,7 @@
       "engine_id": "firebird", "engine_name": "Firebird", "reference_profile": "5.0.4", "model_family": "relational-mga",
       "objects": [
         {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
-        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace", "operation_forms": {"create": "firebird_database_create"}},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "firebird_database"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
@@ -379,8 +1054,8 @@
     {
       "engine_id": "mariadb", "engine_name": "MariaDB", "reference_profile": "12.2.2", "model_family": "relational",
       "objects": [
-        {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
-        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "server", "title": "Server", "operation_profile": "mariadb_server", "operation_forms": {"check_upgrade_required": "mariadb_upgrade_check"}},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "mariadb_database", "operation_forms": {"analyze_tables": "mariadb_analyze_tables", "check_objects": "mariadb_check_objects", "optimize_tables": "mariadb_optimize_tables", "repair_objects": "mariadb_repair_objects", "checksum_tables": "mariadb_checksum_tables", "backup_logical": "mariadb_backup_logical", "restore_logical": "mariadb_restore_logical"}},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
@@ -398,8 +1073,20 @@
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
         {"resource_kind": "plugin", "title": "Server plugin", "operation_profile": "definition"},
-        {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
-        {"resource_kind": "server-link", "title": "Remote server", "operation_profile": "definition"}
+        {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "mariadb_replication"},
+        {"resource_kind": "server-link", "title": "Remote server", "operation_profile": "definition"},
+        {"resource_kind": "session", "title": "Session and running operation", "operation_profile": "mariadb_session"},
+        {"resource_kind": "system-variable", "title": "System variable", "operation_profile": "mariadb_system_variable"},
+        {"resource_kind": "lock", "title": "InnoDB lock", "operation_profile": "read_only"},
+        {"resource_kind": "lock-wait", "title": "InnoDB lock wait", "operation_profile": "read_only"},
+        {"resource_kind": "table-storage", "title": "Table storage statistics", "operation_profile": "read_only"},
+        {"resource_kind": "binary-log", "title": "Binary log", "operation_profile": "mariadb_binary_log"},
+        {"resource_kind": "binary-log-event", "title": "Binary log event", "operation_profile": "read_only"},
+        {"resource_kind": "binary-log-status", "title": "Binary log status", "operation_profile": "mariadb_binary_log_status"},
+        {"resource_kind": "log-configuration", "title": "Log configuration", "operation_profile": "read_only"},
+        {"resource_kind": "general-log-entry", "title": "General log entry", "operation_profile": "read_only"},
+        {"resource_kind": "slow-query", "title": "Slow query", "operation_profile": "read_only"},
+        {"resource_kind": "tls-configuration", "title": "TLS configuration", "operation_profile": "read_only"}
       ]
     },
     {
@@ -456,12 +1143,13 @@
       "engine_id": "mysql", "engine_name": "MySQL", "reference_profile": "9.7.0", "model_family": "relational",
       "objects": [
         {"resource_kind": "server", "title": "Server", "operation_profile": "topology"},
-        {"resource_kind": "database", "title": "Database", "operation_profile": "namespace"},
+        {"resource_kind": "database", "title": "Database", "operation_profile": "mysql_database", "operation_forms": {"analyze_tables": "mysql_analyze_tables", "check_tables": "mysql_check_tables", "optimize_tables": "mysql_optimize_tables", "repair_tables": "mysql_repair_tables", "checksum_tables": "mysql_checksum_tables", "backup_logical": "mysql_backup_logical", "restore_logical": "mysql_restore_logical"}},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
         {"resource_kind": "constraint", "title": "Constraint", "operation_profile": "definition"},
         {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
+        {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container", "exclude_operations": ["rename", "insert", "update", "delete"]},
         {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
         {"resource_kind": "event", "title": "Event", "operation_profile": "definition"},
         {"resource_kind": "procedure", "title": "Procedure", "operation_profile": "definition"},
@@ -653,7 +1341,7 @@
     {
       "engine_id": "sqlite", "engine_name": "SQLite", "reference_profile": "3.53.0", "model_family": "embedded-relational",
       "objects": [
-        {"resource_kind": "database", "title": "Database file", "operation_profile": "namespace"},
+      {"resource_kind": "database", "title": "Database file", "operation_profile": "sqlite_database"},
         {"resource_kind": "attached-database", "title": "Attached database", "operation_profile": "namespace"},
         {"resource_kind": "table", "title": "Table", "operation_profile": "data_container"},
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},

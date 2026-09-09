@@ -28,5 +28,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "Milvus safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "Milvus 2.6.5 exact-profile implementation", "protocol": "grpc", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "milvus_2.6.5_standalone_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178"}
+  "provenance": {"purpose": "Milvus 2.6.5 exact-profile implementation", "protocol": "grpc", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "milvus_2.6.5_standalone_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178"}
 }

@@ -493,7 +493,8 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
             'protocol_id': 'cql',
         }, manifest['registration']['interface'])
         self.assertEqual(
-            'passed', manifest['provenance']['activation_gate']
+            'blocked_pending_exact_contract_and_ui_evidence',
+            manifest['provenance']['activation_gate'],
         )
         self.assertEqual(
             'passed', manifest['provenance']['dual_interface_gate']

@@ -1,0 +1,1429 @@
+{
+  "authoritative_metric_count": 12,
+  "authoritative_metric_ids": [
+    "duckdb.approx_database_count.approx_count",
+    "duckdb.connection_count.count",
+    "duckdb.external_file_cache.nr_bytes",
+    "duckdb.memory.memory_usage_bytes",
+    "duckdb.memory.temporary_storage_bytes",
+    "duckdb.temporary_files.size",
+    "duckdb.database_size.block_size",
+    "duckdb.database_size.total_blocks",
+    "duckdb.database_size.used_blocks",
+    "duckdb.database_size.free_blocks",
+    "duckdb.metadata_info.total_blocks",
+    "duckdb.metadata_info.free_blocks"
+  ],
+  "authoritative_observation_count": 58,
+  "authoritative_observation_ids": [
+    "duckdb.approx_database_count.approx_count",
+    "duckdb.connection_count.count",
+    "duckdb.databases.database_name",
+    "duckdb.databases.database_oid",
+    "duckdb.databases.path",
+    "duckdb.databases.comment",
+    "duckdb.databases.tags",
+    "duckdb.databases.internal",
+    "duckdb.databases.type",
+    "duckdb.databases.readonly",
+    "duckdb.databases.encrypted",
+    "duckdb.databases.cipher",
+    "duckdb.databases.options",
+    "duckdb.external_file_cache.path",
+    "duckdb.external_file_cache.nr_bytes",
+    "duckdb.external_file_cache.location",
+    "duckdb.external_file_cache.loaded",
+    "duckdb.log_contexts.context_id",
+    "duckdb.log_contexts.scope",
+    "duckdb.log_contexts.connection_id",
+    "duckdb.log_contexts.transaction_id",
+    "duckdb.log_contexts.query_id",
+    "duckdb.log_contexts.thread_id",
+    "duckdb.logs.context_id",
+    "duckdb.logs.timestamp",
+    "duckdb.logs.type",
+    "duckdb.logs.log_level",
+    "duckdb.logs.message",
+    "duckdb.memory.tag",
+    "duckdb.memory.memory_usage_bytes",
+    "duckdb.memory.temporary_storage_bytes",
+    "duckdb.prepared_statements.name",
+    "duckdb.prepared_statements.statement",
+    "duckdb.prepared_statements.parameter_types",
+    "duckdb.prepared_statements.result_types",
+    "duckdb.temporary_files.path",
+    "duckdb.temporary_files.size",
+    "duckdb.variables.name",
+    "duckdb.variables.value",
+    "duckdb.variables.type",
+    "duckdb.database_size.database_name",
+    "duckdb.database_size.database_size",
+    "duckdb.database_size.block_size",
+    "duckdb.database_size.total_blocks",
+    "duckdb.database_size.used_blocks",
+    "duckdb.database_size.free_blocks",
+    "duckdb.database_size.wal_size",
+    "duckdb.database_size.memory_usage",
+    "duckdb.database_size.memory_limit",
+    "duckdb.metadata_info.block_id",
+    "duckdb.metadata_info.total_blocks",
+    "duckdb.metadata_info.free_blocks",
+    "duckdb.metadata_info.free_list",
+    "duckdb.platform.platform",
+    "duckdb.user_agent.user_agent",
+    "duckdb.version.library_version",
+    "duckdb.version.source_id",
+    "duckdb.version.codename"
+  ],
+  "catalog_evidence": {
+    "artifact": "duckdb_metrics_inventory_1_5_2.json",
+    "authority": "DuckDB 1.5.2 runtime",
+    "format": "cdeadmin.engine-metrics-inventory.v1",
+    "license_id": "PostgreSQL",
+    "sha256": "c5fe127e818af416b37c7cd36586acced0c0a753ccac57a5739fe72119a9bd45"
+  },
+  "classification_evidence": [
+    {
+      "artifact": "duckdb-1.5.2.tar.gz",
+      "authority": "DuckDB Foundation",
+      "evidence_id": "duckdb-1.5.2-source-observation-catalog",
+      "format": "DuckDB 1.5.2 source archive",
+      "license_id": "MIT",
+      "sha256": "6d8612fc87115cf4d3512a934ada5d1669db29378b4cc8e226fdfa8f5c537385"
+    },
+    {
+      "artifact": "duckdb_metrics_inventory_1_5_2.json",
+      "authority": "DuckDB 1.5.2 runtime",
+      "evidence_id": "duckdb-1.5.2-runtime-observation-inventory",
+      "format": "cdeadmin.engine-metrics-inventory.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "c5fe127e818af416b37c7cd36586acced0c0a753ccac57a5739fe72119a9bd45"
+    },
+    {
+      "artifact": "DUCKDB_PROVIDER_LIVE_GATE.json",
+      "authority": "DuckDB 1.5.2 runtime",
+      "evidence_id": "duckdb-1.5.2-live-observation-gate",
+      "format": "cdeadmin.relational-provider-live-verification.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "da282965b30eded1673b08107ff896f19258252378b02edd14dc0c030e14a8c9"
+    }
+  ],
+  "contract_id": "duckdb.metrics.1.5.2.v1",
+  "engine_id": "duckdb",
+  "interface_id": "duckdb-native",
+  "live_evidence_ids": [
+    "duckdb-1.5.2-live-observation-gate"
+  ],
+  "metrics": [
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.approx_database_count.approx_count",
+      "observation_id": "duckdb.approx_database_count.approx_count",
+      "reset_behavior": "current_observation",
+      "unit": "databases"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.connection_count.count",
+      "observation_id": "duckdb.connection_count.count",
+      "reset_behavior": "current_observation",
+      "unit": "connections"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.external_file_cache.nr_bytes",
+      "observation_id": "duckdb.external_file_cache.nr_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.memory.memory_usage_bytes",
+      "observation_id": "duckdb.memory.memory_usage_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.memory.temporary_storage_bytes",
+      "observation_id": "duckdb.memory.temporary_storage_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.temporary_files.size",
+      "observation_id": "duckdb.temporary_files.size",
+      "reset_behavior": "current_observation",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.database_size.block_size",
+      "observation_id": "duckdb.database_size.block_size",
+      "reset_behavior": "current_observation",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.database_size.total_blocks",
+      "observation_id": "duckdb.database_size.total_blocks",
+      "reset_behavior": "current_observation",
+      "unit": "blocks"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.database_size.used_blocks",
+      "observation_id": "duckdb.database_size.used_blocks",
+      "reset_behavior": "current_observation",
+      "unit": "blocks"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.database_size.free_blocks",
+      "observation_id": "duckdb.database_size.free_blocks",
+      "reset_behavior": "current_observation",
+      "unit": "blocks"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.metadata_info.total_blocks",
+      "observation_id": "duckdb.metadata_info.total_blocks",
+      "reset_behavior": "current_observation",
+      "unit": "blocks"
+    },
+    {
+      "aggregation": "sum_across_native_rows",
+      "evidence_ids": [
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "duckdb.metadata_info.free_blocks",
+      "observation_id": "duckdb.metadata_info.free_blocks",
+      "reset_behavior": "current_observation",
+      "unit": "blocks"
+    }
+  ],
+  "native_observations": [
+    {
+      "cardinality": "one_per_approx_database_count_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native approx_count observation from approx_database_count.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "approx_database_count.approx_count",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.approx_database_count.approx_count",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_approx_database_count()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_connection_count_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native count observation from connection_count.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "connection_count.count",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.connection_count.count",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_connection_count()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native database_name observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.database_name",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.database_name",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native database_oid observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.database_oid",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.database_oid",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native path observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.path",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.path",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native comment observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.comment",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.comment",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native tags observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.tags",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.tags",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "MAP(VARCHAR, VARCHAR)",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native internal observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.internal",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.internal",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "BOOLEAN",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native type observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.type",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.type",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native readonly observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.readonly",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.readonly",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "BOOLEAN",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native encrypted observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.encrypted",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.encrypted",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "BOOLEAN",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native cipher observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.cipher",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.cipher",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_databases_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native options observation from databases.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "databases.options",
+      "observation_class": "catalog_state",
+      "observation_id": "duckdb.databases.options",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_databases()",
+      "value_type": "MAP(VARCHAR, VARCHAR)",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_external_file_cache_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native path observation from external_file_cache.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "external_file_cache.path",
+      "observation_class": "cache_state",
+      "observation_id": "duckdb.external_file_cache.path",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_external_file_cache()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_external_file_cache_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native nr_bytes observation from external_file_cache.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "external_file_cache.nr_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.external_file_cache.nr_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_external_file_cache()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_external_file_cache_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native location observation from external_file_cache.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "external_file_cache.location",
+      "observation_class": "cache_state",
+      "observation_id": "duckdb.external_file_cache.location",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_external_file_cache()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_external_file_cache_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native loaded observation from external_file_cache.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "external_file_cache.loaded",
+      "observation_class": "cache_state",
+      "observation_id": "duckdb.external_file_cache.loaded",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_external_file_cache()",
+      "value_type": "BOOLEAN",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native context_id observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.context_id",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.context_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native scope observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.scope",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.scope",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native connection_id observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.connection_id",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.connection_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native transaction_id observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.transaction_id",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.transaction_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native query_id observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.query_id",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.query_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_log_contexts_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native thread_id observation from log_contexts.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "log_contexts.thread_id",
+      "observation_class": "diagnostic_context",
+      "observation_id": "duckdb.log_contexts.thread_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_log_contexts()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_logs_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native context_id observation from logs.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "logs.context_id",
+      "observation_class": "diagnostic_event",
+      "observation_id": "duckdb.logs.context_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_logs()",
+      "value_type": "UBIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_logs_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native timestamp observation from logs.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "logs.timestamp",
+      "observation_class": "diagnostic_event",
+      "observation_id": "duckdb.logs.timestamp",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_logs()",
+      "value_type": "TIMESTAMP WITH TIME ZONE",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_logs_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native type observation from logs.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "logs.type",
+      "observation_class": "diagnostic_event",
+      "observation_id": "duckdb.logs.type",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_logs()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_logs_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native log_level observation from logs.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "logs.log_level",
+      "observation_class": "diagnostic_event",
+      "observation_id": "duckdb.logs.log_level",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_logs()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_logs_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native message observation from logs.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "logs.message",
+      "observation_class": "diagnostic_event",
+      "observation_id": "duckdb.logs.message",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_logs()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_memory_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native tag observation from memory.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "memory.tag",
+      "observation_class": "runtime_metric",
+      "observation_id": "duckdb.memory.tag",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_memory()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_memory_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native memory_usage_bytes observation from memory.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "memory.memory_usage_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.memory.memory_usage_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_memory()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_memory_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native temporary_storage_bytes observation from memory.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "memory.temporary_storage_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.memory.temporary_storage_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_memory()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_prepared_statements_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native name observation from prepared_statements.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "prepared_statements.name",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.prepared_statements.name",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_prepared_statements()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_prepared_statements_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native statement observation from prepared_statements.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "prepared_statements.statement",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.prepared_statements.statement",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_prepared_statements()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_prepared_statements_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native parameter_types observation from prepared_statements.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "prepared_statements.parameter_types",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.prepared_statements.parameter_types",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_prepared_statements()",
+      "value_type": "VARCHAR[]",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_prepared_statements_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native result_types observation from prepared_statements.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "prepared_statements.result_types",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.prepared_statements.result_types",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_prepared_statements()",
+      "value_type": "VARCHAR[]",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_temporary_files_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native path observation from temporary_files.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "temporary_files.path",
+      "observation_class": "runtime_metric",
+      "observation_id": "duckdb.temporary_files.path",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_temporary_files()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_temporary_files_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native size observation from temporary_files.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "temporary_files.size",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.temporary_files.size",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_temporary_files()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_variables_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native name observation from variables.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "variables.name",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.variables.name",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_variables()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_variables_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native value observation from variables.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "variables.value",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.variables.value",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_variables()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_variables_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native type observation from variables.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "variables.type",
+      "observation_class": "session_state",
+      "observation_id": "duckdb.variables.type",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "provider_sensitive_value_policy",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM duckdb_variables()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native database_name observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.database_name",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.database_size.database_name",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native database_size observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.database_size",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.database_size.database_size",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native block_size observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.block_size",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.database_size.block_size",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native total_blocks observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.total_blocks",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.database_size.total_blocks",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native used_blocks observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.used_blocks",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.database_size.used_blocks",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native free_blocks observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.free_blocks",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.database_size.free_blocks",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native wal_size observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.wal_size",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.database_size.wal_size",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native memory_usage observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.memory_usage",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.database_size.memory_usage",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_database_size_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native memory_limit observation from database_size.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "database_size.memory_limit",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.database_size.memory_limit",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_database_size()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_metadata_info_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native block_id observation from metadata_info.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "metadata_info.block_id",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.metadata_info.block_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_metadata_info()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_metadata_info_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native total_blocks observation from metadata_info.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "metadata_info.total_blocks",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.metadata_info.total_blocks",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_metadata_info()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_metadata_info_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native free_blocks observation from metadata_info.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "metadata_info.free_blocks",
+      "observation_class": "operational_metric",
+      "observation_id": "duckdb.metadata_info.free_blocks",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_metadata_info()",
+      "value_type": "BIGINT",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_metadata_info_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native free_list observation from metadata_info.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "metadata_info.free_list",
+      "observation_class": "storage_state",
+      "observation_id": "duckdb.metadata_info.free_list",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_metadata_info()",
+      "value_type": "BIGINT[]",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_platform_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native platform observation from platform.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "platform.platform",
+      "observation_class": "runtime_identity",
+      "observation_id": "duckdb.platform.platform",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_platform()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_user_agent_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native user_agent observation from user_agent.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "user_agent.user_agent",
+      "observation_class": "runtime_identity",
+      "observation_id": "duckdb.user_agent.user_agent",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_user_agent()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_version_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native library_version observation from version.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "version.library_version",
+      "observation_class": "runtime_identity",
+      "observation_id": "duckdb.version.library_version",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_version()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_version_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native source_id observation from version.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "version.source_id",
+      "observation_class": "runtime_identity",
+      "observation_id": "duckdb.version.source_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_version()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    },
+    {
+      "cardinality": "one_per_version_row",
+      "collection_cost": "bounded_native_catalog_scan",
+      "description": "DuckDB native codename observation from version.",
+      "evidence_ids": [
+        "duckdb-1.5.2-source-observation-catalog",
+        "duckdb-1.5.2-runtime-observation-inventory",
+        "duckdb-1.5.2-live-observation-gate"
+      ],
+      "native_name": "version.codename",
+      "observation_class": "runtime_identity",
+      "observation_id": "duckdb.version.codename",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "embedded_database_or_connection",
+      "source": "SELECT * FROM pragma_version()",
+      "value_type": "VARCHAR",
+      "version_condition": "1.5.2"
+    }
+  ],
+  "profile_id": "duckdb-native",
+  "provider_id": "org.cdeadmin.duckdb",
+  "reference_version": "1.5.2",
+  "schema": "cdeadmin.engine-metrics.v2"
+}

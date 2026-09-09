@@ -7,6 +7,42 @@
 //
 //////////////////////////////////////////////////////////////
 
+import AddCircleIcon from '../../../img/command_icons/add-circle.svg?svgr';
+import ArrowAllDirectionIcon from '../../../img/command_icons/arrow-all-direction.svg?svgr';
+import CalendarClockIcon from '../../../img/command_icons/calendar-clock.svg?svgr';
+import CancelCircleIcon from '../../../img/command_icons/cancel-circle.svg?svgr';
+import CodeIcon from '../../../img/command_icons/code.svg?svgr';
+import CommandLineIcon from '../../../img/command_icons/command-line.svg?svgr';
+import ConnectIcon from '../../../img/command_icons/connect.svg?svgr';
+import CopyIcon from '../../../img/command_icons/copy01.svg?svgr';
+import DatabaseAddIcon from '../../../img/command_icons/database-add.svg?svgr';
+import DatabaseBackupIcon from '../../../img/command_icons/database-backup.svg?svgr';
+import DatabaseRestoreIcon from '../../../img/command_icons/database-restore.svg?svgr';
+import DeleteIcon from '../../../img/command_icons/delete02.svg?svgr';
+import DownloadIcon from '../../../img/command_icons/download01.svg?svgr';
+import EditIcon from '../../../img/command_icons/edit01.svg?svgr';
+import EyeIcon from '../../../img/command_icons/eye.svg?svgr';
+import FileAddIcon from '../../../img/command_icons/file-add.svg?svgr';
+import FilterIcon from '../../../img/command_icons/filter.svg?svgr';
+import GitCompareIcon from '../../../img/command_icons/git-compare.svg?svgr';
+import HelpCircleIcon from '../../../img/command_icons/help-circle.svg?svgr';
+import HistoryIcon from '../../../img/command_icons/history.svg?svgr';
+import InformationCircleIcon from '../../../img/command_icons/information-circle.svg?svgr';
+import LinkIcon from '../../../img/command_icons/link01.svg?svgr';
+import LockIcon from '../../../img/command_icons/lock.svg?svgr';
+import MenuCircleIcon from '../../../img/command_icons/menu-circle.svg?svgr';
+import PlayCircleIcon from '../../../img/command_icons/play-circle.svg?svgr';
+import PrinterIcon from '../../../img/command_icons/printer.svg?svgr';
+import RefreshIcon from '../../../img/command_icons/refresh.svg?svgr';
+import SaveIcon from '../../../img/command_icons/save.svg?svgr';
+import SearchIcon from '../../../img/command_icons/search01.svg?svgr';
+import SettingsIcon from '../../../img/command_icons/settings02.svg?svgr';
+import ShieldUserIcon from '../../../img/command_icons/shield-user.svg?svgr';
+import SortIcon from '../../../img/command_icons/sort-by-down01.svg?svgr';
+import TransactionIcon from '../../../img/command_icons/transaction.svg?svgr';
+import UnlinkIcon from '../../../img/command_icons/unlink01.svg?svgr';
+import UploadIcon from '../../../img/command_icons/upload01.svg?svgr';
+
 export const ICON_CATEGORIES = Object.freeze({
   ACTION: 'action',
   ENGINE: 'engine',
@@ -98,34 +134,102 @@ const OBJECT_CLASSES = Object.freeze({
   hierarchy: 'icon-schema',
 });
 
-const ACTION_CLASSES = Object.freeze({
-  add: 'fa fa-plus',
-  alter: 'fa fa-pencil',
-  attach: 'fa fa-link',
-  backup: 'fa fa-archive',
-  cancel: 'fa fa-ban',
-  connect: 'fa fa-plug',
-  copy: 'fa fa-copy',
-  create: 'fa fa-plus',
-  delete: 'fa fa-trash',
-  detach: 'fa fa-external-link',
-  disconnect: 'fa fa-chain-broken',
-  drop: 'fa fa-trash',
-  edit: 'fa fa-pencil',
-  execute: 'fa fa-play',
-  export: 'fa fa-download',
-  float: 'fa fa-window-restore',
-  import: 'fa fa-upload',
-  move: 'fa fa-arrows',
-  properties: 'fa fa-info-circle',
-  refresh: 'fa fa-refresh',
-  rename: 'fa fa-pencil',
-  restore: 'fa fa-history',
-  save: 'fa fa-save',
-  search: 'fa fa-search',
-  settings: 'fa fa-cog',
-  view: 'fa fa-eye',
+const ACTION_COMPONENTS = Object.freeze({
+  about: InformationCircleIcon,
+  add: AddCircleIcon,
+  alter: EditIcon,
+  attach: LinkIcon,
+  backup: DatabaseBackupIcon,
+  cancel: CancelCircleIcon,
+  close: CancelCircleIcon,
+  commit: SaveIcon,
+  compare: GitCompareIcon,
+  connect: ConnectIcon,
+  copy: CopyIcon,
+  create: AddCircleIcon,
+  create_database: DatabaseAddIcon,
+  delete: DeleteIcon,
+  detach: UnlinkIcon,
+  disconnect: UnlinkIcon,
+  documentation: HelpCircleIcon,
+  drop: DeleteIcon,
+  edit: EditIcon,
+  execute: PlayCircleIcon,
+  export: DownloadIcon,
+  filter: FilterIcon,
+  float: ArrowAllDirectionIcon,
+  help: HelpCircleIcon,
+  import: UploadIcon,
+  lock: LockIcon,
+  move: ArrowAllDirectionIcon,
+  new: FileAddIcon,
+  open: EyeIcon,
+  print: PrinterIcon,
+  properties: InformationCircleIcon,
+  refresh: RefreshIcon,
+  rename: EditIcon,
+  restore: DatabaseRestoreIcon,
+  rollback: HistoryIcon,
+  save: SaveIcon,
+  schedule: CalendarClockIcon,
+  script: CodeIcon,
+  search: SearchIcon,
+  security: ShieldUserIcon,
+  settings: SettingsIcon,
+  sort: SortIcon,
+  terminal: CommandLineIcon,
+  transaction: TransactionIcon,
+  unlock: LockIcon,
+  view: EyeIcon,
 });
+
+const ACTION_INFERENCE = Object.freeze([
+  ['create_database', /\b(?:create|new|register|add)[ _-]+database\b/],
+  ['disconnect', /\bdisconnect(?:ed|ion)?\b/],
+  ['detach', /\bdetach\b/],
+  ['rollback', /\broll[ _-]?back\b/],
+  ['restore', /\brestore\b/],
+  ['backup', /\bbackup\b/],
+  ['documentation', /\b(?:documentation|manual|docs)\b/],
+  ['properties', /\b(?:properties|details|information)\b/],
+  ['security', /\b(?:security|permissions?|privileges?|grants?|roles?|users?)\b/],
+  ['transaction', /\btransactions?\b/],
+  ['schedule', /\b(?:schedule|jobs?|events?)\b/],
+  ['compare', /\b(?:compare|comparison|diff)\b/],
+  ['settings', /\b(?:settings?|preferences?|configure|configuration|manage)\b/],
+  ['execute', /\b(?:execute|run|start|play)\b/],
+  ['terminal', /\b(?:terminal|console|shell|command[ _-]?line|psql)\b/],
+  ['script', /\b(?:script|code|sql)\b/],
+  ['connect', /\bconnect(?:ion)?\b/],
+  ['attach', /\b(?:attach|link)\b/],
+  ['delete', /\b(?:delete|remove)\b/],
+  ['drop', /\bdrop\b/],
+  ['cancel', /\b(?:cancel|abort|stop)\b/],
+  ['close', /\b(?:close|exit|quit)\b/],
+  ['import', /\b(?:import|upload)\b/],
+  ['export', /\b(?:export|download)\b/],
+  ['refresh', /\b(?:refresh|reload|rescan|sync)\b/],
+  ['search', /\b(?:search|find|locate)\b/],
+  ['filter', /\bfilter\b/],
+  ['sort', /\bsort\b/],
+  ['copy', /\b(?:copy|duplicate|clone)\b/],
+  ['rename', /\brename\b/],
+  ['alter', /\balter\b/],
+  ['edit', /\b(?:edit|modify|update)\b/],
+  ['commit', /\bcommit\b/],
+  ['save', /\bsave\b/],
+  ['print', /\bprint\b/],
+  ['lock', /\block\b/],
+  ['unlock', /\bunlock\b/],
+  ['float', /\b(?:float|tear[ _-]?off|undock)\b/],
+  ['move', /\b(?:move|reorder)\b/],
+  ['new', /\bnew\b/],
+  ['create', /\b(?:create|register|add)\b/],
+  ['open', /\bopen\b/],
+  ['view', /\b(?:view|show|inspect|browse)\b/],
+  ['about', /\babout\b/],
+  ['help', /\bhelp\b/],
+]);
 
 const STATUS_CLASSES = Object.freeze({
   connected: 'fa fa-check-circle',
@@ -207,6 +311,20 @@ function definition(key, category, className, label=title(key.split('.').pop()))
   return Object.freeze({key, category, kind: 'class', className, label});
 }
 
+function componentDefinition(
+  key, category, component, label=title(key.split('.').pop())
+) {
+  return Object.freeze({
+    key,
+    category,
+    kind: 'component',
+    component,
+    label,
+    license: 'MIT',
+    attribution: 'Hugeicons Free Icons 4.3.0',
+  });
+}
+
 const BUILTIN_DEFINITIONS = [
   ...ENGINE_IDS.map((id)=>definition(
     `engine.${id}`, ICON_CATEGORIES.ENGINE, `icon-engine-type-${id}`,
@@ -215,8 +333,11 @@ const BUILTIN_DEFINITIONS = [
   ...Object.entries(OBJECT_CLASSES).map(([name, className])=>definition(
     `object.${name}`, ICON_CATEGORIES.OBJECT, className
   )),
-  ...Object.entries(ACTION_CLASSES).map(([name, className])=>definition(
-    `action.${name}`, ICON_CATEGORIES.ACTION, className
+  componentDefinition(
+    'command.default', ICON_CATEGORIES.ACTION, MenuCircleIcon, 'Command'
+  ),
+  ...Object.entries(ACTION_COMPONENTS).map(([name, component])=>componentDefinition(
+    `action.${name}`, ICON_CATEGORIES.ACTION, component
   )),
   ...Object.entries(STATUS_CLASSES).map(([name, className])=>definition(
     `status.${name}`, ICON_CATEGORIES.STATUS, className
@@ -275,6 +396,9 @@ export function registerIconDefinition(input) {
 function familyFallback(key) {
   const match = TAXONOMY_FALLBACKS.find(([prefix])=>key.startsWith(prefix));
   if(match) return builtins.get(match[1]);
+  if(key.startsWith('action.') || key.startsWith('command.')) {
+    return builtins.get('command.default');
+  }
   return builtins.get('object.unknown');
 }
 
@@ -323,7 +447,8 @@ export function semanticEngineIconKey(engineId) {
 
 export function inferActionIconKey(action={}) {
   if(action.iconKey) return action.iconKey;
-  const source = `${action.id ?? action.name ?? ''} ${action.label ?? ''}`.toLowerCase();
-  const match = Object.keys(ACTION_CLASSES).find((name)=>source.includes(name));
-  return match ? `action.${match}` : '';
+  const source = [action.id, action.name, action.label, action.description]
+    .filter(Boolean).join(' ').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const match = ACTION_INFERENCE.find(([, pattern])=>pattern.test(source));
+  return match ? `action.${match[0]}` : '';
 }

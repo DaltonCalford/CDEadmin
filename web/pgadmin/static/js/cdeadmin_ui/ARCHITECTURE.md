@@ -47,6 +47,25 @@ model canvases. Keeping these out of the core barrel prevents unrelated entry
 bundles from acquiring their transitive dependencies while still preventing
 features from importing the underlying libraries.
 
+`data/DataGrid` is the tabular-data boundary. It normalizes provider type
+metadata into accessible typed cells, enforces read-only columns, carries
+row/change-state semantics, and provides versioned layout persistence plus safe
+CSV, TSV, and JSON interchange. Only column order and validated widths may be
+stored in a local layout record; rows, queries, filters, and credentials are
+never layout state. Provider-native document, graph, vector, key-value,
+time-series, and search editors remain separate views and may use the grid for
+summaries without flattening their native model into the grid contract.
+
+Backend provider workspaces expose
+`cdeadmin.provider-grid-workspace.v1` at bootstrap and
+`cdeadmin.provider-grid-result.v1` on result and editable-data pages. These
+contracts carry stable columns, native engine types, sensitivity/export state,
+selection mode, persisted-layout scope, client-versus-provider interaction
+authority, mutation lifecycle, native-view admission, and runtime activation
+evidence. New built-in providers are rejected by the exhaustive adoption gate
+unless their profile passes this boundary. Runtime verification remains a
+separate observed gate and cannot be asserted by frontend code.
+
 Tree nodes and actions use semantic icon keys from `cdeadmin_ui/icons`, such as
 `engine.firebird`, `object.collection`, and `action.refresh`. Provider code must
 not depend on an icon library component or presentation CSS class. The icon
@@ -63,6 +82,45 @@ object type. Descriptors carry enabled reasons, confirmation semantics,
 shortcuts, intent, and semantic icons. The Object Explorer resolves this model
 at the point where a user opens a node menu, so providers do not need to import
 the menu implementation.
+
+## Commands and menu presentation
+
+`commands/CommandRegistry` is the execution authority shared by menus,
+context actions, toolbars, shortcuts, the future command palette, and recorded
+macros. A command has a stable namespaced ID, version, handler, semantic icon,
+permissions, optional security-group restrictions, visibility and enabled
+predicates, confirmation intent, and an argument validator. Permission and
+enabled checks are repeated at invocation time. They supplement rather than
+replace authorization on backend endpoints.
+
+Macros contain only ordered command IDs and JSON-safe arguments. They cannot
+execute source text, cannot carry credential-like fields, cannot invoke a
+command that opts out of macro use, and do not bypass command or backend
+authorization. Commands that need credentials must refer to an authorized
+connection profile; secrets remain in the existing credential authority.
+
+`commands/MenuStructure` deliberately separates commands from where they are
+shown. The current File, Connectors, Object, Tools, and Help arrangement is a
+provisional compatibility structure, not a product API. Menu bindings populate
+that structure and can later be remapped to a new menu renderer without
+rewriting provider behavior. Existing menu declarations pass through
+`CommandMenuAdapter`, giving legacy actions stable command identities during
+the migration.
+
+Application-menu commands use the curated, theme-aware Hugeicons Free command
+set under `static/img/command_icons`. Legacy command definitions receive a
+semantic action icon from their stable ID, name, label, and description; an
+explicit `iconKey` always wins. The same resolved key is carried by browser,
+context, macro, and desktop menu descriptors, while `command.default` provides
+a visible fallback for commands that do not yet have a specialized metaphor.
+
+The Connectors surface is populated from active release profiles. Each logical
+engine has an explicit `connector.visibility.<engine>.set` command and a
+per-user, default-off visibility preference. Visibility controls the Object
+Explorer only: it does not install a driver, prove local availability, create a
+connection, or grant access. Command customizations may change presentation or
+further restrict visibility/enabled state, but cannot override permissions,
+security-group restrictions, or runtime predicates.
 
 ## Tool identity and host windows
 

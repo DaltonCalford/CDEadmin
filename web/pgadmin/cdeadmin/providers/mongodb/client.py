@@ -1456,6 +1456,12 @@ class MongoDBClient:
                     resource.get('operations', [])
                 )
             for operation in resource.get('operations', []):
+                native_form = self._admin_form(
+                    resource.get('resource_kind'),
+                    operation.get('operation_id'),
+                )
+                if native_form is not None:
+                    operation['form'] = native_form
                 key = (
                     resource.get('resource_kind'),
                     operation.get('operation_id'),
@@ -1499,13 +1505,295 @@ class MongoDBClient:
                             }],
                         },
                     })
+                if resource.get('resource_kind') == 'document':
+                    form = self._document_admin_form(
+                        operation.get('operation_id')
+                    )
+                    if form is not None:
+                        operation['form'] = form
         return catalog
+
+    @staticmethod
+    def _field(field_id, label, control='text', required=False, **values):
+        return {
+            'field_id': field_id, 'label': label, 'control': control,
+            'required': required, **values,
+        }
+
+    @classmethod
+    def _admin_form(cls, kind, operation):
+        """Return the form admitted by the MongoDB native operation path."""
+        f = cls._field
+        if operation == 'inspect':
+            return {
+                'form_id': f'mongodb.{kind}.inspect.v1',
+                'title': f'Inspect MongoDB {kind.replace("-", " ")}',
+                'fields': [],
+            }
+        if operation == 'drop':
+            return {
+                'form_id': f'mongodb.{kind}.drop.v1',
+                'title': f'Drop MongoDB {kind.replace("-", " ")}',
+                'fields': [f(
+                    'confirmation',
+                    f'Type the selected {kind.replace("-", " ")} name to '
+                    'confirm', required=True,
+                )],
+            }
+        if kind in {'collection', 'view'}:
+            if operation == 'create':
+                label = 'view' if kind == 'view' else 'collection'
+                return {
+                    'form_id': f'mongodb.{kind}.create.v1',
+                    'title': f'Create MongoDB {label}',
+                    'fields': [
+                        f('name', f'{label.title()} name', required=True),
+                        f(
+                            'options', f'MongoDB {label} options', 'json',
+                            True, default={'database': 'admin'},
+                            json_type='object',
+                        ),
+                    ],
+                }
+            if operation == 'alter':
+                return {
+                    'form_id': f'mongodb.{kind}.alter.v1',
+                    'title': f'Modify MongoDB {kind}',
+                    'fields': [f(
+                        'changes', 'collMod command fields', 'json', True,
+                        default={}, json_type='object',
+                    )],
+                }
+            if operation == 'rename' and kind == 'collection':
+                return {
+                    'form_id': 'mongodb.collection.rename.v1',
+                    'title': 'Rename MongoDB collection',
+                    'fields': [f(
+                        'new_name', 'New collection name', required=True,
+                    )],
+                }
+            if kind == 'collection' and operation in {
+                    'insert', 'update', 'delete'}:
+                return cls._document_admin_form(operation)
+        if kind == 'index':
+            if operation == 'create':
+                return {
+                    'form_id': 'mongodb.index.create.v1',
+                    'title': 'Create MongoDB index',
+                    'fields': [
+                        f('name', 'Index name', required=True),
+                        f(
+                            'options', 'Index keys and options', 'json', True,
+                            default={'keys': []}, json_type='object',
+                        ),
+                    ],
+                }
+            if operation == 'alter':
+                return {
+                    'form_id': 'mongodb.index.alter.v1',
+                    'title': 'Modify MongoDB index properties',
+                    'fields': [f(
+                        'changes', 'collMod index fields', 'json', True,
+                        default={}, json_type='object',
+                    )],
+                }
+        if kind == 'validator' and operation in {'create', 'alter'}:
+            container = 'options' if operation == 'create' else 'changes'
+            return {
+                'form_id': f'mongodb.validator.{operation}.v1',
+                'title': f'{operation.title()} MongoDB validation rule',
+                'fields': [f(
+                    container, 'MongoDB validator expression', 'json', True,
+                    default={'validator': {}}, json_type='object',
+                )],
+            }
+        if kind in {'user', 'role'}:
+            if operation in {'create', 'alter'}:
+                container = 'options' if operation == 'create' else 'changes'
+                fields = [] if operation == 'alter' else [
+                    f('name', f'{kind.title()} name', required=True),
+                ]
+                default = {'database': 'admin', 'roles': []}
+                if kind == 'role':
+                    default['privileges'] = []
+                else:
+                    default['credential_reference_id'] = ''
+                fields.append(f(
+                    container,
+                    f'MongoDB {kind} {operation} fields', 'json', True,
+                    default=default, json_type='object',
+                ))
+                return {
+                    'form_id': f'mongodb.{kind}.{operation}.v1',
+                    'title': f'{operation.title()} MongoDB {kind}',
+                    'fields': fields,
+                }
+            if operation in {'grant', 'revoke'}:
+                return {
+                    'form_id': f'mongodb.{kind}.{operation}.v1',
+                    'title': f'{operation.title()} MongoDB {kind} rights',
+                    'fields': [f(
+                        'privileges',
+                        'Roles' if kind == 'user' else 'Privileges',
+                        'json', True, default=[], json_type='array',
+                    )],
+                }
+        action_options = {
+            'deployment': (
+                'add_shard', 'remove_shard', 'enable_sharding',
+                'shard_collection', 'reshard_collection',
+                'unshard_collection', 'move_collection', 'move_primary',
+            ),
+            'shard': (
+                'add_shard', 'remove_shard', 'enable_sharding',
+                'shard_collection', 'reshard_collection',
+                'unshard_collection', 'move_collection', 'move_primary',
+            ),
+            'replica-set': (
+                'reconfigure', 'step_down', 'freeze', 'sync_from',
+            ),
+            'router': ('flush_configuration',),
+            'balancer': ('start', 'stop', 'status', 'collection_status'),
+            'profiling': ('set',),
+            'current-operation': ('kill',),
+            'change-stream': ('open',),
+        }
+        if kind == 'replica-set' and operation == 'alter':
+            return {
+                'form_id': 'mongodb.replica-set.alter.v1',
+                'title': 'Reconfigure MongoDB replica set',
+                'fields': [f(
+                    'changes', 'Replica-set configuration and force option',
+                    'json', True, default={'config': {}, 'force': False},
+                    json_type='object',
+                )],
+            }
+        if operation == 'execute' and kind in action_options:
+            return {
+                'form_id': f'mongodb.{kind}.execute.v1',
+                'title': f'Run MongoDB {kind.replace("-", " ")} action',
+                'fields': [
+                    f(
+                        'action', 'MongoDB action', 'select', True,
+                        options=[{'value': value,
+                                  'label': value.replace('_', ' ').title()}
+                                 for value in action_options[kind]],
+                    ),
+                    f(
+                        'arguments', 'Action arguments', 'json', False,
+                        default={}, json_type='object',
+                    ),
+                    f('confirmation', 'Confirm administrative action',
+                      required=True),
+                ],
+            }
+        if kind in {'backup', 'restore', 'import', 'export', 'shell'} and (
+                operation == 'execute'):
+            choices = {
+                'backup': ('archive',), 'restore': ('archive',),
+                'import': ('extended_json', 'json_lines', 'json', 'csv'),
+                'export': ('extended_json', 'json_lines', 'json', 'csv'),
+                'shell': ('script',),
+            }[kind]
+            return {
+                'form_id': f'mongodb.{kind}.execute.v1',
+                'title': f'Run MongoDB {kind} task',
+                'fields': [
+                    f(
+                        'action', 'Tool action', 'select', True,
+                        options=[{'value': value,
+                                  'label': value.replace('_', ' ').title()}
+                                 for value in choices],
+                    ),
+                    f(
+                        'arguments', 'MongoDB tool arguments', 'json', True,
+                        default={}, json_type='object',
+                    ),
+                    f('confirmation', 'Confirm external tool execution',
+                      required=True),
+                ],
+            }
+        return None
+
+    @staticmethod
+    def _document_admin_form(operation_id):
+        """Return MongoDB-native single-document task forms."""
+        forms = {
+            'inspect': {
+                'form_id': 'mongodb.document.inspect.v1',
+                'title': 'Inspect MongoDB document',
+                'fields': [],
+            },
+            'insert': {
+                'form_id': 'mongodb.document.insert.v1',
+                'title': 'Insert MongoDB document',
+                'fields': [{
+                    'field_id': 'values',
+                    'label': 'Document (MongoDB Extended JSON)',
+                    'control': 'json', 'required': True,
+                    'json_type': 'object', 'default': {},
+                }, {
+                    'field_id': 'options',
+                    'label': 'Insert options',
+                    'control': 'json', 'required': False,
+                    'json_type': 'object', 'default': {},
+                }],
+            },
+            'update': {
+                'form_id': 'mongodb.document.update.v1',
+                'title': 'Update or replace MongoDB document',
+                'fields': [{
+                    'field_id': 'selector',
+                    'label': 'MongoDB document selector',
+                    'control': 'json', 'required': True,
+                    'json_type': 'object', 'default': {},
+                }, {
+                    'field_id': 'changes',
+                    'label': 'Update operators or replacement document',
+                    'control': 'json', 'required': True,
+                    'json_type': 'object', 'default': {},
+                }, {
+                    'field_id': 'concurrency_token',
+                    'label': 'CDEadmin document concurrency token',
+                    'control': 'text', 'required': False,
+                }],
+            },
+            'delete': {
+                'form_id': 'mongodb.document.delete.v1',
+                'title': 'Delete MongoDB document',
+                'fields': [{
+                    'field_id': 'selector',
+                    'label': 'MongoDB document selector',
+                    'control': 'json', 'required': True,
+                    'json_type': 'object', 'default': {},
+                }, {
+                    'field_id': 'concurrency_token',
+                    'label': 'CDEadmin document concurrency token',
+                    'control': 'text', 'required': False,
+                }, {
+                    'field_id': 'confirmation',
+                    'label': 'Confirm single-document deletion',
+                    'control': 'text', 'required': True,
+                }],
+            },
+        }
+        return copy.deepcopy(forms.get(operation_id))
 
     @staticmethod
     def _zone_operations(existing):
         by_id = {item['operation_id']: item for item in existing}
         inspect = copy.deepcopy(by_id['inspect'])
         alter = copy.deepcopy(by_id['alter'])
+        alter['form'] = {
+            'form_id': 'mongodb.zone.alter.v1',
+            'title': 'Alter MongoDB zone mapping',
+            'fields': [{
+                'field_id': 'changes',
+                'label': 'Zone range or shard-assignment changes',
+                'control': 'json', 'required': True,
+                'json_type': 'object', 'default': {},
+            }],
+        }
         create = copy.deepcopy(alter)
         create.update({
             'operation_id': 'create', 'title': 'Create zone mapping',

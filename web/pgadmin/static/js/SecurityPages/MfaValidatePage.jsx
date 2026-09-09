@@ -7,9 +7,9 @@
 //
 //////////////////////////////////////////////////////////////
 import { useState } from 'react';
-import LoginImage from '../../img/login.svg?svgr';
 import { InputSelect, InputText, MESSAGE_TYPE, NotifierMessage } from '../components/FormComponents';
 import BasePage, { SecurityButton } from './BasePage';
+import LoginIllustration from './LoginIllustration';
 import { useDelayedCaller } from '../custom_hooks';
 import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
@@ -101,7 +101,7 @@ AuthenticatorValidateView.propTypes = {
 export default function MfaValidatePage({actionUrl, views, logoutUrl, sendEmailUrl, csrfHeader, csrfToken, ...props}) {
   const [method, setMethod] = useState(Object.values(views).find((v)=>v.selected)?.id);
   return (
-    <BasePage title={gettext('Authentication')} pageImage={<LoginImage style={{height: '100%', width: '100%'}} />} {...props}>
+    <BasePage title={gettext('Authentication')} pageImage={<LoginIllustration />} {...props}>
       <form style={{display:'flex', gap:'15px', flexDirection:'column', minHeight: 0}} action={actionUrl} method="POST">
         <InputSelect value={method} options={Object.keys(views).map((k)=>({
           label: views[k].label,

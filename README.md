@@ -145,6 +145,11 @@ then the broader Python and JavaScript suites appropriate to the change. The
 identity gate is mandatory for changes to branding, packaging, About, runtime,
 or documentation.
 
+The portable [reference-engine demonstration estate](tools/reference_engine_demos/README.md)
+contains pinned lifecycle configuration, native sample-data adapters, rendered
+connection profiles, and verification for every reference product except the
+intentionally deferred native ScratchBird engine.
+
 Generated reports, workplans, and test evidence for this programme are kept
 outside the repository under `~/Sandbox/pgadmin4_work_area/`. Product code is
 changed in this repository. ScratchBird source and private specifications are

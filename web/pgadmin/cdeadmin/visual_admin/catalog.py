@@ -35,6 +35,10 @@ CONTROL_TYPES = frozenset({
     'text', 'number', 'boolean', 'select', 'multiline', 'code', 'json',
     'secret-reference', 'password', 'multiselect',
 })
+GENERIC_OPERATION_PROFILES = frozenset({
+    'read_only', 'namespace', 'definition', 'data_container', 'data_item',
+    'security', 'topology', 'operational', 'mysql_database',
+})
 
 
 class VisualAdminCatalogError(RuntimeError):
@@ -210,6 +214,12 @@ def _validate_document(document: Mapping[str, Any]) -> dict[str, Any]:
                 )
                 if override_form is not None:
                     expanded['form_id'] = override_form
+                expanded['form_authority'] = (
+                    'engine-profile'
+                    if profile_id not in GENERIC_OPERATION_PROFILES or
+                    override_form is not None
+                    else 'common-profile'
+                )
                 expanded['form'] = copy.deepcopy(
                     normalized_forms[expanded['form_id']]
                 )

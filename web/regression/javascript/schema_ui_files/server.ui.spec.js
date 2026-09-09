@@ -9,6 +9,10 @@
 
 
 import pgAdmin from 'sources/pgadmin';
+import BaseUISchema from 'sources/SchemaView/base_schema.ui';
+import {
+  validateSchema,
+} from 'sources/SchemaView/SchemaState/common';
 import ServerSchema from '../../../pgadmin/browser/server_groups/servers/static/js/server.ui';
 import {genericBeforeEach, getCreateView, getEditView, getPropertiesView} from '../genericFunctions';
 
@@ -149,5 +153,40 @@ describe('ServerSchema', ()=>{
     expect(databaseField.visible({
       cde_profile_id: 'qualified-native',
     })).toBe(false);
+    expect(databaseField.visible({
+      cde_profile_id: 'qualified-native',
+      cde_registration_intent: 'create_database',
+    })).toBe(true);
+    expect(engineSchema.providerConnectionFields().map(
+      (field) => field.id
+    )).toEqual(['cde_route_tls_mode']);
+    expect(engineSchema.baseFields.find(
+      (field) => field.id === 'kerberos_conn'
+    )).toBeUndefined();
+    expect(engineSchema.baseFields.find(
+      (field) => field.id === 'use_ssh_tunnel'
+    )).toBeUndefined();
+  });
+
+  it('does not validate conditionally hidden required fields', ()=>{
+    class ConditionalSchema extends BaseUISchema {
+      get baseFields() {
+        return [{
+          id: 'cloud_secret', label: 'Cloud secret', type: 'password',
+          noEmpty: true, visible: (state) => state.auth === 'cloud',
+        }];
+      }
+
+      validate() {
+        return false;
+      }
+    }
+    const conditionalSchema = new ConditionalSchema();
+    expect(validateSchema(
+      conditionalSchema, {auth: 'password'}, jest.fn()
+    )).toBe(false);
+    expect(validateSchema(
+      conditionalSchema, {auth: 'cloud'}, jest.fn()
+    )).toBe(true);
   });
 });

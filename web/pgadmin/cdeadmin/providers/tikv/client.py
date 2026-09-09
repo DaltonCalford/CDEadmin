@@ -944,10 +944,17 @@ class TiKVBackend:
              ]},
         ]
         for resource in value.get('objects', []):
-            if resource.get('resource_kind') != 'ttl':
-                continue
             for operation in resource.get('operations', []):
                 operation_id = operation.get('operation_id')
+                if operation_id == 'inspect':
+                    kind = resource['resource_kind']
+                    operation['form'] = {
+                        'form_id': f'tikv-{kind}-inspect',
+                        'title': f'Inspect TiKV {kind.replace("-", " ")}',
+                        'fields': [],
+                    }
+                if resource.get('resource_kind') != 'ttl':
+                    continue
                 if operation_id not in ttl_forms:
                     continue
                 title, fields = ttl_forms[operation_id]

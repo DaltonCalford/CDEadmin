@@ -127,6 +127,7 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
       getPseudoActiveFile: () => this.pseudoActiveFile,
       setPseudoActiveFile: this.setPseudoActiveFile,
       toggleDirectory: this.toggleDirectory,
+      toggleNodeCheck: this.toggleNodeCheck,
       closeDir: this.closeDir,
       newFile: async (dirOrPath: Directory | string) => this.supervisePrompt(await handle.promptNewFile(dirOrPath as string)),
       newFolder: async (dirOrPath: Directory | string) => this.supervisePrompt(await handle.promptNewDirectory(dirOrPath as string)),
@@ -202,6 +203,7 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
       : fileOrDirOrPath;
 
     if (fileH === this.props.model.root) { return; }
+    if (fileH?._metadata?.data?.disabled === true) { return; }
     if (this.activeFile !== fileH) {
       if (this.activeFile) {
         this.activeFileDec.removeTarget(this.activeFile);
@@ -522,7 +524,17 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
           this.showLoader(ref);
         }
 
-        await this.events.dispatch(FileTreeXEvent.onTreeEvents, window.event, 'beforeopen', dir);
+        const beforeOpenResults = await Promise.all(
+          this.events.dispatchWithReturn<boolean | Promise<boolean>>(
+            FileTreeXEvent.onTreeEvents, window.event, 'beforeopen', dir
+          )
+        );
+        if (beforeOpenResults.some((result) => result === false)) {
+          if (ref) {
+            this.hideLoader(ref);
+          }
+          return;
+        }
         await this.fileTreeHandle.openDirectory(dir as Directory);
         await this.changeResolvePath(dir as Directory);
 
@@ -533,6 +545,18 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
         this.events.dispatch(FileTreeXEvent.onTreeEvents, window.event, 'opened', dir);
       }
     }
+  };
+
+  private readonly toggleNodeCheck = (item: FileOrDir): boolean => {
+    const ref = FileTreeItem.itemIdToRefMap.get(item.id);
+    const control = ref?.querySelector(
+      'input.tree-node-check:not(:disabled)'
+    ) as HTMLInputElement;
+    if(!control) {
+      return false;
+    }
+    control.click();
+    return true;
   };
 
   private readonly addIcon = async (pathOrDir: string | Directory, icon) => {
@@ -578,14 +602,14 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
   private readonly showLoader = (ref: HTMLDivElement) => {
     // get label ref and add loading class
     ref.style.background = 'none';
-    const label$ = ref.querySelector('i.directory-toggle') as HTMLDivElement;
+    const label$ = ref.querySelector('.directory-toggle') as HTMLButtonElement;
     if (label$)  label$.classList.add('loading');
   };
 
   private readonly hideLoader = (ref: HTMLDivElement) => {
     // remove loading class.
     ref.style.background = 'none';
-    const label$ = ref.querySelector('i.directory-toggle') as HTMLDivElement;
+    const label$ = ref.querySelector('.directory-toggle') as HTMLButtonElement;
     if (label$) label$.classList.remove('loading');
   };
 
@@ -594,7 +618,12 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
   };
 
   private readonly handleItemClicked = async (ev: React.MouseEvent, item: FileOrDir, type: ItemType) => {
-    if (type === ItemType.Directory && ev.target.className.includes('directory-toggle')) {
+    if(item._metadata?.data?.disabled === true) {
+      return;
+    }
+    const target = ev.target as HTMLElement;
+    if (type === ItemType.Directory &&
+        target.closest?.('.directory-toggle')) {
       await this.toggleDirectory(item as Directory);
     }
     await this.setActiveFile(item as FileEntry);

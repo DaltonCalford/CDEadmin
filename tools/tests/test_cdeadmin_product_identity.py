@@ -11,12 +11,15 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ElementTree
 from pathlib import Path
 from types import ModuleType
 
@@ -85,6 +88,56 @@ class ProductIdentityContractTests(unittest.TestCase):
     def test_working_product_name_is_cdeadmin(self):
         self.assertEqual('CDEadmin', self.identity['product']['display_name'])
         self.assertEqual('cdeadmin', self.identity['product']['short_name'])
+
+    def test_login_illustration_is_self_contained(self):
+        path = ROOT / 'web/pgadmin/static/img/login.svg'
+        source = path.read_text(encoding='utf-8')
+        root = ElementTree.fromstring(source)
+        images = []
+        references = []
+        for element in root.iter():
+            tag = element.tag.rsplit('}', 1)[-1]
+            self.assertNotEqual('script', tag)
+            for key, value in element.attrib.items():
+                if key.rsplit('}', 1)[-1] == 'href':
+                    references.append(value)
+                    if tag == 'image':
+                        images.append(value)
+
+        references.extend(re.findall(r'url\(([^)]+)\)', source))
+        self.assertTrue(images)
+        self.assertTrue(all(
+            value.strip(' "\'').startswith(('#', 'data:'))
+            for value in references
+        ))
+        for image in images:
+            header, payload = image.split(',', 1)
+            self.assertEqual('data:image/png;base64', header)
+            decoded = base64.b64decode(
+                ''.join(payload.split()), validate=True
+            )
+            self.assertTrue(decoded.startswith(b'\x89PNG\r\n\x1a\n'))
+
+    def test_command_icons_are_self_contained_and_attributed(self):
+        directory = ROOT / 'web/pgadmin/static/img/command_icons'
+        icons = sorted(directory.glob('*.svg'))
+        self.assertGreaterEqual(len(icons), 30)
+        self.assertTrue((directory / 'ASSET_NOTICE.md').is_file())
+        self.assertTrue((directory / 'HUGEICONS_LICENSE.md').is_file())
+
+        for path in icons:
+            source = path.read_text(encoding='utf-8')
+            root = ElementTree.fromstring(source)
+            self.assertEqual('svg', root.tag.rsplit('}', 1)[-1], path.name)
+            self.assertIn('currentColor', source, path.name)
+            for element in root.iter():
+                tag = element.tag.rsplit('}', 1)[-1]
+                self.assertNotIn(tag, {'script', 'image', 'foreignObject'},
+                                 path.name)
+                for key, value in element.attrib.items():
+                    attribute = key.rsplit('}', 1)[-1]
+                    self.assertNotEqual('href', attribute, path.name)
+                    self.assertNotIn('url(', value.casefold(), path.name)
 
     def test_runtime_branding_and_version_match_identity_contract(self):
         def load_module(name, path):

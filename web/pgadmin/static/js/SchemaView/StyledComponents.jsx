@@ -83,7 +83,8 @@ export const StyleDataGridBox = styled(Box)(({theme}) => ({
             '& .pgrt-row-content':{
               '& .pgrd-row-cell': {
                 height: 'auto',
-                padding: theme.spacing(0.5),
+                paddingInline: 'var(--cde-grid-cell-padding, 8px)',
+                paddingBlock: theme.spacing(0.5),
                 '&.btn-cell, &.expanded-icon-cell': {
                   padding: '2px 0px'
                 },

@@ -23,6 +23,7 @@
     "SessionProvider",
     "ExecutionProvider",
     "ResultProvider",
+    "ResultRenderer",
     "DiagnosticProvider",
     "OperationProvider",
     "ToolProvider",
@@ -75,6 +76,61 @@
       "scope": [
         "endpoint"
       ]
+    },
+    {
+      "permission_id": "topology_admin",
+      "granted": true,
+      "scope": [
+        "endpoint"
+      ]
+    },
+    {
+      "permission_id": "security_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "backup_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "restore_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "replication_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "maintenance_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
+    },
+    {
+      "permission_id": "upgrade_admin",
+      "granted": true,
+      "scope": [
+        "endpoint",
+        "resource"
+      ]
     }
   ],
   "required_permissions": [
@@ -103,7 +159,7 @@
       "server_verification": true,
       "create_and_activate": true
     },
-    "target_adapter_version": "firebird-driver-1.10.11",
+    "target_adapter_version": "firebird-driver-1.10.11 with Firebird 5.0.4 client library",
     "connection_capability_set": "firebird-driver-v1",
     "secret_fields": [
       {"field_id": "password", "secret_kind": "database_password", "label": "Password", "group": "Firebird authentication", "primary": true, "visible_when": {"field_id": "trusted_auth", "equals": false}}
@@ -132,10 +188,9 @@
   "provenance": {
     "purpose": "CDE-REL-040 Firebird exact-profile provider",
     "protocol": "firebird_wire",
-    "client_state": "firebird-driver_1.10.11_installed",
-    "rejected_client": "firebird-driver 2.0.3 conflicts with the shared application protobuf dependency set",
+    "client_state": "firebird-driver_1.10.11_with_firebird_5.0.4_client_library",
     "runtime_state": "exact_provider_live_verified",
-    "activation_gate": "passed",
-    "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901"
+    "activation_gate": "provider_live_activation_passed_pending_screenshot_and_manual_ui_review",
+    "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260907"
   }
 }

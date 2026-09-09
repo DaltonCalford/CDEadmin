@@ -34,6 +34,8 @@ export interface IFileTreeXHandle extends IFileTreeHandle {
     newFolder(dir: Directory)
     toggleDirectory(path: string)
     toggleDirectory(dir: Directory)
+    toggleNodeCheck(file: FileEntry): boolean
+    toggleNodeCheck(dir: Directory): boolean
 
     first(file: FileEntry): FileEntry | Directory
     first(dir: Directory): FileEntry | Directory

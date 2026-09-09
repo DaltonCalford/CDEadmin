@@ -44,6 +44,11 @@ def evaluate(source: Path):
         path.read_text(encoding='utf-8')
         for path in studio_root.glob('*.py')
     )
+    providers_root = source / 'web/pgadmin/cdeadmin/providers'
+    providers = '\n'.join(
+        path.read_text(encoding='utf-8')
+        for path in providers_root.rglob('*.py')
+    )
     for token in REQUIRED_VIEWS:
         if f'function {token}' not in ui:
             findings.append({'rule': 'specialized-view', 'missing': token})
@@ -51,7 +56,10 @@ def evaluate(source: Path):
         if token not in ui or token not in routes:
             findings.append({'rule': 'workspace-action', 'missing': token})
     for token in REQUIRED_LANGUAGE_PROFILES:
-        if token not in ui:
+        # Language identities are provider-owned data delivered through the
+        # workspace contract.  Requiring them in React would recreate a
+        # hard-coded engine switch in the common UI.
+        if token not in providers:
             findings.append({'rule': 'language-profile', 'missing': token})
     for token in FORBIDDEN_COMMON_TRANSACTION_TOKENS:
         if token in common:

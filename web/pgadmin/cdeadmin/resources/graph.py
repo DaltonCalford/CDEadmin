@@ -207,6 +207,7 @@ class ResourceExplorerService:
         self, context, parent_payload: Mapping[str, Any], *,
         page_size: int = 50, cursor: str | None = None,
         expected_generation: str | None = None,
+        provider_route: Mapping[str, Any] | None = None,
     ) -> ResourcePage:
         if (
             isinstance(page_size, bool) or
@@ -230,7 +231,10 @@ class ResourceExplorerService:
         ) if cursor else 0
         resources = self.cache.page(context, parent_ref)
         if resources is None:
-            raw = binding.instance.list_resources(copy.deepcopy(parent))
+            provider_request = copy.deepcopy(parent)
+            if provider_route is not None:
+                provider_request['route'] = copy.deepcopy(provider_route)
+            raw = binding.instance.list_resources(provider_request)
             resources = self._admit_children(context, parent_ref, raw)
             generation = self.cache.put(
                 context, parent_ref, resources
@@ -255,6 +259,7 @@ class ResourceExplorerService:
         self, context, ref: ResourceRef, *,
         inspector_id: str | None = None,
         expected_generation: str | None = None,
+        provider_route: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         self._require_endpoint(context, ref)
         self._require_generation(
@@ -266,7 +271,10 @@ class ResourceExplorerService:
         )
         self._ensure_contributions(binding)
         if inspector_id is None:
-            result = binding.instance.inspect_resource(resource)
+            provider_request = copy.deepcopy(resource)
+            if provider_route is not None:
+                provider_request['route'] = copy.deepcopy(provider_route)
+            result = binding.instance.inspect_resource(provider_request)
         else:
             inspector = self.contributions.inspector(
                 inspector_id, resource['resource_kind']

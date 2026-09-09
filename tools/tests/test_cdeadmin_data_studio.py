@@ -119,6 +119,13 @@ class FakeProvider:
                 LanguageContribution(
                     'example-sql', 'Example SQL', 'text/x-example-sql',
                     frozenset({'relational'}),
+                    starter_source='SELECT 42',
+                    source_presets=(('Scalar', 'SELECT 42'),),
+                    query_plan_templates=(
+                        ('Example plan', 'EXPLAIN {source}'),
+                    ),
+                    dialect_contract_id='example.dialect.v1',
+                    dialect_evidence=('example-proof-1',),
                 ),
             ),
             'completions': (
@@ -302,6 +309,41 @@ def harness(label='one', history=None):
 
 
 class DataStudioContributionTests(unittest.TestCase):
+
+    def test_executable_language_templates_require_dialect_evidence(self):
+        with self.assertRaisesRegex(
+                DataStudioError, 'require a dialect contract and evidence'):
+            LanguageContribution(
+                'example-sql', 'Example', 'text/plain',
+                frozenset({'relational'}), starter_source='SELECT 1',
+            )
+
+    def test_language_template_metadata_is_returned_by_service(self):
+        ctx, _provider, _registry, service = harness()
+        language = service.languages(ctx)[0]
+        self.assertEqual('SELECT 42', language['starter_source'])
+        self.assertEqual(
+            [{'label': 'Scalar', 'source': 'SELECT 42'}],
+            language['source_presets'],
+        )
+        self.assertEqual([{
+            'label': 'Example plan',
+            'source_template': 'EXPLAIN {source}',
+        }], language['query_plan_templates'])
+        self.assertEqual(
+            'example.dialect.v1', language['dialect_contract_id']
+        )
+
+    def test_query_plan_template_requires_exact_source_placeholder(self):
+        with self.assertRaisesRegex(
+                DataStudioError, 'exactly one.*source'):
+            LanguageContribution(
+                'example-sql', 'Example', 'text/plain',
+                frozenset({'relational'}),
+                query_plan_templates=(('Invalid', 'EXPLAIN SELECT 1'),),
+                dialect_contract_id='example.dialect.v1',
+                dialect_evidence=('example-proof-1',),
+            )
 
     def test_registry_rejects_duplicate_language_profile(self):
         registry = DataStudioContributionRegistry()

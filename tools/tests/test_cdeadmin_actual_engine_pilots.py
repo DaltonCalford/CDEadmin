@@ -39,6 +39,7 @@ from pgadmin.cdeadmin.sdk import (  # noqa: E402
 )
 from pgadmin.cdeadmin.semantic_models import (  # noqa: E402
     SemanticCompilationUnavailable,
+    SemanticModelError,
 )
 from pgadmin.cdeadmin.providers.clickhouse.provider import (  # noqa: E402
     ClickHousePilotProvider,
@@ -453,40 +454,35 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                 discovered['verified_runtime']['verification_state'],
             )
 
-    def test_semantic_compiler_admission_is_explicit_for_every_provider(self):
-        admitted = {
-            'mysql', 'mariadb', 'duckdb', 'firebird', 'sqlite',
+    def test_incomplete_shared_sql_dialects_fail_closed(self):
+        incomplete_sql = {
             'xtdb', 'clickhouse', 'influxdb', 'cockroachdb', 'dolt',
             'tidb', 'vitess', 'yugabytedb',
         }
         native = {'mongodb', 'neo4j', 'opensearch'}
+        activated_sql = {
+            'duckdb', 'firebird', 'mysql', 'mariadb', 'sqlite',
+        }
         observed = set()
         for provider_type, profile in PILOTS:
             instance = provider(provider_type, profile)
             descriptor = instance.semantic_model_descriptor()
             self.assertEqual(profile.engine_id, descriptor['engine_id'])
             self.assertEqual(profile.model_family, descriptor['model_family'])
-            if profile.engine_id in admitted | native:
+            if profile.engine_id in native:
                 self.assertEqual(
                     {'as_of', 'range', 'period_to_date',
                      'period_comparison'},
                     set(descriptor['time_intelligence']['operations']),
                 )
-            if profile.engine_id in admitted:
+            if profile.engine_id in incomplete_sql:
                 observed.add(profile.engine_id)
-                self.assertTrue(descriptor['execution_available'])
-                compiled = instance.compile_semantic_query(
-                    semantic_model(profile.engine_id), semantic_query()
-                )
-                self.assertEqual(
-                    profile.semantic_sql_dialect['language_profile'],
-                    compiled['language_profile'],
-                )
-                self.assertIn('COUNT(*)', compiled['source'])
-                self.assertIn(
-                    'moving_average',
-                    descriptor['analytical_windows']['operations'],
-                )
+                self.assertFalse(descriptor['execution_available'])
+                self.assertIsNotNone(descriptor['reason'])
+                with self.assertRaises(SemanticModelError):
+                    instance.compile_semantic_query(
+                        semantic_model(profile.engine_id), semantic_query()
+                    )
             elif profile.engine_id in native:
                 observed.add(profile.engine_id)
                 self.assertTrue(descriptor['execution_available'])
@@ -498,6 +494,10 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                     profile.engine_id == 'mongodb',
                     bool(descriptor['analytical_windows']['operations']),
                 )
+            elif profile.engine_id in activated_sql:
+                observed.add(profile.engine_id)
+                self.assertTrue(descriptor['execution_available'])
+                self.assertEqual('sql', descriptor['compiler_kind'])
             else:
                 self.assertFalse(descriptor['execution_available'])
                 self.assertIsNotNone(descriptor['reason'])
@@ -505,7 +505,38 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                     instance.compile_semantic_query(
                         semantic_model(profile.engine_id), semantic_query()
                     )
-        self.assertEqual(admitted | native, observed)
+        self.assertEqual(incomplete_sql | native | activated_sql, observed)
+
+    def test_mysql_family_exact_semantic_sql_contracts_are_available(self):
+        for provider_type, profile in (
+                item for item in PILOTS
+                if item[1].engine_id in {'mysql', 'mariadb'}):
+            descriptor = provider(
+                provider_type, profile
+            ).semantic_model_descriptor()
+            self.assertTrue(descriptor['execution_available'])
+            self.assertEqual(
+                f'{profile.engine_id}-sql', descriptor['language_profile']
+            )
+            self.assertEqual({
+                'running_sum', 'moving_sum', 'moving_average', 'lag',
+                'delta', 'percent_change', 'rank', 'dense_rank',
+            }, set(descriptor['analytical_windows']['operations']))
+
+    def test_firebird_exact_semantic_sql_contract_is_available(self):
+        provider_type, profile = next(
+            item for item in PILOTS if item[1].engine_id == 'firebird'
+        )
+        descriptor = provider(
+            provider_type, profile
+        ).semantic_model_descriptor()
+        self.assertTrue(descriptor['execution_available'])
+        self.assertEqual('firebird-sql', descriptor['language_profile'])
+        self.assertEqual('sql', descriptor['compiler_kind'])
+        self.assertEqual({
+            'running_sum', 'moving_sum', 'moving_average', 'lag',
+            'delta', 'percent_change', 'rank', 'dense_rank',
+        }, set(descriptor['analytical_windows']['operations']))
 
     def test_wrong_runtime_engine_version_or_protocol_fails_closed(self):
         for field in ('engine_id', 'version', 'protocol_id'):

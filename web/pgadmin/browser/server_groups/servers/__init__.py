@@ -68,6 +68,20 @@ from pgadmin.cdeadmin.security import (
 from pgadmin.cdeadmin.core import (
     ProviderPermissionError, ProviderUnavailableError,
 )
+from pgadmin.cdeadmin.context_menu import (
+    database_target_context_actions,
+    endpoint_context_actions,
+    resource_context_actions,
+)
+from pgadmin.cdeadmin.navigator import (
+    ProviderNavigatorError,
+    database_entries,
+    decode_navigator_state,
+    encode_navigator_state,
+    is_loopback_server,
+    resource_children,
+    server_display_name,
+)
 from pgadmin.cdeadmin.data_studio import DataStudioError
 from pgadmin.cdeadmin.resources import ResourceGraphError
 from pgadmin.cdeadmin.results import ResultRegistryError
@@ -75,6 +89,7 @@ from pgadmin.cdeadmin.report_delivery import ReportDeliveryError
 from pgadmin.cdeadmin.report_scheduler import ReportSchedulerError
 from pgadmin.cdeadmin.semantic_models import SemanticModelError
 from pgadmin.cdeadmin.visual_admin import VisualAdminError
+from pgadmin.cdeadmin.sdk import RelationalCredentialError
 from pgadmin.cdeadmin.workspace import (
     ProviderWorkspaceError,
     service_for_app as provider_workspace_for_app,
@@ -90,6 +105,7 @@ SENSITIVE_CONN_KEYS = frozenset({
     'passfile', 'sslcert', 'sslkey',
     'sslrootcert', 'sslcrl', 'sslcrldir',
 })
+_CDE_SERVER_SCOPE_TARGET = 'cdeadmin-server-scope'
 
 
 def _is_non_owner(server):
@@ -108,6 +124,162 @@ def _cde_registration(server):
 def _cde_navigator_parent(profile):
     from pgadmin.browser.server_groups.engine_types import navigator_engine_id
     return f"engine_type_{navigator_engine_id(profile['engine_id'])}"
+
+
+def _cde_endpoint_actions(server, profile):
+    """Return provider-owned menus for provider endpoints only."""
+    if profile['workflow'] != 'provider_endpoint':
+        return None
+    state = server.endpoint_profile.runtime_identity.verification_state
+    return endpoint_context_actions(
+        profile, state,
+        is_password_saved=bool(server.save_password),
+        can_manage=not _is_non_owner(server),
+    )
+
+
+def _cde_navigator_url(gid, sid, state):
+    """Return an authenticated lazy-child URL for one navigator branch."""
+    return url_for(
+        'NODE-server.cde_workspace_id', gid=gid, sid=sid,
+        navigator=encode_navigator_state(state),
+    )
+
+
+def _server_children_url(gid, sid):
+    """Return the canonical child URL without navigator-only ancestors.
+
+    Server nodes are presented beneath an engine connector, but the inherited
+    server route remains keyed by server group and server id.  Supplying the
+    URL explicitly prevents the client from inserting the engine id into that
+    route when it derives a URL from the visual tree hierarchy.
+    """
+    return url_for('NODE-server.children_id', gid=gid, sid=sid)
+
+
+def _cde_database_nodes(gid, sid, profile, catalog):
+    """Place every retained database directly below its owning endpoint."""
+    nodes = []
+    for entry in database_entries(catalog):
+        state = {
+            'scope': 'database',
+            'target_id': entry['target_id'],
+            'database': entry['database'],
+            'display_name': entry['display_name'],
+            'parent_path': [],
+        }
+        target = {
+            'target_id': entry['target_id'],
+            'database': entry['database'],
+            'display_name': entry['display_name'],
+            'active': entry['active'],
+        }
+        node_id = hashlib.sha256(
+            f"{sid}:{entry['target_id']}".encode('utf-8')
+        ).hexdigest()[:24]
+        nodes.append({
+            'id': f'cde_database_target_{node_id}',
+            'label': entry['display_name'],
+            'icon': 'icon-database',
+            'icon_key': 'object.database',
+            'inode': True,
+            'expandable': True,
+            'node_kind': 'database',
+            '_type': 'cde_database_target',
+            '_id': entry['target_id'],
+            '_pid': sid,
+            'module': 'pgadmin.node.server',
+            'children_url': _cde_navigator_url(gid, sid, state),
+            'cde_database': entry['database'],
+            'cde_database_active': entry['active'],
+            'cde_endpoint': True,
+            'cde_engine_id': profile['engine_id'],
+            'cde_profile_id': profile['profile_id'],
+            'cde_context_actions': (
+                None if entry['legacy'] else
+                database_target_context_actions(profile, target)
+            ),
+        })
+    return nodes
+
+
+def _cde_resource_nodes(gid, sid, profile, state, snapshot):
+    """Convert provider-neutral navigator presentations to browser nodes."""
+    nodes = []
+    base_state = {
+        key: state[key] for key in (
+            'target_id', 'database', 'display_name'
+        ) if key in state
+    }
+    for value in resource_children(snapshot['resources'], state):
+        if value['node_type'] == 'group':
+            child_state = {
+                **base_state,
+                'scope': 'kind',
+                'parent_path': value['parent_path'],
+                'resource_kind': value['resource_kind'],
+            }
+            token = encode_navigator_state(child_state)
+            node_id = hashlib.sha256(token.encode('ascii')).hexdigest()[:24]
+            nodes.append({
+                'id': f'cde_resource_group_{node_id}',
+                'label': value['label'],
+                'icon': 'icon-coll-object',
+                'icon_key': f"object.{value['resource_kind']}",
+                'inode': True,
+                'expandable': True,
+                'node_kind': 'container',
+                '_type': 'cde_resource_group',
+                '_id': node_id,
+                '_pid': sid,
+                'module': 'pgadmin.node.server',
+                'children_url': _cde_navigator_url(
+                    gid, sid, child_state
+                ),
+                'cde_endpoint': True,
+                'cde_engine_id': profile['engine_id'],
+                'cde_profile_id': profile['profile_id'],
+                'cde_resource_kind': value['resource_kind'],
+            })
+            continue
+        resource = value['resource']
+        child_state = {
+            **base_state,
+            'scope': 'resource',
+            'parent_path': value['display_path'],
+            'resource_id': value['resource_id'],
+        }
+        node_id = hashlib.sha256(
+            value['resource_id'].encode('utf-8')
+        ).hexdigest()[:24]
+        nodes.append({
+            'id': f'cde_resource_{node_id}',
+            'label': value['label'],
+            'icon': 'icon-server',
+            'icon_key': f"object.{value['resource_kind']}",
+            'inode': value['has_children'],
+            'expandable': value['has_children'],
+            'node_kind': 'object',
+            '_type': 'cde_resource',
+            '_id': node_id,
+            '_pid': sid,
+            'module': 'pgadmin.node.server',
+            'children_url': (
+                _cde_navigator_url(gid, sid, child_state)
+                if value['has_children'] else None
+            ),
+            'cde_resource_id': value['resource_id'],
+            'cde_resource_kind': value['resource_kind'],
+            'cde_authority_path': resource['authority_path'],
+            'cde_endpoint': True,
+            'cde_engine_id': profile['engine_id'],
+            'cde_profile_id': profile['profile_id'],
+            'cde_context_actions': resource_context_actions(
+                profile, resource, snapshot.get('visual_admin'),
+                database_target_id=base_state.get('target_id'),
+            ),
+        })
+    return sorted(nodes, key=lambda item: item['label'].casefold())
 
 
 def has_any(data, keys):
@@ -154,13 +326,18 @@ def get_preferences():
     return hide_shared_server
 
 
-def server_icon_and_background(is_connected, manager, server):
+def server_icon_and_background(
+        is_connected, manager, server, provider_verification_state=None):
     """
 
     Args:
         is_connected: Flag to check if server is connected
         manager: Connection manager
         server: Sever object
+        provider_verification_state: Provider endpoint verification state.
+            Provider endpoints do not use the PostgreSQL connection manager,
+            so a verified endpoint needs its connected icon without claiming
+            that a PostgreSQL session exists.
 
     Returns:
         Server Icon CSS class
@@ -177,9 +354,13 @@ def server_icon_and_background(is_connected, manager, server):
                 server.fgcolor
             )
 
+    if provider_verification_state is not None:
+        is_connected = provider_verification_state == 'verified'
+
     if is_connected:
         return 'icon-{0}{1}'.format(
-            manager.server_type, server_background_color
+            manager.server_type if manager is not None else 'server',
+            server_background_color
         )
     elif server.shared and config.SERVER_MODE:
         return 'icon-shared-server-not-connected{0}'.format(
@@ -364,26 +545,48 @@ class ServerModule(sg.ServerGroupPluginModule):
             profile = _cde_registration(server)
             if navigator_engine_id(profile['engine_id']) != engine_id:
                 continue
+            provider_endpoint = profile['workflow'] == 'provider_endpoint'
+            embedded_endpoint = (
+                provider_endpoint and
+                profile.get('route_kind') == 'embedded_file'
+            )
+            local_endpoint = (
+                embedded_endpoint or is_loopback_server(server.host)
+            )
+            verification_state = (
+                server.endpoint_profile.runtime_identity.verification_state
+                if provider_endpoint else 'legacy'
+            )
 
-            try:
-                manager = driver.connection_manager(server.id)
-                conn = manager.connection()
-                was_connected = conn.wasConnected
-                connected = conn.connected()
-                if connected:
-                    server_type = manager.server_type
-                    user_info = manager.user_info
-            except CryptKeyMissing:
-                # show the nodes at least even if not able to connect.
-                pass
-            except Exception as e:
-                current_app.logger.exception(e)
-                errmsg = str(e)
+            # A provider endpoint is not a PostgreSQL session.  Its runtime
+            # state and children are owned by the provider contracts, so do
+            # not ask the inherited psycopg connection manager to open it.
+            if not provider_endpoint:
+                try:
+                    manager = driver.connection_manager(server.id)
+                    conn = manager.connection()
+                    was_connected = conn.wasConnected
+                    connected = conn.connected()
+                    if connected:
+                        server_type = manager.server_type
+                        user_info = manager.user_info
+                except CryptKeyMissing:
+                    # show the nodes at least even if not able to connect.
+                    pass
+                except Exception as e:
+                    current_app.logger.exception(e)
+                    errmsg = str(e)
             yield self.generate_browser_node(
                 "%d" % (server.id),
                 parent_id,
-                server.name,
-                server_icon_and_background(connected, manager, server),
+                server_display_name(
+                    'localhost' if embedded_endpoint else server.host,
+                    server.name,
+                ),
+                server_icon_and_background(
+                    connected, manager, server,
+                    verification_state if provider_endpoint else None,
+                ),
                 True,
                 self.node_type,
                 connected=connected,
@@ -409,10 +612,22 @@ class ServerModule(sg.ServerGroupPluginModule):
                 ),
                 cloud_status=server.cloud_status,
                 description=server.comment,
+                connection_profile_name=server.name,
+                cde_local_server=local_endpoint,
+                cde_embedded_endpoint=embedded_endpoint,
                 tags=server.tags,
                 cde_profile_id=profile['profile_id'],
-                cde_endpoint=(profile['workflow'] == 'provider_endpoint'),
+                cde_endpoint=provider_endpoint,
                 cde_engine_id=engine_id,
+                children_url=_server_children_url(gid, server.id),
+                runtime_verification_state=verification_state,
+                cde_context_actions=(
+                    endpoint_context_actions(
+                        profile, verification_state,
+                        is_password_saved=bool(server.save_password),
+                        can_manage=not _is_non_owner(server),
+                    ) if provider_endpoint else None
+                ),
             )
 
     @property
@@ -644,77 +859,36 @@ class ServerNode(PGChildNodeView):
     def children(self, gid, sid):
         """Route provider endpoints to the common Resource Explorer."""
         server = get_server(sid)
-        if server is not None and (
-            _cde_registration(server)['workflow'] == 'provider_endpoint'
-        ):
+        profile = _cde_registration(server) if server is not None else None
+        if server is not None and profile[
+            'workflow'
+        ] == 'provider_endpoint':
             if _is_non_owner(server):
                 return forbidden(errormsg=gettext(
                     'Only the endpoint owner can browse its resources.'
                 ))
             try:
-                workspace = provider_workspace_for_app(
+                catalog = endpoint_service_for_app(
                     current_app
-                ).bootstrap(server)
-            except EndpointRegistrationError as exc:
+                ).database_catalog(server)
+                return make_json_response(data=_cde_database_nodes(
+                    gid, sid, profile, catalog
+                ))
+            except (EndpointRegistrationError,
+                    ProviderNavigatorError) as exc:
                 return make_json_response(
                     status=409, success=0, errormsg=str(exc)
                 )
             except Exception:
                 current_app.logger.exception(
-                    'CDEadmin resource tree request failed'
+                    'CDEadmin database navigator request failed'
                 )
                 return make_json_response(
-                    status=502,
-                    success=0,
+                    status=502, success=0,
                     errormsg=gettext(
-                        'The endpoint provider did not return resources.'
+                        'The endpoint database navigator is unavailable.'
                     ),
                 )
-            nodes = []
-            database_targets = workspace.get('database_targets', {})
-            for target in database_targets.get('targets', []):
-                target_id = target['target_id']
-                nodes.append({
-                    'id': f'cde_database_target_{target_id}',
-                    'label': (
-                        f"{target['display_name']}"
-                        f"{' (active)' if target['active'] else ''}"
-                    ),
-                    'icon': 'icon-database',
-                    'inode': False,
-                    '_type': 'cde_database_target',
-                    '_id': target_id,
-                    '_pid': sid,
-                    'module': 'pgadmin.node.server',
-                    'cde_database': target['database'],
-                    'cde_database_active': target['active'],
-                    'cde_endpoint': True,
-                })
-            for resource in workspace['resource_page']['items']:
-                resource_id = resource['resource_id']
-                node_id = hashlib.sha256(
-                    resource_id.encode('utf-8')
-                ).hexdigest()[:24]
-                display_path = resource.get('display_path') or []
-                nodes.append({
-                    'id': f'cde_resource_{node_id}',
-                    'label': ' / '.join(display_path) or resource[
-                        'display_name'
-                    ],
-                    'icon': 'icon-server',
-                    'inode': False,
-                    '_type': 'cde_resource',
-                    '_id': node_id,
-                    '_pid': sid,
-                    'module': 'pgadmin.node.server',
-                    'cde_resource_id': resource_id,
-                    'cde_resource_kind': resource['resource_kind'],
-                    'cde_authority_path': resource['authority_path'],
-                    'cde_endpoint': True,
-                })
-            return make_json_response(
-                data=sorted(nodes, key=lambda item: item['label'])
-            )
         return super().children(gid=gid, sid=sid)
 
     def update_connection_parameter(self, data, server, sharedserver=None):
@@ -810,6 +984,10 @@ class ServerNode(PGChildNodeView):
             profile = _cde_registration(server)
             provider_endpoint = profile['workflow'] == 'provider_endpoint'
             credential_values = {}
+            verification_state = (
+                server.endpoint_profile.runtime_identity.verification_state
+                if provider_endpoint else 'legacy'
+            )
             if provider_endpoint:
                 connected = False
             errmsg = None
@@ -830,7 +1008,10 @@ class ServerNode(PGChildNodeView):
                     "%d" % (server.id),
                     _cde_navigator_parent(profile),
                     server.name,
-                    server_icon_and_background(connected, manager, server),
+                    server_icon_and_background(
+                        connected, manager, server,
+                        verification_state if provider_endpoint else None,
+                    ),
                     True,
                     self.node_type,
                     connected=connected,
@@ -848,10 +1029,10 @@ class ServerNode(PGChildNodeView):
                     shared=server.shared,
                     cde_profile_id=profile['profile_id'],
                     cde_endpoint=provider_endpoint,
-                    runtime_verification_state=(
-                        server.endpoint_profile.runtime_identity.
-                        verification_state
-                        if provider_endpoint else 'legacy'
+                    runtime_verification_state=verification_state,
+                    cde_engine_id=profile['engine_id'],
+                    cde_context_actions=_cde_endpoint_actions(
+                        server, profile
                     ),
                     is_kerberos_conn=bool(server.kerberos_conn),
                     gss_authenticated=manager.gss_authenticated,
@@ -891,6 +1072,10 @@ class ServerNode(PGChildNodeView):
         connected = conn.connected()
         profile = _cde_registration(server)
         provider_endpoint = profile['workflow'] == 'provider_endpoint'
+        verification_state = (
+            server.endpoint_profile.runtime_identity.verification_state
+            if provider_endpoint else 'legacy'
+        )
         if provider_endpoint:
             connected = False
         errmsg = None
@@ -915,7 +1100,10 @@ class ServerNode(PGChildNodeView):
                 "%d" % (server.id),
                 _cde_navigator_parent(profile),
                 server.name,
-                server_icon_and_background(connected, manager, server),
+                server_icon_and_background(
+                    connected, manager, server,
+                    verification_state if provider_endpoint else None,
+                ),
                 True,
                 self.node_type,
                 connected=connected,
@@ -933,10 +1121,9 @@ class ServerNode(PGChildNodeView):
                 shared=server.shared,
                 cde_profile_id=profile['profile_id'],
                 cde_endpoint=provider_endpoint,
-                runtime_verification_state=(
-                    server.endpoint_profile.runtime_identity.verification_state
-                    if provider_endpoint else 'legacy'
-                ),
+                runtime_verification_state=verification_state,
+                cde_engine_id=profile['engine_id'],
+                cde_context_actions=_cde_endpoint_actions(server, profile),
                 username=server.username,
                 is_kerberos_conn=bool(server.kerberos_conn),
                 gss_authenticated=manager.gss_authenticated,
@@ -1316,10 +1503,22 @@ class ServerNode(PGChildNodeView):
                 _cde_navigator_parent(_cde_registration(server)),
                 server.name,
                 server_icon_and_background(
-                    connected, manager, sharedserver)
+                    connected, manager, sharedserver,
+                    (
+                        server.endpoint_profile.runtime_identity.
+                        verification_state
+                        if provider_endpoint else None
+                    ),
+                )
                 if _is_non_owner(server)
                 else server_icon_and_background(
-                    connected, manager, server),
+                    connected, manager, server,
+                    (
+                        server.endpoint_profile.runtime_identity.
+                        verification_state
+                        if provider_endpoint else None
+                    ),
+                ),
                 True,
                 self.node_type,
                 connected=connected,
@@ -1328,6 +1527,10 @@ class ServerNode(PGChildNodeView):
                 runtime_verification_state=(
                     server.endpoint_profile.runtime_identity.verification_state
                     if provider_endpoint else 'legacy'
+                ),
+                cde_engine_id=endpoint_registration['engine_id'],
+                cde_context_actions=_cde_endpoint_actions(
+                    server, endpoint_registration
                 ),
                 shared=server.shared,
                 user_id=server.user_id,
@@ -1645,6 +1848,15 @@ class ServerNode(PGChildNodeView):
         embedded_endpoint = (
             endpoint_registration.get('route_kind') == 'embedded_file'
         )
+        registration_intent = data.get(
+            'cde_registration_intent', 'endpoint'
+        )
+        if registration_intent not in {
+            'endpoint', 'register_existing', 'create_database'
+        }:
+            return bad_request(errormsg=gettext(
+                'The endpoint registration action is invalid.'
+            ))
         if provider_endpoint and any((
             data.get('service'), data.get('use_ssh_tunnel'),
             data.get('shared'),
@@ -1667,6 +1879,40 @@ class ServerNode(PGChildNodeView):
         ):
             return bad_request(errormsg=gettext(
                 'An embedded endpoint requires an absolute database file.'
+            ))
+        if embedded_endpoint:
+            database_path = os.path.realpath(data['db'])
+            if registration_intent != 'create_database' and not (
+                os.path.isfile(database_path)
+            ):
+                return bad_request(errormsg=gettext(
+                    'The selected embedded database file does not exist.'
+                ))
+            if registration_intent == 'create_database':
+                if os.path.exists(database_path):
+                    return bad_request(errormsg=gettext(
+                        'Create database will not overwrite an existing file.'
+                    ))
+                parent = os.path.dirname(database_path)
+                if not os.path.isdir(parent):
+                    return bad_request(errormsg=gettext(
+                        'The parent directory for the database does not exist.'
+                    ))
+        targeting = endpoint_registration.get('database_targeting', {})
+        if provider_endpoint and not embedded_endpoint and (
+            registration_intent in {'register_existing', 'create_database'}
+        ) and not data.get('db'):
+            return bad_request(errormsg=gettext(
+                'This database action requires a native database name or '
+                'database file path.'
+            ))
+        if registration_intent == 'create_database' and (
+            not embedded_endpoint and
+            not targeting.get('create_and_activate')
+        ):
+            return bad_request(errormsg=gettext(
+                'This provider does not admit database creation from '
+                'server registration.'
             ))
 
         # Get enc key
@@ -1792,7 +2038,10 @@ class ServerNode(PGChildNodeView):
                             'host': data.get('host'),
                             'port': data.get('port'),
                             'user': data.get('username'),
-                            'database': data.get('db'),
+                            'database': (
+                                None if registration_intent ==
+                                'create_database' else data.get('db')
+                            ),
                             'connection_timeout': connection_params.get(
                                 'connect_timeout', 10
                             ),
@@ -1825,13 +2074,11 @@ class ServerNode(PGChildNodeView):
             db.session.add(server)
             db.session.commit()
             if provider_endpoint and data.get('db') and (
-                endpoint_registration.get(
-                    'database_targeting', {}
-                ).get('multiple')
+                registration_intent != 'create_database'
             ):
                 endpoint_service_for_app(
                     current_app
-                ).retain_created_database(server, {
+                ).retain_registered_database(server, {
                     'database': data['db'],
                     'display_name': data['db'].rsplit('/', 1)[-1],
                 })
@@ -1879,6 +2126,67 @@ class ServerNode(PGChildNodeView):
                     return make_json_response(
                         status=401, success=0, errormsg=str(exc)
                     )
+                if registration_intent == 'create_database' and not (
+                    embedded_endpoint
+                ):
+                    workspace_service = provider_workspace_for_app(
+                        current_app
+                    )
+                    create_request = {
+                        'resource_kind': 'database',
+                        'operation_id': 'create',
+                        'target_resource': None,
+                        'draft': (
+                            {'database_path': data['db']}
+                            if endpoint_registration['engine_id'] ==
+                            'firebird' else {'name': data['db']}
+                        ),
+                    }
+                    try:
+                        validation = workspace_service.validate_visual_admin(
+                            server, create_request
+                        )
+                        if validation.get('valid') is not True:
+                            messages = [
+                                item.get('message', '')
+                                for item in validation.get('errors', [])
+                                if item.get('message')
+                            ]
+                            raise EndpointRegistrationError(
+                                ' '.join(messages) or
+                                'The provider rejected database creation.'
+                            )
+                        plan = workspace_service.plan_visual_admin(
+                            server, create_request
+                        )
+                        if plan.get('state') != 'ready' or not plan.get(
+                            'execution_available'
+                        ):
+                            raise EndpointRegistrationError(
+                                ', '.join(plan.get('blockers') or []) or
+                                'The provider database plan is not executable.'
+                            )
+                        workspace_service.apply_visual_admin(server, {
+                            'plan_id': plan['plan_id'],
+                            'plan_digest': plan['plan_digest'],
+                            'confirmed': True,
+                        })
+                    except Exception as exc:
+                        current_app.logger.exception(
+                            'Provider database creation failed after endpoint '
+                            'registration'
+                        )
+                        return make_json_response(
+                            status=409, success=0,
+                            errormsg=gettext(
+                                'The endpoint was registered and verified, '
+                                'but database creation did not complete: '
+                                '%(e)s',
+                                e=str(exc),
+                            ),
+                            data={'server_id': server.id,
+                                  'endpoint_preserved': True},
+                        )
             elif not provider_endpoint and data.get('connect_now'):
                 manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(
                     server.id)
@@ -1944,7 +2252,14 @@ class ServerNode(PGChildNodeView):
                     "%d" % server.id,
                     _cde_navigator_parent(endpoint_registration),
                     server.name,
-                    server_icon_and_background(connected, manager, server),
+                    server_icon_and_background(
+                        connected, manager, server,
+                        (
+                            verification['verification_state']
+                            if provider_endpoint and verification else
+                            'unverified' if provider_endpoint else None
+                        ),
+                    ),
                     True,
                     self.node_type,
                     username=server.username,
@@ -1970,7 +2285,11 @@ class ServerNode(PGChildNodeView):
                     runtime_verification_state=(
                         verification['verification_state']
                         if verification else 'unverified'
-                    )
+                    ),
+                    cde_engine_id=endpoint_registration['engine_id'],
+                    cde_context_actions=_cde_endpoint_actions(
+                        server, endpoint_registration
+                    ),
                 )
             )
 
@@ -2159,7 +2478,52 @@ class ServerNode(PGChildNodeView):
         service = provider_workspace_for_app(current_app)
         try:
             if request.method == 'GET':
-                payload = service.bootstrap(server)
+                navigator_token = request.args.get('navigator')
+                if navigator_token is None:
+                    database_target_id = request.args.get(
+                        'database_target_id'
+                    )
+                    focused_operation_id = request.args.get(
+                        'focused_operation_id'
+                    )
+                    payload = service.bootstrap(
+                        server,
+                        database_target_id=(
+                            database_target_id
+                            if database_target_id is not None else Ellipsis
+                        ),
+                        focused_operation_id=focused_operation_id,
+                    )
+                else:
+                    state = decode_navigator_state(navigator_token)
+                    target_id = state.get('target_id')
+                    database_target_id = Ellipsis
+                    if target_id == _CDE_SERVER_SCOPE_TARGET:
+                        database_target_id = None
+                    elif target_id is not None:
+                        catalog = endpoint_service_for_app(
+                            current_app
+                        ).database_catalog(server)
+                        entries = {
+                            item['target_id']: item
+                            for item in database_entries(catalog)
+                        }
+                        entry = entries.get(target_id)
+                        if entry is None or any(
+                            state.get(key) != entry[key]
+                            for key in ('database', 'display_name')
+                        ):
+                            raise ProviderNavigatorError(
+                                'navigator database target is unavailable'
+                            )
+                        if not entry['legacy']:
+                            database_target_id = entry['target_id']
+                    snapshot = service.navigator_snapshot(
+                        server, database_target_id=database_target_id,
+                    )
+                    payload = _cde_resource_nodes(
+                        gid, sid, profile, state, snapshot
+                    )
             else:
                 data = request.get_json(silent=True) or {}
                 action = data.get('action')
@@ -2185,6 +2549,28 @@ class ServerNode(PGChildNodeView):
                     ).delete_route(
                         server, route_request.get('route_id')
                     )
+                elif action == 'endpoint_profile_update':
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).update_endpoint_profile(
+                        server, data.get('request') or {}
+                    )
+                elif action == 'endpoint_profile_remove':
+                    payload = endpoint_service_for_app(
+                        current_app
+                    ).validate_endpoint_removal(
+                        server, data.get('request') or {}
+                    )
+                    server_name = server.name
+                    get_driver(PG_DEFAULT_DRIVER).delete_manager(server.id)
+                    db.session.delete(server)
+                    db.session.commit()
+                    self.delete_shared_server(gid, sid)
+                    QueryHistory.clear_history(current_user.id, sid)
+                    payload.update({
+                        'removed': True,
+                        'display_name': server_name,
+                    })
                 elif isinstance(action, str) and action.startswith(
                     'database_target_'
                 ):
@@ -2193,7 +2579,8 @@ class ServerNode(PGChildNodeView):
                     )
                 elif action == 'open_session':
                     payload = service.open_session(
-                        server, data.get('language_profile')
+                        server, data.get('language_profile'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'execute':
                     payload = service.execute(
@@ -2201,14 +2588,17 @@ class ServerNode(PGChildNodeView):
                         data.get('session_id'),
                         data.get('source'),
                         data.get('parameters'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'poll':
                     payload = service.poll(
-                        server, data.get('occurrence_id')
+                        server, data.get('occurrence_id'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'cancel':
                     payload = service.cancel(
-                        server, data.get('occurrence_id')
+                        server, data.get('occurrence_id'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'result_page':
                     payload = service.result_page(
@@ -2230,12 +2620,19 @@ class ServerNode(PGChildNodeView):
                     payload = service.list_result_deliveries(server)
                 elif action == 'transaction':
                     payload = service.transaction(
-                        server, data.get('session_id')
+                        server, data.get('session_id'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'transaction_action':
                     payload = service.transaction_action(
                         server, data.get('session_id'),
-                        data.get('transaction_action')
+                        data.get('transaction_action'),
+                        data.get('database_target_id'),
+                    )
+                elif action == 'close_session':
+                    payload = service.close_session(
+                        server, data.get('session_id'),
+                        data.get('database_target_id'),
                     )
                 elif action == 'resource_page':
                     payload = service.resource_page(
@@ -2299,9 +2696,20 @@ class ServerNode(PGChildNodeView):
                     raise ProviderWorkspaceError(
                         'workspace action is unavailable'
                     )
-        except EndpointRegistrationError as exc:
+        except (EndpointRegistrationError,
+                ProviderNavigatorError) as exc:
             return make_json_response(
                 status=409, success=0, errormsg=str(exc)
+            )
+        except (SecretAccessError, RelationalCredentialError):
+            return make_json_response(
+                status=401,
+                success=0,
+                errormsg=gettext(
+                    'Endpoint credentials are required to open this '
+                    'provider workspace.'
+                ),
+                info='CREDENTIAL_REQUIRED',
             )
         except (
             ProviderWorkspaceError,
@@ -2350,6 +2758,9 @@ class ServerNode(PGChildNodeView):
         if profile['workflow'] == 'provider_endpoint':
             runtime = server.endpoint_profile.runtime_identity
             return make_json_response(data={
+                'icon': server_icon_and_background(
+                    False, None, server, runtime.verification_state
+                ),
                 'connected': False,
                 'cde_endpoint': True,
                 'cde_profile_id': profile['profile_id'],
@@ -3109,6 +3520,10 @@ class ServerNode(PGChildNodeView):
                 setattr(server, 'password', None)
                 if server.save_password:
                     setattr(server, 'save_password', 0)
+            if _cde_registration(server)['workflow'] == 'provider_endpoint':
+                endpoint_service_for_app(
+                    current_app
+                ).forget_server_credentials(server)
             db.session.commit()
         except Exception as e:
             current_app.logger.error(

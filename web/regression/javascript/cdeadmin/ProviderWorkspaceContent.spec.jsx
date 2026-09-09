@@ -7,9 +7,11 @@
 //
 //////////////////////////////////////////////////////////////
 
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import ProviderWorkspaceContent, {
+  DatabaseTargetWorkspace,
   ResultControls,
+  ServerProfileWorkspace,
   semanticCrossFilter,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
@@ -21,7 +23,21 @@ const bootstrap = {
     provider_id: 'org.cdeadmin.mysql',
     verified_runtime_family: 'mysql',
   },
-  languages: [{language_profile: 'mysql-sql', title: 'MySQL SQL'}],
+  grid_workspace: {
+    schema: 'cdeadmin.provider-grid-workspace.v1',
+    adoption_state: 'passed',
+    activation_gates: [{
+      gate_id: 'public_grid_boundary', state: 'passed',
+    }],
+    runtime_gate: {
+      gate_id: 'live_provider_verification', state: 'passed',
+    },
+  },
+  languages: [{
+    language_profile: 'mysql-sql', title: 'MySQL SQL',
+    starter_source: 'SELECT 42',
+    source_presets: [{label: 'MySQL scalar query', source: 'SELECT 42'}],
+  }],
   resource_page: {items: [{
     resource_id: 'database:example',
     resource_kind: 'database',
@@ -103,6 +119,172 @@ describe('ProviderWorkspaceContent', () => {
     api.get.mockResolvedValue({data: {data: bootstrap}});
   });
 
+  it('renders and submits an exact provider-owned endpoint form', async () => {
+    const post = jest.fn().mockResolvedValue({display_name: 'SQLite local'});
+    render(<ServerProfileWorkspace registration={{
+      display_name: 'localhost',
+      primary_route: {route_id: 'route-one', configuration: {timeout: 5}},
+      forms: {forms: {edit: {
+        form_id: 'cdeadmin.sqlite-native.server.edit.v1',
+        operation_id: 'edit', title: 'Edit SQLite 3.53 server', fields: [
+          {field_id: 'name', label: 'Connection profile name',
+            control: 'text', required: true},
+          {field_id: 'timeout', route_key: 'timeout',
+            label: 'Busy timeout (seconds)', control: 'number',
+            required: false, default: 5},
+        ],
+      }}}}} post={post} setError={jest.fn()} />);
+    expect(screen.getByText('Edit SQLite 3.53 server')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Connection profile name',
+    }), {target: {value: 'SQLite local'}});
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Save endpoint profile',
+    }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({
+      action: 'endpoint_profile_update', request: {
+        name: 'SQLite local', timeout: 5,
+      },
+    }));
+  });
+
+  it('requires the exact profile name before removing an endpoint', async () => {
+    const post = jest.fn().mockResolvedValue({removed: true});
+    const onRemoved = jest.fn();
+    render(<ServerProfileWorkspace registration={{
+      display_name: 'SQLite local',
+      primary_route: {route_id: 'route-one', configuration: {}},
+      forms: {forms: {remove: {
+        form_id: 'cdeadmin.sqlite-native.server.remove.v1',
+        operation_id: 'remove', title: 'Remove SQLite 3.53 server', fields: [
+          {field_id: 'confirmation',
+            label: 'Type the connection profile name to confirm',
+            control: 'text', required: true},
+        ],
+      }}}}} post={post} setError={jest.fn()} initialMode="remove"
+    onRemoved={onRemoved} />);
+    const remove = screen.getByRole('button', {
+      name: 'Remove endpoint registration',
+    });
+    expect(remove).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox', {
+      name: 'Type the connection profile name to confirm',
+    }), {target: {value: 'SQLite local'}});
+    expect(remove).toBeEnabled();
+    fireEvent.click(remove);
+    await waitFor(() => expect(post).toHaveBeenCalledWith({
+      action: 'endpoint_profile_remove', request: {
+        confirmation: 'SQLite local',
+      },
+    }));
+    expect(onRemoved).toHaveBeenCalledWith({removed: true});
+  });
+
+  it('renders database and server observations on one properties task', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      endpoint: {
+        ...bootstrap.endpoint,
+        verified_runtime_family: 'firebird',
+        verified_runtime_version: '5.0.4',
+      },
+      database_targets: {
+        targets: [{target_id: 'database-one', display_name: 'example.fdb',
+          database: '/firebird/data/example.fdb', active: true}],
+      },
+      resource_page: {items: [{
+        resource_id: 'server:Firebird', resource_kind: 'server',
+        display_name: 'Firebird',
+        extensions: {firebird: {native: {architecture: 'Firebird/linux'}}},
+      }, {
+        resource_id: 'database:example.fdb', resource_kind: 'database',
+        display_name: 'example.fdb',
+        extensions: {firebird: {native: {page_size: '8192'}}},
+      }]},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="properties"
+      initialContext={{resource_id: 'database-one'}} />);
+    expect(await screen.findByText('example.fdb properties'))
+      .toBeInTheDocument();
+    expect(screen.getByText('Server observations')).toBeInTheDocument();
+    expect(screen.getByText('Firebird/linux')).toBeInTheDocument();
+    expect(screen.getByText('Database observations')).toBeInTheDocument();
+    expect(screen.getByText('8192')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('shows exact dialect and metrics blockers without engine fallbacks', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      engine_contracts: {
+        state: 'blocked',
+        dialect: {state: 'blocked'}, metrics: {state: 'blocked'},
+      },
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    expect(await screen.findByLabelText('Exact engine contract status'))
+      .toHaveTextContent('dialect, metrics');
+    expect(screen.getByLabelText('Exact engine contract status'))
+      .toHaveTextContent('will not substitute another engine family');
+  });
+
+  it('renders and submits the exact provider-owned database form', async () => {
+    const databaseForm = {
+      form_set_id: 'cdeadmin.firebird-native.database.forms.v1',
+      lifecycle_resource_kind: 'database',
+      forms: {
+        define: {
+          form_id: 'cdeadmin.firebird-native.database.define.v1',
+          operation_id: 'define', title: 'Define Firebird database',
+          supported: true, fields: [
+            {field_id: 'database', label: 'Firebird database filename or alias',
+              control: 'text', required: true},
+            {field_id: 'display_name', label: 'Navigator display name',
+              control: 'text', required: false},
+            {field_id: 'charset', label: 'Connection character set',
+              control: 'text', required: false, default: 'UTF8'},
+          ],
+        },
+        create: {form_id: 'firebird-create', operation_id: 'create',
+          title: 'Create Firebird database', supported: false,
+          disabled_reason: 'Unavailable in this test.', fields: []},
+      },
+    };
+    const post = jest.fn().mockResolvedValue({
+      forms: databaseForm, target_management: true,
+      targets: [], active_target_id: '',
+    });
+    render(<DatabaseTargetWorkspace initialCatalog={{
+      forms: databaseForm, target_management: true,
+      targets: [], active_target_id: '',
+    }} visualCatalog={{objects: []}} resources={[]} post={post}
+    setError={jest.fn()} initialMode="attach" />);
+
+    fireEvent.change(screen.getByRole('textbox', {
+      name: /Firebird database filename or alias/,
+    }), {target: {value: '/firebird/data/example.fdb'}});
+    fireEvent.change(screen.getByRole('textbox', {
+      name: /Navigator display name/,
+    }), {
+      target: {value: 'Example Firebird'},
+    });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Define Firebird database',
+    }));
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith({
+      action: 'database_target_attach', request: {
+        database: '/firebird/data/example.fdb',
+        display_name: 'Example Firebird', charset: 'UTF8',
+      },
+    }));
+    expect(screen.queryByLabelText(
+      'Database filename, path, or native name'
+    )).not.toBeInTheDocument();
+  });
+
   it('maps chart selections to provider-compiled semantic filters', () => {
     const definition = {dimensions: [{
       id: 'region', field: {source_id: 'sales', field: 'region'},
@@ -158,6 +340,25 @@ describe('ProviderWorkspaceContent', () => {
       .toBeInTheDocument();
   });
 
+  it('requests the next provider-owned result page from its occurrence', async () => {
+    const post = jest.fn();
+    const onProviderContinuation = jest.fn().mockResolvedValue();
+    render(<ResultControls rendered={{
+      descriptor: {
+        result_id: 'stream-page-one', export_formats: [],
+        provider_continuation: 'operation-one',
+      },
+      page: {next_cursor: null, page_size: 500},
+    }} history={[]} post={post} onRendered={jest.fn()}
+    setError={jest.fn()} setBusy={jest.fn()}
+    onProviderContinuation={onProviderContinuation} />);
+
+    fireEvent.click(screen.getByText('Next result page'));
+
+    await waitFor(() => expect(onProviderContinuation).toHaveBeenCalled());
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('loads provider resources through the workspace endpoint', async () => {
     render(<ProviderWorkspaceContent
       closeModal={jest.fn()}
@@ -166,7 +367,200 @@ describe('ProviderWorkspaceContent', () => {
     fireEvent.click(await screen.findByRole('treeitem', {name: /database/i}));
     expect(await screen.findByText('example')).toBeInTheDocument();
     expect(screen.getAllByText('database')).toHaveLength(2);
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith('/workspace/1');
+  });
+
+  it('requests credentials and reloads after a workspace 401', async () => {
+    const onCredentialRequired = jest.fn();
+    api.get
+      .mockRejectedValueOnce({response: {status: 401}})
+      .mockResolvedValueOnce({data: {data: bootstrap}});
+    render(<ProviderWorkspaceContent
+      closeModal={jest.fn()}
+      endpointUrl="/workspace/1"
+      onCredentialRequired={onCredentialRequired}
+    />);
+    await waitFor(() => expect(onCredentialRequired).toHaveBeenCalledTimes(1));
+    expect(onCredentialRequired).toHaveBeenCalledWith(expect.any(Function));
+    await act(async () => {
+      onCredentialRequired.mock.calls[0][0]();
+    });
+    fireEvent.click(await screen.findByRole('treeitem', {name: /database/i}));
+    expect(await screen.findByText('example')).toBeInTheDocument();
+    expect(api.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not invent a generic SQL starter for a provider dialect', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      languages: [{language_profile: 'unproven-sql', title: 'Unproven SQL'}],
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    expect(await screen.findByText(
+      /has not supplied an evidence-bound query template/
+    )).toBeInTheDocument();
+    expect(screen.getByLabelText('Query source')).toHaveValue('');
+    expect(screen.queryByDisplayValue('SELECT 1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('shows workspace tabs only for explicit drag-drop composition', async () => {
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1"
+      initialContext={{composition_mode: 'tabbed'}} />);
+    expect(await screen.findByRole('tab', {name: 'Resource Explorer'}))
+      .toBeInTheDocument();
+  });
+
+  it('uses a focused provider database dialog without workspace tabs', async () => {
+    const createFields = [
+      {field_id: 'database_path', label: 'Absolute database filename on the Firebird server', control: 'text', required: true},
+      {field_id: 'page_size', label: 'Page size', control: 'select', required: false, default: '8192', options: [
+        {value: '4096', label: '4096'}, {value: '8192', label: '8192'},
+      ]},
+      {field_id: 'default_charset', label: 'Default character set', control: 'text', required: false, default: 'UTF8'},
+      {field_id: 'sql_dialect', label: 'Database SQL dialect', control: 'select', required: false, default: '3', options: [
+        {value: '1', label: '1'}, {value: '3', label: '3'},
+      ]},
+    ];
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      database_targets: {
+        form_set_id: 'unused', target_management: true, targets: [],
+        forms: {
+          form_set_id: 'cdeadmin.firebird-native.database.forms.v1',
+          lifecycle_resource_kind: 'database',
+          forms: {create: {
+            form_id: 'cdeadmin.firebird-native.database.create.v1',
+            operation_id: 'create', title: 'Create Firebird database',
+            supported: true, fields: createFields,
+          }},
+        },
+      },
+      visual_admin: {
+        engine_id: 'firebird', engine_name: 'Firebird', objects: [{
+          resource_kind: 'database', title: 'Database', operations: [{
+            operation_id: 'create', title: 'Create Firebird database',
+            execution_available: true, target_required: false,
+            confirmation_required: false,
+            form: {form_id: 'firebird_database_create', fields: createFields},
+          }],
+        }],
+      },
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="connections"
+      initialContext={{database_mode: 'create'}} />);
+    expect(await screen.findByRole('heading', {
+      name: 'Create Firebird database',
+    })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Page size'}))
+      .toHaveTextContent('8192');
+    expect(screen.queryByText(/Cubes & Semantic Models/))
+      .not.toBeInTheDocument();
+  });
+
+  it('maps a database target UUID to its sole provider database resource', async () => {
+    const operation = {
+      operation_id: 'backup_logical', title: 'Logical backup (gbak)',
+      mutation_class: 'admin', target_required: true,
+      target_resource_kinds: ['database'], confirmation_required: false,
+      execution_available: true, graphical_ready: true, blockers: [],
+      form: {form_id: 'firebird_backup_logical', fields: [{
+        field_id: 'backup_file',
+        label: 'Backup filename on the Firebird server',
+        control: 'text', required: true,
+      }]},
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      endpoint: {
+        provider_id: 'org.cdeadmin.firebird',
+        verified_runtime_family: 'firebird',
+      },
+      resource_page: {items: [{
+        resource_id: 'database:cdeadmin_demo.fdb',
+        resource_kind: 'database', display_name: 'cdeadmin_demo.fdb',
+        authority_path: ['database', 'cdeadmin_demo.fdb'],
+      }]},
+      visual_admin: {
+        engine_id: 'firebird', engine_name: 'Firebird', objects: [{
+          resource_kind: 'database', title: 'Database',
+          operations: [operation],
+        }],
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {
+      resource_id: 'database:cdeadmin_demo.fdb',
+      resource_kind: 'database', display_name: 'cdeadmin_demo.fdb',
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="administration"
+      initialContext={{
+        resource_id: 'retained-database-target-uuid',
+        resource_kind: 'database', operation_id: 'backup_logical',
+      }} />);
+    expect(await screen.findByRole('heading', {
+      name: 'Logical backup (gbak)',
+    })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Target resource'}))
+      .toHaveTextContent('cdeadmin_demo.fdb');
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith(
+      '/workspace/1', {action: 'resource_inspect', request: {
+        resource_id: 'database:cdeadmin_demo.fdb', generation: undefined,
+        database_target_id: 'retained-database-target-uuid',
+      }}
+    ));
+  });
+
+  it('keeps the context-selected provider resource when peers share its kind', async () => {
+    const operation = {
+      operation_id: 'set_global', title: 'Set runtime global value',
+      mutation_class: 'admin', target_required: true,
+      confirmation_required: false, execution_available: true,
+      graphical_ready: true, blockers: [],
+      form: {form_id: 'mariadb_set_global', fields: []},
+    };
+    const resources = [{
+      resource_id: 'system-variable:READ_ONLY',
+      resource_kind: 'system-variable', display_name: 'READ_ONLY',
+      authority_path: ['Configuration', 'system-variable', 'READ_ONLY'],
+    }, {
+      resource_id: 'system-variable:MAX_CONNECTIONS',
+      resource_kind: 'system-variable', display_name: 'MAX_CONNECTIONS',
+      authority_path: [
+        'Configuration', 'system-variable', 'MAX_CONNECTIONS',
+      ],
+    }];
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: resources},
+      visual_admin: {
+        engine_id: 'mariadb', engine_name: 'MariaDB', objects: [{
+          resource_kind: 'system-variable', title: 'System variable',
+          operations: [operation],
+        }],
+      },
+    }}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {
+      data: resources.find((item) =>
+        item.resource_id === payload.request.resource_id),
+    }}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="administration"
+      initialContext={{
+        resource_id: 'system-variable:MAX_CONNECTIONS',
+        resource_kind: 'system-variable', operation_id: 'set_global',
+      }} />);
+    expect(await screen.findByRole('heading', {
+      name: 'Set runtime global value',
+    })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('combobox', {
+      name: 'Target resource',
+    })).toHaveTextContent('MAX_CONNECTIONS'));
   });
 
   it('navigates the provider tree by keyboard and opens the linked editor', async () => {
@@ -188,8 +582,10 @@ describe('ProviderWorkspaceContent', () => {
     fireEvent.click(screen.getByText('Open object editor'));
     expect(await screen.findByRole('textbox', {name: /Name/}))
       .toBeInTheDocument();
-    expect(await screen.findByRole('tab', {name: 'properties'}))
-      .toBeInTheDocument();
+    expect(await screen.findByRole('combobox', {
+      name: 'Object properties task',
+    })).toHaveTextContent('properties');
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(screen.getByRole('tabpanel', {name: 'properties object section'}))
       .toHaveTextContent('generation-one');
     expect(api.post).toHaveBeenCalledWith('/workspace/1', {
@@ -197,6 +593,137 @@ describe('ProviderWorkspaceContent', () => {
         resource_id: 'database:example', generation: undefined,
       },
     });
+  });
+
+  it('does not inspect an attachment-free service-operation target', async () => {
+    const onCredentialRequired = jest.fn((retry) => retry());
+    let applyAttempts = 0;
+    const operation = {
+      operation_id: 'bring_online', title: 'Bring database online',
+      mutation_class: 'admin', target_required: true,
+      target_resource_kinds: ['database'], confirmation_required: false,
+      execution_available: true, graphical_ready: true, blockers: [],
+      workspace_scope: 'server_service',
+      form: {form_id: 'firebird_bring_online', fields: []},
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: [{
+        resource_id: 'database-service-target:database-one',
+        resource_kind: 'database', display_name: 'offline.fdb',
+        extensions: {cdeadmin: {
+          database_target_id: 'database-one', service_scope_only: true,
+        }},
+      }]},
+      visual_admin: {
+        engine_id: 'firebird', engine_name: 'Firebird', objects: [{
+          resource_kind: 'database', title: 'Database',
+          operations: [operation],
+        }],
+      },
+    }}});
+    api.post.mockImplementation((_url, payload) => {
+      const responses = {
+        visual_admin_validate: {valid: true, errors: []},
+        visual_admin_plan: {
+          state: 'ready', execution_available: true,
+          plan_id: 'service-plan', plan_digest: 'service-digest',
+        },
+        visual_admin_apply: {
+          accepted: true,
+          driver_observation: {server_completed: true},
+        },
+      };
+      if (payload.action === 'visual_admin_apply' && applyAttempts++ === 0) {
+        return Promise.reject({response: {status: 401}});
+      }
+      return Promise.resolve({data: {data: responses[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="administration"
+      onCredentialRequired={onCredentialRequired}
+      initialContext={{
+        resource_id: 'database-one', resource_kind: 'database',
+        operation_id: 'bring_online',
+      }} />);
+    expect(await screen.findByRole('heading', {
+      name: 'Bring database online',
+    })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Target resource'}))
+      .toHaveTextContent('offline.fdb');
+    expect(api.post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Validate and preview'));
+    await screen.findByLabelText('Provider plan preview');
+    fireEvent.click(screen.getByText('Apply provider plan'));
+    await screen.findByLabelText('Provider operation result');
+    expect(onCredentialRequired).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'visual_admin_apply', request: {
+        plan_id: 'service-plan', plan_digest: 'service-digest',
+        confirmed: false, database_target_id: 'database-one',
+      },
+    });
+  });
+
+  it('opens provider-owned object actions from the resource context menu', async () => {
+    const inspectOperation = {
+      operation_id: 'inspect', title: 'Inspect MySQL database',
+      mutation_class: 'read', target_required: true,
+      target_resource_kinds: ['database'], confirmation_required: false,
+      execution_available: true, graphical_ready: true, blockers: [],
+      form: {form_id: 'mysql-database-inspect', fields: []},
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      visual_admin: {
+        ...bootstrap.visual_admin,
+        objects: [{...bootstrap.visual_admin.objects[0],
+          editor: {sections: ['definition']},
+          operations: [inspectOperation]}],
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {
+      ...bootstrap.resource_page.items[0], generation: 'generation-one',
+      extensions: {mysql: {native: {character_set: 'utf8mb4'}}},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" />);
+    fireEvent.click(await screen.findByRole('treeitem', {name: /database/i}));
+    const resource = await screen.findByRole('treeitem', {name: /example/i});
+    fireEvent.contextMenu(resource, {clientX: 120, clientY: 80});
+    fireEvent.click(await screen.findByText('Inspect object'));
+    expect(await screen.findByRole('heading', {
+      name: /Inspect MySQL database/,
+    })).toBeInTheDocument();
+    expect(await screen.findByRole('table', {
+      name: 'Native provider properties',
+    }))
+      .toHaveTextContent('character set');
+  });
+
+  it('surfaces unique native tasks but omits unsupported tasks', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      visual_admin: {
+        ...bootstrap.visual_admin,
+        objects: [{...bootstrap.visual_admin.objects[0], operations: [{
+          operation_id: 'flashback', title: 'Flashback database',
+          mutation_class: 'admin', target_required: true,
+          execution_available: true, graphical_ready: true,
+          native_supported: true, blockers: [], form: {fields: []},
+        }, {
+          operation_id: 'vacuum', title: 'Vacuum database',
+          mutation_class: 'admin', target_required: true,
+          execution_available: false, graphical_ready: true,
+          native_supported: false,
+          blockers: ['provider_operation_unavailable'], form: {fields: []},
+        }]}],
+      },
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="administration" />);
+    expect(await screen.findByText('Flashback database')).toBeInTheDocument();
+    expect(screen.queryByText('Vacuum database')).not.toBeInTheDocument();
   });
 
   it('loads generation-bound navigator continuation pages', async () => {
@@ -281,14 +808,20 @@ describe('ProviderWorkspaceContent', () => {
       closeModal={jest.fn()}
       endpointUrl="/workspace/1"
       initialTab="studio"
+      initialContext={{resource_id: 'database-one'}}
     />);
     expect(await screen.findByText('MySQL SQL')).toBeInTheDocument();
+    expect(screen.getByLabelText('Provider grid activation status'))
+      .toHaveTextContent('all provider workspace grid gates passed');
     fireEvent.click(screen.getByText('Run'));
     expect(await screen.findByText('42')).toBeInTheDocument();
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
     expect(api.post.mock.calls.map((call) => call[1].action)).toEqual([
       'open_session', 'execute', 'poll',
     ]);
+    expect(api.post.mock.calls.map((call) =>
+      call[1].database_target_id
+    )).toEqual(['database-one', 'database-one', 'database-one']);
   });
 
   it('uses provider transaction controls without inferring finality', async () => {
@@ -311,10 +844,19 @@ describe('ProviderWorkspaceContent', () => {
       '/workspace/1', {
         action: 'transaction_action', session_id: 'session-one',
         transaction_action: 'commit',
+        database_target_id: null,
       }
     ));
     expect(await screen.findByText(/driver_observation_only/))
       .toBeInTheDocument();
+    fireEvent.click(screen.getByText('Close query session'));
+    await waitFor(() => expect(api.post).toHaveBeenLastCalledWith(
+      '/workspace/1', {
+        action: 'close_session', session_id: 'session-one',
+        database_target_id: null,
+      }
+    ));
+    expect(screen.getByText('Close query session')).toBeDisabled();
   });
 
   it('pages, exports, and compares endpoint-bound retained results', async () => {
@@ -359,6 +901,7 @@ describe('ProviderWorkspaceContent', () => {
       languages: [{
         language_profile: 'mongodb-query-api-json',
         title: 'MongoDB Query API (JSON)',
+        starter_source: '{"operation":"command","database":"admin","command":{"ping":1}}',
       }],
     };
     api.get.mockResolvedValue({data: {data: documentBootstrap}});
@@ -391,7 +934,10 @@ describe('ProviderWorkspaceContent', () => {
     api.get.mockResolvedValue({data: {data: {
       ...bootstrap,
       endpoint: {provider_id: 'org.cdeadmin.neo4j', verified_runtime_family: 'neo4j'},
-      languages: [{language_profile: 'cypher', title: 'Cypher'}],
+      languages: [{
+        language_profile: 'cypher', title: 'Cypher',
+        starter_source: 'RETURN 1 AS value',
+      }],
       visual_admin: {...bootstrap.visual_admin, model_family: 'graph'},
     }}});
     api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
@@ -424,7 +970,10 @@ describe('ProviderWorkspaceContent', () => {
         provider_id: 'org.cdeadmin.cassandra',
         verified_runtime_family: 'cassandra',
       },
-      languages: [{language_profile: 'cql-3', title: 'CQL 3'}],
+      languages: [{
+        language_profile: 'cql-3', title: 'CQL 3',
+        starter_source: 'SELECT cluster_name FROM system.local',
+      }],
       visual_admin: {...bootstrap.visual_admin, model_family: 'wide-column'},
     }}});
     api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
@@ -463,6 +1012,7 @@ describe('ProviderWorkspaceContent', () => {
       },
       languages: [{
         language_profile: 'clickhouse-sql', title: 'ClickHouse SQL',
+        starter_source: 'SELECT version() AS version',
       }],
       visual_admin: {
         ...bootstrap.visual_admin, model_family: 'columnar-analytic',
@@ -521,6 +1071,20 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByText('Apply provider plan')).toBeDisabled();
   });
 
+  it('opens a context command as one focused provider task form', async () => {
+    render(<ProviderWorkspaceContent
+      closeModal={jest.fn()}
+      endpointUrl="/workspace/1"
+      initialTab="administration"
+      initialContext={{resource_kind: 'database', operation_id: 'create'}}
+    />);
+    expect(await screen.findByRole('heading', {name: 'Create'}))
+      .toBeInTheDocument();
+    expect(screen.queryByLabelText('Object type')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Operation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
   it('shows provider-owned administration observations', async () => {
     const readyBootstrap = {
       ...bootstrap,
@@ -564,9 +1128,27 @@ describe('ProviderWorkspaceContent', () => {
   });
 
   it('creates a database from the engine-specific connection form', async () => {
+    const createForm = {
+      form_id: 'cdeadmin.mysql-native.database.create.v1',
+      operation_id: 'create', title: 'Create database', supported: true,
+      fields: [{
+        field_id: 'name', label: 'Name', control: 'text', required: true,
+      }, {
+        field_id: 'definition', label: 'Provider-native definition',
+        control: 'code', required: false,
+      }, {
+        field_id: 'options', label: 'Execution options', control: 'json',
+        required: false, default: {},
+      }],
+    };
     const databaseTargets = {
-      multiple: true, server_verification: true,
+      multiple: true, target_management: true, server_verification: true,
       active_target_id: null, legacy_route_database: null, targets: [],
+      forms: {
+        form_set_id: 'cdeadmin.mysql-native.database.forms.v1',
+        lifecycle_resource_kind: 'database',
+        forms: {create: createForm},
+      },
     };
     api.get.mockResolvedValue({data: {data: {
       ...bootstrap,
@@ -622,8 +1204,8 @@ describe('ProviderWorkspaceContent', () => {
     });
     fireEvent.click(screen.getByText('Validate and preview'));
     await screen.findByText(/database-plan/);
-    fireEvent.click(screen.getByText('Create database'));
-    expect(await screen.findByText(/completed the database operation/))
+    fireEvent.click(screen.getByRole('button', {name: 'Create database'}));
+    expect(await screen.findByText(/completed the native database operation/))
       .toBeInTheDocument();
     expect(api.post).toHaveBeenCalledWith('/workspace/1', {
       action: 'visual_admin_apply', request: {
@@ -753,6 +1335,7 @@ describe('ProviderWorkspaceContent', () => {
         resource_id: 'table:example:widgets', resource_kind: 'table',
         display_name: 'widgets', display_path: ['example', 'widgets'],
         authority_path: ['example', 'table', 'widgets'],
+        extensions: {cdeadmin: {database_target_id: 'database-one'}},
       }]},
       visual_admin: {
         ...bootstrap.visual_admin,
@@ -768,6 +1351,7 @@ describe('ProviderWorkspaceContent', () => {
     api.get.mockResolvedValue({data: {data: gridBootstrap}});
     api.post.mockImplementation((_url, payload) => {
       const responses = {
+        open_session: {session_id: 'grid-session'},
         visual_admin_rows: {
           columns: [
             {name: 'id', key: true, editable: true},
@@ -783,26 +1367,115 @@ describe('ProviderWorkspaceContent', () => {
           state: 'ready', execution_available: true,
           plan_id: 'plan-one', plan_digest: 'digest-one',
         },
-        visual_admin_apply: {provider_result: {accepted: true}},
+        visual_admin_apply: {provider_result: {
+          accepted: true, staged_in_provider_session: true,
+        }},
+        transaction_action: {provider_payload: {
+          driver_observation_only: true,
+          finality_interpreted_by_common_code: false,
+        }},
+        close_session: {
+          session_id: 'grid-session', provider_closed: true,
+        },
       };
       return Promise.resolve({data: {data: responses[payload.action]}});
     });
-    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+    const {unmount} = render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="data" />);
     fireEvent.click(await screen.findByText('Load rows'));
     const name = await screen.findByDisplayValue('first');
+    expect(screen.getByRole('textbox', {name: 'name value'})).toBe(name);
+    expect(screen.getByRole('textbox', {name: 'name new value'}))
+      .toHaveAttribute('placeholder', 'New value');
     fireEvent.change(name, {target: {value: 'second'}});
     fireEvent.click(screen.getByText('Save'));
-    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(6));
     expect(api.post.mock.calls.map((call) => call[1].action)).toEqual([
-      'visual_admin_rows', 'visual_admin_validate', 'visual_admin_plan',
-      'visual_admin_apply', 'visual_admin_rows',
+      'open_session', 'visual_admin_rows', 'visual_admin_validate',
+      'visual_admin_plan', 'visual_admin_apply', 'visual_admin_rows',
     ]);
-    expect(api.post.mock.calls[1][1].request.draft).toEqual({
+    expect(api.post.mock.calls[2][1].request.draft).toEqual({
       selector: {identity_token: 'row-one'},
       changes: {name: 'second'},
       concurrency_token: 'row-one',
     });
+    expect(api.post.mock.calls[0][1]).toEqual({
+      action: 'open_session', language_profile: 'mysql-sql',
+      database_target_id: 'database-one',
+    });
+    expect(api.post.mock.calls[1][1].request.continuation).toBeNull();
+    expect(api.post.mock.calls[1][1].request.database_target_id)
+      .toBe('database-one');
+    expect(api.post.mock.calls[2][1].request.database_target_id)
+      .toBe('database-one');
+    expect(api.post.mock.calls[4][1].request.session_id)
+      .toBe('grid-session');
+    expect(api.post.mock.calls[4][1].request.database_target_id)
+      .toBe('database-one');
+    expect(await screen.findByLabelText('Staged provider grid changes'))
+      .toHaveTextContent('1 grid change');
+    fireEvent.click(screen.getByText('Rollback changes'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(8));
+    expect(api.post.mock.calls[6][1]).toEqual({
+      action: 'transaction_action', session_id: 'grid-session',
+      transaction_action: 'rollback',
+      database_target_id: 'database-one',
+    });
+    fireEvent.click(screen.getByText('Close data session'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(9));
+    expect(api.post.mock.calls[8][1]).toEqual({
+      action: 'close_session', session_id: 'grid-session',
+      database_target_id: 'database-one',
+    });
+    expect(screen.getByText('Close data session')).toBeDisabled();
+    unmount();
+  });
+
+  it('opens the selected provider view in the owning database scope', async () => {
+    const table = {
+      resource_id: 'table:ASSETS', resource_kind: 'table',
+      display_name: 'ASSETS', display_path: ['ASSETS'],
+    };
+    const view = {
+      resource_id: 'view:OPEN_WORK_ORDERS', resource_kind: 'view',
+      display_name: 'OPEN_WORK_ORDERS', display_path: ['OPEN_WORK_ORDERS'],
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: [table, view]},
+      visual_admin: {
+        ...bootstrap.visual_admin,
+        objects: [{resource_kind: 'table', operations: []}, {
+          resource_kind: 'view', operations: [],
+        }],
+      },
+    }}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {
+      data: payload.action === 'open_session' ? {
+        session_id: 'view-session',
+      } : {
+        columns: [{name: 'WORK_ORDER_ID', editable: false}],
+        rows: [{values: {WORK_ORDER_ID: 1001}, identity_token: null}],
+        editable: false, identity_policy: 'read-only-view',
+      },
+    }}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="data" initialContext={{
+        resource_id: view.resource_id, resource_kind: 'view',
+        database_target_id: 'firebird-database-one',
+      }} />);
+    expect(await screen.findByRole('combobox', {name: 'Table or view'}))
+      .toHaveTextContent('OPEN_WORK_ORDERS');
+    fireEvent.click(screen.getByText('Load rows'));
+    expect(await screen.findByDisplayValue('1001')).toBeInTheDocument();
+    expect(api.post.mock.calls[0][1]).toEqual({
+      action: 'open_session', language_profile: 'mysql-sql',
+      database_target_id: 'firebird-database-one',
+    });
+    expect(api.post.mock.calls[1][1].request.target_resource).toEqual(view);
+    expect(api.post.mock.calls[1][1].request.database_target_id)
+      .toBe('firebird-database-one');
+    expect(screen.getByText(/This view is read-only/)).toBeInTheDocument();
   });
 
   it('loads and edits MongoDB documents through provider plans', async () => {
@@ -974,7 +1647,7 @@ describe('ProviderWorkspaceContent', () => {
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="data" />);
     fireEvent.click(await screen.findByText('Load data'));
-    expect(await screen.findByText(/"usage": 0.5/)).toBeInTheDocument();
+    expect(await screen.findByText('0.5')).toBeInTheDocument();
     expect(api.post.mock.calls[0][1]).toEqual({
       action: 'visual_admin_rows',
       request: {target_resource: table, limit: 200, continuation: null},
@@ -1033,20 +1706,14 @@ describe('ProviderWorkspaceContent', () => {
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="semantic" />);
     expect(await screen.findByLabelText('Model name')).toBeInTheDocument();
-    expect(screen.getByText('Dimensions & hierarchies')).toBeInTheDocument();
-    expect(screen.getByText('Relationships')).toBeInTheDocument();
-    expect(screen.getByText('Measures')).toBeInTheDocument();
-    expect(screen.getByText('Cube query')).toBeInTheDocument();
-    expect(screen.getByText('Parameters & security')).toBeInTheDocument();
-    expect(screen.getByText('Charts & dashboards')).toBeInTheDocument();
-    expect(screen.getByText('Reports & schedules')).toBeInTheDocument();
-    expect(screen.getByText('Materializations')).toBeInTheDocument();
-    expect(screen.getByText('Lineage')).toBeInTheDocument();
-    expect(screen.getByText('Diagnostics')).toBeInTheDocument();
-    expect(screen.getAllByText('Revisions')).toHaveLength(2);
+    expect(screen.getByLabelText('Semantic-model task'))
+      .toHaveTextContent('Model');
     expect(screen.getByText(/Relational and multidimensional/))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByText('Cube query'));
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'query'}});
     expect(screen.getByLabelText('Time operation')).toBeInTheDocument();
     expect(screen.getByText('Native analytical windows')).toBeInTheDocument();
     expect(screen.getByLabelText('Window operation')).toHaveTextContent(
@@ -1083,7 +1750,9 @@ describe('ProviderWorkspaceContent', () => {
       .toHaveTextContent('node');
     expect(screen.getByRole('combobox', {name: 'Classification'}))
       .toHaveTextContent('node-set');
-    fireEvent.click(screen.getByText('Relationships'));
+    fireEvent.change(screen.getByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'relationships'}});
     expect(await screen.findByLabelText('Semantic relationship diagram'))
       .toHaveTextContent('node-set · node');
     expect(screen.getByRole('combobox', {name: 'Relationship kind'}))
@@ -1097,15 +1766,21 @@ describe('ProviderWorkspaceContent', () => {
     }}});
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="semantic" />);
-    fireEvent.click(await screen.findByText('Parameters & security'));
+    fireEvent.change(await screen.findByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'security'}});
     expect(screen.getByText('Row-level security')).toBeInTheDocument();
     expect(screen.getByLabelText('Policy field')).toBeInTheDocument();
     expect(screen.getByLabelText('Trusted principal claim')).toHaveValue('user_id');
     expect(screen.getByText('Tenant filtering')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Charts & dashboards'));
+    fireEvent.change(screen.getByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'presentation'}});
     expect(screen.getByText('Chart builder')).toBeInTheDocument();
     expect(screen.getByText('Dashboard builder')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Reports & schedules'));
+    fireEvent.change(screen.getByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'reports'}});
     expect(screen.getByText('Report builder')).toBeInTheDocument();
     expect(screen.getByLabelText('Delivery profile')).toBeInTheDocument();
     expect(screen.getByLabelText('Scheduled export format'))
@@ -1114,7 +1789,9 @@ describe('ProviderWorkspaceContent', () => {
       .toBeInTheDocument();
     expect(screen.getByText(/operator-configured worker authority/))
       .toBeInTheDocument();
-    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.change(screen.getByRole('combobox', {
+      name: 'Semantic-model task',
+    }), {target: {value: 'diagnostics'}});
     fireEvent.click(screen.getByText('Refresh query diagnostics'));
     expect(await screen.findByText(/model-digest/)).toBeInTheDocument();
     expect(api.post).toHaveBeenLastCalledWith('/workspace/1', {

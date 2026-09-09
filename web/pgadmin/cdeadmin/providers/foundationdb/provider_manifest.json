@@ -200,6 +200,6 @@
     "protocol": "foundationdb_native",
     "client_state": "foundationdb_7.3.77_installed",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "passed"
+    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"
   }
 }

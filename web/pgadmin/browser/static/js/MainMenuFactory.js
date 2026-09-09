@@ -9,17 +9,16 @@
 import gettext from 'sources/gettext';
 import pgAdmin from 'sources/pgadmin';
 import Menu, { MenuItem } from '../../../static/js/helpers/Menu';
-import getApiInstance from '../../../static/js/api_instance';
-import url_for from 'sources/url_for';
-import withCheckPermission from './withCheckPermission';
 import usePreferences from '../../../preferences/static/js/store';
-
-const MAIN_MENUS = [
-  { label: gettext('File'), name: 'file', id: 'mnu_file', index: 0, addSeprator: true, hasDynamicMenuItems: false },
-  { label: gettext('Object'), name: 'object', id: 'mnu_obj', index: 1, addSeprator: true, hasDynamicMenuItems: true },
-  { label: gettext('Tools'), name: 'tools', id: 'mnu_tools', index: 2, addSeprator: true, hasDynamicMenuItems: false },
-  { label: gettext('Help'), name: 'help', id: 'mnu_help', index: 5, addSeprator: false, hasDynamicMenuItems: false }
-];
+import {menuStructureRegistry} from
+  '../../../static/js/cdeadmin_ui/commands/MenuStructure';
+import {
+  executeMenuCommand, resolveMenuCommand,
+} from './CommandMenuAdapter';
+import {
+  isProviderContextNode, providerContextMenuItems,
+  registerProviderMenuCategories,
+} from './ProviderContextMenu';
 
 export default class MainMenuFactory {
   static electronCallbacks = {};
@@ -54,8 +53,8 @@ export default class MainMenuFactory {
 
   static createMainMenus() {
     pgAdmin.Browser.MainMenus = [];
-    MAIN_MENUS.forEach((_menu) => {
-      let menuObj = Menu.create(_menu.name, _menu.label, _menu.id, _menu.index, _menu.addSeprator, _menu.hasDynamicMenuItems);
+    menuStructureRegistry.get().forEach((_menu) => {
+      let menuObj = Menu.create(_menu.name, gettext(_menu.label), _menu.id, _menu.index, _menu.addSeprator, _menu.hasDynamicMenuItems);
       pgAdmin.Browser.MainMenus.push(menuObj);
       // Don't add menuItems for hasDynamicMenuItems true as it's menuItems get changed on tree selection.
       if(!_menu.hasDynamicMenuItems) {
@@ -75,26 +74,32 @@ export default class MainMenuFactory {
   }
 
   static createMenuItem(options) {
-    const callback = () => {
-      // Some callbacks registered in 'callbacks' check and call specifiec callback function
-      if (options.module && 'callbacks' in options.module && options.module.callbacks[options.callback]) {
-        options.module.callbacks[options.callback].apply(options.module, [options.data, pgAdmin.Browser.tree?.selected()]);
-      } else if (options?.module?.[options.callback]) {
-        options.module[options.callback](options.data, pgAdmin.Browser.tree?.selected());
-      } else if (options?.callback) {
-        options.callback(options);
-      } else if (options.url != '#') {
-        let api = getApiInstance();
-        api(
-          url_for('tools.initialize')
-        ).then(()=>{
-          window.open(options.url);
-        }).catch(()=>{
-          pgAdmin.Browser.notifier.error(gettext('Error in opening window'));
-        });
+    const resolved = resolveMenuCommand(options);
+    if(resolved && !resolved.visible) return null;
+    const callback = ()=>executeMenuCommand(options).catch((error)=>{
+      if(error?.code === 'permission_denied') {
+        pgAdmin.Browser.notifier.alert(
+          gettext('Permission Denied'),
+          gettext('You don\'t have the necessary permissions to access this feature. Please contact your administrator for assistance.')
+        );
+      } else {
+        pgAdmin.Browser.notifier.error(
+          error?.message ?? gettext('The command could not be completed.')
+        );
       }
-    };
-    return new MenuItem({...options, callback: withCheckPermission(options, callback)}, (menu, item)=> {
+    });
+    const materialized = resolved ? {
+      ...options,
+      commandId: resolved.id,
+      commandVersion: resolved.version,
+      label: resolved.label,
+      iconKey: resolved.iconKey,
+      checked: resolved.checked,
+      enable: resolved.enabled,
+      disabledReason: resolved.disabledReason,
+      callback,
+    } : options;
+    return new MenuItem(materialized, (menu, item)=> {
       pgAdmin.Browser.Events.trigger('pgadmin:enable-disable-menu-items', menu, item);
       window.electronUI?.enableDisableMenuItems(menu?.serialize(), item?.serialize());
     });
@@ -176,6 +181,7 @@ export default class MainMenuFactory {
 
     const getNewMenuItem = (i)=>{
       const mi = MainMenuFactory.createMenuItem({...i});
+      if(!mi) return null;
       checkAndSetDisabled?.(mi);
       if(skipDisabled && mi.isDisabled) {
         return null;
@@ -216,7 +222,7 @@ export default class MainMenuFactory {
       return newItems;
     };
 
-    Object.entries(items).forEach(([k, i])=>{
+    Object.entries(items ?? {}).forEach(([k, i])=>{
       if('name' in i) {
         const mi = getNewMenuItem(i);
         if(!mi) return;
@@ -229,7 +235,7 @@ export default class MainMenuFactory {
             retVal.push(...applySeparators(mi));
           }
         } else {
-          retVal.push(...applySeparators(getNewMenuItem(i)));
+          retVal.push(...applySeparators(mi));
         }
       } else {
         // Can be a category
@@ -276,7 +282,17 @@ export default class MainMenuFactory {
         category: 'create',
       })];
     } else {
-      const nodeTypeMenus = pgAdmin.Browser.all_menus_cache[name]?.[itemData._type] ?? [];
+      // Provider nodes carry server-resolved actions. They are authoritative:
+      // never merge PostgreSQL's legacy server/object menus into them.
+      const providerNode = isProviderContextNode(itemData) &&
+        ['context', 'object'].includes(name);
+      const nodeTypeMenus = providerNode ? providerContextMenuItems(
+        itemData, item
+      ) :
+        (pgAdmin.Browser.all_menus_cache[name]?.[itemData._type] ?? []);
+      if(providerNode) {
+        registerProviderMenuCategories(pgAdmin.Browser, nodeTypeMenus);
+      }
       const menuItemList = MainMenuFactory.createMenuItems(nodeTypeMenus, skipDisabled, (mi)=>{
         return mi.checkAndSetDisabled(itemData, item);
       });

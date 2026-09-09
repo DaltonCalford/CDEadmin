@@ -66,5 +66,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "Redis operational tools"}
     ]
   },
-  "provenance": {"purpose": "Redis 8.6.2 reference profile supporting Redis >=8.6.0", "protocol": "resp", "client_state": "redis_py_6.4.0_verified", "runtime_state": "redis_8.10.1_full_topology_matrix_verified", "activation_gate": "passed", "live_evidence_reference": "cde-redis-live:redis-8.10.1:full-topology-matrix:20260902"}
+  "provenance": {"purpose": "Redis 8.6.2 reference profile supporting Redis >=8.6.0", "protocol": "resp", "client_state": "redis_py_6.4.0_verified", "runtime_state": "redis_8.10.1_full_topology_matrix_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-redis-live:redis-8.10.1:full-topology-matrix:20260902"}
 }

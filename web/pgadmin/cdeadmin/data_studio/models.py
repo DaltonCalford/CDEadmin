@@ -68,6 +68,11 @@ class LanguageContribution:
     editor_mode: str
     model_families: frozenset[str]
     source_kind: str = 'text'
+    starter_source: str = ''
+    source_presets: tuple[tuple[str, str], ...] = ()
+    query_plan_templates: tuple[tuple[str, str], ...] = ()
+    dialect_contract_id: str | None = None
+    dialect_evidence: tuple[str, ...] = ()
 
     def __post_init__(self):
         names = ('language_profile', 'title', 'editor_mode', 'source_kind')
@@ -78,6 +83,65 @@ class LanguageContribution:
         object.__setattr__(self, 'model_families', _profiles(
             self.model_families
         ))
+        if not isinstance(self.starter_source, str):
+            raise DataStudioError('starter_source must be a string')
+        presets = tuple(self.source_presets)
+        normalized = []
+        for position, preset in enumerate(presets):
+            if not isinstance(preset, (tuple, list)) or len(preset) != 2:
+                raise DataStudioError(
+                    f'source_presets item {position} must be a '
+                    'label/source pair'
+                )
+            normalized.append((
+                _required_string(preset[0], 'source preset label'),
+                _required_string(preset[1], 'source preset source'),
+            ))
+        if len({item[0] for item in normalized}) != len(normalized):
+            raise DataStudioError('source preset labels must be unique')
+        object.__setattr__(self, 'source_presets', tuple(normalized))
+        plan_templates = []
+        for position, template in enumerate(self.query_plan_templates):
+            if not isinstance(template, (tuple, list)) or len(template) != 2:
+                raise DataStudioError(
+                    f'query_plan_templates item {position} must be a '
+                    'label/template pair'
+                )
+            label = _required_string(template[0], 'query plan label')
+            source_template = _required_string(
+                template[1], 'query plan source template'
+            )
+            if source_template.count('{source}') != 1 or any(
+                    token in source_template.replace('{source}', '')
+                    for token in ('{', '}')):
+                raise DataStudioError(
+                    'query plan source template must contain exactly one '
+                    '{source} placeholder and no other placeholders'
+                )
+            plan_templates.append((label, source_template))
+        if len({item[0] for item in plan_templates}) != len(plan_templates):
+            raise DataStudioError('query plan labels must be unique')
+        object.__setattr__(
+            self, 'query_plan_templates', tuple(plan_templates)
+        )
+        evidence = tuple(
+            _required_string(item, 'dialect_evidence item')
+            for item in self.dialect_evidence
+        )
+        object.__setattr__(self, 'dialect_evidence', evidence)
+        if self.dialect_contract_id is not None:
+            object.__setattr__(
+                self, 'dialect_contract_id',
+                _required_string(
+                    self.dialect_contract_id, 'dialect_contract_id'
+                ),
+            )
+        if self.starter_source or normalized or plan_templates:
+            if self.dialect_contract_id is None or not evidence:
+                raise DataStudioError(
+                    'executable query templates require a dialect contract '
+                    'and evidence'
+                )
 
 
 @dataclass(frozen=True)
@@ -117,6 +181,9 @@ class SessionContribution:
     control_transaction: Callable[
         [object, Mapping[str, Any]], Mapping[str, Any]
     ] | None = None
+    close_session: Callable[
+        [object, Mapping[str, Any]], Mapping[str, Any]
+    ] | None = None
 
     def __post_init__(self):
         object.__setattr__(
@@ -143,6 +210,9 @@ class SessionContribution:
             raise DataStudioError(
                 'transaction callback requires advertised actions'
             )
+        if self.close_session is not None and not callable(
+                self.close_session):
+            raise DataStudioError('session close callback must be callable')
 
 
 @dataclass(frozen=True)

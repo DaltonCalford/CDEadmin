@@ -144,9 +144,11 @@ class FakeProvider:
         self.list_calls = 0
         self.inspect_calls = 0
         self.change_identity = False
+        self.last_list_route = None
 
     def list_resources(self, request):
         self.list_calls += 1
+        self.last_list_route = copy.deepcopy(request.get('route'))
         return [
             resource(
                 self.ctx,
@@ -261,6 +263,17 @@ class ResourceExplorerTests(unittest.TestCase):
         self.assertIsNone(third.next_cursor)
         self.assertEqual(5, first.total_count)
         self.assertEqual(1, self.provider.list_calls)
+
+    def test_server_owned_route_is_injected_only_into_provider_request(self):
+        route = {
+            'host': 'database.example.test',
+            'credential_reference_id': 'opaque-reference',
+        }
+        page = self.first_page(provider_route=route)
+        self.assertEqual(route, self.provider.last_list_route)
+        self.assertTrue(all(
+            'route' not in item for item in page.items
+        ))
 
     def test_cursor_cannot_cross_parent_or_endpoint(self):
         first = self.first_page()

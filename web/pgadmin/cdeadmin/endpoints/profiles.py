@@ -16,6 +16,10 @@ import json
 from pathlib import Path
 
 from pgadmin.cdeadmin.providers import BUILTIN_PACKAGES
+from pgadmin.cdeadmin.providers.form_contracts import (
+    assert_form_contract_coverage,
+    provider_form_contract,
+)
 
 from .connection_capabilities import (
     ConnectionCapabilityError,
@@ -365,10 +369,11 @@ def _load_profiles():
             )
         if route_kind == 'embedded_file' and (
             targeting['mode'] != 'required' or
-            targeting['server_verification'] or targeting['multiple']
+            targeting['server_verification']
         ):
             raise EndpointRegistrationError(
-                'embedded endpoints require one database file'
+                'embedded endpoints require explicit database files and '
+                'cannot verify at server scope'
             )
         if targeting['server_verification'] and (
             route_kind != 'network' or targeting['mode'] != 'optional'
@@ -386,7 +391,7 @@ def _load_profiles():
         )
         connection_fields = _connection_fields(registration)
         secret_fields = _secret_fields(registration, connection_fields)
-        profiles.append({
+        profile = {
             'profile_id': _required(identity['profile_id'], 'profile_id'),
             'profile_version': _required(
                 identity['profile_version'], 'profile_version'
@@ -430,7 +435,9 @@ def _load_profiles():
             'database_targeting': targeting,
             'default': registration.get('default') is True,
             'available': True,
-        })
+        }
+        profile['form_contract'] = provider_form_contract(profile)
+        profiles.append(profile)
     profile_ids = [item['profile_id'] for item in profiles]
     if len(profile_ids) != len(set(profile_ids)):
         raise EndpointRegistrationError(
@@ -448,6 +455,7 @@ def _load_profiles():
         raise EndpointRegistrationError(
             'exactly one endpoint registration profile must be default'
         )
+    assert_form_contract_coverage(profiles)
     return tuple(profiles)
 
 

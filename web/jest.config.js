@@ -3,6 +3,7 @@ const webpackShimAlias = require('./webpack.shim').resolveAlias;
 const webpackAliasToJestModules = ()=>{
   const ret = {
     '\\.svg\\?svgr$': '<rootDir>/regression/javascript/__mocks__/svg.js',
+    '\\.svg\\?url$': '<rootDir>/regression/javascript/__mocks__/assetUrl.js',
     'react-dom/server': 'react-dom/server.edge',
   };
   Object.keys(webpackShimAlias).forEach((an)=>{

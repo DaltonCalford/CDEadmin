@@ -195,6 +195,17 @@ class DataStudioService:
             'editor_mode': item.editor_mode,
             'model_families': sorted(item.model_families),
             'source_kind': item.source_kind,
+            'starter_source': item.starter_source,
+            'source_presets': [
+                {'label': label, 'source': source}
+                for label, source in item.source_presets
+            ],
+            'query_plan_templates': [
+                {'label': label, 'source_template': source_template}
+                for label, source_template in item.query_plan_templates
+            ],
+            'dialect_contract_id': item.dialect_contract_id,
+            'dialect_evidence': list(item.dialect_evidence),
             'transaction_actions': sorted(
                 self.contributions.session(
                     item.language_profile
@@ -494,6 +505,32 @@ class DataStudioService:
         )
         return copy.deepcopy(presentation)
 
+    def close_session(self, context, session_id):
+        """Close a provider-owned session and forget its local presentation."""
+        session, binding = self._operational_session(context, session_id)
+        contribution = self.contributions.session(session.language_profile)
+        if not callable(contribution.close_session):
+            raise DataStudioAccessError(
+                'session close is unavailable for this provider'
+            )
+        response = contribution.close_session(
+            binding, copy.deepcopy(session.provider_session)
+        )
+        if not isinstance(response, Mapping) or (
+                response.get('session_id') != session.session_id or
+                response.get('provider_closed') is not True):
+            raise DataStudioAccessError(
+                'provider did not confirm session closure'
+            )
+        with self._lock:
+            self._sessions.pop(session.session_id, None)
+        self.history.append('session.closed', session.session_id, {
+            'endpoint_id': session.endpoint_id,
+            'provider_closed': True,
+            'finality': 'provider-owned',
+        })
+        return copy.deepcopy(dict(response))
+
     def publish_channel(self, occurrence_id, channel, payload):
         if channel not in CHANNELS:
             raise DataStudioAccessError('Data Studio channel is unknown')
@@ -658,7 +695,8 @@ class DataStudioService:
             getattr(contribution, name, None)
             for name in (
                 'complete', 'open_session', 'describe_transaction',
-                'control_transaction', 'execute', 'poll', 'cancel',
+                'control_transaction', 'close_session', 'execute', 'poll',
+                'cancel',
             )
         )
         for callback in callbacks:

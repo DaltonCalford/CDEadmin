@@ -45,5 +45,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Administration tool workspace", "control": "text", "group": "Cassandra operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
     ]
   },
-  "provenance": {"purpose": "Cassandra 5.0.8 exact-profile implementation", "protocol": "cql", "client_state": "cassandra_driver_3.30.1_installed", "runtime_state": "verified", "activation_gate": "passed", "live_evidence_reference": "cde-cassandra-live:cassandra-5.0.8:20260902"}
+  "provenance": {"purpose": "Cassandra 5.0.8 exact-profile implementation", "protocol": "cql", "client_state": "cassandra_driver_3.30.1_installed", "runtime_state": "verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-cassandra-live:cassandra-5.0.8:20260902"}
 }

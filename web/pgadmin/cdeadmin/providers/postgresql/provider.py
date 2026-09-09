@@ -388,6 +388,10 @@ class PostgreSQLProvider:
         return binding.instance.control_transaction(request)
 
     @staticmethod
+    def _studio_close_session(binding, request):
+        return binding.instance.close_session(request)
+
+    @staticmethod
     def _studio_execute(binding, request):
         return binding.instance.execute(request)
 
@@ -433,6 +437,7 @@ class PostgreSQLProvider:
                     cls._studio_describe_transaction,
                     frozenset({'commit', 'rollback'}),
                     cls._studio_control_transaction,
+                    cls._studio_close_session,
                 ),
             ),
             'executions': (
@@ -759,6 +764,30 @@ class PostgreSQLProvider:
         return self.describe_transaction({
             'session_id': payload.get('session_id'),
         })
+
+    def close_session(self, request):
+        """Roll back and release one retained PostgreSQL connection."""
+        payload = _mapping(request)
+        session_id = payload.get('session_id')
+        state = self._sessions.get(session_id)
+        if state is None:
+            raise PostgreSQLProviderError('PostgreSQL session is unavailable')
+        rollback_status, _detail = state.connection.execute_void('ROLLBACK;')
+        manager = self._driver.connection_manager(state.server_id)
+        manager.release(did=state.database_id, conn_id=state.connection_id)
+        self._sessions.pop(session_id, None)
+        self._completion_adapters.pop(session_id, None)
+        return {
+            'session_id': session_id,
+            'provider_closed': True,
+            'provider_payload': {
+                'rollback_requested': True,
+                'rollback_driver_response': bool(rollback_status),
+                'connection_released': True,
+            },
+            'provider_finality_authority': True,
+            'common_finality_interpreted': False,
+        }
 
     def complete(self, request):
         """Use pgAdmin's existing PostgreSQL completion implementation."""

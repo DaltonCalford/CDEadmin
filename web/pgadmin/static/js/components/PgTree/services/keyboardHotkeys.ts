@@ -36,12 +36,24 @@ export class KeyboardHotkeys {
 
   private readonly jumpToFirstItem = (): void => {
     const { root } = this.fileTreeX.getModel();
-    this.fileTreeX.setActiveFile(root.getFileEntryAtIndex(0), true);
+    for(let index = 0; index < root.branchSize; index += 1) {
+      const entry = root.getFileEntryAtIndex(index);
+      if(this.isSelectable(entry)) {
+        this.fileTreeX.setActiveFile(entry, true);
+        return;
+      }
+    }
   };
 
   private readonly jumpToLastItem = (): void => {
     const { root } = this.fileTreeX.getModel();
-    this.fileTreeX.setActiveFile(root.getFileEntryAtIndex(root.branchSize - 1), true);
+    for(let index = root.branchSize - 1; index >= 0; index -= 1) {
+      const entry = root.getFileEntryAtIndex(index);
+      if(this.isSelectable(entry)) {
+        this.fileTreeX.setActiveFile(entry, true);
+        return;
+      }
+    }
   };
 
   private readonly jumpToNextItem = (): void => {
@@ -56,10 +68,15 @@ export class KeyboardHotkeys {
       }
     }
     const idx = root.getIndexAtFileEntry(currentPseudoActive);
-    if (idx + 1 > root.branchSize) {
+    if (idx > -1) {
+      for(let index = idx + 1; index < root.branchSize; index += 1) {
+        const entry = root.getFileEntryAtIndex(index);
+        if(this.isSelectable(entry)) {
+          this.fileTreeX.setActiveFile(entry, true);
+          return;
+        }
+      }
       return this.jumpToFirstItem();
-    } else if (idx > -1) {
-      this.fileTreeX.setActiveFile(root.getFileEntryAtIndex(idx + 1), true);
     }
   };
 
@@ -75,12 +92,20 @@ export class KeyboardHotkeys {
       }
     }
     const idx = root.getIndexAtFileEntry(currentPseudoActive);
-    if (idx - 1 < 0) {
+    if (idx > -1) {
+      for(let index = idx - 1; index >= 0; index -= 1) {
+        const entry = root.getFileEntryAtIndex(index);
+        if(this.isSelectable(entry)) {
+          this.fileTreeX.setActiveFile(entry, true);
+          return;
+        }
+      }
       return this.jumpToLastItem();
-    } else if (idx > -1) {
-      this.fileTreeX.setActiveFile(root.getFileEntryAtIndex(idx - 1), true);
     }
   };
+
+  private readonly isSelectable = (item: FileEntry | Directory): boolean =>
+    Boolean(item) && item._metadata?.data?.disabled !== true;
 
   private expandOrJumpToFirstChild(): void {
     const currentPseudoActive = this.fileTreeX.getActiveFile();
@@ -116,6 +141,9 @@ export class KeyboardHotkeys {
   private readonly toggleDirectoryExpand = (): void => {
     const currentPseudoActive = this.fileTreeX.getActiveFile();
     if (!currentPseudoActive) { return; }
+    if(this.fileTreeX.toggleNodeCheck(currentPseudoActive)) {
+      return;
+    }
     if (currentPseudoActive.type === FileType.Directory) {
       this.fileTreeX.toggleDirectory(currentPseudoActive as Directory);
     }

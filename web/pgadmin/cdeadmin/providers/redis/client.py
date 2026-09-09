@@ -1459,6 +1459,35 @@ class RedisClient:
         f = self._field
         if operation == 'inspect':
             return self._form('redis-inspect', 'Inspect', [])
+        if operation == 'drop' and kind in {
+            'acl-user', 'consumer', 'consumer-group', 'database',
+            'function-library',
+        }:
+            native_titles = {
+                'acl-user': 'Delete Redis ACL user',
+                'consumer': 'Delete Redis stream consumer',
+                'consumer-group': 'Destroy Redis stream consumer group',
+                'database': 'Flush the selected Redis logical database',
+                'function-library': 'Delete Redis function library',
+            }
+            return self._form(
+                f'redis-{kind}-drop', native_titles[kind], [
+                    f('confirmation', 'Type the selected object name to '
+                      'confirm', required=True),
+                ],
+            )
+        if kind == 'script' and operation == 'create':
+            return self._form('redis-script-load', 'Load Redis Lua script', [
+                f('definition', 'Lua script source', 'code', True,
+                  max_length=MAX_COMMAND_BYTES),
+            ])
+        if kind == 'script' and operation == 'drop':
+            return self._form(
+                'redis-script-flush', 'Flush the Redis script cache', [
+                    f('confirmation', 'Confirm synchronous SCRIPT FLUSH',
+                      required=True),
+                ],
+            )
         if kind == 'ttl' and operation in {'create', 'alter'}:
             return self._form(
                 f'redis-ttl-{operation}', f'{operation.title()} expiry', [

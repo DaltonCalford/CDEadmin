@@ -1,0 +1,33 @@
+{
+  "schema": "cdeadmin.reference-demo-connection-profiles.v1",
+  "host": "127.0.0.1",
+  "notes": "Local demonstration credentials only. ScratchBird native intentionally excluded.",
+  "profiles": [
+    {"engine": "apache_ignite", "name": "Local Ignite Demo", "port": 51080, "rest_port": 58080, "database": null, "user": null},
+    {"engine": "cassandra", "name": "Local Cassandra Demo", "port": 59043, "database": "cdeadmin_demo", "user": null},
+    {"engine": "clickhouse", "name": "Local ClickHouse Demo", "port": 58123, "native_port": 59001, "database": "cdeadmin_demo", "user": "cdeadmin_demo", "password": "CDEadminDemo-2026!"},
+    {"engine": "cockroachdb", "name": "Local CockroachDB Demo", "port": 56257, "http_port": 58081, "database": "cdeadmin_demo", "user": "root", "sslmode": "disable"},
+    {"engine": "dolt", "name": "Local Dolt Demo", "port": 53308, "database": "cdeadmin_demo", "user": "root"},
+    {"engine": "duckdb", "name": "Local DuckDB Demo", "database": "${DEMO_ROOT}/data/cdeadmin_demo.duckdb"},
+    {"engine": "firebird", "name": "localhost", "port": 53050, "database": "/var/lib/firebird/data/cdeadmin_demo.fdb", "database_create_root": "/var/lib/firebird/data", "user": "SYSDBA", "password": "CDEadminDemo-2026!"},
+    {"engine": "foundationdb", "name": "Local FoundationDB Demo", "port": 54500, "database": "default", "cluster_file": "${DEMO_ROOT}/runtime/fdb.cluster", "fdbcli_path": "${DEMO_ROOT}/runtime/foundationdb/bin/fdbcli", "fdbbackup_path": "${DEMO_ROOT}/runtime/foundationdb/bin/fdbbackup", "fdbrestore_path": "${DEMO_ROOT}/runtime/foundationdb/bin/fdbrestore"},
+    {"engine": "immudb", "name": "Local immudb Demo", "port": 55435, "native_port": 53322, "http_port": 58082, "database": "cdeadmin_demo", "user": "immudb", "password": "immudb"},
+    {"engine": "influxdb", "name": "Local InfluxDB Demo", "port": 58181, "database": "cdeadmin_demo", "auth_mode": "disabled_local_demo"},
+    {"engine": "mariadb", "name": "Local MariaDB Demo", "port": 53307, "database": "cdeadmin_demo", "user": "cdeadmin_demo", "password": "CDEadminDemo-2026!", "tool_workspace": "${DEMO_ROOT}/runtime/tool_workspaces/mariadb"},
+    {"engine": "milvus", "name": "Local Milvus Demo", "port": 59530, "database": "cdeadmin_demo", "user": null},
+    {"engine": "mongodb", "name": "Local MongoDB Demo", "port": 57017, "database": "cdeadmin_demo", "user": null},
+    {"engine": "mysql", "name": "Local MySQL Demo", "port": 53306, "database": "cdeadmin_demo", "user": "cdeadmin_demo", "password": "CDEadminDemo-2026!"},
+    {"engine": "neo4j", "name": "Local Neo4j Demo", "port": 57687, "http_port": 57474, "database": "neo4j", "user": "neo4j", "password": "CDEadminDemo-2026!"},
+    {"engine": "opensearch", "name": "Local OpenSearch Demo", "port": 59200, "database": "cdeadmin-work-orders", "user": null},
+    {"engine": "opensearch_sql_ppl", "name": "Local OpenSearch SQL/PPL Demo", "port": 59200, "database": "cdeadmin-work-orders", "user": null},
+    {"engine": "postgresql", "name": "Local PostgreSQL Demo", "port": 55432, "database": "cdeadmin_demo", "user": "cdeadmin_demo", "password": "CDEadminDemo-2026!"},
+    {"engine": "redis", "name": "Local Redis Demo", "port": 56379, "database": 0, "user": "default"},
+    {"engine": "sqlite", "name": "Local SQLite Demo", "database": "${DEMO_ROOT}/data/cdeadmin_demo.sqlite", "compatibility_note": "Written by the bootstrapped SQLite 3.53.0 reference CLI, then read and updated through the Python standard-library SQLite connector; evidence records both versions."},
+    {"engine": "tidb", "name": "Local TiDB Demo", "port": 54000, "http_port": 51000, "database": "cdeadmin_demo", "user": "root"},
+    {"engine": "tikv", "name": "Local TiKV Demo", "port": 52379, "database": "default", "pd_endpoints": ["127.0.0.1:52379"], "helper_path": "${DEMO_ROOT}/runtime/bin/cdeadmin-tikv-helper"},
+    {"engine": "vitess", "name": "Local Vitess Demo", "port": 15306, "http_port": 15099, "database": "test_keyspace", "user": "root"},
+    {"engine": "xtdb", "name": "Local XTDB Demo", "port": 55434, "http_port": 58083, "database": "xtdb", "user": "xtdb"},
+    {"engine": "yugabytedb", "interface": "YSQL", "name": "Local YugabyteDB YSQL Demo", "port": 55433, "database": "cdeadmin_demo", "user": "yugabyte"},
+    {"engine": "yugabytedb_ycql", "interface": "YCQL", "name": "Local YugabyteDB YCQL Demo", "port": 59042, "database": "cdeadmin_demo", "user": "cassandra"}
+  ]
+}

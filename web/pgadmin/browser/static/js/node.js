@@ -14,6 +14,8 @@ import ObjectNodeProperties from '../../../misc/properties/ObjectNodeProperties'
 import ErrorBoundary from '../../../static/js/helpers/ErrorBoundary';
 import toPx from '../../../static/js/to_px';
 import usePreferences from '../../../preferences/static/js/store';
+import {allowsSoleChildAutomation} from
+  '../../../static/js/cdeadmin_ui/navigation/providerHierarchy';
 import { evalFunc } from '../../../static/js/utils';
 
 define('pgadmin.browser.node', [
@@ -825,6 +827,8 @@ define('pgadmin.browser.node', [
       opened: function(item) {
         let tree = pgBrowser.tree,
           auto_expand = usePreferences.getState().getPreferences('browser', 'auto_expand_sole_children');
+        const itemData = tree.itemData(item);
+        const automateSoleChild = allowsSoleChildAutomation(itemData);
         // Suppress opened tree event being called during object search operations
         // where tree.select clashes due to only child of parent opens automatically.
         const suppressPath = pgBrowser.tree.suppressEventsForPath;
@@ -836,7 +840,12 @@ define('pgadmin.browser.node', [
           }
         }
 
-        if (auto_expand?.value && tree.children(item).length == 1) {
+        // A CDEadmin provider endpoint deliberately exposes an engine ->
+        // server -> database hierarchy. Never skip or select its sole child:
+        // that would start database verification/workspace work merely from
+        // expanding the server, and visually collapses two distinct objects.
+        if (automateSoleChild && auto_expand?.value &&
+            tree.children(item).length == 1) {
           // Automatically expand the child node, if a treeview node has only a single child.
           const first_child = tree.first(item);
 
@@ -856,7 +865,7 @@ define('pgadmin.browser.node', [
             };
           }
 
-        } else if(tree.children(item).length == 1) {
+        } else if(automateSoleChild && tree.children(item).length == 1) {
           const first_child = tree.first(item);
           tree.select(first_child);
         }

@@ -1,6 +1,8 @@
 """DuckDB embedded-helper semantic provider pilot."""
 
+import os
 import re
+import stat
 from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk import (
@@ -27,11 +29,37 @@ PROFILE = PilotProfile(
      'secret', 'extension', 'materialization'),
     ('duckdb-shell', 'export', 'import', 'extension-manager'),
     ('embedded_runtime', 'filesystem'),
+    result_renderer_kind='columnar',
+    result_renderer_id='cdeadmin.result.columnar.grid',
+    result_component_reference='cdeadmin/results/ColumnarView',
+    result_export_formats=('csv', 'json', 'jsonl'),
+    result_worker_required=True,
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'duckdb-sql', 'quote_open': '"',
-        'supports_rollup': True,
+        'quote_close': '"', 'supports_rollup': True,
+        'rollup_style': 'function', 'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
     semantic_materialization_kind='materialization',
+    dialect_contract_id='duckdb.dialect.1.5.2.v1',
+    dialect_evidence=(
+        'duckdb-1.5.2-source-and-runtime-inventory',
+        'duckdb-1.5.2-task-live-execution',
+    ),
+    dialect_contract_file='duckdb_dialect_1_5_2.json',
+    metrics_contract_file='duckdb_metrics_1_5_2.json',
+    query_plan_templates=(
+        ('DuckDB physical query plan', 'EXPLAIN {source}'),
+        ('DuckDB profiled query plan', 'EXPLAIN ANALYZE {source}'),
+    ),
 )
 
 
@@ -83,7 +111,11 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         },
     },
     supported={
-        'database': frozenset({'inspect', 'create'}),
+        'database': frozenset({
+            'inspect', 'create', 'drop', 'checkpoint',
+            'force_checkpoint', 'vacuum', 'analyze',
+            'export_database', 'import_database',
+        }),
         'attached-database': frozenset({'inspect'}),
         'schema': frozenset({
             'inspect', 'create', 'drop',
@@ -138,13 +170,53 @@ def _resources(connection, request):
                 resources[resource_id]['native'] = native
 
         cursor.execute(
-            'SELECT database_name, path FROM duckdb_databases() '
+            'SELECT database_name, database_size, block_size, total_blocks, '
+            'used_blocks, free_blocks, wal_size, memory_usage, memory_limit '
+            'FROM pragma_database_size()'
+        )
+        sizes = {
+            row[0]: {
+                'database_size': row[1], 'block_size': row[2],
+                'total_blocks': row[3], 'used_blocks': row[4],
+                'free_blocks': row[5], 'wal_size': row[6],
+                'memory_usage': row[7], 'memory_limit': row[8],
+            }
+            for row in cursor.fetchall()
+        }
+        cursor.execute('PRAGMA platform')
+        platform = cursor.fetchone()[0]
+        cursor.execute('SELECT version()')
+        runtime_version = cursor.fetchone()[0]
+        cursor.execute('SELECT current_database()')
+        current_database = cursor.fetchone()[0]
+        cursor.execute(
+            'SELECT database_name, database_oid, path, comment, tags, type, '
+            'readonly, encrypted, cipher, options FROM duckdb_databases() '
             'WHERE NOT internal ORDER BY database_name'
         )
         databases = cursor.fetchall()
-        for index, (database, path) in enumerate(databases):
-            kind = 'database' if index == 0 else 'attached-database'
-            add(kind, [], database, {'path': path})
+        for row in databases:
+            (
+                database, database_oid, path, comment, tags, database_type,
+                read_only, encrypted, cipher, options,
+            ) = row
+            kind = (
+                'database' if database == current_database
+                else 'attached-database'
+            )
+            native = {
+                'database_name': database,
+                'path': path, 'database_oid': database_oid,
+                'comment': comment, 'tags': tags,
+                'database_type': database_type,
+                'read_only': bool(read_only), 'encrypted': bool(encrypted),
+                'cipher': cipher, 'options': options,
+                'runtime_version': runtime_version, 'platform': platform,
+                **sizes.get(database, {}),
+            }
+            if isinstance(path, str) and os.path.isfile(path):
+                native['file_bytes'] = os.path.getsize(path)
+            add(kind, [], database, native)
         cursor.execute(
             'SELECT s.database_name, s.schema_name FROM duckdb_schemas() s '
             'JOIN duckdb_databases() d USING (database_name) '
@@ -260,7 +332,7 @@ def _initialize_connection(connection, route):
         if not isinstance(name, str) or not re.fullmatch(
                 r'[A-Za-z_][A-Za-z0-9_]{0,127}', name) or name.lower() in {
                     'memory', 'system', 'temp',
-                }:
+        }:
             raise RelationalClientError('DuckDB attachment name is invalid')
         read_only = attachment.get('read_only', False)
         if not isinstance(read_only, bool):
@@ -285,6 +357,105 @@ def _initialize_connection(connection, route):
         existing[name.lower()] = path
 
 
+def _initialize_studio_session(connection, _route):
+    """Begin the explicit transaction required by the editable Data Studio."""
+    connection.execute('BEGIN TRANSACTION')
+
+
+def _control_studio_transaction(connection, action):
+    """Apply exact DuckDB finality and prepare the retained next unit."""
+    if action not in {'commit', 'rollback'}:
+        raise RelationalClientError(
+            'DuckDB transaction action is unavailable'
+        )
+    connection.execute(action.upper())
+    connection.execute('BEGIN TRANSACTION')
+
+
+def _database_create_arguments(route, database, options):
+    """Build exact DuckDB creation arguments from a provider-owned form."""
+    expected = contained_database({**dict(route), 'database': database})
+    if expected != database:
+        raise RelationalClientError(
+            'DuckDB creation target does not match the trusted route root'
+        )
+    if route.get('read_only') is True:
+        raise RelationalClientError(
+            'DuckDB read-only routes cannot create database files'
+        )
+    unknown = set(options).difference({'config'})
+    if unknown:
+        raise RelationalClientError(
+            'DuckDB database creation options are unsupported'
+        )
+    config = options.get('config', {})
+    if not isinstance(config, Mapping) or not all(
+        isinstance(key, str) and key.strip() and
+        isinstance(value, (str, int, float, bool)) and value is not None
+        for key, value in config.items()
+    ):
+        raise RelationalClientError(
+            'DuckDB creation configuration must contain named scalar values'
+        )
+    arguments = {'database': database}
+    if config:
+        arguments['config'] = dict(config)
+    return arguments
+
+
+def _drop_database_file(route, database):
+    """Delete one contained offline DuckDB file after native identification."""
+    path = contained_database(route)
+    if path != os.path.realpath(database):
+        raise RelationalClientError(
+            'DuckDB deletion target does not match the trusted route'
+        )
+    if route.get('read_only') is True:
+        raise RelationalClientError(
+            'DuckDB read-only routes cannot delete database files'
+        )
+    if os.path.lexists(path + '.wal'):
+        raise RelationalClientError(
+            'DuckDB database has a WAL sidecar; close external sessions and '
+            'checkpoint it before deletion'
+        )
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise RelationalClientError(
+            f'DuckDB database file cannot be opened ({type(exc).__name__})'
+        ) from None
+    try:
+        details = os.fstat(descriptor)
+        if not stat.S_ISREG(details.st_mode):
+            raise RelationalClientError(
+                'DuckDB deletion target is not a regular file'
+            )
+        header = os.read(descriptor, 12)
+        if details.st_size and header[8:12] != b'DUCK':
+            raise RelationalClientError(
+                'DuckDB deletion target has no DuckDB database header'
+            )
+        identity = (details.st_dev, details.st_ino)
+    finally:
+        os.close(descriptor)
+    current = os.lstat(path)
+    if stat.S_ISLNK(current.st_mode) or (
+            current.st_dev, current.st_ino) != identity:
+        raise RelationalClientError(
+            'DuckDB deletion target changed during verification'
+        )
+    os.unlink(path)
+    return {
+        'driver_operation': 'embedded-drop-database',
+        'driver_returned': True,
+        'database': path,
+        'file_deleted': True,
+        'transaction_finality_interpreted_by_common_code': False,
+    }
+
+
 def _version(row):
     value = str(row[0]).strip() if row else ''
     match = re.search(r'(\d+\.\d+\.\d+)', value)
@@ -300,10 +471,15 @@ def _create_client():
         version_query='SELECT version()',
         version_parser=_version,
         connect_arguments=_route_arguments,
+        execute_on_connection=True,
         metadata_reader=_resources,
         security_reader=_security,
         administration=ADMINISTRATION,
         connection_initializer=_initialize_connection,
+        session_initializer=_initialize_studio_session,
+        transaction_controller=_control_studio_transaction,
+        database_create_arguments=_database_create_arguments,
+        database_dropper=_drop_database_file,
     ))
 
 

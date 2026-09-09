@@ -123,7 +123,8 @@ def current_user_info():
             current_auth_source=session['auth_source_manager'][
                 'current_source'] if config.SERVER_MODE is True else INTERNAL,
             permissions=list({p for r in current_user.roles
-                              for p in r.get_permissions()})
+                              for p in r.get_permissions()}),
+            security_groups=sorted({r.name for r in current_user.roles})
         ),
         headers={
             'Cache-Control': NO_CACHE_CONTROL

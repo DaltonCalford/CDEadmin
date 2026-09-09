@@ -1,0 +1,3254 @@
+{
+  "schema": "cdeadmin.engine-metrics.v2",
+  "contract_id": "firebird.metrics.5.0.4.v2",
+  "provider_id": "org.cdeadmin.firebird",
+  "profile_id": "firebird-native",
+  "engine_id": "firebird",
+  "interface_id": "firebird-native-interface",
+  "reference_version": "5.0.4",
+  "catalog_evidence": {
+    "authority": "upstream exact-version catalog source",
+    "artifact": "Firebird 5.0.4 src/jrd/relations.h",
+    "sha256": "b11c1aba700a13f67961511b42f2a93911f2a8ac4eea3e612a9d62bd8d37b742",
+    "format": "Firebird relation definition macros",
+    "license_id": "IPL-1.0"
+  },
+  "classification_evidence": [
+    {
+      "evidence_id": "firebird-5.0.4-monitoring-tables",
+      "authority": "upstream exact-version monitoring documentation",
+      "artifact": "Firebird 5.0.4 README.monitoring_tables",
+      "sha256": "fd3697770b079d59b3727ef308ae15008142c205cdf9751c85bd20d64b1d8f2a",
+      "format": "Firebird upstream text documentation",
+      "license_id": "IPL-1.0"
+    },
+    {
+      "evidence_id": "firebird-driver-1.10.11-server-info",
+      "authority": "admitted exact-version driver implementation",
+      "artifact": "firebird-driver 1.10.11 core.py",
+      "sha256": "3024a04558e70629e7dd7980cde953cc068be751ccbf016193bb0c19b6aa5c1b",
+      "format": "Python source with public property documentation",
+      "license_id": "MIT"
+    }
+  ],
+  "native_observations": [
+    {
+      "observation_id": "firebird.mon_attachments.mon_attachment_id",
+      "native_name": "MON$ATTACHMENT_ID",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_server_pid",
+      "native_name": "MON$SERVER_PID",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "server process ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_state",
+      "native_name": "MON$STATE",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment state",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_attachment_name",
+      "native_name": "MON$ATTACHMENT_NAME",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=1020;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "connection string",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_user",
+      "native_name": "MON$USER",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "user name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_role",
+      "native_name": "MON$ROLE",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "role name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_protocol",
+      "native_name": "MON$REMOTE_PROTOCOL",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=10;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote protocol name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_address",
+      "native_name": "MON$REMOTE_ADDRESS",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=255;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote address",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_pid",
+      "native_name": "MON$REMOTE_PID",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote client process ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_character_set_id",
+      "native_name": "MON$CHARACTER_SET_ID",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment character set",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_timestamp",
+      "native_name": "MON$TIMESTAMP",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "connection date/time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_garbage_collection",
+      "native_name": "MON$GARBAGE_COLLECTION",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "garbage collection flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_process",
+      "native_name": "MON$REMOTE_PROCESS",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=1020;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote client process pathname",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_client_version",
+      "native_name": "MON$CLIENT_VERSION",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=255;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "version of the client library",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_version",
+      "native_name": "MON$REMOTE_VERSION",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=255;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "version of the remote protocol",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_host",
+      "native_name": "MON$REMOTE_HOST",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=1020;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote host name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_remote_os_user",
+      "native_name": "MON$REMOTE_OS_USER",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=1020;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "remote OS user name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_auth_method",
+      "native_name": "MON$AUTH_METHOD",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=255;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "authentication method used for connection",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_system_flag",
+      "native_name": "MON$SYSTEM_FLAG",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "system flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_idle_timeout",
+      "native_name": "MON$IDLE_TIMEOUT",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "connection-level idle timeout",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_idle_timer",
+      "native_name": "MON$IDLE_TIMER",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "idle timer expiration time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_statement_timeout",
+      "native_name": "MON$STATEMENT_TIMEOUT",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement timeout",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_wire_compressed",
+      "native_name": "MON$WIRE_COMPRESSED",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=23;SUB_TYPE=0;LENGTH=1;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "wire compression enabled/disabled",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_wire_encrypted",
+      "native_name": "MON$WIRE_ENCRYPTED",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=23;SUB_TYPE=0;LENGTH=1;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "wire encryption enabled/disabled",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_wire_crypt_plugin",
+      "native_name": "MON$WIRE_CRYPT_PLUGIN",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "name of wire encryption plugin",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_session_timezone",
+      "native_name": "MON$SESSION_TIMEZONE",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "time zone of attachment",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_attachments.mon_parallel_workers",
+      "native_name": "MON$PARALLEL_WORKERS",
+      "scope": "MON$ATTACHMENTS",
+      "source": "MON$ATTACHMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of parallel workes that could be used by attachment",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$attachments",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_call_id",
+      "native_name": "MON$CALL_ID",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "call ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_statement_id",
+      "native_name": "MON$STATEMENT_ID",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "top-level DSQL statement ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_caller_id",
+      "native_name": "MON$CALLER_ID",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "caller request ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_object_name",
+      "native_name": "MON$OBJECT_NAME",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_object_type",
+      "native_name": "MON$OBJECT_TYPE",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object type",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_timestamp",
+      "native_name": "MON$TIMESTAMP",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "request start date/time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_source_line",
+      "native_name": "MON$SOURCE_LINE",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "SQL source line number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_source_column",
+      "native_name": "MON$SOURCE_COLUMN",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "SQL source column number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_package_name",
+      "native_name": "MON$PACKAGE_NAME",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object package name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_call_stack.mon_compiled_statement_id",
+      "native_name": "MON$COMPILED_STATEMENT_ID",
+      "scope": "MON$CALL_STACK",
+      "source": "MON$CALL_STACK",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "compiled statement ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$call_stack",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_compiled_statement_id",
+      "native_name": "MON$COMPILED_STATEMENT_ID",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "compiled statement ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_sql_text",
+      "native_name": "MON$SQL_TEXT",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=261;SUB_TYPE=1;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement text, if appropriate",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_explained_plan",
+      "native_name": "MON$EXPLAINED_PLAN",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=261;SUB_TYPE=1;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "explained query plan",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_object_name",
+      "native_name": "MON$OBJECT_NAME",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_object_type",
+      "native_name": "MON$OBJECT_TYPE",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object type",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_package_name",
+      "native_name": "MON$PACKAGE_NAME",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "PSQL object package name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_compiled_statements.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$COMPILED_STATEMENTS",
+      "source": "MON$COMPILED_STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$compiled_statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_context_variables.mon_attachment_id",
+      "native_name": "MON$ATTACHMENT_ID",
+      "scope": "MON$CONTEXT_VARIABLES",
+      "source": "MON$CONTEXT_VARIABLES",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$context_variables",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_context_variables.mon_transaction_id",
+      "native_name": "MON$TRANSACTION_ID",
+      "scope": "MON$CONTEXT_VARIABLES",
+      "source": "MON$CONTEXT_VARIABLES",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "transaction ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$context_variables",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_context_variables.mon_variable_name",
+      "native_name": "MON$VARIABLE_NAME",
+      "scope": "MON$CONTEXT_VARIABLES",
+      "source": "MON$CONTEXT_VARIABLES",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=0;LENGTH=80;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "name of context variable",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$context_variables",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_context_variables.mon_variable_value",
+      "native_name": "MON$VARIABLE_VALUE",
+      "scope": "MON$CONTEXT_VARIABLES",
+      "source": "MON$CONTEXT_VARIABLES",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=0;LENGTH=32765;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "value of context variable",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$context_variables",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_database_name",
+      "native_name": "MON$DATABASE_NAME",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=3;LENGTH=1020;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "database pathname or alias",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_page_size",
+      "native_name": "MON$PAGE_SIZE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "page size",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_ods_major",
+      "native_name": "MON$ODS_MAJOR",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "major ODS version",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_ods_minor",
+      "native_name": "MON$ODS_MINOR",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "minor ODS version",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_oldest_transaction",
+      "native_name": "MON$OLDEST_TRANSACTION",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "OIT number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_oldest_active",
+      "native_name": "MON$OLDEST_ACTIVE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "OAT number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_oldest_snapshot",
+      "native_name": "MON$OLDEST_SNAPSHOT",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "OST number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_next_transaction",
+      "native_name": "MON$NEXT_TRANSACTION",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "next transaction number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_page_buffers",
+      "native_name": "MON$PAGE_BUFFERS",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of pages allocated in the cache",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_sql_dialect",
+      "native_name": "MON$SQL_DIALECT",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "SQL dialect of the database",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_shutdown_mode",
+      "native_name": "MON$SHUTDOWN_MODE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "current shutdown mode",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_sweep_interval",
+      "native_name": "MON$SWEEP_INTERVAL",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "sweep interval",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_read_only",
+      "native_name": "MON$READ_ONLY",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "read-only flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_forced_writes",
+      "native_name": "MON$FORCED_WRITES",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "sync writes flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_reserve_space",
+      "native_name": "MON$RESERVE_SPACE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "reserve space flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_creation_date",
+      "native_name": "MON$CREATION_DATE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "creation date/time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_pages",
+      "native_name": "MON$PAGES",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of pages allocated on disk",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_backup_state",
+      "native_name": "MON$BACKUP_STATE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "current physical backup state",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_crypt_page",
+      "native_name": "MON$CRYPT_PAGE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of page being encrypted / decrypted",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_owner",
+      "native_name": "MON$OWNER",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "database owner name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_sec_database",
+      "native_name": "MON$SEC_DATABASE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=2;LENGTH=7;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "security database",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_crypt_state",
+      "native_name": "MON$CRYPT_STATE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "current encryption state",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_guid",
+      "native_name": "MON$GUID",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=0;LENGTH=38;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "database GUID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_file_id",
+      "native_name": "MON$FILE_ID",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=37;SUB_TYPE=2;LENGTH=255;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "unique filesystem-level ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_next_attachment",
+      "native_name": "MON$NEXT_ATTACHMENT",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "next attachment number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_next_statement",
+      "native_name": "MON$NEXT_STATEMENT",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "next statement number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_database.mon_replica_mode",
+      "native_name": "MON$REPLICA_MODE",
+      "scope": "MON$DATABASE",
+      "source": "MON$DATABASE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "Replica mode of the database",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$database",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_stat_group",
+      "native_name": "MON$STAT_GROUP",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics group",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_page_reads",
+      "native_name": "MON$PAGE_READS",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of page reads",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_page_writes",
+      "native_name": "MON$PAGE_WRITES",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of page writes",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_page_fetches",
+      "native_name": "MON$PAGE_FETCHES",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of page fetches",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_io_stats.mon_page_marks",
+      "native_name": "MON$PAGE_MARKS",
+      "scope": "MON$IO_STATS",
+      "source": "MON$IO_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of page marks",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$io_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_stat_group",
+      "native_name": "MON$STAT_GROUP",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics group",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_memory_used",
+      "native_name": "MON$MEMORY_USED",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of bytes currently in use",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_memory_allocated",
+      "native_name": "MON$MEMORY_ALLOCATED",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of bytes currently allocated at the OS level",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_max_memory_used",
+      "native_name": "MON$MAX_MEMORY_USED",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "maximum number of bytes used by this object",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_memory_usage.mon_max_memory_allocated",
+      "native_name": "MON$MAX_MEMORY_ALLOCATED",
+      "scope": "MON$MEMORY_USAGE",
+      "source": "MON$MEMORY_USAGE",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "maximum number of bytes allocated from OS by this object",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$memory_usage",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_stat_group",
+      "native_name": "MON$STAT_GROUP",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics group",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_seq_reads",
+      "native_name": "MON$RECORD_SEQ_READS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of records read sequentially",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_idx_reads",
+      "native_name": "MON$RECORD_IDX_READS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of records read via an index",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_inserts",
+      "native_name": "MON$RECORD_INSERTS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of inserted records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_updates",
+      "native_name": "MON$RECORD_UPDATES",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of updated records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_deletes",
+      "native_name": "MON$RECORD_DELETES",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of deleted records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_backouts",
+      "native_name": "MON$RECORD_BACKOUTS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of backed out records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_purges",
+      "native_name": "MON$RECORD_PURGES",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of purged records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_expunges",
+      "native_name": "MON$RECORD_EXPUNGES",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of expunged records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_locks",
+      "native_name": "MON$RECORD_LOCKS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of explicit record-level locks",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_waits",
+      "native_name": "MON$RECORD_WAITS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of waits on conflicting records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_conflicts",
+      "native_name": "MON$RECORD_CONFLICTS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of record-level conflicts reported",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_backversion_reads",
+      "native_name": "MON$BACKVERSION_READS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of backversions read while chasing version chains",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_fragment_reads",
+      "native_name": "MON$FRAGMENT_READS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of fragments read while composing full records",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_rpt_reads",
+      "native_name": "MON$RECORD_RPT_READS",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of records read repeatedly, i.e. re-fetched after reading",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_record_stats.mon_record_imgc",
+      "native_name": "MON$RECORD_IMGC",
+      "scope": "MON$RECORD_STATS",
+      "source": "MON$RECORD_STATS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "operational_metric",
+      "description": "number of records affected by the intermediate garbage collection",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$record_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_statement_id",
+      "native_name": "MON$STATEMENT_ID",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_attachment_id",
+      "native_name": "MON$ATTACHMENT_ID",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_transaction_id",
+      "native_name": "MON$TRANSACTION_ID",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "transaction ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_state",
+      "native_name": "MON$STATE",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement state",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_timestamp",
+      "native_name": "MON$TIMESTAMP",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement start date/time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_sql_text",
+      "native_name": "MON$SQL_TEXT",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=261;SUB_TYPE=1;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement text, if appropriate",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_explained_plan",
+      "native_name": "MON$EXPLAINED_PLAN",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=261;SUB_TYPE=1;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "explained query plan",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_statement_timeout",
+      "native_name": "MON$STATEMENT_TIMEOUT",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement timeout",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_statement_timer",
+      "native_name": "MON$STATEMENT_TIMER",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statement timer expiration time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_statements.mon_compiled_statement_id",
+      "native_name": "MON$COMPILED_STATEMENT_ID",
+      "scope": "MON$STATEMENTS",
+      "source": "MON$STATEMENTS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "compiled statement ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$statements",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_table_stats.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$TABLE_STATS",
+      "source": "MON$TABLE_STATS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$table_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_table_stats.mon_stat_group",
+      "native_name": "MON$STAT_GROUP",
+      "scope": "MON$TABLE_STATS",
+      "source": "MON$TABLE_STATS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics group",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$table_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_table_stats.mon_table_name",
+      "native_name": "MON$TABLE_NAME",
+      "scope": "MON$TABLE_STATS",
+      "source": "MON$TABLE_STATS",
+      "value_type": "RDB$FIELD_TYPE=14;SUB_TYPE=3;LENGTH=252;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "table name",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$table_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_table_stats.mon_record_stat_id",
+      "native_name": "MON$RECORD_STAT_ID",
+      "scope": "MON$TABLE_STATS",
+      "source": "MON$TABLE_STATS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "record-level statistics ID, refers to MON$RECORD_STATS",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$table_stats",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_transaction_id",
+      "native_name": "MON$TRANSACTION_ID",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "transaction ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_attachment_id",
+      "native_name": "MON$ATTACHMENT_ID",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "attachment ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_state",
+      "native_name": "MON$STATE",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "transaction state",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_timestamp",
+      "native_name": "MON$TIMESTAMP",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=29;SUB_TYPE=0;LENGTH=12;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "transaction start date/time",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_top_transaction",
+      "native_name": "MON$TOP_TRANSACTION",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "top transaction",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_oldest_transaction",
+      "native_name": "MON$OLDEST_TRANSACTION",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "local OIT number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_oldest_active",
+      "native_name": "MON$OLDEST_ACTIVE",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=16;SUB_TYPE=0;LENGTH=8;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "local OAT number",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_isolation_mode",
+      "native_name": "MON$ISOLATION_MODE",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "isolation mode",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_lock_timeout",
+      "native_name": "MON$LOCK_TIMEOUT",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "lock timeout",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_read_only",
+      "native_name": "MON$READ_ONLY",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "read-only flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_auto_commit",
+      "native_name": "MON$AUTO_COMMIT",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "auto-commit flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_auto_undo",
+      "native_name": "MON$AUTO_UNDO",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=7;SUB_TYPE=0;LENGTH=2;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "auto-undo flag",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.mon_transactions.mon_stat_id",
+      "native_name": "MON$STAT_ID",
+      "scope": "MON$TRANSACTIONS",
+      "source": "MON$TRANSACTIONS",
+      "value_type": "RDB$FIELD_TYPE=8;SUB_TYPE=0;LENGTH=4;SCALE=0",
+      "observation_class": "native_attribute",
+      "description": "statistics ID",
+      "privilege": "Firebird monitoring visibility rules",
+      "version_condition": "5.0.4",
+      "collection_cost": "native_monitoring_relation_snapshot",
+      "poll_interval_seconds": 15,
+      "cardinality": "one_per_visible_mon$transactions",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.architecture",
+      "native_name": "architecture",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Server implementation description.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.attached_databases",
+      "native_name": "attached_databases",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "List of attached databases.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.capabilities",
+      "native_name": "capabilities",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Server capabilities.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.connection_count",
+      "native_name": "connection_count",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "operational_metric",
+      "description": "Number of database attachments.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.engine_version",
+      "native_name": "engine_version",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Firebird version as major.minor number.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.home_directory",
+      "native_name": "home_directory",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Server home directory.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.lock_directory",
+      "native_name": "lock_directory",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Directory with lock files.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.manager_version",
+      "native_name": "manager_version",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Service manager version.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.message_directory",
+      "native_name": "message_directory",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Directory with message files.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.security_database",
+      "native_name": "security_database",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Path to security database.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    },
+    {
+      "observation_id": "firebird.service_mgr.info.version",
+      "native_name": "version",
+      "scope": "server",
+      "source": "firebird.driver.ServerInfoProvider3",
+      "value_type": "driver_native_property",
+      "observation_class": "native_attribute",
+      "description": "Firebird version as a semantic-version string.",
+      "privilege": "service-manager authentication",
+      "version_condition": "5.0.4",
+      "collection_cost": "service_manager_info_read",
+      "poll_interval_seconds": 60,
+      "cardinality": "one_per_server",
+      "redaction": "provider_authorized_value",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    }
+  ],
+  "authoritative_observation_count": 146,
+  "authoritative_observation_ids": [
+    "firebird.mon_attachments.mon_attachment_id",
+    "firebird.mon_attachments.mon_server_pid",
+    "firebird.mon_attachments.mon_state",
+    "firebird.mon_attachments.mon_attachment_name",
+    "firebird.mon_attachments.mon_user",
+    "firebird.mon_attachments.mon_role",
+    "firebird.mon_attachments.mon_remote_protocol",
+    "firebird.mon_attachments.mon_remote_address",
+    "firebird.mon_attachments.mon_remote_pid",
+    "firebird.mon_attachments.mon_character_set_id",
+    "firebird.mon_attachments.mon_timestamp",
+    "firebird.mon_attachments.mon_garbage_collection",
+    "firebird.mon_attachments.mon_remote_process",
+    "firebird.mon_attachments.mon_stat_id",
+    "firebird.mon_attachments.mon_client_version",
+    "firebird.mon_attachments.mon_remote_version",
+    "firebird.mon_attachments.mon_remote_host",
+    "firebird.mon_attachments.mon_remote_os_user",
+    "firebird.mon_attachments.mon_auth_method",
+    "firebird.mon_attachments.mon_system_flag",
+    "firebird.mon_attachments.mon_idle_timeout",
+    "firebird.mon_attachments.mon_idle_timer",
+    "firebird.mon_attachments.mon_statement_timeout",
+    "firebird.mon_attachments.mon_wire_compressed",
+    "firebird.mon_attachments.mon_wire_encrypted",
+    "firebird.mon_attachments.mon_wire_crypt_plugin",
+    "firebird.mon_attachments.mon_session_timezone",
+    "firebird.mon_attachments.mon_parallel_workers",
+    "firebird.mon_call_stack.mon_call_id",
+    "firebird.mon_call_stack.mon_statement_id",
+    "firebird.mon_call_stack.mon_caller_id",
+    "firebird.mon_call_stack.mon_object_name",
+    "firebird.mon_call_stack.mon_object_type",
+    "firebird.mon_call_stack.mon_timestamp",
+    "firebird.mon_call_stack.mon_source_line",
+    "firebird.mon_call_stack.mon_source_column",
+    "firebird.mon_call_stack.mon_stat_id",
+    "firebird.mon_call_stack.mon_package_name",
+    "firebird.mon_call_stack.mon_compiled_statement_id",
+    "firebird.mon_compiled_statements.mon_compiled_statement_id",
+    "firebird.mon_compiled_statements.mon_sql_text",
+    "firebird.mon_compiled_statements.mon_explained_plan",
+    "firebird.mon_compiled_statements.mon_object_name",
+    "firebird.mon_compiled_statements.mon_object_type",
+    "firebird.mon_compiled_statements.mon_package_name",
+    "firebird.mon_compiled_statements.mon_stat_id",
+    "firebird.mon_context_variables.mon_attachment_id",
+    "firebird.mon_context_variables.mon_transaction_id",
+    "firebird.mon_context_variables.mon_variable_name",
+    "firebird.mon_context_variables.mon_variable_value",
+    "firebird.mon_database.mon_database_name",
+    "firebird.mon_database.mon_page_size",
+    "firebird.mon_database.mon_ods_major",
+    "firebird.mon_database.mon_ods_minor",
+    "firebird.mon_database.mon_oldest_transaction",
+    "firebird.mon_database.mon_oldest_active",
+    "firebird.mon_database.mon_oldest_snapshot",
+    "firebird.mon_database.mon_next_transaction",
+    "firebird.mon_database.mon_page_buffers",
+    "firebird.mon_database.mon_sql_dialect",
+    "firebird.mon_database.mon_shutdown_mode",
+    "firebird.mon_database.mon_sweep_interval",
+    "firebird.mon_database.mon_read_only",
+    "firebird.mon_database.mon_forced_writes",
+    "firebird.mon_database.mon_reserve_space",
+    "firebird.mon_database.mon_creation_date",
+    "firebird.mon_database.mon_pages",
+    "firebird.mon_database.mon_stat_id",
+    "firebird.mon_database.mon_backup_state",
+    "firebird.mon_database.mon_crypt_page",
+    "firebird.mon_database.mon_owner",
+    "firebird.mon_database.mon_sec_database",
+    "firebird.mon_database.mon_crypt_state",
+    "firebird.mon_database.mon_guid",
+    "firebird.mon_database.mon_file_id",
+    "firebird.mon_database.mon_next_attachment",
+    "firebird.mon_database.mon_next_statement",
+    "firebird.mon_database.mon_replica_mode",
+    "firebird.mon_io_stats.mon_stat_id",
+    "firebird.mon_io_stats.mon_stat_group",
+    "firebird.mon_io_stats.mon_page_reads",
+    "firebird.mon_io_stats.mon_page_writes",
+    "firebird.mon_io_stats.mon_page_fetches",
+    "firebird.mon_io_stats.mon_page_marks",
+    "firebird.mon_memory_usage.mon_stat_id",
+    "firebird.mon_memory_usage.mon_stat_group",
+    "firebird.mon_memory_usage.mon_memory_used",
+    "firebird.mon_memory_usage.mon_memory_allocated",
+    "firebird.mon_memory_usage.mon_max_memory_used",
+    "firebird.mon_memory_usage.mon_max_memory_allocated",
+    "firebird.mon_record_stats.mon_stat_id",
+    "firebird.mon_record_stats.mon_stat_group",
+    "firebird.mon_record_stats.mon_record_seq_reads",
+    "firebird.mon_record_stats.mon_record_idx_reads",
+    "firebird.mon_record_stats.mon_record_inserts",
+    "firebird.mon_record_stats.mon_record_updates",
+    "firebird.mon_record_stats.mon_record_deletes",
+    "firebird.mon_record_stats.mon_record_backouts",
+    "firebird.mon_record_stats.mon_record_purges",
+    "firebird.mon_record_stats.mon_record_expunges",
+    "firebird.mon_record_stats.mon_record_locks",
+    "firebird.mon_record_stats.mon_record_waits",
+    "firebird.mon_record_stats.mon_record_conflicts",
+    "firebird.mon_record_stats.mon_backversion_reads",
+    "firebird.mon_record_stats.mon_fragment_reads",
+    "firebird.mon_record_stats.mon_record_rpt_reads",
+    "firebird.mon_record_stats.mon_record_imgc",
+    "firebird.mon_statements.mon_statement_id",
+    "firebird.mon_statements.mon_attachment_id",
+    "firebird.mon_statements.mon_transaction_id",
+    "firebird.mon_statements.mon_state",
+    "firebird.mon_statements.mon_timestamp",
+    "firebird.mon_statements.mon_sql_text",
+    "firebird.mon_statements.mon_stat_id",
+    "firebird.mon_statements.mon_explained_plan",
+    "firebird.mon_statements.mon_statement_timeout",
+    "firebird.mon_statements.mon_statement_timer",
+    "firebird.mon_statements.mon_compiled_statement_id",
+    "firebird.mon_table_stats.mon_stat_id",
+    "firebird.mon_table_stats.mon_stat_group",
+    "firebird.mon_table_stats.mon_table_name",
+    "firebird.mon_table_stats.mon_record_stat_id",
+    "firebird.mon_transactions.mon_transaction_id",
+    "firebird.mon_transactions.mon_attachment_id",
+    "firebird.mon_transactions.mon_state",
+    "firebird.mon_transactions.mon_timestamp",
+    "firebird.mon_transactions.mon_top_transaction",
+    "firebird.mon_transactions.mon_oldest_transaction",
+    "firebird.mon_transactions.mon_oldest_active",
+    "firebird.mon_transactions.mon_isolation_mode",
+    "firebird.mon_transactions.mon_lock_timeout",
+    "firebird.mon_transactions.mon_read_only",
+    "firebird.mon_transactions.mon_auto_commit",
+    "firebird.mon_transactions.mon_auto_undo",
+    "firebird.mon_transactions.mon_stat_id",
+    "firebird.service_mgr.info.architecture",
+    "firebird.service_mgr.info.attached_databases",
+    "firebird.service_mgr.info.capabilities",
+    "firebird.service_mgr.info.connection_count",
+    "firebird.service_mgr.info.engine_version",
+    "firebird.service_mgr.info.home_directory",
+    "firebird.service_mgr.info.lock_directory",
+    "firebird.service_mgr.info.manager_version",
+    "firebird.service_mgr.info.message_directory",
+    "firebird.service_mgr.info.security_database",
+    "firebird.service_mgr.info.version"
+  ],
+  "metrics": [
+    {
+      "metric_id": "firebird.mon_attachments.mon_parallel_workers",
+      "observation_id": "firebird.mon_attachments.mon_parallel_workers",
+      "unit": "workers",
+      "kind": "configuration_gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_page_size",
+      "observation_id": "firebird.mon_database.mon_page_size",
+      "unit": "bytes",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_oldest_transaction",
+      "observation_id": "firebird.mon_database.mon_oldest_transaction",
+      "unit": "transaction_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_oldest_active",
+      "observation_id": "firebird.mon_database.mon_oldest_active",
+      "unit": "transaction_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_oldest_snapshot",
+      "observation_id": "firebird.mon_database.mon_oldest_snapshot",
+      "unit": "transaction_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_next_transaction",
+      "observation_id": "firebird.mon_database.mon_next_transaction",
+      "unit": "transaction_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_page_buffers",
+      "observation_id": "firebird.mon_database.mon_page_buffers",
+      "unit": "pages",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_sweep_interval",
+      "observation_id": "firebird.mon_database.mon_sweep_interval",
+      "unit": "transactions",
+      "kind": "configuration_gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_pages",
+      "observation_id": "firebird.mon_database.mon_pages",
+      "unit": "pages",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_crypt_page",
+      "observation_id": "firebird.mon_database.mon_crypt_page",
+      "unit": "page_number",
+      "kind": "progress_gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_next_attachment",
+      "observation_id": "firebird.mon_database.mon_next_attachment",
+      "unit": "attachment_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_database.mon_next_statement",
+      "observation_id": "firebird.mon_database.mon_next_statement",
+      "unit": "statement_number",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_io_stats.mon_page_reads",
+      "observation_id": "firebird.mon_io_stats.mon_page_reads",
+      "unit": "pages",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_io_stats.mon_page_writes",
+      "observation_id": "firebird.mon_io_stats.mon_page_writes",
+      "unit": "pages",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_io_stats.mon_page_fetches",
+      "observation_id": "firebird.mon_io_stats.mon_page_fetches",
+      "unit": "pages",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_io_stats.mon_page_marks",
+      "observation_id": "firebird.mon_io_stats.mon_page_marks",
+      "unit": "pages",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_memory_usage.mon_memory_used",
+      "observation_id": "firebird.mon_memory_usage.mon_memory_used",
+      "unit": "bytes",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_memory_usage.mon_memory_allocated",
+      "observation_id": "firebird.mon_memory_usage.mon_memory_allocated",
+      "unit": "bytes",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_memory_usage.mon_max_memory_used",
+      "observation_id": "firebird.mon_memory_usage.mon_max_memory_used",
+      "unit": "bytes",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_memory_usage.mon_max_memory_allocated",
+      "observation_id": "firebird.mon_memory_usage.mon_max_memory_allocated",
+      "unit": "bytes",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_seq_reads",
+      "observation_id": "firebird.mon_record_stats.mon_record_seq_reads",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_idx_reads",
+      "observation_id": "firebird.mon_record_stats.mon_record_idx_reads",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_inserts",
+      "observation_id": "firebird.mon_record_stats.mon_record_inserts",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_updates",
+      "observation_id": "firebird.mon_record_stats.mon_record_updates",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_deletes",
+      "observation_id": "firebird.mon_record_stats.mon_record_deletes",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_backouts",
+      "observation_id": "firebird.mon_record_stats.mon_record_backouts",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_purges",
+      "observation_id": "firebird.mon_record_stats.mon_record_purges",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_expunges",
+      "observation_id": "firebird.mon_record_stats.mon_record_expunges",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_locks",
+      "observation_id": "firebird.mon_record_stats.mon_record_locks",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_waits",
+      "observation_id": "firebird.mon_record_stats.mon_record_waits",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_conflicts",
+      "observation_id": "firebird.mon_record_stats.mon_record_conflicts",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_backversion_reads",
+      "observation_id": "firebird.mon_record_stats.mon_backversion_reads",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_fragment_reads",
+      "observation_id": "firebird.mon_record_stats.mon_fragment_reads",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_rpt_reads",
+      "observation_id": "firebird.mon_record_stats.mon_record_rpt_reads",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.mon_record_stats.mon_record_imgc",
+      "observation_id": "firebird.mon_record_stats.mon_record_imgc",
+      "unit": "records",
+      "kind": "counter",
+      "reset_behavior": "not_documented_by_authority",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-5.0.4-monitoring-tables"
+      ]
+    },
+    {
+      "metric_id": "firebird.service_mgr.info.connection_count",
+      "observation_id": "firebird.service_mgr.info.connection_count",
+      "unit": "connections",
+      "kind": "gauge",
+      "reset_behavior": "none",
+      "aggregation": "none",
+      "evidence_ids": [
+        "firebird-driver-1.10.11-server-info"
+      ]
+    }
+  ],
+  "authoritative_metric_count": 36,
+  "authoritative_metric_ids": [
+    "firebird.mon_attachments.mon_parallel_workers",
+    "firebird.mon_database.mon_page_size",
+    "firebird.mon_database.mon_oldest_transaction",
+    "firebird.mon_database.mon_oldest_active",
+    "firebird.mon_database.mon_oldest_snapshot",
+    "firebird.mon_database.mon_next_transaction",
+    "firebird.mon_database.mon_page_buffers",
+    "firebird.mon_database.mon_sweep_interval",
+    "firebird.mon_database.mon_pages",
+    "firebird.mon_database.mon_crypt_page",
+    "firebird.mon_database.mon_next_attachment",
+    "firebird.mon_database.mon_next_statement",
+    "firebird.mon_io_stats.mon_page_reads",
+    "firebird.mon_io_stats.mon_page_writes",
+    "firebird.mon_io_stats.mon_page_fetches",
+    "firebird.mon_io_stats.mon_page_marks",
+    "firebird.mon_memory_usage.mon_memory_used",
+    "firebird.mon_memory_usage.mon_memory_allocated",
+    "firebird.mon_memory_usage.mon_max_memory_used",
+    "firebird.mon_memory_usage.mon_max_memory_allocated",
+    "firebird.mon_record_stats.mon_record_seq_reads",
+    "firebird.mon_record_stats.mon_record_idx_reads",
+    "firebird.mon_record_stats.mon_record_inserts",
+    "firebird.mon_record_stats.mon_record_updates",
+    "firebird.mon_record_stats.mon_record_deletes",
+    "firebird.mon_record_stats.mon_record_backouts",
+    "firebird.mon_record_stats.mon_record_purges",
+    "firebird.mon_record_stats.mon_record_expunges",
+    "firebird.mon_record_stats.mon_record_locks",
+    "firebird.mon_record_stats.mon_record_waits",
+    "firebird.mon_record_stats.mon_record_conflicts",
+    "firebird.mon_record_stats.mon_backversion_reads",
+    "firebird.mon_record_stats.mon_fragment_reads",
+    "firebird.mon_record_stats.mon_record_rpt_reads",
+    "firebird.mon_record_stats.mon_record_imgc",
+    "firebird.service_mgr.info.connection_count"
+  ],
+  "live_evidence_ids": [
+    "firebird-5.0.4-live-monitoring-catalog",
+    "firebird-driver-1.10.11-live-service-info"
+  ]
+}

@@ -26,5 +26,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "InfluxDB safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "InfluxDB 3.9.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "influxdb_3.9.0_core_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab"}
+  "provenance": {"purpose": "InfluxDB 3.9.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "influxdb_3.9.0_core_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab"}
 }

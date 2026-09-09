@@ -341,6 +341,12 @@ class ProviderRegistryTests(unittest.TestCase):
                 endpoint(permissions=('network', 'filesystem'))
             )
 
+    def test_admitted_permissions_are_manifest_grants_only(self):
+        self.register()
+        admitted = self.registry.admitted_permissions(endpoint())
+        self.assertEqual(frozenset({'network', 'execute'}), admitted)
+        self.assertNotIn('filesystem', admitted)
+
     def test_endpoint_policy_must_grant_package_minimum(self):
         self.register()
         with self.assertRaises(ProviderPermissionError):

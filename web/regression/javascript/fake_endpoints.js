@@ -9,6 +9,9 @@
 
 module.exports = {
   'static': '/base/pgadmin/static/<path:filename>',
+  'preferences.index': '/preferences/',
+  'preferences.get_all': '/preferences/get_all',
+  'preferences.update_pref': '/preferences/update',
   'sqleditor.poll': '/sqleditor/query_tool/poll/<path:trans_id>',
   'sqleditor.query_tool_start': '/sqleditor/query_tool/start/<path:trans_id>',
   'backup.create_server_job':  '/backup/job/<int:sid>',

@@ -22,7 +22,7 @@ import hashlib
 import json
 import threading
 
-from pgadmin.cdeadmin.resources import ResourceRef
+from pgadmin.cdeadmin.resources import ResourcePage, ResourceRef
 from pgadmin.cdeadmin.visual_admin.provider import (
     VisualAdminAccessError,
     VisualAdminExecutionError,
@@ -30,6 +30,7 @@ from pgadmin.cdeadmin.visual_admin.provider import (
 from pgadmin.cdeadmin.visual_admin.operational_workspace import (
     build_operational_workspace,
 )
+from pgadmin.cdeadmin.grid_contract import workspace_grid_contract
 
 
 APP_EXTENSION_KEY = 'cdeadmin_provider_workspace'
@@ -58,19 +59,63 @@ class ProviderWorkspaceService:
         self._semantic_executions = {}
         self._semantic_lock = threading.RLock()
 
-    def bootstrap(self, server):
-        context, endpoint, root = self.endpoint_service.workspace(server)
+    def bootstrap(
+        self, server, database_target_id=Ellipsis,
+        focused_operation_id=None,
+    ):
+        context, endpoint, root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         binding = self.endpoint_service.provider_registry.resolve(context)
         describe_admin = getattr(
             binding.instance, 'visual_admin_descriptor', None
         )
-        page = self.resource_service.list_page(
-            context, root, page_size=500
-        ).to_dict()
         visual_admin = describe_admin() if callable(describe_admin) else None
+        service_target = self._service_workspace_target(
+            context, root, visual_admin, server, database_target_id,
+            focused_operation_id,
+        )
+        if service_target is None:
+            page = self.resource_service.list_page(
+                context, root, page_size=500,
+                provider_route=endpoint['route'],
+            ).to_dict()
+        else:
+            page = ResourcePage(
+                parent=ResourceRef(
+                    context.endpoint_id, root['resource_id']
+                ),
+                generation=root['generation'],
+                items=(service_target,),
+                next_cursor=None,
+                total_count=1,
+            ).to_dict()
+        describe_engine_contract = getattr(
+            binding.instance, 'engine_contract_descriptor', None
+        )
+        engine_contracts = (
+            describe_engine_contract()
+            if callable(describe_engine_contract) else {
+                'schema': 'cdeadmin.engine-contract-activation.v1',
+                'state': 'blocked',
+                'dialect': {
+                    'state': 'blocked',
+                    'reason': 'provider_exact_dialect_contract_absent',
+                },
+                'metrics': {
+                    'state': 'blocked',
+                    'reason': 'provider_exact_metrics_contract_absent',
+                },
+            }
+        )
+        route_catalog = self.endpoint_service.route_catalog(server)
+        endpoint_display_name = getattr(
+            server, 'name', root.get('display_name', 'Endpoint')
+        )
         return {
             'endpoint': {
                 'endpoint_id': context.endpoint_id,
+                'display_name': endpoint_display_name,
                 'mode': context.mode,
                 'experience_family': context.experience_family,
                 'provider_id': context.provider_id,
@@ -93,12 +138,24 @@ class ProviderWorkspaceService:
                     )
                 ),
             },
+            'endpoint_registration': {
+                'display_name': endpoint_display_name,
+                'forms': route_catalog['server_forms'],
+                'primary_route': (
+                    route_catalog['routes'][0]
+                    if route_catalog['routes'] else None
+                ),
+            },
             'languages': list(self.studio_service.languages(context)),
+            'engine_contracts': engine_contracts,
             'database_targets': self.endpoint_service.database_catalog(
                 server
             ),
             'resource_page': page,
             'visual_admin': visual_admin,
+            'grid_workspace': workspace_grid_contract(
+                context, binding.instance, visual_admin,
+            ),
             'operational_workspace': (
                 build_operational_workspace(
                     visual_admin, page.get('items', [])
@@ -130,6 +187,74 @@ class ProviderWorkspaceService:
             ),
         }
 
+    def _service_workspace_target(
+        self, context, root, visual_admin, server, database_target_id,
+        focused_operation_id,
+    ):
+        """Build one attachment-free target for provider service forms."""
+        if focused_operation_id is None:
+            return None
+        if not isinstance(focused_operation_id, str) or not (
+                focused_operation_id.strip()):
+            raise ProviderWorkspaceError(
+                'focused provider operation identity is invalid'
+            )
+        operation_id = focused_operation_id.strip()
+        operation = None
+        if isinstance(visual_admin, dict):
+            for descriptor in visual_admin.get('objects', []):
+                if descriptor.get('resource_kind') != 'database':
+                    continue
+                operation = next((
+                    item for item in descriptor.get('operations', [])
+                    if item.get('operation_id') == operation_id
+                ), None)
+                if operation is not None:
+                    break
+        if operation is None:
+            raise ProviderWorkspaceError(
+                'focused provider operation is unavailable'
+            )
+        if operation.get('workspace_scope') != 'server_service':
+            return None
+        if not isinstance(database_target_id, str) or not database_target_id:
+            raise ProviderWorkspaceError(
+                'provider service operation requires a database target'
+            )
+        catalog = self.endpoint_service.database_catalog(server)
+        targets = catalog.get('targets', []) if isinstance(
+            catalog, dict
+        ) else []
+        target = next((
+            item for item in targets
+            if item.get('target_id') == database_target_id
+        ), None)
+        if target is None:
+            raise ProviderWorkspaceError(
+                'provider service database target is unavailable'
+            )
+        display_name = target['display_name']
+        return {
+            'identity': copy.deepcopy(root['identity']),
+            'endpoint_id': context.endpoint_id,
+            'resource_id': f'database-service-target:{database_target_id}',
+            'identity_kind': 'cdeadmin-database-target-id',
+            'resource_kind': 'database',
+            'model_family': root['model_family'],
+            'display_name': display_name,
+            'parent_resource_id': root['resource_id'],
+            'display_path': [root['display_name'], display_name],
+            'authority_path': ['database', display_name],
+            'is_virtual': True,
+            'generation': root['generation'],
+            'capability_ids': [],
+            'extensions': {'cdeadmin': {
+                'database_target_id': database_target_id,
+                'service_scope_only': True,
+                'focused_operation_id': operation_id,
+            }},
+        }
+
     def database_target_action(self, server, action, request):
         """Manage server-owned database attachments and refresh resources."""
         request = request or {}
@@ -143,13 +268,17 @@ class ProviderWorkspaceService:
             result = self.endpoint_service.attach_database(server, request)
         elif action == 'database_target_activate':
             result = self.endpoint_service.activate_database(
-                server, request.get('target_id')
+                server, request.get('target_id'), request
+            )
+        elif action == 'database_target_update':
+            result = self.endpoint_service.update_database_target(
+                server, request.get('target_id'), request
             )
         elif action == 'database_target_disconnect':
             result = self.endpoint_service.disconnect_database(server)
         elif action == 'database_target_delete':
             result = self.endpoint_service.delete_database_target(
-                server, request.get('target_id')
+                server, request.get('target_id'), request
             )
         else:
             raise ProviderWorkspaceError(
@@ -255,12 +384,14 @@ class ProviderWorkspaceService:
             raise ProviderWorkspaceError(
                 'resource page request must be an object'
             )
-        if set(request).difference({'continuation', 'generation'}):
+        if set(request).difference({
+                'continuation', 'generation', 'database_target_id'}):
             raise ProviderWorkspaceError(
                 'resource page request contains unsupported fields'
             )
         continuation = request.get('continuation')
         generation = request.get('generation')
+        database_target_id = request.get('database_target_id', Ellipsis)
         if continuation is not None and not isinstance(continuation, str):
             raise ProviderWorkspaceError(
                 'resource page continuation must be text'
@@ -269,55 +400,103 @@ class ProviderWorkspaceService:
             raise ProviderWorkspaceError(
                 'resource page generation must be text'
             )
-        context, _endpoint, root = self.endpoint_service.workspace(server)
+        context, endpoint, root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id,
+        )
         return self.resource_service.list_page(
             context, root, page_size=500, cursor=continuation,
             expected_generation=generation,
+            provider_route=endpoint['route'],
         ).to_dict()
+
+    def navigator_snapshot(self, server, database_target_id=Ellipsis):
+        """Return the complete bounded resource set for one tree branch.
+
+        Tree navigation is independently scoped per retained database.  It
+        never changes the endpoint's active Data Studio database.
+        """
+        context, endpoint, root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id,
+        )
+        binding = self.endpoint_service.provider_registry.resolve(context)
+        describe_admin = getattr(
+            binding.instance, 'visual_admin_descriptor', None
+        )
+        page = self.resource_service.list_page(
+            context, root, page_size=500,
+            provider_route=endpoint['route'],
+        ).to_dict()
+        resources = list(page['items'])
+        continuation = page.get('next_cursor')
+        generation = page['generation']
+        while continuation is not None:
+            page = self.resource_service.list_page(
+                context, root, page_size=500, cursor=continuation,
+                expected_generation=generation,
+                provider_route=endpoint['route'],
+            ).to_dict()
+            resources.extend(page['items'])
+            continuation = page.get('next_cursor')
+        return {
+            'generation': generation,
+            'resources': resources,
+            'visual_admin': (
+                describe_admin() if callable(describe_admin) else None
+            ),
+        }
 
     def refresh_resources(self, server, request):
         """Refresh only this endpoint's resource generation."""
         if not isinstance(request, dict) or set(request).difference({
-                'generation'}):
+                'generation', 'database_target_id'}):
             raise ProviderWorkspaceError(
                 'resource refresh request is invalid'
             )
         generation = request.get('generation')
+        database_target_id = request.get('database_target_id', Ellipsis)
         if not isinstance(generation, str) or not generation:
             raise ProviderWorkspaceError(
                 'resource refresh generation is required'
             )
-        context, _endpoint, root = self.endpoint_service.workspace(server)
+        context, endpoint, root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id,
+        )
         # Verify the caller's generation before invalidating. A stale browser
         # must reopen or reconcile instead of refreshing a newer tree.
         self.resource_service.list_page(
             context, root, page_size=1,
             expected_generation=generation,
+            provider_route=endpoint['route'],
         )
         self.resource_service.invalidate(context)
         return self.resource_service.list_page(
-            context, root, page_size=500
+            context, root, page_size=500,
+            provider_route=endpoint['route'],
         ).to_dict()
 
     def inspect_resource(self, server, request):
         """Inspect one cached resource without trusting browser identity."""
         if not isinstance(request, dict) or set(request).difference({
-                'resource_id', 'generation'}):
+                'resource_id', 'generation', 'database_target_id'}):
             raise ProviderWorkspaceError(
                 'resource inspect request is invalid'
             )
         resource_id = request.get('resource_id')
         generation = request.get('generation')
+        database_target_id = request.get('database_target_id', Ellipsis)
         if not isinstance(resource_id, str) or not resource_id:
             raise ProviderWorkspaceError('resource ID is required')
         if generation is not None and not isinstance(generation, str):
             raise ProviderWorkspaceError(
                 'resource generation must be text'
             )
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        context, endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id,
+        )
         return self.resource_service.inspect(
             context, ResourceRef(context.endpoint_id, resource_id),
             expected_generation=generation,
+            provider_route=endpoint['route'],
         )
 
     def semantic_model_action(self, server, action, request):
@@ -560,6 +739,17 @@ class ProviderWorkspaceService:
                     server, created_target
                 )
             )
+        dropped_target = result.get('provider_result', {}).get(
+            'dropped_endpoint_database_target'
+        ) if isinstance(result.get('provider_result'), dict) else None
+        if isinstance(dropped_target, dict):
+            result['database_targets'] = (
+                self.endpoint_service.delete_database_target(
+                    server, dropped_target.get('target_id'), {
+                        'confirmation': dropped_target.get('confirmation'),
+                    }
+                )
+            )
         self.resource_service.invalidate(context)
         return result
 
@@ -761,8 +951,12 @@ class ProviderWorkspaceService:
     def _operation_principal(self, server):
         return f'user:{self._principal_id(server)}'
 
-    def open_session(self, server, language_profile):
-        context, endpoint, _root = self.endpoint_service.workspace(server)
+    def open_session(
+        self, server, language_profile, database_target_id=None,
+    ):
+        context, endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         opened = self.studio_service.open_session(
             context, endpoint, language_profile
         )
@@ -771,8 +965,13 @@ class ProviderWorkspaceService:
             'session_id': opened['provider_session']['session_id'],
         }
 
-    def execute(self, server, session_id, source, parameters=None):
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+    def execute(
+        self, server, session_id, source, parameters=None,
+        database_target_id=Ellipsis,
+    ):
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         if not isinstance(source, str) or not source.strip():
             raise ProviderWorkspaceError('query source must not be empty')
         if parameters is not None and not isinstance(parameters, dict):
@@ -785,8 +984,10 @@ class ProviderWorkspaceService:
             output_policy={'redact_keys': []},
         )
 
-    def poll(self, server, occurrence_id):
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+    def poll(self, server, occurrence_id, database_target_id=Ellipsis):
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         occurrence = self.studio_service.poll(context, occurrence_id)
         response = {'occurrence': occurrence, 'rendered_result': None}
         result = occurrence.get('result')
@@ -906,35 +1107,93 @@ class ProviderWorkspaceService:
             values[0], values[1], endpoint_id=context.endpoint_id
         )
 
-    def cancel(self, server, occurrence_id):
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+    def cancel(self, server, occurrence_id, database_target_id=Ellipsis):
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         return self.studio_service.request_cancel(context, occurrence_id)
 
-    def transaction(self, server, session_id):
+    def transaction(self, server, session_id, database_target_id=None):
         """Return the provider presentation without interpreting its state."""
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         return self.studio_service.refresh_transaction(context, session_id)
 
-    def transaction_action(self, server, session_id, action):
+    def transaction_action(
+        self, server, session_id, action, database_target_id=None,
+    ):
         """Dispatch a provider-owned transaction action without inference."""
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
         return self.studio_service.control_transaction(
             context, session_id, action
         )
 
+    def close_session(
+        self, server, session_id, database_target_id=None,
+    ):
+        """Release one provider session in its original database scope."""
+        context, _endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
+        return self.studio_service.close_session(context, session_id)
+
     def _visual_admin_call(self, server, method_name, request):
-        context, endpoint, _root = self.endpoint_service.workspace(server)
+        if not isinstance(request, dict):
+            raise ProviderWorkspaceError(
+                'visual administration request must be an object'
+            )
+        payload = copy.deepcopy(request)
+        database_target_id = payload.pop('database_target_id', Ellipsis)
+        if database_target_id is not Ellipsis and (
+                not isinstance(database_target_id, str) or
+                not database_target_id):
+            raise ProviderWorkspaceError(
+                'database target identity is invalid'
+            )
+        target = payload.get('target_resource')
+        if database_target_id is Ellipsis and isinstance(target, dict):
+            extensions = target.get('extensions')
+            cdeadmin = extensions.get('cdeadmin') if isinstance(
+                extensions, dict
+            ) else None
+            candidate = cdeadmin.get('database_target_id') if isinstance(
+                cdeadmin, dict
+            ) else None
+            if candidate is not None:
+                if not isinstance(candidate, str) or not candidate:
+                    raise ProviderWorkspaceError(
+                        'database target identity is invalid'
+                    )
+                database_target_id = candidate
+        context, endpoint, _root = self.endpoint_service.workspace(
+            server, database_target_id=database_target_id
+        )
+        if isinstance(database_target_id, str) and isinstance(target, dict):
+            extensions = target.setdefault('extensions', {})
+            if not isinstance(extensions, dict):
+                raise ProviderWorkspaceError(
+                    'target resource extensions are invalid'
+                )
+            cdeadmin = extensions.setdefault('cdeadmin', {})
+            if not isinstance(cdeadmin, dict):
+                raise ProviderWorkspaceError(
+                    'target CDEadmin extensions are invalid'
+                )
+            retained_target_id = cdeadmin.get('database_target_id')
+            if retained_target_id not in {None, database_target_id}:
+                raise ProviderWorkspaceError(
+                    'target database identity conflicts with request scope'
+                )
+            cdeadmin['database_target_id'] = database_target_id
         binding = self.endpoint_service.provider_registry.resolve(context)
         callback = getattr(binding.instance, method_name, None)
         if not callable(callback):
             raise ProviderWorkspaceError(
                 'endpoint provider has no visual administration contract'
             )
-        if not isinstance(request, dict):
-            raise ProviderWorkspaceError(
-                'visual administration request must be an object'
-            )
-        payload = copy.deepcopy(request)
         # Route authority is server-side. Never accept a browser-supplied
         # route, even under the reserved internal key.
         payload.pop('_provider_route', None)

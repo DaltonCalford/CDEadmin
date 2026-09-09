@@ -27,6 +27,21 @@ export {SafeText} from './feedback/SafeText';
 export {WorkspaceHost, createWorkspaceHost} from './workspace/WorkspaceHost';
 export {WorkspaceTransferClient} from './workspace/WorkspaceTransferClient';
 export {
+  CommandError,
+  CommandRegistry,
+  COMMAND_SCHEMA,
+  MACRO_SCHEMA,
+  commandRegistry,
+  createCommandDescriptor,
+} from './commands/CommandRegistry';
+export {
+  MenuBindingRegistry,
+  MenuStructureRegistry,
+  PROVISIONAL_MENU_STRUCTURE,
+  menuBindingRegistry,
+  menuStructureRegistry,
+} from './commands/MenuStructure';
+export {
   PRESENTATION_PROFILE_IDS,
   PRESENTATION_PROFILES,
   ACCESSIBILITY_SAFE_MODE_STORAGE_KEY,

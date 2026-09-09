@@ -18,6 +18,7 @@ to the driver; observations are never interpreted as finality by common code.
 from __future__ import annotations
 
 import copy
+import json
 import os
 import posixpath
 import re
@@ -35,6 +36,41 @@ _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
 _DDL_PREFIX = re.compile(
     r'^\s*(?:create|alter|drop|grant|revoke|attach|detach)\b', re.I
 )
+_FIREBIRD_SERVICE_OPERATIONS = frozenset({
+    'backup_logical', 'restore_logical', 'backup_physical',
+    'restore_physical', 'validate_database', 'repair_database',
+    'sweep_database', 'database_statistics', 'shutdown_database',
+    'bring_online', 'set_page_cache_size', 'set_sweep_interval',
+    'set_space_reservation', 'set_write_mode', 'set_access_mode',
+    'set_sql_dialect', 'activate_shadow', 'remove_linger',
+    'fixup_database', 'set_replica_mode', 'upgrade_database',
+})
+_SQLITE_DATABASE_OPERATIONS = frozenset({
+    'backup', 'restore', 'integrity_check', 'quick_check',
+    'foreign_key_check', 'vacuum', 'incremental_vacuum', 'optimize',
+    'analyze', 'reindex', 'wal_checkpoint',
+})
+_DUCKDB_DATABASE_OPERATIONS = frozenset({
+    'checkpoint', 'force_checkpoint', 'vacuum', 'analyze',
+    'export_database', 'import_database',
+})
+_MYSQL_DATABASE_OPERATIONS = frozenset({
+    'analyze_tables', 'check_tables', 'optimize_tables',
+    'repair_tables', 'checksum_tables',
+})
+_MARIADB_DATABASE_OPERATIONS = frozenset({
+    'analyze_tables', 'check_objects', 'optimize_tables',
+    'repair_objects', 'checksum_tables',
+})
+_MARIADB_TOOL_DATABASE_OPERATIONS = frozenset({
+    'backup_logical', 'restore_logical',
+})
+_MARIADB_TOOL_SERVER_OPERATIONS = frozenset({
+    'check_upgrade_required',
+})
+_MYSQL_SHELL_DATABASE_OPERATIONS = frozenset({
+    'backup_logical', 'restore_logical',
+})
 
 
 @dataclass(frozen=True)
@@ -59,6 +95,9 @@ class RelationalAdminDialect:
     additional_concept_declarations: Mapping[
         str, Mapping[str, object]
     ] = field(default_factory=dict)
+    database_forms: Mapping[str, Mapping[str, object]] = field(
+        default_factory=dict
+    )
 
     @property
     def sql_family(self):
@@ -76,18 +115,81 @@ class _RowIdentity:
     issued_at: float
 
 
+@dataclass(frozen=True)
+class _RowContinuation:
+    route_fingerprint: tuple[tuple[str, str], ...]
+    target_path: tuple[str, ...]
+    offset: int
+    limit: int
+    issued_at: float
+
+
 class RelationalAdministration:
     """Compile, execute, and page rows for an admitted SQL dialect."""
 
     def __init__(self, dialect: RelationalAdminDialect):
         self.dialect = dialect
         self._row_identities: dict[str, _RowIdentity] = {}
+        self._row_continuations: dict[str, _RowContinuation] = {}
         self._identity_lock = threading.RLock()
 
     def supports(self, resource_kind, operation_id):
         return operation_id in self.dialect.supported.get(
             resource_kind, frozenset()
         )
+
+    def requires_dialect(self, resource_kind, operation_id):
+        """Return whether this task relies on provider-generated SQL.
+
+        Firebird service-manager operations and driver-level database
+        creation are explicit native API calls. All other relational visual
+        tasks execute generated dialect text and therefore remain fail-closed
+        until the exact-version dialect contract passes.
+        """
+        if operation_id == 'inspect':
+            return False
+        if self.dialect.engine_id == 'firebird' and (
+                resource_kind == 'database' and operation_id == 'drop'):
+            return False
+        if self.dialect.embedded_database and (
+                resource_kind == 'database' and operation_id == 'drop'):
+            return False
+        if self.dialect.engine_id == 'sqlite' and (
+                resource_kind == 'database' and operation_id in {
+                    'backup', 'restore',
+                }):
+            # These tasks call sqlite3_backup through the provider DB-API
+            # adapter and do not generate SQL text.
+            return False
+        if self.dialect.engine_id == 'firebird' and (
+                resource_kind == 'database' and operation_id in
+                _FIREBIRD_SERVICE_OPERATIONS):
+            return False
+        if self.dialect.engine_id == 'mysql' and (
+                resource_kind == 'database' and operation_id in
+                _MYSQL_SHELL_DATABASE_OPERATIONS):
+            return False
+        if self.dialect.engine_id == 'mariadb' and (
+                resource_kind == 'database' and operation_id in
+                _MARIADB_TOOL_DATABASE_OPERATIONS):
+            return False
+        if self.dialect.engine_id == 'mariadb' and (
+                resource_kind == 'server' and operation_id in
+                _MARIADB_TOOL_SERVER_OPERATIONS):
+            return False
+        if resource_kind == 'database' and operation_id == 'create' and (
+                self.dialect.database_create_mode != 'sql'):
+            return False
+        return True
+
+    def dialect_task_ids(self):
+        """Return every executable visual task that depends on SQL text."""
+        return tuple(sorted(
+            f'visual_admin.{resource_kind}.{operation_id}'
+            for resource_kind, operations in self.dialect.supported.items()
+            for operation_id in operations
+            if self.requires_dialect(resource_kind, operation_id)
+        ))
 
     def catalog(self, catalog):
         """Replace generic executable forms with structured dialect forms."""
@@ -101,7 +203,35 @@ class RelationalAdministration:
             for operation in resource.get('operations', []):
                 operation_id = operation['operation_id']
                 if self.supports(kind, operation_id):
-                    operation['form'] = self._form(kind, operation_id)
+                    if (
+                        self.dialect.engine_id == 'firebird' and
+                        kind == 'database' and
+                        operation_id in _FIREBIRD_SERVICE_OPERATIONS
+                    ):
+                        # These operations are executed by Firebird's service
+                        # manager.  Their forms must remain available while
+                        # the database itself rejects ordinary attachments
+                        # (most importantly after shutdown, so Bring online
+                        # is not stranded behind a database connection).
+                        operation['workspace_scope'] = 'server_service'
+                    database_form = (
+                        self.dialect.database_forms.get(operation_id)
+                        if kind == 'database' else None
+                    )
+                    if (
+                        self.dialect.engine_id == 'mariadb' and
+                        kind == 'replication-channel'
+                    ):
+                        # The portfolio profile only declares which native
+                        # operations exist. MariaDB owns the complete CHANGE
+                        # MASTER/START/STOP/RESET field contract here; the
+                        # one-field portfolio layout is not executable
+                        # replication administration.
+                        operation['form'] = self._form(kind, operation_id)
+                    elif database_form is not None:
+                        operation['form'] = copy.deepcopy(database_form)
+                    elif operation.get('form_authority') != 'engine-profile':
+                        operation['form'] = self._form(kind, operation_id)
                     if kind == 'privilege' and operation_id in {
                         'grant', 'revoke',
                     }:
@@ -216,7 +346,1901 @@ class RelationalAdministration:
                 'code': 'non_table_row_operation',
                 'message': 'Grid row operations require a base table.',
             })
+        if (
+            self.dialect.engine_id == 'firebird' and
+            resource_kind == 'database' and operation_id == 'create'
+        ):
+            page_size = draft.get('page_size', '8192')
+            if page_size not in {'4096', '8192', '16384', '32768'}:
+                errors.append({
+                    'field_id': 'page_size',
+                    'code': 'invalid_firebird_page_size',
+                    'message': 'Firebird page size is not supported.',
+                })
+            dialect = draft.get('sql_dialect', '3')
+            if dialect not in {'1', '3'}:
+                errors.append({
+                    'field_id': 'sql_dialect',
+                    'code': 'invalid_firebird_sql_dialect',
+                    'message': 'Firebird database SQL dialect must be 1 or 3.',
+                })
+            charset = draft.get('default_charset', 'UTF8')
+            if not isinstance(charset, str) or not re.fullmatch(
+                r'[A-Za-z][A-Za-z0-9_$]{0,62}', charset
+            ):
+                errors.append({
+                    'field_id': 'default_charset',
+                    'code': 'invalid_firebird_character_set',
+                    'message': 'Firebird default character set is invalid.',
+                })
+        if (
+            self.dialect.engine_id == 'firebird' and
+            resource_kind == 'database' and operation_id == 'alter'
+        ):
+            admitted = {
+                'default_charset', 'linger_seconds', 'drop_linger',
+                'default_sql_security',
+            }
+            supplied = {
+                key for key, item in draft.items()
+                if key in admitted and item not in {None, ''}
+            }
+            if not supplied:
+                errors.append({
+                    'field_id': None,
+                    'code': 'firebird_database_change_required',
+                    'message': 'Select at least one Firebird database change.',
+                })
+            unknown = set(draft).difference(admitted)
+            if unknown:
+                errors.append({
+                    'field_id': None,
+                    'code': 'unknown_firebird_database_change',
+                    'message': 'The Firebird database change is unsupported.',
+                })
+            charset = draft.get('default_charset')
+            if charset not in {None, ''} and (
+                    not isinstance(charset, str) or not re.fullmatch(
+                        r'[A-Za-z][A-Za-z0-9_$]{0,62}', charset
+                    )):
+                errors.append({
+                    'field_id': 'default_charset',
+                    'code': 'invalid_firebird_character_set',
+                    'message': 'Firebird default character set is invalid.',
+                })
+            linger = draft.get('linger_seconds')
+            if linger not in {None, ''} and (
+                    isinstance(linger, bool) or not isinstance(linger, int) or
+                    linger < 0 or linger > 2147483647):
+                errors.append({
+                    'field_id': 'linger_seconds',
+                    'code': 'invalid_firebird_linger',
+                    'message': 'Firebird linger time is invalid.',
+                })
+            if draft.get('drop_linger') and linger not in {None, ''}:
+                errors.append({
+                    'field_id': 'drop_linger',
+                    'code': 'conflicting_firebird_linger_change',
+                    'message': 'Set or drop linger, but do not request both.',
+                })
+            if draft.get('default_sql_security') not in {
+                    None, '', 'DEFINER', 'INVOKER'}:
+                errors.append({
+                    'field_id': 'default_sql_security',
+                    'code': 'invalid_firebird_sql_security',
+                    'message': 'Firebird SQL security mode is invalid.',
+                })
+        if (
+            self.dialect.engine_id == 'firebird' and
+            resource_kind == 'database' and
+            operation_id in _FIREBIRD_SERVICE_OPERATIONS
+        ):
+            errors.extend(self._validate_firebird_service(
+                operation_id, draft
+            ))
+        if (
+            self.dialect.engine_id == 'sqlite' and
+            resource_kind == 'database' and operation_id == 'create'
+        ):
+            errors.extend(self._validate_sqlite_database_create(draft))
+        if (
+            self.dialect.engine_id == 'sqlite' and
+            resource_kind == 'database' and operation_id == 'alter'
+        ):
+            errors.extend(self._validate_sqlite_database_alter(draft))
+        if (
+            self.dialect.engine_id == 'sqlite' and
+            resource_kind == 'database' and operation_id == 'drop'
+        ):
+            target = request.get('target_resource') or {}
+            extensions = target.get('extensions', {})
+            native_target = extensions.get('cdeadmin', {})
+            expected = native_target.get('native_name')
+            if not isinstance(expected, str) or not expected:
+                errors.append({
+                    'field_id': None,
+                    'code': 'sqlite_database_target_required',
+                    'message': (
+                        'SQLite file deletion requires a retained database '
+                        'target.'
+                    ),
+                })
+            elif draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'sqlite_database_confirmation_mismatch',
+                    'message': (
+                        'SQLite file deletion confirmation must exactly '
+                        'match the database path.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'sqlite' and
+            resource_kind == 'database' and
+            operation_id in _SQLITE_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_sqlite_database_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
+        if (
+            self.dialect.engine_id == 'duckdb' and
+            resource_kind == 'database' and operation_id == 'create'
+        ):
+            unknown = set(draft).difference({'name', 'config'})
+            config = draft.get('config', {})
+            if unknown:
+                errors.append({
+                    'field_id': None,
+                    'code': 'unknown_duckdb_database_create_option',
+                    'message': 'A DuckDB creation option is unknown.',
+                })
+            if not isinstance(config, Mapping) or not all(
+                isinstance(key, str) and key.strip() and
+                isinstance(value, (str, int, float, bool)) and
+                value is not None for key, value in config.items()
+            ):
+                errors.append({
+                    'field_id': 'config',
+                    'code': 'invalid_duckdb_creation_config',
+                    'message': (
+                        'DuckDB creation configuration must contain named '
+                        'scalar values.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'duckdb' and
+            resource_kind == 'database' and operation_id == 'drop'
+        ):
+            route = request.get('_provider_route', {})
+            expected = route.get('database') if isinstance(
+                route, Mapping) else None
+            if not isinstance(expected, str) or not expected:
+                errors.append({
+                    'field_id': None,
+                    'code': 'duckdb_database_target_required',
+                    'message': (
+                        'DuckDB file deletion requires a retained database '
+                        'route.'
+                    ),
+                })
+            elif draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'duckdb_database_confirmation_mismatch',
+                    'message': (
+                        'DuckDB file deletion confirmation must exactly '
+                        'match the database path.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'duckdb' and
+            resource_kind == 'database' and
+            operation_id in _DUCKDB_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_duckdb_database_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
+        if (
+            self.dialect.engine_id == 'mysql' and
+            resource_kind == 'database' and operation_id in {'create', 'alter'}
+        ):
+            errors.extend(self._validate_mysql_database(operation_id, draft))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'database' and operation_id in {'create', 'alter'}
+        ):
+            errors.extend(self._validate_mariadb_database(
+                operation_id, draft
+            ))
+        if (
+            self.dialect.engine_id == 'mysql' and
+            resource_kind == 'database' and operation_id == 'drop'
+        ):
+            target = request.get('target_resource') or {}
+            expected = target.get('display_name')
+            if set(draft).difference({'confirmation'}):
+                errors.append({
+                    'field_id': None,
+                    'code': 'unknown_mysql_database_drop_option',
+                    'message': 'A MySQL database drop option is unknown.',
+                })
+            if not isinstance(expected, str) or not expected:
+                errors.append({
+                    'field_id': None,
+                    'code': 'mysql_database_target_required',
+                    'message': 'MySQL database deletion requires a target.',
+                })
+            elif draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'mysql_database_confirmation_mismatch',
+                    'message': (
+                        'MySQL database deletion confirmation must exactly '
+                        'match the database name.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'database' and operation_id == 'drop'
+        ):
+            target = request.get('target_resource') or {}
+            expected = target.get('display_name')
+            if set(draft).difference({'confirmation'}):
+                errors.append({
+                    'field_id': None,
+                    'code': 'unknown_mariadb_database_drop_option',
+                    'message': 'A MariaDB database drop option is unknown.',
+                })
+            if not isinstance(expected, str) or not expected:
+                errors.append({
+                    'field_id': None,
+                    'code': 'mariadb_database_target_required',
+                    'message': 'MariaDB database deletion requires a target.',
+                })
+            elif draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'mariadb_database_confirmation_mismatch',
+                    'message': (
+                        'MariaDB database deletion confirmation must exactly '
+                        'match the database name.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'mysql' and
+            resource_kind == 'database' and
+            operation_id in _MYSQL_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_mysql_database_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'database' and
+            operation_id in _MARIADB_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_mariadb_database_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'database' and
+            operation_id in _MARIADB_TOOL_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_mariadb_tool_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
+        if self.dialect.engine_id == 'mariadb' and resource_kind in {
+                'user', 'role', 'privilege'}:
+            errors.extend(self._validate_mariadb_security(
+                resource_kind, operation_id, draft
+            ))
+        if self.dialect.engine_id == 'mariadb' and (
+                resource_kind == 'replication-channel'):
+            errors.extend(self._validate_mariadb_replication(
+                operation_id, draft, request.get('target_resource')
+            ))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'system-variable' and
+            operation_id == 'set_global'
+        ):
+            errors.extend(self._validate_mariadb_system_variable(
+                draft, request.get('target_resource')
+            ))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'session' and
+            operation_id in {'terminate_query', 'terminate_connection'}
+        ):
+            errors.extend(self._validate_mariadb_session_termination(
+                draft, request.get('target_resource')
+            ))
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            resource_kind == 'binary-log' and
+            operation_id == 'purge_before'
+        ):
+            target = request.get('target_resource') or {}
+            name = target.get('display_name')
+            if not isinstance(name, str) or re.fullmatch(
+                    r'[A-Za-z0-9_.-]+', name) is None:
+                errors.append({
+                    'field_id': None,
+                    'code': 'invalid_mariadb_binary_log_target',
+                    'message': 'MariaDB binary-log identity is invalid.',
+                })
+            if draft.get('confirmation') != name:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'mariadb_binary_log_confirmation_mismatch',
+                    'message': (
+                        'Confirmation must exactly match the retained '
+                        'binary-log name.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'mysql' and
+            resource_kind == 'database' and
+            operation_id in _MYSQL_SHELL_DATABASE_OPERATIONS
+        ):
+            errors.extend(self._validate_mysql_shell_operation(
+                operation_id, draft, request.get('_provider_route', {})
+            ))
         return {'errors': errors}
+
+    @classmethod
+    def _validate_mariadb_security(cls, kind, operation, draft):
+        """Validate only MariaDB 12.2 account, role, and grant clauses."""
+        errors = []
+        if kind == 'user' and operation in {'create', 'alter'}:
+            mode = draft.get(
+                'authentication_mode',
+                'PASSWORD' if operation == 'create' else 'UNCHANGED',
+            )
+            allowed_modes = {
+                'PASSWORD', 'PLUGIN_PASSWORD', 'PLUGIN_STRING',
+                'PLUGIN_ONLY', 'NONE', 'UNCHANGED',
+            }
+            if mode not in allowed_modes or (
+                    operation == 'create' and mode == 'UNCHANGED') or (
+                    operation == 'alter' and mode == 'NONE'):
+                errors.append({
+                    'field_id': 'authentication_mode',
+                    'code': 'invalid_mariadb_authentication_mode',
+                    'message': 'MariaDB authentication mode is invalid.',
+                })
+            if mode in {'PASSWORD', 'PLUGIN_PASSWORD'} and not draft.get(
+                    'password'):
+                errors.append({
+                    'field_id': 'password',
+                    'code': 'mariadb_password_required',
+                    'message': 'The selected MariaDB authentication requires '
+                               'a password.',
+                })
+            if mode in {'PLUGIN_PASSWORD', 'PLUGIN_STRING', 'PLUGIN_ONLY'}:
+                plugin = draft.get('plugin')
+                if not isinstance(plugin, str) or re.fullmatch(
+                        r'[A-Za-z0-9_$]+', plugin) is None:
+                    errors.append({
+                        'field_id': 'plugin',
+                        'code': 'invalid_mariadb_authentication_plugin',
+                        'message': (
+                            'A MariaDB authentication plugin identifier is '
+                            'required.'
+                        ),
+                    })
+            if mode == 'PLUGIN_STRING' and not draft.get(
+                    'authentication_string'):
+                errors.append({
+                    'field_id': 'authentication_string',
+                    'code': 'mariadb_authentication_string_required',
+                    'message': 'The selected MariaDB plugin requires an '
+                               'authentication string.',
+                })
+            additional = draft.get('additional_authentication', [])
+            if not isinstance(additional, list):
+                errors.append({
+                    'field_id': 'additional_authentication',
+                    'code': 'invalid_mariadb_authentication_chain',
+                    'message': 'Additional MariaDB authentication methods '
+                               'must be an array.',
+                })
+            else:
+                for item in additional:
+                    if not isinstance(item, Mapping) or not isinstance(
+                            item.get('plugin'), str) or re.fullmatch(
+                                r'[A-Za-z0-9_$]+', item.get('plugin', '')
+                            ) is None or set(item).difference({
+                                'plugin', 'password',
+                                'authentication_string',
+                            }) or ('password' in item and
+                                   'authentication_string' in item):
+                        errors.append({
+                            'field_id': 'additional_authentication',
+                            'code': 'invalid_mariadb_authentication_chain',
+                            'message': (
+                                'Each additional MariaDB authentication '
+                                'method must declare one plugin and at most '
+                                'one credential.'
+                            ),
+                        })
+                        break
+            tls = draft.get(
+                'tls_requirement',
+                'NONE' if operation == 'create' else 'UNCHANGED',
+            )
+            if tls not in {'UNCHANGED', 'NONE', 'SSL', 'X509', 'SPECIFIED'}:
+                errors.append({
+                    'field_id': 'tls_requirement',
+                    'code': 'invalid_mariadb_tls_requirement',
+                    'message': 'MariaDB TLS requirement is invalid.',
+                })
+            specified = any(draft.get(key) for key in (
+                'tls_cipher', 'x509_issuer', 'x509_subject'
+            ))
+            if tls == 'SPECIFIED' and not specified:
+                errors.append({
+                    'field_id': 'tls_requirement',
+                    'code': 'mariadb_tls_attribute_required',
+                    'message': 'Specified MariaDB TLS requirements need a '
+                               'cipher, issuer, or subject.',
+                })
+            if tls != 'SPECIFIED' and specified:
+                errors.append({
+                    'field_id': 'tls_requirement',
+                    'code': 'mariadb_tls_attribute_not_admitted',
+                    'message': 'TLS attributes require the SPECIFIED mode.',
+                })
+            account_lock = draft.get(
+                'account_lock', 'UNLOCK' if operation == 'create'
+                else 'UNCHANGED'
+            )
+            if account_lock not in {'UNCHANGED', 'LOCK', 'UNLOCK'} or (
+                    operation == 'create' and account_lock == 'UNCHANGED'):
+                errors.append({
+                    'field_id': 'account_lock',
+                    'code': 'invalid_mariadb_account_lock',
+                    'message': 'MariaDB account lock state is invalid.',
+                })
+            for field in (
+                    'max_queries_per_hour', 'max_updates_per_hour',
+                    'max_connections_per_hour', 'max_user_connections'):
+                value = draft.get(field)
+                if value not in {None, ''} and (
+                        isinstance(value, bool) or not isinstance(value, int)
+                        or value < 0 or value > 4294967295):
+                    errors.append({
+                        'field_id': field,
+                        'code': 'invalid_mariadb_account_limit',
+                        'message': 'MariaDB account limits must be unsigned '
+                                   '32-bit integers.',
+                    })
+            statement_time = draft.get('max_statement_time')
+            if statement_time not in {None, ''} and (
+                    isinstance(statement_time, bool) or not isinstance(
+                        statement_time, (int, float)) or statement_time < 0):
+                errors.append({
+                    'field_id': 'max_statement_time',
+                    'code': 'invalid_mariadb_statement_time',
+                    'message': 'MariaDB maximum statement time must be '
+                               'non-negative.',
+                })
+            expiration = draft.get(
+                'password_expiration',
+                'DEFAULT' if operation == 'create' else 'UNCHANGED',
+            )
+            if expiration not in {
+                    'UNCHANGED', 'DEFAULT', 'NEVER', 'NOW', 'INTERVAL'}:
+                errors.append({
+                    'field_id': 'password_expiration',
+                    'code': 'invalid_mariadb_password_expiration',
+                    'message': 'MariaDB password expiration is invalid.',
+                })
+            days = draft.get('password_expiration_days')
+            if expiration == 'INTERVAL' and (
+                    isinstance(days, bool) or not isinstance(days, int) or
+                    days < 1 or days > 4294967295):
+                errors.append({
+                    'field_id': 'password_expiration_days',
+                    'code': 'invalid_mariadb_password_expiration_days',
+                    'message': 'MariaDB password lifetime must be a positive '
+                               'integer.',
+                })
+            if operation == 'alter' and all(
+                    value is None or value == '' or value == [] or
+                    value == 'UNCHANGED'
+                    for value in draft.values()):
+                errors.append({
+                    'field_id': None,
+                    'code': 'mariadb_user_change_required',
+                    'message': 'Select at least one MariaDB account change.',
+                })
+        elif kind == 'role' and operation in {
+                'grant', 'revoke', 'set_default'}:
+            if draft.get('member_kind') not in {'USER', 'ROLE'}:
+                errors.append({
+                    'field_id': 'member_kind',
+                    'code': 'invalid_mariadb_role_member_kind',
+                    'message': 'MariaDB role members are users or roles.',
+                })
+        elif kind == 'privilege' and operation in {'grant', 'revoke'}:
+            if draft.get('principal_kind') not in {'USER', 'ROLE'}:
+                errors.append({
+                    'field_id': 'principal_kind',
+                    'code': 'invalid_mariadb_privilege_principal_kind',
+                    'message': 'MariaDB privilege principals are users or '
+                               'roles.',
+                })
+            if draft.get('object_type') not in {
+                    'GLOBAL', 'DATABASE', 'TABLE', 'FUNCTION', 'PROCEDURE',
+                    'SEQUENCE'}:
+                errors.append({
+                    'field_id': 'object_type',
+                    'code': 'invalid_mariadb_privilege_scope',
+                    'message': 'MariaDB privilege scope is invalid.',
+                })
+        return errors
+
+    @staticmethod
+    def _validate_mariadb_replication(operation, draft, target):
+        errors = []
+        if operation in {'create', 'alter'}:
+            if operation == 'create' and not draft.get('name'):
+                errors.append({
+                    'field_id': 'name',
+                    'code': 'mariadb_replication_name_required',
+                    'message': 'A MariaDB replication connection name is '
+                               'required.',
+                })
+            changed = {
+                key: value for key, value in draft.items()
+                if key != 'name' and value is not None and value != '' and
+                value != 'UNCHANGED' and value != []
+            }
+            if not changed:
+                errors.append({
+                    'field_id': None,
+                    'code': 'mariadb_replication_change_required',
+                    'message': 'Select at least one MariaDB replication '
+                               'connection change.',
+                })
+            if operation == 'create' and not all(
+                    draft.get(key) for key in ('master_host', 'master_user')):
+                errors.append({
+                    'field_id': 'master_host',
+                    'code': 'mariadb_replication_source_required',
+                    'message': 'A new MariaDB replication connection requires '
+                               'the primary host and replication user.',
+                })
+            for key in (
+                    'master_port', 'connect_retry', 'retry_count',
+                    'replication_delay', 'master_log_position',
+                    'relay_log_position'):
+                value = draft.get(key)
+                if value not in {None, ''} and (
+                        isinstance(value, bool) or not isinstance(value, int)
+                        or value < 0 or value > 4294967295):
+                    errors.append({
+                        'field_id': key,
+                        'code': 'invalid_mariadb_replication_integer',
+                        'message': 'MariaDB replication integer values must '
+                                   'be unsigned 32-bit values.',
+                    })
+            heartbeat = draft.get('heartbeat_period')
+            if heartbeat not in {None, ''} and (
+                    isinstance(heartbeat, bool) or not isinstance(
+                        heartbeat, (int, float)) or heartbeat < 0):
+                errors.append({
+                    'field_id': 'heartbeat_period',
+                    'code': 'invalid_mariadb_replication_heartbeat',
+                    'message': 'MariaDB replication heartbeat must be '
+                               'non-negative.',
+                })
+            for key in ('ignore_server_ids', 'do_domain_ids',
+                        'ignore_domain_ids'):
+                value = draft.get(key, [])
+                if not isinstance(value, list) or any(
+                        isinstance(item, bool) or not isinstance(item, int) or
+                        item < 0 or item > 4294967295 for item in value):
+                    errors.append({
+                        'field_id': key,
+                        'code': 'invalid_mariadb_replication_id_list',
+                        'message': 'MariaDB replication ID lists contain only '
+                                   'unsigned 32-bit integers.',
+                    })
+        elif operation in {'start', 'stop'}:
+            if draft.get('thread', 'ALL') not in {
+                    'ALL', 'IO_THREAD', 'SQL_THREAD'}:
+                errors.append({
+                    'field_id': 'thread',
+                    'code': 'invalid_mariadb_replication_thread',
+                    'message': 'MariaDB replication thread selection is '
+                               'invalid.',
+                })
+            if operation == 'start':
+                until = draft.get('until_mode', 'NONE')
+                if until not in {
+                        'NONE', 'MASTER_POSITION', 'RELAY_POSITION',
+                        'MASTER_GTID_POS', 'SQL_AFTER_GTIDS',
+                        'SQL_BEFORE_GTIDS'}:
+                    errors.append({
+                        'field_id': 'until_mode',
+                        'code': 'invalid_mariadb_replication_until',
+                        'message': 'MariaDB replication stop condition is '
+                                   'invalid.',
+                    })
+                if until in {'MASTER_POSITION', 'RELAY_POSITION'} and (
+                        not draft.get('until_log_file') or
+                        isinstance(draft.get('until_log_position'), bool) or
+                        not isinstance(draft.get('until_log_position'), int)):
+                    errors.append({
+                        'field_id': 'until_log_file',
+                        'code': 'mariadb_replication_position_required',
+                        'message': 'MariaDB file positioning requires a log '
+                                   'file and integer position.',
+                    })
+                if until in {
+                        'MASTER_GTID_POS', 'SQL_AFTER_GTIDS',
+                        'SQL_BEFORE_GTIDS'} and not draft.get('until_gtid'):
+                    errors.append({
+                        'field_id': 'until_gtid',
+                        'code': 'mariadb_replication_gtid_required',
+                        'message': 'MariaDB GTID positioning requires a GTID '
+                                   'value.',
+                    })
+        elif operation == 'reset':
+            expected = target.get('display_name') if isinstance(
+                target, Mapping) else None
+            if draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'mariadb_replication_confirmation_mismatch',
+                    'message': 'Type the exact MariaDB replication connection '
+                               'name to confirm reset.',
+                })
+        return errors
+
+    @staticmethod
+    def _validate_mariadb_system_variable(draft, target):
+        errors = []
+        target = target if isinstance(target, Mapping) else {}
+        native = RelationalAdministration._mariadb_target_native(
+            target
+        )
+        name = target.get('display_name')
+        if not isinstance(name, str) or not re.fullmatch(
+                r'[A-Za-z][A-Za-z0-9_]{0,63}', name):
+            errors.append({
+                'field_id': None,
+                'code': 'invalid_mariadb_system_variable_target',
+                'message': 'The MariaDB system-variable target is invalid.',
+            })
+        if str(native.get('read_only', '')).upper() != 'NO':
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_system_variable_read_only',
+                'message': (
+                    'MariaDB reports this system variable as read-only.'
+                ),
+            })
+        if 'GLOBAL' not in str(native.get('variable_scope', '')).upper():
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_system_variable_not_global',
+                'message': (
+                    'MariaDB does not expose a global scope for this '
+                    'variable.'
+                ),
+            })
+        mode = draft.get('value_mode')
+        if mode not in {'VALUE', 'DEFAULT'}:
+            errors.append({
+                'field_id': 'value_mode',
+                'code': 'invalid_mariadb_system_variable_value_mode',
+                'message': 'Select a specified value or the compiled default.',
+            })
+        if mode == 'VALUE':
+            if 'value' not in draft:
+                errors.append({
+                    'field_id': 'value',
+                    'code': 'mariadb_system_variable_value_required',
+                    'message': 'A MariaDB global value is required.',
+                })
+            else:
+                value = draft.get('value')
+                variable_type = str(native.get(
+                    'variable_type', ''
+                )).upper()
+                try:
+                    if variable_type in {
+                            'INT', 'INT UNSIGNED', 'BIGINT UNSIGNED'}:
+                        parsed = int(str(value), 10)
+                        minimum = native.get('numeric_min_value')
+                        maximum = native.get('numeric_max_value')
+                        if minimum not in {None, ''} and parsed < int(minimum):
+                            raise ValueError
+                        if maximum not in {None, ''} and parsed > int(maximum):
+                            raise ValueError
+                    elif variable_type == 'DOUBLE':
+                        parsed = float(str(value))
+                        if parsed != parsed or parsed in {
+                                float('inf'), float('-inf')}:
+                            raise ValueError
+                        minimum = native.get('numeric_min_value')
+                        maximum = native.get('numeric_max_value')
+                        if minimum not in {None, ''} and parsed < float(
+                                minimum):
+                            raise ValueError
+                        if maximum not in {None, ''} and parsed > float(
+                                maximum):
+                            raise ValueError
+                    elif variable_type == 'BOOLEAN':
+                        if str(value).upper() not in {
+                                'ON', 'OFF', 'TRUE', 'FALSE', '1', '0'}:
+                            raise ValueError
+                    elif variable_type in {'ENUM', 'SET'}:
+                        choices = {
+                            item for item in str(native.get(
+                                'enum_value_list', '')
+                            ).split(',') if item
+                        }
+                        selected = (
+                            {str(value)} if variable_type == 'ENUM' else
+                            {item for item in str(value).split(',') if item}
+                        )
+                        if not selected or not selected.issubset(choices):
+                            raise ValueError
+                    elif variable_type != 'VARCHAR':
+                        raise ValueError
+                except (TypeError, ValueError):
+                    errors.append({
+                        'field_id': 'value',
+                        'code': 'invalid_mariadb_system_variable_value',
+                        'message': (
+                            'The value does not match MariaDB '
+                            'system-variable metadata.'
+                        ),
+                    })
+        return errors
+
+    @staticmethod
+    def _mariadb_target_native(target):
+        native = target.get('native')
+        if isinstance(native, Mapping):
+            return native
+        extensions = target.get('extensions')
+        extensions = extensions if isinstance(extensions, Mapping) else {}
+        provider_extension = extensions.get('mariadb')
+        provider_extension = (
+            provider_extension
+            if isinstance(provider_extension, Mapping) else {}
+        )
+        native = provider_extension.get('native')
+        return native if isinstance(native, Mapping) else {}
+
+    @staticmethod
+    def _validate_mariadb_session_termination(draft, target):
+        target = target if isinstance(target, Mapping) else {}
+        native = RelationalAdministration._mariadb_target_native(target)
+        process_id = native.get('id')
+        errors = []
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or (
+                process_id <= 0):
+            errors.append({
+                'field_id': None,
+                'code': 'invalid_mariadb_process_target',
+                'message': 'MariaDB did not provide a valid process ID.',
+            })
+        if draft.get('termination_mode') not in {'SOFT', 'HARD'}:
+            errors.append({
+                'field_id': 'termination_mode',
+                'code': 'invalid_mariadb_termination_mode',
+                'message': 'Select MariaDB soft or hard termination.',
+            })
+        if draft.get('confirmation') != str(process_id):
+            errors.append({
+                'field_id': 'confirmation',
+                'code': 'mariadb_process_confirmation_mismatch',
+                'message': 'Confirmation must exactly match the process ID.',
+            })
+        return errors
+
+    @staticmethod
+    def _validate_mysql_shell_operation(operation, draft, route):
+        backup_fields = {
+            'path', 'consistent', 'skip_consistency_checks', 'ddl_only',
+            'data_only', 'checksum', 'chunking', 'bytes_per_chunk',
+            'threads', 'max_rate', 'show_progress',
+            'default_character_set', 'compression', 'tz_utc', 'events',
+            'routines', 'libraries', 'triggers', 'include_tables',
+            'exclude_tables', 'include_events', 'exclude_events',
+            'include_routines', 'exclude_routines', 'include_libraries',
+            'exclude_libraries', 'include_triggers', 'exclude_triggers',
+            'partitions', 'where', 'compatibility', 'target_version',
+            'skip_upgrade_checks', 'dry_run',
+        }
+        restore_fields = {
+            'path', 'confirmation', 'analyze_tables',
+            'background_threads', 'character_set', 'checksum',
+            'create_invisible_pks', 'defer_table_indexes',
+            'disable_bulk_load', 'drop_existing_objects',
+            'enable_local_infile', 'dry_run',
+            'exclude_events', 'exclude_libraries', 'exclude_routines',
+            'exclude_schemas', 'exclude_tables', 'exclude_triggers',
+            'exclude_users', 'handle_grant_errors',
+            'ignore_existing_objects', 'ignore_version', 'include_events',
+            'include_libraries', 'include_routines', 'include_schemas',
+            'include_tables', 'include_triggers', 'include_users',
+            'load_data', 'load_ddl', 'load_indexes', 'load_users',
+            'max_bytes_per_transaction', 'progress_file',
+            'reset_progress', 'schema', 'session_init_sql',
+            'show_metadata', 'show_progress', 'skip_binlog', 'threads',
+            'update_gtid_set', 'wait_dump_timeout',
+        }
+        fields = backup_fields if operation == 'backup_logical' else (
+            restore_fields
+        )
+        errors = []
+        unknown = set(draft).difference(fields)
+        if unknown:
+            errors.append({
+                'field_id': None, 'code': 'unknown_mysql_shell_option',
+                'message': 'A MySQL Shell option is unknown.',
+            })
+        for field in ('tool_workspace', 'host'):
+            if not isinstance(route.get(field), str) or not route[field]:
+                errors.append({
+                    'field_id': None,
+                    'code': f'mysql_shell_{field}_required',
+                    'message': f'MySQL Shell {field.replace("_", " ")} '
+                               'is required.',
+                })
+        if not isinstance(route.get('database'), str) or not route['database']:
+            errors.append({
+                'field_id': None, 'code': 'mysql_shell_database_required',
+                'message': 'MySQL Shell requires a database target.',
+            })
+        path = draft.get('path')
+        if not isinstance(path, str) or not path or '\x00' in path:
+            errors.append({
+                'field_id': 'path', 'code': 'invalid_mysql_shell_path',
+                'message': 'MySQL Shell dump path is required.',
+            })
+        boolean_fields = {
+            'consistent', 'skip_consistency_checks', 'ddl_only', 'data_only',
+            'checksum', 'chunking', 'show_progress', 'tz_utc', 'events',
+            'routines', 'libraries', 'triggers', 'skip_upgrade_checks',
+            'dry_run', 'create_invisible_pks', 'disable_bulk_load',
+            'drop_existing_objects', 'enable_local_infile',
+            'ignore_existing_objects',
+            'ignore_version', 'load_data', 'load_ddl', 'load_indexes',
+            'load_users', 'reset_progress', 'show_metadata', 'skip_binlog',
+        }
+        for field in sorted(boolean_fields.intersection(draft)):
+            if not isinstance(draft[field], bool):
+                errors.append({
+                    'field_id': field, 'code': 'invalid_mysql_shell_boolean',
+                    'message': 'MySQL Shell boolean option is invalid.',
+                })
+        integer_limits = {
+            'threads': (1, 1024), 'background_threads': (0, 1024),
+        }
+        for field, (minimum, maximum) in integer_limits.items():
+            if field in draft and (
+                isinstance(draft[field], bool) or
+                not isinstance(draft[field], int) or
+                not minimum <= draft[field] <= maximum
+            ):
+                errors.append({
+                    'field_id': field, 'code': 'invalid_mysql_shell_integer',
+                    'message': 'MySQL Shell numeric option is invalid.',
+                })
+        if 'wait_dump_timeout' in draft and (
+            isinstance(draft['wait_dump_timeout'], bool) or
+            not isinstance(draft['wait_dump_timeout'], (int, float)) or
+            not 0 <= draft['wait_dump_timeout'] <= 86400
+        ):
+            errors.append({
+                'field_id': 'wait_dump_timeout',
+                'code': 'invalid_mysql_shell_number',
+                'message': 'MySQL Shell wait timeout is invalid.',
+            })
+        array_fields = {
+            name for name in fields
+            if name.startswith(('include_', 'exclude_'))
+        } | {'compatibility', 'session_init_sql'}
+        for field in sorted(array_fields.intersection(draft)):
+            value = draft[field]
+            if not isinstance(value, list) or not all(
+                    isinstance(item, str) and item and '\x00' not in item
+                    for item in value):
+                errors.append({
+                    'field_id': field, 'code': 'invalid_mysql_shell_array',
+                    'message': 'MySQL Shell list option is invalid.',
+                })
+        for field in ('partitions', 'where'):
+            if field in draft and not isinstance(draft[field], Mapping):
+                errors.append({
+                    'field_id': field, 'code': 'invalid_mysql_shell_mapping',
+                    'message': 'MySQL Shell mapping option is invalid.',
+                })
+        if draft.get('ddl_only') and draft.get('data_only'):
+            errors.append({
+                'field_id': 'data_only', 'code': 'mysql_shell_dump_mode',
+                'message': 'DDL-only and data-only cannot both be enabled.',
+            })
+        if draft.get('skip_consistency_checks') and not draft.get(
+                'consistent', True):
+            errors.append({
+                'field_id': 'skip_consistency_checks',
+                'code': 'mysql_shell_consistency_mode',
+                'message': 'Consistency checks require a consistent dump.',
+            })
+        enum_values = {
+            'analyze_tables': {'off', 'on', 'histogram'},
+            'defer_table_indexes': {'off', 'fulltext', 'all'},
+            'handle_grant_errors': {'abort', 'drop_account', 'ignore'},
+            'update_gtid_set': {'off', 'replace', 'append'},
+        }
+        for field, allowed in enum_values.items():
+            if field in draft and draft[field] not in allowed:
+                errors.append({
+                    'field_id': field, 'code': 'invalid_mysql_shell_enum',
+                    'message': 'MySQL Shell enumerated option is invalid.',
+                })
+        compression = draft.get('compression')
+        if compression is not None and (
+            not isinstance(compression, str) or re.fullmatch(
+                r'(?:none|gzip(?:;level=[0-9])?|'
+                r'zstd(?:;level=(?:[1-9]|1[0-9]|2[0-2]))?)',
+                compression,
+            ) is None
+        ):
+            errors.append({
+                'field_id': 'compression',
+                'code': 'invalid_mysql_shell_compression',
+                'message': 'MySQL Shell compression is invalid.',
+            })
+        if draft.get('drop_existing_objects') and draft.get(
+                'ignore_existing_objects'):
+            errors.append({
+                'field_id': 'ignore_existing_objects',
+                'code': 'mysql_shell_existing_object_conflict',
+                'message': 'Drop-existing and ignore-existing are mutually '
+                           'exclusive.',
+            })
+        if operation == 'restore_logical':
+            expected = route.get('database')
+            if draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'mysql_shell_restore_confirmation_mismatch',
+                    'message': 'Restore confirmation must exactly match the '
+                               'target database.',
+                })
+        return errors
+
+    @classmethod
+    def _validate_mysql_database_operation(cls, operation, draft, route):
+        fields = {
+            'analyze_tables': {
+                'tables', 'no_write_to_binlog', 'histogram_action',
+                'histogram_columns', 'histogram_buckets',
+                'histogram_auto_update', 'histogram_data',
+            },
+            'check_tables': {'tables', 'check_options'},
+            'optimize_tables': {'tables', 'no_write_to_binlog'},
+            'repair_tables': {
+                'tables', 'no_write_to_binlog', 'repair_options',
+            },
+            'checksum_tables': {'tables', 'checksum_type'},
+        }[operation]
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_mysql_maintenance_option',
+                'message': 'A MySQL maintenance option is unknown.',
+            })
+        database = (
+            route.get('database') if isinstance(route, Mapping) else None
+        )
+        if not isinstance(database, str) or not database.strip():
+            errors.append({
+                'field_id': None,
+                'code': 'mysql_maintenance_database_required',
+                'message': 'MySQL maintenance requires a database target.',
+            })
+        tables = draft.get('tables')
+        if (
+            not isinstance(tables, list) or not 1 <= len(tables) <= 500 or
+            not all(isinstance(item, str) and item and '\x00' not in item and
+                    '.' not in item and len(item) <= 64 for item in tables)
+        ):
+            errors.append({
+                'field_id': 'tables',
+                'code': 'invalid_mysql_maintenance_tables',
+                'message': (
+                    'MySQL maintenance tables must be a JSON array of 1 to '
+                    '500 unqualified native table names.'
+                ),
+            })
+        if not isinstance(draft.get('no_write_to_binlog', False), bool):
+            errors.append({
+                'field_id': 'no_write_to_binlog',
+                'code': 'invalid_mysql_no_write_to_binlog',
+                'message': 'MySQL local maintenance must be true or false.',
+            })
+        options = {
+            'check_options': {
+                'QUICK', 'FAST', 'MEDIUM', 'EXTENDED', 'CHANGED',
+                'FOR UPGRADE',
+            },
+            'repair_options': {'QUICK', 'EXTENDED', 'USE_FRM'},
+        }
+        for field_id, allowed in options.items():
+            value = draft.get(field_id, [])
+            if field_id not in fields:
+                continue
+            if not isinstance(value, list) or not all(
+                    item in allowed for item in value):
+                errors.append({
+                    'field_id': field_id,
+                    'code': f'invalid_mysql_{field_id}',
+                    'message': (
+                        f'MySQL {field_id.replace("_", " ")} is invalid.'
+                    ),
+                })
+        if operation == 'checksum_tables' and draft.get(
+                'checksum_type', 'DEFAULT') not in {
+                    'DEFAULT', 'QUICK', 'EXTENDED'}:
+            errors.append({
+                'field_id': 'checksum_type',
+                'code': 'invalid_mysql_checksum_type',
+                'message': 'MySQL checksum type is invalid.',
+            })
+        if operation == 'analyze_tables':
+            errors.extend(cls._validate_mysql_histogram(draft, tables))
+        return errors
+
+    @staticmethod
+    def _validate_mysql_histogram(draft, tables):
+        errors = []
+        action = draft.get('histogram_action', 'NONE')
+        if action not in {'NONE', 'UPDATE', 'DROP'}:
+            errors.append({
+                'field_id': 'histogram_action',
+                'code': 'invalid_mysql_histogram_action',
+                'message': 'MySQL histogram action is invalid.',
+            })
+        columns = draft.get('histogram_columns', [])
+        if (
+            not isinstance(columns, list) or not all(
+                isinstance(item, str) and item and '\x00' not in item and
+                '.' not in item and len(item) <= 64 for item in columns
+            ) or (action != 'NONE' and not columns)
+        ):
+            errors.append({
+                'field_id': 'histogram_columns',
+                'code': 'invalid_mysql_histogram_columns',
+                'message': 'MySQL histogram columns are invalid.',
+            })
+        if action != 'NONE' and isinstance(tables, list) and len(tables) != 1:
+            errors.append({
+                'field_id': 'tables',
+                'code': 'mysql_histogram_requires_one_table',
+                'message': 'MySQL histogram maintenance requires one table.',
+            })
+        buckets = draft.get('histogram_buckets', 100)
+        if (
+            isinstance(buckets, bool) or not isinstance(buckets, int) or
+            not 1 <= buckets <= 1024
+        ):
+            errors.append({
+                'field_id': 'histogram_buckets',
+                'code': 'invalid_mysql_histogram_buckets',
+                'message': 'MySQL histogram buckets must be from 1 to 1024.',
+            })
+        if not isinstance(draft.get('histogram_auto_update', False), bool):
+            errors.append({
+                'field_id': 'histogram_auto_update',
+                'code': 'invalid_mysql_histogram_auto_update',
+                'message': 'MySQL histogram auto-update must be boolean.',
+            })
+        histogram_data = draft.get('histogram_data')
+        if histogram_data is not None and not isinstance(
+                histogram_data, Mapping):
+            errors.append({
+                'field_id': 'histogram_data',
+                'code': 'invalid_mysql_histogram_data',
+                'message': 'MySQL histogram data must be a JSON object.',
+            })
+        return errors
+
+    @classmethod
+    def _validate_mariadb_database_operation(
+            cls, operation, draft, route):
+        fields = {
+            'analyze_tables': {
+                'tables', 'binlog_mode', 'persistent_for',
+                'persistent_columns', 'persistent_indexes',
+            },
+            'check_objects': {'object_type', 'objects', 'check_options'},
+            'optimize_tables': {
+                'tables', 'binlog_mode', 'lock_wait_mode',
+                'lock_wait_seconds',
+            },
+            'repair_objects': {
+                'object_type', 'objects', 'binlog_mode', 'repair_options',
+            },
+            'checksum_tables': {'tables', 'checksum_type'},
+        }[operation]
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_mariadb_maintenance_option',
+                'message': 'A MariaDB maintenance option is unknown.',
+            })
+        database = (
+            route.get('database') if isinstance(route, Mapping) else None
+        )
+        if not isinstance(database, str) or not database.strip():
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_maintenance_database_required',
+                'message': 'MariaDB maintenance requires a database target.',
+            })
+        names_field = (
+            'objects' if operation in {'check_objects', 'repair_objects'}
+            else 'tables'
+        )
+        names = draft.get(names_field)
+        if not cls._valid_mariadb_name_list(names):
+            errors.append({
+                'field_id': names_field,
+                'code': 'invalid_mariadb_maintenance_objects',
+                'message': (
+                    'MariaDB maintenance targets must be a JSON array of 1 '
+                    'to 500 unqualified native names.'
+                ),
+            })
+        binlog_mode = draft.get('binlog_mode', 'DEFAULT')
+        if operation in {
+                'analyze_tables', 'optimize_tables', 'repair_objects'} and (
+                binlog_mode not in {
+                    'DEFAULT', 'NO_WRITE_TO_BINLOG', 'LOCAL'}):
+            errors.append({
+                'field_id': 'binlog_mode',
+                'code': 'invalid_mariadb_binlog_mode',
+                'message': 'MariaDB binary-log mode is invalid.',
+            })
+        if operation == 'analyze_tables':
+            persistent_for = draft.get('persistent_for', 'NONE')
+            columns = draft.get('persistent_columns', [])
+            indexes = draft.get('persistent_indexes', [])
+            if persistent_for not in {'NONE', 'ALL', 'SPECIFIED'}:
+                errors.append({
+                    'field_id': 'persistent_for',
+                    'code': 'invalid_mariadb_persistent_mode',
+                    'message': (
+                        'MariaDB persistent-statistics mode is invalid.'
+                    ),
+                })
+            for field_id, value in (
+                    ('persistent_columns', columns),
+                    ('persistent_indexes', indexes)):
+                if not cls._valid_mariadb_name_list(
+                        value, minimum=0, allow_primary=(
+                            field_id == 'persistent_indexes')):
+                    errors.append({
+                        'field_id': field_id,
+                        'code': f'invalid_mariadb_{field_id}',
+                        'message': (
+                            'MariaDB persistent-statistics names are '
+                            'invalid.'
+                        ),
+                    })
+            if persistent_for != 'SPECIFIED' and (columns or indexes):
+                errors.append({
+                    'field_id': 'persistent_for',
+                    'code': 'mariadb_persistent_names_without_specified',
+                    'message': (
+                        'Select specified persistent statistics before '
+                        'choosing columns or indexes.'
+                    ),
+                })
+        if operation == 'check_objects':
+            object_type = draft.get('object_type', 'TABLE')
+            options = draft.get('check_options', [])
+            allowed = {
+                'TABLE': {
+                    'QUICK', 'FAST', 'MEDIUM', 'EXTENDED', 'CHANGED',
+                    'FOR UPGRADE',
+                },
+                'VIEW': {'FOR UPGRADE'},
+            }
+            if object_type not in allowed:
+                errors.append({
+                    'field_id': 'object_type',
+                    'code': 'invalid_mariadb_check_object_type',
+                    'message': 'MariaDB check object type is invalid.',
+                })
+            elif not isinstance(options, list) or not all(
+                    item in allowed[object_type] for item in options) or (
+                    object_type == 'VIEW' and len(options) > 1):
+                errors.append({
+                    'field_id': 'check_options',
+                    'code': 'invalid_mariadb_check_options',
+                    'message': (
+                        'MariaDB check options are invalid for this object '
+                        'type.'
+                    ),
+                })
+        if operation == 'repair_objects':
+            object_type = draft.get('object_type', 'TABLE')
+            options = draft.get('repair_options', [])
+            allowed = {
+                'TABLE': {'QUICK', 'EXTENDED', 'USE_FRM', 'FORCE'},
+                'VIEW': {'FOR UPGRADE', 'FROM MYSQL'},
+            }
+            if object_type not in allowed:
+                errors.append({
+                    'field_id': 'object_type',
+                    'code': 'invalid_mariadb_repair_object_type',
+                    'message': 'MariaDB repair object type is invalid.',
+                })
+            elif not isinstance(options, list) or not all(
+                    item in allowed[object_type] for item in options) or (
+                    object_type == 'VIEW' and len(options) > 1):
+                errors.append({
+                    'field_id': 'repair_options',
+                    'code': 'invalid_mariadb_repair_options',
+                    'message': (
+                        'MariaDB repair options are invalid for this object '
+                        'type.'
+                    ),
+                })
+        if operation == 'optimize_tables':
+            wait_mode = draft.get('lock_wait_mode', 'DEFAULT')
+            wait_seconds = draft.get('lock_wait_seconds', 0)
+            if wait_mode not in {'DEFAULT', 'WAIT', 'NOWAIT'}:
+                errors.append({
+                    'field_id': 'lock_wait_mode',
+                    'code': 'invalid_mariadb_lock_wait_mode',
+                    'message': 'MariaDB metadata-lock wait mode is invalid.',
+                })
+            if (
+                isinstance(wait_seconds, bool) or
+                not isinstance(wait_seconds, int) or
+                not 0 <= wait_seconds <= 4294967295
+            ):
+                errors.append({
+                    'field_id': 'lock_wait_seconds',
+                    'code': 'invalid_mariadb_lock_wait_seconds',
+                    'message': (
+                        'MariaDB metadata-lock wait must be an unsigned '
+                        '32-bit number of seconds.'
+                    ),
+                })
+            elif wait_mode != 'WAIT' and wait_seconds != 0:
+                errors.append({
+                    'field_id': 'lock_wait_seconds',
+                    'code': 'mariadb_lock_wait_seconds_without_wait',
+                    'message': 'Lock-wait seconds require WAIT mode.',
+                })
+        if operation == 'checksum_tables' and draft.get(
+                'checksum_type', 'DEFAULT') not in {
+                    'DEFAULT', 'QUICK', 'EXTENDED'}:
+            errors.append({
+                'field_id': 'checksum_type',
+                'code': 'invalid_mariadb_checksum_type',
+                'message': 'MariaDB checksum type is invalid.',
+            })
+        return errors
+
+    @staticmethod
+    def _valid_mariadb_name_list(
+            value, *, minimum=1, allow_primary=False):
+        return (
+            isinstance(value, list) and minimum <= len(value) <= 500 and
+            all(
+                isinstance(item, str) and item and '\x00' not in item and
+                '.' not in item and len(item) <= 64 and
+                (allow_primary or item.upper() != 'PRIMARY')
+                for item in value
+            )
+        )
+
+    @staticmethod
+    def _validate_mariadb_tool_operation(operation, draft, route):
+        backup_fields = {
+            'path', 'include_schema', 'include_data',
+            'single_transaction', 'lock_all_tables', 'add_drop_database',
+            'add_drop_table', 'routines', 'events', 'triggers',
+            'dump_history', 'as_of', 'hex_blob', 'order_by_primary',
+            'extended_insert', 'complete_insert', 'comments', 'dump_date',
+            'default_character_set', 'tz_utc', 'flush_logs',
+            'replication_position', 'gtid', 'compress_connection',
+            'max_allowed_packet',
+        }
+        restore_fields = {
+            'path', 'confirmation', 'abort_on_error', 'binary_mode',
+            'default_character_set', 'compress_connection',
+            'max_allowed_packet', 'show_warnings', 'dry_run',
+        }
+        fields = backup_fields if operation == 'backup_logical' else (
+            restore_fields
+        )
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_mariadb_tool_option',
+                'message': 'A MariaDB backup or restore option is unknown.',
+            })
+        database = (
+            route.get('database') if isinstance(route, Mapping) else None
+        )
+        if not isinstance(database, str) or not database.strip():
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_tool_database_required',
+                'message': 'MariaDB backup and restore require a database.',
+            })
+        workspace = (
+            route.get('tool_workspace')
+            if isinstance(route, Mapping) else None
+        )
+        if not isinstance(workspace, str) or not os.path.isabs(workspace) or (
+                os.path.realpath(workspace) in {
+                    '/', os.path.realpath(os.path.expanduser('~'))}):
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_tool_workspace_required',
+                'message': (
+                    'MariaDB backup and restore require a safe absolute tool '
+                    'workspace.'
+                ),
+            })
+        path = draft.get('path')
+        if not isinstance(path, str) or not path.strip() or '\x00' in path:
+            errors.append({
+                'field_id': 'path',
+                'code': 'invalid_mariadb_tool_path',
+                'message': 'MariaDB backup or restore path is invalid.',
+            })
+        boolean_fields = (
+            backup_fields.difference({
+                'path', 'as_of', 'default_character_set',
+                'replication_position', 'max_allowed_packet',
+            }) if operation == 'backup_logical' else
+            restore_fields.difference({
+                'path', 'confirmation', 'default_character_set',
+                'max_allowed_packet',
+            })
+        )
+        for field_id in boolean_fields:
+            if field_id in draft and not isinstance(draft[field_id], bool):
+                errors.append({
+                    'field_id': field_id,
+                    'code': 'invalid_mariadb_tool_boolean',
+                    'message': 'MariaDB tool switches must be true or false.',
+                })
+        character_set = draft.get('default_character_set', 'utf8mb4')
+        if not isinstance(character_set, str) or re.fullmatch(
+                r'[A-Za-z0-9_$-]{1,64}', character_set) is None:
+            errors.append({
+                'field_id': 'default_character_set',
+                'code': 'invalid_mariadb_tool_character_set',
+                'message': 'MariaDB tool character set is invalid.',
+            })
+        packet = draft.get('max_allowed_packet', 1073741824)
+        if isinstance(packet, bool) or not isinstance(packet, int) or not (
+                4096 <= packet <= 1073741824):
+            errors.append({
+                'field_id': 'max_allowed_packet',
+                'code': 'invalid_mariadb_tool_packet_size',
+                'message': 'MariaDB maximum packet size is invalid.',
+            })
+        if operation == 'backup_logical':
+            if draft.get('include_schema', True) is False and draft.get(
+                    'include_data', True) is False:
+                errors.append({
+                    'field_id': 'include_data',
+                    'code': 'empty_mariadb_backup',
+                    'message': 'A MariaDB backup must include schema or data.',
+                })
+            if draft.get('single_transaction', True) and draft.get(
+                    'lock_all_tables', False):
+                errors.append({
+                    'field_id': 'lock_all_tables',
+                    'code': 'mariadb_backup_lock_mode_conflict',
+                    'message': (
+                        'Single-transaction and global-lock backup modes are '
+                        'mutually exclusive.'
+                    ),
+                })
+            as_of = draft.get('as_of')
+            if as_of not in {None, ''} and (
+                    not isinstance(as_of, str) or '\x00' in as_of or
+                    len(as_of) > 128):
+                errors.append({
+                    'field_id': 'as_of',
+                    'code': 'invalid_mariadb_backup_as_of',
+                    'message': 'MariaDB backup AS OF value is invalid.',
+                })
+            if as_of not in {None, ''} and draft.get('dump_history', False):
+                errors.append({
+                    'field_id': 'dump_history',
+                    'code': 'mariadb_backup_history_mode_conflict',
+                    'message': 'AS OF and full history cannot be combined.',
+                })
+            position = draft.get('replication_position', 'NONE')
+            if position not in {'NONE', 'COMMENTED', 'EXECUTABLE'}:
+                errors.append({
+                    'field_id': 'replication_position',
+                    'code': 'invalid_mariadb_replication_position',
+                    'message': 'MariaDB replication position mode is invalid.',
+                })
+            if draft.get('gtid', False) and position == 'NONE':
+                errors.append({
+                    'field_id': 'gtid',
+                    'code': 'mariadb_gtid_requires_replication_position',
+                    'message': 'GTID output requires replication coordinates.',
+                })
+        elif draft.get('confirmation') != database:
+            errors.append({
+                'field_id': 'confirmation',
+                'code': 'mariadb_restore_confirmation_mismatch',
+                'message': (
+                    'Restore confirmation must exactly match the target '
+                    'database.'
+                ),
+            })
+        return errors
+
+    @staticmethod
+    def _validate_mysql_database(operation, draft):
+        fields = (
+            {'name', 'if_not_exists', 'character_set', 'collation',
+             'encryption'}
+            if operation == 'create' else
+            {'character_set', 'collation', 'encryption', 'read_only'}
+        )
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_mysql_database_option',
+                'message': 'A MySQL database option is unknown.',
+            })
+        identifier = re.compile(r'^[A-Za-z0-9_$-]{1,64}$')
+        for field_id in ('character_set', 'collation'):
+            value = draft.get(field_id)
+            if value not in {None, ''} and (
+                    not isinstance(value, str) or
+                    identifier.fullmatch(value) is None):
+                errors.append({
+                    'field_id': field_id,
+                    'code': f'invalid_mysql_database_{field_id}',
+                    'message': (
+                        f'MySQL database {field_id.replace("_", " ")} '
+                        'is invalid.'
+                    ),
+                })
+        if draft.get('encryption') not in {None, '', 'Y', 'N'}:
+            errors.append({
+                'field_id': 'encryption',
+                'code': 'invalid_mysql_database_encryption',
+                'message': 'MySQL default encryption must be Y or N.',
+            })
+        if operation == 'create' and not isinstance(
+                draft.get('if_not_exists', False), bool):
+            errors.append({
+                'field_id': 'if_not_exists',
+                'code': 'invalid_mysql_database_if_not_exists',
+                'message': 'MySQL IF NOT EXISTS must be true or false.',
+            })
+        if operation == 'alter':
+            if draft.get('read_only') not in {None, '', 'ON', 'OFF'}:
+                errors.append({
+                    'field_id': 'read_only',
+                    'code': 'invalid_mysql_database_read_only',
+                    'message': 'MySQL read-only state must be ON or OFF.',
+                })
+            if not any(draft.get(field_id) not in {None, ''} for field_id in (
+                    'character_set', 'collation', 'encryption',
+                    'read_only')):
+                errors.append({
+                    'field_id': None,
+                    'code': 'mysql_database_change_required',
+                    'message': 'Select at least one MySQL database change.',
+                })
+        return errors
+
+    @staticmethod
+    def _validate_mariadb_database(operation, draft):
+        fields = (
+            {'name', 'or_replace', 'if_not_exists', 'character_set',
+             'collation', 'comment'}
+            if operation == 'create' else
+            {'character_set', 'collation', 'comment'}
+        )
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_mariadb_database_option',
+                'message': 'A MariaDB database option is unknown.',
+            })
+        identifier = re.compile(r'^[A-Za-z0-9_$-]{1,64}$')
+        for field_id in ('character_set', 'collation'):
+            value = draft.get(field_id)
+            if value not in {None, ''} and (
+                    not isinstance(value, str) or
+                    identifier.fullmatch(value) is None):
+                errors.append({
+                    'field_id': field_id,
+                    'code': f'invalid_mariadb_database_{field_id}',
+                    'message': (
+                        f'MariaDB database {field_id.replace("_", " ")} '
+                        'is invalid.'
+                    ),
+                })
+        comment = draft.get('comment')
+        if comment is not None and (
+                not isinstance(comment, str) or '\x00' in comment or
+                len(comment) > 1024):
+            errors.append({
+                'field_id': 'comment',
+                'code': 'invalid_mariadb_database_comment',
+                'message': (
+                    'MariaDB database comments are limited to 1024 '
+                    'characters and cannot contain NUL.'
+                ),
+            })
+        if operation == 'create':
+            for field_id in ('or_replace', 'if_not_exists'):
+                if not isinstance(draft.get(field_id, False), bool):
+                    errors.append({
+                        'field_id': field_id,
+                        'code': 'invalid_mariadb_database_create_mode',
+                        'message': (
+                            'MariaDB database creation modes must be boolean.'
+                        ),
+                    })
+            if draft.get('or_replace') and draft.get('if_not_exists'):
+                errors.append({
+                    'field_id': 'if_not_exists',
+                    'code': 'mariadb_database_create_mode_conflict',
+                    'message': (
+                        'MariaDB OR REPLACE and IF NOT EXISTS cannot be used '
+                        'together.'
+                    ),
+                })
+        elif not any(
+            field_id in draft and draft[field_id] is not None
+            for field_id in ('character_set', 'collation', 'comment')
+        ):
+            errors.append({
+                'field_id': None,
+                'code': 'mariadb_database_change_required',
+                'message': 'Select at least one MariaDB database change.',
+            })
+        return errors
+
+    @classmethod
+    def _validate_duckdb_database_operation(cls, operation, draft, route):
+        fields = {
+            'checkpoint': set(), 'force_checkpoint': set(),
+            'vacuum': set(), 'analyze': set(),
+            'export_database': {'directory', 'format'},
+            'import_database': {'directory'},
+        }[operation]
+        errors = []
+        if set(draft).difference(fields):
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_duckdb_database_operation_option',
+                'message': 'A DuckDB database operation option is unknown.',
+            })
+        if operation in {'export_database', 'import_database'}:
+            directory = draft.get('directory')
+            try:
+                cls._duckdb_operation_directory(
+                    route, directory, importing=operation == 'import_database'
+                )
+            except RelationalClientError as exc:
+                errors.append({
+                    'field_id': 'directory',
+                    'code': 'invalid_duckdb_database_directory',
+                    'message': str(exc),
+                })
+        if operation == 'export_database' and draft.get(
+                'format', 'PARQUET') not in {'CSV', 'PARQUET'}:
+            errors.append({
+                'field_id': 'format',
+                'code': 'invalid_duckdb_export_format',
+                'message': 'DuckDB export format must be CSV or PARQUET.',
+            })
+        return errors
+
+    @staticmethod
+    def _duckdb_operation_directory(route, value, importing=False):
+        if (
+            not isinstance(value, str) or not value.strip() or
+            not os.path.isabs(value.strip())
+        ):
+            raise RelationalClientError(
+                'DuckDB import/export directory must be absolute.'
+            )
+        root = route.get('filesystem_root') if isinstance(
+            route, Mapping
+        ) else None
+        if not isinstance(root, str) or not os.path.isabs(root):
+            raise RelationalClientError(
+                'DuckDB endpoint has no absolute filesystem root.'
+            )
+        root_path = os.path.realpath(root)
+        directory = os.path.realpath(value.strip())
+        try:
+            contained = os.path.commonpath(
+                (root_path, directory)
+            ) == root_path
+        except ValueError:
+            contained = False
+        if not contained:
+            raise RelationalClientError(
+                'DuckDB import/export directory escapes the endpoint root.'
+            )
+        if importing:
+            if not os.path.isdir(directory):
+                raise RelationalClientError(
+                    'DuckDB import directory does not exist.'
+                )
+            if not all(
+                os.path.isfile(os.path.join(directory, name))
+                for name in ('schema.sql', 'load.sql')
+            ):
+                raise RelationalClientError(
+                    'DuckDB import directory lacks schema.sql or load.sql.'
+                )
+        else:
+            parent = os.path.dirname(directory)
+            if not os.path.isdir(parent):
+                raise RelationalClientError(
+                    'DuckDB export parent directory does not exist.'
+                )
+            if os.path.lexists(directory) and (
+                    not os.path.isdir(directory) or os.listdir(directory)):
+                raise RelationalClientError(
+                    'DuckDB export directory must be absent or empty.'
+                )
+        return directory
+
+    @staticmethod
+    def _validate_sqlite_database_operation(operation, draft, route):
+        fields = {
+            'backup': {'backup_path', 'overwrite'},
+            'restore': {'backup_path', 'confirmation'},
+            'integrity_check': {'max_errors'},
+            'quick_check': {'max_errors'},
+            'foreign_key_check': {'table'},
+            'vacuum': set(),
+            'incremental_vacuum': {'pages'},
+            'optimize': set(),
+            'analyze': {'target'},
+            'reindex': {'target'},
+            'wal_checkpoint': {'mode'},
+        }[operation]
+        errors = []
+        unknown = set(draft).difference(fields)
+        if unknown:
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_sqlite_database_operation_option',
+                'message': 'A SQLite database operation option is unknown.',
+            })
+        if operation in {'backup', 'restore'}:
+            path = draft.get('backup_path')
+            if not isinstance(path, str) or not path.strip() or not (
+                    os.path.isabs(path.strip())):
+                errors.append({
+                    'field_id': 'backup_path',
+                    'code': 'invalid_sqlite_backup_path',
+                    'message': 'SQLite backup filename must be absolute.',
+                })
+            if operation == 'backup' and not isinstance(
+                    draft.get('overwrite', False), bool):
+                errors.append({
+                    'field_id': 'overwrite',
+                    'code': 'invalid_sqlite_backup_overwrite',
+                    'message': (
+                        'SQLite backup overwrite must be true or false.'
+                    ),
+                })
+            if operation == 'restore' and draft.get('confirmation') != (
+                    route.get('database')):
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'sqlite_restore_confirmation_mismatch',
+                    'message': (
+                        'SQLite restore confirmation must exactly match the '
+                        'active database path.'
+                    ),
+                })
+        if operation in {'integrity_check', 'quick_check'}:
+            limit = draft.get('max_errors', 100)
+            if isinstance(limit, bool) or not isinstance(limit, int) or not (
+                    1 <= limit <= 10000):
+                errors.append({
+                    'field_id': 'max_errors',
+                    'code': 'invalid_sqlite_check_limit',
+                    'message': 'SQLite check limit must be from 1 to 10000.',
+                })
+        if operation == 'incremental_vacuum':
+            pages = draft.get('pages', 0)
+            if isinstance(pages, bool) or not isinstance(pages, int) or not (
+                    0 <= pages <= 2147483647):
+                errors.append({
+                    'field_id': 'pages',
+                    'code': 'invalid_sqlite_incremental_vacuum_pages',
+                    'message': 'SQLite vacuum page count is invalid.',
+                })
+        for field_id in ('table', 'target'):
+            name = draft.get(field_id)
+            if name not in {None, ''} and (
+                    not isinstance(name, str) or any(
+                        not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', part)
+                        for part in name.split('.')
+                    )):
+                errors.append({
+                    'field_id': field_id,
+                    'code': 'invalid_sqlite_qualified_name',
+                    'message': 'SQLite object name is invalid.',
+                })
+        if operation == 'wal_checkpoint' and draft.get(
+                'mode', 'PASSIVE') not in {
+                    'PASSIVE', 'FULL', 'RESTART', 'TRUNCATE'}:
+            errors.append({
+                'field_id': 'mode',
+                'code': 'invalid_sqlite_checkpoint_mode',
+                'message': 'SQLite checkpoint mode is invalid.',
+            })
+        return errors
+
+    @staticmethod
+    def _validate_sqlite_database_create(draft):
+        errors = []
+        page_size = draft.get('page_size', '4096')
+        if str(page_size) not in {
+            '512', '1024', '2048', '4096', '8192', '16384', '32768',
+            '65536',
+        }:
+            errors.append({
+                'field_id': 'page_size',
+                'code': 'invalid_sqlite_page_size',
+                'message': 'SQLite page size is invalid.',
+            })
+        if draft.get('encoding', 'UTF-8') not in {
+            'UTF-8', 'UTF-16', 'UTF-16le', 'UTF-16be',
+        }:
+            errors.append({
+                'field_id': 'encoding',
+                'code': 'invalid_sqlite_encoding',
+                'message': 'SQLite database encoding is invalid.',
+            })
+        if draft.get('auto_vacuum', 'NONE') not in {
+            'NONE', 'FULL', 'INCREMENTAL',
+        }:
+            errors.append({
+                'field_id': 'auto_vacuum',
+                'code': 'invalid_sqlite_auto_vacuum',
+                'message': 'SQLite auto-vacuum mode is invalid.',
+            })
+        errors.extend(RelationalAdministration._sqlite_integer_errors(draft))
+        return errors
+
+    @staticmethod
+    def _validate_sqlite_database_alter(draft):
+        errors = []
+        supplied = {
+            key for key in (
+                'journal_mode', 'synchronous', 'auto_vacuum', 'page_size',
+                'application_id', 'user_version',
+            ) if draft.get(key) not in {None, ''}
+        }
+        if not supplied:
+            errors.append({
+                'field_id': None,
+                'code': 'sqlite_database_change_required',
+                'message': 'Select at least one SQLite database setting.',
+            })
+        admitted = supplied.union({'run_vacuum'})
+        unknown = set(draft).difference(admitted)
+        if unknown:
+            errors.append({
+                'field_id': None,
+                'code': 'unknown_sqlite_database_change',
+                'message': 'The SQLite database setting is unsupported.',
+            })
+        if draft.get('journal_mode') not in {
+            None, '', 'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF',
+        }:
+            errors.append({
+                'field_id': 'journal_mode',
+                'code': 'invalid_sqlite_journal_mode',
+                'message': 'SQLite journal mode is invalid.',
+            })
+        if draft.get('synchronous') not in {
+            None, '', 'OFF', 'NORMAL', 'FULL', 'EXTRA',
+        }:
+            errors.append({
+                'field_id': 'synchronous',
+                'code': 'invalid_sqlite_synchronous',
+                'message': 'SQLite synchronous mode is invalid.',
+            })
+        if draft.get('auto_vacuum') not in {
+            None, '', 'NONE', 'FULL', 'INCREMENTAL',
+        }:
+            errors.append({
+                'field_id': 'auto_vacuum',
+                'code': 'invalid_sqlite_auto_vacuum',
+                'message': 'SQLite auto-vacuum mode is invalid.',
+            })
+        page_size = draft.get('page_size')
+        if page_size not in {None, ''} and str(page_size) not in {
+            '512', '1024', '2048', '4096', '8192', '16384', '32768',
+            '65536',
+        }:
+            errors.append({
+                'field_id': 'page_size',
+                'code': 'invalid_sqlite_page_size',
+                'message': 'SQLite page size is invalid.',
+            })
+        if {'page_size', 'auto_vacuum'}.intersection(supplied) and (
+                draft.get('run_vacuum') is not True):
+            errors.append({
+                'field_id': 'run_vacuum',
+                'code': 'sqlite_vacuum_required',
+                'message': (
+                    'Changing SQLite page size or auto-vacuum mode requires '
+                    'a database rebuild with VACUUM.'
+                ),
+            })
+        if page_size not in {None, ''} and draft.get('journal_mode') in {
+                None, '', 'WAL'}:
+            errors.append({
+                'field_id': 'journal_mode',
+                'code': 'sqlite_page_size_requires_rollback_journal',
+                'message': (
+                    'Changing SQLite page size requires selecting a '
+                    'non-WAL journal mode for the rebuild.'
+                ),
+            })
+        errors.extend(RelationalAdministration._sqlite_integer_errors(draft))
+        return errors
+
+    @staticmethod
+    def _sqlite_integer_errors(draft):
+        errors = []
+        for field_id in ('application_id', 'user_version'):
+            value = draft.get(field_id)
+            if value in {None, ''}:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or not (
+                    -2147483648 <= value <= 2147483647):
+                errors.append({
+                    'field_id': field_id,
+                    'code': f'invalid_sqlite_{field_id}',
+                    'message': (
+                        f'SQLite {field_id.replace("_", " ")} must be a '
+                        'signed 32-bit integer.'
+                    ),
+                })
+        return errors
 
     def plan(self, request):
         route = request.get('_provider_route')
@@ -264,7 +2288,7 @@ class RelationalAdministration:
             },
         }
 
-    def apply(self, client, request):
+    def apply(self, client, request, connection=None):
         payload = request.get('provider_payload')
         if not isinstance(payload, Mapping):
             raise RelationalClientError('relational native plan is invalid')
@@ -286,9 +2310,10 @@ class RelationalAdministration:
                 'driver_observation_only': True,
             }
         driver_operation = compiled.get('driver_operation')
-        if driver_operation:
-            observation = client.create_database(
-                {'route': route}, compiled['database'], driver_operation
+        if driver_operation == 'firebird-service':
+            observation = client.run_server_operation(
+                {'route': route}, compiled['operation_id'],
+                compiled['database'], compiled.get('options', {}),
             )
             return {
                 'accepted': True,
@@ -298,13 +2323,110 @@ class RelationalAdministration:
                 'driver_observation': observation,
                 'transaction_finality_interpreted_by_common_code': False,
             }
-        connection = client._connect({'route': route})
+        if driver_operation == 'firebird-drop-database':
+            observation = client.drop_database(
+                {'route': route}, compiled['database'], driver_operation
+            )
+            response = {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'transaction_finality_interpreted_by_common_code': False,
+            }
+            if isinstance(compiled.get('database_target'), Mapping):
+                response['dropped_endpoint_database_target'] = copy.deepcopy(
+                    compiled['database_target']
+                )
+            return response
+        if driver_operation == 'embedded-drop-database':
+            observation = client.drop_database(
+                {'route': route}, compiled['database'], driver_operation
+            )
+            return {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'dropped_endpoint_database_target': copy.deepcopy(
+                    compiled['database_target']
+                ),
+                'transaction_finality_interpreted_by_common_code': False,
+            }
+        if driver_operation in {
+                'embedded-sqlite-backup', 'embedded-sqlite-restore'}:
+            owns_connection = connection is None
+            operation_connection = connection or client._connect({
+                'route': route
+            })
+            try:
+                observation = client.run_database_operation(
+                    operation_connection, route,
+                    compiled['operation_id'], compiled.get('options', {}),
+                )
+            finally:
+                if owns_connection:
+                    client._forget_and_close(operation_connection)
+            return {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'transaction_finality_interpreted_by_common_code': False,
+            }
+        if driver_operation in {'mysql-shell', 'mariadb-tools'}:
+            observation = client.run_database_operation(
+                connection, route, compiled['operation_id'],
+                compiled.get('options', {}),
+            )
+            return {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'transaction_finality_interpreted_by_common_code': False,
+            }
+        if driver_operation:
+            observation = client.create_database(
+                {
+                    'route': route,
+                    'create_options': copy.deepcopy(
+                        compiled.get('create_options', {})
+                    ),
+                }, compiled['database'], driver_operation
+            )
+            return {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'endpoint_database_target': {
+                    'database': compiled['endpoint_database'],
+                    'display_name': compiled[
+                        'endpoint_database'
+                    ].rsplit('/', 1)[-1],
+                },
+                'transaction_finality_interpreted_by_common_code': False,
+            }
+        owns_connection = connection is None
+        connection = connection or client._connect({'route': route})
         cursor = None
         commit_requested = False
         rollback_requested = False
         results = []
         try:
-            cursor = connection.cursor()
+            cursor = (
+                connection if getattr(
+                    getattr(client, 'config', None),
+                    'execute_on_connection', False,
+                )
+                else connection.cursor()
+            )
             for statement in compiled.get('statements', []):
                 parameters = statement.get('parameters', ())
                 if parameters:
@@ -341,10 +2463,11 @@ class RelationalAdministration:
                     ),
                     'rows': copy.deepcopy(rows),
                 })
-            commit = getattr(connection, 'commit', None)
-            if callable(commit):
-                commit_requested = True
-                commit()
+            if owns_connection:
+                commit = getattr(connection, 'commit', None)
+                if callable(commit):
+                    commit_requested = True
+                    commit()
         except RelationalClientError:
             rollback = getattr(connection, 'rollback', None)
             if callable(rollback):
@@ -364,37 +2487,87 @@ class RelationalAdministration:
                 f'({type(exc).__name__})'
             ) from None
         finally:
-            if cursor is not None:
+            if cursor is not None and cursor is not connection:
                 client._safe_close(cursor)
-            client._forget_and_close(connection)
-        return {
+            if owns_connection:
+                client._forget_and_close(connection)
+        response = {
             'accepted': True,
             'statement_results': results,
             'commit_requested': commit_requested,
             'rollback_requested': rollback_requested,
             'driver_observation_only': True,
             'transaction_finality_interpreted_by_common_code': False,
+            'staged_in_provider_session': not owns_connection,
         }
+        if isinstance(compiled.get('database_target'), Mapping):
+            response['dropped_endpoint_database_target'] = copy.deepcopy(
+                compiled['database_target']
+            )
+        created_database = compiled.get('endpoint_database')
+        if isinstance(created_database, str) and created_database:
+            response['endpoint_database_target'] = {
+                'database': created_database,
+                'display_name': created_database.rsplit('/', 1)[-1],
+            }
+        return response
 
-    def read_rows(self, client, request):
+    def read_rows(self, client, request, connection=None):
         route = request.get('_provider_route')
         target = request.get('target_resource')
         if not isinstance(route, Mapping) or not isinstance(target, Mapping):
             raise RelationalClientError(
                 'row paging requires a trusted route and table resource'
             )
-        if target.get('resource_kind') != 'table':
-            raise RelationalClientError('row paging requires a base table')
+        resource_kind = target.get('resource_kind')
+        if resource_kind not in {'table', 'view', 'materialized-view'}:
+            raise RelationalClientError(
+                'row paging requires a relation that supports row reads'
+            )
         limit = request.get('limit', 200)
         if isinstance(limit, bool) or not isinstance(limit, int):
             raise RelationalClientError('row page limit must be an integer')
         limit = max(1, min(limit, 500))
         path = self._target_path(target)
-        connection = client._connect({'route': route})
+        fingerprint = self._route_fingerprint(route)
+        offset = 0
+        continuation = request.get('continuation')
+        if continuation is not None:
+            if not isinstance(continuation, str) or not continuation:
+                raise RelationalClientError(
+                    'row continuation token is invalid'
+                )
+            with self._identity_lock:
+                retained = self._row_continuations.pop(
+                    continuation, None
+                )
+            if retained is None or (
+                    retained.route_fingerprint != fingerprint or
+                    retained.target_path != path or
+                    retained.limit != limit):
+                raise RelationalClientError(
+                    'row continuation token is unavailable or mismatched'
+                )
+            offset = retained.offset
+        owns_connection = connection is None
+        connection = connection or client._connect({'route': route})
         cursor = None
         try:
-            key_columns = tuple(self._primary_key(connection, path))
-            cursor = connection.cursor()
+            # Views are browsable relations, but CDEadmin must not infer that
+            # they are updatable or manufacture row identities for them.
+            # Provider-native view mutation belongs to a separate admitted
+            # operation contract.
+            key_columns = (
+                tuple(self._primary_key(connection, path))
+                if resource_kind == 'table' else ()
+            )
+            cursor = (
+                connection if getattr(
+                    getattr(client, 'config', None),
+                    'execute_on_connection', False,
+                )
+                else connection.cursor()
+            )
             order = (
                 ' ORDER BY ' + ', '.join(
                     self._quote(name) for name in key_columns
@@ -402,13 +2575,13 @@ class RelationalAdministration:
             )
             if self.dialect.engine_id == 'firebird':
                 source = (
-                    f'SELECT FIRST {limit} * FROM '
+                    f'SELECT FIRST {limit + 1} SKIP {offset} * FROM '
                     f'{self._qualified(path)}{order}'
                 )
             else:
                 source = (
                     f'SELECT * FROM {self._qualified(path)}{order} '
-                    f'LIMIT {limit}'
+                    f'LIMIT {limit + 1} OFFSET {offset}'
                 )
             cursor.execute(source)
             description = getattr(cursor, 'description', None) or ()
@@ -418,8 +2591,9 @@ class RelationalAdministration:
                 for item in description
             )
             raw_rows = list(cursor.fetchall())
+            has_more = len(raw_rows) > limit
+            raw_rows = raw_rows[:limit]
             result_rows = []
-            fingerprint = self._route_fingerprint(route)
             for raw_row in raw_rows:
                 values = dict(zip(columns, raw_row))
                 identity_token = None
@@ -440,6 +2614,18 @@ class RelationalAdministration:
                     'values': copy.deepcopy(values),
                     'identity_token': identity_token,
                 })
+            next_continuation = None
+            if has_more:
+                next_continuation = str(uuid.uuid4())
+                retained = _RowContinuation(
+                    fingerprint, path, offset + limit, limit,
+                    time.monotonic(),
+                )
+                with self._identity_lock:
+                    while len(self._row_continuations) >= 1000:
+                        oldest = next(iter(self._row_continuations))
+                        self._row_continuations.pop(oldest, None)
+                    self._row_continuations[next_continuation] = retained
             return {
                 'schema': 'cdeadmin.relational-row-page.v1',
                 'columns': [
@@ -455,10 +2641,13 @@ class RelationalAdministration:
                 'editable': bool(key_columns),
                 'identity_policy': (
                     'provider-primary-key-and-original-values'
-                    if key_columns else 'read-only-no-primary-key'
+                    if key_columns else
+                    'read-only-view' if resource_kind != 'table' else
+                    'read-only-no-primary-key'
                 ),
                 'limit': limit,
-                'complete': len(raw_rows) < limit,
+                'continuation': next_continuation,
+                'complete': not has_more,
                 'transaction_finality_interpreted_by_common_code': False,
             }
         except RelationalClientError:
@@ -468,16 +2657,234 @@ class RelationalAdministration:
                 f'relational row paging failed ({type(exc).__name__})'
             ) from None
         finally:
-            if cursor is not None:
+            if cursor is not None and cursor is not connection:
                 client._safe_close(cursor)
-            client._forget_and_close(connection)
+            if owns_connection:
+                client._forget_and_close(connection)
+
+    def cancel_rows(self, request):
+        """Release one provider-issued relational row continuation."""
+        route = request.get('_provider_route')
+        token = request.get('continuation')
+        if not isinstance(route, Mapping) or not isinstance(token, str) or (
+                not token):
+            raise RelationalClientError(
+                'row cursor cancellation request is invalid'
+            )
+        fingerprint = self._route_fingerprint(route)
+        with self._identity_lock:
+            retained = self._row_continuations.get(token)
+            if retained is None or retained.route_fingerprint != fingerprint:
+                return {'cancelled': False, 'continuation': token}
+            self._row_continuations.pop(token, None)
+        return {
+            'cancelled': True,
+            'continuation': token,
+            'provider_cursor_released': True,
+        }
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            request['resource_kind'] == 'system-variable' and
+            operation == 'set_global'
+        ):
+            target = request.get('target_resource') or {}
+            name = self._identifier(target.get('display_name'))
+            draft = request.get('draft', {})
+            if draft.get('value_mode') == 'DEFAULT':
+                value = 'DEFAULT'
+            else:
+                raw_value = draft.get('value')
+                variable_type = str(self._mariadb_target_native(
+                    target
+                ).get('variable_type', '')).upper()
+                if variable_type in {
+                        'INT', 'INT UNSIGNED', 'BIGINT UNSIGNED'}:
+                    value = str(int(str(raw_value), 10))
+                elif variable_type == 'DOUBLE':
+                    value = str(float(str(raw_value)))
+                elif variable_type == 'BOOLEAN':
+                    value = {
+                        'TRUE': '1', 'ON': '1', '1': '1',
+                        'FALSE': '0', 'OFF': '0', '0': '0',
+                    }[str(raw_value).upper()]
+                else:
+                    value = self._literal(str(raw_value))
+            return {'statements': [{
+                'source': f'SET GLOBAL {self._quote(name)} = {value}',
+                'parameters': (),
+            }]}
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            request['resource_kind'] == 'session' and
+            operation in {'terminate_query', 'terminate_connection'}
+        ):
+            target = request.get('target_resource') or {}
+            process_id = self._integer(
+                self._mariadb_target_native(target).get('id'), 'process ID'
+            )
+            mode = request.get('draft', {}).get('termination_mode')
+            subject = (
+                'QUERY' if operation == 'terminate_query' else 'CONNECTION'
+            )
+            return {'statements': [{
+                'source': f'KILL {mode} {subject} {process_id}',
+                'parameters': (),
+            }]}
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            request['resource_kind'] == 'binary-log'
+            and operation == 'purge_before'
+        ):
+            target = request.get('target_resource') or {}
+            return {'statements': [{
+                'source': (
+                    'PURGE BINARY LOGS TO ' +
+                    self._literal(target.get('display_name'))
+                ),
+                'parameters': (),
+            }]}
+        if (
+            self.dialect.engine_id == 'mariadb' and
+            request['resource_kind'] == 'binary-log-status' and
+            operation == 'rotate'
+        ):
+            return {'statements': [{
+                'source': 'FLUSH BINARY LOGS', 'parameters': (),
+            }]}
+        if (
+                self.dialect.engine_id == 'mariadb' and
+                request['resource_kind'] == 'replication-channel' and
+                operation != 'inspect'):
+            return {
+                'statements': [self._compile_mariadb_replication(request)]
+            }
+        if (
+            self.dialect.engine_id == 'firebird' and
+            request['resource_kind'] == 'database' and
+            operation in _FIREBIRD_SERVICE_OPERATIONS
+        ):
+            route = request['_provider_route']
+            database = route.get('database')
+            if not isinstance(database, str) or not database.strip():
+                raise RelationalClientError(
+                    'Firebird service operation requires a database route'
+                )
+            return {
+                'driver_operation': 'firebird-service',
+                'operation_id': operation,
+                'database': database.strip(),
+                'options': copy.deepcopy(request.get('draft', {})),
+                'statements': [],
+            }
+        if (
+            self.dialect.engine_id == 'sqlite' and
+            request['resource_kind'] == 'database' and
+            operation in _SQLITE_DATABASE_OPERATIONS
+        ):
+            return self._compile_sqlite_database_operation(request)
+        if (
+                self.dialect.engine_id == 'duckdb' and
+                request['resource_kind'] == 'database' and
+                operation in _DUCKDB_DATABASE_OPERATIONS
+        ):
+            return self._compile_duckdb_database_operation(request)
+        if (
+                self.dialect.engine_id == 'mysql' and
+                request['resource_kind'] == 'database' and
+                operation in _MYSQL_DATABASE_OPERATIONS
+        ):
+            return self._compile_mysql_database_operation(request)
+        if (
+                self.dialect.engine_id == 'mariadb' and
+                request['resource_kind'] == 'database' and
+                operation in _MARIADB_DATABASE_OPERATIONS
+        ):
+            return self._compile_mariadb_database_operation(request)
+        if (
+                self.dialect.engine_id == 'mariadb' and
+                request['resource_kind'] == 'database' and
+                operation in _MARIADB_TOOL_DATABASE_OPERATIONS
+        ):
+            return {
+                'driver_operation': 'mariadb-tools',
+                'operation_id': operation,
+                'options': copy.deepcopy(request.get('draft', {})),
+                'statements': [],
+            }
+        if (
+                self.dialect.engine_id == 'mariadb' and
+                request['resource_kind'] == 'server' and
+                operation in _MARIADB_TOOL_SERVER_OPERATIONS
+        ):
+            return {
+                'driver_operation': 'mariadb-tools',
+                'operation_id': operation,
+                'options': copy.deepcopy(request.get('draft', {})),
+                'statements': [],
+            }
+        if (
+                self.dialect.engine_id == 'mysql' and
+                request['resource_kind'] == 'database' and
+                operation in _MYSQL_SHELL_DATABASE_OPERATIONS
+        ):
+            return {
+                'driver_operation': 'mysql-shell',
+                'operation_id': operation,
+                'options': copy.deepcopy(request.get('draft', {})),
+                'statements': [],
+            }
         if operation == 'inspect':
             return {
                 'internal_operation': 'inspect',
                 'target_resource': copy.deepcopy(request['target_resource']),
+                'statements': [],
+            }
+        if (
+                self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'database' and
+                operation == 'drop'):
+            route = request['_provider_route']
+            database = route.get('database')
+            if not isinstance(database, str) or not database.strip():
+                raise RelationalClientError(
+                    'Firebird database drop requires a database route'
+                )
+            compiled = {
+                'driver_operation': 'firebird-drop-database',
+                'database': database.strip(),
+                'statements': [],
+            }
+            database_target = self._database_target_deletion(request)
+            if database_target is not None:
+                compiled['database_target'] = database_target
+            return compiled
+        if (
+                self.dialect.embedded_database and
+                request['resource_kind'] == 'database' and
+                operation == 'drop'):
+            route = request['_provider_route']
+            database = route.get('database')
+            if not isinstance(database, str) or not database.strip():
+                raise RelationalClientError(
+                    'embedded database deletion requires a database route'
+                )
+            extensions = request['target_resource'].get('extensions', {})
+            target = extensions.get('cdeadmin', {})
+            target_id = target.get('database_target_id')
+            if not isinstance(target_id, str) or not target_id:
+                raise RelationalClientError(
+                    'embedded database deletion requires a retained target'
+                )
+            return {
+                'driver_operation': 'embedded-drop-database',
+                'database': database.strip(),
+                'database_target': {
+                    'target_id': target_id,
+                    'confirmation': database.strip(),
+                },
                 'statements': [],
             }
         if operation == 'create':
@@ -485,17 +2892,30 @@ class RelationalAdministration:
                 self.dialect.database_create_mode != 'sql'
             ):
                 return self._compile_database_create(request)
-            return {'statements': self._compile_create(request)}
+            compiled = {'statements': self._compile_create(request)}
+            if request['resource_kind'] == 'database':
+                compiled['endpoint_database'] = request['draft']['name']
+            return compiled
         if operation == 'alter':
             return {'statements': self._compile_alter(request)}
         if operation == 'rename':
             return {'statements': [self._compile_rename(request)]}
         if operation == 'drop':
-            return {'statements': [self._compile_drop(request)]}
+            compiled = {'statements': [self._compile_drop(request)]}
+            if request['resource_kind'] == 'database':
+                database_target = self._database_target_deletion(request)
+                if database_target is not None:
+                    compiled['database_target'] = database_target
+            return compiled
         if operation == 'insert':
             return {'statements': [self._compile_insert(request)]}
         if operation in {'update', 'delete'}:
             return {'statements': [self._compile_identity_dml(request)]}
+        if (
+                self.dialect.engine_id == 'mariadb' and
+                request['resource_kind'] == 'role' and
+                operation in {'grant', 'revoke', 'set_default'}):
+            return {'statements': [self._compile_mariadb_role(request)]}
         if operation in {'grant', 'revoke'}:
             return {'statements': [self._compile_privilege(request)]}
         if operation == 'execute':
@@ -503,6 +2923,487 @@ class RelationalAdministration:
         raise RelationalClientError(
             'relational operation has no provider compiler'
         )
+
+    @staticmethod
+    def _database_target_deletion(request):
+        """Describe a retained target that a successful native drop removes."""
+        target = request.get('target_resource')
+        extensions = target.get('extensions', {}) if isinstance(
+            target, Mapping
+        ) else {}
+        cdeadmin = extensions.get('cdeadmin', {}) if isinstance(
+            extensions, Mapping
+        ) else {}
+        target_id = cdeadmin.get('database_target_id') if isinstance(
+            cdeadmin, Mapping
+        ) else None
+        if not isinstance(target_id, str) or not target_id:
+            return None
+        confirmation = request.get('draft', {}).get('confirmation')
+        if not isinstance(confirmation, str) or not confirmation:
+            return None
+        return {'target_id': target_id, 'confirmation': confirmation}
+
+    def _compile_mysql_database_operation(self, request):
+        operation = request['operation_id']
+        draft = request.get('draft', {})
+        route = request['_provider_route']
+        database = self._identifier(route['database'])
+        tables = ', '.join(
+            self._qualified((database, self._identifier(table)))
+            for table in draft['tables']
+        )
+        local = (
+            ' NO_WRITE_TO_BINLOG'
+            if draft.get('no_write_to_binlog') else ''
+        )
+        if operation == 'analyze_tables':
+            source = f'ANALYZE{local} TABLE {tables}'
+            action = draft.get('histogram_action', 'NONE')
+            columns = ', '.join(
+                self._quote(column)
+                for column in draft.get('histogram_columns', [])
+            )
+            if action == 'UPDATE':
+                source += f' UPDATE HISTOGRAM ON {columns}'
+                histogram_data = draft.get('histogram_data')
+                if histogram_data:
+                    source += ' USING DATA ' + self._literal(
+                        json.dumps(
+                            histogram_data, sort_keys=True,
+                            separators=(',', ':'),
+                        )
+                    )
+                else:
+                    update_mode = (
+                        'AUTO' if draft.get('histogram_auto_update')
+                        else 'MANUAL'
+                    )
+                    source += (
+                        f' WITH {int(draft.get("histogram_buckets", 100))} '
+                        'BUCKETS '
+                        f'{update_mode} UPDATE'
+                    )
+            elif action == 'DROP':
+                source += f' DROP HISTOGRAM ON {columns}'
+        elif operation == 'check_tables':
+            options = ' '.join(draft.get('check_options', []))
+            source = (
+                f'CHECK TABLE {tables}' + (f' {options}' if options else '')
+            )
+        elif operation == 'optimize_tables':
+            source = f'OPTIMIZE{local} TABLE {tables}'
+        elif operation == 'repair_tables':
+            options = ' '.join(draft.get('repair_options', []))
+            source = (
+                f'REPAIR{local} TABLE {tables}' +
+                (f' {options}' if options else '')
+            )
+        elif operation == 'checksum_tables':
+            checksum_type = draft.get('checksum_type', 'DEFAULT')
+            source = (
+                f'CHECKSUM TABLE {tables}' +
+                (f' {checksum_type}' if checksum_type != 'DEFAULT' else '')
+            )
+        else:
+            raise RelationalClientError(
+                'MySQL database operation has no native compiler'
+            )
+        return {
+            'operation_id': operation,
+            'statements': [{'source': source}],
+        }
+
+    def _compile_mariadb_database_operation(self, request):
+        operation = request['operation_id']
+        draft = request.get('draft', {})
+        route = request['_provider_route']
+        database = self._identifier(route['database'])
+        names_field = (
+            'objects' if operation in {'check_objects', 'repair_objects'}
+            else 'tables'
+        )
+        targets = [
+            self._qualified((database, self._identifier(name)))
+            for name in draft[names_field]
+        ]
+        binlog_mode = draft.get('binlog_mode', 'DEFAULT')
+        local = '' if binlog_mode == 'DEFAULT' else f' {binlog_mode}'
+        if operation == 'analyze_tables':
+            persistent_for = draft.get('persistent_for', 'NONE')
+            if persistent_for == 'ALL':
+                suffix = ' PERSISTENT FOR ALL'
+            elif persistent_for == 'SPECIFIED':
+                columns = ', '.join(
+                    self._quote(name)
+                    for name in draft.get('persistent_columns', [])
+                )
+                indexes = ', '.join(
+                    'PRIMARY' if name.upper() == 'PRIMARY'
+                    else self._quote(name)
+                    for name in draft.get('persistent_indexes', [])
+                )
+                suffix = (
+                    ' PERSISTENT FOR COLUMNS '
+                    f'({columns}) INDEXES ({indexes})'
+                )
+            else:
+                suffix = ''
+            source = (
+                f'ANALYZE{local} TABLE ' +
+                ', '.join(target + suffix for target in targets)
+            )
+        elif operation == 'check_objects':
+            object_type = draft.get('object_type', 'TABLE')
+            options = ' '.join(draft.get('check_options', []))
+            source = f'CHECK {object_type} ' + ', '.join(targets)
+            if options:
+                source += f' {options}'
+        elif operation == 'optimize_tables':
+            source = f'OPTIMIZE{local} TABLE ' + ', '.join(targets)
+            wait_mode = draft.get('lock_wait_mode', 'DEFAULT')
+            if wait_mode == 'WAIT':
+                source += f' WAIT {int(draft.get("lock_wait_seconds", 0))}'
+            elif wait_mode == 'NOWAIT':
+                source += ' NOWAIT'
+        elif operation == 'repair_objects':
+            object_type = draft.get('object_type', 'TABLE')
+            options = ' '.join(draft.get('repair_options', []))
+            source = (
+                f'REPAIR{local} {object_type} ' + ', '.join(targets)
+            )
+            if options:
+                source += f' {options}'
+        elif operation == 'checksum_tables':
+            source = 'CHECKSUM TABLE ' + ', '.join(targets)
+            checksum_type = draft.get('checksum_type', 'DEFAULT')
+            if checksum_type != 'DEFAULT':
+                source += f' {checksum_type}'
+        else:
+            raise RelationalClientError(
+                'MariaDB database operation has no native compiler'
+            )
+        return {
+            'operation_id': operation,
+            'statements': [{'source': source}],
+        }
+
+    def _compile_sqlite_database_operation(self, request):
+        operation = request['operation_id']
+        draft = request.get('draft', {})
+        if operation in {'backup', 'restore'}:
+            return {
+                'driver_operation': f'embedded-sqlite-{operation}',
+                'operation_id': operation,
+                'options': copy.deepcopy(dict(draft)),
+                'statements': [],
+                'warnings': ([
+                    'Restore replaces the active database contents using '
+                    'SQLite\'s native backup API.'
+                ] if operation == 'restore' else []),
+            }
+        if operation in {'integrity_check', 'quick_check'}:
+            limit = int(draft.get('max_errors', 100))
+            source = f'PRAGMA {operation}({limit})'
+        elif operation == 'foreign_key_check':
+            table = draft.get('table')
+            source = 'PRAGMA foreign_key_check'
+            if table:
+                source += f'({self._quote(table)})'
+        elif operation == 'vacuum':
+            source = 'VACUUM'
+        elif operation == 'incremental_vacuum':
+            source = f'PRAGMA incremental_vacuum({int(draft.get("pages", 0))})'
+        elif operation == 'optimize':
+            source = 'PRAGMA optimize'
+        elif operation in {'analyze', 'reindex'}:
+            source = operation.upper()
+            target = draft.get('target')
+            if target:
+                source += ' ' + self._qualified(tuple(target.split('.')))
+        elif operation == 'wal_checkpoint':
+            source = (
+                'PRAGMA wal_checkpoint('
+                f'{draft.get("mode", "PASSIVE")})'
+            )
+        else:
+            raise RelationalClientError(
+                'SQLite database operation has no native compiler'
+            )
+        return {
+            'operation_id': operation,
+            'statements': [{'source': source}],
+        }
+
+    def _compile_duckdb_database_operation(self, request):
+        operation = request['operation_id']
+        draft = request.get('draft', {})
+        if operation in {'checkpoint', 'force_checkpoint'}:
+            database = request['target_resource'].get('display_name')
+            source = (
+                'FORCE CHECKPOINT' if operation == 'force_checkpoint'
+                else 'CHECKPOINT'
+            ) + ' ' + self._quote(database)
+        elif operation == 'vacuum':
+            source = 'VACUUM'
+        elif operation == 'analyze':
+            source = 'ANALYZE'
+        elif operation in {'export_database', 'import_database'}:
+            directory = self._duckdb_operation_directory(
+                request['_provider_route'], draft.get('directory'),
+                importing=operation == 'import_database',
+            )
+            if operation == 'export_database':
+                source = (
+                    f'EXPORT DATABASE {self._literal(directory)} '
+                    f'(FORMAT {draft.get("format", "PARQUET")})'
+                )
+            else:
+                source = f'IMPORT DATABASE {self._literal(directory)}'
+        else:
+            raise RelationalClientError(
+                'DuckDB database operation has no native compiler'
+            )
+        warnings = []
+        if operation == 'import_database':
+            warnings.append(
+                'DuckDB IMPORT DATABASE loads objects into the active '
+                'database; it does not replace the database file.'
+            )
+        return {
+            'operation_id': operation,
+            'statements': [{'source': source}],
+            'warnings': warnings,
+        }
+
+    @staticmethod
+    def _validate_firebird_service(operation, draft):
+        errors = []
+
+        def path(field_id):
+            value = draft.get(field_id)
+            if value is None:
+                return
+            if not isinstance(value, str) or not value.strip() or any(
+                character in value for character in ('\x00', '\r', '\n')
+            ):
+                errors.append({
+                    'field_id': field_id,
+                    'code': 'invalid_firebird_server_path',
+                    'message': (
+                        'Firebird service file paths must be non-empty '
+                        'server-side paths without control characters.'
+                    ),
+                })
+
+        if operation in {'backup_logical', 'backup_physical'}:
+            path('backup_file')
+        if operation in {'restore_logical', 'restore_physical'}:
+            path('restore_database')
+        if operation == 'restore_logical':
+            path('backup_file')
+        if operation == 'restore_physical':
+            backups = draft.get('backup_files')
+            if not isinstance(backups, list) or not backups or any(
+                not isinstance(item, str) or not item.strip() or any(
+                    character in item for character in ('\x00', '\r', '\n')
+                ) for item in backups
+            ):
+                errors.append({
+                    'field_id': 'backup_files',
+                    'code': 'invalid_firebird_backup_files',
+                    'message': (
+                        'Physical restore requires one or more exact '
+                        'server-side backup file paths.'
+                    ),
+                })
+        for field_id, minimum, maximum in (
+            ('parallel_workers', 1, 128),
+            ('backup_level', 0, 255),
+            ('lock_timeout', -1, 86400),
+            ('shutdown_timeout', 0, 86400),
+            ('page_buffers', 0, 2147483647),
+            ('sweep_interval', 0, 2147483647),
+            ('verbose_interval', 1, 2147483647),
+        ):
+            value = draft.get(field_id)
+            if value is not None and (
+                isinstance(value, bool) or not isinstance(value, int) or
+                value < minimum or value > maximum
+            ):
+                errors.append({
+                    'field_id': field_id,
+                    'code': 'invalid_firebird_numeric_option',
+                    'message': f'{field_id} is outside its Firebird range.',
+                })
+        page_size = draft.get('page_size')
+        if page_size is not None and page_size not in {
+            '4096', '8192', '16384', '32768'
+        }:
+            errors.append({
+                'field_id': 'page_size',
+                'code': 'invalid_firebird_page_size',
+                'message': 'The restored Firebird page size is invalid.',
+            })
+        statistics = draft.get('statistics')
+        if statistics not in {None, ''} and (
+            not isinstance(statistics, str) or
+            re.fullmatch(r'[TDWR]{1,4}', statistics.upper()) is None or
+            len(set(statistics.upper())) != len(statistics)
+        ):
+            errors.append({
+                'field_id': 'statistics',
+                'code': 'invalid_firebird_statistics',
+                'message': (
+                    'Firebird service statistics may contain each of '
+                    'T, D, W, and R at most once.'
+                ),
+            })
+        if draft.get('skip_data') and draft.get('include_data'):
+            errors.append({
+                'field_id': 'include_data',
+                'code': 'conflicting_firebird_data_filters',
+                'message': (
+                    'Firebird backup include-data and skip-data filters '
+                    'cannot be used together.'
+                ),
+            })
+        for field_id in (
+            'additional_backup_files', 'additional_database_files',
+        ):
+            values = draft.get(field_id)
+            if values is not None and (
+                not isinstance(values, list) or any(
+                    not isinstance(item, str) or not item.strip() or any(
+                        character in item
+                        for character in ('\x00', '\r', '\n')
+                    )
+                    for item in values
+                )
+            ):
+                errors.append({
+                    'field_id': field_id,
+                    'code': 'invalid_firebird_server_paths',
+                    'message': (
+                        'Firebird service file lists must contain only '
+                        'non-empty server-side paths.'
+                    ),
+                })
+        database_pages = draft.get('database_file_pages')
+        additional_databases = draft.get('additional_database_files')
+        if database_pages is not None and (
+            not isinstance(database_pages, list) or any(
+                isinstance(item, bool) or not isinstance(item, int) or
+                item < 0 or item > 2147483647
+                for item in database_pages
+            )
+        ):
+            errors.append({
+                'field_id': 'database_file_pages',
+                'code': 'invalid_firebird_database_file_pages',
+                'message': (
+                    'Firebird database file page allocations must be '
+                    'non-negative integers.'
+                ),
+            })
+        elif isinstance(additional_databases, list) and len(
+                database_pages or []) != len(additional_databases):
+            errors.append({
+                'field_id': 'database_file_pages',
+                'code': 'invalid_firebird_database_file_page_count',
+                'message': (
+                    'Supply one page allocation for each additional '
+                    'Firebird database file.'
+                ),
+            })
+        flag_fields = {
+            'backup_logical': ('backup_flags', {
+                'IGNORE_CHECKSUMS', 'IGNORE_LIMBO', 'METADATA_ONLY',
+                'NO_GARBAGE_COLLECT', 'OLD_DESCRIPTIONS',
+                'NON_TRANSPORTABLE', 'CONVERT', 'EXPAND', 'NO_TRIGGERS',
+                'ZIP', 'DIRECT_IO',
+            }),
+            'restore_logical': ('restore_flags', {
+                'METADATA_ONLY', 'DEACTIVATE_IDX', 'NO_SHADOW',
+                'NO_VALIDITY', 'ONE_AT_A_TIME', 'USE_ALL_SPACE',
+                'NO_TRIGGERS', 'DIRECT_IO',
+            }),
+            'backup_physical': ('backup_flags', {
+                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+            }),
+            'restore_physical': ('restore_flags', {
+                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+            }),
+            'database_statistics': ('statistics_flags', {
+                'DATA_PAGES', 'DB_LOG', 'HDR_PAGES', 'IDX_PAGES',
+                'SYS_RELATIONS', 'RECORD_VERSIONS', 'NOCREATION',
+                'ENCRYPTION',
+            }),
+            'fixup_database': ('fixup_flags', {
+                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+            }),
+        }
+        flag_field = flag_fields.get(operation)
+        if flag_field:
+            values = draft.get(flag_field[0], [])
+            if not isinstance(values, list) or any(
+                    not isinstance(item, str) or item not in flag_field[1]
+                    for item in values):
+                errors.append({
+                    'field_id': flag_field[0],
+                    'code': 'invalid_firebird_service_flags',
+                    'message': 'The Firebird service flags are invalid.',
+                })
+        enum_fields = {
+            'set_space_reservation': (
+                'mode', {'USE_FULL', 'RESERVE'},
+            ),
+            'set_write_mode': ('mode', {'ASYNC', 'SYNC'}),
+            'set_access_mode': ('mode', {'READ_ONLY', 'READ_WRITE'}),
+            'set_replica_mode': (
+                'mode', {'NONE', 'READ_ONLY', 'READ_WRITE'},
+            ),
+            'repair_database': (
+                'repair_action', {
+                    'VALIDATE_DB', 'CORRUPTION_CHECK', 'REPAIR',
+                    'KILL_SHADOWS', 'ICU', 'UPGRADE_DB',
+                },
+            ),
+            'shutdown_database': (
+                'mode', {'MULTI', 'SINGLE', 'FULL'},
+            ),
+            'bring_online': ('mode', {'NORMAL', 'MULTI', 'SINGLE'}),
+        }
+        enum_field = enum_fields.get(operation)
+        if enum_field and draft.get(enum_field[0]) not in enum_field[1]:
+            errors.append({
+                'field_id': enum_field[0],
+                'code': 'invalid_firebird_service_option',
+                'message': 'The Firebird service option is invalid.',
+            })
+        if operation == 'shutdown_database' and draft.get('method') not in {
+                'FORCED', 'DENY_ATTACHMENTS', 'DENY_TRANSACTIONS'}:
+            errors.append({
+                'field_id': 'method',
+                'code': 'invalid_firebird_shutdown_method',
+                'message': 'The Firebird shutdown method is invalid.',
+            })
+        if operation == 'set_sql_dialect' and draft.get(
+                'sql_dialect') not in {'1', '3'}:
+            errors.append({
+                'field_id': 'sql_dialect',
+                'code': 'invalid_firebird_sql_dialect',
+                'message': 'Firebird database SQL dialect must be 1 or 3.',
+            })
+        if operation == 'restore_logical' and draft.get(
+                'replica_mode') not in {
+                    None, '', 'NONE', 'READ_ONLY', 'READ_WRITE'}:
+            errors.append({
+                'field_id': 'replica_mode',
+                'code': 'invalid_firebird_replica_mode',
+                'message': 'The Firebird replica mode is invalid.',
+            })
+        return errors
 
     def _compile_database_create(self, request):
         name = request['draft'].get('name')
@@ -594,6 +3495,30 @@ class RelationalAdministration:
         return {
             'driver_operation': driver_operation,
             'database': database,
+            'endpoint_database': (
+                database if mode == 'embedded-file' else database_path
+            ),
+            'create_options': (
+                {
+                    'page_size': int(request['draft'].get(
+                        'page_size', '8192'
+                    )),
+                    'default_charset': request['draft'].get(
+                        'default_charset', 'UTF8'
+                    ),
+                    'sql_dialect': int(request['draft'].get(
+                        'sql_dialect', '3'
+                    )),
+                    'forced_writes': request['draft'].get(
+                        'forced_writes', True
+                    ),
+                    'reserve_space': request['draft'].get(
+                        'reserve_space', True
+                    ),
+                } if mode == 'firebird-driver' else {
+                    **copy.deepcopy(request['draft'].get('options', {})),
+                }
+            ),
             'statements': [],
             'warnings': [
                 'Database creation uses the endpoint-approved creation root.'
@@ -606,6 +3531,28 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(draft))
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
+            if kind == 'database' and self.dialect.engine_id in {
+                    'mysql', 'mariadb'}:
+                database_keys = (
+                    ('if_not_exists', 'character_set', 'collation',
+                     'encryption')
+                    if self.dialect.engine_id == 'mysql' else
+                    ('or_replace', 'if_not_exists', 'character_set',
+                     'collation', 'comment')
+                )
+                for key in database_keys:
+                    if key in value:
+                        options[key] = value.pop(key)
+            if kind == 'database' and self.dialect.engine_id == 'sqlite':
+                for key in (
+                    'page_size', 'encoding', 'auto_vacuum',
+                    'application_id', 'user_version',
+                ):
+                    if key in value:
+                        options[key] = value.pop(key)
+            if kind == 'database' and self.dialect.engine_id == 'duckdb':
+                if 'config' in value:
+                    options['config'] = value.pop('config')
             for key in (
                 'parent', 'table', 'columns', 'constraints', 'unique',
                 'start', 'increment', 'minimum', 'maximum', 'cycle',
@@ -620,7 +3567,14 @@ class RelationalAdministration:
                 'expression', 'table_macro', 'secret_type', 'scope',
                 'storage', 'persistent', 'module', 'library', 'database',
                 'with_data', 'replica_placement', 'schema', 'version',
-                'cascade',
+                'cascade', 'admin', 'admin_kind', 'authentication_mode',
+                'authentication_string', 'additional_authentication',
+                'tls_requirement', 'tls_cipher', 'x509_issuer',
+                'x509_subject', 'max_queries_per_hour',
+                'max_updates_per_hour', 'max_connections_per_hour',
+                'max_user_connections', 'max_statement_time',
+                'account_lock', 'password_expiration',
+                'password_expiration_days',
             ):
                 if key in value:
                     options[key] = value.pop(key)
@@ -641,18 +3595,58 @@ class RelationalAdministration:
                         'add_columns', 'drop_columns', 'rename_columns'
                     ) if key in value
                 }
-            elif kind == 'database' and self.dialect.sql_family == 'mysql':
-                value['changes'] = {
-                    key: value.pop(key)
-                    for key in ('character_set', 'collation')
-                    if key in value and value[key] not in {None, ''}
-                }
-            elif kind == 'user':
+            elif kind == 'database' and self.dialect.engine_id == 'firebird':
                 value['changes'] = {
                     key: value.pop(key)
                     for key in (
-                        'password', 'plugin', 'administrator', 'active'
+                        'default_charset', 'linger_seconds', 'drop_linger',
+                        'default_sql_security',
                     ) if key in value and value[key] not in {None, ''}
+                }
+            elif kind == 'database' and self.dialect.engine_id == 'sqlite':
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in (
+                        'journal_mode', 'synchronous', 'auto_vacuum',
+                        'page_size', 'application_id', 'user_version',
+                        'run_vacuum',
+                    ) if key in value and value[key] not in {None, ''}
+                }
+            elif kind == 'database' and self.dialect.sql_family == 'mysql':
+                database_keys = (
+                    ('character_set', 'collation', 'encryption', 'read_only')
+                    if self.dialect.engine_id == 'mysql' else
+                    ('character_set', 'collation', 'comment')
+                )
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in database_keys
+                    if key in value and (
+                        value[key] is not None and
+                        (key == 'comment' or value[key] != '')
+                    )
+                }
+            elif kind == 'user':
+                user_keys = (
+                    'password', 'plugin', 'administrator', 'active'
+                )
+                if self.dialect.engine_id == 'mariadb':
+                    user_keys = (
+                        'authentication_mode', 'password', 'plugin',
+                        'authentication_string', 'additional_authentication',
+                        'tls_requirement', 'tls_cipher', 'x509_issuer',
+                        'x509_subject', 'max_queries_per_hour',
+                        'max_updates_per_hour',
+                        'max_connections_per_hour',
+                        'max_user_connections', 'max_statement_time',
+                        'account_lock', 'password_expiration',
+                        'password_expiration_days',
+                    )
+                value['changes'] = {
+                    key: value.pop(key)
+                    for key in user_keys
+                    if key in value and value[key] is not None and
+                    value[key] != ''
                 }
             elif kind == 'role' and self.dialect.engine_id == 'firebird':
                 value['changes'] = {
@@ -703,6 +3697,7 @@ class RelationalAdministration:
                 value['changes'] = {'value': value.pop('value')}
             elif kind in {
                 'trigger', 'procedure', 'function', 'package', 'view',
+                'materialized-view',
             }:
                 value['changes'] = {
                     key: value.pop(key)
@@ -732,6 +3727,114 @@ class RelationalAdministration:
         title = operation.replace('_', ' ').title()
         if operation == 'inspect':
             return {'form_id': f'{kind}.inspect', 'title': title, 'fields': []}
+        if self.dialect.engine_id == 'mariadb' and (
+                kind == 'replication-channel'):
+            if operation in {'create', 'alter'}:
+                fields = self._mariadb_replication_change_fields(
+                    creating=operation == 'create'
+                )
+            elif operation == 'start':
+                fields = [
+                    self._field(
+                        'thread', 'Replication thread', 'select', False,
+                        default='ALL', options=('ALL', 'IO_THREAD',
+                                                'SQL_THREAD'),
+                    ),
+                    self._field(
+                        'until_mode', 'Stop condition', 'select', False,
+                        default='NONE', options=(
+                            'NONE', 'MASTER_POSITION', 'RELAY_POSITION',
+                            'MASTER_GTID_POS', 'SQL_AFTER_GTIDS',
+                            'SQL_BEFORE_GTIDS',
+                        ),
+                    ),
+                    self._field('until_log_file', 'Log file', 'text'),
+                    self._field('until_log_position', 'Log position',
+                                'number'),
+                    self._field('until_gtid', 'GTID position', 'text'),
+                ]
+            elif operation == 'stop':
+                fields = [self._field(
+                    'thread', 'Replication thread', 'select', False,
+                    default='ALL', options=('ALL', 'IO_THREAD', 'SQL_THREAD'),
+                )]
+            elif operation == 'reset':
+                fields = [
+                    self._field(
+                        'delete_connection',
+                        'Delete the channel connection definition',
+                        'boolean', default=True,
+                    ),
+                    self._field('confirmation', 'Confirmation', 'text', True),
+                ]
+            else:
+                return self._existing_operation_form(kind, operation)
+            return {
+                'form_id': f'mariadb.replication-channel.{operation}',
+                'title': f'{title} MariaDB replication channel',
+                'fields': fields,
+            }
+        if self.dialect.engine_id == 'mariadb' and kind == 'role' and (
+                operation in {'grant', 'revoke', 'set_default'}):
+            fields = [
+                self._field('member', 'User or role receiving the role',
+                            'text', True),
+                self._field('member_kind', 'Member type', 'select', True,
+                            default='USER', options=('USER', 'ROLE')),
+            ]
+            if operation == 'grant':
+                fields.append(self._field(
+                    'admin_option', 'Allow the member to grant this role',
+                    'boolean', default=False,
+                ))
+            elif operation == 'revoke':
+                fields.extend((
+                    self._field(
+                        'admin_option_only', 'Revoke only the admin option',
+                        'boolean', default=False,
+                    ),
+                    self._field('confirmation', 'Confirmation', 'text', True),
+                ))
+            return {
+                'form_id': f'mariadb.role.{operation}',
+                'title': {
+                    'grant': 'Grant MariaDB role membership',
+                    'revoke': 'Revoke MariaDB role membership',
+                    'set_default': 'Set default MariaDB role',
+                }[operation],
+                'fields': fields,
+            }
+        if self.dialect.engine_id == 'mariadb' and kind == 'privilege' and (
+                operation in {'grant', 'revoke'}):
+            fields = [
+                self._field('principal', 'User or role', 'text', True),
+                self._field('principal_kind', 'Principal type', 'select', True,
+                            default='USER', options=('USER', 'ROLE')),
+                self._field(
+                    'object_type', 'Privilege scope', 'select', True,
+                    options=('GLOBAL', 'DATABASE', 'TABLE', 'FUNCTION',
+                             'PROCEDURE', 'SEQUENCE'),
+                ),
+                self._field(
+                    'object_name', 'Native object name', 'text', True,
+                    'Use * for global scope, a database name for database '
+                    'scope, or a qualified database.object name.',
+                ),
+                self._field('privileges', 'MariaDB privileges', 'json', True),
+            ]
+            if operation == 'grant':
+                fields.append(self._field(
+                    'grant_option', 'With grant option', 'boolean', False,
+                    default=False,
+                ))
+            else:
+                fields.append(self._field(
+                    'confirmation', 'Confirmation', 'text', True
+                ))
+            return {
+                'form_id': f'mariadb.privilege.{operation}',
+                'title': f'{title} MariaDB privileges', 'fields': fields,
+            }
         if kind == 'privilege' and operation in {'grant', 'revoke'}:
             object_types = (
                 ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'SEQUENCE',
@@ -773,7 +3876,8 @@ class RelationalAdministration:
         if operation == 'create':
             fields = [self._field('name', 'Name', 'text', True)]
             if kind in {
-                'table', 'view', 'index', 'sequence', 'domain', 'column',
+                'table', 'view', 'materialized-view', 'index', 'sequence',
+                'domain', 'column',
                 'constraint', 'trigger', 'procedure', 'function', 'package',
                 'event', 'materialization',
             }:
@@ -785,6 +3889,17 @@ class RelationalAdministration:
                 fields.append(self._field(
                     'system_privileges', 'System privileges', 'json', False,
                     'Array of Firebird system privilege names.', [],
+                ))
+            elif kind == 'role' and self.dialect.engine_id == 'mariadb':
+                fields.extend((
+                    self._field(
+                        'admin', 'Role administrator', 'text', False,
+                        'Optional MariaDB user or role named by WITH ADMIN.',
+                    ),
+                    self._field(
+                        'admin_kind', 'Administrator type', 'select', False,
+                        default='USER', options=('USER', 'ROLE'),
+                    ),
                 ))
             elif kind == 'role' and self.dialect.engine_id in {
                 'mysql', 'dolt',
@@ -807,10 +3922,14 @@ class RelationalAdministration:
                         'constraints.', [],
                     ),
                 ))
-            elif kind == 'view':
+            elif kind in {'view', 'materialized-view'}:
                 fields.append(self._field(
-                    'query', 'View query', 'code', True,
-                    'One SELECT or WITH query; do not include CREATE VIEW.',
+                    'query', (
+                        'Materialized view query'
+                        if kind == 'materialized-view' else 'View query'
+                    ), 'code', True,
+                    'One SELECT or WITH query; do not include the CREATE '
+                    'command.',
                 ))
             elif kind == 'index':
                 fields.extend((
@@ -1018,6 +4137,8 @@ class RelationalAdministration:
                                 options=('fts5', 'rtree')),
                     self._field('columns', 'Module columns', 'json', True),
                 ))
+            elif kind == 'user' and self.dialect.engine_id == 'mariadb':
+                fields.extend(self._mariadb_user_fields(creating=True))
             elif kind == 'user':
                 user_fields = [
                     self._field('host', 'Host', 'text', False,
@@ -1080,6 +4201,12 @@ class RelationalAdministration:
                 ],
             }
         if operation == 'alter' and kind == 'user':
+            if self.dialect.engine_id == 'mariadb':
+                return {
+                    'form_id': 'mariadb.user.alter',
+                    'title': 'Alter MariaDB user',
+                    'fields': self._mariadb_user_fields(creating=False),
+                }
             fields = [
                 self._field(
                     'password', 'New password', 'password', False,
@@ -1266,7 +4393,7 @@ class RelationalAdministration:
                     self._field('body', 'Package body', 'code', True),
                 ],
             }
-        if operation == 'alter' and kind == 'view':
+        if operation == 'alter' and kind in {'view', 'materialized-view'}:
             return {
                 'form_id': f'{kind}.alter', 'title': f'Alter {kind}',
                 'fields': [self._field(
@@ -1282,6 +4409,153 @@ class RelationalAdministration:
                 )],
             }
         return self._existing_operation_form(kind, operation)
+
+    def _mariadb_user_fields(self, creating):
+        """Return MariaDB 12.2 account clauses as explicit form fields."""
+        fields = []
+        if creating:
+            fields.append(self._field(
+                'host', 'Host match', 'text', False, default='%',
+            ))
+        fields.extend((
+            self._field(
+                'authentication_mode', 'Primary authentication', 'select',
+                creating, default=('PASSWORD' if creating else 'UNCHANGED'),
+                options=(
+                    ('PASSWORD', 'PLUGIN_PASSWORD', 'PLUGIN_STRING',
+                     'PLUGIN_ONLY', 'NONE') if creating else
+                    ('UNCHANGED', 'PASSWORD', 'PLUGIN_PASSWORD',
+                     'PLUGIN_STRING', 'PLUGIN_ONLY')
+                ),
+            ),
+            self._field(
+                'password', 'Password', 'password', False,
+                'Used by IDENTIFIED BY or by an authentication plugin '
+                'through USING PASSWORD(...).', sensitive=True,
+            ),
+            self._field(
+                'plugin', 'Authentication plugin', 'text', False,
+                'MariaDB plugin identifier used by IDENTIFIED VIA.',
+            ),
+            self._field(
+                'authentication_string', 'Plugin authentication string',
+                'password', False,
+                'Opaque MariaDB plugin authentication string used by USING.',
+                sensitive=True,
+            ),
+            self._field(
+                'additional_authentication',
+                'Additional authentication methods', 'json', False,
+                'Ordered OR-authentication methods. Each item declares a '
+                'plugin and optionally password or authentication_string.',
+                [], sensitive=True,
+            ),
+            self._field(
+                'tls_requirement', 'TLS requirement', 'select', False,
+                default='UNCHANGED' if not creating else 'NONE',
+                options=(
+                    ('NONE', 'SSL', 'X509', 'SPECIFIED') if creating else
+                    ('UNCHANGED', 'NONE', 'SSL', 'X509', 'SPECIFIED')
+                ),
+            ),
+            self._field('tls_cipher', 'Required TLS cipher', 'text'),
+            self._field('x509_issuer', 'Required X.509 issuer', 'text'),
+            self._field('x509_subject', 'Required X.509 subject', 'text'),
+            self._field('max_queries_per_hour', 'Queries per hour', 'number'),
+            self._field('max_updates_per_hour', 'Updates per hour', 'number'),
+            self._field(
+                'max_connections_per_hour', 'Connections per hour', 'number'
+            ),
+            self._field(
+                'max_user_connections', 'Concurrent user connections',
+                'number',
+            ),
+            self._field(
+                'max_statement_time', 'Maximum statement time (seconds)',
+                'number',
+            ),
+            self._field(
+                'account_lock', 'Account lock state', 'select', False,
+                default='UNCHANGED' if not creating else 'UNLOCK',
+                options=(
+                    ('LOCK', 'UNLOCK') if creating else
+                    ('UNCHANGED', 'LOCK', 'UNLOCK')
+                ),
+            ),
+            self._field(
+                'password_expiration', 'Password expiration', 'select',
+                False, default='UNCHANGED' if not creating else 'DEFAULT',
+                options=(
+                    ('DEFAULT', 'NEVER', 'NOW', 'INTERVAL') if creating else
+                    ('UNCHANGED', 'DEFAULT', 'NEVER', 'NOW', 'INTERVAL')
+                ),
+            ),
+            self._field(
+                'password_expiration_days', 'Password lifetime (days)',
+                'number',
+            ),
+        ))
+        return fields
+
+    def _mariadb_replication_change_fields(self, creating):
+        fields = []
+        if creating:
+            fields.append(self._field(
+                'name', 'Connection name', 'text', True,
+                'MariaDB named replication connection.',
+            ))
+        fields.extend((
+            self._field('master_host', 'Primary host', 'text', creating),
+            self._field('master_user', 'Replication user', 'text', creating),
+            self._field(
+                'master_password', 'Replication password', 'password', False,
+                sensitive=True,
+            ),
+            self._field('master_port', 'Primary port', 'number'),
+            self._field('connect_retry', 'Connect retry (seconds)', 'number'),
+            self._field('retry_count', 'Connection retry count', 'number'),
+            self._field('replication_delay', 'SQL delay (seconds)', 'number'),
+            self._field(
+                'use_gtid', 'GTID positioning', 'select', False,
+                default='UNCHANGED', options=(
+                    'UNCHANGED', 'CURRENT_POS', 'SLAVE_POS', 'NO',
+                ),
+            ),
+            self._field('master_log_file', 'Primary binary log file', 'text'),
+            self._field('master_log_position', 'Primary log position',
+                        'number'),
+            self._field('relay_log_file', 'Relay log file', 'text'),
+            self._field('relay_log_position', 'Relay log position', 'number'),
+            self._field(
+                'master_ssl', 'Use TLS for replication', 'select', False,
+                default='UNCHANGED', options=('UNCHANGED', 'ON', 'OFF'),
+            ),
+            self._field('ssl_ca', 'TLS CA file', 'text'),
+            self._field('ssl_ca_path', 'TLS CA directory', 'text'),
+            self._field('ssl_certificate', 'TLS client certificate', 'text'),
+            self._field('ssl_key', 'TLS client key', 'text'),
+            self._field('ssl_cipher', 'TLS cipher', 'text'),
+            self._field('ssl_crl', 'TLS certificate revocation list', 'text'),
+            self._field('ssl_crl_path', 'TLS CRL directory', 'text'),
+            self._field(
+                'verify_server_certificate', 'Verify server certificate',
+                'select', False, default='UNCHANGED',
+                options=('UNCHANGED', 'ON', 'OFF'),
+            ),
+            self._field('heartbeat_period', 'Heartbeat period', 'number'),
+            self._field('ignore_server_ids', 'Ignored server IDs', 'json',
+                        False, default=[]),
+            self._field('do_domain_ids', 'Included GTID domain IDs', 'json',
+                        False, default=[]),
+            self._field('ignore_domain_ids', 'Ignored GTID domain IDs',
+                        'json', False, default=[]),
+            self._field(
+                'demote_to_slave', 'Demote current primary to replica',
+                'select', False, default='UNCHANGED',
+                options=('UNCHANGED', 'ON', 'OFF'),
+            ),
+        ))
+        return fields
 
     @staticmethod
     def _field(field_id, label, control, required=False, help_text='',
@@ -1362,9 +4636,13 @@ class RelationalAdministration:
             for constraint in options.get('constraints', []):
                 definitions.append(self._constraint_definition(constraint))
             source = f'CREATE TABLE {qualified} ({", ".join(definitions)})'
-        elif kind == 'view':
+        elif kind in {'view', 'materialized-view'}:
             query = self._query_body(draft.get('definition'))
-            source = f'CREATE VIEW {qualified} AS {query}'
+            command = (
+                'CREATE MATERIALIZED VIEW'
+                if kind == 'materialized-view' else 'CREATE VIEW'
+            )
+            source = f'{command} {qualified} AS {query}'
         elif kind == 'index':
             table = self._option_path(options, 'table')
             columns = self._identifier_list(options.get('columns'))
@@ -1452,6 +4730,13 @@ class RelationalAdministration:
                 else self._account(name)
             )
             source = f'CREATE ROLE {role}'
+            if self.dialect.engine_id == 'mariadb' and options.get('admin'):
+                administrator = (
+                    self._quote(options['admin'])
+                    if options.get('admin_kind') == 'ROLE'
+                    else self._account(options['admin'])
+                )
+                source += f' WITH ADMIN {administrator}'
             privileges = options.get('system_privileges')
             if privileges:
                 source += ' SET SYSTEM PRIVILEGES TO ' + (
@@ -1478,6 +4763,34 @@ class RelationalAdministration:
                         'parameters': (),
                     },
                 ]
+        elif kind == 'database' and self.dialect.engine_id in {
+                'mysql', 'mariadb'}:
+            prefix = 'CREATE DATABASE'
+            if (
+                self.dialect.engine_id == 'mariadb' and
+                options.get('or_replace')
+            ):
+                prefix = 'CREATE OR REPLACE DATABASE'
+            if options.get('if_not_exists'):
+                prefix += ' IF NOT EXISTS'
+            source = f'{prefix} {qualified}'
+            if options.get('character_set'):
+                source += ' DEFAULT CHARACTER SET ' + self._quote(
+                    options['character_set']
+                )
+            if options.get('collation'):
+                source += ' DEFAULT COLLATE ' + self._quote(
+                    options['collation']
+                )
+            if options.get('encryption'):
+                source += ' DEFAULT ENCRYPTION ' + self._literal(
+                    options['encryption']
+                )
+            if (
+                self.dialect.engine_id == 'mariadb' and
+                options.get('comment') is not None
+            ):
+                source += ' COMMENT = ' + self._literal(options['comment'])
         elif kind in {'database', 'schema'}:
             keyword = self._keyword(kind)
             source = f'CREATE {keyword} {qualified}'
@@ -1637,6 +4950,63 @@ class RelationalAdministration:
         changes = draft.get('changes')
         if not isinstance(changes, Mapping):
             raise RelationalClientError('alter changes must be an object')
+        if kind == 'database' and self.dialect.engine_id == 'sqlite':
+            statements = []
+            enums = {
+                'journal_mode': {
+                    'DELETE', 'TRUNCATE', 'PERSIST', 'MEMORY', 'WAL', 'OFF',
+                },
+                'synchronous': {'OFF', 'NORMAL', 'FULL', 'EXTRA'},
+                'auto_vacuum': {'NONE', 'FULL', 'INCREMENTAL'},
+            }
+            for setting in ('journal_mode', 'synchronous', 'auto_vacuum'):
+                value = changes.get(setting)
+                if value in {None, ''}:
+                    continue
+                if value not in enums[setting]:
+                    raise RelationalClientError(
+                        f'SQLite {setting.replace("_", " ")} is invalid'
+                    )
+                statements.append({
+                    'source': f'PRAGMA {setting} = {value}',
+                    'parameters': (),
+                })
+            page_size = changes.get('page_size')
+            if page_size not in {None, ''}:
+                allowed_page_sizes = {
+                    '512', '1024', '2048', '4096', '8192', '16384',
+                    '32768', '65536',
+                }
+                if isinstance(page_size, bool) or str(page_size) not in (
+                        allowed_page_sizes):
+                    raise RelationalClientError(
+                        'SQLite page size is invalid'
+                    )
+                page_size = int(page_size)
+                statements.append({
+                    'source': f'PRAGMA page_size = {page_size}',
+                    'parameters': (),
+                })
+            for setting in ('application_id', 'user_version'):
+                value = changes.get(setting)
+                if value in {None, ''}:
+                    continue
+                value = self._integer(value, setting)
+                if not -2147483648 <= value <= 2147483647:
+                    raise RelationalClientError(
+                        f'SQLite {setting.replace("_", " ")} is invalid'
+                    )
+                statements.append({
+                    'source': f'PRAGMA {setting} = {value}',
+                    'parameters': (),
+                })
+            if changes.get('run_vacuum') is True:
+                statements.append({'source': 'VACUUM', 'parameters': ()})
+            if not statements:
+                raise RelationalClientError(
+                    'SQLite database configuration has no changes'
+                )
+            return statements
         if kind == 'user':
             user_changes = dict(changes)
             administrator = user_changes.pop('administrator', None)
@@ -1688,12 +5058,61 @@ class RelationalAdministration:
                         changes['collation']
                     )
                 )
+            if changes.get('encryption'):
+                clauses.append(
+                    'DEFAULT ENCRYPTION ' + self._literal(
+                        changes['encryption']
+                    )
+                )
+            if changes.get('read_only'):
+                clauses.append(
+                    'READ ONLY = ' + (
+                        '1' if changes['read_only'] == 'ON' else '0'
+                    )
+                )
+            if (
+                self.dialect.engine_id == 'mariadb' and
+                changes.get('comment') is not None
+            ):
+                clauses.append(
+                    'COMMENT = ' + self._literal(changes['comment'])
+                )
             if not clauses:
                 raise RelationalClientError(
                     'database alteration has no structured changes'
                 )
             return [{
                 'source': f'ALTER DATABASE {target} {" ".join(clauses)}',
+                'parameters': (),
+            }]
+        if kind == 'database' and self.dialect.engine_id == 'firebird':
+            clauses = []
+            if changes.get('default_charset'):
+                clauses.append(
+                    'SET DEFAULT CHARACTER SET ' +
+                    self._quote(changes['default_charset'])
+                )
+            if changes.get('drop_linger'):
+                clauses.append('DROP LINGER')
+            elif changes.get('linger_seconds') is not None:
+                clauses.append(
+                    'SET LINGER TO ' + str(self._integer(
+                        changes['linger_seconds'], 'linger_seconds'
+                    ))
+                )
+            if changes.get('default_sql_security'):
+                security = changes['default_sql_security']
+                if security not in {'DEFINER', 'INVOKER'}:
+                    raise RelationalClientError(
+                        'Firebird SQL security mode is invalid'
+                    )
+                clauses.append(f'SET DEFAULT SQL SECURITY {security}')
+            if not clauses:
+                raise RelationalClientError(
+                    'Firebird database alteration has no structured changes'
+                )
+            return [{
+                'source': 'ALTER DATABASE ' + ' '.join(clauses),
                 'parameters': (),
             }]
         if kind == 'role' and self.dialect.engine_id == 'firebird':
@@ -1887,9 +5306,12 @@ class RelationalAdministration:
                     'parameters': (),
                 },
             ]
-        if kind == 'view':
+        if kind in {'view', 'materialized-view'}:
             query = self._query_body(draft.get('definition'))
-            command = 'ALTER VIEW'
+            command = (
+                'ALTER MATERIALIZED VIEW'
+                if kind == 'materialized-view' else 'ALTER VIEW'
+            )
             if (
                 self.dialect.sql_family == 'postgresql' or
                 self.dialect.engine_id in {'dolt', 'tidb'}
@@ -2160,6 +5582,12 @@ class RelationalAdministration:
             path = self._target_path(request['target_resource'])
             target = self._qualified((*path[:-2], path[-1]))
             return {'source': f'DROP TRIGGER {target}', 'parameters': ()}
+        if kind == 'materialized-view' and (
+                self.dialect.engine_id == 'mysql'):
+            target = self._qualified(
+                self._target_path(request['target_resource'])
+            )
+            return {'source': f'DROP VIEW {target}', 'parameters': ()}
         if kind == 'trigger' and self.dialect.sql_family == 'postgresql':
             path = self._target_path(request['target_resource'])
             trigger = self._quote(path[-1])
@@ -2285,10 +5713,19 @@ class RelationalAdministration:
         )
         preposition = 'TO' if operation == 'GRANT' else 'FROM'
         if self.dialect.sql_family == 'mysql':
-            principal = self._account(draft['principal'])
+            principal = (
+                self._quote(draft['principal'])
+                if self.dialect.engine_id == 'mariadb' and
+                draft.get('principal_kind') == 'ROLE'
+                else self._account(draft['principal'])
+            )
             object_prefix = ''
-            if target_kind == 'DATABASE':
+            if target_kind == 'GLOBAL':
+                target_name = '*.*'
+            elif target_kind == 'DATABASE':
                 target_name = self._quote(draft.get('object_name')) + '.*'
+            elif target_kind in {'FUNCTION', 'PROCEDURE'}:
+                object_prefix = f'{target_kind} '
         else:
             object_prefix = f'{target_kind} '
         suffix = (
@@ -2302,6 +5739,161 @@ class RelationalAdministration:
             ),
             'parameters': (),
         }
+
+    def _compile_mariadb_role(self, request):
+        operation = request['operation_id']
+        draft = request['draft']
+        target = request.get('target_resource') or {}
+        role = self._quote(target.get('display_name'))
+        member = (
+            self._quote(draft['member'])
+            if draft.get('member_kind') == 'ROLE'
+            else self._account(draft['member'])
+        )
+        if operation == 'grant':
+            suffix = ' WITH ADMIN OPTION' if draft.get(
+                'admin_option') else ''
+            source = f'GRANT {role} TO {member}{suffix}'
+        elif operation == 'revoke':
+            prefix = 'ADMIN OPTION FOR ' if draft.get(
+                'admin_option_only') else ''
+            source = f'REVOKE {prefix}{role} FROM {member}'
+        elif operation == 'set_default':
+            source = f'SET DEFAULT ROLE {role} FOR {member}'
+        else:
+            raise RelationalClientError(
+                'MariaDB role operation is unavailable'
+            )
+        return {'source': source, 'parameters': ()}
+
+    def _compile_mariadb_replication(self, request):
+        operation = request['operation_id']
+        draft = request.get('draft', {})
+        target = request.get('target_resource') or {}
+        name = (
+            draft.get('name') if operation == 'create'
+            else target.get('display_name')
+        )
+        connection_name = self._literal(self._identifier(name))
+        if operation in {'create', 'alter'}:
+            clauses = []
+            previews = []
+
+            def add(keyword, value, formatter):
+                if value is None or value == '' or value == 'UNCHANGED' or (
+                        value == []):
+                    return
+                rendered = formatter(value)
+                clauses.append(f'{keyword}={rendered}')
+                previews.append(f'{keyword}={rendered}')
+
+            for key, keyword in (
+                ('master_host', 'MASTER_HOST'),
+                ('master_user', 'MASTER_USER'),
+                ('master_log_file', 'MASTER_LOG_FILE'),
+                ('relay_log_file', 'RELAY_LOG_FILE'),
+                ('ssl_ca', 'MASTER_SSL_CA'),
+                ('ssl_ca_path', 'MASTER_SSL_CAPATH'),
+                ('ssl_certificate', 'MASTER_SSL_CERT'),
+                ('ssl_key', 'MASTER_SSL_KEY'),
+                ('ssl_cipher', 'MASTER_SSL_CIPHER'),
+                ('ssl_crl', 'MASTER_SSL_CRL'),
+                ('ssl_crl_path', 'MASTER_SSL_CRLPATH'),
+            ):
+                add(keyword, draft.get(key), self._literal)
+            for key, keyword in (
+                ('master_port', 'MASTER_PORT'),
+                ('connect_retry', 'MASTER_CONNECT_RETRY'),
+                ('retry_count', 'MASTER_RETRY_COUNT'),
+                ('replication_delay', 'MASTER_DELAY'),
+                ('master_log_position', 'MASTER_LOG_POS'),
+                ('relay_log_position', 'RELAY_LOG_POS'),
+            ):
+                add(keyword, draft.get(key), lambda value, label=key: str(
+                    self._integer(value, label)
+                ))
+            heartbeat = draft.get('heartbeat_period')
+            if heartbeat not in {None, ''}:
+                if isinstance(heartbeat, bool) or not isinstance(
+                        heartbeat, (int, float)):
+                    raise RelationalClientError(
+                        'MariaDB replication heartbeat is invalid'
+                    )
+                add('MASTER_HEARTBEAT_PERIOD', heartbeat, str)
+            for key, keyword in (
+                ('ignore_server_ids', 'IGNORE_SERVER_IDS'),
+                ('do_domain_ids', 'DO_DOMAIN_IDS'),
+                ('ignore_domain_ids', 'IGNORE_DOMAIN_IDS'),
+            ):
+                add(keyword, draft.get(key), lambda values: '(' + ', '.join(
+                    str(self._integer(value, key)) for value in values
+                ) + ')')
+            for key, keyword in (
+                ('master_ssl', 'MASTER_SSL'),
+                ('verify_server_certificate',
+                 'MASTER_SSL_VERIFY_SERVER_CERT'),
+                ('demote_to_slave', 'MASTER_DEMOTE_TO_SLAVE'),
+            ):
+                add(keyword, draft.get(key), lambda value: (
+                    '1' if value == 'ON' else '0'
+                ))
+            use_gtid = draft.get('use_gtid')
+            if use_gtid not in {None, '', 'UNCHANGED'}:
+                add('MASTER_USE_GTID', use_gtid, str)
+            password = draft.get('master_password')
+            if password not in {None, ''}:
+                clauses.append('MASTER_PASSWORD=' + self._literal(password))
+                previews.append('MASTER_PASSWORD=<redacted>')
+            if not clauses:
+                raise RelationalClientError(
+                    'MariaDB replication change has no clauses'
+                )
+            prefix = f'CHANGE MASTER {connection_name} TO '
+            return {
+                'source': prefix + ', '.join(clauses),
+                'preview_source': prefix + ', '.join(previews),
+                'parameters': (),
+            }
+        if operation in {'start', 'stop'}:
+            source = f'{operation.upper()} SLAVE {connection_name}'
+            thread = draft.get('thread', 'ALL')
+            if thread != 'ALL':
+                source += f' {thread}'
+            if operation == 'start':
+                until = draft.get('until_mode', 'NONE')
+                if until == 'MASTER_POSITION':
+                    source += (
+                        ' UNTIL MASTER_LOG_FILE=' +
+                        self._literal(draft['until_log_file']) +
+                        ', MASTER_LOG_POS=' + str(self._integer(
+                            draft['until_log_position'], 'log position'
+                        ))
+                    )
+                elif until == 'RELAY_POSITION':
+                    source += (
+                        ' UNTIL RELAY_LOG_FILE=' +
+                        self._literal(draft['until_log_file']) +
+                        ', RELAY_LOG_POS=' + str(self._integer(
+                            draft['until_log_position'], 'log position'
+                        ))
+                    )
+                elif until in {
+                        'MASTER_GTID_POS', 'SQL_AFTER_GTIDS',
+                        'SQL_BEFORE_GTIDS'}:
+                    source += (
+                        f' UNTIL {until}=' +
+                        self._literal(draft['until_gtid'])
+                    )
+            return {'source': source, 'parameters': ()}
+        if operation == 'reset':
+            suffix = ' ALL' if draft.get('delete_connection', True) else ''
+            return {
+                'source': f'RESET SLAVE {connection_name}{suffix}',
+                'parameters': (),
+            }
+        raise RelationalClientError(
+            'MariaDB replication operation is unavailable'
+        )
 
     def _compile_execute(self, request):
         kind = request['resource_kind']
@@ -2506,11 +6098,22 @@ class RelationalAdministration:
         )
 
     def _create_user(self, name, options):
+        engine = self.dialect.engine_id
+        family = self.dialect.sql_family
+        if engine == 'mariadb':
+            account = self._account(name, options.get('host', '%'))
+            clauses, previews = self._mariadb_account_clauses(
+                options, creating=True
+            )
+            source = f'CREATE USER {account}'
+            preview = source
+            if clauses:
+                source += ' ' + ' '.join(clauses)
+                preview += ' ' + ' '.join(previews)
+            return source, preview
         password = options.get('password')
         if not isinstance(password, str) or not password:
             raise RelationalClientError('user password is required')
-        engine = self.dialect.engine_id
-        family = self.dialect.sql_family
         if family == 'mysql':
             account = self._account(name, options.get('host', '%'))
             source = (
@@ -2558,6 +6161,18 @@ class RelationalAdministration:
         engine = self.dialect.engine_id
         family = self.dialect.sql_family
         user = self._account(name)
+        if engine == 'mariadb':
+            clauses, previews = self._mariadb_account_clauses(
+                changes, creating=False
+            )
+            if not clauses:
+                raise RelationalClientError(
+                    'MariaDB user alteration has no changes'
+                )
+            return (
+                f'ALTER USER {user} {" ".join(clauses)}',
+                f'ALTER USER {user} {" ".join(previews)}',
+            )
         if family == 'mysql':
             clauses = []
             previews = []
@@ -2628,6 +6243,141 @@ class RelationalAdministration:
                 f'ALTER USER {user} {" ".join(previews)}',
             )
         raise RelationalClientError('user alteration is unavailable')
+
+    def _mariadb_account_clauses(self, options, creating):
+        mode = options.get(
+            'authentication_mode', 'PASSWORD' if creating else 'UNCHANGED'
+        )
+        clauses = []
+        previews = []
+        if mode != 'UNCHANGED':
+            auth, auth_preview = self._mariadb_authentication(options, mode)
+            if auth:
+                clauses.append(auth)
+                previews.append(auth_preview)
+        tls = options.get(
+            'tls_requirement', 'NONE' if creating else 'UNCHANGED'
+        )
+        if tls != 'UNCHANGED':
+            if tls in {'NONE', 'SSL', 'X509'}:
+                tls_clause = f'REQUIRE {tls}'
+            elif tls == 'SPECIFIED':
+                parts = []
+                for key, keyword in (
+                    ('x509_subject', 'SUBJECT'),
+                    ('x509_issuer', 'ISSUER'),
+                    ('tls_cipher', 'CIPHER'),
+                ):
+                    if options.get(key):
+                        parts.append(
+                            f'{keyword} {self._literal(options[key])}'
+                        )
+                tls_clause = 'REQUIRE ' + ' AND '.join(parts)
+            else:
+                raise RelationalClientError(
+                    'MariaDB TLS requirement is invalid'
+                )
+            clauses.append(tls_clause)
+            previews.append(tls_clause)
+        limits = []
+        for key, keyword in (
+            ('max_queries_per_hour', 'MAX_QUERIES_PER_HOUR'),
+            ('max_updates_per_hour', 'MAX_UPDATES_PER_HOUR'),
+            ('max_connections_per_hour', 'MAX_CONNECTIONS_PER_HOUR'),
+            ('max_user_connections', 'MAX_USER_CONNECTIONS'),
+        ):
+            if options.get(key) not in {None, ''}:
+                limits.append(
+                    f'{keyword} {self._integer(options[key], key)}'
+                )
+        if options.get('max_statement_time') not in {None, ''}:
+            value = options['max_statement_time']
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise RelationalClientError(
+                    'MariaDB maximum statement time is invalid'
+                )
+            limits.append(f'MAX_STATEMENT_TIME {value}')
+        if limits:
+            limit_clause = 'WITH ' + ' '.join(limits)
+            clauses.append(limit_clause)
+            previews.append(limit_clause)
+        account_lock = options.get(
+            'account_lock', 'UNLOCK' if creating else 'UNCHANGED'
+        )
+        if account_lock != 'UNCHANGED':
+            clauses.append(f'ACCOUNT {account_lock}')
+            previews.append(f'ACCOUNT {account_lock}')
+        expiration = options.get(
+            'password_expiration', 'DEFAULT' if creating else 'UNCHANGED'
+        )
+        if expiration != 'UNCHANGED':
+            if expiration == 'NOW':
+                expiry = 'PASSWORD EXPIRE'
+            elif expiration in {'DEFAULT', 'NEVER'}:
+                expiry = f'PASSWORD EXPIRE {expiration}'
+            elif expiration == 'INTERVAL':
+                days = self._integer(
+                    options.get('password_expiration_days'),
+                    'password expiration days',
+                )
+                expiry = f'PASSWORD EXPIRE INTERVAL {days} DAY'
+            else:
+                raise RelationalClientError(
+                    'MariaDB password expiration is invalid'
+                )
+            clauses.append(expiry)
+            previews.append(expiry)
+        return clauses, previews
+
+    def _mariadb_authentication(self, options, mode):
+        if mode == 'NONE':
+            primary = ''
+            preview = ''
+        elif mode == 'PASSWORD':
+            password = options.get('password')
+            primary = f'IDENTIFIED BY {self._literal(password)}'
+            preview = 'IDENTIFIED BY <redacted>'
+        else:
+            plugin = self._quote(options.get('plugin'))
+            primary = f'IDENTIFIED VIA {plugin}'
+            preview = primary
+            if mode == 'PLUGIN_PASSWORD':
+                primary += (
+                    ' USING PASSWORD('
+                    f'{self._literal(options.get("password"))})'
+                )
+                preview += ' USING PASSWORD(<redacted>)'
+            elif mode == 'PLUGIN_STRING':
+                primary += ' USING ' + self._literal(
+                    options.get('authentication_string')
+                )
+                preview += ' USING <redacted>'
+            elif mode != 'PLUGIN_ONLY':
+                raise RelationalClientError(
+                    'MariaDB authentication mode is invalid'
+                )
+        additional = options.get('additional_authentication') or []
+        for item in additional:
+            plugin = self._quote(item['plugin'])
+            method = plugin
+            method_preview = plugin
+            if item.get('password') is not None:
+                method += (
+                    ' USING PASSWORD(' + self._literal(item['password']) + ')'
+                )
+                method_preview += ' USING PASSWORD(<redacted>)'
+            elif item.get('authentication_string') is not None:
+                method += ' USING ' + self._literal(
+                    item['authentication_string']
+                )
+                method_preview += ' USING <redacted>'
+            if not primary:
+                primary = f'IDENTIFIED VIA {method}'
+                preview = f'IDENTIFIED VIA {method_preview}'
+            else:
+                primary += f' OR {method}'
+                preview += f' OR {method_preview}'
+        return primary, preview
 
     def _account(self, value, default_host='%'):
         if self.dialect.sql_family != 'mysql':

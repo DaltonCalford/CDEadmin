@@ -835,7 +835,19 @@ class IgniteBackend:
                 operation_id = operation['operation_id']
                 fields = None
                 title = f'{operation_id.title()} {kind}'
-                if kind == 'cache' and operation_id == 'create':
+                if operation_id == 'inspect':
+                    fields = []
+                    title = f'Inspect Apache Ignite {kind}'
+                elif operation_id == 'drop' and kind in {
+                    'cache', 'table', 'view', 'column', 'index',
+                }:
+                    fields = [self._field(
+                        'confirmation',
+                        f'Type the selected Ignite {kind} name to confirm',
+                        required=True,
+                    )]
+                    title = f'Drop Apache Ignite {kind}'
+                elif kind == 'cache' and operation_id == 'create':
                     fields = [
                         self._field('name', 'Name', required=True),
                         {

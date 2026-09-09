@@ -207,7 +207,12 @@ const OVERRIDE_RANGES = Object.freeze({
   accessibility_resize_handle_size: [5, 32],
   accessibility_panel_gap: [0, 32],
   accessibility_tree_row_height: [24, 72],
+  accessibility_tree_indent: [12, 48],
+  accessibility_tree_expander_size: [12, 40],
+  accessibility_tree_guide_width: [1, 4],
   accessibility_grid_row_height: [24, 96],
+  accessibility_grid_header_height: [24, 120],
+  accessibility_grid_cell_padding: [2, 32],
   accessibility_focus_width: [2, 8],
   accessibility_focus_offset: [0, 6],
 });
@@ -412,6 +417,10 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
   const targetSize = boundedOverride(
     preferences, 'accessibility_target_size', profile.targetSize);
   const largeTarget = targetSize >= 44;
+  const treeRowHeight = boundedOverride(
+    preferences, 'accessibility_tree_row_height', profile.treeRowHeight);
+  const gridRowHeight = boundedOverride(
+    preferences, 'accessibility_grid_row_height', profile.gridRowHeight);
 
   return Object.freeze({
     schemaVersion: 1,
@@ -438,10 +447,23 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
       preferences, 'accessibility_panel_gap',
       density === 'compact' ? 4 : largeTarget ? 12 : 8),
     spacingMultiplier: densitySpacing(density),
-    treeRowHeight: boundedOverride(
-      preferences, 'accessibility_tree_row_height', profile.treeRowHeight),
-    gridRowHeight: boundedOverride(
-      preferences, 'accessibility_grid_row_height', profile.gridRowHeight),
+    treeRowHeight,
+    treeIndent: boundedOverride(
+      preferences, 'accessibility_tree_indent',
+      Math.max(16, Math.round(treeRowHeight * 0.6))),
+    treeExpanderSize: boundedOverride(
+      preferences, 'accessibility_tree_expander_size',
+      Math.max(14, Math.min(28, Math.round(treeRowHeight * 0.55)))),
+    treeGuideWidth: boundedOverride(
+      preferences, 'accessibility_tree_guide_width',
+      profile.focusWidth >= 4 ? 2 : 1),
+    gridRowHeight,
+    gridHeaderHeight: boundedOverride(
+      preferences, 'accessibility_grid_header_height',
+      Math.max(gridRowHeight, profile.gridRowHeight + 4)),
+    gridCellPadding: boundedOverride(
+      preferences, 'accessibility_grid_cell_padding',
+      density === 'compact' ? 4 : largeTarget ? 12 : 8),
     focusWidth: boundedOverride(
       preferences, 'accessibility_focus_width', profile.focusWidth),
     focusOffset: boundedOverride(
@@ -579,7 +601,13 @@ export function presentationCssVariables(presentation) {
     '--cde-panel-gap': `${presentation.panelGap}px`,
     '--cde-spacing-multiplier': String(presentation.spacingMultiplier),
     '--cde-tree-row-height': `${presentation.treeRowHeight}px`,
+    '--cde-tree-indent': `${presentation.treeIndent}px`,
+    '--cde-tree-expander-size': `${presentation.treeExpanderSize}px`,
+    '--cde-tree-guide-width': `${presentation.treeGuideWidth}px`,
+    '--cde-tree-guide-color': colors.border,
     '--cde-grid-row-height': `${presentation.gridRowHeight}px`,
+    '--cde-grid-header-height': `${presentation.gridHeaderHeight}px`,
+    '--cde-grid-cell-padding': `${presentation.gridCellPadding}px`,
     '--cde-focus-width': `${presentation.focusWidth}px`,
     '--cde-focus-offset': `${presentation.focusOffset}px`,
     '--cde-radius-control': '4px',

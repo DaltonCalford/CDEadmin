@@ -1210,6 +1210,17 @@ class CassandraClient:
         f = self._field
         if operation == 'inspect':
             return self._form('cassandra-inspect', 'Inspect', [])
+        if operation == 'drop' and kind in {
+            'aggregate', 'column', 'function', 'index', 'keyspace',
+            'materialized-view', 'role', 'table', 'user-defined-type',
+        }:
+            return self._form(
+                f'cassandra-{kind}-drop',
+                f'Drop CQL {kind.replace("-", " ")}', [
+                    f('confirmation', 'Type the selected CQL object name to '
+                      'confirm', required=True),
+                ],
+            )
         if kind == 'keyspace' and operation in {'create', 'alter'}:
             fields = [] if operation == 'alter' else [
                 f('name', 'Keyspace name', required=True)
@@ -1248,6 +1259,36 @@ class CassandraClient:
                 f('changes', 'Column and option changes', 'json', True,
                   default={}),
             ])
+        if kind == 'table' and operation == 'insert':
+            return self._form(
+                'cassandra-table-insert', 'Insert CQL row', [
+                    f('values', 'Column values', 'json', True, default={}),
+                    f('options', 'CQL write options', 'json', False,
+                      default={}),
+                ],
+            )
+        if kind == 'table' and operation == 'update':
+            return self._form(
+                'cassandra-table-update', 'Update CQL row', [
+                    f('selector', 'CDEadmin row identity', 'json', True,
+                      default={}),
+                    f('changes', 'Non-key column changes', 'json', True,
+                      default={}),
+                    f('concurrency_token', 'CDEadmin row concurrency token',
+                      required=False),
+                ],
+            )
+        if kind == 'table' and operation == 'delete':
+            return self._form(
+                'cassandra-table-delete', 'Delete CQL row', [
+                    f('selector', 'CDEadmin row identity', 'json', True,
+                      default={}),
+                    f('concurrency_token', 'CDEadmin row concurrency token',
+                      required=False),
+                    f('confirmation', 'Confirm deletion of this CQL row',
+                      required=True),
+                ],
+            )
         if kind == 'column' and operation in {
             'create', 'alter', 'rename'
         }:

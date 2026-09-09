@@ -85,10 +85,25 @@ def _context(identity):
 def _postgresql_descriptor():
     """Bind PostgreSQL to its audited, preserved native administration UI."""
     descriptor = copy.deepcopy(catalog_for_engine('postgresql'))
+    operation_count = sum(
+        len(resource['operations']) for resource in descriptor['objects']
+    )
     descriptor['administration_surface'] = {
         'surface_id': SURFACE_ID,
         'workflow': 'legacy_preserved',
         'provider_owned': True,
+    }
+    descriptor['graphical_interface'] = {
+        'schema': 'cdeadmin.engine-graphical-interface.v1',
+        'engine_id': 'postgresql',
+        'profile_version': '18.3',
+        'activation_state': 'passed',
+        'native_operation_count': operation_count,
+        'graphical_operation_count': operation_count,
+        'missing_operations': [],
+        'authority': 'preserved-pgadmin-native-surface',
+        'shared_widgets_allowed': True,
+        'shared_engine_semantics_allowed': False,
     }
     descriptor['concept_declarations'] = {
         'relational': concept_declarations(),
@@ -124,6 +139,11 @@ def provider_catalogs():
             'engine_id': descriptor['engine_id'],
             'provider_id': identity['provider_id'],
             'profile_version': identity['profile_version'],
+            'granted_permissions': sorted(
+                permission['permission_id']
+                for permission in manifest.get('permissions', [])
+                if permission.get('granted') is True
+            ),
             'descriptor': descriptor,
         }
     return catalogs
@@ -147,9 +167,76 @@ def audit(catalogs=None):
     declared_count = 0
     declaration_evidence_count = 0
     family_slice_count = 0
+    native_graphical_operation_count = 0
+    graphical_operation_count = 0
+    activation_permission_failure_count = 0
+    provider_identity_failure_count = 0
+    shared_semantics_failure_count = 0
+    support_inference_failure_count = 0
     for profile_id in sorted(catalogs):
         profile = catalogs[profile_id]
-        coverage = profile['descriptor']['concept_coverage']
+        descriptor = profile['descriptor']
+        granted_permissions = frozenset(
+            profile.get('granted_permissions', ())
+        )
+        activation_permission_failures = []
+        for resource in descriptor.get('objects', []):
+            for operation in resource.get('operations', []):
+                missing_permissions = sorted(
+                    set(operation.get('required_permissions') or ()) -
+                    granted_permissions
+                )
+                if not missing_permissions:
+                    continue
+                activation_permission_failure_count += 1
+                failure = {
+                    'resource_kind': resource['resource_kind'],
+                    'operation_id': operation['operation_id'],
+                    'missing_permissions': missing_permissions,
+                }
+                activation_permission_failures.append(failure)
+                failures.append(
+                    f'{profile_id}:operation-permission-unadmitted:'
+                    f'{failure["resource_kind"]}.'
+                    f'{failure["operation_id"]}:'
+                    f'{",".join(missing_permissions)}'
+                )
+        coverage = descriptor['concept_coverage']
+        graphical = descriptor.get('graphical_interface')
+        if not isinstance(graphical, dict):
+            failures.append(f'{profile_id}:graphical-interface-missing')
+            graphical = {
+                'activation_state': 'blocked',
+                'native_operation_count': 0,
+                'graphical_operation_count': 0,
+                'missing_operations': [],
+            }
+        if (
+            descriptor.get('engine_id') != profile['engine_id'] or
+            graphical.get('engine_id') != profile['engine_id']
+        ):
+            provider_identity_failure_count += 1
+            failures.append(f'{profile_id}:provider-engine-identity-mismatch')
+        if graphical.get('shared_engine_semantics_allowed') is not False:
+            shared_semantics_failure_count += 1
+            failures.append(f'{profile_id}:shared-engine-semantics-admitted')
+        if descriptor.get('concept_coverage', {}).get(
+                'support_inferred_from_catalog') is not False:
+            support_inference_failure_count += 1
+            failures.append(f'{profile_id}:catalog-support-inference-admitted')
+        native_graphical_operation_count += graphical[
+            'native_operation_count'
+        ]
+        graphical_operation_count += graphical[
+            'graphical_operation_count'
+        ]
+        if graphical['activation_state'] != 'passed':
+            failures.append(f'{profile_id}:graphical-interface-blocked')
+        for missing in graphical['missing_operations']:
+            failures.append(
+                f'{profile_id}:graphical-form-missing:'
+                f'{missing["resource_kind"]}.{missing["operation_id"]}'
+            )
         profile_rows = []
         family_slice_count += len(coverage['families'])
         for family in coverage['families']:
@@ -183,8 +270,13 @@ def audit(catalogs=None):
             'engine_id': profile['engine_id'],
             'provider_id': profile['provider_id'],
             'profile_version': profile['profile_version'],
+            'granted_permissions': sorted(granted_permissions),
+            'activation_permission_failures': (
+                activation_permission_failures
+            ),
             'declaration_ready': coverage['declaration_ready'],
             'activation_ready': coverage['activation_ready'],
+            'graphical_interface': graphical,
             'concepts': profile_rows,
         }
     return {
@@ -206,6 +298,16 @@ def audit(catalogs=None):
         'declared_count': declared_count,
         'undeclared_count': concept_count - declared_count,
         'declaration_evidence_count': declaration_evidence_count,
+        'native_graphical_operation_count': (
+            native_graphical_operation_count
+        ),
+        'graphical_operation_count': graphical_operation_count,
+        'activation_permission_failure_count': (
+            activation_permission_failure_count
+        ),
+        'provider_identity_failure_count': provider_identity_failure_count,
+        'shared_semantics_failure_count': shared_semantics_failure_count,
+        'support_inference_failure_count': support_inference_failure_count,
         'failures': failures,
         'profiles': profiles,
     }

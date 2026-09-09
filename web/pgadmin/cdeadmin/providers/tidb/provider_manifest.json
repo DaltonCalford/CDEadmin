@@ -57,5 +57,5 @@
       {"field_id": "ticdc_password", "secret_kind": "tidb_ticdc_password", "label": "TiCDC password", "group": "TiDB change data capture authentication", "help": "Leased only for a TiCDC provider-tool invocation and never persisted in the endpoint route."}
     ]
   },
-  "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+  "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"}
 }

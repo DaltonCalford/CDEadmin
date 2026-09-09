@@ -24,6 +24,7 @@ import { BROWSER_PANELS } from '../../../browser/static/js/constants';
 import ErrorBoundary from '../helpers/ErrorBoundary';
 import QuickSearch from '../QuickSearch';
 import ProviderWorkspaceContent from './ProviderWorkspaceContent';
+import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
 
 // This functions is used to show the connect server password dialog.
 export function showServerPassword() {
@@ -75,6 +76,10 @@ export function showServerPassword() {
 export function showEndpointVerification(
   title, nodeObj, nodeData, treeNodeInfo, itemNodeData, onSuccess, onFailure,
 ) {
+  const api = getApiInstance();
+  const endpointUrl = nodeObj.generate_url(
+    itemNodeData, 'verify_endpoint', nodeData, true
+  );
   const prompt = {
     prompt_password: true,
     prompt_tunnel_password: false,
@@ -83,39 +88,87 @@ export function showEndpointVerification(
     allow_save_password: current_user.allow_save_password,
     errmsg: null,
   };
-  pgAdmin.Browser.notifier.showModal(title, (onClose) => (
-    <ConnectServerContent
-      closeModal={onClose}
-      data={prompt}
-      onOK={(formData) => {
-        const api = getApiInstance();
-        const endpointUrl = nodeObj.generate_url(
-          itemNodeData, 'verify_endpoint', nodeData, true
-        );
-        api.post(endpointUrl, formData)
-          .then((res) => {
-            onClose();
-            onSuccess?.(res.data, nodeData, treeNodeInfo, itemNodeData);
-          })
-          .catch((error) => onFailure?.(error));
-      }}
-    />
-  ), {id: 'id-verify-endpoint'});
+
+  const submit = (formData, onClose) => api.post(endpointUrl, formData)
+    .then((res) => {
+      onClose?.();
+      onSuccess?.(res.data, nodeData, treeNodeInfo, itemNodeData);
+    });
+  const showSecretPrompt = () => pgAdmin.Browser.notifier.showModal(
+    title, (onClose) => (
+      <ConnectServerContent
+        closeModal={onClose}
+        data={prompt}
+        onOK={(formData) => submit(formData, onClose)
+          .catch((error) => onFailure?.(error))}
+      />
+    ), {id: 'id-verify-endpoint'}
+  );
+  const profile = endpointProfiles.get(nodeData.cde_profile_id);
+  if (profile?.requires_secret === false) {
+    // Passwordless and conditionally-authenticated providers must first be
+    // verified without fabricating a database password. If the retained
+    // route activates an optional secret, the server responds with 401 and
+    // the same provider endpoint can then request it explicitly.
+    submit(new FormData())
+      .catch((error) => {
+        if (error?.response?.status === 401) {
+          showSecretPrompt();
+        } else {
+          onFailure?.(error);
+        }
+      });
+    return;
+  }
+  showSecretPrompt();
 }
 
 export function showProviderWorkspace(
   title, nodeObj, nodeData, itemNodeData, initialTab='resources',
+  initialContext={}, onEndpointRemoved,
 ) {
-  const endpointUrl = nodeObj.generate_url(
+  const generatedUrl = nodeObj.generate_url(
     itemNodeData, 'cde_workspace', nodeData, true
   );
+  const parameters = new URLSearchParams();
+  const databaseTargetId = initialContext.database_target_id || (
+    initialContext.resource_kind &&
+    initialContext.resource_kind !== 'database' ? null :
+      (initialContext.resource_id || null)
+  );
+  if (databaseTargetId) {
+    parameters.set('database_target_id', databaseTargetId);
+    if (initialContext.resource_kind === 'database' &&
+        initialContext.operation_id) {
+      parameters.set('focused_operation_id', initialContext.operation_id);
+    }
+  }
+  const endpointUrl = parameters.size ?
+    `${generatedUrl}${generatedUrl.includes('?') ? '&' : '?'}${parameters}` :
+    generatedUrl;
   pgAdmin.Browser.notifier.showModal(title, (onClose) => (
     <ProviderWorkspaceContent
       closeModal={onClose}
       endpointUrl={endpointUrl}
       initialTab={initialTab}
+      initialContext={initialContext}
+      onEndpointRemoved={onEndpointRemoved}
+      onCredentialRequired={(retry)=>{
+        nodeObj.callbacks.verify_cde_endpoint.call(nodeObj, {
+          item: itemNodeData,
+          onSuccess: retry,
+        });
+      }}
     />
-  ), {id: 'id-provider-workspace', width: 1100, height: 720});
+  ), {
+    id: 'id-provider-workspace',
+    dialogWidth: 1100,
+    dialogHeight: 720,
+    minWidth: 760,
+    minHeight: 480,
+    isResizeable: true,
+    showFullScreen: true,
+  });
 }
 
 function masterPassCallbacks(masterpass_callback_queue) {

@@ -254,6 +254,17 @@ _.extend(pgBrowser.browserTreeState, {
     if (treeHierarchy === null || !pgBrowser.tree.hasParent(item) || !(treeHierarchy.hasOwnProperty(self.parent)))
       return;
 
+    // A retained provider database is local registration metadata, while
+    // its children require a verified native session. Never let stale saved
+    // tree state initiate verification or a workspace request. The user must
+    // explicitly open the database after the owning endpoint is verified.
+    if (data['_type'] === 'cde_database_target') {
+      const serverItem = pgBrowser.tree.parent(item);
+      const serverData = serverItem && pgBrowser.tree.itemData(serverItem);
+      if (serverData?.runtime_verification_state !== 'verified')
+        return;
+    }
+
     // If the server node is open then only we should populate the tree
     if (data['_type'] == self.parent && (pgBrowser.tree.isOpen(item) === false))
       return;

@@ -9,12 +9,14 @@
 import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { PrimaryButton } from './components/Buttons';
 import { PgMenu, PgMenuDivider, PgMenuItem, PgSubMenu } from './components/Menu';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import AccountCircleRoundedIcon from '@mui/icons-material/AccountCircleRounded';
 import { usePgAdmin } from '../../static/js/PgAdminProvider';
 import { useForceUpdate } from './custom_hooks';
+import {Icon, inferActionIconKey} from 'sources/cdeadmin_ui/icons';
 
 
 const StyledBox = styled(Box)(({theme}) => ({
@@ -56,6 +58,18 @@ const StyledBox = styled(Box)(({theme}) => ({
   },
 }));
 
+export function MenuCommandLabel({menuItem}) {
+  const iconKey = menuItem.iconKey || inferActionIconKey(menuItem) ||
+    'command.default';
+  return <span style={{display: 'inline-flex', alignItems: 'center', gap: '0.5rem'}}>
+    <Icon iconKey={iconKey} decorative size="1rem" />
+    <span>{menuItem.label}</span>
+  </span>;
+}
+
+MenuCommandLabel.propTypes = {
+  menuItem: PropTypes.object.isRequired,
+};
 
 
 export default function AppMenuBar() {
@@ -91,7 +105,9 @@ export default function AppMenuBar() {
       checked={menuItem.checked}
       closeOnCheck={true}
       shortcut={menuItem.shortcut}
-    >{menuItem.label}</PgMenuItem>;
+      datalabel={menuItem.label}
+      data-command-id={menuItem.commandId || undefined}
+    ><MenuCommandLabel menuItem={menuItem} /></PgMenuItem>;
   };
 
   const userMenuInfo = pgAdmin.Browser.utils.userMenuInfo;
@@ -100,7 +116,14 @@ export default function AppMenuBar() {
     return menu.getMenuItems()?.map((menuItem, i)=>{
       const submenus = menuItem.getMenuItems();
       if(submenus) {
-        return <PgSubMenu key={menuItem.label} label={menuItem.label}>
+        return <PgSubMenu
+          key={menuItem.label}
+          label={<MenuCommandLabel menuItem={menuItem} />}
+          itemProps={{
+            'data-label': menuItem.label,
+            'data-command-id': menuItem.commandId || undefined,
+          }}
+        >
           {getPgMenu(menuItem)}
         </PgSubMenu>;
       }

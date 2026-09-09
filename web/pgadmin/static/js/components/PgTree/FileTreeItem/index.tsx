@@ -20,6 +20,7 @@ import {
   treeNodeAriaLabel,
 } from 'sources/cdeadmin_ui/navigation/TreeNode';
 import {ObjectIcon} from 'sources/cdeadmin_ui/icons';
+import {TreeBranchGuides} from './TreeBranchGuides';
 interface IItemRendererXProps {
     /**
      * In this implementation, decoration are null when item is `PromptHandle`
@@ -50,7 +51,7 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
   }
 
   // ensure this syncs up with what goes in CSS, (em, px, % etc.) and what ultimately renders on the page
-  public static readonly renderHeight: number = 24;
+  public static readonly renderHeight: number = 28;
   private static readonly itemIdToRefMap: Map<number, HTMLDivElement> = new Map();
   private static readonly refToItemIdMap: Map<number, HTMLDivElement> = new Map();
   private readonly fileTreeEvent: IFileTreeXTriggerEvents;
@@ -91,6 +92,10 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
       item.children?.length ?? 0
     );
     const isSelected = decorations?.classlist?.includes('active') ?? false;
+    const siblings = Array.isArray(item.parent?.children) ?
+      item.parent.children : [];
+    const positionInSet = Math.max(1, siblings.indexOf(item) + 1);
+    const setSize = Math.max(1, siblings.length);
 
     return (
       <DoubleClickHandler onDoubleClick={this.handleDoubleClick} onSingleClick={this.handleClick}>
@@ -99,6 +104,7 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
             renaming: isRenamePrompt,
             prompt: isRenamePrompt || isNewPrompt,
             new: isNewPrompt,
+            disabled: !descriptor.capabilities.enabled,
           }, fileOrDir, decorations ? decorations.classlist : null, `depth-${item.depth}`, extraClasses)}
           data-depth={item.depth}
           onContextMenu={this.handleContextMenu}
@@ -111,18 +117,47 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
           aria-expanded={fileOrDir === 'directory' ? isDirExpanded : undefined}
           aria-selected={isSelected}
           aria-disabled={!descriptor.capabilities.enabled}
+          aria-level={Math.max(1, Number(item.depth ?? 1))}
+          aria-posinset={positionInSet}
+          aria-setsize={setSize}
           data-node-kind={descriptor.kind}
           data-object-type={descriptor.objectType}
           data-provider-id={descriptor.providerId || undefined}
           data-engine-id={descriptor.engineId || undefined}
           // required for rendering context menus when opened through context menu button on keyboard
           ref={this.handleDivRef}
-          draggable={descriptor.capabilities.draggable}>
+          draggable={descriptor.capabilities.enabled &&
+            descriptor.capabilities.draggable}>
+
+          <TreeBranchGuides item={item as FileOrDir} />
 
           {!isNewPrompt && fileOrDir === 'directory' ?
-            <i className={cn('directory-toggle', isDirExpanded ? 'open' : '')} />
-            : null
+            <button
+              type="button"
+              tabIndex={-1}
+              className={cn('directory-toggle', isDirExpanded ? 'open' : '')}
+              onClick={this.handleToggleClick}
+              aria-label={`${isDirExpanded ? 'Collapse' : 'Expand'} ${descriptor.label}`}
+              aria-expanded={isDirExpanded}
+              title={`${isDirExpanded ? 'Collapse' : 'Expand'} ${descriptor.label}`}
+            /> : <span className="tree-node-terminal leaf" aria-hidden="true" />
           }
+
+          {descriptor.check.type !== 'none' ? <input
+            className="tree-node-check"
+            type={descriptor.check.type}
+            name={descriptor.check.group || undefined}
+            checked={descriptor.check.checked}
+            disabled={descriptor.check.disabled ||
+              !descriptor.capabilities.enabled}
+            aria-label={descriptor.check.label}
+            aria-checked={descriptor.check.indeterminate ? 'mixed' :
+              descriptor.check.checked}
+            ref={this.handleCheckRef}
+            onClick={this.stopCheckPropagation}
+            onDoubleClick={this.stopCheckPropagation}
+            onChange={this.handleCheckChange}
+          /> : null}
 
           <span className='file-label'>{
             descriptor.iconKey ?
@@ -192,6 +227,67 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
     }
   };
 
+  private readonly handleCheckRef = (control: HTMLInputElement) => {
+    if(control) {
+      const data = this.props.item._metadata.data;
+      control.indeterminate = data.indeterminate === true ||
+        data.check_state === 'mixed' || data.check?.indeterminate === true;
+    }
+  };
+
+  private readonly stopCheckPropagation = (ev: React.SyntheticEvent) => {
+    ev.stopPropagation();
+  };
+
+  private readonly handleCheckChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    ev.stopPropagation();
+    const data = this.props.item._metadata.data;
+    const checked = ev.currentTarget.checked;
+    data.checked = checked;
+    data._checked = checked;
+    data.indeterminate = false;
+    data.check_state = checked ? 'checked' : 'unchecked';
+    if(data.check) {
+      data.check.checked = checked;
+      data.check.indeterminate = false;
+    }
+    if(ev.currentTarget.type === 'radio' && checked) {
+      const group = ev.currentTarget.name;
+      const siblings = Array.isArray(this.props.item.parent?.children) ?
+        this.props.item.parent.children : [];
+      siblings.filter((sibling) => sibling !== this.props.item).forEach(
+        (sibling) => {
+          const siblingData = sibling._metadata?.data;
+          const siblingGroup = siblingData?.check_group ??
+            siblingData?.check?.group ?? '';
+          if(siblingGroup !== group) {
+            return;
+          }
+          siblingData.checked = false;
+          siblingData._checked = false;
+          siblingData.check_state = 'unchecked';
+          if(siblingData.check) {
+            siblingData.check.checked = false;
+          }
+          const siblingRef = FileTreeItem.itemIdToRefMap.get(sibling.id);
+          const siblingControl = siblingRef?.querySelector(
+            'input.tree-node-check[type="radio"]'
+          ) as HTMLInputElement;
+          if(siblingControl) {
+            siblingControl.checked = false;
+          }
+        }
+      );
+    }
+    this.props.events.dispatch(
+      FileTreeXEvent.onTreeEvents,
+      ev.nativeEvent,
+      checked ? 'checked' : 'unchecked',
+      this.props.item
+    );
+    this.forceUpdate();
+  };
+
   private readonly handleContextMenu = (ev: React.MouseEvent) => {
     const { item, itemType, onContextMenu } = this.props;
     if (itemType === ItemType.File || itemType === ItemType.Directory) {
@@ -204,6 +300,16 @@ export class FileTreeItem extends React.Component<IItemRendererXProps & IItemRen
     if (itemType === ItemType.File || itemType === ItemType.Directory) {
       onClick(ev, item as FileEntry, itemType);
     }
+  };
+
+  private readonly handleToggleClick = (ev: React.MouseEvent) => {
+    // The expander is a real one-action control.  Do not pass it through the
+    // delayed row single/double-click discriminator: doing so can leave a
+    // restored provider node visually open while its lazy children were
+    // never requested.
+    ev.preventDefault();
+    ev.stopPropagation();
+    this.handleClick(ev);
   };
 
   private readonly handleDoubleClick = (ev: React.MouseEvent) => {

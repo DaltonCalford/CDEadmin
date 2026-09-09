@@ -61,7 +61,9 @@ export class ManageTreeNodes {
     _data.type = _data.inode ? FileType.Directory : FileType.File;
     _data._label = _data.label;
 
-    _data.info_label = pgAdmin.Browser.Nodes[_data._type]?.getNodeInfoLabel(_data);
+    _data.info_label = pgAdmin.Browser.Nodes[
+      _data._type
+    ]?.getNodeInfoLabel?.(_data);
 
     _data.label = _.escape(_data.label);
 
@@ -83,11 +85,11 @@ export class ManageTreeNodes {
     const api = getApiInstance();
 
     if (node && node.children.length > 0) {
-      if (node.type !== FileType.File) {
+      if (node.type === FileType.File) {
         console.error(node, 'It\'s a leaf node');
         return [];
       }
-      else if (node.children.length != 0) {
+      else {
         return node.children;
       }
     }
@@ -97,23 +99,34 @@ export class ManageTreeNodes {
     if (_path == '/browser') {
       url = url_for('browser.nodes');
     } else {
-      const _parent_url = self.generate_url(_path);
-      if (node.metadata.data._pid == null ) {
-        url = node.metadata.data._type + '/children/' + node.metadata.data._id;
-      }
-      else if (node.metadata.data._type.includes('coll-')) {
-        const _type = node.metadata.data._type.replace('coll-', '');
-        url = _type + '/nodes/' + _parent_url + '/';
-      }
-      else {
-        url = node.metadata.data._type + '/children/' + _parent_url + '/' + node.metadata.data._id;
-      }
+      const childrenUrl = node.metadata.data.children_url;
+      if (typeof childrenUrl === 'string' && childrenUrl.length > 0) {
+        url = childrenUrl;
+      } else {
+        const _parent_url = self.generate_url(_path);
+        if (node.metadata.data._pid == null ) {
+          url = node.metadata.data._type + '/children/' + node.metadata.data._id;
+        }
+        else if (node.metadata.data._type.includes('coll-')) {
+          const _type = node.metadata.data._type.replace('coll-', '');
+          url = _type + '/nodes/' + _parent_url + '/';
+        }
+        else {
+          url = node.metadata.data._type + '/children/' + _parent_url + '/' + node.metadata.data._id;
+        }
 
-      url = base_url + url;
+        url = base_url + url;
+      }
 
       temp_tree_path = node.path;
 
-      if (node.metadata.data._type == 'server' && !node.metadata.data.connected) {
+      // Provider endpoints own a useful local registration hierarchy even
+      // while their remote runtime is offline or awaiting verification.
+      // Loading the server reveals configured databases; opening a database
+      // still follows the provider verification gate.
+      const providerHierarchy = node.metadata.data.cde_endpoint === true;
+      if (node.metadata.data._type == 'server' &&
+          !node.metadata.data.connected && !providerHierarchy) {
         url = null;
       }
     }

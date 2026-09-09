@@ -14,6 +14,10 @@ import _ from 'lodash';
 import getApiInstance, { parseApiError } from '../../../../../static/js/api_instance';
 import { AllPermissionTypes } from '../../../../static/js/constants';
 import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
+import {
+  beforeOpenProviderDatabase, providerEndpointSessionReady,
+} from
+  'sources/cdeadmin_ui/navigation/providerDatabaseTree';
 
 define('pgadmin.node.server', [
   'sources/gettext', 'sources/url_for',
@@ -42,8 +46,7 @@ define('pgadmin.node.server', [
       hasCollectiveStatistics: true,
       can_expand: function(d) {
         return (d?.connected && !d?.cde_endpoint) ||
-          (d?.cde_endpoint &&
-            d?.runtime_verification_state === 'verified');
+          d?.cde_endpoint === true;
       },
       title: function(d, action) {
         if(action == 'create') {
@@ -277,6 +280,7 @@ define('pgadmin.node.server', [
               selected.cde_profile_id)?.engine_id;
           }
           if (engineId === 'opensearch_sql_ppl') engineId = 'opensearch';
+          const registrationContext = args?.registrationContext || {};
           const profiles = endpointProfiles.interfaces(engineId);
           if (!profiles.length) return false;
           while (item && tree.itemData(item)?._type !== 'server_group') {
@@ -284,22 +288,36 @@ define('pgadmin.node.server', [
           }
           if (!item) return false;
           const profile = profiles.find((candidate) =>
-            candidate.profile_id === selected.cde_profile_id) || profiles[0];
+            candidate.profile_id === registrationContext.profile_id) ||
+            profiles.find((candidate) =>
+              candidate.profile_id === selected.cde_profile_id) || profiles[0];
+          const registrationIntent =
+            registrationContext.registration_intent || 'endpoint';
+          const intentTitles = {
+            create_database: gettext('Create %s database',
+              profile.engine_display_name || profile.display_name),
+            register_existing: gettext('Register existing %s database',
+              profile.engine_display_name || profile.display_name),
+            endpoint: gettext('Register %s server / instance',
+              profile.engine_display_name || profile.display_name),
+          };
           const initialData = {
             name: gettext('%s on localhost',
               profile.engine_display_name || profile.display_name),
             cde_profile_id: profile.profile_id,
-            host: profile.route_kind === 'network' ? 'localhost' : '',
+            cde_registration_intent: registrationIntent,
+            host: profile.route_kind === 'network' ?
+              (registrationContext.host || 'localhost') : '',
             port: profile.default_port,
-            db: profile.database_targeting?.mode === 'optional' ? null : '',
+            db: '',
             connect_now: profile.workflow !== 'provider_endpoint',
             cde_verify_now: profile.workflow === 'provider_endpoint',
           };
           pgAdmin.Browser.Node.callbacks.show_obj_properties.call(
             this, {
               action: 'create', item, initialData,
-              panelTitle: gettext('Register %s server / instance',
-                profile.engine_display_name || profile.display_name),
+              panelTitle: intentTitles[registrationIntent] ||
+                intentTitles.endpoint,
             }
           );
           return false;
@@ -316,20 +334,62 @@ define('pgadmin.node.server', [
         open_cde_semantic_studio: function(args) {
           return this.open_cde_workspace(args, 'semantic');
         },
-        open_cde_workspace: function(args, initialTab) {
+        open_cde_workspace: function(args, initialTab, initialContext={}) {
           const tree = pgBrowser.tree;
           const item = args?.item || tree.selected();
           const data = item ? tree.itemData(item) : undefined;
-          const providerReady = data?.cde_endpoint &&
-            data?.runtime_verification_state === 'verified';
+          const providerReady = providerEndpointSessionReady(data);
           const postgresReady = initialTab === 'semantic' &&
             !data?.cde_endpoint && data?.connected;
           if (!providerReady && !postgresReady) {
+            if(data?.cde_endpoint) {
+              this.callbacks.verify_cde_endpoint.call(this, {
+                item,
+                onSuccess: ()=>this.callbacks.open_cde_workspace.call(
+                  this, {item}, initialTab, initialContext
+                ),
+              });
+            }
             return false;
           }
+          let title = gettext('CDEadmin - %s', data.label || data._label);
+          if(initialContext.task_title) {
+            title = gettext('%s — %s', initialContext.task_title,
+              data.label || data._label);
+          }
+          if (initialTab === 'connections' &&
+              initialContext.database_mode) {
+            const profile = endpointProfiles.get(data.cde_profile_id);
+            const engineName = profile?.engine_display_name ||
+              profile?.display_name || data.cde_engine_id;
+            const noun = profile?.form_contract?.database?.noun ||
+              gettext('database');
+            const actionTitles = {
+              attach: gettext('Register existing'),
+              define: gettext('Register existing'),
+              connect: gettext('Connect to'),
+              create: gettext('Create'),
+              edit: gettext('Edit'),
+              alter: gettext('Alter'),
+              drop: gettext('Drop'),
+              remove: gettext('Remove registration for'),
+            };
+            title = gettext('%s %s %s — %s',
+              actionTitles[initialContext.database_mode] || gettext('Manage'),
+              engineName, noun, data.label || data._label);
+          }
+          if (initialTab === 'connections' && initialContext.server_mode) {
+            const profile = endpointProfiles.get(data.cde_profile_id);
+            const engineName = profile?.engine_display_name ||
+              profile?.display_name || data.cde_engine_id;
+            const serverAction = initialContext.server_mode === 'remove' ?
+              gettext('Remove') : gettext('Edit');
+            title = gettext('%s %s endpoint — %s', serverAction, engineName,
+              data.label || data._label);
+          }
           showProviderWorkspace(
-            gettext('CDEadmin - %s', data.label || data._label),
-            this, data, item, initialTab
+            title, this, data, item, initialTab, initialContext,
+            () => pgBrowser.removeTreeNode(item, true)
           );
           return false;
         },
@@ -348,9 +408,21 @@ define('pgadmin.node.server', [
               data.runtime_verification_state =
                 response.data.runtime_verification_state;
               data.is_password_saved = response.data.is_password_saved;
+              data.cde_session_authenticated = true;
               pgAdmin.Browser.notifier.success(response.info);
-              tree.deselect(item);
-              tree.select(item);
+              if (!input.openOnSuccessItem && !input.onSuccess) {
+                this.callbacks.refresh.call(this, null, item);
+              }
+              if (typeof input.onSuccess === 'function') {
+                input.onSuccess(response);
+              }
+              if (input.openOnSuccess) {
+                setTimeout(() => {
+                  const target = input.openOnSuccessItem || item;
+                  tree.select(target);
+                  tree.open(target);
+                }, 100);
+              }
             },
             (error) => pgAdmin.Browser.notifier.pgRespErrorNotify(error),
           );
@@ -417,6 +489,12 @@ define('pgadmin.node.server', [
           }
 
           pgBrowser.tree.addIcon(item, {icon: data.icon});
+          if (data.cde_endpoint) {
+            // The server branch is locally registered metadata and remains
+            // browsable while its runtime is offline. Verification is
+            // deferred until a database/resource workspace is opened.
+            return true;
+          }
           if (!data.connected) {
             connect_to_server(this, data, pgBrowser.tree, item, false);
 
@@ -587,10 +665,7 @@ define('pgadmin.node.server', [
                   if (res.success == 1) {
                     pgAdmin.Browser.notifier.success(res.info);
                     t.itemData(i).is_password_saved=res.data.is_password_saved;
-                    t.deselect(i);
-                    setTimeout(function() {
-                      t.select(i);
-                    });
+                    obj.callbacks.refresh.call(obj, null, i);
                   }
                   else {
                     pgAdmin.Browser.notifier.errorText(res.info);
@@ -650,9 +725,10 @@ define('pgadmin.node.server', [
       },
       getSchema: (treeNodeInfo, itemNodeData, initialData)=>{
         const initialProfile = endpointProfiles.get(
-          initialData?.cde_profile_id
+          initialData?.cde_profile_id || itemNodeData?.cde_profile_id
         );
-        let engineId = initialProfile?.engine_id;
+        let engineId = initialProfile?.engine_id ||
+          itemNodeData?.cde_engine_id;
         if (engineId === 'opensearch_sql_ppl') engineId = 'opensearch';
         return new ServerSchema(
           getNodeListById(pgBrowser.Nodes['server_group'], treeNodeInfo, itemNodeData, {},
@@ -663,7 +739,7 @@ define('pgadmin.node.server', [
             gid: treeNodeInfo['server_group']._id,
             ...(initialData || {}),
           },
-          {engineId}
+          {engineId, profileId: initialProfile?.profile_id}
         );
       },
       connection_lost: function(i, resp) {
@@ -740,7 +816,15 @@ define('pgadmin.node.server', [
     };
 
     let connect_to_server = function(obj, data, tree, item, reconnect) {
-    // Open properties dialog in edit mode
+      // Provider endpoints are verified by their own adapter. They must never
+      // enter the inherited PostgreSQL connection or password-dialog path.
+      if (data?.cde_endpoint) {
+        obj.callbacks.verify_cde_endpoint.call(obj, {
+          item, openOnSuccess: true,
+        });
+        return;
+      }
+      // Open properties dialog in edit mode
       let server_url = obj.generate_url(item, 'obj', data, true);
       // Fetch the updated data
       getApiInstance().get(server_url)
@@ -1041,10 +1125,60 @@ define('pgadmin.node.server', [
 
   if (!pgBrowser.Nodes['cde_resource']) {
     pgBrowser.Nodes['cde_resource'] = pgBrowser.Node.extend({
-      parent_type: 'server',
+      parent_type: ['cde_resource_group', 'cde_database_target'],
       type: 'cde_resource',
       label: gettext('Provider resource'),
-      can_expand: false,
+      hasProperties: false,
+      hasSQL: false,
+      hasStatistics: false,
+      hasDependencies: false,
+      hasDependents: false,
+      can_expand: function(data) {
+        return data?.expandable === true;
+      },
+      Init: function() {
+        this.initialized = true;
+      },
+    });
+  }
+
+  if (!pgBrowser.Nodes['cde_resource_group']) {
+    pgBrowser.Nodes['cde_resource_group'] = pgBrowser.Node.extend({
+      parent_type: [
+        'server', 'cde_database_target', 'cde_resource',
+      ],
+      type: 'cde_resource_group',
+      label: gettext('Provider object group'),
+      hasProperties: false,
+      hasSQL: false,
+      hasStatistics: false,
+      hasDependencies: false,
+      hasDependents: false,
+      can_expand: true,
+      Init: function() {
+        this.initialized = true;
+      },
+    });
+  }
+
+  if (!pgBrowser.Nodes['cde_database_target']) {
+    pgBrowser.Nodes['cde_database_target'] = pgBrowser.Node.extend({
+      parent_type: 'server',
+      type: 'cde_database_target',
+      label: gettext('Provider database'),
+      hasProperties: false,
+      hasSQL: false,
+      hasStatistics: false,
+      hasDependencies: false,
+      hasDependents: false,
+      can_expand: true,
+      callbacks: {
+        beforeopen: function(item) {
+          return beforeOpenProviderDatabase(
+            pgBrowser.tree, pgBrowser.Nodes.server, item
+          );
+        },
+      },
       Init: function() {
         this.initialized = true;
       },

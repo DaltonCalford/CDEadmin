@@ -11,7 +11,7 @@ import diffArray from 'diff-arrays-of-objects';
 import _ from 'lodash';
 
 import gettext from 'sources/gettext';
-import { memoizeFn } from 'sources/utils';
+import { evalFunc, memoizeFn } from 'sources/utils';
 import {
   minMaxValidator, numberValidator, integerValidator, emptyValidator,
   checkUniqueCol, isEmptyString
@@ -296,6 +296,12 @@ export function validateSchema(
   for(const field of schema.fields) {
     // Skip id validation
     if(schema.idAttribute === field.id) {
+      continue;
+    }
+    // A field which is not available for the current form state must not
+    // participate in validation. Provider manifests use conditional required
+    // fields for mutually exclusive authentication methods.
+    if (evalFunc(null, field.visible, sessData) === false) {
       continue;
     }
     // If the field is has nested schema, then validate the child schema.

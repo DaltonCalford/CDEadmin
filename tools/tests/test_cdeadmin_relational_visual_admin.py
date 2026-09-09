@@ -15,6 +15,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -31,15 +32,21 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
     ADMINISTRATION as SQLITE_ADMINISTRATION,
     PROFILE,
+    _drop_database_file,
+    _initialize_database,
     _resources,
     _route_arguments,
+    _sqlite_database_operation,
 )
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     ADMINISTRATION as FIREBIRD_ADMINISTRATION,
 )
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     ADMINISTRATION as DUCKDB_ADMINISTRATION,
+    PROFILE as DUCKDB_PROFILE,
     _create_client as duckdb_client,
+    _drop_database_file as drop_duckdb_database_file,
+    _resources as duckdb_resources,
 )
 from pgadmin.cdeadmin.providers.mysql_family.provider import (  # noqa: E402
     MARIADB_ADMINISTRATION,
@@ -104,10 +111,16 @@ def client_and_admin():
     )
     admin = RelationalAdministration(RelationalAdminDialect(
         engine_id='sqlite', supports_cascade=False,
+        embedded_database=True,
         database_create_mode='embedded-file',
         database_extension='.sqlite',
         supported={
-            'database': frozenset({'inspect', 'create'}),
+            'database': frozenset({
+                'inspect', 'create', 'alter', 'drop', 'backup', 'restore',
+                'integrity_check', 'quick_check', 'foreign_key_check',
+                'vacuum', 'incremental_vacuum', 'optimize', 'analyze',
+                'reindex', 'wal_checkpoint',
+            }),
             'column': frozenset({'inspect', 'create', 'rename', 'drop'}),
             'index': frozenset({'inspect', 'create', 'drop'}),
             'virtual-table': frozenset({
@@ -129,6 +142,9 @@ def client_and_admin():
         connect_arguments=_route_arguments,
         metadata_reader=_resources,
         administration=admin,
+        database_initializer=_initialize_database,
+        database_dropper=_drop_database_file,
+        database_operation_runner=_sqlite_database_operation,
     ), sqlite3)
     return client, admin
 
@@ -148,7 +164,9 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
 
     def test_firebird_database_create_form_requires_server_path(self):
         database = next(
-            item for item in catalog_for_engine('firebird')['objects']
+            item for item in FIREBIRD_ADMINISTRATION.catalog(
+                catalog_for_engine('firebird')
+            )['objects']
             if item['resource_kind'] == 'database'
         )
         create = next(
@@ -157,8 +175,241 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         )
         self.assertEqual('firebird_database_create', create['form_id'])
         self.assertEqual(
-            ['database_path'],
+            [
+                'database_path', 'page_size', 'default_charset',
+                'sql_dialect', 'forced_writes', 'reserve_space',
+            ],
             [field['field_id'] for field in create['form']['fields']],
+        )
+
+    def test_firebird_database_service_tasks_have_distinct_exact_forms(self):
+        database = next(
+            item for item in FIREBIRD_ADMINISTRATION.catalog(
+                catalog_for_engine('firebird')
+            )['objects']
+            if item['resource_kind'] == 'database'
+        )
+        expected = {
+            'backup_logical': 'firebird_backup_logical',
+            'restore_logical': 'firebird_restore_logical',
+            'backup_physical': 'firebird_backup_physical',
+            'restore_physical': 'firebird_restore_physical',
+            'validate_database': 'firebird_validate_database',
+            'repair_database': 'firebird_repair_database',
+            'sweep_database': 'firebird_sweep_database',
+            'database_statistics': 'firebird_database_statistics',
+            'shutdown_database': 'firebird_shutdown_database',
+            'bring_online': 'firebird_bring_online',
+            'set_page_cache_size': 'firebird_set_page_cache_size',
+            'set_sweep_interval': 'firebird_set_sweep_interval',
+            'set_space_reservation': 'firebird_set_space_reservation',
+            'set_write_mode': 'firebird_set_write_mode',
+            'set_access_mode': 'firebird_set_access_mode',
+            'set_sql_dialect': 'firebird_set_sql_dialect',
+            'activate_shadow': 'firebird_activate_shadow',
+            'remove_linger': 'firebird_remove_linger',
+            'fixup_database': 'firebird_fixup_database',
+            'set_replica_mode': 'firebird_set_replica_mode',
+            'upgrade_database': 'firebird_upgrade_database',
+        }
+        operations = {
+            item['operation_id']: item for item in database['operations']
+        }
+        for operation_id, form_id in expected.items():
+            self.assertEqual(form_id, operations[operation_id]['form_id'])
+            self.assertEqual(
+                'server_service', operations[operation_id]['workspace_scope']
+            )
+            self.assertTrue(FIREBIRD_ADMINISTRATION.supports(
+                'database', operation_id
+            ))
+
+    def test_firebird_repair_form_exposes_only_valid_gfix_actions(self):
+        database = next(
+            item for item in FIREBIRD_ADMINISTRATION.catalog(
+                catalog_for_engine('firebird')
+            )['objects']
+            if item['resource_kind'] == 'database'
+        )
+        operation = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'repair_database'
+        )
+        field = operation['form']['fields'][0]
+        self.assertEqual('repair_action', field['field_id'])
+        self.assertEqual('select', field['control'])
+        self.assertEqual({
+            'VALIDATE_DB', 'CORRUPTION_CHECK', 'REPAIR',
+            'KILL_SHADOWS', 'ICU', 'UPGRADE_DB',
+        }, {item['value'] for item in field['options']})
+        invalid = FIREBIRD_ADMINISTRATION.validate({
+            'engine_id': 'firebird', 'resource_kind': 'database',
+            'operation_id': 'repair_database',
+            'draft': {'repair_action': 'CHECK_DB'},
+        })
+        self.assertEqual(
+            'invalid_firebird_service_option',
+            invalid['errors'][0]['code'],
+        )
+
+    def test_firebird_database_alter_has_exact_structured_form_and_sql(self):
+        database = next(
+            item for item in FIREBIRD_ADMINISTRATION.catalog(
+                catalog_for_engine('firebird')
+            )['objects']
+            if item['resource_kind'] == 'database'
+        )
+        alter = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'alter'
+        )
+        self.assertEqual('firebird_database_alter', alter['form_id'])
+        self.assertEqual('engine-profile', alter['form_authority'])
+        self.assertEqual([
+            'default_charset', 'linger_seconds', 'drop_linger',
+            'default_sql_security',
+        ], [field['field_id'] for field in alter['form']['fields']])
+        target = {
+            'resource_id': 'database:inventory.fdb',
+            'resource_kind': 'database',
+            'display_name': 'inventory.fdb',
+            'display_path': ['inventory.fdb'],
+        }
+        plan = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'database',
+            'operation_id': 'alter',
+            'target_resource': target,
+            'draft': {
+                'default_charset': 'UTF8',
+                'linger_seconds': 15,
+                'default_sql_security': 'INVOKER',
+            },
+            '_provider_route': {
+                'host': 'firebird.example', 'port': 3050,
+                'database': '/srv/firebird/inventory.fdb',
+            },
+        })
+        self.assertEqual(
+            'ALTER DATABASE SET DEFAULT CHARACTER SET "UTF8" '
+            'SET LINGER TO 15 SET DEFAULT SQL SECURITY INVOKER',
+            plan['command_preview']['statements'][0]['source'],
+        )
+
+    def test_firebird_database_alter_rejects_conflicting_linger_changes(self):
+        result = FIREBIRD_ADMINISTRATION.validate({
+            'resource_kind': 'database',
+            'operation_id': 'alter',
+            'draft': {'linger_seconds': 10, 'drop_linger': True},
+        })
+        self.assertIn(
+            'conflicting_firebird_linger_change',
+            {item['code'] for item in result['errors']},
+        )
+
+    def test_firebird_generated_sql_tasks_are_exact_contract_obligations(self):
+        tasks = set(FIREBIRD_ADMINISTRATION.dialect_task_ids())
+        self.assertIn('visual_admin.table.create', tasks)
+        self.assertIn('visual_admin.table.update', tasks)
+        self.assertIn('visual_admin.user.alter', tasks)
+        self.assertNotIn('visual_admin.database.backup_logical', tasks)
+        self.assertNotIn('visual_admin.database.set_page_cache_size', tasks)
+        self.assertNotIn('visual_admin.database.upgrade_database', tasks)
+        self.assertNotIn('visual_admin.database.create', tasks)
+        self.assertNotIn('visual_admin.database.drop', tasks)
+
+    def test_firebird_database_drop_uses_native_driver_not_sql(self):
+        route = {
+            'host': 'firebird.example', 'port': 3050,
+            'database': '/srv/firebird/inventory.fdb',
+            'route_id': 'firebird-drop-test',
+        }
+        target = {
+            'resource_id': 'database:inventory.fdb',
+            'resource_kind': 'database',
+            'display_name': 'inventory.fdb',
+            'display_path': ['inventory.fdb'],
+        }
+        plan = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'database',
+            'operation_id': 'drop',
+            'target_resource': target,
+            'draft': {
+                'cascade': False,
+                'confirmation': 'drop-inventory-database',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'firebird-drop-database',
+            plan['command_preview']['driver_operation'],
+        )
+        self.assertEqual([], plan['command_preview']['statements'])
+
+        class DropClient:
+            @staticmethod
+            def drop_database(request, database, operation):
+                return {
+                    'route': request['route']['route_id'],
+                    'operation': operation,
+                    'database': database,
+                }
+
+        result = FIREBIRD_ADMINISTRATION.apply(DropClient(), {
+            'provider_payload': plan['provider_payload'],
+        })
+        self.assertEqual(
+            'firebird-drop-database',
+            result['driver_observation']['operation'],
+        )
+        self.assertEqual(
+            '/srv/firebird/inventory.fdb',
+            result['driver_observation']['database'],
+        )
+
+    def test_firebird_logical_backup_plan_uses_service_runner_not_sql(self):
+        route = {
+            'host': 'firebird.example', 'port': 3050,
+            'database': '/srv/firebird/inventory.fdb',
+            'route_id': 'firebird-service-test',
+        }
+        target = {
+            'resource_id': 'database:inventory.fdb',
+            'resource_kind': 'database',
+            'display_name': 'inventory.fdb',
+            'display_path': ['inventory.fdb'],
+        }
+        plan = FIREBIRD_ADMINISTRATION.plan({
+            'resource_kind': 'database',
+            'operation_id': 'backup_logical',
+            'target_resource': target,
+            'draft': {
+                'backup_file': '/srv/backups/inventory.fbk',
+                'backup_flags': ['ZIP'], 'verbose': True,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'firebird-service',
+            plan['command_preview']['driver_operation'],
+        )
+        self.assertEqual([], plan['command_preview']['statements'])
+
+        class ServiceClient:
+            @staticmethod
+            def run_server_operation(request, operation, database, options):
+                return {
+                    'route': request['route']['route_id'],
+                    'operation': operation, 'database': database,
+                    'backup_file': options['backup_file'],
+                }
+
+        result = FIREBIRD_ADMINISTRATION.apply(ServiceClient(), {
+            'provider_payload': plan['provider_payload'],
+        })
+        observation = result['driver_observation']
+        self.assertEqual('backup_logical', observation['operation'])
+        self.assertEqual(
+            '/srv/firebird/inventory.fdb', observation['database']
         )
 
     def setUp(self):
@@ -184,6 +435,34 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         return self.admin.apply(self.client, {
             'provider_payload': native_plan['provider_payload'],
         })
+
+    def test_view_rows_are_browsable_but_never_given_edit_identities(self):
+        connection = sqlite3.connect(self.route['database'])
+        try:
+            connection.executescript(
+                'CREATE TABLE source_rows(id INTEGER PRIMARY KEY, '
+                'name TEXT NOT NULL);'
+                "INSERT INTO source_rows VALUES (1, 'visible');"
+                'CREATE VIEW visible_rows AS '
+                'SELECT id, name FROM source_rows;'
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        page = self.admin.read_rows(self.client, {
+            '_provider_route': self.route,
+            'target_resource': {
+                'resource_id': 'view:main:visible_rows',
+                'resource_kind': 'view',
+                'display_name': 'visible_rows',
+                'display_path': ['main', 'visible_rows'],
+            },
+            'limit': 50,
+        })
+        self.assertEqual('read-only-view', page['identity_policy'])
+        self.assertFalse(page['editable'])
+        self.assertEqual('visible', page['rows'][0]['values']['name'])
+        self.assertIsNone(page['rows'][0]['identity_token'])
 
     def test_structured_ddl_and_grid_crud_execute_without_raw_commands(self):
         created = self.admin.plan(request(
@@ -314,6 +593,194 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         })
         self.assertEqual([], page['rows'])
 
+    def test_session_bound_grid_mutation_waits_for_provider_commit(self):
+        created = self.admin.plan(request(
+            self.route, 'create', {
+                'name': 'widgets', 'definition': '',
+                'options': {'columns': [
+                    {
+                        'name': 'id', 'type': 'INTEGER',
+                        'nullable': False, 'primary_key': True,
+                    },
+                    {'name': 'name', 'type': 'TEXT', 'nullable': False},
+                ]},
+            },
+        ))
+        self.apply(created)
+        writer = self.client._connect({'route': self.route})
+        observer = sqlite3.connect(self.route['database'])
+        try:
+            inserted = self.admin.plan(request(
+                self.route, 'insert', {
+                    'values': {'id': 1, 'name': 'staged'}, 'options': {},
+                }, self.target,
+            ))
+            result = self.admin.apply(self.client, {
+                'provider_payload': inserted['provider_payload'],
+            }, connection=writer)
+
+            self.assertTrue(result['staged_in_provider_session'])
+            self.assertFalse(result['commit_requested'])
+            self.assertEqual(
+                0,
+                observer.execute(
+                    'SELECT COUNT(*) FROM widgets WHERE id = 1'
+                ).fetchone()[0],
+            )
+            writer.commit()
+            self.assertEqual(
+                1,
+                observer.execute(
+                    'SELECT COUNT(*) FROM widgets WHERE id = 1'
+                ).fetchone()[0],
+            )
+        finally:
+            observer.close()
+            self.client._forget_and_close(writer)
+
+    def test_row_pages_use_opaque_provider_continuations_and_cancel(self):
+        with sqlite3.connect(self.route['database']) as connection:
+            connection.execute(
+                'CREATE TABLE widgets(id INTEGER PRIMARY KEY, name TEXT)'
+            )
+            connection.executemany(
+                'INSERT INTO widgets(id, name) VALUES(?, ?)',
+                ((value, f'row-{value}') for value in range(1, 7)),
+            )
+        request_value = {
+            '_provider_route': self.route,
+            'target_resource': self.target,
+            'limit': 2,
+        }
+        first = self.admin.read_rows(self.client, request_value)
+        self.assertEqual([1, 2], [
+            row['values']['id'] for row in first['rows']
+        ])
+        self.assertFalse(first['complete'])
+        self.assertIsInstance(first['continuation'], str)
+        self.assertEqual(
+            first['continuation'], str(uuid.UUID(first['continuation']))
+        )
+
+        second = self.admin.read_rows(self.client, {
+            **request_value, 'continuation': first['continuation'],
+        })
+        self.assertEqual([3, 4], [
+            row['values']['id'] for row in second['rows']
+        ])
+        self.assertTrue(self.admin.cancel_rows({
+            '_provider_route': self.route,
+            'continuation': second['continuation'],
+        })['cancelled'])
+        with self.assertRaisesRegex(
+                RelationalClientError, 'unavailable or mismatched'):
+            self.admin.read_rows(self.client, {
+                **request_value, 'continuation': second['continuation'],
+            })
+
+    def test_sqlite_database_maintenance_forms_are_provider_specific(self):
+        database = next(
+            item for item in self.admin.catalog(
+                catalog_for_engine('sqlite')
+            )['objects'] if item['resource_kind'] == 'database'
+        )
+        operations = {
+            item['operation_id']: item for item in database['operations']
+        }
+        expected = {
+            'backup', 'restore', 'integrity_check', 'quick_check',
+            'foreign_key_check', 'vacuum', 'incremental_vacuum',
+            'optimize', 'analyze', 'reindex', 'wal_checkpoint',
+        }
+        self.assertTrue(expected.issubset(operations))
+        self.assertEqual(
+            'sqlite_database_backup', operations['backup']['form']['form_id']
+        )
+        self.assertEqual(
+            'sqlite_wal_checkpoint',
+            operations['wal_checkpoint']['form']['form_id'],
+        )
+
+    def test_sqlite_native_backup_restore_and_maintenance_execute(self):
+        with sqlite3.connect(self.route['database']) as connection:
+            connection.execute(
+                'CREATE TABLE restore_probe('
+                'id INTEGER PRIMARY KEY, value TEXT)'
+            )
+            connection.execute(
+                "INSERT INTO restore_probe VALUES(1, 'before-backup')"
+            )
+        target = {
+            'resource_id': 'database:main',
+            'resource_kind': 'database',
+            'display_name': 'main',
+            'display_path': ['main'],
+        }
+
+        def plan(operation, draft=None):
+            request_value = {
+                'resource_kind': 'database',
+                'operation_id': operation,
+                'target_resource': target,
+                'draft': draft or {},
+                '_provider_route': self.route,
+            }
+            self.assertEqual([], self.admin.validate(request_value)['errors'])
+            return self.admin.plan(request_value)
+
+        backup = Path(self.temporary.name) / 'admin-backup.sqlite'
+        backed_up = self.apply(plan('backup', {
+            'backup_path': str(backup), 'overwrite': False,
+        }))
+        self.assertEqual(
+            'sqlite-online-backup',
+            backed_up['driver_observation']['operation'],
+        )
+        with sqlite3.connect(self.route['database']) as connection:
+            connection.execute(
+                "UPDATE restore_probe SET value = 'after-backup' WHERE id = 1"
+            )
+        restored = self.apply(plan('restore', {
+            'backup_path': str(backup),
+            'confirmation': self.route['database'],
+        }))
+        self.assertEqual(
+            'sqlite-online-restore',
+            restored['driver_observation']['operation'],
+        )
+        with sqlite3.connect(self.route['database']) as connection:
+            value = connection.execute(
+                'SELECT value FROM restore_probe WHERE id = 1'
+            ).fetchone()[0]
+        self.assertEqual('before-backup', value)
+
+        native_sources = {
+            'integrity_check': ('PRAGMA integrity_check(10)', {
+                'max_errors': 10,
+            }),
+            'quick_check': ('PRAGMA quick_check(10)', {'max_errors': 10}),
+            'foreign_key_check': ('PRAGMA foreign_key_check', {}),
+            'vacuum': ('VACUUM', {}),
+            'incremental_vacuum': (
+                'PRAGMA incremental_vacuum(0)', {'pages': 0},
+            ),
+            'optimize': ('PRAGMA optimize', {}),
+            'analyze': ('ANALYZE', {}),
+            'reindex': ('REINDEX', {}),
+            'wal_checkpoint': (
+                'PRAGMA wal_checkpoint(PASSIVE)', {'mode': 'PASSIVE'},
+            ),
+        }
+        for operation, (source, draft) in native_sources.items():
+            native_plan = plan(operation, draft)
+            self.assertEqual(
+                source,
+                native_plan['provider_payload']['compiled'][
+                    'statements'
+                ][0]['source'],
+            )
+            self.assertTrue(self.apply(native_plan)['accepted'])
+
     def test_complete_raw_ddl_and_unissued_row_selectors_are_rejected(self):
         validation = self.admin.validate(request(
             self.route, 'create', {
@@ -355,7 +822,11 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertNotIn(self.temporary.name, str(
             created['command_preview']
         ))
-        self.apply(created)
+        result = self.apply(created)
+        self.assertEqual(
+            str(Path(self.temporary.name) / 'created.sqlite'),
+            result['endpoint_database_target']['database'],
+        )
         self.assertTrue(
             (Path(self.temporary.name) / 'created.sqlite').exists()
         )
@@ -370,6 +841,97 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
                 'draft': {'name': '../escape', 'options': {}},
                 '_provider_route': route,
             })
+
+    def test_sqlite_database_file_settings_and_delete_are_provider_owned(
+            self):
+        route = {
+            **self.route,
+            'database_create_root': self.temporary.name,
+        }
+        created = self.admin.plan({
+            'engine_id': 'sqlite',
+            'resource_kind': 'database',
+            'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'configured', 'page_size': '8192',
+                'encoding': 'UTF-8', 'auto_vacuum': 'FULL',
+                'application_id': 1732526414, 'user_version': 7,
+            },
+            '_provider_route': route,
+        })
+        created_result = self.apply(created)
+        database = Path(self.temporary.name) / 'configured.sqlite'
+        self.assertEqual(database, Path(
+            created_result['endpoint_database_target']['database']
+        ))
+        with sqlite3.connect(database) as connection:
+            self.assertEqual(8192, connection.execute(
+                'PRAGMA page_size'
+            ).fetchone()[0])
+            self.assertEqual(1, connection.execute(
+                'PRAGMA auto_vacuum'
+            ).fetchone()[0])
+            self.assertEqual(7, connection.execute(
+                'PRAGMA user_version'
+            ).fetchone()[0])
+
+        target = {
+            'resource_id': 'database-target:configured',
+            'resource_kind': 'database',
+            'display_name': 'configured.sqlite',
+            'display_path': ['configured.sqlite'],
+            'extensions': {'cdeadmin': {
+                'database_target_id': 'configured-target',
+                'native_name': str(database),
+            }},
+        }
+        configured_route = {
+            **route,
+            'database': str(database),
+        }
+        altered = self.admin.plan({
+            'engine_id': 'sqlite',
+            'resource_kind': 'database',
+            'operation_id': 'alter',
+            'target_resource': target,
+            'draft': {
+                'journal_mode': 'DELETE', 'synchronous': 'FULL',
+                'user_version': 8,
+            },
+            '_provider_route': configured_route,
+        })
+        self.assertEqual([
+            'PRAGMA journal_mode = DELETE',
+            'PRAGMA synchronous = FULL',
+            'PRAGMA user_version = 8',
+        ], [item['source'] for item in altered[
+            'provider_payload'
+        ]['compiled']['statements']])
+        self.apply(altered)
+        with sqlite3.connect(database) as connection:
+            self.assertEqual(8, connection.execute(
+                'PRAGMA user_version'
+            ).fetchone()[0])
+
+        dropped = self.admin.plan({
+            'engine_id': 'sqlite',
+            'resource_kind': 'database',
+            'operation_id': 'drop',
+            'target_resource': target,
+            'draft': {'confirmation': str(database)},
+            '_provider_route': configured_route,
+        })
+        self.assertEqual(
+            'embedded-drop-database',
+            dropped['command_preview']['driver_operation'],
+        )
+        dropped_result = self.apply(dropped)
+        self.assertFalse(database.exists())
+        self.assertEqual(
+            'configured-target',
+            dropped_result['dropped_endpoint_database_target']['target_id'],
+        )
 
     def test_user_password_is_redacted_from_validation_and_plan(self):
         context = SimpleNamespace(
@@ -402,6 +964,60 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         plan = visual.plan(value)
         self.assertNotIn(secret, str(plan))
         self.assertIn('<redacted>', str(plan))
+
+    def test_visual_row_plan_is_bound_to_native_provider_session(self):
+        context = SimpleNamespace(
+            endpoint_id='endpoint-test', mode='legacy_native',
+            runtime_verification_state='verified',
+            verified_runtime_family='sqlite',
+            declared_runtime_family='sqlite',
+            effective_permissions=frozenset({
+                'data_read', 'data_write', 'administer', 'filesystem',
+            }),
+        )
+        native_handle = object()
+
+        class SessionClient(AdministrationClient):
+            def __init__(self):
+                super().__init__(SQLITE_ADMINISTRATION)
+                self.received_handle = None
+
+            def apply_admin_operation(self, request):
+                self.received_handle = request.get(
+                    '_provider_session_handle'
+                )
+                return {
+                    'accepted': True,
+                    'staged_in_provider_session': True,
+                }
+
+        client = SessionClient()
+        visual = ProviderVisualAdministration(
+            context, Permissions(), 'sqlite', sqlite3.sqlite_version, client,
+        )
+        value = {
+            'resource_kind': 'table', 'operation_id': 'insert',
+            'target_resource': self.target,
+            'draft': {'values': {'id': 1, 'name': 'staged'}, 'options': {}},
+            'session_id': 'grid-session',
+            '_provider_route': self.route,
+        }
+
+        plan = visual.plan(value)
+        result = visual.apply({
+            'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'],
+            'session_id': 'grid-session',
+        }, {
+            'session_id': 'grid-session',
+            'session_handle': native_handle,
+        })
+
+        self.assertIs(native_handle, client.received_handle)
+        self.assertTrue(
+            result['provider_result']['staged_in_provider_session']
+        )
+        self.assertNotIn('session_handle', str(result))
 
     def test_firebird_user_and_role_plans_use_native_structured_syntax(self):
         route = {
@@ -542,6 +1158,13 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'firebird.example/3060:/srv/firebird/inventory.fdb',
             database['provider_payload']['compiled']['database'],
         )
+        self.assertEqual({
+            'page_size': 8192,
+            'default_charset': 'UTF8',
+            'sql_dialect': 3,
+            'forced_writes': True,
+            'reserve_space': True,
+        }, database['provider_payload']['compiled']['create_options'])
         domain_target = {
             'resource_kind': 'domain', 'display_name': 'D_QUANTITY',
             'display_path': ['D_QUANTITY'],
@@ -777,6 +1400,483 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             role['command_preview']['statements'][0]['source'],
         )
 
+    def test_mariadb_security_forms_and_commands_are_provider_owned(self):
+        route = {'host': 'mariadb.example', 'route_id': 'mariadb-security'}
+        created = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'user', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'analyst', 'host': '10.%',
+                'authentication_mode': 'PLUGIN_PASSWORD',
+                'plugin': 'ed25519', 'password': 'primary-secret',
+                'additional_authentication': [{
+                    'plugin': 'unix_socket',
+                }],
+                'tls_requirement': 'SPECIFIED',
+                'x509_subject': '/CN=analyst',
+                'x509_issuer': '/CN=cdeadmin-ca',
+                'max_queries_per_hour': 120,
+                'max_statement_time': 2.5,
+                'account_lock': 'LOCK',
+                'password_expiration': 'INTERVAL',
+                'password_expiration_days': 30,
+            },
+            '_provider_route': route,
+        })
+        source = created['provider_payload']['compiled']['statements'][0][
+            'source'
+        ]
+        preview = created['command_preview']['statements'][0]['source']
+        self.assertIn(
+            "CREATE USER 'analyst'@'10.%' IDENTIFIED VIA `ed25519` ",
+            source,
+        )
+        self.assertIn('OR `unix_socket`', source)
+        self.assertIn("REQUIRE SUBJECT '/CN=analyst' AND ISSUER ", source)
+        self.assertIn('WITH MAX_QUERIES_PER_HOUR 120 ', source)
+        self.assertIn('MAX_STATEMENT_TIME 2.5', source)
+        self.assertIn('ACCOUNT LOCK PASSWORD EXPIRE INTERVAL 30 DAY', source)
+        self.assertNotIn('primary-secret', preview)
+
+        role_target = {
+            'resource_kind': 'role', 'resource_id': 'role:data_reader',
+            'display_name': 'data_reader', 'display_path': ['data_reader'],
+        }
+        role_commands = {
+            operation: MARIADB_ADMINISTRATION.plan({
+                'resource_kind': 'role', 'operation_id': operation,
+                'target_resource': role_target,
+                'draft': {
+                    'member': 'analyst@10.%', 'member_kind': 'USER',
+                    **({'admin_option': True} if operation == 'grant' else {}),
+                    **({'admin_option_only': True,
+                        'confirmation': 'revoke-role'}
+                       if operation == 'revoke' else {}),
+                },
+                '_provider_route': route,
+            })['command_preview']['statements'][0]['source']
+            for operation in ('grant', 'revoke', 'set_default')
+        }
+        self.assertEqual(
+            "GRANT `data_reader` TO 'analyst'@'10.%' WITH ADMIN OPTION",
+            role_commands['grant'],
+        )
+        self.assertEqual(
+            "REVOKE ADMIN OPTION FOR `data_reader` FROM 'analyst'@'10.%'",
+            role_commands['revoke'],
+        )
+        self.assertEqual(
+            "SET DEFAULT ROLE `data_reader` FOR 'analyst'@'10.%'",
+            role_commands['set_default'],
+        )
+
+        catalog = MARIADB_ADMINISTRATION.catalog(
+            catalog_for_engine('mariadb')
+        )
+        operations = {
+            item['operation_id']: item
+            for descriptor in catalog['objects']
+            if descriptor['resource_kind'] == 'role'
+            for item in descriptor['operations']
+        }
+        self.assertEqual(
+            {'inspect', 'create', 'grant', 'revoke', 'set_default', 'drop'},
+            set(operations),
+        )
+        self.assertEqual(
+            'mariadb.role.set_default',
+            operations['set_default']['form']['form_id'],
+        )
+
+    def test_mariadb_security_validation_rejects_cross_engine_assumptions(
+        self,
+    ):
+        def codes(kind, operation, draft):
+            return {
+                item['code'] for item in MARIADB_ADMINISTRATION.validate({
+                    'resource_kind': kind, 'operation_id': operation,
+                    'target_resource': {
+                        'resource_kind': kind, 'display_name': 'target',
+                        'display_path': ['target'],
+                    },
+                    'draft': draft,
+                    '_provider_route': {
+                        'host': 'mariadb.example',
+                        'route_id': 'mariadb-security-validation',
+                    },
+                })['errors']
+            }
+
+        self.assertIn('mariadb_password_required', codes(
+            'user', 'create', {
+                'name': 'analyst', 'authentication_mode': 'PASSWORD',
+            }
+        ))
+        self.assertIn('mariadb_tls_attribute_required', codes(
+            'user', 'alter', {
+                'authentication_mode': 'UNCHANGED',
+                'tls_requirement': 'SPECIFIED',
+            }
+        ))
+        self.assertIn('invalid_mariadb_privilege_scope', codes(
+            'privilege', 'grant', {
+                'principal': 'analyst@%', 'principal_kind': 'USER',
+                'object_type': 'SCHEMA', 'object_name': 'app',
+                'privileges': ['SELECT'],
+            }
+        ))
+
+    def test_mariadb_named_replication_forms_compile_native_12_2_syntax(self):
+        route = {'host': 'mariadb.example', 'route_id': 'mariadb-replication'}
+        created = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'replication-channel', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'analytics', 'master_host': 'primary.example',
+                'master_user': 'replicator',
+                'master_password': 'replication-secret', 'master_port': 3306,
+                'connect_retry': 5, 'use_gtid': 'SLAVE_POS',
+                'master_ssl': 'ON', 'ssl_ca': '/etc/ssl/ca.pem',
+                'verify_server_certificate': 'ON',
+                'ignore_server_ids': [7, 9],
+                'do_domain_ids': [1], 'ignore_domain_ids': [],
+                'demote_to_slave': 'UNCHANGED',
+            },
+            '_provider_route': route,
+        })
+        source = created['provider_payload']['compiled']['statements'][0][
+            'source'
+        ]
+        preview = created['command_preview']['statements'][0]['source']
+        self.assertTrue(source.startswith("CHANGE MASTER 'analytics' TO "))
+        self.assertIn("MASTER_HOST='primary.example'", source)
+        self.assertIn('MASTER_USE_GTID=SLAVE_POS', source)
+        self.assertIn('IGNORE_SERVER_IDS=(7, 9)', source)
+        self.assertIn('DO_DOMAIN_IDS=(1)', source)
+        self.assertNotIn('replication-secret', preview)
+
+        target = {
+            'resource_kind': 'replication-channel',
+            'resource_id': 'replication-channel:analytics',
+            'display_name': 'analytics', 'display_path': ['analytics'],
+        }
+        commands = {}
+        inspected = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'replication-channel',
+            'operation_id': 'inspect', 'target_resource': target,
+            'draft': {}, '_provider_route': route,
+        })
+        self.assertEqual(
+            'inspect',
+            inspected['provider_payload']['compiled']['internal_operation'],
+        )
+        for operation, draft in (
+            ('alter', {'connect_retry': 10}),
+            ('start', {
+                'thread': 'SQL_THREAD', 'until_mode': 'MASTER_GTID_POS',
+                'until_gtid': '1-2-3',
+            }),
+            ('stop', {'thread': 'IO_THREAD'}),
+            ('reset', {
+                'delete_connection': True, 'confirmation': 'analytics',
+            }),
+        ):
+            commands[operation] = MARIADB_ADMINISTRATION.plan({
+                'resource_kind': 'replication-channel',
+                'operation_id': operation, 'target_resource': target,
+                'draft': draft, '_provider_route': route,
+            })['command_preview']['statements'][0]['source']
+        self.assertEqual(
+            "CHANGE MASTER 'analytics' TO MASTER_CONNECT_RETRY=10",
+            commands['alter'],
+        )
+        self.assertEqual(
+            "START SLAVE 'analytics' SQL_THREAD UNTIL "
+            "MASTER_GTID_POS='1-2-3'", commands['start'],
+        )
+        self.assertEqual("STOP SLAVE 'analytics' IO_THREAD", commands['stop'])
+        self.assertEqual("RESET SLAVE 'analytics' ALL", commands['reset'])
+
+        catalog = MARIADB_ADMINISTRATION.catalog(
+            catalog_for_engine('mariadb')
+        )
+        replication = next(
+            item for item in catalog['objects']
+            if item['resource_kind'] == 'replication-channel'
+        )
+        self.assertEqual(
+            {'inspect', 'create', 'alter', 'start', 'stop', 'reset'},
+            {item['operation_id'] for item in replication['operations']},
+        )
+        operational_kinds = {
+            'session', 'system-variable', 'lock', 'lock-wait',
+            'table-storage', 'binary-log', 'binary-log-status',
+            'binary-log-event', 'log-configuration', 'general-log-entry',
+            'slow-query', 'tls-configuration',
+        }
+        objects = {
+            item['resource_kind']: item for item in catalog['objects']
+        }
+        self.assertTrue(operational_kinds.issubset(objects))
+        expected_operations = {
+            'system-variable': {'inspect', 'set_global'},
+            'session': {
+                'inspect', 'terminate_query', 'terminate_connection',
+            },
+            'binary-log': {'inspect', 'purge_before'},
+            'binary-log-status': {'inspect', 'rotate'},
+        }
+        for kind in operational_kinds:
+            self.assertEqual(
+                expected_operations.get(kind, {'inspect'}),
+                {item['operation_id'] for item in objects[kind]['operations']},
+            )
+
+    def test_mariadb_system_variable_form_is_runtime_global_and_fail_closed(
+        self,
+    ):
+        route = {'host': 'mariadb.example', 'route_id': 'mariadb-variables'}
+        target = {
+            'resource_kind': 'system-variable',
+            'resource_id': 'system-variable:Configuration:MAX_CONNECTIONS',
+            'display_name': 'MAX_CONNECTIONS',
+            'display_path': ['Configuration', 'MAX_CONNECTIONS'],
+            'native': {
+                'read_only': 'NO', 'variable_scope': 'GLOBAL',
+                'variable_type': 'INT UNSIGNED', 'global_value': '151',
+            },
+        }
+        planned = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'system-variable',
+            'operation_id': 'set_global', 'target_resource': target,
+            'draft': {'value_mode': 'VALUE', 'value': '151'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'SET GLOBAL `MAX_CONNECTIONS` = 151',
+            planned['command_preview']['statements'][0]['source'],
+        )
+        defaulted = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'system-variable',
+            'operation_id': 'set_global', 'target_resource': target,
+            'draft': {'value_mode': 'DEFAULT'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'SET GLOBAL `MAX_CONNECTIONS` = DEFAULT',
+            defaulted['command_preview']['statements'][0]['source'],
+        )
+        read_only = {
+            **target, 'display_name': 'PERFORMANCE_SCHEMA',
+            'native': {
+                **target['native'], 'read_only': 'YES',
+            },
+        }
+        errors = MARIADB_ADMINISTRATION.validate({
+            'resource_kind': 'system-variable',
+            'operation_id': 'set_global', 'target_resource': read_only,
+            'draft': {'value_mode': 'VALUE', 'value': 'ON'},
+            '_provider_route': route,
+        })['errors']
+        self.assertIn(
+            'mariadb_system_variable_read_only',
+            {item['code'] for item in errors},
+        )
+
+    def test_mariadb_session_termination_uses_native_process_identity(self):
+        route = {'host': 'mariadb.example', 'route_id': 'mariadb-sessions'}
+        target = {
+            'resource_kind': 'session',
+            'resource_id': 'session:Sessions:812',
+            'display_name': '812', 'display_path': ['Sessions', '812'],
+            'extensions': {'mariadb': {'native': {
+                'id': 812, 'user': 'analyst', 'command': 'Query',
+            }}},
+        }
+        commands = {}
+        for operation, mode in (
+                ('terminate_query', 'SOFT'),
+                ('terminate_connection', 'HARD')):
+            plan = MARIADB_ADMINISTRATION.plan({
+                'resource_kind': 'session', 'operation_id': operation,
+                'target_resource': target,
+                'draft': {
+                    'termination_mode': mode, 'confirmation': '812',
+                },
+                '_provider_route': route,
+            })
+            commands[operation] = plan[
+                'command_preview'
+            ]['statements'][0]['source']
+        self.assertEqual('KILL SOFT QUERY 812', commands['terminate_query'])
+        self.assertEqual(
+            'KILL HARD CONNECTION 812', commands['terminate_connection']
+        )
+        errors = MARIADB_ADMINISTRATION.validate({
+            'resource_kind': 'session',
+            'operation_id': 'terminate_connection',
+            'target_resource': target,
+            'draft': {'termination_mode': 'SOFT', 'confirmation': '811'},
+            '_provider_route': route,
+        })['errors']
+        self.assertIn(
+            'mariadb_process_confirmation_mismatch',
+            {item['code'] for item in errors},
+        )
+
+    def test_mariadb_binary_log_forms_use_native_12_2_commands(self):
+        route = {'host': 'mariadb.example', 'route_id': 'mariadb-binlog'}
+        log = {
+            'resource_kind': 'binary-log',
+            'resource_id': 'binary-log:Binary logs:mariadb-bin.000002',
+            'display_name': 'mariadb-bin.000002',
+            'display_path': ['Binary logs', 'mariadb-bin.000002'],
+        }
+        purged = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'binary-log',
+            'operation_id': 'purge_before', 'target_resource': log,
+            'draft': {'confirmation': 'mariadb-bin.000002'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            "PURGE BINARY LOGS TO 'mariadb-bin.000002'",
+            purged['command_preview']['statements'][0]['source'],
+        )
+        status = {
+            'resource_kind': 'binary-log-status',
+            'resource_id': 'binary-log-status:Binary logs:mariadb-bin.000002',
+            'display_name': 'mariadb-bin.000002',
+            'display_path': ['Binary logs', 'mariadb-bin.000002'],
+        }
+        rotated = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'binary-log-status',
+            'operation_id': 'rotate', 'target_resource': status,
+            'draft': {}, '_provider_route': route,
+        })
+        self.assertEqual(
+            'FLUSH BINARY LOGS',
+            rotated['command_preview']['statements'][0]['source'],
+        )
+        errors = MARIADB_ADMINISTRATION.validate({
+            'resource_kind': 'binary-log',
+            'operation_id': 'purge_before', 'target_resource': log,
+            'draft': {'confirmation': 'mariadb-bin.000001'},
+            '_provider_route': route,
+        })['errors']
+        self.assertIn(
+            'mariadb_binary_log_confirmation_mismatch',
+            {item['code'] for item in errors},
+        )
+
+    def test_mariadb_database_forms_and_plans_are_exact_12_2_2(self):
+        route = {
+            'host': 'mariadb.example', 'route_id': 'mariadb-database-test',
+            'database': 'inventory',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+        created = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'inventory_next', 'or_replace': True,
+                'if_not_exists': False, 'character_set': 'utf8mb4',
+                'collation': 'utf8mb4_uca1400_ai_ci',
+                'comment': "operator's inventory",
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE OR REPLACE DATABASE `inventory_next` DEFAULT CHARACTER '
+            "SET `utf8mb4` DEFAULT COLLATE `utf8mb4_uca1400_ai_ci` COMMENT "
+            "= 'operator''s inventory'",
+            created['command_preview']['statements'][0]['source'],
+        )
+        altered = MARIADB_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'alter',
+            'target_resource': target,
+            'draft': {
+                'character_set': 'utf8mb4',
+                'collation': 'utf8mb4_uca1400_ai_ci', 'comment': '',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'ALTER DATABASE `inventory` DEFAULT CHARACTER SET `utf8mb4` '
+            "DEFAULT COLLATE `utf8mb4_uca1400_ai_ci` COMMENT = ''",
+            altered['command_preview']['statements'][0]['source'],
+        )
+
+        catalog = MARIADB_ADMINISTRATION.catalog(
+            catalog_for_engine('mariadb')
+        )
+        database = next(
+            item for item in catalog['objects']
+            if item['resource_kind'] == 'database'
+        )
+        operations = {
+            item['operation_id']: item for item in database['operations']
+        }
+        self.assertEqual(
+            ['name', 'or_replace', 'if_not_exists', 'character_set',
+             'collation', 'comment'],
+            [item['field_id'] for item in operations['create']['form'][
+                'fields']],
+        )
+        self.assertEqual(
+            ['character_set', 'collation', 'comment'],
+            [item['field_id'] for item in operations['alter']['form'][
+                'fields']],
+        )
+        self.assertEqual(
+            ['confirmation'],
+            [item['field_id'] for item in operations['drop']['form'][
+                'fields']],
+        )
+
+    def test_mariadb_database_validation_fails_closed(self):
+        route = {
+            'host': 'mariadb.example', 'route_id': 'mariadb-database-test',
+            'database': 'inventory',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+
+        def codes(operation, draft):
+            return {
+                item['code'] for item in MARIADB_ADMINISTRATION.validate({
+                    'resource_kind': 'database',
+                    'operation_id': operation,
+                    'target_resource': (
+                        None if operation == 'create' else target
+                    ),
+                    'draft': draft, '_provider_route': route,
+                })['errors']
+            }
+
+        self.assertIn('mariadb_database_create_mode_conflict', codes(
+            'create', {
+                'name': 'inventory_next', 'or_replace': True,
+                'if_not_exists': True,
+            }
+        ))
+        self.assertIn('invalid_mariadb_database_comment', codes(
+            'alter', {'comment': 'x' * 1025}
+        ))
+        self.assertIn('mariadb_database_change_required', codes(
+            'alter', {}
+        ))
+        self.assertIn('mariadb_database_confirmation_mismatch', codes(
+            'drop', {'confirmation': 'wrong'}
+        ))
+        self.assertIn('unknown_mariadb_database_drop_option', codes(
+            'drop', {'confirmation': 'inventory', 'cascade': False}
+        ))
+
     def test_mysql_role_creation_can_establish_native_membership_edge(self):
         plan = MYSQL_ADMINISTRATION.plan({
             'resource_kind': 'role', 'operation_id': 'create',
@@ -820,12 +1920,503 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             plan['command_preview']['statements'][0]['source'],
         )
 
+    def test_mysql_database_create_and_extended_alter_are_structured(self):
+        route = {'host': 'mysql.example', 'route_id': 'mysql-database-test'}
+        created = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'inventory', 'if_not_exists': True,
+                'character_set': 'utf8mb4',
+                'collation': 'utf8mb4_0900_ai_ci', 'encryption': 'Y',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE DATABASE IF NOT EXISTS `inventory` DEFAULT CHARACTER '
+            "SET `utf8mb4` DEFAULT COLLATE `utf8mb4_0900_ai_ci` DEFAULT "
+            "ENCRYPTION 'Y'",
+            created['command_preview']['statements'][0]['source'],
+        )
+        altered = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'alter',
+            'target_resource': {
+                'resource_kind': 'database', 'display_name': 'inventory',
+                'display_path': ['inventory'],
+            },
+            'draft': {'encryption': 'N', 'read_only': 'ON'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            "ALTER DATABASE `inventory` DEFAULT ENCRYPTION 'N' READ ONLY = 1",
+            altered['command_preview']['statements'][0]['source'],
+        )
+        rejected = MYSQL_ADMINISTRATION.validate({
+            'resource_kind': 'database', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'database', 'display_name': 'inventory',
+                'display_path': ['inventory'],
+            },
+            'draft': {'confirmation': 'wrong-database'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            ['mysql_database_confirmation_mismatch'],
+            [item['code'] for item in rejected['errors']],
+        )
+        dropped = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'database', 'display_name': 'inventory',
+                'display_path': ['inventory'],
+                'extensions': {'cdeadmin': {
+                    'database_target_id': 'inventory-target',
+                }},
+            },
+            'draft': {'confirmation': 'inventory'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            {'target_id': 'inventory-target', 'confirmation': 'inventory'},
+            dropped['provider_payload']['compiled']['database_target'],
+        )
+
+    def test_mysql_materialized_view_plans_use_exact_9_7_syntax(self):
+        route = {'host': 'mysql.example', 'route_id': 'mysql-mv-test'}
+        created = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'materialized-view',
+            'operation_id': 'create',
+            'target_resource': None,
+            'draft': {
+                'name': 'inventory_summary', 'parent': 'app',
+                'query': 'SELECT id, value FROM app.inventory',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE MATERIALIZED VIEW `app`.`inventory_summary` AS '
+            'SELECT id, value FROM app.inventory',
+            created['command_preview']['statements'][0]['source'],
+        )
+        target = {
+            'resource_kind': 'materialized-view',
+            'display_name': 'inventory_summary',
+            'display_path': ['app', 'inventory_summary'],
+        }
+        altered = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'materialized-view',
+            'operation_id': 'alter', 'target_resource': target,
+            'draft': {'query': 'SELECT id FROM app.inventory'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'ALTER MATERIALIZED VIEW `app`.`inventory_summary` AS '
+            'SELECT id FROM app.inventory',
+            altered['command_preview']['statements'][0]['source'],
+        )
+        dropped = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'materialized-view',
+            'operation_id': 'drop', 'target_resource': target,
+            'draft': {'cascade': False,
+                      'confirmation': 'inventory_summary'},
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'DROP VIEW `app`.`inventory_summary`',
+            dropped['command_preview']['statements'][0]['source'],
+        )
+
+    def test_mysql_database_maintenance_forms_compile_exact_9_7_sql(self):
+        route = {
+            'host': 'mysql.example', 'route_id': 'mysql-maintenance-test',
+            'database': 'inventory',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+        cases = (
+            ('analyze_tables', {
+                'tables': ['widgets'], 'no_write_to_binlog': True,
+                'histogram_action': 'UPDATE',
+                'histogram_columns': ['category'],
+                'histogram_buckets': 64, 'histogram_auto_update': True,
+            }, 'ANALYZE NO_WRITE_TO_BINLOG TABLE `inventory`.`widgets` '
+               'UPDATE HISTOGRAM ON `category` WITH 64 BUCKETS AUTO UPDATE'),
+            ('check_tables', {
+                'tables': ['widgets'], 'check_options': ['QUICK'],
+            }, 'CHECK TABLE `inventory`.`widgets` QUICK'),
+            ('optimize_tables', {
+                'tables': ['widgets'], 'no_write_to_binlog': True,
+            }, 'OPTIMIZE NO_WRITE_TO_BINLOG TABLE `inventory`.`widgets`'),
+            ('repair_tables', {
+                'tables': ['archive'], 'no_write_to_binlog': True,
+                'repair_options': ['QUICK'],
+            }, 'REPAIR NO_WRITE_TO_BINLOG TABLE `inventory`.`archive` QUICK'),
+            ('checksum_tables', {
+                'tables': ['widgets'], 'checksum_type': 'EXTENDED',
+            }, 'CHECKSUM TABLE `inventory`.`widgets` EXTENDED'),
+        )
+        for operation, draft, expected in cases:
+            self.assertEqual([], MYSQL_ADMINISTRATION.validate({
+                'resource_kind': 'database', 'operation_id': operation,
+                'target_resource': target, 'draft': draft,
+                '_provider_route': route,
+            })['errors'])
+            plan = MYSQL_ADMINISTRATION.plan({
+                'resource_kind': 'database', 'operation_id': operation,
+                'target_resource': target, 'draft': draft,
+                '_provider_route': route,
+            })
+            self.assertEqual(
+                expected,
+                plan['command_preview']['statements'][0]['source'],
+            )
+
+        database = next(
+            item for item in MYSQL_ADMINISTRATION.catalog(
+                catalog_for_engine('mysql')
+            )['objects'] if item['resource_kind'] == 'database'
+        )
+        forms = {
+            item['operation_id']: item['form']['form_id']
+            for item in database['operations']
+        }
+        self.assertEqual({
+            'analyze_tables': 'mysql_analyze_tables',
+            'check_tables': 'mysql_check_tables',
+            'optimize_tables': 'mysql_optimize_tables',
+            'repair_tables': 'mysql_repair_tables',
+            'checksum_tables': 'mysql_checksum_tables',
+        }, {key: forms[key] for key in {
+            'analyze_tables', 'check_tables', 'optimize_tables',
+            'repair_tables', 'checksum_tables',
+        }})
+
+    def test_mysql_shell_backup_and_restore_are_driver_owned_plans(self):
+        route = {
+            'host': 'mysql.example', 'port': 3306,
+            'route_id': 'mysql-shell-test', 'database': 'inventory',
+            'tool_workspace': '/srv/cdeadmin/mysql-shell',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+        backup_options = {
+            'path': 'inventory-backup', 'consistent': True,
+            'checksum': True, 'threads': 8,
+            'compression': 'zstd;level=22',
+            'include_tables': ['inventory.widgets'],
+        }
+        backup = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'backup_logical',
+            'target_resource': target, 'draft': backup_options,
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'mysql-shell',
+            backup['provider_payload']['compiled']['driver_operation'],
+        )
+        self.assertEqual(
+            'backup_logical',
+            backup['provider_payload']['compiled']['operation_id'],
+        )
+        self.assertEqual(
+            backup_options,
+            backup['provider_payload']['compiled']['options'],
+        )
+        self.assertEqual(
+            [], backup['provider_payload']['compiled']['statements']
+        )
+
+        restore_options = {
+            'path': 'inventory-backup', 'confirmation': 'inventory',
+            'drop_existing_objects': True, 'enable_local_infile': True,
+            'wait_dump_timeout': 0.5, 'schema': 'inventory_restored',
+        }
+        restore = MYSQL_ADMINISTRATION.plan({
+            'resource_kind': 'database', 'operation_id': 'restore_logical',
+            'target_resource': target, 'draft': restore_options,
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'mysql-shell',
+            restore['provider_payload']['compiled']['driver_operation'],
+        )
+        self.assertEqual(
+            restore_options,
+            restore['provider_payload']['compiled']['options'],
+        )
+        self.assertEqual(
+            [], restore['provider_payload']['compiled']['statements']
+        )
+        tasks = set(MYSQL_ADMINISTRATION.dialect_task_ids())
+        self.assertNotIn('visual_admin.database.backup_logical', tasks)
+        self.assertNotIn('visual_admin.database.restore_logical', tasks)
+
+    def test_mariadb_database_maintenance_forms_compile_exact_12_2_sql(self):
+        route = {
+            'host': 'mariadb.example',
+            'route_id': 'mariadb-maintenance-test',
+            'database': 'inventory',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+        cases = (
+            ('analyze_tables', {
+                'tables': ['widgets', 'events'], 'binlog_mode': 'LOCAL',
+                'persistent_for': 'SPECIFIED',
+                'persistent_columns': ['category'],
+                'persistent_indexes': ['PRIMARY', 'category_index'],
+            }, 'ANALYZE LOCAL TABLE `inventory`.`widgets` PERSISTENT FOR '
+               'COLUMNS (`category`) INDEXES (PRIMARY, `category_index`), '
+               '`inventory`.`events` PERSISTENT FOR COLUMNS (`category`) '
+               'INDEXES (PRIMARY, `category_index`)'),
+            ('check_objects', {
+                'object_type': 'VIEW', 'objects': ['active_widgets'],
+                'check_options': ['FOR UPGRADE'],
+            }, 'CHECK VIEW `inventory`.`active_widgets` FOR UPGRADE'),
+            ('optimize_tables', {
+                'tables': ['widgets'],
+                'binlog_mode': 'NO_WRITE_TO_BINLOG',
+                'lock_wait_mode': 'WAIT', 'lock_wait_seconds': 12,
+            }, 'OPTIMIZE NO_WRITE_TO_BINLOG TABLE '
+               '`inventory`.`widgets` WAIT 12'),
+            ('repair_objects', {
+                'object_type': 'TABLE', 'objects': ['archive'],
+                'binlog_mode': 'LOCAL',
+                'repair_options': ['QUICK', 'FORCE'],
+            }, 'REPAIR LOCAL TABLE `inventory`.`archive` QUICK FORCE'),
+            ('checksum_tables', {
+                'tables': ['widgets'], 'checksum_type': 'EXTENDED',
+            }, 'CHECKSUM TABLE `inventory`.`widgets` EXTENDED'),
+        )
+        for operation, draft, expected in cases:
+            request = {
+                'resource_kind': 'database', 'operation_id': operation,
+                'target_resource': target, 'draft': draft,
+                '_provider_route': route,
+            }
+            self.assertEqual([], MARIADB_ADMINISTRATION.validate(request)[
+                'errors'])
+            plan = MARIADB_ADMINISTRATION.plan(request)
+            self.assertEqual(
+                expected,
+                plan['command_preview']['statements'][0]['source'],
+            )
+
+        database = next(
+            item for item in MARIADB_ADMINISTRATION.catalog(
+                catalog_for_engine('mariadb')
+            )['objects'] if item['resource_kind'] == 'database'
+        )
+        forms = {
+            item['operation_id']: item['form']['form_id']
+            for item in database['operations']
+        }
+        self.assertEqual({
+            'analyze_tables': 'mariadb_analyze_tables',
+            'check_objects': 'mariadb_check_objects',
+            'optimize_tables': 'mariadb_optimize_tables',
+            'repair_objects': 'mariadb_repair_objects',
+            'checksum_tables': 'mariadb_checksum_tables',
+        }, {key: forms[key] for key in {
+            'analyze_tables', 'check_objects', 'optimize_tables',
+            'repair_objects', 'checksum_tables',
+        }})
+
+    def test_mariadb_database_maintenance_validation_is_exact(self):
+        route = {
+            'host': 'mariadb.example', 'route_id': 'mariadb-validation',
+            'database': 'inventory',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+
+        def codes(operation, draft):
+            return {
+                item['code'] for item in MARIADB_ADMINISTRATION.validate({
+                    'resource_kind': 'database',
+                    'operation_id': operation,
+                    'target_resource': target, 'draft': draft,
+                    '_provider_route': route,
+                })['errors']
+            }
+
+        self.assertIn('invalid_mariadb_check_options', codes(
+            'check_objects', {
+                'object_type': 'VIEW', 'objects': ['active_widgets'],
+                'check_options': ['QUICK'],
+            }
+        ))
+        self.assertIn('invalid_mariadb_repair_options', codes(
+            'repair_objects', {
+                'object_type': 'VIEW', 'objects': ['active_widgets'],
+                'binlog_mode': 'DEFAULT',
+                'repair_options': ['FOR UPGRADE', 'FROM MYSQL'],
+            }
+        ))
+        self.assertIn('mariadb_lock_wait_seconds_without_wait', codes(
+            'optimize_tables', {
+                'tables': ['widgets'], 'binlog_mode': 'DEFAULT',
+                'lock_wait_mode': 'NOWAIT', 'lock_wait_seconds': 5,
+            }
+        ))
+        self.assertIn('mariadb_persistent_names_without_specified', codes(
+            'analyze_tables', {
+                'tables': ['widgets'], 'binlog_mode': 'DEFAULT',
+                'persistent_for': 'ALL',
+                'persistent_columns': ['category'],
+                'persistent_indexes': [],
+            }
+        ))
+
+    def test_mariadb_backup_restore_plans_are_native_tool_owned(self):
+        with tempfile.TemporaryDirectory() as workspace:
+            route = {
+                'host': 'mariadb.example', 'port': 3306,
+                'route_id': 'mariadb-tool-test', 'database': 'inventory',
+                'tool_workspace': workspace,
+            }
+            target = {
+                'resource_kind': 'database', 'display_name': 'inventory',
+                'display_path': ['inventory'],
+            }
+            backup_options = {
+                'path': 'inventory.sql', 'include_schema': True,
+                'include_data': True, 'single_transaction': True,
+                'lock_all_tables': False, 'replication_position': 'COMMENTED',
+                'gtid': True,
+            }
+            backup_request = {
+                'resource_kind': 'database',
+                'operation_id': 'backup_logical',
+                'target_resource': target, 'draft': backup_options,
+                '_provider_route': route,
+            }
+            self.assertEqual(
+                [], MARIADB_ADMINISTRATION.validate(backup_request)['errors']
+            )
+            backup = MARIADB_ADMINISTRATION.plan(backup_request)
+            self.assertEqual(
+                'mariadb-tools',
+                backup['provider_payload']['compiled']['driver_operation'],
+            )
+            self.assertEqual(
+                [], backup['provider_payload']['compiled']['statements']
+            )
+
+            restore_options = {
+                'path': 'inventory.sql', 'confirmation': 'inventory',
+                'abort_on_error': True, 'binary_mode': True,
+            }
+            restore_request = {
+                'resource_kind': 'database',
+                'operation_id': 'restore_logical',
+                'target_resource': target, 'draft': restore_options,
+                '_provider_route': route,
+            }
+            self.assertEqual(
+                [], MARIADB_ADMINISTRATION.validate(restore_request)['errors']
+            )
+            restore = MARIADB_ADMINISTRATION.plan(restore_request)
+            self.assertEqual(
+                'mariadb-tools',
+                restore['provider_payload']['compiled']['driver_operation'],
+            )
+            tasks = set(MARIADB_ADMINISTRATION.dialect_task_ids())
+            self.assertNotIn(
+                'visual_admin.database.backup_logical', tasks
+            )
+            self.assertNotIn(
+                'visual_admin.database.restore_logical', tasks
+            )
+
+            forms = {
+                item['operation_id']: item['form']['form_id']
+                for item in next(
+                    item for item in MARIADB_ADMINISTRATION.catalog(
+                        catalog_for_engine('mariadb')
+                    )['objects'] if item['resource_kind'] == 'database'
+                )['operations']
+            }
+            self.assertEqual(
+                'mariadb_backup_logical', forms['backup_logical']
+            )
+            self.assertEqual(
+                'mariadb_restore_logical', forms['restore_logical']
+            )
+
+    def test_mysql_shell_restore_validation_fails_closed(self):
+        route = {
+            'host': 'mysql.example', 'route_id': 'mysql-shell-test',
+            'database': 'inventory',
+            'tool_workspace': '/srv/cdeadmin/mysql-shell',
+        }
+        target = {
+            'resource_kind': 'database', 'display_name': 'inventory',
+            'display_path': ['inventory'],
+        }
+
+        def error_codes(draft):
+            result = MYSQL_ADMINISTRATION.validate({
+                'resource_kind': 'database',
+                'operation_id': 'restore_logical',
+                'target_resource': target, 'draft': draft,
+                '_provider_route': route,
+            })
+            return {item['code'] for item in result['errors']}
+
+        self.assertEqual(set(), error_codes({
+            'path': 'inventory-backup', 'confirmation': 'inventory',
+            'wait_dump_timeout': 0.5,
+        }))
+        self.assertIn(
+            'mysql_shell_restore_confirmation_mismatch', error_codes({
+                'path': 'inventory-backup', 'confirmation': 'wrong',
+            })
+        )
+        self.assertIn('mysql_shell_existing_object_conflict', error_codes({
+            'path': 'inventory-backup', 'confirmation': 'inventory',
+            'drop_existing_objects': True,
+            'ignore_existing_objects': True,
+        }))
+
+        backup_base = {
+            'resource_kind': 'database', 'operation_id': 'backup_logical',
+            'target_resource': target, '_provider_route': route,
+        }
+        accepted = MYSQL_ADMINISTRATION.validate({
+            **backup_base,
+            'draft': {
+                'path': 'inventory-backup',
+                'compression': 'zstd;level=22',
+            },
+        })
+        self.assertEqual([], accepted['errors'])
+        rejected = MYSQL_ADMINISTRATION.validate({
+            **backup_base,
+            'draft': {
+                'path': 'inventory-backup',
+                'compression': 'zstd;level=23',
+            },
+        })
+        self.assertIn(
+            'invalid_mysql_shell_compression',
+            {item['code'] for item in rejected['errors']},
+        )
+
     def test_relational_dialects_publish_fail_closed_concept_status(self):
         cases = (
             ('mysql', '9.7.0', MYSQL_ADMINISTRATION, {
                 'servers': 'read_only',
                 'schemas': 'supported',
-                'materialized_views': 'not_applicable',
+                'materialized_views': 'supported',
                 'extensions_and_plugins': 'supported',
             }),
             ('mariadb', '12.2.2', MARIADB_ADMINISTRATION, {
@@ -879,8 +2470,255 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
                 for concept_id in expected
             })
 
+    def test_mysql_family_catalogs_preserve_engine_unique_capabilities(self):
+        mysql = MYSQL_ADMINISTRATION.catalog(catalog_for_engine('mysql'))
+        mariadb = MARIADB_ADMINISTRATION.catalog(
+            catalog_for_engine('mariadb')
+        )
+
+        def executable_kinds(catalog):
+            return {
+                item['resource_kind']
+                for item in catalog['objects']
+                if item.get('operations')
+            }
+
+        mysql_kinds = executable_kinds(mysql)
+        mariadb_kinds = executable_kinds(mariadb)
+        self.assertIn('materialized-view', mysql_kinds)
+        self.assertNotIn('materialized-view', mariadb_kinds)
+        self.assertNotIn('sequence', mysql_kinds)
+        self.assertNotIn('package', mysql_kinds)
+        self.assertIn('sequence', mariadb_kinds)
+        self.assertIn('package', mariadb_kinds)
+
 
 class DuckDBVisualAdministrationTests(unittest.TestCase):
+
+    def test_duckdb_profile_contributes_exact_native_query_plans(self):
+        self.assertEqual((
+            ('DuckDB physical query plan', 'EXPLAIN {source}'),
+            ('DuckDB profiled query plan', 'EXPLAIN ANALYZE {source}'),
+        ), DUCKDB_PROFILE.query_plan_templates)
+
+    def test_duckdb_database_forms_are_exact_and_not_generic(self):
+        database = next(
+            item for item in DUCKDB_ADMINISTRATION.catalog(
+                catalog_for_engine('duckdb')
+            )['objects'] if item['resource_kind'] == 'database'
+        )
+        operations = {
+            item['operation_id']: item for item in database['operations']
+        }
+        self.assertNotIn('alter', operations)
+        self.assertEqual(
+            ['name', 'config'],
+            [
+                field['field_id']
+                for field in operations['create']['form']['fields']
+            ],
+        )
+        self.assertEqual(
+            ['directory', 'format'],
+            [
+                field['field_id']
+                for field in operations['export_database']['form']['fields']
+            ],
+        )
+
+    def test_duckdb_file_deletion_rejects_foreign_files_and_live_wal(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            foreign = root / 'foreign.duckdb'
+            foreign.write_text('not DuckDB', encoding='utf-8')
+            route = {
+                'database': str(foreign), 'filesystem_root': temporary,
+            }
+            with self.assertRaisesRegex(
+                    RelationalClientError, 'no DuckDB database header'):
+                drop_duckdb_database_file(route, str(foreign))
+            self.assertTrue(foreign.exists())
+
+            try:
+                import duckdb
+            except ImportError:
+                self.skipTest('DuckDB driver is not installed')
+            database = root / 'guarded.duckdb'
+            duckdb.connect(str(database)).close()
+            wal = Path(str(database) + '.wal')
+            wal.touch()
+            route['database'] = str(database)
+            with self.assertRaisesRegex(
+                    RelationalClientError, 'WAL sidecar'):
+                drop_duckdb_database_file(route, str(database))
+            self.assertTrue(database.exists())
+
+    def test_duckdb_database_lifecycle_properties_and_native_operations(self):
+        try:
+            import duckdb
+        except ImportError:
+            self.skipTest('DuckDB driver is not installed')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            database = root / 'lifecycle.duckdb'
+            route = {
+                'database': str(database), 'filesystem_root': temporary,
+                'database_create_root': temporary,
+                'route_id': 'duckdb-lifecycle-test',
+            }
+            client = duckdb_client()
+            created = DUCKDB_ADMINISTRATION.plan({
+                'resource_kind': 'database', 'operation_id': 'create',
+                'target_resource': None,
+                'draft': {'name': 'lifecycle', 'config': {'threads': 2}},
+                '_provider_route': route,
+            })
+            result = DUCKDB_ADMINISTRATION.apply(client, {
+                'provider_payload': created['provider_payload'],
+            })
+            self.assertEqual(str(database), result[
+                'endpoint_database_target'
+            ]['database'])
+            self.assertTrue(database.is_file())
+            connection = duckdb.connect(str(database))
+            try:
+                connection.execute(
+                    'CREATE TABLE inventory(id INTEGER, name VARCHAR)'
+                )
+                connection.execute("INSERT INTO inventory VALUES (1, 'one')")
+                resources = duckdb_resources(connection, {})
+            finally:
+                connection.close()
+            native = next(
+                item['native'] for item in resources
+                if item['resource_kind'] == 'database'
+            )
+            self.assertEqual('duckdb', native['database_type'])
+            self.assertEqual('v1.5.2', native['runtime_version'])
+            self.assertGreater(native['file_bytes'], 0)
+
+            target = {
+                'resource_id': 'database:lifecycle',
+                'resource_kind': 'database',
+                'display_name': 'lifecycle',
+                'display_path': ['lifecycle'],
+                'extensions': {'cdeadmin': {
+                    'database_target_id': 'duckdb-lifecycle-target',
+                    'native_name': str(database),
+                }},
+            }
+            for operation in (
+                    'checkpoint', 'force_checkpoint', 'vacuum', 'analyze'):
+                planned = DUCKDB_ADMINISTRATION.plan({
+                    'resource_kind': 'database',
+                    'operation_id': operation,
+                    'target_resource': target, 'draft': {},
+                    '_provider_route': route,
+                })
+                DUCKDB_ADMINISTRATION.apply(client, {
+                    'provider_payload': planned['provider_payload'],
+                })
+
+            export_directory = root / 'logical-export'
+            exported = DUCKDB_ADMINISTRATION.plan({
+                'resource_kind': 'database',
+                'operation_id': 'export_database',
+                'target_resource': target,
+                'draft': {
+                    'directory': str(export_directory), 'format': 'PARQUET',
+                },
+                '_provider_route': route,
+            })
+            DUCKDB_ADMINISTRATION.apply(client, {
+                'provider_payload': exported['provider_payload'],
+            })
+            self.assertTrue((export_directory / 'schema.sql').is_file())
+            self.assertTrue((export_directory / 'load.sql').is_file())
+
+            imported_database = root / 'imported.duckdb'
+            imported_route = {**route, 'database': str(imported_database)}
+            duckdb.connect(str(imported_database)).close()
+            imported_target = {
+                **target, 'resource_id': 'database:imported',
+                'display_name': 'imported', 'display_path': ['imported'],
+            }
+            imported = DUCKDB_ADMINISTRATION.plan({
+                'resource_kind': 'database',
+                'operation_id': 'import_database',
+                'target_resource': imported_target,
+                'draft': {'directory': str(export_directory)},
+                '_provider_route': imported_route,
+            })
+            DUCKDB_ADMINISTRATION.apply(client, {
+                'provider_payload': imported['provider_payload'],
+            })
+            with duckdb.connect(str(imported_database)) as connection:
+                self.assertEqual((1, 'one'), connection.execute(
+                    'SELECT * FROM inventory'
+                ).fetchone())
+
+            dropped = DUCKDB_ADMINISTRATION.plan({
+                'resource_kind': 'database', 'operation_id': 'drop',
+                'target_resource': target,
+                'draft': {'confirmation': str(database)},
+                '_provider_route': route,
+            })
+            DUCKDB_ADMINISTRATION.apply(client, {
+                'provider_payload': dropped['provider_payload'],
+            })
+            self.assertFalse(database.exists())
+            client.close()
+
+    def test_duckdb_retained_session_owns_commit_and_rollback(self):
+        try:
+            import duckdb
+        except ImportError:
+            self.skipTest('DuckDB driver is not installed')
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / 'transactions.duckdb'
+            with duckdb.connect(str(database)) as connection:
+                connection.execute(
+                    "CREATE TABLE state(id INTEGER PRIMARY KEY, value VARCHAR)"
+                )
+                connection.execute("INSERT INTO state VALUES (1, 'original')")
+            route = {
+                'database': str(database), 'filesystem_root': temporary,
+                'route_id': 'duckdb-transaction-test',
+            }
+            client = duckdb_client()
+            session = client.open_session({'route': route})
+            try:
+                token = client.execute(session, {
+                    'source': "UPDATE state SET value = 'rolled-back' "
+                              'WHERE id = 1',
+                })
+                client.describe_result(token)
+                client.control_transaction(session, 'rollback')
+                self.assertEqual(
+                    ('original',), session.execute(
+                        'SELECT value FROM state WHERE id = 1'
+                    ).fetchone(),
+                )
+                token = client.execute(session, {
+                    'source': "UPDATE state SET value = 'committed' "
+                              'WHERE id = 1',
+                })
+                client.describe_result(token)
+                client.control_transaction(session, 'commit')
+                self.assertEqual(
+                    ('committed',), session.execute(
+                        'SELECT value FROM state WHERE id = 1'
+                    ).fetchone(),
+                )
+            finally:
+                client.close_session(session)
+                client.close()
+            with duckdb.connect(str(database), read_only=True) as observer:
+                self.assertEqual(
+                    ('committed',), observer.execute(
+                        'SELECT value FROM state WHERE id = 1'
+                    ).fetchone(),
+                )
 
     def test_exact_duckdb_driver_executes_structured_table_and_row_workflow(
         self,

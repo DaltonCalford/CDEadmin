@@ -99,6 +99,6 @@ describe('CDEadmin accessibility Theme integration', () => {
 
     const grid = document.querySelector('[data-test="react-data-grid"]');
     expect(grid).toHaveAttribute('data-row-height', '44');
-    expect(grid).toHaveAttribute('data-header-row-height', '44');
+    expect(grid).toHaveAttribute('data-header-row-height', '48');
   });
 });

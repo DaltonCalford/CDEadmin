@@ -17,6 +17,16 @@ import config
 
 
 def register_browser_preferences(self):
+    self.preference.register(
+        'commands', 'command_customizations',
+        gettext('Command customizations'), 'multiline', '{}',
+        category_label=gettext('Commands'), hidden=True,
+        help_str=gettext(
+            'Per-user command labels, icons, shortcuts, visibility, and '
+            'enabled-state restrictions used by CDEadmin command surfaces.'
+        )
+    )
+
     self.show_system_objects = self.preference.register(
         'display', 'show_system_objects',
         gettext("Show system objects?"), 'boolean', False,

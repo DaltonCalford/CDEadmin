@@ -19,6 +19,7 @@ from .tooling import ProviderToolError, ProviderToolGrant, ProviderToolRunner
 from .relational import (
     RelationalClientConfig,
     RelationalClientError,
+    RelationalCredentialError,
     RelationalDBAPIClient,
     RelationalDependencyError,
     first_value,
@@ -35,6 +36,7 @@ __all__ = (
     'ProviderToolRunner',
     'RelationalClientConfig',
     'RelationalClientError',
+    'RelationalCredentialError',
     'RelationalDBAPIClient',
     'RelationalDependencyError',
     'first_value',

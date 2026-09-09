@@ -13,11 +13,29 @@ const usePreferences = create((set, get)=>({
       get().data, {'module': module, 'name': preference}
     );
   },
-  setPreference: (data)=> {
-    // Update Preferences and then refresh cache.
-    getApiInstance().put(url_for('preferences.update_pref'), data).then(()=> {
-      preferenceChangeBroadcast.postMessage('refresh');
+  setPreference: async (data)=> {
+    // Form-encoded lightweight preferences used by query-tool confirmations.
+    const response = await getApiInstance().put(
+      url_for('preferences.update_pref'), data
+    );
+    await get().cache();
+    preferenceChangeBroadcast.postMessage({
+      data: get().data,
+      version: get().version,
     });
+    return response;
+  },
+  setPreferences: async (data)=> {
+    // Full preference records used by Preferences and command surfaces.
+    const response = await getApiInstance().put(
+      url_for('preferences.index'), data
+    );
+    await get().cache();
+    preferenceChangeBroadcast.postMessage({
+      data: get().data,
+      version: get().version,
+    });
+    return response;
   },
   getPreferencesForModule: function(module) {
     let preferences = {};

@@ -133,7 +133,9 @@ def _verify_server_scope(host, port, password, creation_root):
     arguments['password'] = password
     service = firebird_driver.connect_server(**arguments)
     try:
-        identity = _server_identity(service, {'route': route})
+        identity = _server_identity(
+            service, {'route': route}, firebird_driver
+        )
         resources = _server_resources(service, {
             'route': route,
             'capability_generation': 'exact-live-server-scope',
@@ -158,7 +160,7 @@ def _verify_server_scope(host, port, password, creation_root):
     }
 
 
-def run(runtime_source, server_log):
+def run(runtime_source, server_log, dialect_qualification=True):
     runtime_source = runtime_source.resolve()
     required = (
         runtime_source / 'bin/firebird',
@@ -201,7 +203,8 @@ def run(runtime_source, server_log):
                     '127.0.0.1', port, database, 'SYSDBA', password
                 )
                 result = verify(
-                    'firebird', '127.0.0.1', port, account=account
+                    'firebird', '127.0.0.1', port, account=account,
+                    dialect_qualification=dialect_qualification,
                 )
             finally:
                 process.terminate()
@@ -234,8 +237,16 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--object-output', type=Path, required=True)
     parser.add_argument('--server-log', type=Path, required=True)
+    parser.add_argument(
+        '--activation', action='store_true',
+        help='Run normal provider activation gates instead of bootstrapping '
+             'dialect qualification.',
+    )
     options = parser.parse_args(argv)
-    result = run(options.runtime_source, options.server_log)
+    result = run(
+        options.runtime_source, options.server_log,
+        dialect_qualification=not options.activation,
+    )
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(
         json.dumps(result, indent=2, sort_keys=True) + '\n',
@@ -254,12 +265,19 @@ def main(argv=None):
         'engine_id': result['engine_id'],
         'exact_profile': result['exact_profile'],
         'activation_ready': result['activation_ready'],
+        'dialect_qualification_ready': result[
+            'dialect_qualification_ready'
+        ],
         'object_operation_failures': result[
             'object_experience_evidence']['operation_failures'],
         'credential_values_exported': False,
         'server_stopped': result['server_stopped'],
     }, indent=2, sort_keys=True))
-    return 0 if result['activation_ready'] else 1
+    ready = (
+        result['activation_ready'] if options.activation else
+        result['dialect_qualification_ready']
+    )
+    return 0 if ready else 1
 
 
 if __name__ == '__main__':

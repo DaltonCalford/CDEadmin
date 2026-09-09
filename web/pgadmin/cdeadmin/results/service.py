@@ -30,6 +30,10 @@ from pgadmin.cdeadmin.contracts.v1.runtime import (
     validate_contract,
 )
 from pgadmin.cdeadmin.security.redaction import redact
+from pgadmin.cdeadmin.grid_contract import (
+    normalize_columns,
+    result_grid_contract,
+)
 
 from .models import (
     ExportPolicy,
@@ -559,17 +563,28 @@ class ResultService:
         component_reference = self._required_string(
             raw.get('component_reference'), 'component_reference'
         )
+        schema = copy.deepcopy(result['schema'])
+        schema['columns'] = normalize_columns(
+            schema.get('columns'), records,
+            redact_keys=export_policy.redact_keys,
+            read_only=True,
+        )
+        grid = result_grid_contract(
+            result, component_reference, schema['columns'], records,
+            redact_keys=export_policy.redact_keys, read_only=True,
+        )
         return ResultDescriptor(
             copy.deepcopy(result),
             capability_id,
             tuple(copy.deepcopy(records)),
-            copy.deepcopy(result['schema']),
+            schema,
             limits,
             sampling,
             export_policy,
             worker_policy,
             renderer_id,
             component_reference,
+            grid,
             production,
             fixture,
         )

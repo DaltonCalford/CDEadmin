@@ -372,6 +372,6 @@
     "protocol": "mysql_wire",
     "client_state": "mysql_connector_26.7.0_installed",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "passed"
+    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"
   }
 }

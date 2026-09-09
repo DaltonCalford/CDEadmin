@@ -7,7 +7,9 @@
 //
 //////////////////////////////////////////////////////////////
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Fragment, useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
 import {
@@ -17,45 +19,72 @@ import {
 import getApiInstance from '../api_instance';
 import BaseChart from '../chartjs';
 import { ModalContent, ModalFooter } from '../components/ModalContent';
+import ContextMenu from '../components/ContextMenu';
+import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
+
+const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
+  'resource_page', 'resource_refresh', 'resource_inspect',
+  'visual_admin_validate', 'visual_admin_plan', 'visual_admin_apply',
+  'visual_admin_bulk_plan', 'visual_admin_bulk_apply',
+]);
 
 function errorMessage(error) {
   return error?.response?.data?.errormsg || error?.message ||
     gettext('The provider workspace request failed.');
 }
 
-function defaultSource(languageProfile) {
-  const sources = {
-    cypher: 'MATCH (n) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100',
-    'redis-resp3-command': 'PING',
-    'opensearch-query-dsl': '{"query":{"match_all":{}},"size":100}',
-    'opensearch-sql-ppl': 'SELECT * FROM index_name LIMIT 100',
-    'milvus-query-search-api': '{"operation":"query","collection_name":"collection","filter":"","output_fields":["*"],"limit":100}',
-    'influxdb3-sql-influxql': 'SELECT * FROM measurement LIMIT 100',
-    'mongodb-query-api': '{"operation":"find","database":"database","collection":"collection","filter":{},"limit":100}',
-    'mongodb-query-api-json': '{"operation":"aggregate","database":"database","collection":"collection","pipeline":[{"$limit":100}]}',
-    cql: 'SELECT * FROM keyspace.table LIMIT 100',
-    'cql-3': 'SELECT * FROM keyspace.table LIMIT 100',
-  };
-  return sources[languageProfile] || 'SELECT 1';
+function GridActivationStatus({contract}) {
+  if (!contract) return null;
+  const blocked = (contract.activation_gates || []).filter(
+    (gate) => gate.state !== 'passed'
+  );
+  const runtimeReady = contract.runtime_gate?.state === 'passed';
+  const severity = blocked.length || !runtimeReady ? 'warning' : 'success';
+  const detail = blocked.length ? blocked.map((gate) => gate.gate_id).join(', ') :
+    (!runtimeReady ? gettext('live provider verification') :
+      gettext('all provider workspace grid gates passed'));
+  return <Alert severity={severity} sx={{m: 1}}
+    aria-label={gettext('Provider grid activation status')}>
+    {gettext('Provider workspace')}: {detail}
+  </Alert>;
 }
 
-function sourcePresets(languageProfile) {
-  const presets = {
-    'opensearch-sql-ppl': [
-      ['SQL', 'SELECT * FROM index_name LIMIT 100'],
-      ['PPL', 'source = index_name | head 100'],
-    ],
-    'influxdb3-sql-influxql': [
-      ['SQL', 'SELECT * FROM measurement LIMIT 100'],
-      ['InfluxQL', 'SHOW MEASUREMENTS'],
-    ],
-    'mongodb-query-api-json': [
-      ['Find', '{"operation":"find","database":"database","collection":"collection","filter":{},"limit":100}'],
-      ['Aggregation pipeline', '{"operation":"aggregate","database":"database","collection":"collection","pipeline":[{"$limit":100}]}'],
-    ],
-  };
-  if (presets[languageProfile]) return presets[languageProfile];
-  return [[languageProfile || gettext('Native'), defaultSource(languageProfile)]];
+GridActivationStatus.propTypes = {contract: PropTypes.object};
+
+function EngineContractStatus({contract}) {
+  if (!contract || contract.state === 'passed') return null;
+  const blocked = ['dialect', 'metrics'].filter((name) =>
+    contract[name]?.state !== 'passed');
+  return <Alert severity="warning" sx={{m: 1}}
+    aria-label={gettext('Exact engine contract status')}>
+    {gettext('Exact engine activation is blocked: %s. CDEadmin will not substitute another engine family or invent defaults.',
+      blocked.join(', '))}
+  </Alert>;
+}
+
+EngineContractStatus.propTypes = {contract: PropTypes.object};
+
+function defaultSource(language) {
+  // Query text is provider dialect, never a UI default. An engine that has
+  // not supplied an evidence-bound starter opens an empty editor.
+  return typeof language?.starter_source === 'string' ?
+    language.starter_source : '';
+}
+
+function sourcePresets(language) {
+  if (!Array.isArray(language?.source_presets)) return [];
+  return language.source_presets.filter((item) =>
+    item && typeof item.label === 'string' &&
+    typeof item.source === 'string'
+  ).map((item) => [item.label, item.source]);
+}
+
+function queryPlanTemplates(language) {
+  if (!Array.isArray(language?.query_plan_templates)) return [];
+  return language.query_plan_templates.filter((item) => item &&
+    typeof item.label === 'string' &&
+    typeof item.source_template === 'string' &&
+    item.source_template.split('{source}').length === 2);
 }
 
 function downloadBase64(payload) {
@@ -140,6 +169,7 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
   const [filter, setFilter] = useState('');
   const [expanded, setExpanded] = useState(new Set());
   const [activeId, setActiveId] = useState(null);
+  const [context, setContext] = useState(null);
   const rowRefs = useRef(new Map());
   const objectDescriptors = useMemo(() => Object.fromEntries(
     (catalog?.objects || []).map((item) => [item.resource_kind, item])
@@ -183,6 +213,58 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
   const selectedDescriptor = selected ?
     objectDescriptors[selected.resource_kind] : null;
   const canOpenData = selectedDescriptor?.editor?.sections?.includes('data');
+  const contextDescriptor = context?.resource ?
+    objectDescriptors[context.resource.resource_kind] : null;
+  const contextCanOpenData = contextDescriptor?.editor?.sections
+    ?.includes('data');
+  const contextOperations = (contextDescriptor?.operations || []).filter(
+    (operation) => operation.native_supported !== false
+  );
+  const contextCanInspect = contextOperations.some(
+    (operation) => operation.operation_id === 'inspect'
+  );
+  const contextProviderOperations = contextOperations.filter(
+    (operation) => operation.operation_id !== 'inspect'
+  ).map((operation) => ({
+    id: `${context?.resource?.resource_kind}-${operation.operation_id}`,
+    label: operation.title || operation.operation_id,
+    iconKey: operation.mutation_class === 'destructive' ?
+      'action.delete' : operation.operation_id === 'create' ?
+        'action.create' : 'action.edit',
+    intent: operation.mutation_class || 'admin',
+    enabled: operation.execution_available === true &&
+      operation.graphical_ready !== false,
+    disabledReason: (operation.blockers || []).join(', '),
+    requiresConfirmation: operation.confirmation_required === true,
+    execute: () => {
+      onSelect(context.resource);
+      onOpenAdministration(context.resource, operation.operation_id);
+      setContext(null);
+    },
+  }));
+  const contextMenuItems = context?.resource ? [
+    ...(contextCanInspect ? [{
+      id: 'provider-object-inspect', label: gettext('Inspect object'),
+      iconKey: 'action.view', intent: 'read', enabled: true,
+      execute: () => {
+        onSelect(context.resource);
+        onOpenAdministration(context.resource, 'inspect');
+        setContext(null);
+      },
+    }] : []), ...(contextCanOpenData ? [{
+      id: 'provider-object-data', label: gettext('Open object data'),
+      iconKey: 'action.edit', intent: 'read', enabled: true,
+      execute: () => {
+        onSelect(context.resource);
+        onOpenData(context.resource);
+        setContext(null);
+      },
+    }] : []), ...(contextProviderOperations.length ? [{
+      id: 'provider-object-operations', label: gettext('Provider operations'),
+      iconKey: 'action.settings', intent: 'admin', enabled: true,
+      children: contextProviderOperations,
+    }] : []),
+  ] : [];
 
   useEffect(() => {
     setExpanded((current) => {
@@ -247,10 +329,13 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
             {String(part)}
           </Box>)}
         <Box sx={{display: 'flex', gap: 1, width: '100%', mt: 0.5}}>
-          <Button size="small" onClick={onOpenAdministration}>
+          <Button size="small" onClick={() => onOpenAdministration(
+            selected, 'inspect'
+          )}>
             {gettext('Open object editor')}
           </Button>
-          <Button size="small" onClick={onOpenData} disabled={!canOpenData}>
+          <Button size="small" onClick={() => onOpenData(selected)}
+            disabled={!canOpenData}>
             {gettext('Open object data')}
           </Button>
         </Box>
@@ -273,6 +358,15 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
             }}
             onFocus={() => setActiveId(row.id)}
             onKeyDown={(event) => keyDown(event, row, index)}
+            onContextMenu={(event) => {
+              if (row.kind !== 'resource') return;
+              event.preventDefault();
+              onSelect(row.resource);
+              setContext({
+                x: event.clientX, y: event.clientY,
+                resource: row.resource,
+              });
+            }}
             onClick={() => row.kind === 'resource' ?
               onSelect(row.resource) : toggle(row.id)}
             sx={{
@@ -314,6 +408,9 @@ function ResourceExplorer({catalog, page, selectedResourceId, onSelect,
         <Button disabled={loadingMore || !page?.generation}
           onClick={onRefresh}>{gettext('Refresh provider objects')}</Button>
       </Box>
+      <ContextMenu menuItems={contextMenuItems} position={context}
+        label={gettext('Provider object actions')}
+        onClose={() => setContext(null)} />
     </Box>
   );
 }
@@ -429,6 +526,7 @@ function sectionPayload(section, resource, descriptor) {
       display_path: resource?.display_path,
       authority_path: resource?.authority_path,
       generation: resource?.generation,
+      provider_properties: native,
     };
   }
   if (section === 'definition') return native.definition ?? native;
@@ -462,7 +560,57 @@ function sectionPayload(section, resource, descriptor) {
 
 const DEFAULT_INSPECTOR_SECTIONS = ['properties'];
 
-function ObjectInspectorTabs({resource, descriptor, loading}) {
+function NativePropertyValue({value, depth=0}) {
+  if (value === null || value === undefined) {
+    return <Box component="span" sx={{color: 'text.secondary'}}>
+      {gettext('Not set')}
+    </Box>;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return <Box component="span" sx={{color: 'text.secondary'}}>
+        {gettext('None')}
+      </Box>;
+    }
+    return <Box component="ol" sx={{m: 0, pl: 2.5}}>
+      {value.map((item, index) => <li key={index}>
+        <NativePropertyValue value={item} depth={depth + 1} />
+      </li>)}
+    </Box>;
+  }
+  if (typeof value === 'object') {
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+      return <Box component="span" sx={{color: 'text.secondary'}}>
+        {gettext('None')}
+      </Box>;
+    }
+    return <Box role="table" aria-label={gettext('Native provider properties')}
+      sx={{display: 'grid', gridTemplateColumns: depth > 1 ?
+        'minmax(100px, 0.7fr) minmax(140px, 1fr)' :
+        'minmax(160px, 0.7fr) minmax(220px, 1fr)',
+      borderTop: 1, borderLeft: 1, borderColor: 'divider'}}>
+      {entries.map(([name, item]) => <Fragment key={name}>
+        <Box role="rowheader" sx={{p: 0.75, fontWeight: 600,
+          overflowWrap: 'anywhere', borderRight: 1, borderBottom: 1,
+          borderColor: 'divider'}}>{name.replaceAll('_', ' ')}</Box>
+        <Box role="cell" sx={{p: 0.75, overflowWrap: 'anywhere',
+          borderRight: 1, borderBottom: 1, borderColor: 'divider'}}>
+          <NativePropertyValue value={item} depth={depth + 1} />
+        </Box>
+      </Fragment>)}
+    </Box>;
+  }
+  return <Box component="span">{typeof value === 'boolean' ?
+    (value ? gettext('Yes') : gettext('No')) : String(value)}</Box>;
+}
+
+NativePropertyValue.propTypes = {
+  value: PropTypes.any,
+  depth: PropTypes.number,
+};
+
+function ObjectInspectorSection({resource, descriptor, loading}) {
   const sections = descriptor?.editor?.sections ||
     DEFAULT_INSPECTOR_SECTIONS;
   const [section, setSection] = useState(sections[0]);
@@ -476,30 +624,41 @@ function ObjectInspectorTabs({resource, descriptor, loading}) {
       {' · '}{descriptor?.title || resource.resource_kind}
       {loading && <CircularProgress size={16} sx={{ml: 1}} />}
     </Box>
-    <Tabs value={section} variant="scrollable"
-      onChange={(_event, value) => setSection(value)}
-      aria-label={gettext('Provider object sections')}>
-      {sections.map((item) => <Tab key={item} value={item}
-        label={item.replaceAll('-', ' ')} />)}
-    </Tabs>
+    <TextField select fullWidth size="small" value={section}
+      label={gettext('Object properties task')}
+      onChange={(event) => setSection(event.target.value)}>
+      {sections.map((item) => <MenuItem key={item} value={item}>
+        {item.replaceAll('-', ' ')}
+      </MenuItem>)}
+    </TextField>
     <Box role="tabpanel" aria-label={`${section} ${gettext('object section')}`}
-      component="pre" sx={{m: 0, p: 1, overflow: 'auto', maxHeight: 220,
-        whiteSpace: 'pre-wrap', bgcolor: 'background.default'}}>
-      {JSON.stringify(sectionPayload(section, resource, descriptor), null, 2)}
+      sx={{m: 0, p: 1, overflow: 'auto', maxHeight: 320,
+        bgcolor: 'background.default'}}>
+      <NativePropertyValue value={sectionPayload(
+        section, resource, descriptor
+      )} />
     </Box>
   </Box>;
 }
 
-ObjectInspectorTabs.propTypes = {
+ObjectInspectorSection.propTypes = {
   resource: PropTypes.object,
   descriptor: PropTypes.object,
   loading: PropTypes.bool,
 };
 
 function VisualAdministration({catalog, resources, selectedResource, post,
-  setError, resourceGeneration}) {
-  const objects = catalog?.objects || [];
-  const [resourceKind, setResourceKind] = useState(objects[0]?.resource_kind || '');
+  setError, resourceGeneration, initialOperationId, initialResourceKind,
+  focused=false}) {
+  const objects = useMemo(() => (catalog?.objects || []).map((item) => ({
+    ...item,
+    operations: (item.operations || []).filter(
+      (operation) => operation.native_supported !== false
+    ),
+  })).filter((item) => item.operations.length > 0), [catalog]);
+  const [resourceKind, setResourceKind] = useState(
+    initialResourceKind || objects[0]?.resource_kind || ''
+  );
   const [operationId, setOperationId] = useState(objects[0]?.operations?.[0]?.operation_id || '');
   const [targetId, setTargetId] = useState('');
   const [draft, setDraft] = useState({});
@@ -519,6 +678,34 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   const matchingResources = (resources || []).filter(
     (item) => targetKinds.includes(item.resource_kind)
   );
+  const graphicalContract = catalog?.graphical_interface;
+  const groupedObjects = useMemo(() => {
+    const declaredGroups = catalog?.navigator?.groups || [];
+    const groups = declaredGroups.map((group) => ({...group, objects: []}));
+    const byId = Object.fromEntries(groups.map((group) =>
+      [group.group_id, group]));
+    objects.forEach((item) => {
+      const groupId = item.navigator?.group_id || 'operations';
+      if (!byId[groupId]) {
+        byId[groupId] = {
+          group_id: groupId,
+          title: gettext('Other provider tasks'),
+          order: groups.length,
+          objects: [],
+        };
+        groups.push(byId[groupId]);
+      }
+      byId[groupId].objects.push(item);
+    });
+    return groups.filter((group) => group.objects.length > 0);
+  }, [catalog, objects]);
+
+  useEffect(() => {
+    if (initialResourceKind && objects.some((item) =>
+      item.resource_kind === initialResourceKind)) {
+      setResourceKind(initialResourceKind);
+    }
+  }, [initialResourceKind, objects]);
 
   useEffect(() => {
     if (!objectDescriptor && objects.length) {
@@ -531,7 +718,6 @@ function VisualAdministration({catalog, resources, selectedResource, post,
     if (objects.some((item) =>
       item.resource_kind === selectedResource.resource_kind)) {
       setResourceKind(selectedResource.resource_kind);
-      setTargetId(selectedResource.resource_id);
     }
   }, [objects, selectedResource]);
 
@@ -539,6 +725,15 @@ function VisualAdministration({catalog, resources, selectedResource, post,
     let active = true;
     if (!selectedResource) {
       setInspectedResource(null);
+      return () => { active = false; };
+    }
+    if (selectedResource.extensions?.cdeadmin?.service_scope_only) {
+      // Firebird and other service-manager forms can remain executable while
+      // their target database rejects ordinary attachments.  The synthetic
+      // target is server-authoritative and must not be sent through the
+      // provider resource inspector, which opens a database connection.
+      setInspectedResource(selectedResource);
+      setInspecting(false);
       return () => { active = false; };
     }
     setInspecting(true);
@@ -565,6 +760,13 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   }, [operationId, operations]);
 
   useEffect(() => {
+    if (initialOperationId && operations.some((item) =>
+      item.operation_id === initialOperationId)) {
+      setOperationId(initialOperationId);
+    }
+  }, [initialOperationId, operations]);
+
+  useEffect(() => {
     const values = {};
     allFields.forEach((field) => {
       values[field.field_id] = initialFieldValue(field);
@@ -577,10 +779,17 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   }, [operationId, resourceKind]);
 
   useEffect(() => {
+    if (selectedResource && matchingResources.some((item) =>
+      item.resource_id === selectedResource.resource_id)) {
+      if (targetId !== selectedResource.resource_id) {
+        setTargetId(selectedResource.resource_id);
+      }
+      return;
+    }
     if (!matchingResources.some((item) => item.resource_id === targetId)) {
       setTargetId(matchingResources[0]?.resource_id || '');
     }
-  }, [matchingResources, targetId]);
+  }, [matchingResources, selectedResource, targetId]);
 
   const request = () => ({
     resource_kind: resourceKind,
@@ -619,12 +828,18 @@ function VisualAdministration({catalog, resources, selectedResource, post,
     setWorking(true);
     setError(null);
     try {
+      const selectedTarget = matchingResources.find((item) =>
+        item.resource_id === targetId);
+      const databaseTargetId = resourceDatabaseTargetId(selectedTarget);
       setResult(await post({
         action: 'visual_admin_apply',
         request: {
           plan_id: plan.plan_id,
           plan_digest: plan.plan_digest,
           confirmed,
+          ...(databaseTargetId ? {
+            database_target_id: databaseTargetId,
+          } : {}),
         },
       }));
       setPlan(null);
@@ -637,74 +852,127 @@ function VisualAdministration({catalog, resources, selectedResource, post,
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
-    <ObjectInspectorTabs resource={inspectedResource || selectedResource}
-      descriptor={objectDescriptor} loading={inspecting} />
-    <Box sx={{display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) minmax(180px, 1fr)', gap: 2}}>
-      <TextField select label={gettext('Object type')} value={resourceKind}
-        onChange={(event) => setResourceKind(event.target.value)}>
-        {objects.map((item) => <MenuItem key={item.resource_kind}
-          value={item.resource_kind}>{item.title}</MenuItem>)}
-      </TextField>
-      <TextField select label={gettext('Operation')} value={operationId}
-        onChange={(event) => setOperationId(event.target.value)}>
-        {operations.map((item) => <MenuItem key={item.operation_id}
-          value={item.operation_id}>{item.title}</MenuItem>)}
-      </TextField>
-    </Box>
-    {operation?.target_required && <TextField select fullWidth sx={{mt: 2}}
-      label={gettext('Target resource')} value={targetId}
-      onChange={(event) => setTargetId(event.target.value)}>
-      {matchingResources.map((item) => <MenuItem key={item.resource_id}
-        value={item.resource_id}>{item.display_name}</MenuItem>)}
-    </TextField>}
-    {operation?.target_required && matchingResources.length === 0 &&
+    {!focused && graphicalContract && <Alert severity={
+      graphicalContract?.activation_state === 'passed' ? 'success' : 'warning'
+    } sx={{mb: 2}} aria-label={gettext('Engine graphical interface status')}>
+      <Box component="strong">{catalog.engine_name} {catalog.reference_profile}</Box>
+      {' — '}{graphicalContract?.graphical_operation_count || 0}/
+      {graphicalContract?.native_operation_count || 0}{' '}
+      {gettext('native operations have engine-owned graphical forms.')}
+    </Alert>}
+    <Box sx={{display: 'grid', gridTemplateColumns: focused ? '1fr' :
+      'minmax(240px, 320px) minmax(420px, 1fr)', gap: 2,
+    alignItems: 'start'}}>
+      {!focused && <Box component="nav"
+        aria-label={gettext('Engine administration tasks')}
+        sx={{border: 1, borderColor: 'divider', maxHeight: '72vh',
+          overflow: 'auto'}}>
+        {groupedObjects.map((group) => <Box key={group.group_id}
+          sx={{borderBottom: 1, borderColor: 'divider', p: 1}}>
+          <Box component="h3" sx={{m: 0, mb: 0.5, fontSize: '0.85rem',
+            textTransform: 'uppercase', color: 'text.secondary'}}>
+            {group.title}
+          </Box>
+          {group.objects.map((item) => <Box key={item.resource_kind}
+            sx={{mb: 1}}>
+            <Button fullWidth size="small" variant={
+              resourceKind === item.resource_kind ? 'contained' : 'text'
+            } sx={{justifyContent: 'flex-start'}} onClick={() => {
+              setResourceKind(item.resource_kind);
+              setOperationId(item.operations?.[0]?.operation_id || '');
+            }}>
+              {item.title}
+            </Button>
+            {resourceKind === item.resource_kind && <Box sx={{display: 'flex',
+              flexWrap: 'wrap', gap: 0.5, pl: 1, pt: 0.5}}>
+              {(item.operations || []).map((itemOperation) => <Button
+                key={itemOperation.operation_id} size="small"
+                variant={operationId === itemOperation.operation_id ?
+                  'outlined' : 'text'}
+                color={itemOperation.graphical_ready !== false ?
+                  'primary' : 'warning'}
+                title={itemOperation.graphical_ready !== false ?
+                  gettext('Engine-owned graphical form') :
+                  gettext('Blocked: engine-owned graphical form is missing')}
+                onClick={() => setOperationId(itemOperation.operation_id)}>
+                {itemOperation.title}
+              </Button>)}
+            </Box>}
+          </Box>)}
+        </Box>)}
+      </Box>}
+      <Box component="section" aria-label={gettext('Engine task form')}>
+        {(!focused || operationId === 'inspect') && <ObjectInspectorSection
+          resource={inspectedResource || selectedResource}
+          descriptor={objectDescriptor} loading={inspecting} />}
+        <Box component="h2" sx={{mt: 0}}>
+          {focused ? (operation?.title || gettext('Provider task')) : <>
+            {objectDescriptor?.title}
+            {objectDescriptor?.title && operation?.title ? ' — ' : ''}
+            {operation?.title || gettext('Provider task')}
+          </>}
+        </Box>
+        {operation?.graphical_ready === false && <Alert severity="warning"
+          sx={{mb: 2}}>
+          {gettext('This provider has not supplied an exact graphical form for this engine operation. Execution is blocked; CDEadmin will not show a generic substitute.')}
+        </Alert>}
+        {operation?.target_required && <TextField select fullWidth sx={{mt: 2}}
+          label={gettext('Target resource')} value={targetId}
+          onChange={(event) => setTargetId(event.target.value)}>
+          {matchingResources.map((item) => <MenuItem key={item.resource_id}
+            value={item.resource_id}>{item.display_name}</MenuItem>)}
+        </TextField>}
+        {operation?.target_required && matchingResources.length === 0 &&
       <Alert severity="warning" sx={{mt: 2}}>{gettext('No discovered resource of this type is available. Refresh provider metadata or choose Create.')}</Alert>}
-    <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2}}>
-      {fields.map((field) => <VisualAdminField key={field.field_id}
-        field={field} value={draft[field.field_id]}
-        onChange={(value) => setDraft((current) => ({...current, [field.field_id]: value}))} />)}
-    </Box>
-    {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>
-      {gettext('Execution readiness')}: {operation.blockers.join(', ')}
-    </Alert>}
-    {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
-      {validation.errors.map((item) => item.message).join(' ')}
-    </Alert>}
-    {plan && <Box component="pre" aria-label={gettext('Provider plan preview')}
-      sx={{mt: 2, p: 1, overflow: 'auto', maxHeight: 240, bgcolor: 'background.default'}}>
-      {JSON.stringify(plan, null, 2)}
-    </Box>}
-    {plan?.impact && <Alert severity={
-      plan.impact.availability_risk === 'high' ? 'warning' : 'info'
-    } sx={{mt: 2}}>
-      {gettext('Impact scope')}: {plan.impact.scope || operation?.impact_scope}.
-      {' '}{gettext('Availability risk')}: {plan.impact.availability_risk || gettext('provider assessed')}.
-      {' '}{plan.impact.data_movement_possible ?
-        gettext('Data movement may occur.') : gettext('No data movement is expected.')}
-    </Alert>}
-    {result && <>
-      <Alert severity="info" sx={{mt: 2}}>
-        {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
-      </Alert>
-      <Box component="pre" aria-label={gettext('Provider operation result')}
-        sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
-          bgcolor: 'background.default'}}>
-        {JSON.stringify(result.provider_result ?? result, null, 2)}
-      </Box>
-    </>}
-    {operation?.confirmation_required && plan?.state === 'ready' &&
+        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2}}>
+          {fields.map((field) => <VisualAdminField key={field.field_id}
+            field={field} value={draft[field.field_id]}
+            onChange={(value) => setDraft((current) => ({...current, [field.field_id]: value}))} />)}
+        </Box>
+        {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>
+          {gettext('Execution readiness')}: {operation.blockers.join(', ')}
+        </Alert>}
+        {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
+          {validation.errors.map((item) => item.message).join(' ')}
+        </Alert>}
+        {plan && <Box component="pre" aria-label={gettext('Provider plan preview')}
+          sx={{mt: 2, p: 1, overflow: 'auto', maxHeight: 240, bgcolor: 'background.default'}}>
+          {JSON.stringify(plan, null, 2)}
+        </Box>}
+        {plan?.impact && <Alert severity={
+          plan.impact.availability_risk === 'high' ? 'warning' : 'info'
+        } sx={{mt: 2}}>
+          {gettext('Impact scope')}: {plan.impact.scope || operation?.impact_scope}.
+          {' '}{gettext('Availability risk')}: {plan.impact.availability_risk || gettext('provider assessed')}.
+          {' '}{plan.impact.data_movement_possible ?
+            gettext('Data movement may occur.') : gettext('No data movement is expected.')}
+        </Alert>}
+        {result && <>
+          <Alert severity="info" sx={{mt: 2}}>
+            {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
+          </Alert>
+          <Box component="pre" aria-label={gettext('Provider operation result')}
+            sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
+              bgcolor: 'background.default'}}>
+            {JSON.stringify(result.provider_result ?? result, null, 2)}
+          </Box>
+        </>}
+        {operation?.confirmation_required && plan?.state === 'ready' &&
       <FormControlLabel control={<Checkbox checked={confirmed}
         onChange={(event) => setConfirmed(event.target.checked)} />}
       label={gettext('I confirm this provider-planned operation.')} />}
-    <Box sx={{display: 'flex', gap: 1, mt: 2}}>
-      <Button variant="contained" disabled={working || !operation ||
+        <Box sx={{display: 'flex', gap: 1, mt: 2}}>
+          <Button variant="contained" disabled={working || !operation ||
+        operation.graphical_ready === false ||
         (operation.target_required && !targetId)} onClick={preview}>
-        {gettext('Validate and preview')}
-      </Button>
-      <Button color="warning" disabled={working || plan?.state !== 'ready' ||
+            {gettext('Validate and preview')}
+          </Button>
+          <Button color="warning" disabled={working || plan?.state !== 'ready' ||
         !plan?.execution_available || (operation?.confirmation_required && !confirmed)}
-      onClick={apply}>{gettext('Apply provider plan')}</Button>
-      {working && <CircularProgress size={24} />}
+          onClick={apply}>{gettext('Apply provider plan')}</Button>
+          {working && <CircularProgress size={24} />}
+        </Box>
+      </Box>
     </Box>
   </Box>;
 }
@@ -716,6 +984,9 @@ VisualAdministration.propTypes = {
   resourceGeneration: PropTypes.string,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialOperationId: PropTypes.string,
+  initialResourceKind: PropTypes.string,
+  focused: PropTypes.bool,
 };
 
 function editorValue(value) {
@@ -737,6 +1008,10 @@ function nativeValue(value) {
     // Preserve invalid JSON-looking text as a text cell value.
   }
   return value;
+}
+
+function resourceDatabaseTargetId(resource) {
+  return resource?.extensions?.cdeadmin?.database_target_id || null;
 }
 
 const KEY_VALUE_KINDS = new Set([
@@ -936,40 +1211,91 @@ KeyValueDataGrid.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
-function StructuredDataGrid({catalog, resources, post, setError}) {
-  const tables = (resources || []).filter(
-    (item) => item.resource_kind === 'table'
+function StructuredDataGrid({catalog, resources, post, setError,
+  languageProfile, databaseTargetId, initialResourceId}) {
+  const relations = (resources || []).filter(
+    (item) => ['table', 'view', 'materialized-view'].includes(
+      item.resource_kind
+    )
   );
-  const tableDescriptor = (catalog?.objects || []).find(
-    (item) => item.resource_kind === 'table'
+  const [targetId, setTargetId] = useState(() =>
+    relations.some((item) => item.resource_id === initialResourceId) ?
+      initialResourceId : (relations[0]?.resource_id || '')
   );
-  const operations = tableDescriptor?.operations || [];
-  const admitted = (operationId) => operations.some(
-    (item) => item.operation_id === operationId && item.execution_available
-  );
-  const [targetId, setTargetId] = useState(tables[0]?.resource_id || '');
   const [page, setPage] = useState(null);
   const [edits, setEdits] = useState({});
   const [newValues, setNewValues] = useState({});
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [working, setWorking] = useState(false);
-  const target = tables.find((item) => item.resource_id === targetId);
+  const [sessionId, setSessionId] = useState(null);
+  const [transaction, setTransaction] = useState(null);
+  const [stagedMutationCount, setStagedMutationCount] = useState(0);
+  const sessionIdRef = useRef(null);
+  const databaseTargetIdRef = useRef(null);
+  const target = relations.find((item) => item.resource_id === targetId);
+  const targetDescriptor = (catalog?.objects || []).find(
+    (item) => item.resource_kind === target?.resource_kind
+  );
+  const operations = targetDescriptor?.operations || [];
+  const admitted = (operationId) => target?.resource_kind === 'table' &&
+    operations.some((item) => item.operation_id === operationId &&
+      item.execution_available);
+  const selectedDatabaseTargetId = resourceDatabaseTargetId(target) ||
+    databaseTargetId || null;
 
   useEffect(() => {
-    if (!tables.some((item) => item.resource_id === targetId)) {
-      setTargetId(tables[0]?.resource_id || '');
+    sessionIdRef.current = sessionId;
+    databaseTargetIdRef.current = selectedDatabaseTargetId;
+  }, [selectedDatabaseTargetId, sessionId]);
+
+  useEffect(() => () => {
+    const retainedSessionId = sessionIdRef.current;
+    if (!retainedSessionId) return;
+    post({
+      action: 'close_session', session_id: retainedSessionId,
+      database_target_id: databaseTargetIdRef.current,
+    }).catch(() => {});
+    sessionIdRef.current = null;
+  }, [post]);
+
+  useEffect(() => {
+    if (!relations.some((item) => item.resource_id === targetId)) {
+      setTargetId(relations[0]?.resource_id || '');
       setPage(null);
+      setSessionId(null);
+      setTransaction(null);
+      setStagedMutationCount(0);
     }
-  }, [tables, targetId]);
+  }, [relations, targetId]);
+
+  const ensureSession = async () => {
+    if (sessionId) return sessionId;
+    if (!languageProfile) {
+      throw new Error(gettext('No provider query language is available.'));
+    }
+    const opened = await post({
+      action: 'open_session', language_profile: languageProfile,
+      database_target_id: selectedDatabaseTargetId,
+    });
+    sessionIdRef.current = opened.session_id;
+    databaseTargetIdRef.current = selectedDatabaseTargetId;
+    setSessionId(opened.session_id);
+    return opened.session_id;
+  };
 
   const load = async (continuation=null) => {
     if (!target) return;
     setWorking(true);
     setError(null);
     try {
+      const activeSession = await ensureSession();
       const nextPage = await post({
         action: 'visual_admin_rows',
-        request: {target_resource: target, limit: 200, continuation},
+        request: {
+          target_resource: target, limit: 200, continuation,
+          session_id: activeSession,
+          database_target_id: selectedDatabaseTargetId,
+        },
       });
       setPage(nextPage);
       setEdits({});
@@ -983,9 +1309,11 @@ function StructuredDataGrid({catalog, resources, post, setError}) {
   };
 
   const mutate = async (operationId, draft, confirmed=false) => {
+    const activeSession = await ensureSession();
     const request = {
       resource_kind: 'table', operation_id: operationId,
-      target_resource: target, draft,
+      target_resource: target, draft, session_id: activeSession,
+      database_target_id: selectedDatabaseTargetId,
     };
     const validation = await post({
       action: 'visual_admin_validate', request,
@@ -999,12 +1327,74 @@ function StructuredDataGrid({catalog, resources, post, setError}) {
         plan.blockers?.join(', ') || gettext('The row plan is blocked.')
       );
     }
-    await post({
+    const applied = await post({
       action: 'visual_admin_apply',
       request: {
         plan_id: plan.plan_id, plan_digest: plan.plan_digest, confirmed,
+        session_id: activeSession,
+        database_target_id: selectedDatabaseTargetId,
       },
     });
+    if (applied?.provider_result?.staged_in_provider_session !== true) {
+      throw new Error(gettext(
+        'The provider did not retain this grid edit in its transaction session.'
+      ));
+    }
+    setStagedMutationCount((count) => count + 1);
+  };
+
+  const controlTransaction = async (action) => {
+    if (!sessionId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      setTransaction(await post({
+        action: 'transaction_action', session_id: sessionId,
+        transaction_action: action,
+        database_target_id: selectedDatabaseTargetId,
+      }));
+      setStagedMutationCount(0);
+      await load();
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const refreshTransaction = async () => {
+    if (!sessionId) return;
+    setWorking(true);
+    setError(null);
+    try {
+      setTransaction(await post({
+        action: 'transaction', session_id: sessionId,
+        database_target_id: selectedDatabaseTargetId,
+      }));
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const releaseSession = async () => {
+    if (!sessionId || stagedMutationCount > 0) return;
+    setWorking(true);
+    setError(null);
+    try {
+      await post({
+        action: 'close_session', session_id: sessionId,
+        database_target_id: selectedDatabaseTargetId,
+      });
+      sessionIdRef.current = null;
+      setSessionId(null);
+      setTransaction(null);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
   };
 
   const saveRow = async (row, index) => {
@@ -1068,63 +1458,117 @@ function StructuredDataGrid({catalog, resources, post, setError}) {
     }
   };
 
+  const gridRows = page ? [
+    ...(page.rows || []).map((row, index) => ({
+      ...(row.values || {}),
+      __rowIndex: index,
+      __identityToken: row.identity_token,
+      __providerRow: row,
+    })),
+    ...(admitted('insert') ? [{
+      ...newValues, __rowIndex: -1, __insert: true,
+      __identityToken: '__new__',
+    }] : []),
+  ] : [];
+  const gridColumns = (page?.columns || []).map((column) => ({
+    ...column,
+    key: column.key || column.name,
+    name: `${column.name}${column.identity_key ? ' 🔑' : ''}`,
+    editable: false,
+    renderCell: ({row}) => <TextField size="small"
+      inputProps={{'aria-label': `${column.name} ${row.__insert ?
+        gettext('new value') : gettext('value')}`}}
+      placeholder={row.__insert ? gettext('New value') : undefined}
+      value={row.__insert ? (newValues[column.name] || '') :
+        (edits[row.__rowIndex]?.[column.name] ??
+          editorValue(row[column.name]))}
+      disabled={working || column.editable === false ||
+        (!row.__insert && !page.editable)}
+      onChange={(event) => row.__insert ?
+        setNewValues((current) => ({
+          ...current, [column.name]: event.target.value,
+        })) : setEdits((current) => ({
+          ...current,
+          [row.__rowIndex]: {
+            ...current[row.__rowIndex], [column.name]: event.target.value,
+          },
+        }))} />,
+  }));
+  if (page) {
+    gridColumns.push({
+      key: '__actions', name: gettext('Actions'), width: '18rem',
+      minWidth: 240,
+      exportable: false, editable: false,
+      renderCell: ({row}) => row.__insert ?
+        <Button disabled={working || Object.keys(newValues).length === 0}
+          onClick={insertRow}>{gettext('Insert row')}</Button> :
+        <Box sx={{display: 'flex', gap: 1, width: 'max-content'}}>
+          <Button disabled={working || !row.__identityToken ||
+            !admitted('update')}
+          onClick={() => saveRow(row.__providerRow, row.__rowIndex)}>
+            {gettext('Save')}</Button>
+          <Button color="warning" disabled={working || !row.__identityToken ||
+            !admitted('delete')} onClick={() => deleteRow(row.__providerRow)}>
+            {deleteCandidate === row.__identityToken ?
+              gettext('Confirm delete') : gettext('Delete')}</Button>
+        </Box>,
+    });
+  }
+
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
     <Box sx={{display: 'flex', gap: 1, alignItems: 'center'}}>
-      <TextField select sx={{minWidth: 260}} label={gettext('Table')}
-        value={targetId} onChange={(event) => {
+      <TextField select sx={{minWidth: 260}}
+        label={gettext('Table or view')}
+        value={targetId} disabled={working || stagedMutationCount > 0}
+        onChange={(event) => {
           setTargetId(event.target.value); setPage(null);
+          setTransaction(null);
         }}>
-        {tables.map((item) => <MenuItem key={item.resource_id}
+        {relations.map((item) => <MenuItem key={item.resource_id}
           value={item.resource_id}>{(item.display_path || [item.display_name]).join('.')}</MenuItem>)}
       </TextField>
       <Button variant="contained" disabled={working || !target}
-        onClick={load}>{gettext('Load rows')}</Button>
+        onClick={() => load()}>{gettext('Load rows')}</Button>
+      <Button disabled={working || stagedMutationCount === 0}
+        onClick={() => controlTransaction('commit')}>
+        {gettext('Commit changes')}</Button>
+      <Button color="warning"
+        disabled={working || stagedMutationCount === 0}
+        onClick={() => controlTransaction('rollback')}>
+        {gettext('Rollback changes')}</Button>
+      <Button disabled={working || !sessionId}
+        onClick={refreshTransaction}>
+        {gettext('Provider transaction state')}</Button>
+      <Button disabled={working || !sessionId || stagedMutationCount > 0}
+        onClick={releaseSession}>{gettext('Close data session')}</Button>
       {working && <CircularProgress size={24} />}
     </Box>
-    {tables.length === 0 && <Alert severity="info" sx={{mt: 2}}>
-      {gettext('No discovered base table is available.')}
+    {relations.length === 0 && <Alert severity="info" sx={{mt: 2}}>
+      {gettext('No discovered table or view is available.')}
     </Alert>}
     {page && <>
+      {stagedMutationCount > 0 && <Alert severity="warning" sx={{mt: 2}}
+        aria-label={gettext('Staged provider grid changes')}>
+        {gettext('%s grid change(s) are staged in the provider session. Commit or roll back before changing tables or closing this workspace.', stagedMutationCount)}
+      </Alert>}
       <Alert severity={page.editable ? 'info' : 'warning'} sx={{mt: 2}}>
         {page.editable ? gettext('Edits use provider-issued native row identities.') :
-          gettext('This table is read-only because the provider did not admit a stable row identity.')}
+          target?.resource_kind === 'table' ?
+            gettext('This table is read-only because the provider did not admit a stable row identity.') :
+            gettext('This view is read-only; CDEadmin does not infer that a provider view is updatable.')}
       </Alert>
-      <Box component="table" sx={{mt: 2, width: '100%', borderCollapse: 'collapse'}}>
-        <thead><tr>{page.columns.map((column) =>
-          <th align="left" key={column.name}>{column.name}{column.key ? ' 🔑' : ''}</th>)}
-        <th>{gettext('Actions')}</th></tr></thead>
-        <tbody>
-          {page.rows.map((row, index) => <tr key={row.identity_token || index}>
-            {page.columns.map((column) => <td key={column.name}>
-              <TextField size="small" value={edits[index]?.[column.name] ?? editorValue(row.values[column.name])}
-                disabled={!page.editable || column.editable === false || working}
-                onChange={(event) => setEdits((current) => ({
-                  ...current,
-                  [index]: {...current[index], [column.name]: event.target.value},
-                }))} />
-            </td>)}
-            <td><Box sx={{display: 'flex', gap: 1}}>
-              <Button disabled={working || !row.identity_token || !admitted('update')}
-                onClick={() => saveRow(row, index)}>{gettext('Save')}</Button>
-              <Button color="warning" disabled={working || !row.identity_token || !admitted('delete')}
-                onClick={() => deleteRow(row)}>{deleteCandidate === row.identity_token ?
-                  gettext('Confirm delete') : gettext('Delete')}</Button>
-            </Box></td>
-          </tr>)}
-          {admitted('insert') && <tr>
-            {page.columns.map((column) => <td key={column.name}>
-              <TextField size="small" placeholder={gettext('New value')}
-                value={newValues[column.name] || ''}
-                disabled={column.editable === false}
-                onChange={(event) => setNewValues((current) => ({
-                  ...current, [column.name]: event.target.value,
-                }))} />
-            </td>)}
-            <td><Button disabled={working || Object.keys(newValues).length === 0}
-              onClick={insertRow}>{gettext('Insert row')}</Button></td>
-          </tr>}
-        </tbody>
-      </Box>
+      <ProviderDataGrid columns={gridColumns} rows={gridRows}
+        contract={page.grid || {}}
+        gridId={page.grid?.grid_id || `provider/admin/${targetId}`}
+        readOnly={!page.editable}
+        rowKeyGetter={(row) => row.__identityToken}
+        ariaLabel={gettext('Provider table or view rows')} />
+      {transaction && <Box component="pre"
+        aria-label={gettext('Provider grid transaction state')}
+        sx={{mt: 1, p: 1, maxHeight: 140, overflow: 'auto',
+          bgcolor: 'background.default'}}>
+        {JSON.stringify(transaction, null, 2)}
+      </Box>}
     </>}
     {page?.continuation && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
       <Button disabled={working} onClick={() => load(page.continuation)}>
@@ -1143,6 +1587,9 @@ StructuredDataGrid.propTypes = {
   resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  languageProfile: PropTypes.string,
+  databaseTargetId: PropTypes.string,
+  initialResourceId: PropTypes.string,
 };
 
 const ANALYTIC_CONTAINER_KINDS = {
@@ -1211,6 +1658,10 @@ function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
   };
   const specializedResult = page ? {
     component_reference: components[modelFamily],
+    descriptor: {
+      result_kind: page.grid?.result_kind,
+      grid: page.grid || {},
+    },
     view_model: viewModel,
   } : null;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
@@ -1256,21 +1707,10 @@ function ResultTable({rendered}) {
   const view = rendered?.view_model;
   const columns = view?.columns || [];
   const rows = view?.rows || [];
-  const names = columns.map((item) => item.name);
+  const contract = rendered?.descriptor?.grid || {};
   return (
-    <Box sx={{overflow: 'auto', mt: 1, flex: 1}}>
-      <Box component="table" sx={{width: '100%', borderCollapse: 'collapse'}}>
-        <thead><tr>{names.map((name) => (
-          <th align="left" key={name}>{name}</th>
-        ))}</tr></thead>
-        <tbody>{rows.map((row, index) => (
-          <tr key={index}>{names.map((name) => (
-            <td key={name}>{String(row?.[name] ?? '')}</td>
-          ))}</tr>
-        ))}</tbody>
-      </Box>
-      {rows.length === 0 && <Box>{gettext('Query completed without rows.')}</Box>}
-    </Box>
+    <ProviderDataGrid columns={columns} rows={rows} contract={contract}
+      ariaLabel={gettext('Tabular provider results')} />
   );
 }
 
@@ -1281,17 +1721,9 @@ function KeyValueView({rendered}) {
     rendered?.view_model?.records || rendered?.view_model?.rows || [];
   return <Box aria-label={gettext('Key-value results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
-    {entries.map((entry, index) => <Box key={index}
-      sx={{p: 1, mb: 1, border: 1, borderColor: 'divider'}}>
-      <Box component="code">{entry.command || gettext('Redis reply')}</Box>
-      <Box component="pre" sx={{whiteSpace: 'pre-wrap', mb: 0}}>
-        {JSON.stringify(entry.value, null, 2)}
-      </Box>
-      {entry.outcome && <Box component="small">{entry.outcome}</Box>}
-    </Box>)}
-    {entries.length === 0 && <Box>
-      {gettext('Command completed without values.')}
-    </Box>}
+    <ProviderDataGrid rows={entries}
+      contract={rendered?.descriptor?.grid || {}}
+      ariaLabel={gettext('Key-value command result grid')} />
   </Box>;
 }
 
@@ -1303,6 +1735,67 @@ function resultCell(value) {
   return String(value);
 }
 
+function providerGridColumns(columns=[]) {
+  return columns.map((column, index) => ({
+    ...column,
+    key: column.key || column.name || `column_${index + 1}`,
+    name: column.name || column.label || column.key || `Column ${index + 1}`,
+    engineType: column.engine_type || column.engineType || column.type || '',
+    cellType: column.cell_type || column.cellType,
+    editable: column.editable === true && column.read_only !== true,
+    exportable: column.exportable !== false,
+    resizable: column.resizable !== false,
+  }));
+}
+
+function ProviderDataGrid({columns=[], rows=[], contract={}, ariaLabel,
+  readOnly=true, gridId, ...props}) {
+  const gridRows = rows.map((row) => row && typeof row === 'object' &&
+    !Array.isArray(row) ? row : {value: row});
+  const inferredColumns = columns.length || !gridRows.length ? columns :
+    Object.keys(gridRows[0]).map((name) => ({
+      key: name, name,
+      cell_type: typeof gridRows[0][name] === 'object' ? 'json' : undefined,
+    }));
+  const contractColumns = contract.columns || [];
+  const suppliedColumns = inferredColumns.map((column, index) => {
+    const key = column.key || column.name || `column_${index + 1}`;
+    const metadata = contractColumns.find((item) =>
+      (item.key || item.name) === key || item.name === column.name
+    );
+    const merged = {...metadata, ...column};
+    if (!merged.cell_type && !merged.cellType && gridRows.some((row) =>
+      row?.[key] !== null && typeof row?.[key] === 'object')) {
+      merged.cell_type = 'json';
+    }
+    return merged;
+  });
+  const finalColumns = providerGridColumns(
+    suppliedColumns.length ? suppliedColumns : contractColumns
+  );
+  return <Box sx={{height: 'min(52vh, 34rem)', minHeight: 180, mt: 1}}>
+    <DataGrid columns={finalColumns} rows={gridRows}
+      gridId={gridId || contract.grid_id || 'provider/result'}
+      persistColumnState selectionMode={contract.selection_mode || 'row'}
+      enableCellSelect={contract.selection_mode === 'cell' ||
+        contract.selection_mode === 'range'}
+      readOnly={readOnly || contract.read_only !== false}
+      aria-label={ariaLabel || contract.accessible_name ||
+        gettext('Provider data grid')}
+      noRowsText={gettext('Query completed without rows.')}
+      {...props} />
+  </Box>;
+}
+
+ProviderDataGrid.propTypes = {
+  columns: PropTypes.array,
+  rows: PropTypes.array,
+  contract: PropTypes.object,
+  ariaLabel: PropTypes.string,
+  readOnly: PropTypes.bool,
+  gridId: PropTypes.string,
+};
+
 function WideColumnView({rendered}) {
   const view = rendered?.view_model || {};
   const columns = view.columns || [];
@@ -1313,22 +1806,12 @@ function WideColumnView({rendered}) {
     {warnings.length > 0 && <Alert severity="warning" sx={{mb: 1}}>
       {warnings.join(' ')}
     </Alert>}
-    <Box component="table" sx={{width: '100%', borderCollapse: 'collapse'}}>
-      <thead><tr>{columns.map((column) => <th align="left" key={column.name}>
-        <Box>{column.name}</Box>
-        <Box component="small">{column.type || gettext('CQL value')}</Box>
-      </th>)}</tr></thead>
-      <tbody>{rows.map((row, index) => <tr key={index}>
-        {columns.map((column) => <td key={column.name}>
-          <Box component="code" sx={{whiteSpace: 'pre-wrap'}}>
-            {resultCell(row?.[column.name])}
-          </Box>
-        </td>)}
-      </tr>)}</tbody>
-    </Box>
-    {rows.length === 0 && <Box>
-      {gettext('Query completed without wide-column rows.')}
-    </Box>}
+    <ProviderDataGrid columns={columns.map((column) => ({
+      ...column, key: column.key || column.name,
+      name: `${column.name} (${column.type || gettext('CQL value')})`,
+    }))} rows={rows}
+    contract={rendered?.descriptor?.grid || {}}
+    ariaLabel={gettext('Wide-column data grid')} />
   </Box>;
 }
 
@@ -1340,21 +1823,12 @@ function ColumnarView({rendered}) {
   const rows = view.rows || [];
   return <Box aria-label={gettext('Columnar results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
-    <Box component="table" sx={{borderCollapse: 'collapse', minWidth: '100%'}}>
-      <thead><tr>{columns.map((column) => <Box component="th"
-        key={column.name} sx={{border: 1, borderColor: 'divider', p: 0.5,
-          textAlign: 'left'}}>{column.name}<br/><small>{column.type}</small>
-      </Box>)}</tr></thead>
-      <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
-        {columns.map((column) => <Box component="td" key={column.name}
-          sx={{border: 1, borderColor: 'divider', p: 0.5}}>
-          {resultCell(row?.[column.name])}
-        </Box>)}
-      </tr>)}</tbody>
-    </Box>
-    {rows.length === 0 && <Box>
-      {gettext('Query completed without columnar rows.')}
-    </Box>}
+    <ProviderDataGrid columns={columns.map((column) => ({
+      ...column, key: column.key || column.name,
+      name: `${column.name} (${column.type || ''})`,
+    }))} rows={rows}
+    contract={rendered?.descriptor?.grid || {}}
+    ariaLabel={gettext('Columnar data grid')} />
   </Box>;
 }
 
@@ -1367,6 +1841,16 @@ function CubePivotView({rendered}) {
   const levels = (view.levels || []).slice(0, drillDepth);
   const measures = view.measures || [];
   const cells = view.cells || [];
+  const pivotNames = [
+    ...(transposed ? measures : levels),
+    ...(transposed ? levels : measures),
+  ];
+  const pivotColumns = pivotNames.map((name) => ({key: name, name}));
+  const pivotRows = cells.map((cell) => Object.fromEntries(pivotNames.map(
+    (name) => [name, transposed ?
+      (cell.measures?.[name] ?? cell.coordinates?.[name]) :
+      (cell.coordinates?.[name] ?? cell.measures?.[name])]
+  )));
   const exportCellset = (format) => {
     let content;
     let type;
@@ -1405,21 +1889,12 @@ function CubePivotView({rendered}) {
     {(view.slice || []).length > 0 && <Alert severity="info" sx={{mb: 1}}>
       {gettext('Active slice')}: {JSON.stringify(view.slice)}
     </Alert>}
-    <Box component="table" sx={{borderCollapse: 'collapse', minWidth: '100%'}}>
-      <thead><tr>{(transposed ? measures : levels).map((name) =>
-        <th align="left" key={name}>{name}</th>)}
-      {(transposed ? levels : measures).map((name) =>
-        <th align="left" key={name}>{name}</th>)}</tr></thead>
-      <tbody>{cells.map((cell, index) => <tr key={index}>
-        {(transposed ? measures : levels).map((name) => <td key={name}>
-          {resultCell(transposed ? cell.measures?.[name] :
-            cell.coordinates?.[name])}</td>)}
-        {(transposed ? levels : measures).map((name) => <td key={name}>
-          {resultCell(transposed ? cell.coordinates?.[name] :
-            cell.measures?.[name])}</td>)}
-      </tr>)}</tbody>
-    </Box>
-    {cells.length === 0 && <Box>{gettext('Query completed without cells.')}</Box>}
+    <ProviderDataGrid columns={pivotColumns} rows={pivotRows}
+      contract={{...rendered?.descriptor?.grid,
+        grid_id: `${rendered?.descriptor?.grid?.grid_id || 'provider/cellset'}/${
+          transposed ? 'transposed' : 'standard'}`,
+        selection_mode: 'range'}}
+      ariaLabel={gettext('Cube pivot cell grid')} />
   </Box>;
 }
 
@@ -1428,7 +1903,6 @@ CubePivotView.propTypes = {rendered: PropTypes.object};
 function TimeSeriesView({rendered}) {
   const records = rendered?.view_model?.records || [];
   const schema = rendered?.view_model?.schema || {};
-  const timeField = schema.time_field || 'time';
   return <Box aria-label={gettext('Time-series results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
     <Box sx={{display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1}}>
@@ -1442,21 +1916,9 @@ function TimeSeriesView({rendered}) {
         <strong>{gettext('Retention')}:</strong>{' '}
         {resultCell(schema.retention || schema.retention_policy)}</Box>}
     </Box>
-    <Box component="table" sx={{borderCollapse: 'collapse', minWidth: '100%'}}>
-      <thead><tr><th align="left">{timeField}</th>
-        <th align="left">{gettext('Series values')}</th></tr></thead>
-      <tbody>{records.map((record, index) => <tr key={index}>
-        <td><Box component="code">{resultCell(record?.[timeField])}</Box></td>
-        <td><Box component="pre" sx={{whiteSpace: 'pre-wrap', mb: 0}}>
-          {JSON.stringify(Object.fromEntries(Object.entries(record || {}).filter(
-            ([name]) => name !== timeField
-          )), null, 2)}
-        </Box></td>
-      </tr>)}</tbody>
-    </Box>
-    {records.length === 0 && <Box>
-      {gettext('Query completed without time-series points.')}
-    </Box>}
+    <ProviderDataGrid rows={records}
+      contract={rendered?.descriptor?.grid || {}}
+      ariaLabel={gettext('Time-series point grid')} />
   </Box>;
 }
 
@@ -1472,24 +1934,9 @@ function VectorView({rendered}) {
       sx={{p: 1, bgcolor: 'background.default', whiteSpace: 'pre-wrap'}}>
       {JSON.stringify(schema, null, 2)}
     </Box>}
-    {records.map((record, index) => <Box key={index}
-      sx={{p: 1, mb: 1, border: 1, borderColor: 'divider'}}>
-      <Box sx={{display: 'flex', gap: 2}}>
-        <Box component="strong">{String(record?.id ?? gettext('Vector hit'))}</Box>
-        {record?.distance != null && <Box component="code">
-          {gettext('distance')}: {String(record.distance)}
-        </Box>}
-        {record?.score != null && <Box component="code">
-          {gettext('score')}: {String(record.score)}
-        </Box>}
-      </Box>
-      <Box component="pre" sx={{whiteSpace: 'pre-wrap', mb: 0}}>
-        {JSON.stringify(record?.entity ?? record, null, 2)}
-      </Box>
-    </Box>)}
-    {records.length === 0 && <Box>
-      {gettext('Query completed without vector matches.')}
-    </Box>}
+    <ProviderDataGrid rows={records}
+      contract={rendered?.descriptor?.grid || {}}
+      ariaLabel={gettext('Vector match grid')} />
   </Box>;
 }
 
@@ -1499,25 +1946,9 @@ function SearchView({rendered}) {
   const records = rendered?.view_model?.records || [];
   return <Box aria-label={gettext('Search results')}
     sx={{overflow: 'auto', mt: 1, flex: 1}}>
-    {records.map((hit, index) => <Box key={`${hit?._index || ''}:${hit?._id || index}`}
-      sx={{p: 1, mb: 1, border: 1, borderColor: 'divider'}}>
-      <Box sx={{display: 'flex', gap: 2, flexWrap: 'wrap'}}>
-        <Box component="strong">{hit?._index || gettext('Search hit')}</Box>
-        {hit?._id != null && <Box component="code">{String(hit._id)}</Box>}
-        {hit?._score != null && <Box component="code">
-          {gettext('score')}: {String(hit._score)}
-        </Box>}
-      </Box>
-      <Box component="pre" sx={{whiteSpace: 'pre-wrap', mb: 0}}>
-        {JSON.stringify(hit?._source ?? hit, null, 2)}
-      </Box>
-      {hit?.highlight && <Alert severity="info" sx={{mt: 1}}>
-        {JSON.stringify(hit.highlight)}
-      </Alert>}
-    </Box>)}
-    {records.length === 0 && <Box>
-      {gettext('Query completed without search hits.')}
-    </Box>}
+    <ProviderDataGrid rows={records}
+      contract={rendered?.descriptor?.grid || {}}
+      ariaLabel={gettext('Indexed document search grid')} />
   </Box>;
 }
 
@@ -1639,18 +2070,18 @@ function GraphView({rendered, records: suppliedRecords}) {
         </g>;
       })}
     </Box>
-    <Box component="table" sx={{width: '100%', mt: 1}}>
-      <thead><tr><th align="left">{gettext('Element')}</th>
-        <th align="left">{gettext('Type')}</th>
-        <th align="left">{gettext('Properties')}</th></tr></thead>
-      <tbody>{[...graph.nodes, ...graph.relationships].map((item) => <tr
-        key={`${item.kind}:${item.element_id}`}>
-        <td>{item.element_id}</td>
-        <td>{item.kind === 'node' ? item.labels?.join(':') : item.type}</td>
-        <td><Box component="pre" sx={{whiteSpace: 'pre-wrap'}}>
-          {JSON.stringify(item.properties || {}, null, 2)}</Box></td>
-      </tr>)}</tbody>
-    </Box>
+    <ProviderDataGrid columns={[
+      {key: 'element_id', name: gettext('Element')},
+      {key: 'entity_type', name: gettext('Type')},
+      {key: 'properties', name: gettext('Properties'), cell_type: 'json'},
+    ]} rows={[...graph.nodes, ...graph.relationships].map((item) => ({
+      element_id: item.element_id,
+      entity_type: item.kind === 'node' ? item.labels?.join(':') : item.type,
+      properties: item.properties || {},
+    }))} contract={{
+      grid_id: `${rendered?.descriptor?.grid?.grid_id || 'provider/graph'}/entities`,
+      selection_mode: 'row', read_only: true,
+    }} ariaLabel={gettext('Graph entity property grid')} />
     {graph.nodes.length === 0 && <Box>
       {gettext('Query completed without graph entities.')}
     </Box>}
@@ -1782,7 +2213,7 @@ SemanticChartView.propTypes = {
 };
 
 export function ResultControls({rendered, history, post, onRendered, setError,
-  setBusy, allowedFormats, deliveryProfiles=[]}) {
+  setBusy, onProviderContinuation, allowedFormats, deliveryProfiles=[]}) {
   const [comparison, setComparison] = useState(null);
   const [deliveryProfileId, setDeliveryProfileId] = useState(
     deliveryProfiles[0]?.profile_id || '');
@@ -1815,11 +2246,20 @@ export function ResultControls({rendered, history, post, onRendered, setError,
   return <Box sx={{mt: 1}}>
     <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}
       aria-label={gettext('Result actions')}>
-      <Button disabled={!rendered.page?.next_cursor} onClick={() => perform(
-        async () => onRendered(await post({action: 'result_page', request: {
-          result_id: resultId, cursor: rendered.page.next_cursor,
-          page_size: rendered.page.page_size || 500,
-        }})))}>{gettext('Next result page')}</Button>
+      <Button disabled={!rendered.page?.next_cursor && (
+        !rendered.descriptor?.provider_continuation ||
+        !onProviderContinuation
+      )}
+      onClick={() => perform(async () => {
+        if (rendered.page?.next_cursor) {
+          onRendered(await post({action: 'result_page', request: {
+            result_id: resultId, cursor: rendered.page.next_cursor,
+            page_size: rendered.page.page_size || 500,
+          }}));
+        } else if (onProviderContinuation) {
+          await onProviderContinuation();
+        }
+      })}>{gettext('Next result page')}</Button>
       {exportFormats.map((format) =>
         <Button key={format} onClick={() => perform(async () => downloadBase64(
           await post({action: 'result_export', request: {
@@ -1891,6 +2331,7 @@ ResultControls.propTypes = {
   onRendered: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   setBusy: PropTypes.func.isRequired,
+  onProviderContinuation: PropTypes.func,
   allowedFormats: PropTypes.array,
   deliveryProfiles: PropTypes.array,
 };
@@ -3114,20 +3555,25 @@ function SemanticModelWorkspace({semantic, resources, post, setError}) {
         {gettext('Delete')}</Button>
       {working && <CircularProgress size={24} />}
     </Box>
-    <Tabs value={panel} onChange={(_event, value) => setPanel(value)} sx={{mt: 1}}>
-      <Tab value="model" label={gettext('Model')} />
-      <Tab value="relationships" label={gettext('Relationships')} />
-      <Tab value="dimensions" label={gettext('Dimensions & hierarchies')} />
-      <Tab value="measures" label={gettext('Measures')} />
-      <Tab value="query" label={gettext('Cube query')} />
-      <Tab value="security" label={gettext('Parameters & security')} />
-      <Tab value="presentation" label={gettext('Charts & dashboards')} />
-      <Tab value="reports" label={gettext('Reports & schedules')} />
-      <Tab value="materializations" label={gettext('Materializations')} />
-      <Tab value="lineage" label={gettext('Lineage')} />
-      <Tab value="diagnostics" label={gettext('Diagnostics')} />
-      <Tab value="revisions" label={gettext('Revisions')} />
-    </Tabs>
+    <TextField select fullWidth value={panel} sx={{mt: 2}}
+      label={gettext('Semantic-model task')}
+      SelectProps={{native: true}}
+      onChange={(event) => setPanel(event.target.value)}>
+      <option value="model">{gettext('Model')}</option>
+      <option value="relationships">{gettext('Relationships')}</option>
+      <option value="dimensions">
+        {gettext('Dimensions & hierarchies')}
+      </option>
+      <option value="measures">{gettext('Measures')}</option>
+      <option value="query">{gettext('Cube query')}</option>
+      <option value="security">{gettext('Parameters & security')}</option>
+      <option value="presentation">{gettext('Charts & dashboards')}</option>
+      <option value="reports">{gettext('Reports & schedules')}</option>
+      <option value="materializations">{gettext('Materializations')}</option>
+      <option value="lineage">{gettext('Lineage')}</option>
+      <option value="diagnostics">{gettext('Diagnostics')}</option>
+      <option value="revisions">{gettext('Revisions')}</option>
+    </TextField>
     {validation && <Alert severity={validation.valid ? 'success' : 'error'} sx={{mt: 1}}>
       {validation.valid ? gettext('Model is valid.') :
         (validation.errors || []).map((item) => item.message).join(' ')}</Alert>}
@@ -4530,47 +4976,218 @@ ConnectionRouteWorkspace.propTypes = {
   setError: PropTypes.func.isRequired,
 };
 
-function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
-  setError, onRefresh}) {
+function databaseFormDraft(form, target=null) {
+  const source = {
+    database: target?.database,
+    display_name: target?.display_name,
+    ...(target?.configuration || {}),
+  };
+  return Object.fromEntries((form?.fields || []).map((field) => {
+    let value = source[field.field_id];
+    if (value === undefined) value = initialFieldValue(field);
+    if (field.control === 'json' && typeof value !== 'string') {
+      value = JSON.stringify(value, null, 2);
+    }
+    return [field.field_id, value];
+  }));
+}
+
+function serverFormDraft(registration, form) {
+  const configuration = registration?.primary_route?.configuration || {};
+  return Object.fromEntries((form?.fields || []).map((field) => {
+    let value;
+    if(field.field_id === 'name') {
+      value = registration?.display_name;
+    } else if(field.field_id === 'username') {
+      value = configuration.user;
+    } else {
+      value = configuration[field.route_key || field.field_id];
+    }
+    if(value === undefined) value = initialFieldValue(field);
+    if(field.control === 'json' && typeof value !== 'string') {
+      value = JSON.stringify(value, null, 2);
+    }
+    return [field.field_id, value];
+  }));
+}
+
+export function ServerProfileWorkspace({registration, post, setError,
+  initialMode='edit', onRemoved}) {
+  const form = registration?.forms?.forms?.[initialMode];
+  const [draft, setDraft] = useState(() => serverFormDraft(
+    registration, form
+  ));
+  const [working, setWorking] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const removing = initialMode === 'remove';
+
+  useEffect(() => {
+    setDraft(serverFormDraft(registration, form));
+    setSaved(false);
+  }, [form?.form_id, registration?.display_name,
+    registration?.primary_route?.route_id]);
+
+  const save = async () => {
+    setWorking(true); setError(null); setSaved(false);
+    try {
+      const result = await post({
+        action: removing ? 'endpoint_profile_remove' :
+          'endpoint_profile_update',
+        request: databaseFormRequest(form, draft),
+      });
+      setSaved(true);
+      if(removing) onRemoved?.(result);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  if(!form) return <Alert severity="error">
+    {gettext('The provider endpoint form is unavailable.')}
+  </Alert>;
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1}}
+    data-form-id={form.form_id}>
+    <Box component="h2" sx={{mt: 0}}>{form.title}</Box>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('This endpoint form, its fields, and its validation are owned by the selected engine profile.')}
+    </Alert>
+    <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))', gap: 2}}>
+      {(form.fields || []).filter((field) => fieldVisible(field, draft))
+        .map((field) => <VisualAdminField key={field.field_id} field={field}
+          value={draft[field.field_id]} onChange={(value) => {
+            setDraft({...draft, [field.field_id]: value}); setSaved(false);
+          }} />)}
+    </Box>
+    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mt: 2}}>
+      <Button variant="contained" color={removing ? 'error' : 'primary'}
+        disabled={working || (removing &&
+          draft.confirmation !== registration?.display_name)} onClick={save}>
+        {removing ? gettext('Remove endpoint registration') :
+          gettext('Save endpoint profile')}
+      </Button>
+      {working && <CircularProgress size={24} />}
+      {saved && <Alert severity="success">
+        {removing ? gettext('Endpoint registration removed.') :
+          gettext('Endpoint profile saved. Verify it before reconnecting.')}
+      </Alert>}
+    </Box>
+  </Box>;
+}
+
+ServerProfileWorkspace.propTypes = {
+  registration: PropTypes.object,
+  post: PropTypes.func.isRequired,
+  setError: PropTypes.func.isRequired,
+  initialMode: PropTypes.string,
+  onRemoved: PropTypes.func,
+};
+
+function databaseFormRequest(form, draft) {
+  return Object.fromEntries((form?.fields || []).filter((field) =>
+    fieldVisible(field, draft)).map((field) => {
+    let value = draft[field.field_id];
+    if (field.control === 'json' && typeof value === 'string' && value) {
+      value = JSON.parse(value);
+    }
+    return [field.field_id, value];
+  }).filter(([, value]) => value !== '' && value !== undefined));
+}
+
+export function DatabaseTargetWorkspace({initialCatalog, visualCatalog,
+  resources, post, setError, onRefresh, initialMode='create',
+  initialTargetId='', focused=false}) {
   const [catalog, setCatalog] = useState(initialCatalog);
+  const databaseContract = catalog?.forms;
+  const forms = databaseContract?.forms || {};
   const lifecycleObject = useMemo(() => {
     const objects = visualCatalog?.objects || [];
-    const preferred = [
-      'database', 'keyspace', 'namespace', 'catalog', 'bucket',
-    ];
-    return preferred.map((kind) => objects.find((item) =>
-      item.resource_kind === kind && item.operations?.some((operation) =>
-        operation.operation_id === 'create'))).find(Boolean) || null;
-  }, [visualCatalog]);
-  const createOperation = lifecycleObject?.operations?.find(
-    (operation) => operation.operation_id === 'create'
+    return objects.find((item) => item.resource_kind ===
+      databaseContract?.lifecycle_resource_kind) || null;
+  }, [databaseContract?.lifecycle_resource_kind, visualCatalog]);
+  const lifecycleOperations = Object.fromEntries(
+    (lifecycleObject?.operations || []).map((operation) =>
+      [operation.operation_id, operation])
   );
-  const createFields = createOperation?.form?.fields || [];
-  const [mode, setMode] = useState('create');
-  const [database, setDatabase] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const requestedMode = initialMode === 'attach' ? 'define' : initialMode;
+  const [mode, setMode] = useState(
+    ['define', 'connect', 'create', 'edit', 'alter', 'drop', 'remove']
+      .includes(requestedMode) ? requestedMode : 'define'
+  );
   const [draft, setDraft] = useState({});
   const [validation, setValidation] = useState(null);
   const [plan, setPlan] = useState(null);
   const [result, setResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [selected, setSelected] = useState(
-    initialCatalog?.active_target_id || ''
+    initialTargetId || initialCatalog?.active_target_id || ''
   );
   const [working, setWorking] = useState(false);
+  const selectedTarget = (catalog?.targets || []).find((target) =>
+    target.target_id === selected) || null;
+  const selectedResource = (resources || []).find((resource) =>
+    resource.resource_kind === databaseContract?.lifecycle_resource_kind &&
+    (resource.display_name === selectedTarget?.database ||
+      resource.display_name === selectedTarget?.display_name ||
+      resource.authority_path?.at(-1) === selectedTarget?.database)) ||
+    (selectedTarget ? {
+      resource_id: `database-target:${selectedTarget.target_id}`,
+      identity_kind: 'cdeadmin-database-target-id',
+      resource_kind: databaseContract?.lifecycle_resource_kind,
+      display_name: selectedTarget.display_name,
+      display_path: [selectedTarget.display_name],
+      authority_path: [databaseContract?.lifecycle_resource_kind,
+        selectedTarget.database],
+      is_virtual: false,
+      extensions: {cdeadmin: {
+        database_target_id: selectedTarget.target_id,
+        native_name: selectedTarget.database,
+      }},
+    } : null);
+  const lifecycleOperation = lifecycleOperations[mode];
+  const isLifecycle = ['create', 'alter', 'drop'].includes(mode);
+  const activeForm = isLifecycle && lifecycleOperation?.form ? {
+    ...forms[mode],
+    ...lifecycleOperation.form,
+  } : forms[mode];
+  const targetRequired = ['alter', 'drop'].includes(mode);
+  const managementModes = [
+    ...(catalog?.target_management && forms.define ? ['define'] : []),
+    ...(forms.create?.supported && lifecycleOperations.create ?
+      ['create'] : []),
+    ...(selectedTarget && forms.connect ? ['connect'] : []),
+    ...(selectedTarget && forms.edit ? ['edit'] : []),
+    ...(selectedTarget && forms.alter?.supported && lifecycleOperations.alter ?
+      ['alter'] : []),
+    ...(selectedTarget && forms.drop?.supported && lifecycleOperations.drop ?
+      ['drop'] : []),
+    ...(selectedTarget && forms.remove ? ['remove'] : []),
+  ];
 
   useEffect(() => {
-    setDraft(Object.fromEntries(createFields.map((field) =>
-      [field.field_id, initialFieldValue(field)])));
+    if (result && isLifecycle) return;
+    const legacyTarget = mode === 'define' &&
+      catalog?.legacy_route_database !== null &&
+      catalog?.legacy_route_database !== undefined ? {
+        database: String(catalog.legacy_route_database),
+        display_name: String(catalog.legacy_route_database).split('/').pop(),
+      } : null;
+    setDraft(databaseFormDraft(activeForm, selectedTarget || legacyTarget));
     setValidation(null);
     setPlan(null);
     setResult(null);
     setConfirmed(false);
-  }, [createOperation?.operation_id, lifecycleObject?.resource_kind]);
+  }, [activeForm?.form_id, selectedTarget?.target_id,
+    catalog?.legacy_route_database, mode, isLifecycle, result]);
 
   useEffect(() => {
-    if (!createOperation && catalog?.multiple) setMode('attach');
-  }, [catalog?.multiple, createOperation]);
+    if (result) return;
+    if (managementModes.length && !managementModes.includes(mode)) {
+      setMode(managementModes[0]);
+    }
+  }, [managementModes.join('|'), mode, result]);
 
   const apply = async (action, request={}) => {
     setWorking(true); setError(null);
@@ -4578,35 +5195,32 @@ function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
       const value = await post({action, request});
       setCatalog(value);
       setSelected(value.active_target_id || '');
-      if (action === 'database_target_attach') {
-        setDatabase(''); setDisplayName('');
+      if (action === 'database_target_attach' &&
+          value.forms?.forms?.connect && value.active_target_id) {
+        setMode('connect');
       }
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally { setWorking(false); }
   };
 
-  const createRequest = () => ({
+  const lifecycleRequest = () => ({
     resource_kind: lifecycleObject.resource_kind,
-    operation_id: createOperation.operation_id,
-    target_resource: null,
-    draft: Object.fromEntries(createFields.filter((field) => {
-      const value = draft[field.field_id];
-      return field.required || (value !== '' && value !== null &&
-        value !== undefined && !(Array.isArray(value) && value.length === 0));
-    }).map((field) => [field.field_id, draft[field.field_id]])),
+    operation_id: lifecycleOperation.operation_id,
+    target_resource: targetRequired ? selectedResource : null,
+    draft: databaseFormRequest(activeForm, draft),
   });
 
-  const previewCreate = async () => {
+  const previewLifecycle = async () => {
     setWorking(true); setError(null); setPlan(null); setResult(null);
     try {
       const checked = await post({
-        action: 'visual_admin_validate', request: createRequest(),
+        action: 'visual_admin_validate', request: lifecycleRequest(),
       });
       setValidation(checked);
       if (checked.valid) {
         setPlan(await post({
-          action: 'visual_admin_plan', request: createRequest(),
+          action: 'visual_admin_plan', request: lifecycleRequest(),
         }));
       }
     } catch (requestError) {
@@ -4614,7 +5228,7 @@ function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
     } finally { setWorking(false); }
   };
 
-  const applyCreate = async () => {
+  const applyLifecycle = async () => {
     setWorking(true); setError(null);
     try {
       const value = await post({
@@ -4627,58 +5241,96 @@ function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
       setResult(value);
       if (value.database_targets) {
         setCatalog(value.database_targets);
-        setSelected(value.database_targets.active_target_id || '');
       }
       setPlan(null);
-      onRefresh?.();
+      if (mode !== 'drop') onRefresh?.();
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally { setWorking(false); }
   };
 
-  if (!catalog?.multiple && !createOperation) return null;
-  return <Box sx={{p: 2, borderBottom: 1, borderColor: 'divider'}}>
+  const submitTargetForm = async () => {
+    try {
+      const request = databaseFormRequest(activeForm, draft);
+      if (mode === 'define') {
+        return await apply('database_target_attach', request);
+      }
+      if (mode === 'connect') {
+        return await apply('database_target_activate', {
+          target_id: selected, ...request,
+        });
+      }
+      if (mode === 'edit') {
+        return await apply('database_target_update', {
+          target_id: selected, ...request,
+        });
+      }
+      if (mode === 'remove') {
+        return await apply('database_target_delete', {
+          target_id: selected, ...request,
+        });
+      }
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    }
+    return undefined;
+  };
+
+  if (!databaseContract?.form_set_id) return <Alert severity="error">
+    {gettext('This provider has no engine-owned database form contract. The generic database form is intentionally unavailable.')}
+  </Alert>;
+  const targetSubmitDisabled = working || !activeForm ||
+    (activeForm.fields || []).some((field) => field.required &&
+      (draft[field.field_id] === '' || draft[field.field_id] === undefined));
+  return <Box sx={{p: 2, borderBottom: focused ? 0 : 1,
+    borderColor: 'divider'}}>
     <Box component="h2" sx={{mt: 0}}>
-      {gettext('Create or register a database')}
+      {activeForm?.title || databaseContract.form_set_id}
     </Box>
     <Alert severity="info" sx={{mb: 2}}>
-      {gettext('This form is engine-specific. Creating uses the provider lifecycle contract; registering verifies an existing native database without creating it. Server credentials and network routes remain independent.')}
+      {gettext('This form is owned by the selected engine. Its fields, validation, preview, and execution are provider-specific.')}
     </Alert>
-    {catalog?.multiple && createOperation && <TextField select fullWidth
-      sx={{mb: 2}} label={gettext('Database action')} value={mode}
-      onChange={(event) => setMode(event.target.value)}>
-      <MenuItem value="attach">{gettext('Register existing database')}</MenuItem>
-      <MenuItem value="create">{gettext('Create new database')}</MenuItem>
+    {!focused && managementModes.length > 0 && <TextField select fullWidth
+      sx={{mb: 2}}
+      label={gettext('Database action')} value={mode}
+      onChange={(event) => {
+        setResult(null);
+        setMode(event.target.value);
+      }}>
+      {managementModes.map((operationId) => <MenuItem key={operationId}
+        value={operationId}>{forms[operationId].title}</MenuItem>)}
     </TextField>}
-    {catalog?.multiple && mode === 'attach' && <>
-      <Box sx={{display: 'grid',
-        gridTemplateColumns: 'repeat(2, minmax(260px, 1fr))', gap: 2}}>
-        <TextField label={gettext('Database filename, path, or native name')}
-          value={database} onChange={(event) => setDatabase(event.target.value)} />
-        <TextField label={gettext('Display name (optional)')}
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)} />
-      </Box>
-      <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
-        <Button variant="contained" disabled={working || !database.trim()}
-          onClick={() => apply('database_target_attach', {
-            database, display_name: displayName || undefined,
-          })}>{gettext('Verify and attach')}</Button>
-        {catalog.server_verification && <Button disabled={working ||
-        !catalog.active_target_id}
-        onClick={() => apply('database_target_disconnect')}>
-          {gettext('Use server scope')}</Button>}
-      </Box>
-    </>}
-    {createOperation && (!catalog?.multiple || mode === 'create') && <>
-      <Box sx={{display: 'flex', flexDirection: 'column', gap: 2}}>
-        {createFields.filter((field) => fieldVisible(field, draft)).map(
-          (field) => <VisualAdminField key={field.field_id} field={field}
-            value={draft[field.field_id]}
+    {activeForm && <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 2}}>
+      {(activeForm.fields || []).filter((field) =>
+        fieldVisible(field, draft)).map(
+        (field) => <Box key={field.field_id} sx={{minWidth: 0,
+          gridColumn: ['multiline', 'code', 'json'].includes(field.control) ?
+            '1 / -1' : undefined}}>
+          <VisualAdminField field={field} value={draft[field.field_id]}
             onChange={(value) => setDraft((current) => ({
               ...current, [field.field_id]: value,
-            }))} />)}
-      </Box>
+            }))} />
+        </Box>)}
+    </Box>}
+    {!isLifecycle && activeForm && <Box sx={{display: 'flex', gap: 1,
+      mt: 2, flexWrap: 'wrap'}}>
+      <Button variant="contained" color={mode === 'remove' ? 'error' :
+        'primary'} disabled={targetSubmitDisabled}
+      onClick={submitTargetForm}>{activeForm.title}</Button>
+      {catalog.server_verification && catalog.active_target_id &&
+        <Button disabled={working}
+          onClick={() => apply('database_target_disconnect')}>
+          {gettext('Use server scope')}</Button>}
+    </Box>}
+    {isLifecycle && <>
+      {!lifecycleOperation && <Alert severity="warning" sx={{mt: 2}}>
+        {gettext('The provider does not publish this native lifecycle operation.')}
+      </Alert>}
+      {targetRequired && !selectedResource && <Alert severity="warning"
+        sx={{mt: 2}}>
+        {gettext('Select a retained database before using this operation.')}
+      </Alert>}
       {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
         {validation.errors.map((item) => item.message).join(' ')}
       </Alert>}
@@ -4687,27 +5339,30 @@ function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
         {JSON.stringify(plan, null, 2)}
       </Box>}
       {result && <Alert severity="success" sx={{mt: 2}}>
-        {gettext('The provider completed the database operation. Refreshing the engine navigator will show the provider-observed result.')}
+        {gettext('The provider completed the native database operation. Refreshing the navigator will show provider-observed state.')}
       </Alert>}
-      {createOperation.confirmation_required && plan?.state === 'ready' &&
+      {lifecycleOperation?.confirmation_required && plan?.state === 'ready' &&
         <FormControlLabel control={<Checkbox checked={confirmed}
           onChange={(event) => setConfirmed(event.target.checked)} />}
-        label={gettext('I confirm this provider-planned database creation.')} />}
+        label={gettext('I confirm this provider-planned database operation.')} />}
       <Box sx={{display: 'flex', gap: 1, mt: 2}}>
-        <Button variant="contained" disabled={working}
-          onClick={previewCreate}>{gettext('Validate and preview')}</Button>
+        <Button variant="contained" disabled={working ||
+          !lifecycleOperation || (targetRequired && !selectedResource)}
+        onClick={previewLifecycle}>{gettext('Validate and preview')}</Button>
         <Button color="warning" disabled={working ||
           plan?.state !== 'ready' || !plan?.execution_available ||
-          (createOperation.confirmation_required && !confirmed)}
-        onClick={applyCreate}>{gettext('Create database')}</Button>
+          (lifecycleOperation?.confirmation_required && !confirmed)}
+        onClick={applyLifecycle}>{activeForm?.title}</Button>
         {working && <CircularProgress size={24} />}
       </Box>
     </>}
-    {catalog.legacy_route_database && <Alert severity="warning" sx={{mt: 2}}>
-      {gettext('This endpoint has a legacy route-level database. Reattach it below to migrate it into the multi-database target catalog.')}
-      {' '}{catalog.legacy_route_database}
-    </Alert>}
-    {catalog.targets.length > 0 && <Box sx={{display: 'flex', gap: 1,
+    {catalog.legacy_route_database !== null &&
+      catalog.legacy_route_database !== undefined &&
+      <Alert severity="warning" sx={{mt: 2}}>
+        {gettext('This endpoint has a legacy route-level database. Reattach it below to migrate it into the multi-database target catalog.')}
+        {' '}{catalog.legacy_route_database}
+      </Alert>}
+    {!focused && (catalog.targets || []).length > 0 && <Box sx={{display: 'flex', gap: 1,
       mt: 2, alignItems: 'center', flexWrap: 'wrap'}}>
       <TextField select label={gettext('Retained database target')}
         value={selected} sx={{minWidth: 360}}
@@ -4716,23 +5371,28 @@ function DatabaseTargetWorkspace({initialCatalog, visualCatalog, post,
           value={target.target_id}>{`${target.active ? '● ' : ''}${
             target.display_name} — ${target.database}`}</MenuItem>)}
       </TextField>
-      <Button disabled={working || !selected ||
-        selected === catalog.active_target_id}
-      onClick={() => apply('database_target_activate', {target_id: selected})}>
-        {gettext('Verify and connect')}</Button>
-      <Button color="error" disabled={working || !selected}
-        onClick={() => apply('database_target_delete', {target_id: selected})}>
-        {gettext('Forget target')}</Button>
     </Box>}
+    {Object.values(forms).filter((form) => form.supported === false).map(
+      (form) => <Alert key={form.form_id || form.operation_id}
+        severity="info" sx={{mt: 1}}>
+        {form.title}: {form.disabled_reason}
+      </Alert>)}
   </Box>;
 }
 
 DatabaseTargetWorkspace.propTypes = {
   initialCatalog: PropTypes.object,
   visualCatalog: PropTypes.object,
+  resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   onRefresh: PropTypes.func,
+  initialMode: PropTypes.oneOf([
+    'attach', 'define', 'connect', 'create', 'edit', 'alter', 'drop',
+    'remove',
+  ]),
+  initialTargetId: PropTypes.string,
+  focused: PropTypes.bool,
 };
 
 function parseCsv(source) {
@@ -4764,6 +5424,81 @@ function parseCsv(source) {
     (name, index) => [name, values[index] ?? '']
   )));
 }
+
+function PropertyGroup({title, value}) {
+  const rows = Object.entries(value || {}).filter(([, item]) =>
+    item !== undefined);
+  return <Box component="section" sx={{minWidth: 0}}>
+    <Box component="h3" sx={{mt: 0}}>{title}</Box>
+    {rows.length === 0 && <Alert severity="info">
+      {gettext('The provider reported no properties for this scope.')}
+    </Alert>}
+    {rows.length > 0 && <Box component="dl" sx={{m: 0, display: 'grid',
+      gridTemplateColumns: 'minmax(180px, 0.35fr) minmax(240px, 1fr)',
+      border: 1, borderColor: 'divider'}}>
+      {rows.map(([name, item]) => <Fragment key={name}>
+        <Box component="dt" sx={{m: 0, p: 1, fontWeight: 600,
+          borderBottom: 1, borderColor: 'divider'}}>
+          {name.replaceAll('_', ' ')}
+        </Box>
+        <Box component="dd" sx={{m: 0, p: 1, overflowWrap: 'anywhere',
+          borderBottom: 1, borderColor: 'divider'}}>
+          {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+        </Box>
+      </Fragment>)}
+    </Box>}
+  </Box>;
+}
+
+PropertyGroup.propTypes = {
+  title: PropTypes.string.isRequired,
+  value: PropTypes.object,
+};
+
+function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
+  targetId}) {
+  const target = (databaseTargets?.targets || []).find((item) =>
+    item.target_id === targetId) || (databaseTargets?.targets || []).find(
+    (item) => item.active
+  );
+  const server = (resources || []).find((item) =>
+    item.resource_kind === 'server');
+  const database = (resources || []).find((item) =>
+    item.resource_kind === 'database' && (!target ||
+      item.display_name === target.display_name ||
+      item.extensions?.[endpoint?.verified_runtime_family]?.native
+        ?.database_name === target.database ||
+      item.extensions?.[endpoint?.verified_runtime_family]?.native
+        ?.path === target.database));
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1, minHeight: 0}}>
+    <Box component="h2" sx={{mt: 0}}>
+      {gettext('%s properties', target?.display_name ||
+        database?.display_name || gettext('Database'))}
+    </Box>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('These properties are reported by the selected provider and exact connected runtime. Server observations are included here because they qualify this database; they are not a separate database object.')}
+    </Alert>
+    <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+      <PropertyGroup title={gettext('Connection target')} value={target || {}} />
+      <PropertyGroup title={gettext('Verified engine interface')}
+        value={endpoint || {}} />
+      <PropertyGroup title={gettext('Server observations')}
+        value={server?.extensions?.[endpoint?.verified_runtime_family]
+          ?.native || server?.extensions || {}} />
+      <PropertyGroup title={gettext('Database observations')}
+        value={database?.extensions?.[endpoint?.verified_runtime_family]
+          ?.native || database?.extensions || {}} />
+    </Box>
+  </Box>;
+}
+
+DatabasePropertiesWorkspace.propTypes = {
+  endpoint: PropTypes.object,
+  databaseTargets: PropTypes.object,
+  resources: PropTypes.array,
+  targetId: PropTypes.string,
+};
 
 function DataMovementWorkspace({catalog, resources, post, setError}) {
   const choices = useMemo(() => (catalog?.objects || []).flatMap((object) =>
@@ -4924,12 +5659,13 @@ DataMovementWorkspace.propTypes = {
 };
 
 export default function ProviderWorkspaceContent({
-  closeModal, endpointUrl, initialTab='resources',
+  closeModal, endpointUrl, initialTab='resources', initialContext={},
+  onEndpointRemoved, onCredentialRequired,
 }) {
   const api = useMemo(() => getApiInstance(), []);
   const [tab, setTab] = useState(initialTab);
   const [workspace, setWorkspace] = useState(null);
-  const [source, setSource] = useState('SELECT 1');
+  const [source, setSource] = useState('');
   const [languageProfile, setLanguageProfile] = useState('');
   const [parameterSource, setParameterSource] = useState('{}');
   const [sessionId, setSessionId] = useState(null);
@@ -4939,27 +5675,124 @@ export default function ProviderWorkspaceContent({
   const [resultPresentation, setResultPresentation] = useState('native');
   const [transaction, setTransaction] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
+  const [selectedOperationId, setSelectedOperationId] = useState(
+    initialContext.operation_id || ''
+  );
+  const [selectedResourceKind, setSelectedResourceKind] = useState(
+    initialContext.resource_kind || ''
+  );
   const [resourcePage, setResourcePage] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
+  const [workspaceLoadGeneration, setWorkspaceLoadGeneration] = useState(0);
+  const querySessionIdRef = useRef(null);
+  const queryDatabaseTargetId = initialContext.database_target_id || (
+    initialContext.resource_kind &&
+    initialContext.resource_kind !== 'database' ? null :
+      (initialContext.resource_id || null)
+  );
 
   useEffect(() => {
-    api.get(endpointUrl).then((response) => {
-      setWorkspace(response.data.data);
-      setResourcePage(response.data.data?.resource_page || null);
-      const profile = response.data.data?.languages?.[0]?.language_profile || '';
-      setLanguageProfile(profile);
-      setSource(defaultSource(profile));
+    setBusy(true);
+    setError(null);
+    api.get(endpointUrl).then(async (response) => {
+      const workspaceValue = response.data.data;
+      let page = workspaceValue?.resource_page || null;
+      let resources = [...(page?.items || [])];
+      let requestedResource = resources.find(
+        (item) => item.resource_id === initialContext.resource_id
+      );
+      while (!requestedResource && page?.next_cursor &&
+             initialContext.resource_id) {
+        const nextResponse = await api.post(endpointUrl, {
+          action: 'resource_page', request: {
+            continuation: page.next_cursor,
+            generation: page.generation,
+            ...(initialContext.database_target_id ? {
+              database_target_id: initialContext.database_target_id,
+            } : {}),
+          },
+        });
+        const next = nextResponse.data.data;
+        if (next.generation !== page.generation) {
+          throw new Error(gettext(
+            'Provider objects changed while resolving the selected object.'
+          ));
+        }
+        resources = [...resources, ...(next.items || [])];
+        page = {...next, items: resources};
+        requestedResource = resources.find(
+          (item) => item.resource_id === initialContext.resource_id
+        );
+      }
+      if (!requestedResource && initialContext.resource_id &&
+          initialContext.resource_kind) {
+        const kindMatches = resources.filter((item) =>
+          item.resource_kind === initialContext.resource_kind
+        );
+        // A database-target UUID identifies the retained connection route,
+        // not the provider-native database resource.  Resolve it only when
+        // this connected route exposes one unambiguous object of the kind
+        // requested by the provider context action.
+        if (kindMatches.length === 1) [requestedResource] = kindMatches;
+      }
+      setWorkspace(workspaceValue);
+      setResourcePage(page);
+      if (requestedResource) setSelectedResource(requestedResource);
+      const language = workspaceValue?.languages?.[0];
+      setLanguageProfile(language?.language_profile || '');
+      setSource(defaultSource(language));
       setBusy(false);
     }).catch((requestError) => {
+      if (requestError?.response?.status === 401 &&
+          typeof onCredentialRequired === 'function') {
+        onCredentialRequired(() => {
+          setWorkspaceLoadGeneration((generation) => generation + 1);
+        });
+        return;
+      }
       setError(errorMessage(requestError));
       setBusy(false);
     });
-  }, [api, endpointUrl]);
+  }, [api, endpointUrl, initialContext.resource_id,
+    initialContext.resource_kind, onCredentialRequired,
+    workspaceLoadGeneration]);
 
-  const post = useCallback((payload) => api.post(endpointUrl, payload)
-    .then((response) => response.data.data), [api, endpointUrl]);
+  const post = useCallback((payload) => {
+    const scopedPayload = queryDatabaseTargetId &&
+      DATABASE_SCOPED_REQUEST_ACTIONS.has(payload.action) ? {
+        ...payload,
+        request: {
+          ...(payload.request || {}),
+          database_target_id: queryDatabaseTargetId,
+        },
+      } : payload;
+    const submit = () => api.post(endpointUrl, scopedPayload)
+      .then((response) => response.data.data);
+    return submit().catch((requestError) => {
+      if (requestError?.response?.status !== 401 ||
+          typeof onCredentialRequired !== 'function') {
+        throw requestError;
+      }
+      return new Promise((resolve, reject) => {
+        onCredentialRequired(() => submit().then(resolve).catch(reject));
+      });
+    });
+  }, [api, endpointUrl, onCredentialRequired, queryDatabaseTargetId]);
+
+  useEffect(() => {
+    querySessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => () => {
+    if (!querySessionIdRef.current) return;
+    post({
+      action: 'close_session', session_id: querySessionIdRef.current,
+      database_target_id: queryDatabaseTargetId,
+    }).catch(() => {});
+    querySessionIdRef.current = null;
+  }, [post, queryDatabaseTargetId]);
 
   const acceptRendered = useCallback((value) => {
     setRendered(value);
@@ -5024,22 +5857,43 @@ export default function ProviderWorkspaceContent({
     }
   };
 
+  const reloadResources = async () => {
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const refreshed = await post({
+        action: 'resource_page', request: {},
+      });
+      setResourcePage(refreshed);
+      setSelectedResource(null);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
     const language = languageProfile;
     if (!language) throw new Error(gettext('No query language is available.'));
     const opened = await post({
       action: 'open_session', language_profile: language,
+      database_target_id: queryDatabaseTargetId,
     });
+    querySessionIdRef.current = opened.session_id;
     setSessionId(opened.session_id);
     return opened.session_id;
-  }, [languageProfile, post, sessionId]);
+  }, [languageProfile, post, queryDatabaseTargetId, sessionId]);
 
   const poll = useCallback(async (id) => {
     setBusy(true);
     setError(null);
     try {
-      const response = await post({action: 'poll', occurrence_id: id});
+      const response = await post({
+        action: 'poll', occurrence_id: id,
+        database_target_id: queryDatabaseTargetId,
+      });
       acceptRendered(response.rendered_result);
       setOccurrenceId(response.occurrence?.operation?.terminal ? null : id);
     } catch (requestError) {
@@ -5047,18 +5901,19 @@ export default function ProviderWorkspaceContent({
     } finally {
       setBusy(false);
     }
-  }, [acceptRendered, post]);
+  }, [acceptRendered, post, queryDatabaseTargetId]);
 
-  const execute = async () => {
+  const execute = async (executionSource=source, presentation='native') => {
     setBusy(true);
     setError(null);
     setRendered(null);
-    setResultPresentation('native');
+    setResultPresentation(presentation);
     try {
       const activeSession = await ensureSession();
       const occurrence = await post({
-        action: 'execute', session_id: activeSession, source,
+        action: 'execute', session_id: activeSession, source: executionSource,
         parameters: JSON.parse(parameterSource || '{}'),
+        database_target_id: queryDatabaseTargetId,
       });
       setOccurrenceId(occurrence.occurrence_id);
       await poll(occurrence.occurrence_id);
@@ -5072,7 +5927,10 @@ export default function ProviderWorkspaceContent({
     if (!occurrenceId) return;
     setBusy(true);
     try {
-      await post({action: 'cancel', occurrence_id: occurrenceId});
+      await post({
+        action: 'cancel', occurrence_id: occurrenceId,
+        database_target_id: queryDatabaseTargetId,
+      });
       await poll(occurrenceId);
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -5086,6 +5944,7 @@ export default function ProviderWorkspaceContent({
       const activeSession = await ensureSession();
       setTransaction(await post({
         action: 'transaction', session_id: activeSession,
+        database_target_id: queryDatabaseTargetId,
       }));
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -5101,27 +5960,117 @@ export default function ProviderWorkspaceContent({
       setTransaction(await post({
         action: 'transaction_action', session_id: activeSession,
         transaction_action: action,
+        database_target_id: queryDatabaseTargetId,
       }));
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally { setBusy(false); }
   };
 
+  const releaseQuerySession = async () => {
+    if (!sessionId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await post({
+        action: 'close_session', session_id: sessionId,
+        database_target_id: queryDatabaseTargetId,
+      });
+      querySessionIdRef.current = null;
+      setSessionId(null);
+      setTransaction(null);
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const selectLanguage = (profile) => {
+    if (querySessionIdRef.current) {
+      post({
+        action: 'close_session', session_id: querySessionIdRef.current,
+        database_target_id: queryDatabaseTargetId,
+      }).catch((requestError) => setError(errorMessage(requestError)));
+      querySessionIdRef.current = null;
+    }
     setLanguageProfile(profile);
-    setSource(defaultSource(profile));
+    setSource(defaultSource(workspace?.languages?.find((item) =>
+      item.language_profile === profile)));
     setSessionId(null);
     setOccurrenceId(null);
     setRendered(null);
     setTransaction(null);
   };
 
+  const openResourceAdministration = (resource, operationId='inspect') => {
+    if (resource) {
+      setSelectedResource(resource);
+      setSelectedResourceKind(resource.resource_kind);
+    }
+    setSelectedOperationId(operationId);
+    setTab('administration');
+  };
+
+  const openResourceData = (resource) => {
+    if (resource) setSelectedResource(resource);
+    setTab('data');
+  };
+
   const activeLanguage = workspace?.languages?.find((item) =>
     item.language_profile === languageProfile) || workspace?.languages?.[0];
+  const activePlanTemplates = queryPlanTemplates(activeLanguage);
+
+  const focusedDatabaseForm = initialTab === 'connections' && Boolean(
+    initialContext.database_mode
+  );
+  const focusedServerForm = initialTab === 'connections' && Boolean(
+    initialContext.server_mode
+  );
+  const composedWorkspace = initialContext.composition_mode === 'tabbed';
+
+  if (focusedServerForm) {
+    return <ModalContent sx={{minWidth: 0}}>
+      {error && <Alert severity="error">{error}</Alert>}
+      {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
+      {workspace && <ServerProfileWorkspace
+        registration={workspace.endpoint_registration}
+        post={post} setError={setError}
+        initialMode={initialContext.server_mode}
+        onRemoved={(result) => {
+          onEndpointRemoved?.(result);
+          closeModal();
+        }} />}
+      <ModalFooter><Button onClick={closeModal}>{gettext('Close')}</Button>
+      </ModalFooter>
+    </ModalContent>;
+  }
+
+  if (focusedDatabaseForm) {
+    return <ModalContent sx={{minWidth: 0}}>
+      {error && <Alert severity="error">{error}</Alert>}
+      {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
+      {workspace && <Box sx={{overflow: 'auto', flex: 1, minHeight: 0}}>
+        <DatabaseTargetWorkspace
+          initialCatalog={workspace.database_targets}
+          visualCatalog={workspace.visual_admin}
+          resources={resourcePage?.items || []}
+          post={post} setError={setError}
+          onRefresh={reloadResources}
+          initialMode={initialContext.database_mode}
+          initialTargetId={initialContext.resource_id}
+          focused />
+      </Box>}
+      <ModalFooter><Button onClick={closeModal}>{gettext('Close')}</Button>
+      </ModalFooter>
+    </ModalContent>;
+  }
 
   return (
     <ModalContent>
-      <Tabs value={tab} onChange={(_event, value) => setTab(value)}>
+      {composedWorkspace && <Tabs value={tab}
+        onChange={(_event, value) => setTab(value)}>
+        <Tab value="properties" label={gettext('Database Properties')} />
         <Tab value="resources" label={gettext('Resource Explorer')} />
         <Tab value="studio" label={gettext('Data Studio')} />
         <Tab value="data" label={gettext('Edit Data')} />
@@ -5135,18 +6084,44 @@ export default function ProviderWorkspaceContent({
             label={gettext('Databases & Connections')} />}
         {workspace?.visual_admin?.model_family === 'document' &&
           <Tab value="streams" label={gettext('Change streams')} />}
-      </Tabs>
+      </Tabs>}
+      {!composedWorkspace && workspace && <Box sx={{display: 'flex',
+        alignItems: 'center', gap: 1, px: 2, py: 1,
+        borderBottom: 1, borderColor: 'divider'}}>
+        <Box component="strong">{{
+          resources: gettext('Resource Explorer'),
+          properties: gettext('Database Properties'),
+          studio: gettext('Data Studio'),
+          data: gettext('Edit Data'),
+          administration: gettext('Administration'),
+          operations: gettext('Operations & Health'),
+          semantic: gettext('Cubes & Semantic Models'),
+          movement: gettext('Import & Bulk'),
+          connections: gettext('Databases & Connections'),
+          streams: gettext('Change streams'),
+        }[tab]}</Box>
+        {tab !== initialTab && <Button size="small" sx={{ml: 'auto'}}
+          onClick={() => setTab(initialTab)}>{gettext('Back')}</Button>}
+      </Box>}
       {error && <Alert severity="error">{error}</Alert>}
+      {workspace && <EngineContractStatus
+        contract={workspace.engine_contracts} />}
+      {workspace && <GridActivationStatus contract={workspace.grid_workspace} />}
       {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
       {workspace && tab === 'resources' &&
         <ResourceExplorer catalog={workspace.visual_admin}
           page={resourcePage}
           selectedResourceId={selectedResource?.resource_id}
           onSelect={setSelectedResource}
-          onOpenAdministration={() => setTab('administration')}
-          onOpenData={() => setTab('data')}
+          onOpenAdministration={openResourceAdministration}
+          onOpenData={openResourceData}
           onLoadMore={loadMoreResources} onRefresh={refreshResources}
           loadingMore={loadingMore} />}
+      {workspace && tab === 'properties' &&
+        <DatabasePropertiesWorkspace endpoint={workspace.endpoint}
+          databaseTargets={workspace.database_targets}
+          resources={resourcePage?.items || []}
+          targetId={initialContext.resource_id} />}
       {workspace && tab === 'studio' && <Box sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
         <TextField select size="small" sx={{mb: 1, maxWidth: 360}}
           label={gettext('Provider language')} value={languageProfile}
@@ -5158,18 +6133,30 @@ export default function ProviderWorkspaceContent({
         </TextField>
         <Box sx={{display: 'flex', gap: 1, mb: 1, flexWrap: 'wrap'}}
           aria-label={gettext('Provider language examples')}>
-          {sourcePresets(languageProfile).map(([label, example]) =>
+          {sourcePresets(activeLanguage).map(([label, example]) =>
             <Button size="small" key={label} onClick={() => setSource(example)}>
               {label}</Button>)}
         </Box>
+        {sourcePresets(activeLanguage).length === 0 &&
+          <Alert severity="info" sx={{mb: 1}}>
+            {gettext('This provider has not supplied an evidence-bound query template. The editor is intentionally empty.')}
+          </Alert>}
         <TextField multiline minRows={7} maxRows={14} value={source}
           onChange={(event) => setSource(event.target.value)}
           inputProps={{'aria-label': gettext('Query source')}} />
         <TextField multiline minRows={2} maxRows={6} value={parameterSource}
           sx={{mt: 1}} label={gettext('Query parameters (JSON)')}
           onChange={(event) => setParameterSource(event.target.value)} />
-        <Box sx={{display: 'flex', gap: 1, mt: 1}}>
-          <Button variant="contained" disabled={busy || !source.trim()} onClick={execute}>{gettext('Run')}</Button>
+        <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
+          <Button variant="contained" disabled={busy || !source.trim()}
+            onClick={() => execute()}>{gettext('Run')}</Button>
+          {activePlanTemplates.map((template, index) =>
+            <Button key={template.label} disabled={busy || !source.trim()}
+              onClick={() => execute(
+                template.source_template.replace('{source}', source), 'plan'
+              )}>
+              {index === 0 ? gettext('Explain / query plan') : template.label}
+            </Button>)}
           <Button disabled={busy || !occurrenceId} onClick={() => poll(occurrenceId)}>{gettext('Poll')}</Button>
           <Button disabled={busy || !occurrenceId} onClick={cancel}>{gettext('Cancel request')}</Button>
           <Button disabled={busy} onClick={refreshTransaction}>{gettext('Provider transaction state')}</Button>
@@ -5177,19 +6164,24 @@ export default function ProviderWorkspaceContent({
             <Button key={action} color={action === 'rollback' ? 'warning' : 'primary'}
               disabled={busy} onClick={() => controlTransaction(action)}>
               {gettext(action)}</Button>)}
+          <Button disabled={busy || !sessionId}
+            onClick={releaseQuerySession}>
+            {gettext('Close query session')}</Button>
           {busy && <CircularProgress size={24} />}
         </Box>
         {transaction && <Box component="pre" sx={{overflow: 'auto', maxHeight: 120}}>{JSON.stringify(transaction, null, 2)}</Box>}
         {rendered && <ResultControls rendered={rendered} history={resultHistory}
           post={post} onRendered={acceptRendered} setError={setError}
-          setBusy={setBusy} />}
+          setBusy={setBusy}
+          onProviderContinuation={() => poll(occurrenceId)} />}
         {rendered && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
           <Button variant={resultPresentation === 'native' ? 'contained' : 'text'}
             onClick={() => setResultPresentation('native')}>
             {gettext('Native result view')}</Button>
-          <Button variant={resultPresentation === 'plan' ? 'contained' : 'text'}
-            onClick={() => setResultPresentation('plan')}>
-            {gettext('Explain / query plan view')}</Button>
+          {activePlanTemplates.length > 0 &&
+            <Button variant={resultPresentation === 'plan' ? 'contained' : 'text'}
+              onClick={() => setResultPresentation('plan')}>
+              {gettext('Explain / query plan view')}</Button>}
         </Box>}
         {rendered && resultPresentation === 'native' &&
           <ResultView rendered={rendered} />}
@@ -5201,7 +6193,11 @@ export default function ProviderWorkspaceContent({
           resources={resourcePage?.items || []}
           selectedResource={selectedResource}
           resourceGeneration={resourcePage?.generation}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialOperationId={selectedOperationId}
+          initialResourceKind={selectedResourceKind}
+          focused={Boolean(initialContext.operation_id &&
+            initialContext.resource_kind)} />}
       {workspace && tab === 'operations' &&
         <OperationalWorkspace workspace={workspace.operational_workspace}
           endpoint={workspace.endpoint}
@@ -5223,8 +6219,11 @@ export default function ProviderWorkspaceContent({
           <DatabaseTargetWorkspace
             initialCatalog={workspace.database_targets}
             visualCatalog={workspace.visual_admin}
+            resources={resourcePage?.items || []}
             post={post} setError={setError}
-            onRefresh={refreshResources} />
+            onRefresh={reloadResources}
+            initialMode={initialContext.database_mode}
+            initialTargetId={initialContext.resource_id} />
           <ConnectionRouteWorkspace post={post} setError={setError} />
         </Box>}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&
@@ -5259,7 +6258,10 @@ export default function ProviderWorkspaceContent({
       ) &&
         <StructuredDataGrid catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          languageProfile={workspace.languages?.[0]?.language_profile}
+          databaseTargetId={queryDatabaseTargetId}
+          initialResourceId={initialContext.resource_id} />}
       {workspace && tab === 'streams' && workspace.visual_admin?.model_family === 'document' &&
         <ChangeStreamViewer resources={resourcePage?.items || []}
           languageProfile={workspace.languages?.[0]?.language_profile}
@@ -5273,7 +6275,10 @@ ProviderWorkspaceContent.propTypes = {
   closeModal: PropTypes.func,
   endpointUrl: PropTypes.string.isRequired,
   initialTab: PropTypes.oneOf([
-    'resources', 'studio', 'data', 'administration', 'operations',
+    'properties', 'resources', 'studio', 'data', 'administration', 'operations',
     'semantic', 'movement', 'streams', 'connections',
   ]),
+  initialContext: PropTypes.object,
+  onEndpointRemoved: PropTypes.func,
+  onCredentialRequired: PropTypes.func,
 };

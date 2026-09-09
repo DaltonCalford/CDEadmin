@@ -40,11 +40,11 @@ ENGINES = {
     },
     'cockroachdb': {
         'module': 'cockroachdb', 'port': 26257,
-        'query': 'SELECT 1 AS cdeadmin_probe',
+        'query': 'SELECT version()',
     },
     'dolt': {
         'module': 'dolt', 'port': 3306,
-        'query': 'SELECT 1 AS cdeadmin_probe',
+        'query': 'SELECT DOLT_VERSION()',
     },
     'foundationdb': {
         'module': 'foundationdb', 'port': 4500,
@@ -54,11 +54,11 @@ ENGINES = {
     },
     'immudb': {
         'module': 'immudb', 'port': 5432,
-        'query': 'SELECT 1 AS cdeadmin_probe',
+        'query': 'SELECT version()',
     },
     'tidb': {
         'module': 'tidb', 'port': 4000,
-        'query': 'SELECT 1 AS cdeadmin_probe',
+        'query': 'SELECT TIDB_VERSION()',
     },
     'tikv': {
         'module': 'tikv', 'port': 2379,
@@ -68,11 +68,14 @@ ENGINES = {
     },
     'vitess': {
         'module': 'vitess', 'port': 15306,
+        # The SQL probe is deliberately the Vitess provider's qualified
+        # connectivity statement. Exact product identity comes separately
+        # from VTGate /debug/vars and is never inferred from this scalar.
         'query': 'SELECT 1 AS cdeadmin_probe',
     },
     'yugabytedb': {
         'module': 'yugabytedb', 'port': 5433,
-        'query': 'SELECT 1 AS cdeadmin_probe',
+        'query': 'SELECT version()',
     },
 }
 

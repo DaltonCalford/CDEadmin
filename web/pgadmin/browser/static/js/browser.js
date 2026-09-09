@@ -15,6 +15,11 @@ import getApiInstance from '../../../static/js/api_instance';
 import usePreferences, { setupPreferenceBroadcast } from '../../../preferences/static/js/store';
 import checkNodeVisibility from '../../../static/js/check_node_visibility';
 import {appAutoUpdateNotifier} from '../../../static/js/helpers/appAutoUpdateNotifier';
+import {
+  commandService, menuBindingRegistry, registerMenuCommand,
+} from './CommandMenuAdapter';
+import {menuStructureRegistry} from
+  '../../../static/js/cdeadmin_ui/commands/MenuStructure';
 
 define('pgadmin.browser', [
   'sources/gettext', 'sources/url_for', 'sources/pgadmin',
@@ -105,6 +110,8 @@ define('pgadmin.browser', [
       context: {},
       // File menus
       file: {},
+      // Release connector visibility menus
+      connectors: {},
       // Edit menus
       edit: {},
       // Object menus
@@ -118,6 +125,9 @@ define('pgadmin.browser', [
     },
     MainMenus: [],
     BrowserContextMenu: [],
+    Commands: commandService,
+    MenuBindings: menuBindingRegistry,
+    MenuStructure: menuStructureRegistry,
 
     menu_categories: {
       /* name, label (pair) */
@@ -140,6 +150,34 @@ define('pgadmin.browser', [
         below: true,
         /* icon: 'fa fa-magic', */
         single: true,
+      },
+      'connection': {
+        name: 'connection', label: gettext('Connection'), priority: 3,
+        single: false,
+      },
+      'database': {
+        name: 'database', label: gettext('Database'), priority: 4,
+        single: false,
+      },
+      'workspace': {
+        name: 'workspace', label: gettext('Workspaces'), priority: 5,
+        single: false,
+      },
+      'object': {
+        name: 'object', label: gettext('Object'), priority: 6,
+        single: false,
+      },
+      'operations': {
+        name: 'operations', label: gettext('Operations'), priority: 7,
+        single: false,
+      },
+      'endpoint': {
+        name: 'endpoint', label: gettext('Endpoint'), priority: 8,
+        single: false,
+      },
+      'information': {
+        name: 'information', label: gettext('Information'), priority: 9,
+        single: false,
       },
     },
     // A callback to load/fetch a script when a certain node is loaded
@@ -363,7 +401,7 @@ define('pgadmin.browser', [
       _.each(menus, function(m) {
         _.each(m.applies, function(a) {
           /* We do support menu type only from this list */
-          if(['context', 'file', 'edit', 'object','management', 'tools', 'help'].indexOf(a) > -1){
+          if(menuStructureRegistry.surfaces().has(a)){
             // If current node is not visible in browser tree
             // then return from here
             if(!checkNodeVisibility(m.node)) {
@@ -416,33 +454,53 @@ define('pgadmin.browser', [
                 url: _m.url || '#',
                 target: _m.target,
                 icon: _m.icon,
-                enable: enable || true,
+                enable: enable ?? true,
                 node: _m.node,
                 checked: _m.checked,
+                is_checkbox: _m.is_checkbox,
                 below: _m.below,
                 applies: _m.applies,
                 permission: _m.permission,
                 shortcut_preference: _m.shortcut_preference,
-                shortcut:_m.shortcut
+                shortcut: _m.shortcut,
+                commandId: _m.commandId ?? _m.command_id,
+                commandVersion: _m.commandVersion,
+                commandHandler: _m.commandHandler,
+                commandArguments: _m.commandArguments,
+                description: _m.description,
+                iconKey: _m.iconKey,
+                intent: _m.intent,
+                requiresConfirmation: _m.requiresConfirmation,
+                allowedSecurityGroups: _m.allowedSecurityGroups,
+                deniedSecurityGroups: _m.deniedSecurityGroups,
+                macroCallable: _m.macroCallable,
+                defaultEnabled: _m.defaultEnabled,
+                defaultVisible: _m.defaultVisible,
+                visible: _m.visible,
+                validateArguments: _m.validateArguments,
               };
             };
 
             const menuPath = [a].concat(getFullPath([], m)).concat([m.name]);
-            const _menus = _.set(allMenus, menuPath, get_menuitem_obj(m));
+            const menuItem = get_menuitem_obj(m);
+            registerMenuCommand(menuItem, a);
+            const _menus = _.set(allMenus, menuPath, menuItem);
 
             if(m.menu_items) {
               let sub_menu_items = [];
 
               for(let mnu_val of m.menu_items) {
-                sub_menu_items.push(get_menuitem_obj(mnu_val));
+                const subMenuItem = get_menuitem_obj(mnu_val);
+                registerMenuCommand(subMenuItem, a);
+                sub_menu_items.push(subMenuItem);
               }
               _menus[m.name]['menu_items'] = sub_menu_items;
             }
           } else {
             console.warn(
-              'Developer warning: Category \'' +
+              'Developer warning: Menu surface \'' +
                   a +
-                  '\' is not supported!\nSupported categories are: context, file, edit, object, tools, management, help'
+                  '\' is not supported by the active menu structure.'
             );
           }
         });

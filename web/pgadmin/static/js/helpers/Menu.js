@@ -123,7 +123,7 @@ export class MenuItem {
       'category', 'target', 'url', 'node', 'single',
       'checked', 'below', 'menu_items', 'is_checkbox', 'action', 'applies', 'is_native_only', 'type',
       'permission', 'iconKey', 'intent', 'disabledReason',
-      'requiresConfirmation',
+      'requiresConfirmation', 'commandId', 'commandVersion',
     ];
     this.shortcut = options.shortcut;
     let defaults = {
@@ -161,6 +161,8 @@ export class MenuItem {
       intent: this.intent,
       disabledReason: this.disabledReason,
       requiresConfirmation: this.requiresConfirmation,
+      commandId: this.commandId,
+      commandVersion: this.commandVersion,
     };
   }
 

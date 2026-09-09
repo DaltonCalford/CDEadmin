@@ -383,6 +383,208 @@ def _server_form(operation):
     return None
 
 
+def _native_form(kind, operation):
+    """Return the Neo4j-owned graphical form for a native operation."""
+    title_kind = kind.replace('-', ' ')
+    form = {
+        'form_id': f'neo4j-{kind}-{operation}',
+        'title': f'{operation.replace("-", " ").title()} Neo4j {title_kind}',
+        'fields': [],
+    }
+    if operation == 'inspect':
+        return form
+    if operation in {'drop', 'delete'}:
+        if kind == 'node':
+            form['fields'] = [{
+                'field_id': 'selector', 'label': 'Deletion behavior',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': {'detach': True},
+                'help': (
+                    'Choose whether attached relationships are detached '
+                    'before the selected node is deleted.'
+                ),
+            }]
+        return form
+    if kind == 'dbms' and operation == 'execute':
+        form['fields'] = [_choice('action', 'DBMS operation', (
+            ('clear-query-caches', 'Clear query caches'),
+        ), 'clear-query-caches')]
+        return form
+    if kind == 'alias':
+        if operation == 'create':
+            form['fields'] = [{
+                'field_id': 'name', 'label': 'Alias name',
+                'control': 'text', 'required': True, 'max_length': 1024,
+            }, {
+                'field_id': 'options', 'label': 'Alias configuration',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': {'database': ''},
+                'help': (
+                    'Select the local database target or provide the native '
+                    'remote URL, credential reference, driver settings and '
+                    'alias properties.'
+                ),
+            }]
+        elif operation == 'alter':
+            form['fields'] = [{
+                'field_id': 'changes', 'label': 'Alias changes',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': {},
+            }]
+        return form
+    if kind in {'graph', 'node', 'relationship'}:
+        if operation == 'insert':
+            defaults = {
+                'graph': {'kind': 'node', 'labels': [], 'properties': {}},
+                'node': {'labels': [], 'properties': {}},
+                'relationship': {
+                    'type': '', 'start_node_element_id': '',
+                    'end_node_element_id': '', 'properties': {},
+                },
+            }
+            form['fields'] = [{
+                'field_id': 'values', 'label': 'Graph values',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': defaults[kind],
+            }]
+        elif operation == 'update':
+            default = {'properties': {}}
+            if kind == 'node':
+                default.update({'add_labels': [], 'remove_labels': []})
+            form['fields'] = [{
+                'field_id': 'changes', 'label': 'Graph changes',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': default,
+            }]
+        return form
+    if kind in {'index', 'constraint'} and operation == 'create':
+        default_type = 'range' if kind == 'index' else 'unique'
+        form['fields'] = [{
+            'field_id': 'name', 'label': f'{title_kind.title()} name',
+            'control': 'text', 'required': True, 'max_length': 1024,
+        }, {
+            'field_id': 'options',
+            'label': f'Neo4j {title_kind} definition',
+            'control': 'json', 'json_type': 'object',
+            'required': True,
+            'default': {
+                'entity_type': 'node', 'type': default_type,
+                'label': '', 'properties': [],
+            },
+        }]
+        return form
+    if kind in {'transaction', 'query'} and operation == 'execute':
+        form['fields'] = [_choice('action', 'Runtime operation', (
+            ('terminate', 'Terminate transaction'),
+        ), 'terminate'), {
+            'field_id': 'arguments', 'label': 'Transaction identity',
+            'control': 'json', 'json_type': 'object',
+            'required': False, 'default': {},
+            'help': (
+                'The selected transaction supplies its native identity; an '
+                'explicit transaction_id may be supplied when required.'
+            ),
+        }]
+        return form
+    if kind == 'user':
+        if operation == 'create':
+            form['fields'] = [{
+                'field_id': 'name', 'label': 'User name',
+                'control': 'text', 'required': True,
+            }, {
+                'field_id': 'options', 'label': 'Neo4j user options',
+                'control': 'json', 'json_type': 'object',
+                'required': True,
+                'default': {
+                    'credential_reference_id': '',
+                    'password_change_required': True, 'status': 'active',
+                },
+            }]
+        elif operation == 'alter':
+            form['fields'] = [{
+                'field_id': 'changes', 'label': 'Neo4j user changes',
+                'control': 'json', 'json_type': 'object',
+                'required': True, 'default': {},
+            }]
+        elif operation == 'rename':
+            form['fields'] = [{
+                'field_id': 'new_name', 'label': 'New user name',
+                'control': 'text', 'required': True,
+            }]
+        return form
+    if kind == 'role':
+        if operation == 'create':
+            form['fields'] = [{
+                'field_id': 'name', 'label': 'Role name',
+                'control': 'text', 'required': True,
+            }, {
+                'field_id': 'options', 'label': 'Neo4j role options',
+                'control': 'json', 'json_type': 'object',
+                'required': False, 'default': {},
+                'help': 'A role may be created as a copy of another role.',
+            }]
+        elif operation == 'rename':
+            form['fields'] = [{
+                'field_id': 'new_name', 'label': 'New role name',
+                'control': 'text', 'required': True,
+            }]
+        elif operation in {'grant', 'revoke'}:
+            form['fields'] = [{
+                'field_id': 'principal', 'label': 'User or role',
+                'control': 'text', 'required': True,
+            }]
+        return form
+    if kind == 'privilege' and operation in {'grant', 'revoke'}:
+        form['fields'] = [{
+            'field_id': 'principal', 'label': 'Role',
+            'control': 'text', 'required': True,
+        }, {
+            'field_id': 'privileges', 'label': 'Neo4j privilege',
+            'control': 'json', 'json_type': 'object',
+            'required': True,
+            'default': {
+                'effect': 'grant', 'scope': 'graph', 'action': 'MATCH',
+                'graph': '*', 'resource': {
+                    'kind': 'elements', 'names': ['*'],
+                },
+            },
+        }]
+        return form
+    if kind in {
+            'backup', 'restore', 'import', 'export', 'shell',
+            'consistency-check'} and operation == 'execute':
+        actions = {
+            'backup': (('backup', 'Back up database'),),
+            'restore': (
+                ('restore', 'Restore backup'), ('load', 'Load database dump'),
+            ),
+            'import': (
+                ('full', 'Full import'), ('incremental', 'Incremental import'),
+            ),
+            'export': (('dump', 'Dump database'),),
+            'shell': (('script', 'Run Cypher script'),),
+            'consistency-check': (('check', 'Run consistency check'),),
+        }
+        form['fields'] = [_choice(
+            'action', 'Neo4j administration action', actions[kind],
+            actions[kind][0][0],
+        ), {
+            'field_id': 'arguments', 'label': 'Administration options',
+            'control': 'json', 'json_type': 'object',
+            'required': True,
+            'default': {'database': 'neo4j', 'path': ''},
+            'help': (
+                'Paths are restricted to the endpoint tool workspace. '
+                'Import also accepts nodes and relationships source paths; '
+                'shell accepts a script value.'
+            ),
+        }]
+        return form
+    if kind == 'graph-projection' and operation == 'drop':
+        return form
+    return form
+
+
 def _server_options(draft):
     mode = draft.get('mode_constraint', 'NONE')
     if mode not in {'PRIMARY', 'SECONDARY', 'NONE'}:
@@ -1436,6 +1638,9 @@ class Neo4jClient:
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
             for operation in resource.get('operations', []):
+                operation['form'] = _native_form(
+                    kind, operation['operation_id']
+                )
                 typed_form = None
                 if kind in {'database', 'composite-database'}:
                     typed_form = _database_form(

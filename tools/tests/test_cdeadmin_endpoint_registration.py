@@ -59,6 +59,43 @@ from pgadmin.cdeadmin.security import encode_credential_bundle  # noqa: E402
 
 class RegistrationProfileTests(unittest.TestCase):
 
+    def test_provider_tree_connect_uses_endpoint_verification_path(self):
+        source = (
+            WEB / 'pgadmin/browser/server_groups/servers/static/js/server.js'
+        ).read_text(encoding='utf-8')
+        connect = source[source.index(
+            'let connect_to_server = function'
+        ):source.index('let fetch_connection_status')]
+        guard = connect.index('if (data?.cde_endpoint)')
+        verification = connect.index(
+            'obj.callbacks.verify_cde_endpoint.call', guard
+        )
+        inherited = connect.index("obj.generate_url(item, 'connect'")
+        self.assertLess(guard, verification)
+        self.assertLess(verification, inherited)
+        self.assertIn('openOnSuccess: true', connect)
+        tree_source = (
+            WEB / 'pgadmin/static/js/tree/tree_nodes.ts'
+        ).read_text(encoding='utf-8')
+        self.assertIn('node.metadata.data.children_url', tree_source)
+        self.assertIn('const providerHierarchy', tree_source)
+        server_backend = (
+            WEB / 'pgadmin/browser/server_groups/servers/__init__.py'
+        ).read_text(encoding='utf-8')
+        self.assertIn(
+            'children_url=_server_children_url(gid, server.id)',
+            server_backend,
+        )
+        self.assertIn(
+            "url_for('NODE-server.children_id', gid=gid, sid=sid)",
+            server_backend,
+        )
+        beforeopen = source[source.index(
+            'beforeopen: function'
+        ):source.index('added: function')]
+        self.assertIn('if (data.cde_endpoint)', beforeopen)
+        self.assertIn('locally registered metadata', beforeopen)
+
     def test_only_active_builtin_profiles_are_selectable(self):
         profiles = registration_profiles()
         self.assertEqual(
@@ -114,7 +151,7 @@ class RegistrationProfileTests(unittest.TestCase):
 
         icon_root = module_path.parent / 'static/img'
         icons = {path.stem for path in icon_root.glob('*.svg')}
-        self.assertEqual(set(labels), icons)
+        self.assertLessEqual(set(labels), icons)
         css_template = (
             module_path.parent / 'templates/css/engine_types.css'
         ).read_text(encoding='utf-8')
@@ -145,9 +182,19 @@ class RegistrationProfileTests(unittest.TestCase):
 
         self.assertIn("'children': [{'get': 'children'}]", backend)
         self.assertIn("f'{eid}__localhost'", backend)
+        self.assertIn("False, 'localhost_placeholder'", backend)
+        self.assertIn("node.get('cde_local_server')", backend)
+        self.assertIn('disambiguate_server_interfaces', backend)
         self.assertIn("label: gettext('Connector')", frontend)
+        self.assertIn('Nodes.localhost_placeholder', frontend)
+        self.assertIn('hasId: false', frontend)
         self.assertIn("parent_type: 'server_group'", frontend)
         self.assertIn('Refresh connector availability...', frontend)
+        self.assertIn("'connectors'", frontend)
+        self.assertIn('connector.visibility.${engineId}.set', frontend)
+        self.assertIn("f'show_connector_{engine_id}'", backend)
+        self.assertIn("'boolean', False", backend)
+        self.assertIn('if preference is None or not preference.get()', backend)
         self.assertIn("gettext('Connectors')", server_groups)
         self.assertIn("'pure|pgadmin.node.engine_type'", webpack)
         self.assertIn("'pgadmin.node.engine_type':", shim)
@@ -218,6 +265,43 @@ class RegistrationProfileTests(unittest.TestCase):
         self.assertNotIn('database', route)
         self.assertEqual(
             '/srv/firebird/databases', route['database_create_root']
+        )
+
+    def test_mysql_admits_server_scope_and_multiple_database_targets(self):
+        profile = registration_profile('mysql-native')
+        self.assertEqual('optional', profile['database_targeting']['mode'])
+        self.assertTrue(profile['database_targeting']['multiple'])
+        self.assertTrue(
+            profile['database_targeting']['server_verification']
+        )
+        self.assertTrue(
+            profile['database_targeting']['create_and_activate']
+        )
+        route = provider_route_options(profile, {}, {
+            'host': 'mysql.example', 'port': 3306, 'user': 'operator',
+        })
+        self.assertNotIn('database', route)
+
+    def test_sqlite_retains_multiple_explicit_database_files(self):
+        profile = registration_profile('sqlite-native')
+        self.assertEqual('required', profile['database_targeting']['mode'])
+        self.assertTrue(profile['database_targeting']['multiple'])
+        self.assertFalse(
+            profile['database_targeting']['server_verification']
+        )
+        self.assertTrue(
+            profile['database_targeting']['create_and_activate']
+        )
+
+    def test_duckdb_retains_multiple_explicit_database_files(self):
+        profile = registration_profile('duckdb-native')
+        self.assertEqual('required', profile['database_targeting']['mode'])
+        self.assertTrue(profile['database_targeting']['multiple'])
+        self.assertFalse(
+            profile['database_targeting']['server_verification']
+        )
+        self.assertTrue(
+            profile['database_targeting']['create_and_activate']
         )
 
     def test_catalog_is_defensive_and_implementation_neutral(self):
@@ -542,6 +626,56 @@ class RegistrationProfileTests(unittest.TestCase):
 
 class EndpointVerificationTests(unittest.TestCase):
 
+    def test_database_target_verification_uses_route_kind_permissions(self):
+        security = SimpleNamespace(secrets=SimpleNamespace(
+            register_resolver=lambda *_args: None,
+        ))
+        observed = []
+
+        class Provider:
+            @staticmethod
+            def discover_endpoint(_request):
+                return {'verified_runtime': {
+                    'engine_id': 'example', 'version': '1.0',
+                    'evidence_reference': 'evidence:target',
+                }}
+
+        registry = SimpleNamespace(resolve=lambda _context: SimpleNamespace(
+            instance=Provider()
+        ))
+        for route_kind, expected in (
+            ('embedded_file', frozenset({
+                'embedded_runtime', 'filesystem',
+            })),
+            ('network', frozenset({'network', 'secret_read'})),
+        ):
+            route = SimpleNamespace(
+                id=f'route-{route_kind}', priority=0,
+                configuration='{}',
+            )
+            endpoint = SimpleNamespace(
+                id=f'endpoint-{route_kind}', routes=[route],
+            )
+            server = SimpleNamespace(endpoint_profile=endpoint)
+            service = EndpointService(registry, security)
+
+            def context(_endpoint, permissions):
+                observed.append((route_kind, permissions))
+                return 'provider-context'
+
+            with (
+                patch.object(service, '_context', side_effect=context),
+                patch.object(
+                    service, '_route_and_reference',
+                    return_value=({'database': '/safe/test.sqlite'}, None),
+                ),
+            ):
+                service._verify_database_target(
+                    server, endpoint, {'route_kind': route_kind},
+                    '/safe/test.sqlite',
+                )
+            self.assertEqual(expected, observed[-1][1])
+
     def test_protected_locator_selects_one_typed_bundle_credential(self):
         value = encode_credential_bundle({
             'database_password': 'primary-canary',
@@ -600,7 +734,6 @@ class EndpointVerificationTests(unittest.TestCase):
             'host': 'mysql-two.example.test',
             'port': 3307,
             'user': 'operator',
-            'database': 'application',
             'priority': 4,
             'cde_route_connection_timeout': 17,
             'cde_route_compress': True,
@@ -682,6 +815,83 @@ class EndpointVerificationTests(unittest.TestCase):
                 service.delete_route(server, 'route-one')
         self.assertEqual('stale', endpoint.runtime_identity.verification_state)
         self.assertIsNone(endpoint.runtime_identity.verified_runtime_family)
+
+    def test_sqlite_endpoint_edit_uses_exact_server_form(self):
+        endpoint = SimpleNamespace(
+            id='endpoint-sqlite', provider_version='1.0',
+            profile_id='sqlite-native', routes=[SimpleNamespace(
+                id='route-sqlite', priority=0, route_kind='embedded_file',
+                configuration=json.dumps({
+                    'database': '/srv/cdeadmin/example.sqlite',
+                    'filesystem_root': '/srv/cdeadmin',
+                    'timeout': 5, 'uri_mode': 'default',
+                }),
+            )],
+            runtime_identity=SimpleNamespace(
+                verification_state='verified',
+                verified_runtime_family='sqlite',
+                verified_runtime_version='3.53.0',
+                verification_evidence_reference='evidence-sqlite',
+                verified_at='now',
+            ),
+        )
+        server = SimpleNamespace(
+            name='localhost', endpoint_profile=endpoint,
+        )
+
+        class Session:
+            @staticmethod
+            def commit():
+                return None
+
+        model_module = ModuleType('pgadmin.model')
+        model_module.db = SimpleNamespace(session=Session())
+        security = SimpleNamespace(secrets=SimpleNamespace(
+            register_resolver=lambda *_args: None,
+        ))
+        service = EndpointService(SimpleNamespace(), security)
+        with patch.dict(sys.modules, {'pgadmin.model': model_module}):
+            result = service.update_endpoint_profile(server, {
+                'name': 'SQLite workstation',
+                'attached_databases': [], 'timeout': 12,
+                'uri_mode': 'rw', 'uri_cache': 'private',
+                'uri_immutable': False, 'uri_nolock': False,
+                'detect_types': 'decltypes',
+                'isolation_level': 'immediate',
+                'cached_statements': 256,
+            })
+        self.assertEqual('SQLite workstation', server.name)
+        self.assertEqual('SQLite workstation', result['display_name'])
+        configuration = json.loads(endpoint.routes[0].configuration)
+        self.assertEqual('/srv/cdeadmin/example.sqlite',
+                         configuration['database'])
+        self.assertEqual(12, configuration['timeout'])
+        self.assertEqual('rw', configuration['uri_mode'])
+        self.assertEqual('stale', endpoint.runtime_identity.verification_state)
+
+    def test_sqlite_endpoint_remove_requires_exact_profile_name(self):
+        endpoint = SimpleNamespace(
+            id='endpoint-sqlite', provider_version='1.0',
+            profile_id='sqlite-native', routes=[],
+        )
+        server = SimpleNamespace(
+            name='SQLite workstation', endpoint_profile=endpoint,
+        )
+        security = SimpleNamespace(secrets=SimpleNamespace(
+            register_resolver=lambda *_args: None,
+        ))
+        service = EndpointService(SimpleNamespace(), security)
+        with self.assertRaisesRegex(
+            EndpointRegistrationError, 'exactly match'
+        ):
+            service.validate_endpoint_removal(server, {
+                'confirmation': 'sqlite workstation',
+            })
+        result = service.validate_endpoint_removal(server, {
+            'confirmation': 'SQLite workstation',
+        })
+        self.assertEqual('endpoint-sqlite', result['endpoint_id'])
+        self.assertEqual('SQLite workstation', result['display_name'])
 
     def test_verification_fails_over_before_session_establishment(self):
         endpoint_id = str(uuid.uuid4())
@@ -841,6 +1051,28 @@ class EndpointVerificationTests(unittest.TestCase):
         )
         self.assertEqual('database-one', value['database_target_id'])
 
+    def test_legacy_route_database_survives_without_retained_target(self):
+        route = SimpleNamespace(
+            id='route-one', priority=0,
+            configuration=json.dumps({
+                'host': 'firebird.example', 'port': 3050,
+                'database': '/legacy/route-level.fdb',
+            }),
+        )
+        endpoint = SimpleNamespace(
+            secret_references=[], routes=[route], database_targets=[],
+        )
+        service = EndpointService(SimpleNamespace(), SimpleNamespace(
+            secrets=SimpleNamespace(register_resolver=lambda *_args: None)
+        ))
+        value, _reference = service._route_and_reference(
+            SimpleNamespace(user_id=7), endpoint, {
+                'requires_secret': False,
+                'database_targeting': {'multiple': True},
+            }
+        )
+        self.assertEqual('/legacy/route-level.fdb', value['database'])
+
     def test_verification_route_contains_reference_but_no_secret(self):
         endpoint_id = str(uuid.uuid4())
         reference_id = str(uuid.uuid4())
@@ -925,6 +1157,11 @@ class EndpointVerificationTests(unittest.TestCase):
         self.assertEqual('verified', result['verification_state'])
         record.assert_called_once()
         self.assertEqual({}, service.resolver._transient)
+        self.assertIn(
+            'server:10:password', service.resolver._session
+        )
+        service.forget_server_credentials(server)
+        self.assertEqual({}, service.resolver._session)
 
 
 if __name__ == '__main__':

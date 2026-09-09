@@ -455,6 +455,28 @@ class ProviderRegistry:
         with self._lock:
             return key in self._registrations
 
+    def admitted_permissions(
+        self, context: EndpointContext
+    ) -> frozenset[str]:
+        """Return the active provider's granted permission identifiers."""
+        if context.provider_version is None:
+            raise ProviderUnavailableError(
+                'endpoint provider version has not been verified'
+            )
+        key = (context.provider_id, context.provider_version)
+        with self._lock:
+            registration = self._registrations.get(key)
+            if registration is None:
+                raise ProviderUnavailableError(
+                    'no exact provider ID/version registration exists'
+                )
+            if registration.state != ACTIVE:
+                raise ProviderUnavailableError(
+                    f'provider registration is {registration.state}'
+                )
+            self._validate_composition(registration, context)
+            return frozenset(registration.permission_grants)
+
     def resolve(self, context: EndpointContext) -> ProviderBinding:
         """Return or create a provider instance isolated to one endpoint."""
         if context.provider_version is None:
@@ -568,14 +590,7 @@ class ProviderRegistry:
         registration: ProviderRegistration,
         context: EndpointContext,
     ) -> None:
-        if context.experience_family not in registration.experience_families:
-            raise ProviderUnavailableError(
-                'provider does not declare the endpoint experience'
-            )
-        if context.target_adapter_id not in registration.target_adapter_ids:
-            raise ProviderUnavailableError(
-                'provider does not declare the endpoint target adapter'
-            )
+        ProviderRegistry._validate_composition(registration, context)
         unknown = context.effective_permissions.difference(
             registration.permission_grants
         )
@@ -591,6 +606,20 @@ class ProviderRegistry:
             labels = ', '.join(sorted(missing))
             raise ProviderPermissionError(
                 f'endpoint policy withholds required permissions: {labels}'
+            )
+
+    @staticmethod
+    def _validate_composition(
+        registration: ProviderRegistration,
+        context: EndpointContext,
+    ) -> None:
+        if context.experience_family not in registration.experience_families:
+            raise ProviderUnavailableError(
+                'provider does not declare the endpoint experience'
+            )
+        if context.target_adapter_id not in registration.target_adapter_ids:
+            raise ProviderUnavailableError(
+                'provider does not declare the endpoint target adapter'
             )
 
     def quarantine(

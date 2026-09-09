@@ -111,9 +111,11 @@ class ProviderToolRunner:
         return path if path.is_file() and os.access(path, os.X_OK) else None
 
     def run(
-        self, grant, arguments, input_bytes=b'', secret_config=None,
+        self, grant, arguments, input_bytes=b'', input_path=None,
+        secret_config=None,
         secret_argument='--config={path}', secret_suffix='.yaml',
-        redact_values=(), secret_environment=None,
+        secret_argument_position=None, redact_values=(),
+        secret_environment=None,
     ):
         if not isinstance(grant, ProviderToolGrant):
             raise ProviderToolError('provider tool grant is required')
@@ -129,6 +131,29 @@ class ProviderToolRunner:
             raise ProviderToolError('provider tool input must be bytes')
         workspace = Path(grant.workspace)
         workspace.mkdir(parents=True, exist_ok=True)
+        input_stream = None
+        if input_path is not None:
+            if input_bytes:
+                raise ProviderToolError(
+                    'provider tool input path conflicts with input bytes'
+                )
+            if not isinstance(input_path, (str, os.PathLike)):
+                raise ProviderToolError('provider tool input path is invalid')
+            try:
+                candidate = Path(input_path).resolve(strict=True)
+            except OSError:
+                raise ProviderToolError(
+                    'provider tool input path is unavailable'
+                ) from None
+            try:
+                candidate.relative_to(workspace)
+            except ValueError:
+                raise ProviderToolError(
+                    'provider tool input path escapes the workspace'
+                ) from None
+            if candidate == workspace or not candidate.is_file():
+                raise ProviderToolError('provider tool input path is invalid')
+            input_stream = candidate.open('rb')
         config_path = None
         command = [str(executable), *arguments]
         environment = {
@@ -174,20 +199,35 @@ class ProviderToolRunner:
                     raise ProviderToolError(
                         'provider tool secret argument is invalid'
                     )
-                command.append(secret_argument.format(path=config_path))
+                secret_option = secret_argument.format(path=config_path)
+                if secret_argument_position is None:
+                    command.append(secret_option)
+                elif (
+                    isinstance(secret_argument_position, bool) or
+                    not isinstance(secret_argument_position, int) or
+                    not 0 <= secret_argument_position <= len(arguments)
+                ):
+                    raise ProviderToolError(
+                        'provider tool secret argument position is invalid'
+                    )
+                else:
+                    command.insert(1 + secret_argument_position, secret_option)
             try:
-                completed = subprocess.run(
-                    command,
-                    input=bytes(input_bytes),
-                    cwd=workspace,
-                    env=environment,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=grant.timeout_seconds,
-                    check=False,
-                    shell=False,
-                    close_fds=True,
-                )
+                run_options = {
+                    'cwd': workspace,
+                    'env': environment,
+                    'stdout': subprocess.PIPE,
+                    'stderr': subprocess.PIPE,
+                    'timeout': grant.timeout_seconds,
+                    'check': False,
+                    'shell': False,
+                    'close_fds': True,
+                }
+                if input_stream is None:
+                    run_options['input'] = bytes(input_bytes)
+                else:
+                    run_options['stdin'] = input_stream
+                completed = subprocess.run(command, **run_options)
             except subprocess.TimeoutExpired as exc:
                 raise ProviderToolError('provider tool timed out') from exc
             output = completed.stdout[:grant.max_output_bytes]
@@ -217,6 +257,8 @@ class ProviderToolRunner:
                 'local_process_observation_only': True,
             }
         finally:
+            if input_stream is not None:
+                input_stream.close()
             if config_path is not None and config_path.exists():
                 try:
                     size = config_path.stat().st_size

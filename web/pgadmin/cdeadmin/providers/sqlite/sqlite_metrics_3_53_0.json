@@ -1,0 +1,788 @@
+{
+  "authoritative_metric_count": 6,
+  "authoritative_metric_ids": [
+    "sqlite.main.page_count",
+    "sqlite.main.freelist_count",
+    "sqlite.main.page_size",
+    "sqlite.main.max_page_count",
+    "sqlite.main.data_version",
+    "sqlite.main.schema_version"
+  ],
+  "authoritative_observation_count": 23,
+  "authoritative_observation_ids": [
+    "sqlite.main.page_count",
+    "sqlite.main.freelist_count",
+    "sqlite.main.page_size",
+    "sqlite.main.max_page_count",
+    "sqlite.main.data_version",
+    "sqlite.main.schema_version",
+    "sqlite.main.cache_size",
+    "sqlite.main.cache_spill",
+    "sqlite.main.journal_mode",
+    "sqlite.main.locking_mode",
+    "sqlite.main.synchronous",
+    "sqlite.main.temp_store",
+    "sqlite.main.wal_autocheckpoint",
+    "sqlite.main.journal_size_limit",
+    "sqlite.main.auto_vacuum",
+    "sqlite.main.application_id",
+    "sqlite.main.user_version",
+    "sqlite.main.secure_delete",
+    "sqlite.main.query_only",
+    "sqlite.main.read_uncommitted",
+    "sqlite.main.recursive_triggers",
+    "sqlite.main.busy_timeout",
+    "sqlite.main.foreign_keys"
+  ],
+  "catalog_evidence": {
+    "artifact": "sqlite-3.53.0.zip",
+    "authority": "SQLite Consortium",
+    "format": "SQLite 3.53.0 source archive",
+    "license_id": "blessing",
+    "sha256": "fbc30cdbfcfa42c78fe7bddd3fd37ab8995369a31d39097a5d0633296c0b6e65"
+  },
+  "classification_evidence": [
+    {
+      "artifact": "sqlite-3.53.0.zip",
+      "authority": "SQLite Consortium",
+      "evidence_id": "sqlite-3.53.0-public-status-catalog",
+      "format": "SQLite 3.53.0 source archive",
+      "license_id": "blessing",
+      "sha256": "fbc30cdbfcfa42c78fe7bddd3fd37ab8995369a31d39097a5d0633296c0b6e65"
+    },
+    {
+      "artifact": "sqlite_metrics_inventory_3_53_0.json",
+      "authority": "SQLite 3.53.0 runtime",
+      "evidence_id": "sqlite-3.53.0-runtime-observation-inventory",
+      "format": "cdeadmin.engine-metrics-inventory.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "3549bd1668aaa00e4f7e372d9659184cf2a437d917f767294540d6c058c8cf83"
+    },
+    {
+      "artifact": "SQLITE_DIALECT_QUALIFICATION_GATE.json",
+      "authority": "SQLite 3.53.0 runtime",
+      "evidence_id": "sqlite-3.53.0-live-observation-gate",
+      "format": "cdeadmin.relational-provider-live-verification.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "1354af32f1809b98f24007a91d695f792e159a9351d6e77a1e251ba1445014d1"
+    }
+  ],
+  "contract_id": "sqlite.metrics.3.53.0.v1",
+  "driver_boundary": "CPython sqlite3 does not expose sqlite3_status64 or sqlite3_db_status. These counters are inventoried but are not misrepresented as collectable provider metrics.",
+  "engine_id": "sqlite",
+  "interface_id": "sqlite-native",
+  "live_evidence_ids": [
+    "sqlite-3.53.0-live-observation-gate"
+  ],
+  "metrics": [
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.page_count",
+      "observation_id": "sqlite.main.page_count",
+      "reset_behavior": "current_database_state",
+      "unit": "pages"
+    },
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.freelist_count",
+      "observation_id": "sqlite.main.freelist_count",
+      "reset_behavior": "current_database_state",
+      "unit": "pages"
+    },
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.page_size",
+      "observation_id": "sqlite.main.page_size",
+      "reset_behavior": "database_reconfiguration",
+      "unit": "bytes"
+    },
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.max_page_count",
+      "observation_id": "sqlite.main.max_page_count",
+      "reset_behavior": "database_reconfiguration",
+      "unit": "pages"
+    },
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.data_version",
+      "observation_id": "sqlite.main.data_version",
+      "reset_behavior": "connection_relative_change",
+      "unit": "generation"
+    },
+    {
+      "aggregation": "one_per_open_main_database",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "kind": "gauge",
+      "metric_id": "sqlite.main.schema_version",
+      "observation_id": "sqlite.main.schema_version",
+      "reset_behavior": "schema_change",
+      "unit": "generation"
+    }
+  ],
+  "native_observations": [
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA page_count.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "page_count",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.page_count",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.page_count",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA freelist_count.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "freelist_count",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.freelist_count",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.freelist_count",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA page_size.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "page_size",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.page_size",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.page_size",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA max_page_count.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "max_page_count",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.max_page_count",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.max_page_count",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA data_version.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "data_version",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.data_version",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.data_version",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA schema_version.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "schema_version",
+      "observation_class": "operational_metric",
+      "observation_id": "sqlite.main.schema_version",
+      "poll_interval_seconds": 15,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.schema_version",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA cache_size.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "cache_size",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.cache_size",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.cache_size",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA cache_spill.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "cache_spill",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.cache_spill",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.cache_spill",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA journal_mode.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "journal_mode",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.journal_mode",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.journal_mode",
+      "value_type": "str",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA locking_mode.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "locking_mode",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.locking_mode",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.locking_mode",
+      "value_type": "str",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA synchronous.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "synchronous",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.synchronous",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.synchronous",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA temp_store.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "temp_store",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.temp_store",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.temp_store",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA wal_autocheckpoint.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "wal_autocheckpoint",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.wal_autocheckpoint",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.wal_autocheckpoint",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA journal_size_limit.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "journal_size_limit",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.journal_size_limit",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.journal_size_limit",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA auto_vacuum.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "auto_vacuum",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.auto_vacuum",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.auto_vacuum",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA application_id.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "application_id",
+      "observation_class": "application_metadata",
+      "observation_id": "sqlite.main.application_id",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.application_id",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA user_version.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "user_version",
+      "observation_class": "application_metadata",
+      "observation_id": "sqlite.main.user_version",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.user_version",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA secure_delete.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "secure_delete",
+      "observation_class": "configuration",
+      "observation_id": "sqlite.main.secure_delete",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.secure_delete",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA query_only.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "query_only",
+      "observation_class": "session_state",
+      "observation_id": "sqlite.main.query_only",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.query_only",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA read_uncommitted.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "read_uncommitted",
+      "observation_class": "session_state",
+      "observation_id": "sqlite.main.read_uncommitted",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.read_uncommitted",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA recursive_triggers.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "recursive_triggers",
+      "observation_class": "session_state",
+      "observation_id": "sqlite.main.recursive_triggers",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.recursive_triggers",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA busy_timeout.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "busy_timeout",
+      "observation_class": "session_state",
+      "observation_id": "sqlite.main.busy_timeout",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.busy_timeout",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    },
+    {
+      "cardinality": "one_per_open_main_database",
+      "collection_cost": "single_scalar_pragma",
+      "description": "SQLite native scalar PRAGMA foreign_keys.",
+      "evidence_ids": [
+        "sqlite-3.53.0-runtime-observation-inventory",
+        "sqlite-3.53.0-live-observation-gate"
+      ],
+      "native_name": "foreign_keys",
+      "observation_class": "session_state",
+      "observation_id": "sqlite.main.foreign_keys",
+      "poll_interval_seconds": 60,
+      "privilege": "embedded_runtime",
+      "redaction": "none",
+      "scope": "main_database_or_connection",
+      "source": "PRAGMA main.foreign_keys",
+      "value_type": "int",
+      "version_condition": "3.53.0"
+    }
+  ],
+  "profile_id": "sqlite-native",
+  "provider_id": "org.cdeadmin.sqlite",
+  "reference_version": "3.53.0",
+  "schema": "cdeadmin.engine-metrics.v2",
+  "unavailable_native_c_status_surface": [
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MEMORY_USED",
+      "numeric_id": 0,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_USED",
+      "numeric_id": 1,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_OVERFLOW",
+      "numeric_id": 2,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_USED",
+      "numeric_id": 3,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_OVERFLOW",
+      "numeric_id": 4,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MALLOC_SIZE",
+      "numeric_id": 5,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PARSER_STACK",
+      "numeric_id": 6,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_SIZE",
+      "numeric_id": 7,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_SIZE",
+      "numeric_id": 8,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MALLOC_COUNT",
+      "numeric_id": 9,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_USED",
+      "numeric_id": 0,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_USED",
+      "numeric_id": 1,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_SCHEMA_USED",
+      "numeric_id": 2,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_STMT_USED",
+      "numeric_id": 3,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_HIT",
+      "numeric_id": 4,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_MISS_SIZE",
+      "numeric_id": 5,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_MISS_FULL",
+      "numeric_id": 6,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_HIT",
+      "numeric_id": 7,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_MISS",
+      "numeric_id": 8,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_WRITE",
+      "numeric_id": 9,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_DEFERRED_FKS",
+      "numeric_id": 10,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_USED_SHARED",
+      "numeric_id": 11,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_SPILL",
+      "numeric_id": 12,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_TEMPBUF_SPILL",
+      "numeric_id": 13,
+      "scope": "connection_handle"
+    }
+  ]
+}

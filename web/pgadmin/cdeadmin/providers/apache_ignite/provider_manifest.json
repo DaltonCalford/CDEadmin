@@ -39,5 +39,5 @@
     ],
     "connection_capability_set": "apache-ignite-thin-v1"
   },
-  "provenance": {"purpose":"Apache Ignite exact-profile distributed provider","protocol":"ignite_thin","client_state":"pyignite_0.6.1_installed","runtime_state":"exact_runtime_qualified","activation_gate":"passed"}
+  "provenance": {"purpose":"Apache Ignite exact-profile distributed provider","protocol":"ignite_thin","client_state":"pyignite_0.6.1_installed","runtime_state":"exact_runtime_qualified","activation_gate":"blocked_pending_exact_contract_and_ui_evidence"}
 }

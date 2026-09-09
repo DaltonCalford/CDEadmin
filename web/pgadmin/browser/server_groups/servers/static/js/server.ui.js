@@ -192,6 +192,7 @@ export default class ServerSchema extends BaseUISchema {
       connect_now: true,
       cde_verify_now: false,
       cde_profile_id: endpointProfiles.defaultProfile.profile_id,
+      cde_registration_intent: 'endpoint',
       password: undefined,
       save_password: false,
       db_res: undefined,
@@ -223,9 +224,19 @@ export default class ServerSchema extends BaseUISchema {
     this.tagsSchema = new TagsSchema();
     this.userId = userId;
     this.registrationEngineId = registrationContext.engineId || null;
-    this.registrationProfiles = this.registrationEngineId ?
-      endpointProfiles.interfaces(this.registrationEngineId) :
-      endpointProfiles.profiles;
+    this.registrationProfileId = registrationContext.profileId ||
+      initValues.cde_profile_id || null;
+    const exactProfile = endpointProfiles.get(this.registrationProfileId);
+    this.registrationProfiles = exactProfile ? [exactProfile] :
+      this.registrationEngineId ?
+        endpointProfiles.interfaces(this.registrationEngineId) :
+        endpointProfiles.profiles;
+    this.providerFormContract = exactProfile?.form_contract?.server || null;
+    this.providerDatabaseFormContract =
+      exactProfile?.form_contract?.database || null;
+    this.providerSpecificForm = this.registrationProfiles.length > 0 &&
+      this.registrationProfiles.every((profile) =>
+        profile.workflow === 'provider_endpoint');
     _.bindAll(this, 'isShared');
   }
 
@@ -257,7 +268,9 @@ export default class ServerSchema extends BaseUISchema {
 
   requiresDatabase(state) {
     const profile = endpointProfiles.get(state.cde_profile_id);
-    return !profile || profile.database_targeting?.mode !== 'optional';
+    return ['create_database', 'register_existing'].includes(
+      state.cde_registration_intent
+    ) || !profile || profile.database_targeting?.mode !== 'optional';
   }
 
   hasTypedSecrets(state) {
@@ -268,7 +281,7 @@ export default class ServerSchema extends BaseUISchema {
 
   providerConnectionFields() {
     const fields = new Map();
-    endpointProfiles.profiles.forEach((profile) => {
+    this.registrationProfiles.forEach((profile) => {
       (profile.connection_fields || []).forEach((field) => {
         const id = `cde_route_${field.field_id}`;
         const current = fields.get(id) || {...field, id, profileIds: []};
@@ -312,7 +325,7 @@ export default class ServerSchema extends BaseUISchema {
   providerSecretFields() {
     const obj = this;
     const fields = new Map();
-    endpointProfiles.profiles.forEach((profile) => {
+    this.registrationProfiles.forEach((profile) => {
       (profile.secret_fields || []).forEach((field) => {
         const id = `cde_secret_${field.field_id}`;
         const current = fields.get(id) || {...field, id, profileIds: []};
@@ -350,7 +363,7 @@ export default class ServerSchema extends BaseUISchema {
 
   get baseFields() {
     let obj = this;
-    return [
+    const fields = [
       {
         id: 'id', label: gettext('ID'), type: 'int', group: null,
         mode: ['properties'],
@@ -391,8 +404,8 @@ export default class ServerSchema extends BaseUISchema {
             port: profile.default_port,
             connect_now: !providerEndpoint,
             cde_verify_now: providerEndpoint,
-            db: profile.database_targeting?.mode === 'optional' ?
-              null : state.db,
+            db: profile.database_targeting?.mode === 'optional' &&
+              state.cde_registration_intent === 'endpoint' ? null : state.db,
             service: providerEndpoint ? null : state.service,
             role: providerEndpoint ? null : state.role,
             kerberos_conn: providerEndpoint ? false : state.kerberos_conn,
@@ -403,6 +416,10 @@ export default class ServerSchema extends BaseUISchema {
             }), {}),
           };
         },
+      },
+      {
+        id: 'cde_registration_intent', label: gettext('Registration action'),
+        type: 'text', mode: ['create'], visible: false,
       },
       {
         id: 'server_owner', label: gettext('Shared Server Owner'), type: 'text', mode: ['properties'],
@@ -518,9 +535,13 @@ export default class ServerSchema extends BaseUISchema {
           }
         }
       },{
-        id: 'db', label: gettext('Database / file'), type: 'text', group: gettext('Connection'),
+        id: 'db', label: gettext(
+          this.providerDatabaseFormContract?.forms?.define?.fields?.[0]
+            ?.label || 'Database / file'
+        ), type: this.providerDatabaseFormContract?.forms?.define?.fields?.[0]
+          ?.control === 'file' ? 'file' : 'text', group: gettext('Connection'),
         mode: ['properties', 'edit', 'create'], readonly: obj.isConnectedOrShared,
-        deps: ['cde_profile_id'],
+        deps: ['cde_profile_id', 'cde_registration_intent'],
         visible: (state) => obj.requiresDatabase(state),
         noEmpty: false,
         helpMessage: gettext(
@@ -773,6 +794,20 @@ export default class ServerSchema extends BaseUISchema {
         canAdd: true, canEdit: false, canDelete: true, maxCount: pgAdmin.Browser.utils.max_server_tags_allowed,
       },
     ];
+    if (!this.providerSpecificForm) return fields;
+
+    const inheritedPostgreSQLFields = new Set([
+      'server_type', 'connected', 'connection_string', 'connect_now',
+      'shared', 'shared_username', 'kerberos_conn', 'gss_authenticated',
+      'gss_encrypted', 'password', 'role', 'service', 'connection_params',
+      'use_ssh_tunnel', 'tunnel_host', 'tunnel_port', 'tunnel_username',
+      'tunnel_authentication', 'tunnel_identity_file', 'tunnel_password',
+      'tunnel_prompt_password', 'save_tunnel_password', 'tunnel_keep_alive',
+      'db_res_type', 'db_res', 'passexec_cmd', 'passexec_expiration',
+      'prepare_threshold', 'post_connection_sql',
+    ]);
+    return fields.filter((field) =>
+      !inheritedPostgreSQLFields.has(field.id));
   }
 
   validate(state, setError) {

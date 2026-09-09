@@ -97,6 +97,13 @@ class PilotProfile:
     semantic_compiler_kind: str | None = None
     semantic_time_operations: tuple[str, ...] = ()
     semantic_window_operations: tuple[str, ...] = ()
+    starter_source: str = ''
+    source_presets: tuple[tuple[str, str], ...] = ()
+    query_plan_templates: tuple[tuple[str, str], ...] = ()
+    dialect_contract_id: str | None = None
+    dialect_evidence: tuple[str, ...] = ()
+    dialect_contract_file: str | None = None
+    metrics_contract_file: str | None = None
 
     def __post_init__(self):
         fields = (
@@ -129,11 +136,56 @@ class PilotProfile:
             if len(values) != len(set(values)) or any(
                     not isinstance(item, str) or not item for item in values):
                 raise PilotProviderError(f'{name} contains an invalid value')
+        if not isinstance(self.starter_source, str):
+            raise PilotProviderError('starter_source must be a string')
+        for position, preset in enumerate(self.source_presets):
+            if not isinstance(preset, (tuple, list)) or len(preset) != 2:
+                raise PilotProviderError(
+                    f'source_presets item {position} must be a '
+                    'label/source pair'
+                )
+            _required(preset[0], 'source preset label')
+            _required(preset[1], 'source preset source')
+        for position, template in enumerate(self.query_plan_templates):
+            if not isinstance(template, (tuple, list)) or len(template) != 2:
+                raise PilotProviderError(
+                    f'query_plan_templates item {position} must be a '
+                    'label/template pair'
+                )
+            _required(template[0], 'query plan label')
+            source_template = _required(
+                template[1], 'query plan source template'
+            )
+            if source_template.count('{source}') != 1 or any(
+                    token in source_template.replace('{source}', '')
+                    for token in ('{', '}')):
+                raise PilotProviderError(
+                    'query plan source template must contain exactly one '
+                    '{source} placeholder and no other placeholders'
+                )
+        if self.dialect_contract_id is not None:
+            object.__setattr__(
+                self, 'dialect_contract_id',
+                _required(self.dialect_contract_id, 'dialect_contract_id')
+            )
+        for evidence in self.dialect_evidence:
+            _required(evidence, 'dialect_evidence item')
+        if (self.starter_source or self.source_presets or
+                self.query_plan_templates):
+            if self.dialect_contract_id is None or not self.dialect_evidence:
+                raise PilotProviderError(
+                    'executable query templates require a dialect contract '
+                    'and evidence'
+                )
         for name in ('minimum_version', 'maximum_version_exclusive'):
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, _required(value, name))
                 self._numeric_version(value)
+        for name in ('dialect_contract_file', 'metrics_contract_file'):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, _required(value, name))
         if self.semantic_sql_dialect is not None:
             if not isinstance(self.semantic_sql_dialect, Mapping):
                 raise PilotProviderError(
@@ -264,11 +316,38 @@ class ActualEnginePilotProvider:
             profile.engine_id,
             profile.exact_version,
             client,
+            operation_gate=self._visual_admin_operation_gate,
+        )
+
+    def _visual_admin_operation_gate(self, resource_kind, operation_id):
+        """Refuse generated dialect work until its exact contract passes."""
+        requires = getattr(
+            self.client, 'admin_operation_requires_dialect', None
+        )
+        if not callable(requires) or not requires(
+                resource_kind, operation_id):
+            return True
+        return self.engine_contract_descriptor()['dialect']['state'] == (
+            'passed'
         )
 
     def visual_admin_descriptor(self):
         """Return this provider's declarative visual administration surface."""
         return self._visual_admin.descriptor()
+
+    def engine_contract_descriptor(self):
+        """Return dialect/metric activation without inferring defaults."""
+        from pgadmin.cdeadmin.engine_contracts import contract_descriptor
+
+        task_inventory = getattr(
+            self.client, 'admin_dialect_task_ids', None
+        )
+        expected_task_ids = (
+            task_inventory() if callable(task_inventory) else None
+        )
+        return contract_descriptor(
+            self.profile, self.__class__.__module__, expected_task_ids
+        )
 
     def validate_visual_admin(self, request):
         """Validate a visual draft without generating engine commands."""
@@ -276,15 +355,33 @@ class ActualEnginePilotProvider:
 
     def plan_visual_admin(self, request):
         """Ask the target adapter for a native, non-executing plan."""
-        return self._visual_admin.plan(request)
+        payload = _mapping(request)
+        self._visual_admin_session_context(payload)
+        return self._visual_admin.plan(payload)
 
     def apply_visual_admin(self, request):
         """Execute a retained provider plan through the target adapter."""
-        return self._visual_admin.apply(request)
+        payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        return self._visual_admin.apply(payload, execution_context)
 
     def read_visual_admin_rows(self, request):
         """Read a provider-identified editable page from one base table."""
-        return self._visual_admin.read_rows(request)
+        payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        return self._visual_admin.read_rows(payload, execution_context)
+
+    def _visual_admin_session_context(self, payload):
+        """Resolve an optional row-grid session without exporting a handle."""
+        session_id = payload.get('session_id')
+        if session_id is None:
+            return None
+        if not isinstance(session_id, str) or not session_id:
+            raise PilotProviderError('provider session identity is invalid')
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise PilotProviderError('provider session is unavailable')
+        return {'session_id': session_id, 'session_handle': session.handle}
 
     def cancel_visual_admin_rows(self, request):
         """Cancel a provider-retained editable-data cursor."""
@@ -314,11 +411,15 @@ class ActualEnginePilotProvider:
 
     def semantic_model_descriptor(self):
         """Describe provider-owned semantic compilation availability."""
-        available = (
-            self.profile.semantic_sql_dialect is not None or
-            self.profile.semantic_compiler_kind is not None
+        sql_compiler = bool(
+            self.profile.semantic_sql_dialect is not None and
+            self.profile.semantic_sql_dialect.get(
+                'contract_complete'
+            ) is True
         )
-        sql_compiler = self.profile.semantic_sql_dialect is not None
+        available = (
+            sql_compiler or self.profile.semantic_compiler_kind is not None
+        )
         return {
             'provider_id': self.profile.provider_id,
             'engine_id': self.profile.engine_id,
@@ -326,7 +427,7 @@ class ActualEnginePilotProvider:
             'execution_available': available,
             'language_profile': (
                 self.profile.semantic_sql_dialect.get('language_profile')
-                if self.profile.semantic_sql_dialect is not None else
+                if sql_compiler else
                 self.profile.language_profile if available else None
             ),
             'compiler_kind': self.profile.semantic_compiler_kind or (
@@ -642,6 +743,10 @@ class ActualEnginePilotProvider:
         return binding.instance.control_transaction(request)
 
     @staticmethod
+    def _studio_close_session(binding, request):
+        return binding.instance.close_session(request)
+
+    @staticmethod
     def _studio_execute(binding, request):
         return binding.instance.execute(request)
 
@@ -675,6 +780,13 @@ class ActualEnginePilotProvider:
                     self.profile.language_name,
                     self.profile.language_mime_type,
                     frozenset({self.profile.model_family}),
+                    starter_source=self.profile.starter_source,
+                    source_presets=self.profile.source_presets,
+                    query_plan_templates=(
+                        self.profile.query_plan_templates
+                    ),
+                    dialect_contract_id=self.profile.dialect_contract_id,
+                    dialect_evidence=self.profile.dialect_evidence,
                 ),
             ),
             'sessions': (
@@ -688,6 +800,7 @@ class ActualEnginePilotProvider:
                         ActualEnginePilotProvider._studio_control_transaction
                         if transaction_actions else None
                     ),
+                    ActualEnginePilotProvider._studio_close_session,
                 ),
             ),
             'executions': (
@@ -862,6 +975,36 @@ class ActualEnginePilotProvider:
             )
         callback(session.handle, action)
         return self.describe_transaction({'session_id': session_id})
+
+    def close_session(self, request):
+        """Release one retained native session under provider authority."""
+        payload = _mapping(request)
+        session_id = payload.get('session_id')
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise PilotProviderError('provider session is unavailable')
+        callback = getattr(self.client, 'close_session', None)
+        if callable(callback):
+            provider_payload = callback(session.handle)
+        else:
+            close = getattr(session.handle, 'close', None)
+            if not callable(close):
+                raise PilotProviderError(
+                    'provider session has no close operation'
+                )
+            close()
+            provider_payload = None
+        self._sessions.pop(session_id, None)
+        return {
+            'session_id': session_id,
+            'provider_closed': True,
+            'provider_payload': (
+                copy.deepcopy(dict(provider_payload))
+                if isinstance(provider_payload, Mapping) else {}
+            ),
+            'provider_finality_authority': True,
+            'common_finality_interpreted': False,
+        }
 
     def execute(self, request):
         self._require('execute')

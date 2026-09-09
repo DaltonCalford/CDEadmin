@@ -17,7 +17,9 @@ from flask_babel import gettext
 
 from pgadmin.browser.server_groups import ServerGroupPluginModule
 from pgadmin.browser.utils import NodeView
+from pgadmin.cdeadmin.context_menu import connector_context_actions
 from pgadmin.cdeadmin.endpoints import registration_profiles
+from pgadmin.cdeadmin.navigator import is_loopback_server
 from pgadmin.user_login_check import pga_login_required
 from pgadmin.utils.ajax import bad_request, make_json_response
 
@@ -50,6 +52,13 @@ ENGINE_LABELS = {
     'yugabytedb': 'YugabyteDB',
 }
 
+_INTERFACE_LABELS = {
+    'opensearch': 'Native',
+    'opensearch_sql_ppl': 'SQL/PPL',
+    'ysql': 'YSQL',
+    'ycql': 'YCQL',
+}
+
 
 def navigator_engine_id(engine_id):
     """Collapse protocol/interface profiles under their logical engine."""
@@ -58,11 +67,12 @@ def navigator_engine_id(engine_id):
     return engine_id
 
 
-def supported_engine_types():
+def supported_engine_types(profiles=None):
     """Return every active logical engine, including empty navigator roots."""
+    profiles = registration_profiles() if profiles is None else profiles
     active = {
         navigator_engine_id(profile['engine_id'])
-        for profile in registration_profiles()
+        for profile in profiles
     }
     return tuple(
         (engine_id, ENGINE_LABELS[engine_id])
@@ -76,10 +86,14 @@ _EMBEDDED_MODULES = {
 }
 
 
-def localhost_engine_status(engine_id):
+def localhost_engine_status(engine_id, active_profiles=None):
     """Return a passive, credential-free local availability observation."""
+    active_profiles = (
+        registration_profiles() if active_profiles is None
+        else active_profiles
+    )
     profiles = [
-        profile for profile in registration_profiles()
+        profile for profile in active_profiles
         if navigator_engine_id(profile['engine_id']) == engine_id
     ]
     embedded = [
@@ -120,6 +134,42 @@ def localhost_engine_status(engine_id):
     }
 
 
+def engine_registration_profiles(engine_id, active_profiles=None):
+    """Return registration interfaces owned by one navigator connector."""
+    active_profiles = (
+        registration_profiles() if active_profiles is None
+        else active_profiles
+    )
+    return tuple(
+        profile for profile in active_profiles
+        if navigator_engine_id(profile['engine_id']) == engine_id
+    )
+
+
+def disambiguate_server_interfaces(server_nodes, profiles):
+    """Keep same-host interface registrations distinct and readable."""
+    by_label = {}
+    for node in server_nodes:
+        by_label.setdefault(node.get('label'), []).append(node)
+    profile_by_id = {
+        profile['profile_id']: profile for profile in profiles
+    }
+    for label, duplicates in by_label.items():
+        if not label or len(duplicates) < 2:
+            continue
+        for node in duplicates:
+            profile = profile_by_id.get(node.get('cde_profile_id'), {})
+            interface_id = profile.get('interface_id')
+            interface_label = _INTERFACE_LABELS.get(
+                interface_id, str(interface_id or '').replace('_', ' ')
+            )
+            if interface_label:
+                node['server_host_label'] = label
+                node['cde_interface_id'] = interface_id
+                node['label'] = f'{label} ({interface_label})'
+    return server_nodes
+
+
 class EngineTypeModule(ServerGroupPluginModule):
     _NODE_TYPE = 'engine_type'
 
@@ -136,16 +186,39 @@ class EngineTypeModule(ServerGroupPluginModule):
         return [render_template('css/engine_types.css')]
 
     def register_preferences(self):
-        """Engine roots do not expose the generic show-node preference."""
-        pass
+        """Register per-user visibility for every release connector."""
+        self.connector_visibility = {}
+        for engine_id, label in supported_engine_types():
+            self.connector_visibility[engine_id] = self.preference.register(
+                'visibility', f'show_connector_{engine_id}',
+                gettext('Show %(engine)s connector', engine=label),
+                'boolean', False,
+                category_label=gettext('Connector visibility'),
+                hidden=True,
+                help_str=gettext(
+                    'Controls whether this release connector is displayed '
+                    'in the Object Explorer.'
+                ),
+            )
 
     def get_nodes(self, gid, **_kwargs):
-        for engine_id, label in supported_engine_types():
+        active_profiles = registration_profiles()
+        for engine_id, label in supported_engine_types(active_profiles):
+            preference = self.connector_visibility.get(engine_id)
+            if preference is None or not preference.get():
+                continue
+            profiles = engine_registration_profiles(
+                engine_id, active_profiles
+            )
+            status = localhost_engine_status(engine_id, active_profiles)
             yield self.generate_browser_node(
                 engine_id, gid, label,
                 f'icon-engine-type-{engine_id}', True, self.node_type,
                 engine_id=engine_id,
                 icon_key=f'engine.{engine_id}',
+                cde_context_actions=connector_context_actions(
+                    engine_id, profiles, status=status,
+                ),
             )
 
 
@@ -173,26 +246,39 @@ class EngineTypeNode(NodeView):
             blueprint as server_blueprint,
         )
         status = localhost_engine_status(eid)
-        local_label = gettext('localhost')
-        if not status['available']:
-            local_label = gettext('localhost (not detected)')
-        nodes = [self.blueprint.generate_browser_node(
-            f'{eid}__localhost', f'engine_type_{eid}', local_label,
-            f'icon-engine-type-{eid}' + (
-                '' if status['available'] else '-unavailable'
-            ),
-            False, self.node_type,
-            engine_id=eid,
-            localhost_placeholder=True,
-            localhost_available=status['available'],
-            localhost_observation=status['observation'],
-            localhost_ports=status.get('ports', []),
-            localhost_listening_ports=status.get('listening_ports', []),
-            cde_profile_ids=status['profile_ids'],
-        )]
-        nodes.extend(server_blueprint.engine_nodes(
+        profiles = engine_registration_profiles(eid)
+        server_nodes = list(server_blueprint.engine_nodes(
             gid, eid, parent_id=f'engine_type_{eid}'
         ))
+        disambiguate_server_interfaces(server_nodes, profiles)
+        nodes = []
+        if not any(node.get('cde_local_server') or
+                   is_loopback_server(node.get('host'))
+                   for node in server_nodes):
+            local_label = gettext('localhost')
+            if not status['available']:
+                local_label = gettext('localhost (not detected)')
+            nodes.append(self.blueprint.generate_browser_node(
+                f'{eid}__localhost', f'engine_type_{eid}', local_label,
+                f'icon-engine-type-{eid}' + (
+                    '' if status['available'] else '-unavailable'
+                ),
+                False, 'localhost_placeholder',
+                engine_id=eid,
+                localhost_placeholder=True,
+                localhost_available=status['available'],
+                localhost_observation=status['observation'],
+                localhost_ports=status.get('ports', []),
+                localhost_listening_ports=status.get(
+                    'listening_ports', []
+                ),
+                cde_profile_ids=status['profile_ids'],
+                cde_context_actions=connector_context_actions(
+                    eid, profiles, status=status,
+                    localhost_placeholder=True,
+                ),
+            ))
+        nodes.extend(server_nodes)
         return make_json_response(data=nodes)
 
     @pga_login_required
@@ -211,9 +297,13 @@ class EngineTypeNode(NodeView):
             return bad_request(errormsg=gettext(
                 'The selected engine type is unavailable.'
             ))
+        status = localhost_engine_status(eid)
         return make_json_response(data=self.blueprint.generate_browser_node(
             eid, gid, engines[eid], f'icon-engine-type-{eid}', True,
             self.node_type, engine_id=eid, icon_key=f'engine.{eid}',
+            cde_context_actions=connector_context_actions(
+                eid, engine_registration_profiles(eid), status=status,
+            ),
         ))
 
 

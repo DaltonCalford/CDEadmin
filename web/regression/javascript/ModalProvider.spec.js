@@ -9,7 +9,13 @@
 
 import { act, render } from '@testing-library/react';
 
-import { AlertContent } from '../../pgadmin/static/js/helpers/ModalProvider';
+import {
+  availableDialogViewport,
+  AlertContent,
+  modalAccessibilityAttributes,
+  modalTitleId,
+  viewportDialogGeometry,
+} from '../../pgadmin/static/js/helpers/ModalProvider';
 import { withTheme } from './fake_theme';
 
 const ThemedAlertContent = withTheme(AlertContent);
@@ -63,5 +69,77 @@ describe('ModalProvider AlertContent', () => {
       text: '<script>window.__xss=true</script>x', onOkClick: () => {}});
     expect(ctrl.container.querySelector('script')).toBeNull();
     expect(window.__xss).toBeUndefined();
+  });
+});
+
+describe('viewportDialogGeometry', () => {
+  it('subtracts application chrome from an embedded modal viewport', () => {
+    const viewport = availableDialogViewport({
+      windowWidth: 800, windowHeight: 757, applicationTop: 40,
+      containerBounds: {left: 0, width: 800, height: 757},
+    });
+    const geometry = viewportDialogGeometry({
+      viewportWidth: viewport.width, viewportHeight: viewport.height,
+      width: 1100, height: 720, minWidth: 760, minHeight: 480,
+    });
+    expect(viewport).toEqual({width: 800, height: 717});
+    expect(40 + geometry.y + geometry.height).toBeLessThanOrEqual(757);
+  });
+
+  it('retains the requested provider workspace size on a wide viewport', () => {
+    expect(viewportDialogGeometry({
+      viewportWidth: 1600, viewportHeight: 1000,
+      width: 1100, height: 720, minWidth: 760, minHeight: 480,
+    })).toEqual(expect.objectContaining({
+      width: 1100, height: 720, minWidth: 760, minHeight: 480, x: 250,
+    }));
+  });
+
+  it('bounds width and minimum width inside a narrow viewport', () => {
+    const geometry = viewportDialogGeometry({
+      viewportWidth: 800, viewportHeight: 900,
+      width: 1100, height: 720, minWidth: 760, minHeight: 480,
+    });
+    expect(geometry.width).toBe(768);
+    expect(geometry.minWidth).toBe(760);
+    expect(geometry.x).toBe(16);
+    expect(geometry.x + geometry.width).toBeLessThanOrEqual(800);
+  });
+
+  it('bounds height and minimum height inside a short viewport', () => {
+    const geometry = viewportDialogGeometry({
+      viewportWidth: 1000, viewportHeight: 420,
+      width: 800, height: 720, minWidth: 500, minHeight: 480,
+    });
+    expect(geometry.height).toBeCloseTo(403.2);
+    expect(geometry.minHeight).toBeCloseTo(403.2);
+    expect(geometry.y + geometry.height).toBeLessThanOrEqual(420);
+  });
+});
+
+describe('modalTitleId', () => {
+  it('creates a stable safe target for the dialog accessible name', () => {
+    expect(modalTitleId('provider,dialog 42')).toBe(
+      'cdeadmin-modal-title-provider-dialog-42');
+  });
+
+
+  it('uses an explicit accessible name for a textual dialog title', () => {
+    expect(modalAccessibilityAttributes(
+      'provider-workspace', 'Logical backup', true,
+    )).toEqual({
+      'aria-label': 'Logical backup',
+      'aria-labelledby': undefined,
+    });
+  });
+
+
+  it('links a non-text title to its visible title element', () => {
+    expect(modalAccessibilityAttributes(
+      'provider-workspace', <span>Provider task</span>, true,
+    )).toEqual({
+      'aria-label': undefined,
+      'aria-labelledby': 'cdeadmin-modal-title-provider-workspace',
+    });
   });
 });

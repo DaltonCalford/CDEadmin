@@ -30,8 +30,26 @@ export function Icon({
     role: 'img',
     'aria-label': label || definition.label,
   };
-  const style = size ? {width: size, height: size, fontSize: size} : undefined;
+  const style = size ? {width: size, height: size, fontSize: size} :
+    (definition.kind === 'component' ? {
+      width: '1em',
+      height: '1em',
+      flexShrink: 0,
+    } : undefined);
 
+  if(definition.kind === 'component') {
+    const SvgComponent = definition.component;
+    return <SvgComponent
+      {...props}
+      {...accessible}
+      className={className}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : (label || definition.label)}
+      data-icon-key={definition.key}
+      focusable="false"
+      style={style}
+    />;
+  }
   if(definition.kind === 'svg') {
     return <img
       {...props}

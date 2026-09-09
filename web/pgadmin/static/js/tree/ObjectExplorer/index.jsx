@@ -29,6 +29,10 @@ import { copyToClipboard } from '../../clipboard';
 import { usePgAdmin } from '../../PgAdminProvider';
 import ObjectExplorerFilter from './ObjectExplorerFilter';
 import gettext from 'sources/gettext';
+import {
+  isProviderContextNode,
+  providerTreeContextActions,
+} from 'pgbrowser/ProviderContextMenu';
 
 function postTreeReady(b) {
   const draggableTypes = [
@@ -204,11 +208,16 @@ export default function ObjectExplorer() {
     return <span>Loading...</span>;
   }
 
-  const providerMenuItems = contextNode ? treeActionRegistry.resolve({
-    node: contextNode,
-    item: contextItem,
-    tree: pgAdmin.Browser.tree,
-  }, contextMenuItems) : [];
+  const contextMetadata = contextItem?._metadata?.data ?? {};
+  const providerMenuItems = contextNode ? (
+    isProviderContextNode(contextMetadata) ?
+      providerTreeContextActions(contextMetadata, contextItem) :
+      treeActionRegistry.resolve({
+        node: contextNode,
+        item: contextItem,
+        tree: pgAdmin.Browser.tree,
+      }, contextMenuItems)
+  ) : [];
 
   return (
     <>

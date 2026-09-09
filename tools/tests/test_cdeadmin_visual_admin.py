@@ -103,6 +103,23 @@ class NativeAdapter:
         self.applied.append(request)
         return {'accepted': True, 'native_state': 'provider-owned'}
 
+    @staticmethod
+    def visual_admin_catalog(catalog):
+        database = next(
+            item for item in catalog['objects']
+            if item['resource_kind'] == 'database'
+        )
+        create = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'create'
+        )
+        create['form'] = {
+            'form_id': 'mysql.database.create.test.v1',
+            'title': 'Create MySQL database',
+            'fields': copy.deepcopy(create['form']['fields']),
+        }
+        return catalog
+
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
 
@@ -268,6 +285,119 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
         )
         self.assertEqual('preserved', database['editor']['provider_marker'])
 
+    def test_provider_operation_gate_fails_closed_before_planning(self):
+        provider = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', NativeAdapter(),
+            operation_gate=lambda _kind, _operation: False,
+        )
+        descriptor = provider.descriptor()
+        database = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'database'
+        )
+        create = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'create'
+        )
+        self.assertFalse(create['native_supported'])
+        self.assertIn('provider_operation_unavailable', create['blockers'])
+        with self.assertRaisesRegex(
+                VisualAdminAccessError, 'does not support'):
+            provider.plan({
+                'resource_kind': 'database', 'operation_id': 'create',
+                'target_resource': None, 'draft': {'name': 'example'},
+            })
+
+    def test_generic_forms_do_not_claim_engine_graphical_coverage(self):
+        class GenericAdapter(NativeAdapter):
+            visual_admin_catalog = None
+
+        descriptor = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', GenericAdapter()
+        ).descriptor()
+        contract = descriptor['graphical_interface']
+        self.assertEqual('blocked', contract['activation_state'])
+        self.assertGreater(contract['native_operation_count'], 0)
+        self.assertLess(
+            contract['graphical_operation_count'],
+            contract['native_operation_count'],
+        )
+        database = next(
+            item for item in descriptor['objects']
+            if item['resource_kind'] == 'database'
+        )
+        create = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'create'
+        )
+        self.assertEqual(
+            'common-layout-only', create['graphical_form_authority']
+        )
+        self.assertFalse(create['graphical_ready'])
+        self.assertFalse(create['execution_available'])
+        self.assertIn(
+            'engine_graphical_form_unavailable', create['blockers']
+        )
+        with self.assertRaisesRegex(
+                VisualAdminAccessError, 'verified graphical form'):
+            ProviderVisualAdministration(
+                context(), Permissions(), 'mysql', '9.7.0', GenericAdapter()
+            ).plan({
+                'resource_kind': 'database', 'operation_id': 'create',
+                'target_resource': None, 'draft': {
+                    'name': 'example', 'options': {},
+                },
+            })
+
+    def test_provider_replacement_form_counts_as_engine_graphical_ui(self):
+        class GraphicalAdapter(NativeAdapter):
+            @staticmethod
+            def visual_admin_catalog(catalog):
+                database = next(
+                    item for item in catalog['objects']
+                    if item['resource_kind'] == 'database'
+                )
+                create = next(
+                    item for item in database['operations']
+                    if item['operation_id'] == 'create'
+                )
+                create['form'] = {
+                    'form_id': 'mysql.database.create.v1',
+                    'title': 'Create MySQL database',
+                    'fields': [{
+                        'field_id': 'name', 'label': 'Database name',
+                        'control': 'text', 'required': True,
+                    }, {
+                        'field_id': 'character_set',
+                        'label': 'Default character set',
+                        'control': 'select', 'required': True,
+                        'options': [{
+                            'value': 'utf8mb4', 'label': 'utf8mb4',
+                        }],
+                    }],
+                }
+                database['operations'] = [create]
+                catalog['objects'] = [database]
+                return catalog
+
+            @staticmethod
+            def supports_admin_operation(kind, operation):
+                return kind == 'database' and operation == 'create'
+
+        descriptor = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', GraphicalAdapter()
+        ).descriptor()
+        contract = descriptor['graphical_interface']
+        self.assertEqual('passed', contract['activation_state'])
+        self.assertEqual(1, contract['native_operation_count'])
+        self.assertEqual(1, contract['graphical_operation_count'])
+        create = descriptor['objects'][0]['operations'][0]
+        self.assertEqual(
+            'provider-adapter', create['graphical_form_authority']
+        )
+        self.assertTrue(create['graphical_ready'])
+        self.assertTrue(create['execution_available'])
+
     def test_control_plane_catalog_adds_exact_typed_operation(self):
         declaration = ControlPlaneOperation(
             'cluster', 'rebalance', 'Rebalance cluster', 'admin',
@@ -370,14 +500,14 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
         self.assertIn(
             'provider_native_planner_unavailable', create['blockers']
         )
-        plan = provider.plan({
-            'resource_kind': 'database',
-            'operation_id': 'create',
-            'target_resource': None,
-            'draft': {'name': 'example', 'options': {}},
-        })
-        self.assertEqual('blocked', plan['state'])
-        self.assertFalse(plan['execution_available'])
+        with self.assertRaisesRegex(
+                VisualAdminAccessError, 'verified graphical form'):
+            provider.plan({
+                'resource_kind': 'database',
+                'operation_id': 'create',
+                'target_resource': None,
+                'draft': {'name': 'example', 'options': {}},
+            })
 
     def test_forms_validate_types_unknown_fields_and_native_rules(self):
         adapter = NativeAdapter()
@@ -512,6 +642,11 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
                     'cancellable': True,
                     'post_state_required': True,
                 })
+                create['form'] = {
+                    'form_id': 'mysql.database.create.lifecycle-test.v1',
+                    'title': 'Create MySQL database',
+                    'fields': copy.deepcopy(create['form']['fields']),
+                }
                 return value
 
             @staticmethod
@@ -615,6 +750,39 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
                 'plan_digest': plan['plan_digest'],
             })
         self.assertEqual(1, adapter.attempts)
+
+    def test_pre_dispatch_credential_failure_restores_exact_plan(self):
+        class CredentialRequired(RuntimeError):
+            credential_required_before_dispatch = True
+
+        class CredentialAdapter(NativeAdapter):
+            def __init__(self):
+                super().__init__()
+                self.attempts = 0
+
+            def apply_admin_operation(self, request):
+                self.attempts += 1
+                if self.attempts == 1:
+                    raise CredentialRequired('credential required')
+                return super().apply_admin_operation(request)
+
+        adapter = CredentialAdapter()
+        provider = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', adapter
+        )
+        plan = provider.plan({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'draft': {'name': 'credential-test', 'options': {}},
+        })
+        request = {
+            'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'],
+        }
+        with self.assertRaises(CredentialRequired):
+            provider.apply(request)
+        result = provider.apply(request)
+        self.assertEqual(2, adapter.attempts)
+        self.assertTrue(result['provider_result']['accepted'])
 
     def test_unverified_runtime_cannot_apply_a_retained_plan(self):
         adapter = NativeAdapter()

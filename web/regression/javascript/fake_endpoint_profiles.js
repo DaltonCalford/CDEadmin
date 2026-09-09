@@ -17,7 +17,7 @@ const profiles = [
     profile_id: 'qualified-native', display_name: 'Qualified engine',
     workflow: 'provider_endpoint', route_kind: 'network',
     default_port: 1234, default: false,
-    engine_id: 'qualified',
+    engine_id: 'qualified', requires_secret: true,
     database_targeting: {
       mode: 'optional', multiple: true, server_verification: true,
     },
@@ -34,6 +34,7 @@ const profiles = [
     profile_id: 'embedded-native', display_name: 'Embedded engine',
     workflow: 'provider_endpoint', route_kind: 'embedded_file',
     default_port: null, default: false, engine_id: 'embedded',
+    requires_secret: false,
   },
 ];
 

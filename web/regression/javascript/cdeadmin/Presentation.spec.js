@@ -152,9 +152,39 @@ describe('CDEadmin presentation profiles', () => {
     expect(variables['--cde-target-size']).toBe('48px');
     expect(variables['--cde-scrollbar-size']).toBe('24px');
     expect(variables['--cde-resize-handle-size']).toBe('12');
+    expect(variables['--cde-tree-indent']).toBe('29px');
+    expect(variables['--cde-tree-expander-size']).toBe('26px');
+    expect(variables['--cde-tree-guide-width']).toBe('1px');
+    expect(variables['--cde-tree-guide-color']).toBe('#BAC1CD');
+    expect(variables['--cde-grid-header-height']).toBe('52px');
+    expect(variables['--cde-grid-cell-padding']).toBe('12px');
     expect(variables['--cde-motion-normal']).toBe('0.01ms');
     expect(variables['--cde-layer-dialog']).toBe(3001);
     expect(variables['--cde-color-text']).toBe('#222222');
+  });
+
+  it('bounds user-configurable branching-tree geometry', () => {
+    const value = resolvePresentation({
+      accessibility_tree_indent: 999,
+      accessibility_tree_expander_size: 4,
+      accessibility_tree_guide_width: 9,
+    }, baseTheme);
+
+    expect(value.treeIndent).toBe(48);
+    expect(value.treeExpanderSize).toBe(12);
+    expect(value.treeGuideWidth).toBe(4);
+  });
+
+  it('bounds user-configurable grid geometry', () => {
+    const value = resolvePresentation({
+      accessibility_grid_row_height: 999,
+      accessibility_grid_header_height: 2,
+      accessibility_grid_cell_padding: 99,
+    }, baseTheme);
+
+    expect(value.gridRowHeight).toBe(96);
+    expect(value.gridHeaderHeight).toBe(24);
+    expect(value.gridCellPadding).toBe(32);
   });
 
   it('calculates standard contrast ratios', () => {

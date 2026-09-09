@@ -1,8 +1,8 @@
 import { Box, Icon } from '@mui/material';
 import { useState } from 'react';
-import LoginImage from '../../img/login.svg?svgr';
 import { InputSelectNonSearch, InputText, MESSAGE_TYPE, NotifierMessage } from '../components/FormComponents';
 import BasePage, { SecurityButton } from './BasePage';
+import LoginIllustration from './LoginIllustration';
 import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
 
@@ -28,7 +28,7 @@ export default function LoginPage({userLanguage, langOptions, forgotPassUrl, csr
         marginRight: 'auto',
         marginLeft: 'auto'
       }} textCenter />}
-      <BasePage title={gettext('Login')} pageImage={<LoginImage style={{height: '100%', width: '100%'}} />} {...props}>
+      <BasePage title={gettext('Login')} pageImage={<LoginIllustration />} {...props}>
         <form style={{display:'flex', gap:'15px', flexDirection:'column'}} action={loginUrl} method="POST">
           {showLoginForm &&
           <>

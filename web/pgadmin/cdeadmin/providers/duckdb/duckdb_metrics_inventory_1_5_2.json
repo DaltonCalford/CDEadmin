@@ -1,0 +1,353 @@
+{
+  "collection_authority": "DuckDB 1.5.2 runtime catalogs",
+  "completeness": {
+    "column_count": 58,
+    "endpoint_count": 15,
+    "runtime_version": "1.5.2",
+    "selected_endpoints_exhausted": true
+  },
+  "endpoint_selection": "All no-argument DuckDB runtime, connection, memory, cache, logging, prepared-statement, temporary-storage, session, database-size, metadata, platform and version observation relations exposed by the exact runtime.",
+  "endpoints": [
+    {
+      "classification": "runtime_metric",
+      "columns": [
+        {
+          "name": "approx_count",
+          "value_type": "UBIGINT"
+        }
+      ],
+      "endpoint_id": "approx_database_count",
+      "native_query": "SELECT * FROM duckdb_approx_database_count()"
+    },
+    {
+      "classification": "runtime_metric",
+      "columns": [
+        {
+          "name": "count",
+          "value_type": "UBIGINT"
+        }
+      ],
+      "endpoint_id": "connection_count",
+      "native_query": "SELECT * FROM duckdb_connection_count()"
+    },
+    {
+      "classification": "catalog_state",
+      "columns": [
+        {
+          "name": "database_name",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "database_oid",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "path",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "comment",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "tags",
+          "value_type": "MAP(VARCHAR, VARCHAR)"
+        },
+        {
+          "name": "internal",
+          "value_type": "BOOLEAN"
+        },
+        {
+          "name": "type",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "readonly",
+          "value_type": "BOOLEAN"
+        },
+        {
+          "name": "encrypted",
+          "value_type": "BOOLEAN"
+        },
+        {
+          "name": "cipher",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "options",
+          "value_type": "MAP(VARCHAR, VARCHAR)"
+        }
+      ],
+      "endpoint_id": "databases",
+      "native_query": "SELECT * FROM duckdb_databases()"
+    },
+    {
+      "classification": "cache_state",
+      "columns": [
+        {
+          "name": "path",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "nr_bytes",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "location",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "loaded",
+          "value_type": "BOOLEAN"
+        }
+      ],
+      "endpoint_id": "external_file_cache",
+      "native_query": "SELECT * FROM duckdb_external_file_cache()"
+    },
+    {
+      "classification": "diagnostic_context",
+      "columns": [
+        {
+          "name": "context_id",
+          "value_type": "UBIGINT"
+        },
+        {
+          "name": "scope",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "connection_id",
+          "value_type": "UBIGINT"
+        },
+        {
+          "name": "transaction_id",
+          "value_type": "UBIGINT"
+        },
+        {
+          "name": "query_id",
+          "value_type": "UBIGINT"
+        },
+        {
+          "name": "thread_id",
+          "value_type": "UBIGINT"
+        }
+      ],
+      "endpoint_id": "log_contexts",
+      "native_query": "SELECT * FROM duckdb_log_contexts()"
+    },
+    {
+      "classification": "diagnostic_event",
+      "columns": [
+        {
+          "name": "context_id",
+          "value_type": "UBIGINT"
+        },
+        {
+          "name": "timestamp",
+          "value_type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "name": "type",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "log_level",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "message",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "logs",
+      "native_query": "SELECT * FROM duckdb_logs()"
+    },
+    {
+      "classification": "runtime_metric",
+      "columns": [
+        {
+          "name": "tag",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "memory_usage_bytes",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "temporary_storage_bytes",
+          "value_type": "BIGINT"
+        }
+      ],
+      "endpoint_id": "memory",
+      "native_query": "SELECT * FROM duckdb_memory()"
+    },
+    {
+      "classification": "session_state",
+      "columns": [
+        {
+          "name": "name",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "statement",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "parameter_types",
+          "value_type": "VARCHAR[]"
+        },
+        {
+          "name": "result_types",
+          "value_type": "VARCHAR[]"
+        }
+      ],
+      "endpoint_id": "prepared_statements",
+      "native_query": "SELECT * FROM duckdb_prepared_statements()"
+    },
+    {
+      "classification": "runtime_metric",
+      "columns": [
+        {
+          "name": "path",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "size",
+          "value_type": "BIGINT"
+        }
+      ],
+      "endpoint_id": "temporary_files",
+      "native_query": "SELECT * FROM duckdb_temporary_files()"
+    },
+    {
+      "classification": "session_state",
+      "columns": [
+        {
+          "name": "name",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "value",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "type",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "variables",
+      "native_query": "SELECT * FROM duckdb_variables()"
+    },
+    {
+      "classification": "storage_state",
+      "columns": [
+        {
+          "name": "database_name",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "database_size",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "block_size",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "total_blocks",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "used_blocks",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "free_blocks",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "wal_size",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "memory_usage",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "memory_limit",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "database_size",
+      "native_query": "SELECT * FROM pragma_database_size()"
+    },
+    {
+      "classification": "storage_state",
+      "columns": [
+        {
+          "name": "block_id",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "total_blocks",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "free_blocks",
+          "value_type": "BIGINT"
+        },
+        {
+          "name": "free_list",
+          "value_type": "BIGINT[]"
+        }
+      ],
+      "endpoint_id": "metadata_info",
+      "native_query": "SELECT * FROM pragma_metadata_info()"
+    },
+    {
+      "classification": "runtime_identity",
+      "columns": [
+        {
+          "name": "platform",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "platform",
+      "native_query": "SELECT * FROM pragma_platform()"
+    },
+    {
+      "classification": "runtime_identity",
+      "columns": [
+        {
+          "name": "user_agent",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "user_agent",
+      "native_query": "SELECT * FROM pragma_user_agent()"
+    },
+    {
+      "classification": "runtime_identity",
+      "columns": [
+        {
+          "name": "library_version",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "source_id",
+          "value_type": "VARCHAR"
+        },
+        {
+          "name": "codename",
+          "value_type": "VARCHAR"
+        }
+      ],
+      "endpoint_id": "version",
+      "native_query": "SELECT * FROM pragma_version()"
+    }
+  ],
+  "engine_id": "duckdb",
+  "inventory_id": "duckdb.metrics-inventory.1.5.2.v1",
+  "reference_version": "1.5.2",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

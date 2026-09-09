@@ -34,6 +34,9 @@ export function createTreeNodeDescriptor(input={}) {
 
   const kind = KNOWN_KINDS.has(input.kind) ?
     input.kind : TREE_NODE_KINDS.OBJECT;
+  const requestedCheckType = text(input.check?.type, 'none').toLowerCase();
+  const checkType = ['checkbox', 'radio'].includes(requestedCheckType) ?
+    requestedCheckType : 'none';
   return Object.freeze({
     schemaVersion: 1,
     id,
@@ -49,6 +52,15 @@ export function createTreeNodeDescriptor(input={}) {
     iconKey: text(input.iconKey, input.objectType || kind),
     childCount: Number.isFinite(Number(input.childCount)) ?
       Math.max(0, Number(input.childCount)) : 0,
+    check: Object.freeze({
+      type: checkType,
+      checked: Boolean(input.check?.checked),
+      indeterminate: checkType === 'checkbox' &&
+        Boolean(input.check?.indeterminate),
+      disabled: Boolean(input.check?.disabled),
+      group: text(input.check?.group),
+      label: text(input.check?.label, label),
+    }),
     capabilities: Object.freeze({
       enabled: input.capabilities?.enabled !== false,
       expandable: Boolean(input.capabilities?.expandable),
@@ -67,6 +79,14 @@ export function descriptorFromTreeMetadata(data={}, childCount=0) {
       TREE_NODE_KINDS.ENGINE :
       Object.values(TREE_NODE_KINDS).includes(objectType) ?
         objectType : TREE_NODE_KINDS.OBJECT;
+  const rawCheckType = text(
+    data.check_type ?? data.checkType ?? data.check?.type,
+    data.checkable ? 'checkbox' : 'none'
+  ).toLowerCase();
+  const checked = data.checked === true || data._checked === true ||
+    data.check_state === 'checked' || data.check?.checked === true;
+  const indeterminate = data.indeterminate === true ||
+    data.check_state === 'mixed' || data.check?.indeterminate === true;
 
   return createTreeNodeDescriptor({
     id: data.id ?? data._id ?? `${objectType}:${data._label}`,
@@ -81,6 +101,14 @@ export function descriptorFromTreeMetadata(data={}, childCount=0) {
     infoLabel: data.info_label,
     iconKey: data.icon_key ?? data.icon,
     childCount,
+    check: {
+      type: rawCheckType,
+      checked,
+      indeterminate,
+      disabled: data.check_disabled === true || data.check?.disabled === true,
+      group: data.check_group ?? data.check?.group,
+      label: data.check_label ?? data.check?.label,
+    },
     capabilities: {
       enabled: data.disabled !== true,
       expandable: Boolean(data._type?.startsWith('coll-') || data.expandable),

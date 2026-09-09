@@ -588,6 +588,11 @@ class MongoDBProviderTests(unittest.TestCase):
         value = client()
         provider = MongoDBPilotProvider(context(), Permissions(), value)
         descriptor = provider.visual_admin_descriptor()
+        graphical = descriptor['graphical_interface']
+        self.assertEqual('passed', graphical['activation_state'])
+        self.assertEqual(74, graphical['native_operation_count'])
+        self.assertEqual(74, graphical['graphical_operation_count'])
+        self.assertEqual([], graphical['missing_operations'])
         coverage = descriptor['concept_coverage']
         self.assertTrue(coverage['declaration_ready'])
         self.assertEqual(0, coverage['undeclared_count'])

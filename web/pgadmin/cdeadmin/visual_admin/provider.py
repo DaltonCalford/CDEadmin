@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 import hashlib
 import json
 import re
@@ -23,6 +24,10 @@ from typing import Any, Mapping
 
 from .catalog import catalog_for_engine
 from .experience import enrich_engine_experience
+from pgadmin.cdeadmin.grid_contract import normalize_admin_page
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class VisualAdminError(RuntimeError):
@@ -82,7 +87,7 @@ class ProviderVisualAdministration:
 
     def __init__(
         self, context, permissions, engine_id, profile_version, client=None,
-        planner=None, executor=None,
+        planner=None, executor=None, operation_gate=None,
     ):
         self.context = context
         self.permissions = permissions
@@ -91,6 +96,7 @@ class ProviderVisualAdministration:
         self.client = client
         self._planner = planner
         self._executor = executor
+        self._operation_gate = operation_gate
         self._plans: dict[str, _StoredPlan] = {}
         self._admin_operations: dict[str, _StoredAdminOperation] = {}
         self._lock = threading.RLock()
@@ -116,6 +122,9 @@ class ProviderVisualAdministration:
                 operation['execution_available'] = (
                     planner is not None and executor is not None and
                     native_supported and runtime_verified and
+                    operation.get('graphical_form_authority') in {
+                        'engine-catalog', 'provider-adapter',
+                    } and
                     self._allows(mutation) and
                     all(self._allows_permission(permission)
                         for permission in operation.get(
@@ -129,6 +138,9 @@ class ProviderVisualAdministration:
                     blockers.append('target_adapter_executor_unavailable')
                 if not native_supported:
                     blockers.append('provider_operation_unavailable')
+                if operation.get('graphical_form_authority') not in {
+                        'engine-catalog', 'provider-adapter'}:
+                    blockers.append('engine_graphical_form_unavailable')
                 if not runtime_verified:
                     blockers.append('runtime_identity_not_verified')
                 if not self._allows(mutation):
@@ -141,6 +153,42 @@ class ProviderVisualAdministration:
                             f'permission_{permission}_not_granted'
                         )
                 operation['blockers'] = blockers
+                operation['graphical_ready'] = (
+                    operation.get('graphical_form_authority') in {
+                        'engine-catalog', 'provider-adapter',
+                    }
+                )
+        native_operations = [
+            (resource['resource_kind'], operation['operation_id'])
+            for resource in catalog['objects']
+            for operation in resource['operations']
+            if operation['native_supported']
+        ]
+        graphical_operations = [
+            (resource['resource_kind'], operation['operation_id'])
+            for resource in catalog['objects']
+            for operation in resource['operations']
+            if operation['native_supported'] and operation['graphical_ready']
+        ]
+        missing_graphical_operations = sorted(
+            set(native_operations).difference(graphical_operations)
+        )
+        catalog['graphical_interface'] = {
+            'schema': 'cdeadmin.engine-graphical-interface.v1',
+            'engine_id': self.engine_id,
+            'profile_version': self.profile_version,
+            'activation_state': (
+                'passed' if not missing_graphical_operations else 'blocked'
+            ),
+            'native_operation_count': len(native_operations),
+            'graphical_operation_count': len(graphical_operations),
+            'missing_operations': [
+                {'resource_kind': kind, 'operation_id': operation}
+                for kind, operation in missing_graphical_operations
+            ],
+            'shared_widgets_allowed': True,
+            'shared_engine_semantics_allowed': False,
+        }
         catalog['profile_version'] = self.profile_version
         catalog['endpoint_mode'] = self.context.mode
         catalog['runtime_verification_state'] = (
@@ -239,6 +287,12 @@ class ProviderVisualAdministration:
     def plan(self, request: Mapping[str, Any]) -> dict[str, Any]:
         payload = _mapping(request, 'visual administration request')
         resource, operation = self._operation(payload)
+        if operation.get('graphical_form_authority') not in {
+                'engine-catalog', 'provider-adapter'}:
+            raise VisualAdminAccessError(
+                'the engine has no verified graphical form for this '
+                'operation'
+            )
         self._require_mutation(operation['mutation_class'])
         for permission in operation.get('required_permissions', []):
             self.permissions.require(permission, 'endpoint')
@@ -274,6 +328,11 @@ class ProviderVisualAdministration:
                 operation['form']['fields'], admitted_draft
             ),
         }
+        session_id = payload.get('session_id')
+        if session_id is not None:
+            request_value['session_id'] = _required_string(
+                session_id, 'session_id'
+            )
         if planner is None:
             return {
                 'schema': 'cdeadmin.visual-admin.plan.v1',
@@ -328,7 +387,9 @@ class ProviderVisualAdministration:
         presentation['plan_digest'] = digest
         return presentation
 
-    def apply(self, request: Mapping[str, Any]) -> dict[str, Any]:
+    def apply(
+        self, request: Mapping[str, Any], execution_context=None,
+    ) -> dict[str, Any]:
         payload = _mapping(request, 'visual administration apply request')
         plan_id = _required_string(payload.get('plan_id'), 'plan_id')
         digest = _required_string(payload.get('plan_digest'), 'plan_digest')
@@ -340,6 +401,19 @@ class ProviderVisualAdministration:
                 'visual administration plan is absent, stale or changed'
             )
         presentation = stored.presentation
+        expected_session_id = presentation.get('session_id')
+        supplied_session_id = payload.get('session_id')
+        if expected_session_id != supplied_session_id:
+            raise VisualAdminAccessError(
+                'visual administration session binding changed'
+            )
+        execution_context = execution_context or {}
+        if expected_session_id is not None and (
+                execution_context.get('session_id') != expected_session_id or
+                execution_context.get('session_handle') is None):
+            raise VisualAdminAccessError(
+                'visual administration provider session is unavailable'
+            )
         mutation_class = presentation['mutation_class']
         self._require_mutation(mutation_class)
         for permission in presentation.get('required_permissions', []):
@@ -408,11 +482,35 @@ class ProviderVisualAdministration:
             )
             operation = self._admin_operations[operation_id]
         try:
-            result = executor({
+            executor_request = {
                 'plan': copy.deepcopy(presentation),
                 'provider_payload': copy.deepcopy(stored.provider_payload),
-            })
+            }
+            if expected_session_id is not None:
+                # The native handle is never copied, persisted, logged, or
+                # returned. It crosses only this in-process provider call.
+                executor_request['_provider_session_handle'] = (
+                    execution_context['session_handle']
+                )
+            result = executor(executor_request)
         except Exception as exc:
+            if getattr(
+                    exc, 'credential_required_before_dispatch', False):
+                # Credential acquisition is part of connection setup and
+                # therefore precedes provider mutation dispatch. Restore the
+                # one-shot plan so the authenticated client may retry exactly
+                # that plan after CDEadmin obtains the missing credential.
+                with self._lock:
+                    self._admin_operations.pop(operation_id, None)
+                    self._plans[plan_id] = stored
+                raise
+            # Provider adapters already redact or normalize their public
+            # exceptions. Preserve the server-side traceback for diagnosis
+            # while the browser receives only the fail-closed unknown-outcome
+            # response below.
+            LOGGER.exception(
+                'Provider visual administration executor failed'
+            )
             with self._lock:
                 operation.public['unknown_outcome'] = True
                 operation.public['stage'] = 'provider_response_unavailable'
@@ -663,7 +761,9 @@ class ProviderVisualAdministration:
         operation['last_event_sequence'] = sequence
         operation['updated_at'] = now
 
-    def read_rows(self, request: Mapping[str, Any]) -> dict[str, Any]:
+    def read_rows(
+        self, request: Mapping[str, Any], execution_context=None,
+    ) -> dict[str, Any]:
         """Return a provider-issued editable data page for one container."""
         payload = _mapping(request, 'visual administration row request')
         self._require_mutation('read')
@@ -679,7 +779,7 @@ class ProviderVisualAdministration:
                 'the target provider has no editable row-page contract'
             )
         route = _mapping(payload.get('_provider_route'), 'provider route')
-        result = callback({
+        callback_request = {
             '_provider_route': route,
             'target_resource': target,
             'limit': payload.get('limit', 200),
@@ -687,8 +787,24 @@ class ProviderVisualAdministration:
             'filter': copy.deepcopy(payload.get('filter', {})),
             'projection': copy.deepcopy(payload.get('projection')),
             'sort': copy.deepcopy(payload.get('sort')),
-        })
-        return _mapping(result, 'provider row page')
+        }
+        session_id = payload.get('session_id')
+        if session_id is not None:
+            session_id = _required_string(session_id, 'session_id')
+            execution_context = execution_context or {}
+            if execution_context.get('session_id') != session_id or (
+                    execution_context.get('session_handle') is None):
+                raise VisualAdminAccessError(
+                    'visual administration provider session is unavailable'
+                )
+            callback_request['_provider_session_handle'] = (
+                execution_context['session_handle']
+            )
+        result = callback(callback_request)
+        return normalize_admin_page(
+            _mapping(result, 'provider row page'), self.context,
+            self, resource_kind,
+        )
 
     def cancel_rows(self, request: Mapping[str, Any]) -> dict[str, Any]:
         """Cancel one provider-owned editable-data cursor."""
@@ -924,17 +1040,49 @@ class ProviderVisualAdministration:
 
     def _catalog(self):
         catalog = catalog_for_engine(self.engine_id)
+        baseline = copy.deepcopy(catalog)
         callback = self._callback('visual_admin_catalog')
-        if callback is None:
-            return catalog
-        adapted = callback(copy.deepcopy(catalog))
-        if not isinstance(adapted, Mapping):
-            raise VisualAdminValidationError(
-                'provider visual administration catalog is invalid'
-            )
-        return enrich_engine_experience(copy.deepcopy(dict(adapted)))
+        if callback is not None:
+            adapted = callback(copy.deepcopy(catalog))
+            if not isinstance(adapted, Mapping):
+                raise VisualAdminValidationError(
+                    'provider visual administration catalog is invalid'
+                )
+            catalog = copy.deepcopy(dict(adapted))
+        self._mark_graphical_form_authority(baseline, catalog)
+        return enrich_engine_experience(catalog)
+
+    @staticmethod
+    def _mark_graphical_form_authority(baseline, catalog):
+        """Identify forms whose semantics are owned by the engine package.
+
+        Operation profiles in the portfolio catalog are layout examples, not
+        proof that an engine supports their fields.  A form becomes executable
+        only when the exact engine catalog owns it or the provider adapter has
+        replaced it.  This comparison deliberately rejects inherited generic
+        forms instead of treating a renamed navigator as native administration.
+        """
+        baseline_operations = {
+            (resource['resource_kind'], operation['operation_id']): operation
+            for resource in baseline.get('objects', [])
+            for operation in resource.get('operations', [])
+        }
+        for resource in catalog.get('objects', []):
+            for operation in resource.get('operations', []):
+                key = (resource['resource_kind'], operation['operation_id'])
+                original = baseline_operations.get(key, {})
+                if original.get('form_authority') == 'engine-profile':
+                    authority = 'engine-catalog'
+                elif operation.get('form') != original.get('form'):
+                    authority = 'provider-adapter'
+                else:
+                    authority = 'common-layout-only'
+                operation['graphical_form_authority'] = authority
 
     def _operation_supported(self, resource_kind, operation_id):
+        if self._operation_gate is not None and not self._operation_gate(
+                resource_kind, operation_id):
+            return False
         callback = self._callback('supports_admin_operation')
         if callback is None:
             return True

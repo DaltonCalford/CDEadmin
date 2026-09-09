@@ -110,6 +110,7 @@ class ResultDescriptor:
     worker_policy: WorkerPolicy
     renderer_id: str | None
     component_reference: str
+    grid: Mapping[str, Any]
     production: bool
     fixture: bool
 
@@ -140,6 +141,7 @@ class ResultDescriptor:
             'capability_id': self.capability_id,
             'renderer_id': self.renderer_id,
             'component_reference': self.component_reference,
+            'grid': copy.deepcopy(dict(self.grid)),
             'export_formats': sorted(self.export_policy.formats)
             if self.export_policy.enabled else [],
             'production': self.production,

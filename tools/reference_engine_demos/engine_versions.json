@@ -1,0 +1,31 @@
+{
+  "schema": "cdeadmin.reference-engine-versions.v1",
+  "scratchbird_native_included": false,
+  "engines": [
+    {"engine": "apache_ignite", "product": "Apache Ignite", "version": "2.17.0", "deployment": "docker"},
+    {"engine": "cassandra", "product": "Apache Cassandra", "version": "5.0.8", "deployment": "docker"},
+    {"engine": "clickhouse", "product": "ClickHouse", "version": "25.12.10.7", "deployment": "docker"},
+    {"engine": "cockroachdb", "product": "CockroachDB", "version": "26.1.3", "deployment": "docker"},
+    {"engine": "dolt", "product": "Dolt", "version": "1.86.6", "deployment": "docker"},
+    {"engine": "duckdb", "product": "DuckDB", "version": "1.5.2", "deployment": "python"},
+    {"engine": "firebird", "product": "Firebird", "version": "5.0.4", "deployment": "docker"},
+    {"engine": "foundationdb", "product": "FoundationDB", "version": "7.3.77", "deployment": "docker"},
+    {"engine": "immudb", "product": "immudb", "version": "1.11.0", "deployment": "docker"},
+    {"engine": "influxdb", "product": "InfluxDB", "version": "3.9.0", "deployment": "docker"},
+    {"engine": "mariadb", "product": "MariaDB", "version": "12.2.2", "deployment": "docker"},
+    {"engine": "milvus", "product": "Milvus", "version": "2.6.5", "deployment": "docker"},
+    {"engine": "mongodb", "product": "MongoDB", "version": "8.2.6", "deployment": "docker"},
+    {"engine": "mysql", "product": "MySQL", "version": "9.7.0", "deployment": "docker"},
+    {"engine": "neo4j", "product": "Neo4j", "version": "2026.04.0", "deployment": "docker"},
+    {"engine": "opensearch", "product": "OpenSearch", "version": "3.6.0", "deployment": "docker", "interfaces": ["native", "SQL", "PPL"]},
+    {"engine": "opensearch_sql_ppl", "product": "OpenSearch SQL/PPL", "version": "3.6.0-sql-ppl", "deployment": "shared-opensearch"},
+    {"engine": "postgresql", "product": "PostgreSQL", "version": "18.3", "deployment": "docker"},
+    {"engine": "redis", "product": "Redis", "version": "8.6.2", "deployment": "docker"},
+    {"engine": "sqlite", "product": "SQLite", "version": "3.53.0", "deployment": "source-bootstrap"},
+    {"engine": "tidb", "product": "TiDB", "version": "8.5.6", "deployment": "docker"},
+    {"engine": "tikv", "product": "TiKV", "version": "8.5.6", "deployment": "docker"},
+    {"engine": "vitess", "product": "Vitess", "version": "23.0.3", "deployment": "docker-compose"},
+    {"engine": "xtdb", "product": "XTDB", "version": "2.1.0", "deployment": "docker"},
+    {"engine": "yugabytedb", "product": "YugabyteDB", "version": "2025.2.2.2", "deployment": "docker", "interfaces": ["YSQL", "YCQL"]}
+  ]
+}

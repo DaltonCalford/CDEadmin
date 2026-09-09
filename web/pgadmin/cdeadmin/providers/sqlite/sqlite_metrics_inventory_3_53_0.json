@@ -1,0 +1,350 @@
+{
+  "collection_authority": "SQLite 3.53.0 runtime PRAGMA catalog and public C header",
+  "completeness": {
+    "dbapi_scalar_observation_count": 23,
+    "driver_boundary_disclosed": true,
+    "native_c_status_constants_exhausted": true,
+    "native_c_status_count": 24,
+    "runtime_version": "3.53.0",
+    "selected_endpoints_exhausted": true
+  },
+  "endpoint_selection": "Every safe, no-argument scalar database/storage/change/session PRAGMA admitted by the provider, plus every SQLITE_STATUS and SQLITE_DBSTATUS counter declared by the exact public header.",
+  "endpoints": [
+    {
+      "classification": "storage_metric",
+      "endpoint_id": "page_count",
+      "native_query": "PRAGMA main.page_count",
+      "value_type": "int"
+    },
+    {
+      "classification": "storage_metric",
+      "endpoint_id": "freelist_count",
+      "native_query": "PRAGMA main.freelist_count",
+      "value_type": "int"
+    },
+    {
+      "classification": "storage_metric",
+      "endpoint_id": "page_size",
+      "native_query": "PRAGMA main.page_size",
+      "value_type": "int"
+    },
+    {
+      "classification": "storage_capacity",
+      "endpoint_id": "max_page_count",
+      "native_query": "PRAGMA main.max_page_count",
+      "value_type": "int"
+    },
+    {
+      "classification": "change_generation",
+      "endpoint_id": "data_version",
+      "native_query": "PRAGMA main.data_version",
+      "value_type": "int"
+    },
+    {
+      "classification": "change_generation",
+      "endpoint_id": "schema_version",
+      "native_query": "PRAGMA main.schema_version",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "cache_size",
+      "native_query": "PRAGMA main.cache_size",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "cache_spill",
+      "native_query": "PRAGMA main.cache_spill",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "journal_mode",
+      "native_query": "PRAGMA main.journal_mode",
+      "value_type": "str"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "locking_mode",
+      "native_query": "PRAGMA main.locking_mode",
+      "value_type": "str"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "synchronous",
+      "native_query": "PRAGMA main.synchronous",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "temp_store",
+      "native_query": "PRAGMA main.temp_store",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "wal_autocheckpoint",
+      "native_query": "PRAGMA main.wal_autocheckpoint",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "journal_size_limit",
+      "native_query": "PRAGMA main.journal_size_limit",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "auto_vacuum",
+      "native_query": "PRAGMA main.auto_vacuum",
+      "value_type": "int"
+    },
+    {
+      "classification": "application_metadata",
+      "endpoint_id": "application_id",
+      "native_query": "PRAGMA main.application_id",
+      "value_type": "int"
+    },
+    {
+      "classification": "application_metadata",
+      "endpoint_id": "user_version",
+      "native_query": "PRAGMA main.user_version",
+      "value_type": "int"
+    },
+    {
+      "classification": "configuration",
+      "endpoint_id": "secure_delete",
+      "native_query": "PRAGMA main.secure_delete",
+      "value_type": "int"
+    },
+    {
+      "classification": "session_state",
+      "endpoint_id": "query_only",
+      "native_query": "PRAGMA main.query_only",
+      "value_type": "int"
+    },
+    {
+      "classification": "session_state",
+      "endpoint_id": "read_uncommitted",
+      "native_query": "PRAGMA main.read_uncommitted",
+      "value_type": "int"
+    },
+    {
+      "classification": "session_state",
+      "endpoint_id": "recursive_triggers",
+      "native_query": "PRAGMA main.recursive_triggers",
+      "value_type": "int"
+    },
+    {
+      "classification": "session_state",
+      "endpoint_id": "busy_timeout",
+      "native_query": "PRAGMA main.busy_timeout",
+      "value_type": "int"
+    },
+    {
+      "classification": "session_state",
+      "endpoint_id": "foreign_keys",
+      "native_query": "PRAGMA main.foreign_keys",
+      "value_type": "int"
+    }
+  ],
+  "engine_id": "sqlite",
+  "inventory_id": "sqlite.metrics-inventory.3.53.0.v1",
+  "native_c_status_surface": [
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MEMORY_USED",
+      "numeric_id": 0,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_USED",
+      "numeric_id": 1,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_OVERFLOW",
+      "numeric_id": 2,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_USED",
+      "numeric_id": 3,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_OVERFLOW",
+      "numeric_id": 4,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MALLOC_SIZE",
+      "numeric_id": 5,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PARSER_STACK",
+      "numeric_id": 6,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_PAGECACHE_SIZE",
+      "numeric_id": 7,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_SCRATCH_SIZE",
+      "numeric_id": 8,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_status64",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_STATUS_MALLOC_COUNT",
+      "numeric_id": 9,
+      "scope": "library_process"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_USED",
+      "numeric_id": 0,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_USED",
+      "numeric_id": 1,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_SCHEMA_USED",
+      "numeric_id": 2,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_STMT_USED",
+      "numeric_id": 3,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_HIT",
+      "numeric_id": 4,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_MISS_SIZE",
+      "numeric_id": 5,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_LOOKASIDE_MISS_FULL",
+      "numeric_id": 6,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_HIT",
+      "numeric_id": 7,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_MISS",
+      "numeric_id": 8,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_WRITE",
+      "numeric_id": 9,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_DEFERRED_FKS",
+      "numeric_id": 10,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_USED_SHARED",
+      "numeric_id": 11,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_CACHE_SPILL",
+      "numeric_id": 12,
+      "scope": "connection_handle"
+    },
+    {
+      "access_path": "sqlite3_db_status",
+      "admission_state": "not_exposed_by_cpython_sqlite3_dbapi",
+      "dbapi_accessible": false,
+      "native_name": "SQLITE_DBSTATUS_TEMPBUF_SPILL",
+      "numeric_id": 13,
+      "scope": "connection_handle"
+    }
+  ],
+  "reference_version": "3.53.0",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

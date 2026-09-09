@@ -11,6 +11,7 @@ import {render, screen} from '@testing-library/react';
 import {Icon, ObjectIcon} from 'sources/cdeadmin_ui/icons';
 import {
   ICON_CATEGORIES,
+  inferActionIconKey,
   listIconDefinitions,
   registerIconDefinition,
   resolveIconDefinition,
@@ -22,6 +23,32 @@ describe('CDEadmin semantic icon registry', () => {
       .toBe('icon-engine-type-firebird');
     expect(resolveIconDefinition('object.collection').className)
       .toBe('icon-coll-table');
+  });
+
+  it('maps command actions onto attributed theme-aware SVG components', () => {
+    expect(resolveIconDefinition('action.connect')).toEqual(
+      expect.objectContaining({
+        kind: 'component',
+        license: 'MIT',
+        attribution: 'Hugeicons Free Icons 4.3.0',
+      })
+    );
+    expect(resolveIconDefinition('command.default').kind).toBe('component');
+    expect(resolveIconDefinition('action.provider_specific').key)
+      .toBe('command.default');
+  });
+
+  it('infers specific command actions before ambiguous general actions', () => {
+    expect(inferActionIconKey({label: 'Disconnect server'}))
+      .toBe('action.disconnect');
+    expect(inferActionIconKey({label: 'Create database'}))
+      .toBe('action.create_database');
+    expect(inferActionIconKey({name: 'restore_backup'}))
+      .toBe('action.restore');
+    expect(inferActionIconKey({
+      label: 'Disconnect server',
+      iconKey: 'action.cancel',
+    })).toBe('action.cancel');
   });
 
   it('falls native taxonomy variants back to their correct object family', () => {
@@ -67,11 +94,17 @@ describe('CDEadmin semantic icon registry', () => {
     render(<>
       <Icon iconKey="status.warning" label="Connection warning" />
       <ObjectIcon objectType="document" decorative />
+      <Icon iconKey="action.refresh" decorative />
     </>);
 
     expect(screen.getByRole('img', {name: 'Connection warning'}))
       .toHaveAttribute('data-icon-key', 'status.warning');
     expect(document.querySelector('[data-icon-key="object.document"]'))
       .toHaveAttribute('aria-hidden', 'true');
+    const actionIcon = document.querySelector(
+      '[data-icon-key="action.refresh"]'
+    );
+    expect(actionIcon?.tagName).toBe('svg');
+    expect(actionIcon).toHaveStyle({width: '1em', height: '1em'});
   });
 });

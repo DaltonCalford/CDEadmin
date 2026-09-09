@@ -19,6 +19,7 @@ import json
 import threading
 import uuid
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from datetime import datetime, timezone
 
 from pgadmin.cdeadmin.core import EndpointContext
@@ -26,6 +27,7 @@ from pgadmin.cdeadmin.security import SecretReference
 from pgadmin.cdeadmin.security import (
     credential_from_protected_value,
     encode_credential_bundle,
+    redact_text,
 )
 
 from .profiles import (
@@ -62,7 +64,32 @@ class ProtectedColumnResolver:
 
     def __init__(self):
         self._transient = {}
+        self._session = {}
         self._lock = threading.RLock()
+
+    def remember(self, locator, value):
+        """Retain an authenticated endpoint credential for this process."""
+        if isinstance(value, str):
+            value = value.encode('utf-8')
+        if not isinstance(value, (bytes, bytearray)) or not value:
+            raise EndpointRegistrationError(
+                'endpoint session password is unavailable'
+            )
+        buffer = bytearray(value)
+        with self._lock:
+            previous = self._session.pop(locator, None)
+            if previous is not None:
+                for index in range(len(previous)):
+                    previous[index] = 0
+            self._session[locator] = buffer
+
+    def forget(self, locator):
+        """Erase a retained endpoint credential."""
+        with self._lock:
+            buffer = self._session.pop(locator, None)
+        if buffer is not None:
+            for index in range(len(buffer)):
+                buffer[index] = 0
 
     @contextmanager
     def transient(self, locator, value):
@@ -115,6 +142,12 @@ class ProtectedColumnResolver:
             transient = self._transient.get(locator)
             if transient is not None:
                 value = bytes(transient)
+                return self._select_credential(
+                    value, column, credential_kind
+                )
+            retained = self._session.get(locator)
+            if retained is not None:
+                value = bytes(retained)
                 return self._select_credential(
                     value, column, credential_kind
                 )
@@ -192,6 +225,11 @@ class EndpointService:
         )
         discovered = None
         selected_route = None
+        failures = []
+        secret_values = (
+            tuple(password.values())
+            if isinstance(password, dict) else (password,)
+        )
         try:
             candidates = self.route_health.candidates(
                 endpoint.id, endpoint.routes
@@ -210,7 +248,12 @@ class EndpointService:
                     discovered = self.provider_registry.resolve(
                         context
                     ).instance.discover_endpoint({'route': route})
-            except Exception:
+            except Exception as exc:
+                detail = redact_text(
+                    str(exc), secret_values=secret_values
+                ).strip()
+                if detail and detail not in failures:
+                    failures.append(detail)
                 self.route_health.record_failure(endpoint.id, route_model.id)
                 continue
             self.route_health.record_success(endpoint.id, route_model.id)
@@ -219,8 +262,12 @@ class EndpointService:
         if discovered is None:
             self._record_verification(endpoint, 'failed')
             raise EndpointRegistrationError(
-                'endpoint verification failed'
+                'endpoint verification failed' + (
+                    f': {"; ".join(failures)}' if failures else ''
+                )
             )
+        if password:
+            self._remember_credentials(endpoint, route, reference, password)
         verified = discovered['verified_runtime']
         self._record_verification(
             endpoint,
@@ -239,6 +286,33 @@ class EndpointService:
             'evidence_reference': verified.get('evidence_reference'),
             'selected_route_id': selected_route.id,
         }
+
+    def _remember_credentials(self, endpoint, route, primary, values):
+        if primary is None or not values:
+            return
+        payload = (
+            encode_credential_bundle(values)
+            if isinstance(values, dict) else values
+        )
+        reference_ids = set(
+            route.get('credential_references', {}).values()
+        )
+        reference_ids.add(primary.reference_id)
+        models = {
+            item.id: item for item in endpoint.secret_references
+        }
+        for reference_id in sorted(reference_ids):
+            model = models.get(reference_id)
+            if model is not None:
+                self.resolver.remember(model.secret_reference, payload)
+
+    def forget_server_credentials(self, server):
+        """Erase process-retained credentials for one endpoint."""
+        endpoint = getattr(server, 'endpoint_profile', None)
+        if endpoint is None:
+            return
+        for model in endpoint.secret_references:
+            self.resolver.forget(model.secret_reference)
 
     @contextmanager
     def _transient_credentials(self, endpoint, route, primary, values):
@@ -265,8 +339,14 @@ class EndpointService:
                     ))
             yield
 
-    def workspace(self, server):
-        """Build a verified endpoint DTO without exposing credentials."""
+    def workspace(self, server, database_target_id=Ellipsis):
+        """Build a verified endpoint DTO without exposing credentials.
+
+        A retained ``database_target_id`` lets the Object Explorer browse one
+        database without changing the endpoint's active query target.  An
+        explicit ``None`` requests server scope.  Either explicit scope gets
+        a derived cache namespace so native identifiers cannot collide.
+        """
         endpoint = getattr(server, 'endpoint_profile', None)
         if endpoint is not None and endpoint.provider_version is None and (
             endpoint.provider_id == 'org.pgadmin.postgresql'
@@ -283,23 +363,55 @@ class EndpointService:
             )
         profile = registration_profile(endpoint.profile_id)
         embedded = profile['route_kind'] == 'embedded_file'
-        context = self._context(
-            endpoint,
+        desired_permissions = (
             EMBEDDED_WORKSPACE_PERMISSIONS
-            if embedded else WORKSPACE_PERMISSIONS,
+            if embedded else WORKSPACE_PERMISSIONS
+        )
+        identity_context = self._context(endpoint, ())
+        admitted_permissions = (
+            self.provider_registry.admitted_permissions(identity_context)
+        )
+        context = self._context(
+            endpoint, desired_permissions.intersection(admitted_permissions)
         )
         candidates = self.route_health.candidates(
             endpoint.id, endpoint.routes
         )
+        database_override = Ellipsis
+        database_options = None
+        target_cache_id = None
+        if database_target_id is not Ellipsis:
+            if database_target_id is None:
+                database_override = None
+                target_cache_id = 'server-scope'
+            else:
+                target = self._owned_database_target(
+                    endpoint, database_target_id
+                )
+                database_override = target.database
+                database_options = self._database_target_configuration(
+                    target
+                )
+                target_cache_id = target.id
         route, _reference = self._route_and_reference(
-            server, endpoint, profile, route_model=candidates[0]
+            server, endpoint, profile, route_model=candidates[0],
+            database_override=database_override,
+            database_options=database_options,
         )
         route_candidates = [
             self._route_and_reference(
-                server, endpoint, profile, route_model=item
+                server, endpoint, profile, route_model=item,
+                database_override=database_override,
+                database_options=database_options,
             )[0]
             for item in candidates
         ]
+        if target_cache_id is not None:
+            derived_cache = str(uuid.uuid5(
+                uuid.UUID(context.cache_namespace),
+                f'cdeadmin-database-target:{target_cache_id}',
+            ))
+            context = replace(context, cache_namespace=derived_cache)
         binding = self.provider_registry.resolve(context)
         identity = dict(binding.manifest['identity'])
         endpoint_payload = {
@@ -321,13 +433,16 @@ class EndpointService:
             'route': route,
             'route_candidates': route_candidates,
             'route_health': self.route_health.snapshot(endpoint.id),
-            'capability_generation': endpoint.cache_namespace,
+            'capability_generation': context.cache_namespace,
             'extensions': {},
         }
         root_resource = {
             'identity': identity,
             'endpoint_id': endpoint.id,
-            'resource_id': f'endpoint:{endpoint.id}',
+            'resource_id': (
+                f'endpoint:{endpoint.id}:scope:{target_cache_id}'
+                if target_cache_id is not None else f'endpoint:{endpoint.id}'
+            ),
             'identity_kind': 'cdeadmin-endpoint-id',
             'resource_kind': 'server',
             'model_family': endpoint.experience_family,
@@ -338,7 +453,7 @@ class EndpointService:
                 runtime.declared_runtime_family, 'endpoint', endpoint.id,
             ],
             'is_virtual': True,
-            'generation': endpoint.cache_namespace,
+            'generation': context.cache_namespace,
             'capability_ids': [],
             'extensions': {'cdeadmin': {'workspace_root': True}},
         }
@@ -371,6 +486,8 @@ class EndpointService:
             'default_port': profile.get('default_port'),
             'connection_fields': profile.get('connection_fields', []),
             'database_targeting': profile.get('database_targeting', {}),
+            'server_forms': profile['form_contract']['server'],
+            'database_forms': profile['form_contract']['database'],
             'routes': routes,
         }
 
@@ -397,6 +514,7 @@ class EndpointService:
             'endpoint_id': endpoint.id,
             'mode': targeting.get('mode', 'required'),
             'multiple': targeting.get('multiple') is True,
+            'target_management': True,
             'server_verification': (
                 targeting.get('server_verification') is True
             ),
@@ -408,6 +526,7 @@ class EndpointService:
             ), None),
             'legacy_route_database': legacy_database,
             'targets': targets,
+            'forms': profile['form_contract']['database'],
         }
 
     def attach_database(self, server, data):
@@ -415,42 +534,90 @@ class EndpointService:
         from pgadmin.model import EndpointDatabaseTarget, db
 
         endpoint, profile = self._managed_endpoint(server)
-        self._require_multiple_database_targeting(profile)
+        self._require_database_target_management(profile)
         database, display_name = self._database_target_input(data)
+        configuration = self._database_form_values(
+            profile, 'define', data
+        )
         existing = next((
             item for item in endpoint.database_targets
             if item.database == database
         ), None)
-        self._verify_database_target(server, endpoint, profile, database)
+        self._verify_database_target(
+            server, endpoint, profile, database,
+            database_options=configuration,
+        )
         for item in endpoint.database_targets:
             item.active = False
         if existing is None:
             existing = EndpointDatabaseTarget(
                 id=str(uuid.uuid4()), endpoint_id=endpoint.id,
                 display_name=display_name, database=database,
-                configuration='{}', active=True,
+                configuration=self._encoded_route(configuration), active=True,
             )
             db.session.add(existing)
         else:
             existing.display_name = display_name
+            existing.configuration = self._encoded_route(configuration)
             existing.active = True
         self._remove_route_databases(endpoint)
         endpoint.profile_generation = str(uuid.uuid4())
         db.session.commit()
         return self.database_catalog(server)
 
-    def activate_database(self, server, target_id):
+    def update_database_target(self, server, target_id, data):
+        """Edit one provider-owned database connection definition."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        self._require_database_target_management(profile)
+        target = self._owned_database_target(endpoint, target_id)
+        request = dict(data or {})
+        request.setdefault('display_name', target.display_name)
+        display_name = request['display_name']
+        forbidden_display_characters = ('\x00', '\r', '\n')
+        if not isinstance(display_name, str) or not display_name.strip() or (
+            len(display_name.strip()) > 256 or
+            any(character in display_name
+                for character in forbidden_display_characters)
+        ):
+            raise EndpointRegistrationError(
+                'database target display name is invalid'
+            )
+        configuration = self._database_form_values(
+            profile, 'edit', request
+        )
+        self._verify_database_target(
+            server, endpoint, profile, target.database,
+            database_options=configuration,
+        )
+        target.display_name = display_name.strip()
+        target.configuration = self._encoded_route(configuration)
+        endpoint.profile_generation = str(uuid.uuid4())
+        db.session.commit()
+        return self.database_catalog(server)
+
+    def activate_database(self, server, target_id, data=None):
         """Verify and select an already retained database target."""
         from pgadmin.model import db
 
         endpoint, profile = self._managed_endpoint(server)
-        self._require_multiple_database_targeting(profile)
+        self._require_database_target_management(profile)
         target = self._owned_database_target(endpoint, target_id)
+        request = dict(data or {})
+        request.pop('target_id', None)
+        connect_values = self._database_form_values(
+            profile, 'connect', request
+        )
+        configuration = self._database_target_configuration(target)
+        configuration.update(connect_values)
         self._verify_database_target(
-            server, endpoint, profile, target.database
+            server, endpoint, profile, target.database,
+            database_options=configuration,
         )
         for item in endpoint.database_targets:
             item.active = item.id == target.id
+        target.configuration = self._encoded_route(configuration)
         endpoint.profile_generation = str(uuid.uuid4())
         db.session.commit()
         return self.database_catalog(server)
@@ -460,7 +627,7 @@ class EndpointService:
         from pgadmin.model import db
 
         endpoint, profile = self._managed_endpoint(server)
-        targeting = self._require_multiple_database_targeting(profile)
+        targeting = self._require_database_target_management(profile)
         if not targeting.get('server_verification'):
             raise EndpointRegistrationError(
                 'the endpoint cannot operate without a database'
@@ -475,28 +642,53 @@ class EndpointService:
         db.session.commit()
         return self.database_catalog(server)
 
-    def delete_database_target(self, server, target_id):
+    def delete_database_target(self, server, target_id, data=None):
         """Forget an attachment; this never drops the provider database."""
         from pgadmin.model import db
 
         endpoint, profile = self._managed_endpoint(server)
-        self._require_multiple_database_targeting(profile)
+        self._require_database_target_management(profile)
         target = self._owned_database_target(endpoint, target_id)
+        request = dict(data or {})
+        request.pop('target_id', None)
+        self._database_form_values(profile, 'remove', request)
+        confirmation = request.get('confirmation')
+        if confirmation not in {target.database, target.display_name}:
+            raise EndpointRegistrationError(
+                'database removal confirmation must match its native or '
+                'display name'
+            )
         was_active = target.active
+        remaining = [
+            item for item in endpoint.database_targets if item.id != target.id
+        ]
         db.session.delete(target)
         if was_active:
+            if remaining:
+                min(
+                    remaining,
+                    key=lambda item: (item.display_name, item.id),
+                ).active = True
             endpoint.profile_generation = str(uuid.uuid4())
         db.session.commit()
         return self.database_catalog(server)
 
     def retain_created_database(self, server, target):
         """Activate a provider-created database after its driver succeeds."""
-        from pgadmin.model import EndpointDatabaseTarget, db
-
-        endpoint, profile = self._managed_endpoint(server)
+        _endpoint, profile = self._managed_endpoint(server)
         targeting = profile.get('database_targeting', {})
         if not targeting.get('create_and_activate'):
             return None
+        return self._retain_database_target(server, target)
+
+    def retain_registered_database(self, server, target):
+        """Make a registration database a first-class endpoint child."""
+        return self._retain_database_target(server, target)
+
+    def _retain_database_target(self, server, target):
+        from pgadmin.model import EndpointDatabaseTarget, db
+
+        endpoint, _profile = self._managed_endpoint(server)
         database, display_name = self._database_target_input(target)
         for item in endpoint.database_targets:
             item.active = False
@@ -568,6 +760,73 @@ class EndpointService:
         db.session.commit()
         return self.route_catalog(server)
 
+    def update_endpoint_profile(self, server, data):
+        """Update one endpoint through its exact provider server form."""
+        from pgadmin.model import db
+
+        endpoint, profile = self._managed_endpoint(server)
+        values = self._server_form_values(profile, 'edit', data)
+        name = values.pop('name')
+        route = min(
+            endpoint.routes,
+            key=lambda item: (item.priority, item.id),
+            default=None,
+        )
+        if route is None:
+            raise EndpointRegistrationError(
+                'endpoint has no provider-owned connection route'
+            )
+        existing = self._route_configuration(route)
+        route_input = {'priority': route.priority}
+        if profile['route_kind'] == 'network':
+            route_input.update({
+                key: values.pop(source)
+                for key, source in (
+                    ('host', 'host'), ('port', 'port'),
+                    ('user', 'username'),
+                ) if source in values
+            })
+        secret_ids = {
+            field['field_id'] for field in profile.get('secret_fields', [])
+        }
+        supplied_secrets = {
+            key: values.pop(key) for key in tuple(values)
+            if key in secret_ids and values[key] not in (None, '')
+        }
+        if supplied_secrets:
+            raise EndpointRegistrationError(
+                'endpoint credentials must be changed through the '
+                'provider verification command'
+            )
+        for field in profile.get('connection_fields', []):
+            field_id = field['field_id']
+            if field_id in values:
+                route_input[f'cde_route_{field_id}'] = values[field_id]
+        route.configuration = self._encoded_route(
+            self._validated_route(profile, route_input, existing)
+        )
+        server.name = name
+        self.route_health.clear(endpoint.id, route.id)
+        self._stale(endpoint)
+        db.session.commit()
+        return {
+            'display_name': server.name,
+            'route_catalog': self.route_catalog(server),
+        }
+
+    def validate_endpoint_removal(self, server, data):
+        """Admit endpoint removal through the provider's exact form."""
+        endpoint, profile = self._managed_endpoint(server)
+        values = self._server_form_values(profile, 'remove', data)
+        if values.get('confirmation') != server.name:
+            raise EndpointRegistrationError(
+                'confirmation must exactly match the connection profile name'
+            )
+        return {
+            'endpoint_id': endpoint.id,
+            'display_name': server.name,
+        }
+
     def delete_route(self, server, route_id):
         """Delete one alternate route while retaining a usable endpoint."""
         from pgadmin.model import db
@@ -594,9 +853,9 @@ class EndpointService:
         return endpoint, registration_profile(endpoint.profile_id)
 
     @staticmethod
-    def _require_multiple_database_targeting(profile):
+    def _require_database_target_management(profile):
         targeting = profile.get('database_targeting', {})
-        if not targeting.get('multiple'):
+        if 'form_contract' not in profile:
             raise EndpointRegistrationError(
                 'the endpoint does not support database target management'
             )
@@ -609,6 +868,10 @@ class EndpointService:
                 'database target input must be an object'
             )
         database = data.get('database')
+        if isinstance(database, (int, float)) and not isinstance(
+            database, bool
+        ):
+            database = str(database)
         if not isinstance(database, str) or not database.strip():
             raise EndpointRegistrationError(
                 'database target must not be empty'
@@ -645,6 +908,159 @@ class EndpointService:
             'active': bool(target.active),
         }
 
+    @staticmethod
+    def _database_target_configuration(target):
+        try:
+            value = json.loads(getattr(target, 'configuration', '{}'))
+        except (TypeError, ValueError):
+            value = {}
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _database_form_values(profile, operation_id, data):
+        """Validate exact provider database fields; never use a fallback."""
+        if not isinstance(data, dict):
+            raise EndpointRegistrationError(
+                'database form input must be an object'
+            )
+        contract = profile['form_contract']['database']
+        form = contract['forms'].get(operation_id)
+        if form is None or not form.get('supported', True):
+            raise EndpointRegistrationError(
+                form.get('disabled_reason') if form else
+                'provider database form is unavailable'
+            )
+        identity_fields = {'database', 'display_name', 'target_id'}
+        fields = {
+            field['field_id']: field for field in form['fields']
+            if field['field_id'] not in identity_fields
+        }
+        unknown = set(data).difference(fields, identity_fields)
+        if unknown:
+            raise EndpointRegistrationError(
+                'database form contains fields not owned by this provider: ' +
+                ', '.join(sorted(unknown))
+            )
+        values = {}
+        for field_id, field in fields.items():
+            value = data.get(field_id, field.get('default'))
+            if field.get('required') and value in (None, ''):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must not be empty'
+                )
+            if value in (None, ''):
+                continue
+            control = field['control']
+            if control == 'boolean' and not isinstance(value, bool):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be true or false'
+                )
+            if control == 'number' and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+            ):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be a number'
+                )
+            if control == 'number':
+                minimum = field.get('minimum')
+                maximum = field.get('maximum')
+                if (
+                    minimum is not None and value < minimum
+                ) or (
+                    maximum is not None and value > maximum
+                ):
+                    raise EndpointRegistrationError(
+                        f'{field["label"]} is outside its admitted range'
+                    )
+            if control == 'json' and not isinstance(value, (dict, list)):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be structured JSON'
+                )
+            if control == 'select' and value not in {
+                option['value'] for option in field.get('options', [])
+            }:
+                raise EndpointRegistrationError(
+                    f'{field["label"]} is not an admitted option'
+                )
+            if isinstance(value, str) and (
+                len(value) > 4096 or any(character in value for character in
+                                         ('\x00', '\r', '\n'))
+            ):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} is invalid'
+                )
+            values[field_id] = value
+        return values
+
+    @staticmethod
+    def _server_form_values(profile, operation_id, data):
+        """Validate exact provider endpoint fields without a fallback."""
+        if not isinstance(data, dict):
+            raise EndpointRegistrationError(
+                'server form input must be an object'
+            )
+        form = profile['form_contract']['server']['forms'].get(operation_id)
+        if form is None:
+            raise EndpointRegistrationError(
+                'provider server form is unavailable'
+            )
+        fields = {field['field_id']: field for field in form['fields']}
+        unknown = set(data).difference(fields)
+        if unknown:
+            raise EndpointRegistrationError(
+                'server form contains fields not owned by this provider: ' +
+                ', '.join(sorted(unknown))
+            )
+        values = {}
+        for field_id, field in fields.items():
+            value = data.get(field_id, field.get('default'))
+            if field.get('required') and value in (None, ''):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must not be empty'
+                )
+            if value in (None, ''):
+                continue
+            control = field['control']
+            if control == 'boolean' and not isinstance(value, bool):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be true or false'
+                )
+            if control == 'number' and (
+                isinstance(value, bool) or not isinstance(value, (int, float))
+            ):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be a number'
+                )
+            if control == 'number' and (
+                (field.get('minimum') is not None and
+                 value < field['minimum']) or
+                (field.get('maximum') is not None and
+                 value > field['maximum'])
+            ):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} is outside its admitted range'
+                )
+            if control == 'json' and not isinstance(value, (dict, list)):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} must be structured JSON'
+                )
+            if control == 'select' and value not in {
+                option['value'] for option in field.get('options', [])
+            }:
+                raise EndpointRegistrationError(
+                    f'{field["label"]} is not an admitted option'
+                )
+            if isinstance(value, str) and (
+                len(value) > 4096 or any(
+                    character in value for character in ('\x00', '\r', '\n')
+                )
+            ):
+                raise EndpointRegistrationError(
+                    f'{field["label"]} is invalid'
+                )
+            values[field_id] = value
+        return values
+
     @classmethod
     def _remove_route_databases(cls, endpoint):
         for route_model in endpoint.routes:
@@ -666,27 +1082,39 @@ class EndpointService:
             )
         return target
 
-    def _verify_database_target(self, server, endpoint, profile, database):
-        context = self._context(endpoint, VERIFY_PERMISSIONS)
+    def _verify_database_target(self, server, endpoint, profile, database,
+                                database_options=None):
+        embedded = profile['route_kind'] == 'embedded_file'
+        context = self._context(
+            endpoint,
+            EMBEDDED_VERIFY_PERMISSIONS if embedded else VERIFY_PERMISSIONS,
+        )
         candidates = self.route_health.candidates(
             endpoint.id, endpoint.routes
         )
+        failures = []
         for route_model in candidates:
             route, _reference = self._route_and_reference(
                 server, endpoint, profile, route_model=route_model,
                 database_override=database,
+                database_options=database_options,
             )
             try:
                 self.provider_registry.resolve(
                     context
                 ).instance.discover_endpoint({'route': route})
-            except Exception:
+            except Exception as exc:
+                detail = redact_text(str(exc)).strip()
+                if detail and detail not in failures:
+                    failures.append(detail)
                 self.route_health.record_failure(endpoint.id, route_model.id)
                 continue
             self.route_health.record_success(endpoint.id, route_model.id)
             return
         raise EndpointRegistrationError(
-            'database target verification failed'
+            'database target verification failed' + (
+                f': {"; ".join(failures)}' if failures else ''
+            )
         )
 
     @staticmethod
@@ -837,8 +1265,15 @@ class EndpointService:
             'runtime_verification_state': 'verified',
             'runtime_evidence_reference': 'preserved-postgresql-connection',
         }
+        identity_context = EndpointContext.from_identity(identity)
+        admitted_permissions = self.provider_registry.admitted_permissions(
+            identity_context
+        )
         context = EndpointContext.from_identity(
-            identity, effective_permissions=WORKSPACE_PERMISSIONS
+            identity,
+            effective_permissions=WORKSPACE_PERMISSIONS.intersection(
+                admitted_permissions
+            ),
         )
         binding = self.provider_registry.resolve(context)
         provider_identity = dict(binding.manifest['identity'])
@@ -881,6 +1316,7 @@ class EndpointService:
     def _route_and_reference(
         self, server, endpoint, profile=True, requires_secret=None,
         route_model=None, database_override=Ellipsis,
+        database_options=None,
     ):
         if requires_secret is not None:
             profile = requires_secret
@@ -898,17 +1334,20 @@ class EndpointService:
                 route.pop('database', None)
             else:
                 route['database'] = database_override
-        elif isinstance(profile, dict) and profile.get(
-            'database_targeting', {}
-        ).get('multiple'):
+                route.update(database_options or {})
+        elif isinstance(profile, dict):
             active = next((
-                item for item in endpoint.database_targets if item.active
+                item for item in getattr(endpoint, 'database_targets', [])
+                if item.active
             ), None)
             if active is not None:
                 route['database'] = active.database
                 route['database_target_id'] = active.id
-            else:
-                route.pop('database', None)
+                route.update(self._database_target_configuration(active))
+            # Older CDEadmin demo/profile registrations can retain their
+            # database directly on the route.  Preserve that value until the
+            # user explicitly disconnects it or converts it to a retained
+            # database target.  Server-scope routes already have no database.
         route['route_id'] = route_model.id
         if isinstance(profile, dict) and profile.get('secret_fields'):
             fields = active_secret_fields(profile, route)

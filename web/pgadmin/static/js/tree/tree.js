@@ -13,11 +13,12 @@ import pgAdmin from 'sources/pgadmin';
 import { FileType } from 'react-aspen';
 import { TreeNode } from './tree_nodes';
 
-function manageTreeEvents(event, eventName, item) {
+export function manageTreeEvents(event, eventName, item) {
   let d = item ? item._metadata.data : [];
   let node_metadata = item ? item._metadata : {};
   let node;
   let obj = pgAdmin.Browser;
+  let callbackResult;
 
   // Events for preferences tree.
   if (node_metadata.parent?.includes('/preferences') && obj.ptree.tree.type == 'preferences') {
@@ -58,7 +59,9 @@ function manageTreeEvents(event, eventName, item) {
     if (_.isObject(node.callbacks) &&
       eventName in node.callbacks &&
       typeof node.callbacks[eventName] == 'function') {
-      node.callbacks[eventName].apply(node, [item, d, obj, [], eventName]);
+      callbackResult = node.callbacks[eventName].apply(
+        node, [item, d, obj, [], eventName]
+      );
     }
 
     /* Raise tree events for the nodes */
@@ -71,7 +74,7 @@ function manageTreeEvents(event, eventName, item) {
       return false;
     }
   }
-  return true;
+  return callbackResult === undefined ? true : callbackResult;
 }
 
 

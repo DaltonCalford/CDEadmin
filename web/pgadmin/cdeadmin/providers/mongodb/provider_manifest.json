@@ -86,5 +86,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "MongoDB operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
     ]
   },
-  "provenance": {"purpose": "CDE-PREP-150 MongoDB exact-profile pilot", "protocol": "mongodb_wire", "client_state": "pymongo_4.17.0_installed", "runtime_state": "verified", "activation_gate": "passed", "live_evidence_reference": "cde-mongodb-live:mongodb-8.2.6:20260901"}
+  "provenance": {"purpose": "CDE-PREP-150 MongoDB exact-profile pilot", "protocol": "mongodb_wire", "client_state": "pymongo_4.17.0_installed", "runtime_state": "verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-mongodb-live:mongodb-8.2.6:20260901"}
 }

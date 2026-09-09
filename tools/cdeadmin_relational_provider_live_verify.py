@@ -27,6 +27,7 @@ import os
 import secrets
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import replace
@@ -49,11 +50,14 @@ from pgadmin.cdeadmin.core.registry import (  # noqa: E402
     PermissionGuard,
 )
 from pgadmin.cdeadmin.providers.mysql_family.provider import (  # noqa: E402
+    MARIADB_ADMINISTRATION,
     MARIADB_PROFILE,
+    MYSQL_ADMINISTRATION,
     MYSQL_PROFILE,
     create_provider,
 )
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
+    ADMINISTRATION as DUCKDB_ADMINISTRATION,
     PROFILE as DUCKDB_PROFILE,
     create_provider as create_duckdb_provider,
 )
@@ -82,11 +86,13 @@ from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
     create_provider as create_immudb_provider,
 )
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
+    ADMINISTRATION as FIREBIRD_ADMINISTRATION,
     PROFILE as FIREBIRD_PROFILE,
     _initialize_connection as initialize_firebird_connection,
     create_provider as create_firebird_provider,
 )
 from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
+    ADMINISTRATION as SQLITE_ADMINISTRATION,
     PROFILE as SQLITE_PROFILE,
     create_provider as create_sqlite_provider,
 )
@@ -126,6 +132,17 @@ PROVIDER_FACTORIES = {
     'sqlite': create_sqlite_provider,
 }
 
+EMBEDDED_ADMINISTRATIONS = {
+    'duckdb': DUCKDB_ADMINISTRATION,
+    'sqlite': SQLITE_ADMINISTRATION,
+}
+
+NETWORK_ADMINISTRATIONS = {
+    'firebird': FIREBIRD_ADMINISTRATION,
+    'mysql': MYSQL_ADMINISTRATION,
+    'mariadb': MARIADB_ADMINISTRATION,
+}
+
 TARGET_ADAPTERS = {
     'cockroachdb': 'cockroachdb-postgresql-wire-client',
     'dolt': 'dolt-mysql-wire-client',
@@ -139,6 +156,30 @@ TARGET_ADAPTERS = {
     'mysql': 'mysql-wire-client',
     'sqlite': 'embedded-sqlite-client',
 }
+
+
+GRAPHICAL_OBJECT_CATEGORIES = (
+    'resource', 'language_api', 'result', 'transaction', 'admin',
+    'security', 'fault',
+)
+
+
+def graphical_object_activation_ready(
+        categories, object_evidence, error_type=None):
+    """Return whether exact graphical object workflows passed live gates.
+
+    Semantic-model compilation is deliberately a separate product surface. An
+    engine's native navigator, forms, editor, transactions, security and
+    diagnostics can therefore be qualified without claiming that its semantic
+    query compiler is active.
+    """
+    return (
+        all(categories.get(name) == 'passed'
+            for name in GRAPHICAL_OBJECT_CATEGORIES) and
+        not object_evidence.get('operation_failures') and
+        not object_evidence.get('raw_commands_used') and
+        error_type is None
+    )
 
 
 def _object_inspection_evidence(provider, resources, request, engine):
@@ -216,16 +257,27 @@ def _merge_object_evidence(*documents):
     base = copy.deepcopy(documents[0])
     passed = {}
     failures = {}
+    task_evidence = {}
+    native_observations = {}
+    duckdb_export_directory = None
     for document in documents:
         for kind, operations in document.get(
                 'passed_resource_operations', {}).items():
             passed.setdefault(kind, set()).update(operations)
         failures.update(document.get('operation_failures', {}))
+        task_evidence.update(document.get('dialect_task_evidence', {}))
+        native_observations.update(
+            document.get('native_operation_observations', {})
+        )
     base['evidence_scope'] = 'inspection-and-visual-editor-operations'
     base['passed_resource_operations'] = {
         kind: sorted(operations) for kind, operations in sorted(passed.items())
     }
     base['operation_failures'] = failures
+    if task_evidence:
+        base['dialect_task_evidence'] = task_evidence
+    if native_observations:
+        base['native_operation_observations'] = native_observations
     for document in documents[1:]:
         for family_id, concepts in document.get('concepts', {}).items():
             family = base['concepts'].setdefault(family_id, {})
@@ -250,7 +302,9 @@ def _target(resources, kind, name):
     ), None)
 
 
-def _apply_editor(provider, route, kind, operation, draft, target=None):
+def _apply_editor(
+        provider, route, kind, operation, draft, target=None,
+        task_evidence=None):
     plan = provider.plan_visual_admin({
         'resource_kind': kind,
         'operation_id': operation,
@@ -267,6 +321,12 @@ def _apply_editor(provider, route, kind, operation, draft, target=None):
     })
     if not result.get('provider_result', {}).get('accepted'):
         raise RuntimeError('visual editor operation was not accepted')
+    if task_evidence is not None and plan['command_preview'].get(
+            'statements'):
+        task_evidence[f'visual_admin.{kind}.{operation}'] = {
+            'command_preview': copy.deepcopy(plan['command_preview']),
+            'live_execution': 'passed',
+        }
     return result
 
 
@@ -275,19 +335,58 @@ def _relational_editor_evidence(provider, request, engine):
     route = request['route']
     passed = {}
     failures = {}
+    task_evidence = {}
+    operation_observations = {}
 
     def record(kind, operation):
         passed.setdefault(kind, set()).add(operation)
 
     def attempt(label, kind, operation, draft, target=None):
         try:
-            _apply_editor(
-                provider, route, kind, operation, draft, target=target
+            result = _apply_editor(
+                provider, route, kind, operation, draft, target=target,
+                task_evidence=task_evidence,
             )
+            observation = result.get('provider_result', {}).get(
+                'driver_observation'
+            )
+            if isinstance(observation, dict):
+                safe_keys = {
+                    'operation_id', 'upgrade_required',
+                    'upgrade_check_completed', 'check_is_read_only',
+                    'tool_version_identity', 'return_code',
+                    'driver_observation_only',
+                    'local_process_observation_only',
+                    'remote_finality_inferred',
+                }
+                operation_observations[label] = {
+                    key: copy.deepcopy(value)
+                    for key, value in observation.items()
+                    if key in safe_keys
+                }
             record(kind, operation)
             return True
         except Exception as exc:
-            failures[label] = f'{type(exc).__name__}: {exc}'
+            detail = f'{type(exc).__name__}: {exc}'
+            try:
+                validation = provider.validate_visual_admin({
+                    'resource_kind': kind,
+                    'operation_id': operation,
+                    'target_resource': target,
+                    'draft': draft,
+                    '_provider_route': route,
+                })
+                validation_errors = validation.get('errors') or []
+                if validation_errors:
+                    detail += ': ' + '; '.join(
+                        f"{item.get('code')}: {item.get('message')}"
+                        for item in validation_errors
+                    )
+            except Exception:
+                # Preserve the original execution failure if diagnostic
+                # validation itself is unavailable.
+                pass
+            failures[label] = detail
             return False
 
     def inspect_created(label, kind, name):
@@ -322,6 +421,152 @@ def _relational_editor_evidence(provider, request, engine):
         parent = 'public'
     else:
         parent = 'main'
+    if engine in {'mysql', 'mariadb'}:
+        server_resource = _target(resources, 'server', (
+            'MariaDB' if engine == 'mariadb' else 'MySQL'
+        ))
+        database_resource = _target(
+            resources, 'database', str(route['database'])
+        )
+        if engine == 'mysql':
+            maintenance = (
+                ('analyze_tables', {
+                    'tables': ['qualification'],
+                    'no_write_to_binlog': True,
+                    'histogram_action': 'NONE',
+                    'histogram_columns': [], 'histogram_buckets': 100,
+                    'histogram_auto_update': False,
+                }),
+                ('check_tables', {
+                    'tables': ['qualification'],
+                    'check_options': ['QUICK'],
+                }),
+                ('optimize_tables', {
+                    'tables': ['qualification'],
+                    'no_write_to_binlog': True,
+                }),
+                ('repair_tables', {
+                    'tables': ['cde_repair_probe'],
+                    'no_write_to_binlog': True,
+                    'repair_options': ['QUICK'],
+                }),
+                ('checksum_tables', {
+                    'tables': ['qualification'], 'checksum_type': 'QUICK',
+                }),
+            )
+        else:
+            maintenance = (
+                ('analyze_tables', {
+                    'tables': ['qualification'], 'binlog_mode': 'LOCAL',
+                    'persistent_for': 'ALL', 'persistent_columns': [],
+                    'persistent_indexes': [],
+                }),
+                ('check_objects', {
+                    'object_type': 'VIEW',
+                    'objects': ['cde_qualification_view'],
+                    'check_options': ['FOR UPGRADE'],
+                }),
+                ('optimize_tables', {
+                    'tables': ['qualification'], 'binlog_mode': 'LOCAL',
+                    'lock_wait_mode': 'NOWAIT', 'lock_wait_seconds': 0,
+                }),
+                ('repair_objects', {
+                    'object_type': 'TABLE',
+                    'objects': ['cde_repair_probe'],
+                    'binlog_mode': 'LOCAL', 'repair_options': ['QUICK'],
+                }),
+                ('checksum_tables', {
+                    'tables': ['qualification'], 'checksum_type': 'QUICK',
+                }),
+            )
+        if database_resource is None:
+            failures['database.maintenance'] = 'DatabaseResourceMissing'
+        else:
+            for operation_id, draft in maintenance:
+                attempt(
+                    f'database.{operation_id}', 'database', operation_id,
+                    draft, database_resource,
+                )
+            if engine == 'mariadb':
+                with tempfile.TemporaryDirectory(
+                        prefix='cdeadmin-mariadb-tool-live-') as workspace:
+                    route['tool_workspace'] = workspace
+                    try:
+                        if server_resource is None:
+                            failures[
+                                'server.check_upgrade_required'
+                            ] = 'ServerResourceMissing'
+                        else:
+                            attempt(
+                                'server.check_upgrade_required', 'server',
+                                'check_upgrade_required', {}, server_resource,
+                            )
+                        backup_passed = attempt(
+                            'database.backup_logical', 'database',
+                            'backup_logical', {
+                                'path': 'qualification.sql',
+                                'include_schema': True, 'include_data': True,
+                                'single_transaction': True,
+                                'lock_all_tables': False,
+                                'add_drop_database': True,
+                                'add_drop_table': True, 'routines': True,
+                                'events': True, 'triggers': True,
+                                'hex_blob': True,
+                            }, database_resource,
+                        )
+                        if backup_passed:
+                            mutation = provider.client._connect({
+                                'route': route
+                            })
+                            cursor = mutation.cursor()
+                            try:
+                                cursor.execute(
+                                    'UPDATE qualification SET value = 999 '
+                                    'WHERE id = 1'
+                                )
+                                mutation.commit()
+                            finally:
+                                cursor.close()
+                                provider.client._forget_and_close(
+                                    mutation
+                                )
+                            restored = attempt(
+                                'database.restore_logical', 'database',
+                                'restore_logical', {
+                                    'path': 'qualification.sql',
+                                    'confirmation': str(route['database']),
+                                    'abort_on_error': True,
+                                    'binary_mode': True,
+                                }, database_resource,
+                            )
+                            if restored:
+                                verification = provider.client._connect({
+                                    'route': route
+                                })
+                                cursor = verification.cursor()
+                                try:
+                                    cursor.execute(
+                                        'SELECT value FROM qualification '
+                                        'WHERE id = 1'
+                                    )
+                                    if cursor.fetchone()[0] != 42:
+                                        failures[
+                                            'database.restore_logical'
+                                        ] = 'RestoreDataPostconditionFailed'
+                                        passed['database'].discard(
+                                            'restore_logical'
+                                        )
+                                finally:
+                                    cursor.close()
+                                    provider.client._forget_and_close(
+                                        verification
+                                    )
+                    except Exception as exc:
+                        failures['database.backup_restore_postcondition'] = (
+                            f'{type(exc).__name__}: {exc}'
+                        )
+                    finally:
+                        route.pop('tool_workspace', None)
     if qualification is None:
         failures['table.grid'] = 'QualificationTableMissing'
     elif attempt(
@@ -346,7 +591,7 @@ def _relational_editor_evidence(provider, request, engine):
                     'selector': {'identity_token': token},
                     'changes': {value_column: 8},
                     'concurrency_token': token,
-                }, target=qualification,
+                }, target=qualification, task_evidence=task_evidence,
             )
             record('table', 'update')
             page = provider.read_visual_admin_rows({
@@ -364,7 +609,7 @@ def _relational_editor_evidence(provider, request, engine):
                     'selector': {'identity_token': token},
                     'concurrency_token': token,
                     'confirmation': 'delete-live-editor-probe',
-                }, target=qualification,
+                }, target=qualification, task_evidence=task_evidence,
             )
             record('table', 'delete')
         except Exception as exc:
@@ -497,6 +742,30 @@ def _relational_editor_evidence(provider, request, engine):
                     }, view,
                 )
 
+        if engine == 'mysql' and attempt(
+            'materialized-view.create', 'materialized-view', 'create', {
+                'name': 'cde_editor_materialized_view',
+                'parent': parent,
+                'query': 'SELECT id, value FROM qualification',
+            },
+        ):
+            materialized = inspect_created(
+                'materialized-view.inspect', 'materialized-view',
+                'cde_editor_materialized_view',
+            )
+            if materialized is not None:
+                attempt(
+                    'materialized-view.alter', 'materialized-view', 'alter', {
+                        'query': 'SELECT id FROM qualification',
+                    }, materialized,
+                )
+                attempt(
+                    'materialized-view.drop', 'materialized-view', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-materialized-view',
+                    }, materialized,
+                )
+
         if attempt(
             'index.create', 'index', 'create', {
                 **({} if engine == 'immudb' else {
@@ -574,6 +843,47 @@ def _relational_editor_evidence(provider, request, engine):
                         'confirmation': 'drop-live-editor-trigger',
                     }, trigger,
                 )
+
+        if engine == 'sqlite':
+            sqlite_virtual_tables = (
+                (
+                    'fts-table', 'cde_editor_fts', 'fts5',
+                    ['content', 'category'],
+                ),
+                (
+                    'virtual-table', 'cde_editor_rtree', 'rtree',
+                    ['id', 'min_x', 'max_x', 'min_y', 'max_y'],
+                ),
+            )
+            for kind, name, module, columns in sqlite_virtual_tables:
+                if not attempt(
+                    f'{kind}.create', kind, 'create', {
+                        'name': name, 'module': module,
+                        'columns': columns,
+                    },
+                ):
+                    continue
+                resource = inspect_created(
+                    f'{kind}.inspect', kind, name
+                )
+                if resource is None:
+                    continue
+                renamed_name = f'{name}_renamed'
+                if attempt(
+                    f'{kind}.rename', kind, 'rename', {
+                        'new_name': renamed_name,
+                    }, resource,
+                ):
+                    resource = inspect_created(
+                        f'{kind}.rename.inspect', kind, renamed_name
+                    )
+                if resource is not None:
+                    attempt(
+                        f'{kind}.drop', kind, 'drop', {
+                            'cascade': False,
+                            'confirmation': f'drop-live-editor-{kind}',
+                        }, resource,
+                    )
 
     if engine in {
         'mysql', 'mariadb', 'dolt', 'tidb', 'vitess',
@@ -689,7 +999,19 @@ def _relational_editor_evidence(provider, request, engine):
             'user.create', 'user', 'create', {
                 'name': user_name, 'host': '%',
                 'password': secrets.token_urlsafe(24),
-                **({} if engine == 'dolt' else {
+                **({
+                    'authentication_mode': 'PASSWORD',
+                    'additional_authentication': [],
+                    'tls_requirement': 'NONE',
+                    'max_queries_per_hour': 0,
+                    'max_updates_per_hour': 0,
+                    'max_connections_per_hour': 0,
+                    'max_user_connections': 0,
+                    'max_statement_time': 0,
+                    'account_lock': 'UNLOCK',
+                    'password_expiration': 'NEVER',
+                } if engine == 'mariadb' else {}),
+                **({} if engine in {'dolt', 'mariadb'} else {
                     'active': True, 'administrator': False,
                 }),
             },
@@ -698,10 +1020,36 @@ def _relational_editor_evidence(provider, request, engine):
                 'user.inspect-created', 'user', f'{user_name}@%'
             )
         if user is not None:
+            if engine == 'mariadb' and role is not None:
+                role_member = {
+                    'member': f'{user_name}@%', 'member_kind': 'USER',
+                }
+                if attempt(
+                    'role.grant', 'role', 'grant', {
+                        **role_member, 'admin_option': True,
+                    }, role,
+                ):
+                    attempt(
+                        'role.set-default', 'role', 'set_default',
+                        role_member, role,
+                    )
+                    attempt(
+                        'role.revoke', 'role', 'revoke', {
+                            **role_member, 'admin_option_only': False,
+                            'confirmation': 'revoke-live-role-membership',
+                        }, role,
+                    )
             attempt(
                 'user.alter', 'user', 'alter', {
                     'password': secrets.token_urlsafe(24),
-                    **({} if engine == 'dolt' else {
+                    **({
+                        'authentication_mode': 'PASSWORD',
+                        'additional_authentication': [],
+                        'tls_requirement': 'UNCHANGED',
+                        'account_lock': 'LOCK',
+                        'password_expiration': 'NEVER',
+                    } if engine == 'mariadb' else {}),
+                    **({} if engine in {'dolt', 'mariadb'} else {
                         'active': False, 'administrator': False,
                     }),
                 }, user,
@@ -710,6 +1058,8 @@ def _relational_editor_evidence(provider, request, engine):
                 'principal': f'{user_name}@%', 'object_type': 'TABLE',
                 'object_name': qualified_table, 'privileges': ['SELECT'],
                 'grant_option': False,
+                **({'principal_kind': 'USER'}
+                   if engine == 'mariadb' else {}),
             }
             privilege_target = next((
                 item for item in provider.list_resources(request)
@@ -768,6 +1118,204 @@ def _relational_editor_evidence(provider, request, engine):
                 )
 
         if engine == 'mariadb':
+            if attempt(
+                'replication-channel.create', 'replication-channel',
+                'create', {
+                    'name': 'cde_editor_replication',
+                    'master_host': '127.0.0.1',
+                    'master_user': 'nobody',
+                    'master_password': secrets.token_urlsafe(24),
+                    # The disposable account fixture already owns a named
+                    # connection to 127.0.0.1:1. MariaDB rejects a second
+                    # connection definition with the same upstream identity,
+                    # so use a distinct unreachable port for this independent
+                    # lifecycle exercise.
+                    'master_port': 2,
+                    'connect_retry': 1,
+                    'retry_count': 1,
+                    'replication_delay': 0,
+                    'use_gtid': 'NO',
+                    'master_ssl': 'OFF',
+                    'verify_server_certificate': 'OFF',
+                    'ignore_server_ids': [],
+                    'do_domain_ids': [],
+                    'ignore_domain_ids': [],
+                    'demote_to_slave': 'OFF',
+                },
+            ):
+                channel = inspect_created(
+                    'replication-channel.inspect', 'replication-channel',
+                    'cde_editor_replication',
+                )
+                if channel is not None:
+                    attempt(
+                        'replication-channel.alter', 'replication-channel',
+                        'alter', {
+                            'connect_retry': 2, 'retry_count': 2,
+                            'use_gtid': 'UNCHANGED',
+                            'master_ssl': 'UNCHANGED',
+                            'verify_server_certificate': 'UNCHANGED',
+                            'ignore_server_ids': [], 'do_domain_ids': [],
+                            'ignore_domain_ids': [],
+                            'demote_to_slave': 'UNCHANGED',
+                        }, channel,
+                    )
+                    attempt(
+                        'replication-channel.start', 'replication-channel',
+                        'start', {'thread': 'ALL', 'until_mode': 'NONE'},
+                        channel,
+                    )
+                    attempt(
+                        'replication-channel.stop', 'replication-channel',
+                        'stop', {'thread': 'ALL'}, channel,
+                    )
+                    attempt(
+                        'replication-channel.reset', 'replication-channel',
+                        'reset', {
+                            'delete_connection': True,
+                            'confirmation': 'cde_editor_replication',
+                        }, channel,
+                    )
+
+            max_connections = next((
+                item for item in resources
+                if item.get('resource_kind') == 'system-variable' and
+                item.get('display_name') == 'MAX_CONNECTIONS'
+            ), None)
+            if max_connections is None:
+                failures['system-variable.set_global'] = (
+                    'WritableGlobalVariableMissing'
+                )
+            else:
+                global_value = max_connections.get(
+                    'extensions', {}
+                ).get('mariadb', {}).get('native', {}).get('global_value')
+                attempt(
+                    'system-variable.set_global', 'system-variable',
+                    'set_global', {
+                        'value_mode': 'VALUE',
+                        # Reapply the observed value so the exact runtime
+                        # exercises SET GLOBAL without changing its effective
+                        # configuration after the qualification run.
+                        'value': str(global_value),
+                    }, max_connections,
+                )
+
+            def session_target(process_id):
+                return next((
+                    item for item in provider.list_resources(request)
+                    if item.get('resource_kind') == 'session' and
+                    item.get('extensions', {}).get(
+                        'mariadb', {}
+                    ).get('native', {}).get('id') == process_id
+                ), None)
+
+            query_victim = None
+            query_worker = None
+            query_started = threading.Event()
+            query_finished = threading.Event()
+            try:
+                query_victim = provider.client._connect({'route': route})
+                query_process_id = int(query_victim.thread_id)
+
+                def run_sleep():
+                    cursor = None
+                    try:
+                        cursor = query_victim.cursor()
+                        query_started.set()
+                        cursor.execute('SELECT SLEEP(30)')
+                    except Exception:
+                        # Interruption is the expected native outcome.
+                        pass
+                    finally:
+                        if cursor is not None:
+                            provider.client._safe_close(cursor)
+                        query_finished.set()
+
+                query_worker = threading.Thread(
+                    target=run_sleep,
+                    name='cdeadmin-mariadb-kill-query-qualification',
+                    daemon=True,
+                )
+                query_worker.start()
+                query_started.wait(2)
+                time.sleep(0.2)
+                target = session_target(query_process_id)
+                if target is None:
+                    failures['session.terminate_query'] = (
+                        'RunningSessionMissing'
+                    )
+                elif attempt(
+                    'session.terminate_query', 'session',
+                    'terminate_query', {
+                        'termination_mode': 'SOFT',
+                        'confirmation': str(query_process_id),
+                    }, target,
+                ):
+                    query_finished.wait(5)
+                    if not query_finished.is_set():
+                        failures['session.terminate_query'] = (
+                            'QueryDidNotTerminate'
+                        )
+            finally:
+                if query_victim is not None:
+                    provider.client._forget_and_close(query_victim)
+                if query_worker is not None:
+                    query_worker.join(timeout=1)
+
+            connection_victim = None
+            try:
+                connection_victim = provider.client._connect({'route': route})
+                connection_process_id = int(connection_victim.thread_id)
+                target = session_target(connection_process_id)
+                if target is None:
+                    failures['session.terminate_connection'] = (
+                        'IdleSessionMissing'
+                    )
+                else:
+                    attempt(
+                        'session.terminate_connection', 'session',
+                        'terminate_connection', {
+                            'termination_mode': 'SOFT',
+                            'confirmation': str(connection_process_id),
+                        }, target,
+                    )
+            finally:
+                if connection_victim is not None:
+                    provider.client._forget_and_close(connection_victim)
+
+            binary_status = next((
+                item for item in resources
+                if item.get('resource_kind') == 'binary-log-status'
+            ), None)
+            if binary_status is None:
+                failures['binary-log-status.rotate'] = (
+                    'BinaryLoggingNotEnabled'
+                )
+            elif attempt(
+                'binary-log-status.rotate', 'binary-log-status', 'rotate',
+                {}, binary_status,
+            ):
+                binary_logs = sorted(
+                    (
+                        item for item in provider.list_resources(request)
+                        if item.get('resource_kind') == 'binary-log'
+                    ),
+                    key=lambda item: item.get('display_name', ''),
+                )
+                if len(binary_logs) < 2:
+                    failures['binary-log.purge_before'] = (
+                        'RotatedBinaryLogMissing'
+                    )
+                else:
+                    retained_log = binary_logs[-1]
+                    attempt(
+                        'binary-log.purge_before', 'binary-log',
+                        'purge_before', {
+                            'confirmation': retained_log['display_name'],
+                        }, retained_log,
+                    )
+
             if attempt(
                 'sequence.create', 'sequence', 'create', {
                     'name': 'cde_editor_sequence', 'parent': parent,
@@ -1226,6 +1774,17 @@ def _relational_editor_evidence(provider, request, engine):
                 )
 
     if engine == 'firebird' and qualification is not None:
+        database_resource = next((
+            item for item in resources
+            if item.get('resource_kind') == 'database'
+        ), None)
+        if database_resource is None:
+            failures['database.alter'] = 'DatabaseResourceMissing'
+        else:
+            attempt(
+                'database.alter', 'database', 'alter',
+                {'linger_seconds': 1}, database_resource,
+            )
         if attempt(
             'constraint.create', 'constraint', 'create', {
                 'name': 'cde_editor_unique', 'table': 'QUALIFICATION',
@@ -1319,6 +1878,79 @@ def _relational_editor_evidence(provider, request, engine):
                     'cascade': False,
                     'confirmation': 'drop-live-editor-role',
                 }, role,
+            )
+
+    if engine == 'sqlite' and qualification is not None:
+        database_resource = next((
+            item for item in resources
+            if item.get('resource_kind') == 'database'
+        ), None)
+        if database_resource is None:
+            failures['database.alter'] = 'DatabaseResourceMissing'
+        else:
+            attempt(
+                'database.alter', 'database', 'alter', {
+                    'journal_mode': 'DELETE',
+                    'synchronous': 'FULL',
+                    'user_version': 53,
+                }, database_resource,
+            )
+            backup_path = str(
+                Path(route['database']).with_name(
+                    'qualification-maintenance-backup.sqlite'
+                )
+            )
+            if attempt(
+                'database.backup', 'database', 'backup', {
+                    'backup_path': backup_path, 'overwrite': False,
+                }, database_resource,
+            ):
+                attempt(
+                    'database.restore', 'database', 'restore', {
+                        'backup_path': backup_path,
+                        'confirmation': route['database'],
+                    }, database_resource,
+                )
+            for operation, draft in (
+                ('integrity_check', {'max_errors': 100}),
+                ('quick_check', {'max_errors': 100}),
+                ('foreign_key_check', {}),
+                ('vacuum', {}),
+                ('incremental_vacuum', {'pages': 0}),
+                ('optimize', {}),
+                ('analyze', {}),
+                ('reindex', {}),
+                ('wal_checkpoint', {'mode': 'PASSIVE'}),
+            ):
+                attempt(
+                    f'database.{operation}', 'database', operation,
+                    draft, database_resource,
+                )
+
+    if engine == 'duckdb' and qualification is not None:
+        database_resource = next((
+            item for item in resources
+            if item.get('resource_kind') == 'database'
+        ), None)
+        if database_resource is None:
+            failures['database.maintenance'] = 'DatabaseResourceMissing'
+        else:
+            for operation in (
+                    'checkpoint', 'force_checkpoint', 'vacuum', 'analyze'):
+                attempt(
+                    f'database.{operation}', 'database', operation, {},
+                    database_resource,
+                )
+            duckdb_export_directory = str(
+                Path(route['database']).with_name(
+                    'qualification-logical-export'
+                )
+            )
+            attempt(
+                'database.export_database', 'database', 'export_database', {
+                    'directory': duckdb_export_directory,
+                    'format': 'PARQUET',
+                }, database_resource,
             )
 
     if engine == 'firebird':
@@ -1541,6 +2173,28 @@ def _relational_editor_evidence(provider, request, engine):
                         f'{type(exc).__name__}: {exc}'
                     )
 
+        secret_value = secrets.token_urlsafe(24)
+        if attempt(
+            'secret.create', 'secret', 'create', {
+                'name': 'cde_editor_http',
+                'secret_type': 'HTTP',
+                'scope': 'https://cdeadmin.invalid',
+                'persistent': True,
+                'properties': {'bearer_token': secret_value},
+            },
+        ):
+            secret = inspect_created(
+                'secret.inspect', 'secret', 'cde_editor_http'
+            )
+            if secret is not None:
+                attempt(
+                    'secret.drop', 'secret', 'drop', {
+                        'cascade': False,
+                        'confirmation': 'drop-live-editor-secret',
+                    }, secret,
+                )
+        secret_value = ''
+
         if attempt(
             'schema.create', 'schema', 'create', {
                 'name': 'cde_editor_schema',
@@ -1626,21 +2280,157 @@ def _relational_editor_evidence(provider, request, engine):
     database_created = False
     editor_database = (
         f'cde_editor_database_{secrets.token_hex(4)}'
-        if engine == 'immudb' else 'cde_editor_database'
+        if engine in {'firebird', 'immudb'} else 'cde_editor_database'
     )
+    firebird_editor_path = None
     if provider.client.supports_admin_operation('database', 'create'):
+        create_draft = {'name': editor_database}
+        if engine == 'firebird':
+            current_database = str(route['database']).rsplit(':', 1)[-1]
+            firebird_editor_path = str(
+                Path(current_database).parent /
+                f'{editor_database}.fdb'
+            )
+            create_draft = {
+                'database_path': firebird_editor_path,
+                'page_size': '8192',
+                'default_charset': 'UTF8',
+                'sql_dialect': '3',
+                'forced_writes': True,
+                'reserve_space': True,
+            }
         database_created = attempt(
-            'database.create', 'database', 'create', {
-                'name': editor_database,
-            },
+            'database.create', 'database', 'create', create_draft,
         )
+    if database_created and engine == 'firebird':
+        created_route = {
+            **route,
+            'database': firebird_editor_path,
+        }
+        created_database = {
+            'resource_id': str(uuid.uuid5(
+                uuid.UUID(provider.context.endpoint_id),
+                f'database:{firebird_editor_path}',
+            )),
+            'resource_kind': 'database',
+            'display_name': Path(firebird_editor_path).name,
+            'provider_path': [firebird_editor_path],
+            'native': {'database': firebird_editor_path},
+        }
+        try:
+            _apply_editor(
+                provider, created_route, 'database', 'drop', {
+                    'cascade': False,
+                    'confirmation': 'drop-live-editor-database',
+                }, target=created_database, task_evidence=task_evidence,
+            )
+            record('database', 'drop')
+        except Exception as exc:
+            failures['database.drop-created'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
+    if database_created and engine == 'sqlite':
+        sqlite_create_root = route.get('database_create_root')
+        if not sqlite_create_root:
+            sqlite_create_root = str(Path(route['database']).parent)
+        sqlite_editor_path = str(
+            Path(sqlite_create_root) /
+            f'{editor_database}.sqlite'
+        )
+        created_route = {**route, 'database': sqlite_editor_path}
+        created_database = {
+            'resource_id': f'database-target:{editor_database}',
+            'resource_kind': 'database',
+            'display_name': Path(sqlite_editor_path).name,
+            'display_path': [Path(sqlite_editor_path).name],
+            'extensions': {'cdeadmin': {
+                'database_target_id': f'live-{editor_database}',
+                'native_name': sqlite_editor_path,
+            }},
+        }
+        try:
+            _apply_editor(
+                provider, created_route, 'database', 'drop', {
+                    'confirmation': sqlite_editor_path,
+                }, target=created_database, task_evidence=task_evidence,
+            )
+            record('database', 'drop')
+        except Exception as exc:
+            failures['database.drop-created'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
+    if database_created and engine == 'duckdb':
+        duckdb_create_root = route.get('database_create_root') or str(
+            Path(route['database']).parent
+        )
+        duckdb_editor_path = str(
+            Path(duckdb_create_root) / f'{editor_database}.duckdb'
+        )
+        created_route = {**route, 'database': duckdb_editor_path}
+        created_database = {
+            'resource_id': f'database-target:{editor_database}',
+            'resource_kind': 'database',
+            'display_name': editor_database,
+            'display_path': [editor_database],
+            'extensions': {'cdeadmin': {
+                'database_target_id': f'live-{editor_database}',
+                'native_name': duckdb_editor_path,
+            }},
+        }
+        if duckdb_export_directory is not None:
+            try:
+                _apply_editor(
+                    provider, created_route, 'database', 'import_database', {
+                        'directory': duckdb_export_directory,
+                    }, target=created_database,
+                    task_evidence=task_evidence,
+                )
+                record('database', 'import_database')
+            except Exception as exc:
+                failures['database.import_database'] = (
+                    f'{type(exc).__name__}: {exc}'
+                )
+        try:
+            _apply_editor(
+                provider, created_route, 'database', 'drop', {
+                    'confirmation': duckdb_editor_path,
+                }, target=created_database, task_evidence=task_evidence,
+            )
+            record('database', 'drop')
+        except Exception as exc:
+            failures['database.drop-created'] = (
+                f'{type(exc).__name__}: {exc}'
+            )
     if database_created and engine in {
         'cockroachdb', 'yugabytedb', 'mysql', 'mariadb', 'dolt', 'tidb',
         'immudb',
     }:
-        database = inspect_created(
-            'database.inspect-created', 'database', editor_database
-        )
+        if engine in {'mysql', 'mariadb'}:
+            try:
+                created_request = {
+                    **request,
+                    'route': {**route, 'database': editor_database},
+                }
+                database = _target(
+                    provider.list_resources(created_request),
+                    'database', editor_database,
+                )
+                if database is None:
+                    raise RuntimeError('created database was not discovered')
+                provider.inspect_resource({
+                    **created_request,
+                    'resource_id': database['resource_id'],
+                })
+                record('database', 'inspect')
+            except Exception as exc:
+                database = None
+                failures['database.inspect-created'] = (
+                    f'{type(exc).__name__}: {exc}'
+                )
+        else:
+            database = inspect_created(
+                'database.inspect-created', 'database', editor_database
+            )
         if database is not None:
             if engine in {'mysql', 'mariadb', 'tidb'}:
                 attempt(
@@ -1661,16 +2451,22 @@ def _relational_editor_evidence(provider, request, engine):
                 )
             attempt(
                 'database.drop', 'database', 'drop', {
-                    **({} if engine == 'immudb' else {
+                    **({} if engine == 'immudb' else ({
+                        'confirmation': editor_database,
+                    } if engine in {'mysql', 'mariadb'} else {
                         'cascade': False,
                         'confirmation': 'drop-live-editor-database',
-                    }),
+                    })),
                 }, database,
             )
-    return _object_operation_evidence(
+    result = _object_operation_evidence(
         provider, passed, engine, scope='visual-editor-operations',
         failures=failures,
     )
+    result['dialect_task_evidence'] = task_evidence
+    if operation_observations:
+        result['native_operation_observations'] = operation_observations
+    return result
 
 
 def _dolt_repository_editor_evidence(provider, request, database):
@@ -1955,7 +2751,7 @@ def _context(profile):
         *profile.required_permissions, 'secret_read', 'data_read',
         'data_write', 'administer', 'execute', 'backup_admin',
         'restore_admin', 'topology_admin', 'maintenance_admin',
-        'replication_admin',
+        'replication_admin', 'upgrade_admin',
     })
     return EndpointContext(
         endpoint_id=endpoint_id,
@@ -1991,6 +2787,7 @@ def _permissions(context, secret_service):
         'topology_admin': {'endpoint', 'resource'},
         'maintenance_admin': {'endpoint', 'resource'},
         'replication_admin': {'endpoint', 'resource'},
+        'upgrade_admin': {'endpoint', 'resource'},
     }
     grants = {
         name: PermissionGrant(name, frozenset(values))
@@ -2020,12 +2817,14 @@ def _verified_context(context, discovered):
 class _TemporaryAccount:
     def __init__(
             self, engine, socket_path=None, host='127.0.0.1', port=None,
-            account_host='%'):
+            account_host='%', admin_user='root', admin_password=None):
         self.engine = engine
         self.socket_path = socket_path
         self.host = host
         self.port = port
         self.account_host = account_host
+        self.admin_user = admin_user
+        self.admin_password = admin_password
         suffix = secrets.token_hex(6)
         self.username = f'cde_live_{suffix}'
         self.database = f'cde_live_{suffix}'
@@ -2052,11 +2851,13 @@ class _TemporaryAccount:
         if self.engine in {'mysql', 'dolt', 'tidb'}:
             import mysql.connector
             return mysql.connector.connect(
-                user='root', autocommit=True, **transport,
+                user=self.admin_user, password=self.admin_password,
+                autocommit=True, **transport,
             )
         import mariadb
         return mariadb.connect(
-            user='root', autocommit=True, **transport,
+            user=self.admin_user, password=self.admin_password,
+            autocommit=True, **transport,
         )
 
     def create(self):
@@ -2069,14 +2870,33 @@ class _TemporaryAccount:
                 ' PARTITION BY HASH(id) PARTITIONS 2'
                 if self.engine in {'mysql', 'mariadb', 'tidb'} else ''
             )
+            event_date = (
+                ', event_date DATE NULL'
+                if self.engine in {'mysql', 'mariadb'} else ''
+            )
             cursor.execute(
                 f'CREATE TABLE {database}.qualification '
-                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL)'
-                f'{partition}'
+                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL'
+                f'{event_date}){partition}'
+            )
+            values = (
+                "(1, 42, '2026-01-15')"
+                if self.engine in {'mysql', 'mariadb'} else '(1, 42)'
             )
             cursor.execute(
-                f'INSERT INTO {database}.qualification VALUES (1, 42)'
+                f'INSERT INTO {database}.qualification VALUES {values}'
             )
+            if self.engine in {'mysql', 'mariadb'}:
+                cursor.execute(
+                    f'CREATE TABLE {database}.cde_repair_probe '
+                    '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER) '
+                    'ENGINE=MyISAM'
+                )
+            if self.engine == 'mariadb':
+                cursor.execute(
+                    f'CREATE VIEW {database}.cde_qualification_view AS '
+                    f'SELECT id, value FROM {database}.qualification'
+                )
             cursor.execute(
                 f"CREATE USER '{self.username}'@'{self.account_host}' "
                 f'IDENTIFIED BY {self.marker}',
@@ -2126,6 +2946,8 @@ class _TemporaryAccount:
                 ]
             elif self.engine == 'mariadb':
                 cleanup = [
+                    "STOP SLAVE 'cde_editor_replication'",
+                    "RESET SLAVE 'cde_editor_replication' ALL",
                     "RESET REPLICA 'cdeadmin_qualification' ALL",
                     'DROP SERVER IF EXISTS cdeadmin_qualification',
                 ]
@@ -2591,11 +3413,13 @@ class _FirebirdAccount:
             cursor.execute(
                 'CREATE TABLE QUALIFICATION '
                 '(ID INTEGER NOT NULL PRIMARY KEY, '
-                'QUALIFICATION_VALUE INTEGER NOT NULL)'
+                'QUALIFICATION_VALUE INTEGER NOT NULL, '
+                'EVENT_DATE DATE)'
             )
             connection.commit()
             cursor.execute(
-                'INSERT INTO QUALIFICATION VALUES (?, ?)', (1, 42)
+                'INSERT INTO QUALIFICATION VALUES (?, ?, ?)',
+                (1, 42, '2026-01-15')
             )
             connection.commit()
             cursor.execute(
@@ -2683,6 +3507,158 @@ def _result_payload(provider, operation, engine):
     return result
 
 
+def _execute_provider_result(
+        provider, session, engine, execution_id, source, parameters=()):
+    """Execute and close one provider-owned result token."""
+    operation = provider.execute({
+        'session_id': session['session_id'],
+        'execution_id': execution_id,
+        'source': source,
+        'parameters': parameters,
+    })
+    result = provider.describe_result(operation)
+    if not result['complete']:
+        raise RuntimeError('provider transaction probe result is incomplete')
+    return result['extensions'][engine]['payload']
+
+
+def _firebird_transaction_round_trip(provider, session):
+    """Prove Firebird mutation finality through provider-owned controls."""
+    marker = 2147483000
+    sequence = 0
+
+    def execute(source, parameters=()):
+        nonlocal sequence
+        sequence += 1
+        return _execute_provider_result(
+            provider, session, 'firebird',
+            f'firebird-transaction-round-trip-{sequence}',
+            source, parameters,
+        )
+
+    def scalar(source, parameters=()):
+        payload = execute(source, parameters)
+        rows = payload.get('rows') or []
+        if not rows or not rows[0]:
+            raise RuntimeError(
+                'Firebird transaction probe returned no scalar value'
+            )
+        return int(rows[0][0])
+
+    def control(action):
+        presentation = provider.control_transaction({
+            'session_id': session['session_id'],
+            'action': action,
+        })['provider_payload']
+        if presentation.get('finality_interpreted_by_common_code') is not (
+                False):
+            raise RuntimeError(
+                'common code interpreted Firebird transaction finality'
+            )
+        if presentation.get('driver_observation_only') is not True:
+            raise RuntimeError(
+                'Firebird transaction observation is not opaque'
+            )
+        return presentation
+
+    observations = []
+
+    execute(
+        'INSERT INTO QUALIFICATION '
+        '(ID, QUALIFICATION_VALUE) VALUES (?, ?)',
+        (marker, 11),
+    )
+    observations.append({
+        'operation': 'insert', 'boundary': 'rollback',
+        'provider_observation': control('rollback'),
+        'observed_row_count': scalar(
+            'SELECT COUNT(*) FROM QUALIFICATION WHERE ID = ?', (marker,)
+        ),
+    })
+    if observations[-1]['observed_row_count'] != 0:
+        raise RuntimeError('Firebird insert rollback did not restore state')
+
+    execute(
+        'INSERT INTO QUALIFICATION '
+        '(ID, QUALIFICATION_VALUE) VALUES (?, ?)',
+        (marker, 11),
+    )
+    observations.append({
+        'operation': 'insert', 'boundary': 'commit',
+        'provider_observation': control('commit'),
+        'observed_value': scalar(
+            'SELECT QUALIFICATION_VALUE FROM QUALIFICATION WHERE ID = ?',
+            (marker,),
+        ),
+    })
+    if observations[-1]['observed_value'] != 11:
+        raise RuntimeError('Firebird insert commit did not persist state')
+
+    execute(
+        'UPDATE QUALIFICATION SET QUALIFICATION_VALUE = ? WHERE ID = ?',
+        (22, marker),
+    )
+    observations.append({
+        'operation': 'update', 'boundary': 'rollback',
+        'provider_observation': control('rollback'),
+        'observed_value': scalar(
+            'SELECT QUALIFICATION_VALUE FROM QUALIFICATION WHERE ID = ?',
+            (marker,),
+        ),
+    })
+    if observations[-1]['observed_value'] != 11:
+        raise RuntimeError('Firebird update rollback did not restore state')
+
+    execute(
+        'UPDATE QUALIFICATION SET QUALIFICATION_VALUE = ? WHERE ID = ?',
+        (22, marker),
+    )
+    observations.append({
+        'operation': 'update', 'boundary': 'commit',
+        'provider_observation': control('commit'),
+        'observed_value': scalar(
+            'SELECT QUALIFICATION_VALUE FROM QUALIFICATION WHERE ID = ?',
+            (marker,),
+        ),
+    })
+    if observations[-1]['observed_value'] != 22:
+        raise RuntimeError('Firebird update commit did not persist state')
+
+    execute('DELETE FROM QUALIFICATION WHERE ID = ?', (marker,))
+    observations.append({
+        'operation': 'delete', 'boundary': 'rollback',
+        'provider_observation': control('rollback'),
+        'observed_row_count': scalar(
+            'SELECT COUNT(*) FROM QUALIFICATION WHERE ID = ?', (marker,)
+        ),
+    })
+    if observations[-1]['observed_row_count'] != 1:
+        raise RuntimeError('Firebird delete rollback did not restore state')
+
+    execute('DELETE FROM QUALIFICATION WHERE ID = ?', (marker,))
+    observations.append({
+        'operation': 'delete', 'boundary': 'commit',
+        'provider_observation': control('commit'),
+        'observed_row_count': scalar(
+            'SELECT COUNT(*) FROM QUALIFICATION WHERE ID = ?', (marker,)
+        ),
+    })
+    if observations[-1]['observed_row_count'] != 0:
+        raise RuntimeError('Firebird delete commit did not persist state')
+
+    # End the final verification read transaction without changing its result.
+    control('rollback')
+    return {
+        'schema': 'cdeadmin.firebird-transaction-round-trip.v1',
+        'provider_finality_authority': True,
+        'common_finality_interpreted': False,
+        'mutation_operations': ['insert', 'update', 'delete'],
+        'boundaries_verified': ['commit', 'rollback'],
+        'observations': observations,
+        'cleanup_verified': True,
+    }
+
+
 def _semantic_payload(provider, session, engine):
     """Exercise semantic discovery, compilation, execution and cellsets."""
     from pgadmin.cdeadmin.semantic_models.service import SemanticModelService
@@ -2730,6 +3706,37 @@ def _semantic_payload(provider, session, engine):
         'security': {},
         'annotations': {'qualification': True},
     }
+    semantic_dialect = provider.profile.semantic_sql_dialect or {}
+    time_operations = tuple(semantic_dialect.get('time_operations', ()))
+    window_operations = tuple(
+        semantic_dialect.get('window_operations', ())
+    )
+    if time_operations:
+        event_date_column = 'EVENT_DATE' if engine == 'firebird' else (
+            'event_date'
+        )
+        model['dimensions'].append({
+            'id': 'event_date_dimension',
+            'name': 'Event date',
+            'field': {
+                'source_id': 'qualification', 'field': event_date_column,
+            },
+            'time_intelligence': {
+                'role': 'event-time', 'calendar': 'gregorian',
+                'timezone': 'UTC', 'fiscal_year_start_month': 1,
+                'value_type': 'date',
+            },
+            'hierarchies': [{
+                'id': 'event_date_hierarchy', 'name': 'Event date',
+                'levels': [{
+                    'id': 'event_date_level', 'name': 'Event date',
+                    'field': {
+                        'source_id': 'qualification',
+                        'field': event_date_column,
+                    },
+                }],
+            }],
+        })
     query = {
         'axes': {
             'rows': ['qualification_level'],
@@ -2744,12 +3751,17 @@ def _semantic_payload(provider, session, engine):
     compiled = provider.compile_semantic_query(model, query)
     if not compiled.get('source') or not compiled.get('language_profile'):
         raise RuntimeError('provider semantic compiler returned no query')
-    operation = provider.execute_analysis({
-        'session_id': session['session_id'],
-        'execution_id': f'{engine}-live-semantic-result',
-        'semantic_model': model,
-        'semantic_query': query,
-    })
+    try:
+        operation = provider.execute_analysis({
+            'session_id': session['session_id'],
+            'execution_id': f'{engine}-live-semantic-result',
+            'semantic_model': model,
+            'semantic_query': query,
+        })
+    except Exception as exc:
+        raise RuntimeError(
+            f'{engine} semantic base_aggregate execution failed'
+        ) from exc
     result = provider.describe_result(operation)
     payload = result['extensions'][engine]['payload']
     rows = payload.get('rows') or []
@@ -2762,11 +3774,108 @@ def _semantic_payload(provider, session, engine):
         cellset['cells'][0]['measures']['row_count'] != 1
     ):
         raise RuntimeError('semantic result was not preserved as a cellset')
+    cases = {
+        'base_aggregate': {
+            'source': compiled['source'], 'row_count': len(rows),
+            'warnings': compiled.get('warnings', []),
+        },
+    }
+
+    def execute_case(case_id, case_query, required_fragment=None):
+        case_compiled = provider.compile_semantic_query(model, case_query)
+        if required_fragment and required_fragment not in case_compiled[
+                'source']:
+            raise RuntimeError(
+                f'{engine} semantic case omitted native syntax: {case_id}'
+            )
+        try:
+            case_operation = provider.execute_analysis({
+                'session_id': session['session_id'],
+                'execution_id': f'{engine}-semantic-{case_id}',
+                'semantic_model': model,
+                'semantic_query': case_query,
+            })
+        except Exception as exc:
+            raise RuntimeError(
+                f'{engine} semantic {case_id} execution failed'
+            ) from exc
+        case_result = provider.describe_result(case_operation)
+        case_rows = case_result['extensions'][engine]['payload'].get(
+            'rows'
+        ) or []
+        if not case_rows:
+            raise RuntimeError(
+                f'{engine} semantic case returned no rows: {case_id}'
+            )
+        cases[case_id] = {
+            'source': case_compiled['source'],
+            'row_count': len(case_rows),
+            'warnings': case_compiled.get('warnings', []),
+        }
+
+    if semantic_dialect.get('supports_rollup'):
+        rollup = copy.deepcopy(query)
+        rollup['totals'] = True
+        required_rollup = (
+            ' WITH ROLLUP'
+            if semantic_dialect.get('rollup_style') == 'with_rollup'
+            else 'GROUP BY ROLLUP ('
+        )
+        execute_case('native_rollup', rollup, required_rollup)
+        if (
+            semantic_dialect.get('rollup_allows_order_by', True) is False and
+            'ORDER BY' in cases['native_rollup']['source']
+        ):
+            raise RuntimeError(
+                f'{engine} semantic rollup emitted incompatible ORDER BY'
+            )
+    else:
+        totals = copy.deepcopy(query)
+        totals['totals'] = True
+        execute_case('totals_without_native_rollup', totals)
+        warning = (
+            'Provider does not declare native rollup; totals are omitted.'
+        )
+        if warning not in cases['totals_without_native_rollup']['warnings']:
+            raise RuntimeError(
+                f'{engine} semantic totals omission was not disclosed'
+            )
+    for window_operation in window_operations:
+        window = copy.deepcopy(query)
+        window['windows'] = [{
+            'id': f'{window_operation}_result',
+            'measure_id': 'row_count',
+            'operation': window_operation,
+            'partition_by': [],
+            'order_by': {
+                'level_id': 'qualification_level', 'direction': 'asc',
+            },
+            'frame_size': 2,
+        }]
+        execute_case(f'window_{window_operation}', window, ' OVER (')
+    time_cases = {
+        'as_of': {'start': '2026-01-31'},
+        'range': {'start': '2026-01-01', 'end': '2026-01-31'},
+        'period_to_date': {'period': 'month', 'anchor': '2026-01-31'},
+        'period_comparison': {
+            'period': 'month', 'anchor': '2026-01-31',
+        },
+    }
+    for time_operation in time_operations:
+        time_query = copy.deepcopy(query)
+        time_query['axes']['rows'] = ['event_date_level']
+        time_query['time_intelligence'] = {
+            'dimension_id': 'event_date_dimension',
+            'operation': time_operation, **time_cases[time_operation],
+        }
+        execute_case(f'time_{time_operation}', time_query)
     return {
         'language_profile': compiled['language_profile'],
         'compiled_source': compiled['source'],
         'cellset_family': cellset['family'],
         'observed_row_count': 1,
+        'case_count': len(cases),
+        'cases': cases,
     }
 
 
@@ -2809,6 +3918,14 @@ def _embedded_route(engine, root, database):
             'database': str(root / f'qualification-attached.{suffix}'),
             'read_only': engine == 'duckdb',
         }]
+    if engine == 'duckdb':
+        # Persistent secrets are the only secret objects that can be
+        # inspected by the provider's next independently opened metadata
+        # connection. Keep their native storage inside the disposable live
+        # qualification root.
+        route['config'] = {
+            'secret_directory': str(root / 'stored-secrets'),
+        }
     return route
 
 
@@ -2834,10 +3951,12 @@ def _prepare_embedded(engine, database):
         try:
             cursor.execute(
                 'CREATE TABLE qualification '
-                '(id INTEGER PRIMARY KEY, value INTEGER NOT NULL)'
+                '(id INTEGER PRIMARY KEY, value INTEGER NOT NULL, '
+                'event_date DATE)'
             )
             cursor.execute(
-                'INSERT INTO qualification VALUES (?, ?)', (1, 42)
+                'INSERT INTO qualification VALUES (?, ?, ?)',
+                (1, 42, '2026-01-15')
             )
             connection.commit()
         finally:
@@ -2850,12 +3969,14 @@ def _prepare_embedded(engine, database):
         connection.close()
 
 
-def verify_embedded(engine):
+def verify_embedded(engine, dialect_qualification=False):
     profile = PROFILES[engine]
     context = _context(profile)
     categories = {name: 'not_run' for name in CATEGORIES}
     error_type = None
     error_message = None
+    semantic_query_blocker = None
+    semantic_query_evidence = None
     provider = None
     secret_service = EndpointSecretService()
     removed = False
@@ -2869,6 +3990,14 @@ def verify_embedded(engine):
         'inspection_failures': {},
         'raw_commands_used': False,
     }
+
+    def admit_unactivated_dialect(candidate):
+        if dialect_qualification:
+            candidate._visual_admin._operation_gate = (  # noqa: SLF001
+                lambda _kind, _operation: True
+            )
+        return candidate
+
     try:
         with tempfile.TemporaryDirectory(
             prefix=f'cdeadmin-{engine}-live-'
@@ -2882,9 +4011,9 @@ def verify_embedded(engine):
                 'route': route,
                 'capability_generation': 'exact-live-qualification',
             }
-            provider = PROVIDER_FACTORIES[engine](
+            provider = admit_unactivated_dialect(PROVIDER_FACTORIES[engine](
                 context, _permissions(context, secret_service)
-            )
+            ))
             discovered = provider.discover_endpoint(request)
             if discovered['verified_runtime']['version'] != (
                 profile.exact_version
@@ -2892,9 +4021,9 @@ def verify_embedded(engine):
                 raise RuntimeError('exact runtime identity was not verified')
             provider.close()
             context = _verified_context(context, discovered)
-            provider = PROVIDER_FACTORIES[engine](
+            provider = admit_unactivated_dialect(PROVIDER_FACTORIES[engine](
                 context, _permissions(context, secret_service)
-            )
+            ))
 
             resources = provider.list_resources(request)
             if not any(
@@ -2925,8 +4054,35 @@ def verify_embedded(engine):
             _result_payload(provider, operation, engine)
             categories['result'] = 'passed'
 
-            _semantic_payload(provider, session, engine)
-            categories['semantic_query'] = 'passed'
+            if dialect_qualification:
+                categories['semantic_query'] = (
+                    'excluded_from_dialect_qualification'
+                )
+            else:
+                try:
+                    semantic_query_evidence = _semantic_payload(
+                        provider, session, engine
+                    )
+                    categories['semantic_query'] = 'passed'
+                except RuntimeError as exc:
+                    if str(exc) != (
+                            'provider semantic execution is not activated'):
+                        raise
+                    semantic_query_blocker = str(exc)
+                    categories['semantic_query'] = 'blocked_contract'
+
+            # DuckDB CHECKPOINT and FORCE CHECKPOINT are database-level
+            # maintenance statements.  They must not be exercised while the
+            # verifier's retained SQL Studio connection owns an explicit
+            # transaction: FORCE CHECKPOINT correctly waits for that
+            # transaction to finish.  Close the Studio session before the
+            # independently connected visual-administration pass, then open a
+            # fresh retained session for the transaction-state category.
+            if engine == 'duckdb':
+                provider.close_session({
+                    'session_id': session['session_id'],
+                })
+                session = None
 
             object_evidence = _merge_object_evidence(
                 object_evidence,
@@ -2935,6 +4091,9 @@ def verify_embedded(engine):
                     provider, request, engine
                 ),
             )
+
+            if session is None:
+                session = provider.open_session(request)
 
             transaction = provider.describe_transaction(session)
             presentation = transaction['provider_payload']
@@ -2992,15 +4151,32 @@ def verify_embedded(engine):
         if provider is not None:
             provider.close()
 
+    graphical_ready = graphical_object_activation_ready(
+        categories, object_evidence, error_type
+    )
     passed = (
         all(value == 'passed' for value in categories.values()) and
         not object_evidence.get('operation_failures')
+    )
+    dialect_task_ids = set(object_evidence.get(
+        'dialect_task_evidence', {}
+    ))
+    expected_dialect_tasks = (
+        set(EMBEDDED_ADMINISTRATIONS[engine].dialect_task_ids())
+        if dialect_qualification else set()
+    )
+    dialect_qualification_ready = bool(
+        dialect_qualification and
+        dialect_task_ids == expected_dialect_tasks and
+        not object_evidence.get('operation_failures') and
+        error_type is None
     )
     return {
         'schema': 'cdeadmin.relational-provider-live-verification.v1',
         'engine_id': engine,
         'exact_profile': profile.exact_version,
         'activation_ready': passed,
+        'graphical_object_activation_ready': graphical_ready,
         'categories': categories,
         'secret_access_events': len(secret_service.audit_events()),
         'credential_values_exported': False,
@@ -3009,20 +4185,34 @@ def verify_embedded(engine):
         'filesystem_escape_refused': categories['fault'] == 'passed',
         'error_type': error_type,
         'error_message': error_message,
+        'semantic_query_blocker': semantic_query_blocker,
+        'semantic_query_evidence': semantic_query_evidence,
         'object_experience_evidence': object_evidence,
+        'unactivated_dialect_qualification': dialect_qualification,
+        'dialect_qualification_ready': dialect_qualification_ready,
+        'qualified_dialect_task_ids': sorted(dialect_task_ids),
+        'missing_dialect_task_ids': sorted(
+            expected_dialect_tasks.difference(dialect_task_ids)
+        ),
     }
 
 
-def verify(engine, host, port, socket_path=None, account=None):
+def verify(
+        engine, host, port, socket_path=None, account=None,
+        dialect_qualification=False, admin_user='root', admin_password=None):
     profile = PROFILES[engine]
     context = _context(profile)
     account = account or _TemporaryAccount(
-        engine, socket_path, host=host, port=port
+        engine, socket_path, host=host, port=port,
+        admin_user=admin_user, admin_password=admin_password,
     )
     provider = None
     categories = {name: 'not_run' for name in CATEGORIES}
     error_type = None
     error_message = None
+    semantic_query_blocker = None
+    semantic_query_evidence = None
+    transaction_round_trip_evidence = None
     secret_service = EndpointSecretService()
     # Default development credentials can equal an engine name (notably
     # ``immudb``), which is expected to appear in every provider envelope.
@@ -3044,6 +4234,18 @@ def verify(engine, host, port, socket_path=None, account=None):
         'inspection_failures': {},
         'raw_commands_used': False,
     }
+
+    def admit_unactivated_dialect(candidate):
+        if dialect_qualification:
+            if engine not in NETWORK_ADMINISTRATIONS:
+                raise RuntimeError(
+                    'unactivated dialect qualification is unavailable for '
+                    f'{engine}'
+                )
+            candidate._visual_admin._operation_gate = (  # noqa: SLF001
+                lambda _kind, _operation: True
+            )
+        return candidate
     try:
         account.create()
         if account.password:
@@ -3059,11 +4261,13 @@ def verify(engine, host, port, socket_path=None, account=None):
                 storage_kind='ephemeral_test_account',
                 resolver_id='live.ephemeral',
                 locator=f'ephemeral:{engine}:qualification',
-                allowed_purposes=frozenset({'connect'}),
+                allowed_purposes=frozenset({'connect', 'provider_tool'}),
                 authority_scope='legacy_engine_auth',
             ))
         factory = PROVIDER_FACTORIES.get(engine, create_provider)
-        provider = factory(context, _permissions(context, secret_service))
+        provider = admit_unactivated_dialect(factory(
+            context, _permissions(context, secret_service)
+        ))
         route = {
             'route_id': 'exact-live-qualification',
             'host': host,
@@ -3093,9 +4297,9 @@ def verify(engine, host, port, socket_path=None, account=None):
         provider.close()
         context = _verified_context(context, discovered)
         factory = PROVIDER_FACTORIES.get(engine, create_provider)
-        provider = factory(
+        provider = admit_unactivated_dialect(factory(
             context, _permissions(context, secret_service)
-        )
+        ))
 
         resources = provider.list_resources(request)
         if not any(
@@ -3121,22 +4325,38 @@ def verify(engine, host, port, socket_path=None, account=None):
             } else '?'
         )
         source = f'SELECT {marker} AS value'
+        parameters = (42,)
         if engine == 'firebird':
             source = (
-                'SELECT CAST(? AS INTEGER) AS QUALIFICATION_VALUE '
+                'SELECT CAST(42 AS INTEGER) AS QUALIFICATION_VALUE '
                 'FROM RDB$DATABASE'
             )
+            parameters = ()
         operation = provider.execute({
             'session_id': session['session_id'],
             'execution_id': f'{engine}-live-result',
             'source': source,
-            'parameters': (42,),
+            'parameters': parameters,
         })
         _result_payload(provider, operation, engine)
         categories['result'] = 'passed'
 
-        _semantic_payload(provider, session, engine)
-        categories['semantic_query'] = 'passed'
+        if dialect_qualification:
+            categories['semantic_query'] = (
+                'excluded_from_dialect_qualification'
+            )
+        else:
+            try:
+                semantic_query_evidence = _semantic_payload(
+                    provider, session, engine
+                )
+                categories['semantic_query'] = 'passed'
+            except RuntimeError as exc:
+                if str(exc) != (
+                        'provider semantic execution is not activated'):
+                    raise
+                semantic_query_blocker = str(exc)
+                categories['semantic_query'] = 'blocked_contract'
         if engine in {
             'cockroachdb', 'yugabytedb', 'firebird', 'mysql', 'mariadb',
             'dolt', 'tidb', 'vitess', 'immudb',
@@ -3146,9 +4366,9 @@ def verify(engine, host, port, socket_path=None, account=None):
             # required by Firebird metadata dependencies and also prevents
             # session defaults from leaking into MySQL-family editor evidence.
             provider.close()
-            provider = factory(
+            provider = admit_unactivated_dialect(factory(
                 context, _permissions(context, secret_service)
-            )
+            ))
             object_evidence = _merge_object_evidence(
                 object_evidence,
                 _relational_editor_evidence(
@@ -3178,6 +4398,10 @@ def verify(engine, host, port, socket_path=None, account=None):
             raise RuntimeError('common code interpreted transaction finality')
         if presentation.get('driver_observation_only') is not True:
             raise RuntimeError('transaction observation is not opaque')
+        if engine == 'firebird':
+            transaction_round_trip_evidence = (
+                _firebird_transaction_round_trip(provider, session)
+            )
         categories['transaction'] = 'passed'
 
         if len(provider.list_tools({})) != len(profile.admin_tools):
@@ -3190,11 +4414,19 @@ def verify(engine, host, port, socket_path=None, account=None):
         categories['security'] = 'passed'
 
         try:
-            provider.execute({
+            fault_operation = provider.execute({
                 'session_id': session['session_id'],
                 'execution_id': f'{engine}-live-fault',
                 'source': 'SELECT * FROM cdeadmin_live_missing_object',
             })
+            if engine == 'mariadb':
+                for _attempt in range(40):
+                    result = provider.describe_result({
+                        'operation_id': fault_operation['operation_id'],
+                    })
+                    if result.get('complete'):
+                        break
+                    time.sleep(0.05)
         except Exception as exc:
             if secret_leak_marker and secret_leak_marker in str(exc):
                 raise RuntimeError('provider fault exposed secret material')
@@ -3221,15 +4453,33 @@ def verify(engine, host, port, socket_path=None, account=None):
             provider.close()
         account.drop()
 
+    graphical_ready = graphical_object_activation_ready(
+        categories, object_evidence, error_type
+    )
     passed = (
         all(value == 'passed' for value in categories.values()) and
         not object_evidence.get('operation_failures')
+    )
+    dialect_task_ids = set(object_evidence.get(
+        'dialect_task_evidence', {}
+    ))
+    expected_dialect_tasks = set()
+    if dialect_qualification:
+        expected_dialect_tasks = set(
+            NETWORK_ADMINISTRATIONS[engine].dialect_task_ids()
+        )
+    dialect_qualification_ready = bool(
+        dialect_qualification and
+        dialect_task_ids == expected_dialect_tasks and
+        not object_evidence.get('operation_failures') and
+        error_type is None
     )
     return {
         'schema': 'cdeadmin.relational-provider-live-verification.v1',
         'engine_id': engine,
         'exact_profile': profile.exact_version,
         'activation_ready': passed,
+        'graphical_object_activation_ready': graphical_ready,
         'categories': categories,
         'secret_access_events': len(secret_service.audit_events()),
         'credential_values_exported': False,
@@ -3237,7 +4487,18 @@ def verify(engine, host, port, socket_path=None, account=None):
         'temporary_account_removed': account.password == '',
         'error_type': error_type,
         'error_message': error_message,
+        'semantic_query_blocker': semantic_query_blocker,
+        'semantic_query_evidence': semantic_query_evidence,
+        'transaction_round_trip_evidence': (
+            transaction_round_trip_evidence
+        ),
         'object_experience_evidence': object_evidence,
+        'unactivated_dialect_qualification': dialect_qualification,
+        'dialect_qualification_ready': dialect_qualification_ready,
+        'qualified_dialect_task_ids': sorted(dialect_task_ids),
+        'missing_dialect_task_ids': sorted(
+            expected_dialect_tasks.difference(dialect_task_ids)
+        ),
     }
 
 
@@ -3254,6 +4515,10 @@ def main():
     parser.add_argument('--tls-client-cert')
     parser.add_argument('--tls-client-key')
     parser.add_argument('--http-port', type=int)
+    parser.add_argument(
+        '--dialect-qualification', action='store_true',
+        help='Exercise exact generated tasks without activating the dialect.',
+    )
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument(
         '--object-output', type=Path,
@@ -3261,7 +4526,9 @@ def main():
     )
     args = parser.parse_args()
     if args.engine in {'duckdb', 'sqlite'}:
-        result = verify_embedded(args.engine)
+        result = verify_embedded(
+            args.engine, dialect_qualification=args.dialect_qualification
+        )
     elif args.engine == 'firebird':
         if (
             args.port is None or not args.database or
@@ -3274,12 +4541,17 @@ def main():
         admin_password = os.environ.get(args.admin_password_env)
         if not admin_password:
             parser.error('Firebird admin password environment is empty')
+        reference_database = Path(args.database).resolve()
+        qualification_database = reference_database.with_name(
+            f'.cdeadmin-live-{secrets.token_hex(8)}.fdb'
+        )
         account = _FirebirdAccount(
-            args.host, args.port, args.database,
+            args.host, args.port, qualification_database,
             args.admin_user, admin_password,
         )
         result = verify(
-            args.engine, args.host, args.port, account=account
+            args.engine, args.host, args.port, account=account,
+            dialect_qualification=args.dialect_qualification,
         )
     elif args.engine == 'cockroachdb':
         if args.port is None or not all((
@@ -3294,7 +4566,8 @@ def main():
             args.tls_client_cert, args.tls_client_key,
         )
         result = verify(
-            args.engine, args.host, args.port, account=account
+            args.engine, args.host, args.port, account=account,
+            dialect_qualification=args.dialect_qualification,
         )
     elif args.engine == 'vitess':
         if args.port is None or args.http_port is None:
@@ -3304,7 +4577,8 @@ def main():
             database=args.database or 'test_keyspace',
         )
         result = verify(
-            args.engine, args.host, args.port, account=account
+            args.engine, args.host, args.port, account=account,
+            dialect_qualification=args.dialect_qualification,
         )
     elif args.engine == 'yugabytedb':
         if args.port is None:
@@ -3313,7 +4587,8 @@ def main():
             args.host, args.port, admin_user=args.admin_user,
         )
         result = verify(
-            args.engine, args.host, args.port, account=account
+            args.engine, args.host, args.port, account=account,
+            dialect_qualification=args.dialect_qualification,
         )
     elif args.engine == 'immudb':
         if (
@@ -3335,13 +4610,23 @@ def main():
             admin_password, database=args.database or 'defaultdb',
         )
         result = verify(
-            args.engine, args.host, args.port, account=account
+            args.engine, args.host, args.port, account=account,
+            dialect_qualification=args.dialect_qualification,
         )
     else:
         if args.port is None:
             parser.error('--port is required for MySQL/MariaDB')
+        admin_password = (
+            os.environ.get(args.admin_password_env)
+            if args.admin_password_env else None
+        )
+        if args.admin_password_env and not admin_password:
+            parser.error('MySQL/MariaDB admin password environment is empty')
+        admin_user = 'root' if args.admin_user == 'SYSDBA' else args.admin_user
         result = verify(
-            args.engine, args.host, args.port, args.admin_socket
+            args.engine, args.host, args.port, args.admin_socket,
+            dialect_qualification=args.dialect_qualification,
+            admin_user=admin_user, admin_password=admin_password,
         )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
@@ -3359,7 +4644,11 @@ def main():
             encoding='utf-8',
         )
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result['activation_ready'] else 1
+    ready = (
+        result['dialect_qualification_ready']
+        if args.dialect_qualification else result['activation_ready']
+    )
+    return 0 if ready else 1
 
 
 if __name__ == '__main__':

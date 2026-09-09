@@ -18,7 +18,10 @@ adapter never decides commit, rollback, retry, or recovery outcomes.
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib
+import json
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -31,6 +34,12 @@ class RelationalClientError(PilotProviderError):
 
 class RelationalDependencyError(RelationalClientError):
     """The selected optional DB-API dependency is unavailable."""
+
+
+class RelationalCredentialError(RelationalClientError):
+    """A provider credential could not be acquired for a connection."""
+
+    credential_required_before_dispatch = True
 
 
 def load_optional_module(module_name: str):
@@ -77,6 +86,7 @@ class RelationalClientConfig:
         [Mapping[str, Any]], Sequence[object]
     ] = lambda _route: ()
     result_kind: str | None = None
+    execute_on_connection: bool = False
     extensions: Mapping[str, Any] = field(default_factory=dict)
     credential_argument: str | None = None
     credential_arguments: Mapping[str, str] = field(default_factory=dict)
@@ -89,6 +99,25 @@ class RelationalClientConfig:
     )
     connection_initializer: Callable[
         [object, Mapping[str, Any]], None
+    ] | None = field(default=None, repr=False, compare=False)
+    session_initializer: Callable[
+        [object, Mapping[str, Any]], None
+    ] | None = field(default=None, repr=False, compare=False)
+    transaction_controller: Callable[
+        [object, str], None
+    ] | None = field(default=None, repr=False, compare=False)
+    database_initializer: Callable[
+        [object, Mapping[str, Any]], Mapping[str, Any]
+    ] | None = field(default=None, repr=False, compare=False)
+    database_create_arguments: Callable[
+        [Mapping[str, Any], str, Mapping[str, Any]], Mapping[str, Any]
+    ] | None = field(default=None, repr=False, compare=False)
+    database_dropper: Callable[
+        [Mapping[str, Any], str], Mapping[str, Any]
+    ] | None = field(default=None, repr=False, compare=False)
+    database_operation_runner: Callable[
+        [object, Mapping[str, Any], str, Mapping[str, Any]],
+        Mapping[str, Any]
     ] | None = field(default=None, repr=False, compare=False)
     server_route: Callable[[Mapping[str, Any]], bool] | None = field(
         default=None, repr=False, compare=False
@@ -105,6 +134,9 @@ class RelationalClientConfig:
     ] | None = field(default=None, repr=False, compare=False)
     server_metadata_reader: Callable[
         [object, Mapping[str, Any]], list[dict]
+    ] | None = field(default=None, repr=False, compare=False)
+    server_operation_runner: Callable[
+        [object, str, str, Mapping[str, Any]], Mapping[str, Any]
     ] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
@@ -129,6 +161,10 @@ class RelationalClientConfig:
         ):
             raise RelationalClientError(
                 'client result kind differs from provider profile'
+            )
+        if not isinstance(self.execute_on_connection, bool):
+            raise RelationalClientError(
+                'execute_on_connection must be true or false'
             )
         if self.credential_argument is not None and (
             not isinstance(self.credential_argument, str) or
@@ -174,6 +210,39 @@ class RelationalClientConfig:
             raise RelationalClientError(
                 'connection_initializer must be callable'
             )
+        if self.session_initializer is not None and not callable(
+            self.session_initializer
+        ):
+            raise RelationalClientError(
+                'session_initializer must be callable'
+            )
+        if self.transaction_controller is not None and not callable(
+            self.transaction_controller
+        ):
+            raise RelationalClientError(
+                'transaction_controller must be callable'
+            )
+        if self.database_initializer is not None and not callable(
+            self.database_initializer
+        ):
+            raise RelationalClientError(
+                'database_initializer must be callable'
+            )
+        if self.database_create_arguments is not None and not callable(
+            self.database_create_arguments
+        ):
+            raise RelationalClientError(
+                'database_create_arguments must be callable'
+            )
+        if self.database_dropper is not None and not callable(
+            self.database_dropper
+        ):
+            raise RelationalClientError('database_dropper must be callable')
+        if self.database_operation_runner is not None and not callable(
+                self.database_operation_runner):
+            raise RelationalClientError(
+                'database_operation_runner must be callable'
+            )
         server_values = (
             self.server_route, self.server_connector_name,
             self.server_connect_arguments, self.server_identity_reader,
@@ -203,6 +272,12 @@ class RelationalClientConfig:
         ):
             raise RelationalClientError(
                 'server_connect_positional must be callable'
+            )
+        if self.server_operation_runner is not None and not callable(
+            self.server_operation_runner
+        ):
+            raise RelationalClientError(
+                'server_operation_runner must be callable'
             )
 
 
@@ -242,7 +317,9 @@ class RelationalDBAPIClient:
                     'server connector'
                 )
         self._connections: list[object] = []
+        self._connection_databases: dict[int, object] = {}
         self._tokens: list[_ResultToken] = []
+        self._configuration_lock = threading.RLock()
 
     @staticmethod
     def _route(request: Mapping[str, Any]) -> dict[str, Any]:
@@ -262,14 +339,15 @@ class RelationalDBAPIClient:
         route = self._route(request)
         connection = self._invoke_connector(request, self._connector)
         self._connections.append(connection)
+        self._connection_databases[id(connection)] = route.get('database')
         if self.config.connection_initializer is not None:
             try:
                 self.config.connection_initializer(connection, route)
             except RelationalClientError:
-                self._safe_close(connection)
+                self._forget_and_close(connection)
                 raise
             except Exception as exc:
-                self._safe_close(connection)
+                self._forget_and_close(connection)
                 raise RelationalClientError(
                     f'{self.config.profile.engine_name} session '
                     f'initialization failed ({type(exc).__name__})'
@@ -294,6 +372,7 @@ class RelationalDBAPIClient:
             ),
         )
         self._connections.append(connection)
+        self._connection_databases[id(connection)] = None
         return connection
 
     def _invoke_connector(
@@ -363,9 +442,16 @@ class RelationalDBAPIClient:
                     if index == len(bindings):
                         return connector(*args, **options)
                     kind, reference, argument = bindings[index]
-                    lease = self.config.secret_acquirer(
-                        reference.strip(), principal.strip(), 'connect', kind
-                    )
+                    try:
+                        lease = self.config.secret_acquirer(
+                            reference.strip(), principal.strip(), 'connect',
+                            kind
+                        )
+                    except Exception:
+                        raise RelationalCredentialError(
+                            f'{self.config.profile.engine_name} endpoint '
+                            'credentials are unavailable'
+                        ) from None
                     with lease:
                         return lease.use(lambda view: connect(index + 1, {
                             **options,
@@ -383,31 +469,232 @@ class RelationalDBAPIClient:
         return connection
 
     def create_database(self, request, database, driver_operation):
+        connector_arguments = {'database': database}
         if driver_operation == 'firebird-create-database':
             connector = getattr(self.module, 'create_database', None)
             if not callable(connector):
                 raise RelationalDependencyError(
                     'Firebird driver has no create_database operation'
                 )
+            options = request.get('create_options') or {}
+            if not isinstance(options, Mapping):
+                raise RelationalClientError(
+                    'Firebird database creation options are invalid'
+                )
+            supported = {
+                'page_size', 'default_charset', 'sql_dialect',
+                'forced_writes', 'reserve_space',
+            }
+            if set(options).difference(supported):
+                raise RelationalClientError(
+                    'Firebird database creation options are unsupported'
+                )
+            route = self._route(request)
+            material = {'database': database, 'options': dict(options)}
+            config_name = 'cde_create_' + hashlib.sha256(json.dumps(
+                material, sort_keys=True, separators=(',', ':'),
+            ).encode('utf-8')).hexdigest()[:24]
+            with self._configuration_lock:
+                config = self.module.driver_config.get_database(config_name)
+                if config is None:
+                    config = self.module.driver_config.register_database(
+                        config_name
+                    )
+                config.database.value = database
+                config.page_size.value = options.get('page_size', 8192)
+                config.db_charset.value = options.get(
+                    'default_charset', 'UTF8'
+                )
+                config.db_sql_dialect.value = options.get('sql_dialect', 3)
+                config.forced_writes.value = options.get(
+                    'forced_writes', True
+                )
+                config.reserve_space.value = options.get(
+                    'reserve_space', True
+                )
+            connector_arguments = {
+                'database': config_name,
+                'charset': route.get('charset', 'UTF8'),
+                'role': route.get('role'),
+                'no_gc': route.get('no_gc'),
+                'no_db_triggers': route.get('no_db_triggers'),
+                'session_time_zone': route.get('session_time_zone'),
+                'overwrite': False,
+            }
         elif driver_operation == 'embedded-create-database':
             connector = self._connector
         else:
             raise RelationalClientError(
                 'database creation driver operation is unavailable'
             )
+        options = request.get('create_options') or {}
+        if not isinstance(options, Mapping):
+            raise RelationalClientError(
+                'database creation options are invalid'
+            )
+        if (
+            driver_operation == 'embedded-create-database' and options and
+            self.config.database_initializer is None and
+            self.config.database_create_arguments is None
+        ):
+            raise RelationalClientError(
+                'embedded database creation options are unavailable'
+            )
+        if (
+            driver_operation == 'embedded-create-database' and
+            self.config.database_create_arguments is not None
+        ):
+            route = self._route(request)
+            connector_arguments = dict(
+                self.config.database_create_arguments(
+                    route, database, copy.deepcopy(dict(options))
+                )
+            )
+            if connector_arguments.get('database') != database:
+                raise RelationalClientError(
+                    'embedded database creation arguments changed the '
+                    'trusted database target'
+                )
         connection = self._invoke_connector(
-            request, connector, {'database': database}
+            request, connector, connector_arguments
         )
-        self._safe_close(connection)
+        initialization = {}
+        try:
+            if (
+                driver_operation == 'embedded-create-database' and
+                self.config.database_initializer is not None
+            ):
+                initialization = dict(self.config.database_initializer(
+                    connection, copy.deepcopy(dict(options))
+                ))
+        finally:
+            self._safe_close(connection)
         return {
             'driver_operation': driver_operation,
             'driver_returned': True,
+            'initialization': initialization,
             'endpoint_database_target': {
                 'database': database,
                 'display_name': str(database).rsplit('/', 1)[-1],
             },
             'transaction_finality_interpreted_by_common_code': False,
         }
+
+    def drop_database(self, request, database, driver_operation):
+        """Drop a database through the exact provider-owned mechanism."""
+        if driver_operation not in {
+            'firebird-drop-database', 'embedded-drop-database',
+        }:
+            raise RelationalClientError(
+                'database drop driver operation is unavailable'
+            )
+        route = self._route(request)
+        if route.get('database') != database:
+            raise RelationalClientError(
+                'database drop target does not match the trusted route'
+            )
+        if driver_operation == 'embedded-drop-database':
+            if self.config.database_dropper is None:
+                raise RelationalDependencyError(
+                    'embedded provider has no database file deleter'
+                )
+            if any(
+                self._connection_databases.get(id(connection)) == database
+                for connection in self._connections
+            ):
+                raise RelationalClientError(
+                    'close all retained sessions for this database before '
+                    'deleting the database file'
+                )
+            return dict(self.config.database_dropper(route, database))
+        connection = self._connect(request)
+        dropped = False
+        try:
+            operation = getattr(connection, 'drop_database', None)
+            if not callable(operation):
+                raise RelationalDependencyError(
+                    'Firebird driver has no drop_database operation'
+                )
+            operation()
+            dropped = True
+        finally:
+            if not dropped:
+                self._safe_close(connection)
+        return {
+            'driver_operation': driver_operation,
+            'driver_returned': True,
+            'database': database,
+            'transaction_finality_interpreted_by_common_code': False,
+        }
+
+    def run_server_operation(self, request, operation_id, database, options):
+        """Run one provider-owned server service against an exact database.
+
+        The common DB-API adapter owns credential leasing and handle cleanup
+        only.  It neither translates operation names nor interprets service
+        completion; those decisions belong to the provider callback.
+        """
+        runner = self.config.server_operation_runner
+        if runner is None or self._server_connector is None:
+            raise RelationalClientError(
+                'provider server operation runner is unavailable'
+            )
+        if not isinstance(operation_id, str) or not operation_id:
+            raise RelationalClientError('server operation ID is invalid')
+        if not isinstance(database, str) or not database.strip():
+            raise RelationalClientError(
+                'server operation requires an exact database identifier'
+            )
+        if not isinstance(options, Mapping):
+            raise RelationalClientError(
+                'server operation options must be an object'
+            )
+        server = self._connect_server(request)
+        try:
+            result = runner(
+                server, operation_id, database.strip(),
+                copy.deepcopy(dict(options)),
+            )
+            if not isinstance(result, Mapping):
+                raise RelationalClientError(
+                    'provider server operation returned an invalid result'
+                )
+            return copy.deepcopy(dict(result))
+        except RelationalClientError:
+            raise
+        except Exception as exc:
+            raise RelationalClientError(
+                'provider server operation failed '
+                f'({type(exc).__name__})'
+            ) from None
+        finally:
+            self._forget_and_close(server)
+
+    def run_database_operation(
+            self, connection, route, operation_id, options):
+        """Run one provider-owned operation on an attached database."""
+        runner = self.config.database_operation_runner
+        if runner is None:
+            raise RelationalClientError(
+                'provider database operation runner is unavailable'
+            )
+        try:
+            result = runner(
+                connection, copy.deepcopy(dict(route)), operation_id,
+                copy.deepcopy(dict(options)),
+            )
+            if not isinstance(result, Mapping):
+                raise RelationalClientError(
+                    'provider database operation returned an invalid result'
+                )
+            return copy.deepcopy(dict(result))
+        except RelationalClientError:
+            raise
+        except Exception as exc:
+            raise RelationalClientError(
+                'provider database operation failed '
+                f'({type(exc).__name__})'
+            ) from None
 
     def runtime_identity(self, request, handle=None):
         if handle is None and self._uses_server_scope(request):
@@ -462,7 +749,22 @@ class RelationalDBAPIClient:
             raise RelationalClientError(
                 'select or create a database before opening a query session'
             )
-        return self._connect(request)
+        connection = self._connect(request)
+        if self.config.session_initializer is not None:
+            try:
+                self.config.session_initializer(
+                    connection, self._route(request)
+                )
+            except RelationalClientError:
+                self._forget_and_close(connection)
+                raise
+            except Exception as exc:
+                self._forget_and_close(connection)
+                raise RelationalClientError(
+                    'relational retained-session initialization failed '
+                    f'({type(exc).__name__})'
+                ) from None
+        return connection
 
     def describe_transaction(self, handle):
         observations = {}
@@ -486,17 +788,36 @@ class RelationalDBAPIClient:
                 'relational transaction action is unavailable'
             )
         callback = getattr(handle, action, None)
-        if not callable(callback):
+        controller = self.config.transaction_controller
+        if controller is None and not callable(callback):
             raise RelationalClientError(
                 'relational driver has no transaction controller'
             )
         try:
-            callback()
+            if controller is not None:
+                controller(handle, action)
+            else:
+                callback()
         except Exception as exc:
             raise RelationalClientError(
                 'relational transaction action outcome is provider-owned '
                 f'({type(exc).__name__})'
             ) from None
+
+    def close_session(self, handle):
+        """Roll back and release one retained DB-API connection."""
+        rollback = getattr(handle, 'rollback', None)
+        rollback_requested = False
+        if callable(rollback):
+            rollback()
+            rollback_requested = True
+        self._forget_and_close(handle)
+        return {
+            'rollback_requested': rollback_requested,
+            'connection_released': True,
+            'driver_observation_only': True,
+            'finality_interpreted_by_common_code': False,
+        }
 
     def list_resources(self, request):
         if self._uses_server_scope(request):
@@ -537,6 +858,19 @@ class RelationalDBAPIClient:
             adapter.supports(resource_kind, operation_id)
         )
 
+    def admin_operation_requires_dialect(self, resource_kind, operation_id):
+        """Return whether the operation emits or executes native SQL."""
+        adapter = self.config.administration
+        return bool(
+            adapter is not None and
+            adapter.requires_dialect(resource_kind, operation_id)
+        )
+
+    def admin_dialect_task_ids(self):
+        """Expose exact generated-task obligations to the contract gate."""
+        adapter = self.config.administration
+        return () if adapter is None else adapter.dialect_task_ids()
+
     def visual_admin_catalog(self, catalog):
         adapter = self._administration()
         return adapter.catalog(catalog)
@@ -551,11 +885,21 @@ class RelationalDBAPIClient:
 
     def apply_admin_operation(self, request):
         adapter = self._administration()
-        return adapter.apply(self, request)
+        return adapter.apply(
+            self, request,
+            connection=request.get('_provider_session_handle'),
+        )
 
     def read_admin_rows(self, request):
         adapter = self._administration()
-        return adapter.read_rows(self, request)
+        return adapter.read_rows(
+            self, request,
+            connection=request.get('_provider_session_handle'),
+        )
+
+    def cancel_admin_cursor(self, request):
+        adapter = self._administration()
+        return adapter.cancel_rows(request)
 
     def inspect_admin_operation(self, request):
         adapter = self._administration()
@@ -620,7 +964,10 @@ class RelationalDBAPIClient:
             )
         cursor = None
         try:
-            cursor = handle.cursor()
+            cursor = (
+                handle if self.config.execute_on_connection
+                else handle.cursor()
+            )
             if parameters:
                 cursor.execute(source, parameters)
             else:
@@ -649,22 +996,32 @@ class RelationalDBAPIClient:
             self._tokens.append(token)
             return token
         except RelationalClientError:
-            if cursor is not None:
+            if cursor is not None and cursor is not handle:
                 self._safe_close(cursor)
             raise
         except Exception as exc:
-            if cursor is not None:
+            if cursor is not None and cursor is not handle:
                 self._safe_close(cursor)
+            native_identity = []
+            for attribute in ('errno', 'sqlstate'):
+                value = getattr(exc, attribute, None)
+                if isinstance(value, (int, str)) and str(value).strip():
+                    native_identity.append(f'{attribute}={value}')
+            detail = (
+                '; ' + ', '.join(native_identity)
+                if native_identity else ''
+            )
             raise RelationalClientError(
-                f'relational execution failed ({type(exc).__name__})'
+                f'relational execution failed ({type(exc).__name__}'
+                f'{detail})'
             ) from None
 
     def describe_result(self, token):
         if not isinstance(token, _ResultToken) or token not in self._tokens:
             raise RelationalClientError('relational result token is invalid')
-        if not token.closed:
+        if not token.closed and token.cursor is not token.connection:
             self._safe_close(token.cursor)
-            token.closed = True
+        token.closed = True
         return {
             'result_kind': (
                 self.config.result_kind or self.config.profile.result_kind
@@ -693,9 +1050,9 @@ class RelationalDBAPIClient:
 
     def close(self):
         for token in tuple(self._tokens):
-            if not token.closed:
+            if not token.closed and token.cursor is not token.connection:
                 self._safe_close(token.cursor)
-                token.closed = True
+            token.closed = True
         self._tokens.clear()
         for connection in tuple(self._connections):
             self._forget_and_close(connection)
@@ -713,6 +1070,7 @@ class RelationalDBAPIClient:
                 pass
 
     def _forget_and_close(self, connection):
+        self._connection_databases.pop(id(connection), None)
         try:
             self._connections.remove(connection)
         except ValueError:

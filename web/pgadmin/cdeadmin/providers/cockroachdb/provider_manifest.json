@@ -47,5 +47,5 @@
       {"field_id": "changefeed_sink_allowlist", "route_key": "changefeed_sink_allowlist", "label": "Changefeed sink URI allowlist", "control": "text", "group": "CockroachDB replication", "help": "Comma-separated admitted URI prefixes."}
     ]
   },
-  "provenance": {"purpose": "CockroachDB exact-profile distributed provider", "protocol": "postgresql_wire", "client_state": "psycopg_3.3.4_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed"}
+  "provenance": {"purpose": "CockroachDB exact-profile distributed provider", "protocol": "postgresql_wire", "client_state": "psycopg_3.3.4_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"}
 }

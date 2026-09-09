@@ -840,6 +840,18 @@ class Neo4jProviderTests(unittest.TestCase):
             'graph-projection', 'create'
         ))
 
+    def test_every_native_operation_has_a_neo4j_graphical_form(self):
+        adapter, _connector = client()
+        adapter._gds_surface_sha256 = QUALIFIED_GDS_SHA256
+        provider = Neo4jPilotProvider(context(), Permissions(), adapter)
+        contract = provider.visual_admin_descriptor()[
+            'graphical_interface'
+        ]
+        self.assertEqual('passed', contract['activation_state'])
+        self.assertEqual(75, contract['native_operation_count'])
+        self.assertEqual(75, contract['graphical_operation_count'])
+        self.assertEqual([], contract['missing_operations'])
+
     def test_query_plan_workspace_is_bounded_and_parameterized(self):
         adapter, _connector = client()
         statement, parameters = adapter._operational_command(
@@ -895,7 +907,7 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue(manifest['production_registration'])
         self.assertEqual('experimental', manifest['support_state'])
         self.assertEqual(
-            'passed_full_graph_object_activation',
+            'blocked_pending_exact_contract_and_ui_evidence',
             manifest['provenance']['activation_gate'],
         )
         self.assertEqual(

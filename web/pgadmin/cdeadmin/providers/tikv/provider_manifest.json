@@ -214,7 +214,7 @@
     "protocol": "tikv_grpc",
     "client_state": "pinned_client_go_helper",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "passed",
+    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence",
     "helper_sha256": "3c83fb272cd1107df961c8a551433745b8d7759415f4cabdeb0e8cf8a99223e7"
   }
 }

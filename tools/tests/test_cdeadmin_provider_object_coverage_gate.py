@@ -39,6 +39,15 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
         self.assertEqual(result['concept_count'], result['declared_count'])
         self.assertEqual(0, result['undeclared_count'])
         self.assertEqual(0, result['blocking_missing_count'])
+        self.assertEqual(
+            result['native_graphical_operation_count'],
+            result['graphical_operation_count'],
+        )
+        self.assertEqual(1570, result['graphical_operation_count'])
+        self.assertEqual(0, result['activation_permission_failure_count'])
+        self.assertEqual(0, result['provider_identity_failure_count'])
+        self.assertEqual(0, result['shared_semantics_failure_count'])
+        self.assertEqual(0, result['support_inference_failure_count'])
         self.assertEqual([], result['failures'])
         self.assertTrue(result['complete'])
         self.assertEqual(
@@ -61,6 +70,50 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
         self.assertFalse(failed['complete'])
         self.assertTrue(any(
             value.endswith('graph.nodes:undeclared')
+            for value in failed['failures']
+        ))
+
+        broken = copy.deepcopy(self.catalogs)
+        graphical = broken['neo4j-native']['descriptor'][
+            'graphical_interface'
+        ]
+        graphical['activation_state'] = 'blocked'
+        graphical['graphical_operation_count'] -= 1
+        graphical['missing_operations'] = [{
+            'resource_kind': 'node', 'operation_id': 'update',
+        }]
+        failed = audit(broken)
+        self.assertFalse(failed['complete'])
+        self.assertIn(
+            'neo4j-native:graphical-form-missing:node.update',
+            failed['failures'],
+        )
+
+        broken = copy.deepcopy(self.catalogs)
+        broken['neo4j-native']['descriptor']['graphical_interface'][
+            'shared_engine_semantics_allowed'
+        ] = True
+        failed = audit(broken)
+        self.assertFalse(failed['complete'])
+        self.assertIn(
+            'neo4j-native:shared-engine-semantics-admitted',
+            failed['failures'],
+        )
+
+        broken = copy.deepcopy(self.catalogs)
+        broken['firebird-native']['granted_permissions'].remove(
+            'maintenance_admin'
+        )
+        failed = audit(broken)
+        self.assertFalse(failed['complete'])
+        self.assertGreater(
+            failed['activation_permission_failure_count'], 0
+        )
+        self.assertTrue(any(
+            value.startswith(
+                'firebird-native:operation-permission-unadmitted:'
+                'database.repair_database:maintenance_admin'
+            )
             for value in failed['failures']
         ))
 

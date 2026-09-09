@@ -1,7 +1,7 @@
 {
   "schema": "cdeadmin.actual-engine-pilots.v1",
   "package": "CDE-PREP-150",
-  "as_of": "2026-09-04",
+  "as_of": "2026-09-07",
   "activation_rule": "production activation requires an approved client, a live runtime satisfying the provider version policy, and passed live category suites",
   "suite_categories": ["resource", "language_api", "result", "transaction", "admin", "security", "fault"],
   "pilots": [
@@ -12,12 +12,12 @@
     },
     {
       "order": 2, "engine_id": "mysql", "exact_profile": "9.7.0", "provider_id": "org.cdeadmin.mysql", "profile_id": "mysql-native", "protocol_id": "mysql_wire",
-      "provider_state": "production_experimental_provider", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mysql-9.7.0:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mysql-9.7.0:20260907",
       "manifest": "mysql_family/mysql_provider_manifest.json", "source_packet": "mysql/9.7.0", "source_manifest_sha256": "596a23c057efacf41426f0c2f1513025a0da54fe9dd068d3db7914a8c71c3dc0", "source_archive_sha256": "e86ceeea6d1e075fb1461daf79dd4bf789c10f09a0cb7fa6a51245fcb231dee8"
     },
     {
       "order": 2, "engine_id": "mariadb", "exact_profile": "12.2.2", "provider_id": "org.cdeadmin.mariadb", "profile_id": "mariadb-native", "protocol_id": "mysql_wire",
-      "provider_state": "production_experimental_provider", "client_state": "mariadb_1.1.14_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mariadb-12.2.2:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "mariadb_1.1.14_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:mariadb-12.2.2:20260909",
       "manifest": "mysql_family/mariadb_provider_manifest.json", "source_packet": "mariadb/12.2.2", "source_manifest_sha256": "930d5a8d316fe9a4404c86f70340302e015d84d157621d7baab0b00d7de14eb7", "source_archive_sha256": "fe82fe2e9af98dfcad8c0266a283ca349b78fd46989fff0d5e1ffca644b514bd"
     },
     {
@@ -73,17 +73,17 @@
     },
     {
       "order": 6, "engine_id": "duckdb", "exact_profile": "1.5.2", "provider_id": "org.cdeadmin.duckdb", "profile_id": "duckdb-native", "protocol_id": "embedded_duckdb",
-      "provider_state": "production_experimental_provider", "client_state": "duckdb_1.5.2_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:duckdb-1.5.2:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "duckdb_1.5.2_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:duckdb-1.5.2:20260907",
       "manifest": "duckdb/provider_manifest.json", "source_packet": "duckdb/1.5.2", "source_manifest_sha256": "361f6228960e3f9f1fc69acff66931823b92917e25b7206c87e5a288b15c8d54", "source_archive_sha256": "6d8612fc87115cf4d3512a934ada5d1669db29378b4cc8e226fdfa8f5c537385"
     },
     {
       "order": 7, "engine_id": "firebird", "exact_profile": "5.0.4", "provider_id": "org.cdeadmin.firebird", "profile_id": "firebird-native", "protocol_id": "firebird_wire",
-      "provider_state": "production_experimental_provider", "client_state": "firebird_driver_1.10.11_installed", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "firebird_driver_1.10.11_with_firebird_5.0.4_client_library", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260907",
       "manifest": "firebird/provider_manifest.json", "source_packet": "firebird/5.0.4", "source_manifest_sha256": "a90056fdab91a7ba24ec842d8c9a9718b648af630c18c3bd5745d6e67307a73a", "source_archive_sha256": "5041b97b480c9fe241c92ad0adf89e36faad0a8f0e21f1371dfbcc96a6f38e12"
     },
     {
       "order": 8, "engine_id": "sqlite", "exact_profile": "3.53.0", "provider_id": "org.cdeadmin.sqlite", "profile_id": "sqlite-native", "protocol_id": "embedded_sqlite",
-      "provider_state": "production_experimental_provider", "client_state": "python_dbapi_private_sqlite_3.53.0", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:sqlite-3.53.0:20260901",
+      "provider_state": "production_experimental_provider", "client_state": "cpython_dbapi_dynamically_linked_to_private_sqlite_3.53.0_with_fts5_and_rtree", "runtime_state": "verified", "unit_suite": "passed", "live_suite": "passed", "live_evidence_reference": "cde-rel-live:sqlite-3.53.0:20260907",
       "manifest": "sqlite/provider_manifest.json", "source_packet": "sqlite/3.53.0", "source_manifest_sha256": "599564292d3091620c23c8127ae83d4461561d39f551c51e1b3c87192f8be2fe", "source_archive_sha256": "fbc30cdbfcfa42c78fe7bddd3fd37ab8995369a31d39097a5d0633296c0b6e65"
     }
   ]

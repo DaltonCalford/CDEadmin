@@ -28,5 +28,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "OpenSearch safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "OpenSearch SQL/PPL 3.6.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "opensearch_3.6.0_sql_plugin_3.6.0.0_verified", "activation_gate": "passed", "live_evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
+  "provenance": {"purpose": "OpenSearch SQL/PPL 3.6.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "opensearch_3.6.0_sql_plugin_3.6.0.0_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
 }

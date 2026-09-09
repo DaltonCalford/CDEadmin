@@ -1,0 +1,3442 @@
+{
+  "collection_authority": "MariaDB 12.2.2 INFORMATION_SCHEMA.GLOBAL_STATUS",
+  "completeness": {
+    "admitted_metric_count": 28,
+    "global_status_catalog_exhausted": true,
+    "observation_count": 571,
+    "runtime_version": "12.2.2"
+  },
+  "endpoint_selection": "Every global status variable exposed by the exact reference runtime, including enabled plugin status variables.",
+  "engine_id": "mariadb",
+  "inventory_id": "mariadb.metrics-inventory.12.2.2.v1",
+  "observations": [
+    {
+      "native_name": "ABORTED_CLIENTS",
+      "registry_source": "sql/mysqld.cc:7574",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ABORTED_CONNECTS",
+      "registry_source": "sql/mysqld.cc:7575",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ABORTED_CONNECTS_PREAUTH",
+      "registry_source": "sql/mysqld.cc:7576",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACCESS_DENIED_ERRORS",
+      "registry_source": "sql/mysqld.cc:7578",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_COLUMN_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_DATABASE_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_FUNCTION_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_PACKAGE_BODY_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_PACKAGE_SPEC_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_PROCEDURE_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_PROXY_USERS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_ROLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_ROLE_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_TABLE_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ACL_USERS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_BLOCKS_NOT_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_BLOCKS_UNUSED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_BLOCKS_USED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_READS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_READ_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_PAGECACHE_WRITE_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ARIA_TRANSACTION_LOG_SYNCS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_BYTES_WRITTEN",
+      "registry_source": "sql/mysqld.cc:7579",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_CACHE_DISK_USE",
+      "registry_source": "sql/mysqld.cc:7580",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_CACHE_USE",
+      "registry_source": "sql/mysqld.cc:7581",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_COMMITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_DISK_USE",
+      "registry_source": "sql/mysqld.cc:7586",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GROUP_COMMITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GROUP_COMMIT_TRIGGER_COUNT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GROUP_COMMIT_TRIGGER_LOCK_WAIT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GROUP_COMMIT_TRIGGER_TIMEOUT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GTID_INDEX_HIT",
+      "registry_source": "sql/mysqld.cc:7582",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_GTID_INDEX_MISS",
+      "registry_source": "sql/mysqld.cc:7583",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_SNAPSHOT_FILE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "text"
+    },
+    {
+      "native_name": "BINLOG_SNAPSHOT_POSITION",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_STMT_CACHE_DISK_USE",
+      "registry_source": "sql/mysqld.cc:7584",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BINLOG_STMT_CACHE_USE",
+      "registry_source": "sql/mysqld.cc:7585",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BUSY_TIME",
+      "registry_source": "sql/mysqld.cc:7587",
+      "show_type": "SHOW_MICROSECOND_STATUS",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "BYTES_RECEIVED",
+      "registry_source": "sql/mysqld.cc:7588",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "BYTES_SENT",
+      "registry_source": "sql/mysqld.cc:7589",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COLUMN_COMPRESSIONS",
+      "registry_source": "sql/mysqld.cc:7590",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COLUMN_DECOMPRESSIONS",
+      "registry_source": "sql/mysqld.cc:7591",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COMPRESSION",
+      "registry_source": "sql/mysqld.cc:7593",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "COM_ADMIN_COMMANDS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_DB",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_DB_UPGRADE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_EVENT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_FUNCTION",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_PROCEDURE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_SEQUENCE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_SERVER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ALTER_USER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ANALYZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ASSIGN_TO_KEYCACHE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_BACKUP",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_BACKUP_LOCK",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_BEGIN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_BINLOG",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CALL_PROCEDURE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CHANGE_DB",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CHANGE_MASTER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CHECK",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CHECKSUM",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_COMMIT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_COMPOUND_SQL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_DB",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_EVENT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_FUNCTION",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_INDEX",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_PACKAGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_PACKAGE_BODY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_PROCEDURE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_ROLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_SEQUENCE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_SERVER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_TEMPORARY_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_TRIGGER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_UDF",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_USER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_CREATE_VIEW",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DEALLOC_SQL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DELETE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DELETE_MULTI",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DO",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_DB",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_EVENT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_FUNCTION",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_INDEX",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_PACKAGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_PACKAGE_BODY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_PROCEDURE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_ROLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_SEQUENCE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_SERVER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_TEMPORARY_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_TRIGGER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_USER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_DROP_VIEW",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_EMPTY_QUERY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_EXECUTE_IMMEDIATE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_EXECUTE_SQL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_FLUSH",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_GET_DIAGNOSTICS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_GRANT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_GRANT_ROLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_HA_CLOSE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_HA_OPEN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_HA_READ",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_HELP",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_INSERT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_INSERT_SELECT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_INSTALL_PLUGIN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_KILL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_LOAD",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_LOCK_TABLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_OPTIMIZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_PRELOAD_KEYS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_PREPARE_SQL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_PURGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_PURGE_BEFORE_DATE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_RELEASE_SAVEPOINT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_RENAME_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_RENAME_USER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REPAIR",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REPLACE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REPLACE_SELECT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_RESET",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_RESIGNAL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REVOKE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REVOKE_ALL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_REVOKE_ROLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ROLLBACK",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_ROLLBACK_TO_SAVEPOINT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SAVEPOINT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SELECT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SET_OPTION",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_ANALYZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_AUTHORS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_BINLOGS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_BINLOG_EVENTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_BINLOG_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CHARSETS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_COLLATIONS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CONTRIBUTORS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_DB",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_EVENT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_FUNC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_PACKAGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_PACKAGE_BODY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_PROC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_SERVER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_TABLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_TRIGGER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_CREATE_USER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_DATABASES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_ENGINE_LOGS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_ENGINE_MUTEX",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_ENGINE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_ERRORS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_EVENTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_EXPLAIN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_FIELDS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_FUNCTION_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_GENERIC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_GRANTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_KEYS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_OPEN_TABLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PACKAGE_BODY_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PACKAGE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PLUGINS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PRIVILEGES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PROCEDURE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PROCESSLIST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PROFILE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_PROFILES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_RELAYLOG_EVENTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_SLAVE_HOSTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_SLAVE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_STORAGE_ENGINES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_TABLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_TABLE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_TRIGGERS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_VARIABLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHOW_WARNINGS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SHUTDOWN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_SIGNAL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_START_ALL_SLAVES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_START_SLAVE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_CLOSE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_EXECUTE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_FETCH",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_PREPARE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_REPREPARE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_RESET",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STMT_SEND_LONG_DATA",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STOP_ALL_SLAVES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_STOP_SLAVE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_TRUNCATE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_UNINSTALL_PLUGIN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_UNLOCK_TABLES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_UPDATE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_UPDATE_MULTI",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_COMMIT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_END",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_PREPARE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_RECOVER",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_ROLLBACK",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "COM_XA_START",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTIONS",
+      "registry_source": "sql/mysqld.cc:7594",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_ACCEPT",
+      "registry_source": "sql/mysqld.cc:7595",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_INTERNAL",
+      "registry_source": "sql/mysqld.cc:7596",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_MAX_CONNECTIONS",
+      "registry_source": "sql/mysqld.cc:7597",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_PEER_ADDRESS",
+      "registry_source": "sql/mysqld.cc:7598",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_SELECT",
+      "registry_source": "sql/mysqld.cc:7599",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CONNECTION_ERRORS_TCPWRAP",
+      "registry_source": "sql/mysqld.cc:7600",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CPU_TIME",
+      "registry_source": "sql/mysqld.cc:7601",
+      "show_type": "SHOW_MICROSECOND_STATUS",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "CREATED_TMP_DISK_TABLES",
+      "registry_source": "sql/mysqld.cc:7602",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CREATED_TMP_FILES",
+      "registry_source": "sql/mysqld.cc:7603",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "CREATED_TMP_TABLES",
+      "registry_source": "sql/mysqld.cc:7604",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "DELAYED_ERRORS",
+      "registry_source": "sql/mysqld.cc:7608",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "DELAYED_INSERT_THREADS",
+      "registry_source": "sql/mysqld.cc:7609",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "DELAYED_WRITES",
+      "registry_source": "sql/mysqld.cc:7610",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "DELETE_SCAN",
+      "registry_source": "sql/mysqld.cc:7611",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "EMPTY_QUERIES",
+      "registry_source": "sql/mysqld.cc:7612",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "EXECUTED_EVENTS",
+      "registry_source": "sql/mysqld.cc:7613",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "EXECUTED_TRIGGERS",
+      "registry_source": "sql/mysqld.cc:7614",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_APPLICATION_TIME_PERIODS",
+      "registry_source": "sql/mysqld.cc:7629",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_CHECK_CONSTRAINT",
+      "registry_source": "sql/mysqld.cc:7615",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_CUSTOM_AGGREGATE_FUNCTIONS",
+      "registry_source": "sql/mysqld.cc:7616",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_DELAY_KEY_WRITE",
+      "registry_source": "sql/mysqld.cc:7617",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_DYNAMIC_COLUMNS",
+      "registry_source": "sql/mysqld.cc:7618",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_FULLTEXT",
+      "registry_source": "sql/mysqld.cc:7619",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_GIS",
+      "registry_source": "sql/mysqld.cc:7620",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_INSERT_RETURNING",
+      "registry_source": "sql/mysqld.cc:7621",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_INTO_OUTFILE",
+      "registry_source": "sql/mysqld.cc:7622",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_INTO_VARIABLE",
+      "registry_source": "sql/mysqld.cc:7623",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_INVISIBLE_COLUMNS",
+      "registry_source": "sql/mysqld.cc:7624",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_JSON",
+      "registry_source": "sql/mysqld.cc:7625",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_LOCALE",
+      "registry_source": "sql/mysqld.cc:7626",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_SUBQUERY",
+      "registry_source": "sql/mysqld.cc:7627",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_SYSTEM_VERSIONING",
+      "registry_source": "sql/mysqld.cc:7628",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_TIMEZONE",
+      "registry_source": "sql/mysqld.cc:7630",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_TRIGGER",
+      "registry_source": "sql/mysqld.cc:7631",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_VECTOR_INDEX",
+      "registry_source": "sql/mysqld.cc:7632",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_WINDOW_FUNCTIONS",
+      "registry_source": "sql/mysqld.cc:7633",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "FEATURE_XML",
+      "registry_source": "sql/mysqld.cc:7634",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_COMMIT",
+      "registry_source": "sql/mysqld.cc:7635",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_DELETE",
+      "registry_source": "sql/mysqld.cc:7636",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_DISCOVER",
+      "registry_source": "sql/mysqld.cc:7637",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_EXTERNAL_LOCK",
+      "registry_source": "sql/mysqld.cc:7638",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_ICP_ATTEMPTS",
+      "registry_source": "sql/mysqld.cc:7639",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_ICP_MATCH",
+      "registry_source": "sql/mysqld.cc:7640",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_MRR_INIT",
+      "registry_source": "sql/mysqld.cc:7641",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_MRR_KEY_REFILLS",
+      "registry_source": "sql/mysqld.cc:7642",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_MRR_ROWID_REFILLS",
+      "registry_source": "sql/mysqld.cc:7643",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_PREPARE",
+      "registry_source": "sql/mysqld.cc:7644",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_FIRST",
+      "registry_source": "sql/mysqld.cc:7645",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_KEY",
+      "registry_source": "sql/mysqld.cc:7646",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_LAST",
+      "registry_source": "sql/mysqld.cc:7647",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_NEXT",
+      "registry_source": "sql/mysqld.cc:7648",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_PREV",
+      "registry_source": "sql/mysqld.cc:7649",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_RETRY",
+      "registry_source": "sql/mysqld.cc:7650",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_RND",
+      "registry_source": "sql/mysqld.cc:7651",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_RND_DELETED",
+      "registry_source": "sql/mysqld.cc:7652",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_READ_RND_NEXT",
+      "registry_source": "sql/mysqld.cc:7653",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_ROLLBACK",
+      "registry_source": "sql/mysqld.cc:7654",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_SAVEPOINT",
+      "registry_source": "sql/mysqld.cc:7655",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_SAVEPOINT_ROLLBACK",
+      "registry_source": "sql/mysqld.cc:7656",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_TMP_DELETE",
+      "registry_source": "sql/mysqld.cc:7657",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_TMP_UPDATE",
+      "registry_source": "sql/mysqld.cc:7658",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_TMP_WRITE",
+      "registry_source": "sql/mysqld.cc:7659",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_UPDATE",
+      "registry_source": "sql/mysqld.cc:7660",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "HANDLER_WRITE",
+      "registry_source": "sql/mysqld.cc:7661",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ADAPTIVE_HASH_HASH_SEARCHES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ADAPTIVE_HASH_NON_HASH_SEARCHES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_PENDING",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_QUEUE_SIZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_TASKS_RUNNING",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_TOTAL_COUNT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_TOTAL_ENQUEUES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_READS_WAIT_SLOT_SEC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_PENDING",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_QUEUE_SIZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_TASKS_RUNNING",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_TOTAL_COUNT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_TOTAL_ENQUEUES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ASYNC_WRITES_WAIT_SLOT_SEC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "INNODB_AVAILABLE_UNDO_LOGS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BACKGROUND_LOG_SYNC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_BYTES_DATA",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_BYTES_DIRTY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_DUMP_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "text"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_LOAD_INCOMPLETE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_LOAD_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "text"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_DATA",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_DIRTY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_FREE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_LRU_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_LRU_FREED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_MADE_NOT_YOUNG",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_MADE_YOUNG",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_MISC",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_OLD",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_SPLIT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_PAGES_TOTAL",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_READS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_READ_AHEAD",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_READ_AHEAD_EVICTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_READ_AHEAD_RND",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_READ_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_RESIZE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "text"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_WAIT_FREE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BUFFER_POOL_WRITE_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_BULK_OPERATIONS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_CHECKPOINT_AGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_CHECKPOINT_MAX_AGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_FSYNCS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_PENDING_FSYNCS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_PENDING_READS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_PENDING_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_READ",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_READS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DATA_WRITTEN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DBLWR_PAGES_WRITTEN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DBLWR_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_DEADLOCKS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_NUM_KEY_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_MERGE_BLOCKS_DECRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_MERGE_BLOCKS_ENCRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_ROWLOG_BLOCKS_DECRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_ROWLOG_BLOCKS_ENCRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_TEMP_BLOCKS_DECRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_N_TEMP_BLOCKS_ENCRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_ROTATION_ESTIMATED_IOPS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_ROTATION_PAGES_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_ROTATION_PAGES_MODIFIED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_ROTATION_PAGES_READ_FROM_CACHE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ENCRYPTION_ROTATION_PAGES_READ_FROM_DISK",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_HAVE_BZIP2",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HAVE_LZ4",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HAVE_LZMA",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HAVE_LZO",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HAVE_PUNCH_HOLE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HAVE_SNAPPY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "INNODB_HISTORY_LIST_LENGTH",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_INSTANT_ALTER_COLUMN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LOG_WAITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LOG_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LOG_WRITE_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LSN_CURRENT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LSN_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_LSN_LAST_CHECKPOINT",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_MASTER_THREAD_ACTIVE_LOOPS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_MASTER_THREAD_IDLE_LOOPS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_MAX_TRX_ID",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_MEM_ADAPTIVE_HASH",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_MEM_DICTIONARY",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_OPEN_FILES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGES_DECRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGES_ENCRYPTED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGES_PAGE_COMPRESSED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGES_PAGE_COMPRESSION_ERROR",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGES_PAGE_DECOMPRESSED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_NUM_PAGE_COMPRESSED_TRIM_OP",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ONLINEDDL_PCT_PROGRESS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ONLINEDDL_ROWLOG_PCT_USED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ONLINEDDL_ROWLOG_ROWS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_OS_LOG_WRITTEN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_PAGES_CREATED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_PAGES_READ",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_PAGES_WRITTEN",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_PAGE_COMPRESSION_SAVED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_PAGE_SIZE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ROW_LOCK_CURRENT_WAITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ROW_LOCK_TIME",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ROW_LOCK_TIME_AVG",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ROW_LOCK_TIME_MAX",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_ROW_LOCK_WAITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_TRUNCATED_STATUS_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "INNODB_UNDO_TRUNCATIONS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_BLOCKS_NOT_FLUSHED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_BLOCKS_UNUSED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_BLOCKS_USED",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_BLOCKS_WARM",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_READS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_READ_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_WRITES",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "KEY_WRITE_REQUESTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "LAST_QUERY_COST",
+      "registry_source": "sql/mysqld.cc:7664",
+      "show_type": "SHOW_DOUBLE_STATUS",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "MASTER_GTID_WAIT_COUNT",
+      "registry_source": "sql/mysqld.cc:7669",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MASTER_GTID_WAIT_TIME",
+      "registry_source": "sql/mysqld.cc:7671",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MASTER_GTID_WAIT_TIMEOUTS",
+      "registry_source": "sql/mysqld.cc:7670",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MAX_MEMORY_USED",
+      "registry_source": "sql/mysqld.cc:7675",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "MAX_STATEMENT_TIME_EXCEEDED",
+      "registry_source": "sql/mysqld.cc:7668",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MAX_TMP_SPACE_USED",
+      "registry_source": "sql/mysqld.cc:7672",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MAX_USED_CONNECTIONS",
+      "registry_source": "sql/mysqld.cc:7673",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MAX_USED_CONNECTIONS_TIME",
+      "registry_source": "sql/mysqld.cc:7674",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "MEMORY_USED",
+      "registry_source": "sql/mysqld.cc:7676",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "MEMORY_USED_INITIAL",
+      "registry_source": "sql/mysqld.cc:7677",
+      "show_type": "SHOW_LONGLONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "NOT_FLUSHED_DELAYED_ROWS",
+      "registry_source": "sql/mysqld.cc:7679",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPENED_FILES",
+      "registry_source": "sql/mysqld.cc:7684",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPENED_PLUGIN_LIBRARIES",
+      "registry_source": "sql/mysqld.cc:7685",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPENED_TABLES",
+      "registry_source": "sql/mysqld.cc:7687",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPENED_TABLE_DEFINITIONS",
+      "registry_source": "sql/mysqld.cc:7686",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPENED_VIEWS",
+      "registry_source": "sql/mysqld.cc:7688",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPEN_FILES",
+      "registry_source": "sql/mysqld.cc:7680",
+      "show_type": "SHOW_SINT",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPEN_STREAMS",
+      "registry_source": "sql/mysqld.cc:7681",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPEN_TABLES",
+      "registry_source": "sql/mysqld.cc:7683",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPEN_TABLE_DEFINITIONS",
+      "registry_source": "sql/mysqld.cc:7682",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "OPTIMIZER_JOIN_PREFIXES_CHECK_CALLS",
+      "registry_source": "sql/mysqld.cc:7663",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_ACCOUNTS_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_COND_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_COND_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_DIGEST_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_FILE_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_FILE_HANDLES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_FILE_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_HOSTS_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_INDEX_STAT_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_LOCKER_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_MEMORY_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_METADATA_LOCK_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_MUTEX_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_MUTEX_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_NESTED_STATEMENT_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_PREPARED_STATEMENTS_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_PROGRAM_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_RWLOCK_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_RWLOCK_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_SESSION_CONNECT_ATTRS_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_SOCKET_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_SOCKET_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_STAGE_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_STATEMENT_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_TABLE_HANDLES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_TABLE_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_TABLE_LOCK_STAT_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_THREAD_CLASSES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_THREAD_INSTANCES_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PERFORMANCE_SCHEMA_USERS_LOST",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "PREPARED_STMT_COUNT",
+      "registry_source": "sql/mysqld.cc:7689",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_FREE_BLOCKS",
+      "registry_source": "sql/mysqld.cc:7713",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_FREE_MEMORY",
+      "registry_source": "sql/mysqld.cc:7714",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_HITS",
+      "registry_source": "sql/mysqld.cc:7715",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_INSERTS",
+      "registry_source": "sql/mysqld.cc:7716",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_LOWMEM_PRUNES",
+      "registry_source": "sql/mysqld.cc:7717",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_NOT_CACHED",
+      "registry_source": "sql/mysqld.cc:7718",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_QUERIES_IN_CACHE",
+      "registry_source": "sql/mysqld.cc:7719",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QCACHE_TOTAL_BLOCKS",
+      "registry_source": "sql/mysqld.cc:7720",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QUERIES",
+      "registry_source": "sql/mysqld.cc:7721",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "QUERY_TIME",
+      "registry_source": "sql/mysqld.cc:7722",
+      "show_type": "SHOW_MICROSECOND_STATUS",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "QUESTIONS",
+      "registry_source": "sql/mysqld.cc:7723",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RESULTSET_METADATA_SKIPPED",
+      "registry_source": "sql/mysqld.cc:7678",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ROWS_READ",
+      "registry_source": "sql/mysqld.cc:7691",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ROWS_SENT",
+      "registry_source": "sql/mysqld.cc:7690",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "ROWS_TMP_READ",
+      "registry_source": "sql/mysqld.cc:7692",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_CLIENTS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_GET_ACK",
+      "registry_source": "sql/mysqld.cc:7709",
+      "show_type": "SHOW_LONGLONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_NET_AVG_WAIT_TIME",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_NET_WAITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_NET_WAIT_TIME",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_NO_TIMES",
+      "registry_source": "sql/mysqld.cc:7699",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_NO_TX",
+      "registry_source": "sql/mysqld.cc:7697",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_REQUEST_ACK",
+      "registry_source": "sql/mysqld.cc:7708",
+      "show_type": "SHOW_LONGLONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_TIMEFUNC_FAILURES",
+      "registry_source": "sql/mysqld.cc:7700",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_TX_AVG_WAIT_TIME",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_TX_WAITS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_TX_WAIT_TIME",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_WAIT_POS_BACKTRAVERSE",
+      "registry_source": "sql/mysqld.cc:7701",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_WAIT_SESSIONS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_MASTER_YES_TX",
+      "registry_source": "sql/mysqld.cc:7696",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_SLAVE_SEND_ACK",
+      "registry_source": "sql/mysqld.cc:7711",
+      "show_type": "SHOW_LONGLONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "RPL_SEMI_SYNC_SLAVE_STATUS",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "RPL_STATUS",
+      "registry_source": "sql/mysqld.cc:7725",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "RPL_TRANSACTIONS_MULTI_ENGINE",
+      "registry_source": "sql/mysqld.cc:7808",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SELECT_FULL_JOIN",
+      "registry_source": "sql/mysqld.cc:7727",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SELECT_FULL_RANGE_JOIN",
+      "registry_source": "sql/mysqld.cc:7728",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SELECT_RANGE",
+      "registry_source": "sql/mysqld.cc:7729",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SELECT_RANGE_CHECK",
+      "registry_source": "sql/mysqld.cc:7730",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SELECT_SCAN",
+      "registry_source": "sql/mysqld.cc:7731",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVES_CONNECTED",
+      "registry_source": "sql/mysqld.cc:7734",
+      "show_type": "SHOW_ATOMIC_COUNTER_UINT32_T",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVES_RUNNING",
+      "registry_source": "sql/mysqld.cc:7735",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVE_CONNECTIONS",
+      "registry_source": "sql/mysqld.cc:7736",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVE_HEARTBEAT_PERIOD",
+      "registry_source": "sql/mysqld.cc:7737",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "decimal"
+    },
+    {
+      "native_name": "SLAVE_OPEN_TEMP_TABLES",
+      "registry_source": "sql/mysqld.cc:7732",
+      "show_type": "SHOW_ATOMIC_COUNTER_UINT32_T",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVE_RECEIVED_HEARTBEATS",
+      "registry_source": "sql/mysqld.cc:7738",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVE_RETRIED_TRANSACTIONS",
+      "registry_source": "sql/mysqld.cc:7739",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLAVE_RUNNING",
+      "registry_source": "sql/mysqld.cc:7740",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "SLAVE_SKIPPED_ERRORS",
+      "registry_source": "sql/mysqld.cc:7741",
+      "show_type": "SHOW_LONGLONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLOW_LAUNCH_THREADS",
+      "registry_source": "sql/mysqld.cc:7743",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SLOW_QUERIES",
+      "registry_source": "sql/mysqld.cc:7744",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SORT_MERGE_PASSES",
+      "registry_source": "sql/mysqld.cc:7745",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SORT_PRIORITY_QUEUE_SORTS",
+      "registry_source": "sql/mysqld.cc:7746",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SORT_RANGE",
+      "registry_source": "sql/mysqld.cc:7747",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SORT_ROWS",
+      "registry_source": "sql/mysqld.cc:7748",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SORT_SCAN",
+      "registry_source": "sql/mysqld.cc:7749",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_ACCEPTS",
+      "registry_source": "sql/mysqld.cc:7753",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_ACCEPT_RENEGOTIATES",
+      "registry_source": "sql/mysqld.cc:7752",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_CALLBACK_CACHE_HITS",
+      "registry_source": "sql/mysqld.cc:7754",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_CIPHER",
+      "registry_source": "sql/mysqld.cc:7755",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "SSL_CIPHER_LIST",
+      "registry_source": "sql/mysqld.cc:7756",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "SSL_CLIENT_CONNECTS",
+      "registry_source": "sql/mysqld.cc:7757",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_CONNECT_RENEGOTIATES",
+      "registry_source": "sql/mysqld.cc:7758",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_CTX_VERIFY_DEPTH",
+      "registry_source": "sql/mysqld.cc:7759",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_CTX_VERIFY_MODE",
+      "registry_source": "sql/mysqld.cc:7760",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_DEFAULT_TIMEOUT",
+      "registry_source": "sql/mysqld.cc:7761",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_FINISHED_ACCEPTS",
+      "registry_source": "sql/mysqld.cc:7762",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_FINISHED_CONNECTS",
+      "registry_source": "sql/mysqld.cc:7763",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SERVER_NOT_AFTER",
+      "registry_source": "sql/mysqld.cc:7764",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "SSL_SERVER_NOT_BEFORE",
+      "registry_source": "sql/mysqld.cc:7765",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "SSL_SESSIONS_REUSED",
+      "registry_source": "sql/mysqld.cc:7772",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_HITS",
+      "registry_source": "sql/mysqld.cc:7766",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_MISSES",
+      "registry_source": "sql/mysqld.cc:7767",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_MODE",
+      "registry_source": "sql/mysqld.cc:7768",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_OVERFLOWS",
+      "registry_source": "sql/mysqld.cc:7769",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_SIZE",
+      "registry_source": "sql/mysqld.cc:7770",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_SESSION_CACHE_TIMEOUTS",
+      "registry_source": "sql/mysqld.cc:7771",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_USED_SESSION_CACHE_ENTRIES",
+      "registry_source": "sql/mysqld.cc:7773",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_VERIFY_DEPTH",
+      "registry_source": "sql/mysqld.cc:7774",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_VERIFY_MODE",
+      "registry_source": "sql/mysqld.cc:7775",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SSL_VERSION",
+      "registry_source": "sql/mysqld.cc:7776",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "text"
+    },
+    {
+      "native_name": "STACK_USAGE",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SUBQUERY_CACHE_HIT",
+      "registry_source": "sql/mysqld.cc:7785",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SUBQUERY_CACHE_MISS",
+      "registry_source": "sql/mysqld.cc:7786",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "SYNCS",
+      "registry_source": "sql/mysqld.cc:7780",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_LOCKS_IMMEDIATE",
+      "registry_source": "sql/mysqld.cc:7787",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_LOCKS_WAITED",
+      "registry_source": "sql/mysqld.cc:7788",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_OPEN_CACHE_ACTIVE_INSTANCES",
+      "registry_source": "sql/mysqld.cc:7789",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_OPEN_CACHE_HITS",
+      "registry_source": "sql/mysqld.cc:7790",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_OPEN_CACHE_MISSES",
+      "registry_source": "sql/mysqld.cc:7791",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TABLE_OPEN_CACHE_OVERFLOWS",
+      "registry_source": "sql/mysqld.cc:7792",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TC_LOG_MAX_PAGES_USED",
+      "registry_source": "sql/mysqld.cc:7794",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TC_LOG_PAGE_SIZE",
+      "registry_source": "sql/mysqld.cc:7795",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TC_LOG_PAGE_WAITS",
+      "registry_source": "sql/mysqld.cc:7796",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADPOOL_IDLE_THREADS",
+      "registry_source": "sql/mysqld.cc:7800",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADPOOL_THREADS",
+      "registry_source": "sql/mysqld.cc:7801",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADS_CACHED",
+      "registry_source": "sql/mysqld.cc:7803",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADS_CONNECTED",
+      "registry_source": "sql/mysqld.cc:7804",
+      "show_type": "SHOW_INT",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADS_CREATED",
+      "registry_source": "sql/mysqld.cc:7805",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "THREADS_RUNNING",
+      "registry_source": "sql/mysqld.cc:7806",
+      "show_type": "SHOW_UINT32_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TMP_SPACE_USED",
+      "registry_source": "sql/mysqld.cc:7798",
+      "show_type": "SHOW_LONGLONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TRANSACTIONS_GTID_FOREIGN_ENGINE",
+      "registry_source": "sql/mysqld.cc:7809",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "TRANSACTIONS_MULTI_ENGINE",
+      "registry_source": "sql/mysqld.cc:7807",
+      "show_type": "SHOW_LONG",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "UPDATE_SCAN",
+      "registry_source": "sql/mysqld.cc:7810",
+      "show_type": "SHOW_LONG_STATUS",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "UPTIME",
+      "registry_source": "sql/mysqld.cc:7811",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "UPTIME_SINCE_FLUSH_STATUS",
+      "registry_source": "sql/mysqld.cc:7812",
+      "show_type": "SHOW_SIMPLE_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP",
+      "registry_source": "runtime_or_plugin_status_registry",
+      "show_type": "runtime_defined",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_APPLIER_THREAD_COUNT",
+      "registry_source": "sql/mysqld.cc:7827",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_CLUSTER_CAPABILITIES",
+      "registry_source": "sql/mysqld.cc:7829",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_CLUSTER_CONF_ID",
+      "registry_source": "sql/mysqld.cc:7817",
+      "show_type": "SHOW_LONGLONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_CLUSTER_SIZE",
+      "registry_source": "sql/mysqld.cc:7819",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_CLUSTER_STATE_UUID",
+      "registry_source": "sql/mysqld.cc:7816",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_CLUSTER_STATUS",
+      "registry_source": "sql/mysqld.cc:7818",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_CONNECTED",
+      "registry_source": "sql/mysqld.cc:7814",
+      "show_type": "SHOW_BOOL",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "WSREP_LOCAL_BF_ABORTS",
+      "registry_source": "sql/mysqld.cc:7821",
+      "show_type": "SHOW_FUNC",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_LOCAL_INDEX",
+      "registry_source": "sql/mysqld.cc:7820",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_PROVIDER_CAPABILITIES",
+      "registry_source": "sql/mysqld.cc:7825",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_PROVIDER_NAME",
+      "registry_source": "sql/mysqld.cc:7822",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_PROVIDER_VENDOR",
+      "registry_source": "sql/mysqld.cc:7824",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_PROVIDER_VERSION",
+      "registry_source": "sql/mysqld.cc:7823",
+      "show_type": "SHOW_CHAR_PTR",
+      "value_type": "text"
+    },
+    {
+      "native_name": "WSREP_READY",
+      "registry_source": "sql/mysqld.cc:7815",
+      "show_type": "SHOW_FUNC",
+      "value_type": "boolean"
+    },
+    {
+      "native_name": "WSREP_ROLLBACKER_THREAD_COUNT",
+      "registry_source": "sql/mysqld.cc:7828",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    },
+    {
+      "native_name": "WSREP_THREAD_COUNT",
+      "registry_source": "sql/mysqld.cc:7826",
+      "show_type": "SHOW_LONG_NOFLUSH",
+      "value_type": "integer"
+    }
+  ],
+  "reference_version": "12.2.2",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

@@ -103,6 +103,40 @@ class ProviderToolRunnerTests(unittest.TestCase):
                     secret_environment={'UNGRANTED_SECRET': secret},
                 )
 
+    def test_streamed_input_and_leading_secret_argument_are_constrained(self):
+        with tempfile.TemporaryDirectory(
+            prefix='cdeadmin-provider-tool-stream-test-'
+        ) as workspace:
+            root = Path(workspace)
+            input_path = root / 'restore.sql'
+            input_path.write_bytes(b'SELECT 1;\n')
+            runner = ProviderToolRunner({'python': sys.executable})
+            grant = ProviderToolGrant(
+                executable_id='python', workspace=workspace,
+                endpoint_host='127.0.0.1', endpoint_port=3306,
+            )
+            result = runner.run(
+                grant, [
+                    '-c',
+                    'import pathlib,sys;print(pathlib.Path('
+                    'sys.argv[1]).read_text(),end="");'
+                    'print(sys.stdin.read(),end="")',
+                ], input_path=input_path, secret_config=b'private-config',
+                secret_argument='{path}', secret_suffix='.cnf',
+                secret_argument_position=2,
+                redact_values=('private-config',),
+            )
+            self.assertEqual('[redacted]SELECT 1;\n', result['stdout'])
+            self.assertEqual([input_path], list(root.iterdir()))
+            with tempfile.NamedTemporaryFile() as outside:
+                with self.assertRaisesRegex(ProviderToolError, 'escapes'):
+                    runner.run(grant, ['-c', 'pass'], input_path=outside.name)
+            with self.assertRaisesRegex(ProviderToolError, 'conflicts'):
+                runner.run(
+                    grant, ['-c', 'pass'], input_bytes=b'x',
+                    input_path=input_path,
+                )
+
 
 if __name__ == '__main__':
     unittest.main()

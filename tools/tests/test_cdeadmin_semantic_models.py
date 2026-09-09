@@ -123,13 +123,31 @@ class MemoryRepository:
         self.rows.pop(row.id)
 
 
+def exact_dialect(**values):
+    return {
+        'contract_complete': True,
+        'language_profile': 'test-sql',
+        'quote_open': '"',
+        'quote_close': '"',
+        'supports_rollup': True,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE',
+        'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
+        **values,
+    }
+
+
 class SQLProvider:
     @staticmethod
     def compile_semantic_query(model_value, query_value):
-        return compile_sql(model_value, query_value, {
-            'language_profile': 'test-sql', 'quote_open': '"',
-            'supports_rollup': True,
-        })
+        return compile_sql(model_value, query_value, exact_dialect())
 
 
 class SemanticModelTests(unittest.TestCase):
@@ -220,10 +238,10 @@ class SemanticModelTests(unittest.TestCase):
         self.assertIn('NULLIF(SUM("sales"."units"), 0)', compiled['source'])
 
     def test_provider_dialect_owns_firebird_row_limit_syntax(self):
-        compiled = compile_sql(model(), query(), {
-            'language_profile': 'firebird-sql', 'quote_open': '"',
-            'supports_rollup': False, 'limit_style': 'rows',
-        })
+        compiled = compile_sql(model(), query(), exact_dialect(
+            language_profile='firebird-sql', supports_rollup=False,
+            limit_style='rows',
+        ))
         self.assertTrue(compiled['source'].endswith('ROWS 1 TO 500'))
         self.assertNotIn(' LIMIT ', compiled['source'])
 
@@ -232,10 +250,9 @@ class SemanticModelTests(unittest.TestCase):
         value['sources'][0]['relation'] = ['main', 'sales']
         request = query()
         request['totals'] = False
-        compiled = compile_sql(value, request, {
-            'language_profile': 'sqlite-sql', 'quote_open': '"',
-            'supports_rollup': False,
-        })
+        compiled = compile_sql(value, request, exact_dialect(
+            language_profile='sqlite-sql', supports_rollup=False,
+        ))
         connection = sqlite3.connect(':memory:')
         try:
             connection.execute(
@@ -259,10 +276,9 @@ class SemanticModelTests(unittest.TestCase):
         value['sources'][0]['relation'] = ['main', 'sales']
         request = query()
         request['totals'] = False
-        compiled = compile_sql(value, request, {
-            'language_profile': 'duckdb-sql', 'quote_open': '"',
-            'supports_rollup': True,
-        })
+        compiled = compile_sql(value, request, exact_dialect(
+            language_profile='duckdb-sql', supports_rollup=True,
+        ))
         connection = duckdb.connect(':memory:')
         try:
             connection.execute(
@@ -498,10 +514,9 @@ class SemanticModelTests(unittest.TestCase):
             'order_by': {'level_id': 'region_level', 'direction': 'asc'},
             'frame_size': 1,
         }]
-        compiled = compile_sql(value, request, {
-            'language_profile': 'sqlite-sql', 'quote_open': '"',
-            'supports_rollup': False,
-        })
+        compiled = compile_sql(value, request, exact_dialect(
+            language_profile='sqlite-sql', supports_rollup=False,
+        ))
         connection = sqlite3.connect(':memory:')
         try:
             connection.execute(
@@ -535,10 +550,80 @@ class SemanticModelTests(unittest.TestCase):
         }]
         with self.assertRaisesRegex(
                 SemanticModelError, 'does not admit requested'):
-            compile_sql(model(), request, {
-                'language_profile': 'limited-sql', 'quote_open': '"',
-                'window_operations': (),
-            })
+            compile_sql(model(), request, exact_dialect(
+                language_profile='limited-sql', window_operations=(),
+            ))
+
+    def test_mariadb_rollup_uses_native_with_rollup_clause(self):
+        compiled = compile_sql(model(), query(), exact_dialect(
+            language_profile='mariadb-sql', quote_open='`', quote_close='`',
+            rollup_style='with_rollup',
+        ))
+        self.assertIn('GROUP BY `sales`.`region_name` WITH ROLLUP', (
+            compiled['source']
+        ))
+        self.assertNotIn('ROLLUP (', compiled['source'])
+        self.assertIn('ORDER BY', compiled['source'])
+
+        compiled = compile_sql(model(), query(), exact_dialect(
+            language_profile='mariadb-sql', quote_open='`', quote_close='`',
+            rollup_style='with_rollup', rollup_allows_order_by=False,
+        ))
+        self.assertNotIn('ORDER BY', compiled['source'])
+        self.assertEqual(1, len(compiled['warnings']))
+
+    def test_firebird_window_types_are_provider_declared(self):
+        request = query()
+        request['totals'] = False
+        request['windows'] = [{
+            'id': 'percent_change_revenue', 'measure_id': 'revenue',
+            'operation': 'percent_change', 'partition_by': [],
+            'order_by': {
+                'level_id': 'region_level', 'direction': 'asc',
+            },
+            'frame_size': 2,
+        }]
+        compiled = compile_sql(model(), request, exact_dialect(
+            language_profile='firebird-sql', supports_rollup=False,
+            limit_style='rows', window_input_cast='INTEGER',
+            percent_change_result_cast='DECIMAL(18,6)',
+        ))
+        self.assertIn(
+            'CAST(SUM("sales"."amount") AS INTEGER) AS "revenue"',
+            compiled['source'],
+        )
+        self.assertIn('CAST((CASE WHEN LAG(', compiled['source'])
+        self.assertIn('END) AS DECIMAL(18,6))', compiled['source'])
+        self.assertTrue(compiled['source'].endswith('ROWS 1 TO 500'))
+
+    def test_provider_window_cast_types_fail_closed(self):
+        for field in (
+                'window_input_cast', 'percent_change_result_cast',
+                'percent_change_numerator_cast'):
+            with self.subTest(field=field), self.assertRaisesRegex(
+                    SemanticModelError, 'cast is invalid'):
+                compile_sql(
+                    model(), query(),
+                    exact_dialect(**{field: 'INTEGER); DROP TABLE sales'}),
+                )
+
+    def test_sqlite_percent_change_casts_numerator_for_real_division(self):
+        request = query()
+        request['totals'] = False
+        request['windows'] = [{
+            'id': 'percent_change_revenue', 'measure_id': 'revenue',
+            'operation': 'percent_change', 'partition_by': [],
+            'order_by': {
+                'level_id': 'region_level', 'direction': 'asc',
+            },
+            'frame_size': 1,
+        }]
+        compiled = compile_sql(model(), request, exact_dialect(
+            language_profile='sqlite-sql', supports_rollup=False,
+            percent_change_numerator_cast='REAL',
+        ))
+        self.assertIn('ELSE CAST((', compiled['source'])
+        self.assertIn(' AS REAL) / LAG(', compiled['source'])
 
     def test_period_boundaries_use_the_declared_iana_timezone(self):
         value = model()

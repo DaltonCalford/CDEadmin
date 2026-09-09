@@ -577,6 +577,39 @@ class FoundationDBBackend:
                 ),
             ),
         }}
+        for resource in value.get('objects', []):
+            kind = resource['resource_kind']
+            for operation in resource.get('operations', []):
+                operation_id = operation['operation_id']
+                if operation_id == 'inspect':
+                    operation['form'] = {
+                        'form_id': f'foundationdb-{kind}-inspect',
+                        'title': (
+                            f'Inspect FoundationDB '
+                            f'{kind.replace("-", " ")}'
+                        ),
+                        'fields': [],
+                    }
+                elif kind == 'directory' and operation_id == 'create':
+                    operation['form'] = {
+                        'form_id': 'foundationdb-directory-create',
+                        'title': 'Create FoundationDB directory',
+                        'fields': [{
+                            'field_id': 'name',
+                            'label': 'Directory path segment',
+                            'control': 'text', 'required': True,
+                        }],
+                    }
+                elif kind == 'directory' and operation_id == 'drop':
+                    operation['form'] = {
+                        'form_id': 'foundationdb-directory-drop',
+                        'title': 'Remove FoundationDB directory',
+                        'fields': [{
+                            'field_id': 'confirmation',
+                            'label': 'Type the directory name to confirm',
+                            'control': 'text', 'required': True,
+                        }],
+                    }
         return value
 
     @staticmethod
