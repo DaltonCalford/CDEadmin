@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.tidb", "provider_version": "0.2.0", "profile_id": "tidb-native", "profile_version": "8.5.6", "evidence_reference": "cde-distributed:tidb-full-live:20260904"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.tidb", "provider_version": "0.3.0", "profile_id": "tidb-native", "profile_version": "8.5.6", "evidence_reference": "cdeadmin-tidb-exact-live:8.5.6:20260910"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental",
@@ -57,5 +57,5 @@
       {"field_id": "ticdc_password", "secret_kind": "tidb_ticdc_password", "label": "TiCDC password", "group": "TiDB change data capture authentication", "help": "Leased only for a TiCDC provider-tool invocation and never persisted in the endpoint route."}
     ]
   },
-  "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"}
+  "provenance": {"purpose": "TiDB exact-profile distributed provider", "protocol": "mysql_wire", "client_state": "mysql_connector_26.7.0_installed", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed_exact_dialect_metrics_semantic_object_and_control_plane_evidence", "dialect_contract": "tidb.dialect.8.5.6.v1", "metrics_contract": "tidb.metrics.8.5.6.v1", "live_evidence_reference": "cdeadmin-tidb-exact-live:8.5.6:20260910", "object_experience_gate": "passed", "full_live_evidence_sha256": "802533d38c6c08aed785ad0bd5501b0b31fb7a971cc8c25af8677032acdf9982", "object_evidence_sha256": "879d8f25567db5d910d6c5432811ec031193854ae348acd6291da960934f285c", "strict_object_evidence_sha256": "db2de9f498b31f24d5a2bf20ba8b838d8c5acc68af01501520f54393da9a2ea3", "native_ticdc_gate": "passed_create_inspect_pause_resume_remove", "native_tiflash_gate": "passed_table_and_database_replica_lifecycle", "native_br_gate": "passed_full_database_table_and_point_in_time_backup_restore"}
 }

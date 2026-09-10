@@ -288,6 +288,17 @@ class _Runtime:
 
 
 def _apply(provider, request):
+    validation = provider.validate_visual_admin(request)
+    if not validation['valid']:
+        failures = '; '.join(
+            f"{item.get('field_id', '<form>')}: {item.get('message', item)}"
+            for item in validation.get('errors', [])
+        )
+        raise RuntimeError(
+            'MongoDB visual validation failed for '
+            f"{request.get('resource_kind')}:{request.get('operation_id')}: "
+            f'{failures or "unspecified validation failure"}'
+        )
     plan = provider.plan_visual_admin(request)
     if plan['state'] != 'ready':
         raise RuntimeError('MongoDB visual plan is not ready')
@@ -481,7 +492,7 @@ def verify(binary, server_log):
                 'resource_kind': 'collection', 'operation_id': 'create',
                 'target_resource': None,
                 'draft': {
-                    'name': collection_name, 'definition': '',
+                    'name': collection_name,
                     'options': {'database': runtime.database},
                 },
                 '_provider_route': route,
@@ -498,7 +509,6 @@ def verify(binary, server_log):
                 'target_resource': target,
                 'draft': {
                     'changes': {'validationLevel': 'moderate'},
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
@@ -589,7 +599,7 @@ def verify(binary, server_log):
                 'resource_kind': 'index', 'operation_id': 'create',
                 'target_resource': target,
                 'draft': {
-                    'name': 'key_lookup', 'definition': '',
+                    'name': 'key_lookup',
                     'options': {'keys': [['key', 1]], 'unique': True},
                 },
                 '_provider_route': route,
@@ -598,7 +608,6 @@ def verify(binary, server_log):
                 'resource_kind': 'validator', 'operation_id': 'create',
                 'target_resource': target,
                 'draft': {
-                    'name': 'validator', 'definition': '',
                     'options': {
                         'validator': {'key': {'$type': 'string'}},
                     },
@@ -621,14 +630,13 @@ def verify(binary, server_log):
                 'target_resource': index,
                 'draft': {
                     'changes': {'hidden': True},
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
             _apply(provider, {
                 'resource_kind': 'index', 'operation_id': 'drop',
                 'target_resource': index,
-                'draft': {'cascade': False, 'confirmation': 'drop-index'},
+                'draft': {'confirmation': 'drop-index'},
                 '_provider_route': route,
             })
             _apply(provider, {
@@ -638,7 +646,6 @@ def verify(binary, server_log):
                     'changes': {
                         'validator': {'value': {'$type': 'number'}},
                     },
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
@@ -646,7 +653,7 @@ def verify(binary, server_log):
                 'resource_kind': 'validator', 'operation_id': 'drop',
                 'target_resource': validator,
                 'draft': {
-                    'cascade': False, 'confirmation': 'drop-validator',
+                    'confirmation': 'drop-validator',
                 },
                 '_provider_route': route,
             })
@@ -655,7 +662,7 @@ def verify(binary, server_log):
                 'resource_kind': 'view', 'operation_id': 'create',
                 'target_resource': None,
                 'draft': {
-                    'name': view_name, 'definition': '',
+                    'name': view_name,
                     'options': {
                         'database': runtime.database,
                         'view_on': collection_name,
@@ -675,7 +682,6 @@ def verify(binary, server_log):
                 'target_resource': view,
                 'draft': {
                     'changes': {'pipeline': [{'$match': {'value': 2}}]},
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
@@ -691,7 +697,7 @@ def verify(binary, server_log):
             _apply(provider, {
                 'resource_kind': 'view', 'operation_id': 'drop',
                 'target_resource': view,
-                'draft': {'cascade': False, 'confirmation': 'drop-view'},
+                'draft': {'confirmation': 'drop-view'},
                 '_provider_route': route,
             })
             role_name = 'visual_role_' + secrets.token_hex(3)
@@ -699,7 +705,7 @@ def verify(binary, server_log):
                 'resource_kind': 'role', 'operation_id': 'create',
                 'target_resource': None,
                 'draft': {
-                    'name': role_name, 'definition': '',
+                    'name': role_name,
                     'options': {
                         'database': runtime.database,
                         'privileges': [], 'roles': [],
@@ -724,7 +730,6 @@ def verify(binary, server_log):
                 'target_resource': role,
                 'draft': {
                     'changes': {'privileges': [], 'roles': []},
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
@@ -734,13 +739,7 @@ def verify(binary, server_log):
                     'operation_id': operation_id,
                     'target_resource': role,
                     'draft': {
-                        'principal': role_name,
                         'privileges': privilege,
-                        **(
-                            {'options': {}}
-                            if operation_id == 'grant'
-                            else {'confirmation': 'revoke-privilege'}
-                        ),
                     },
                     '_provider_route': route,
                 })
@@ -749,7 +748,7 @@ def verify(binary, server_log):
                 'resource_kind': 'user', 'operation_id': 'create',
                 'target_resource': None,
                 'draft': {
-                    'name': user_name, 'definition': '',
+                    'name': user_name,
                     'options': {
                         'database': runtime.database,
                         'credential_reference_id': reference_id,
@@ -769,7 +768,6 @@ def verify(binary, server_log):
                 'target_resource': user,
                 'draft': {
                     'changes': {'roles': []},
-                    'definition': '', 'online': False,
                 },
                 '_provider_route': route,
             })
@@ -780,26 +778,20 @@ def verify(binary, server_log):
                     'operation_id': operation_id,
                     'target_resource': user,
                     'draft': {
-                        'principal': user_name,
                         'privileges': role_assignment,
-                        **(
-                            {'options': {}}
-                            if operation_id == 'grant'
-                            else {'confirmation': 'revoke-role'}
-                        ),
                     },
                     '_provider_route': route,
                 })
             _apply(provider, {
                 'resource_kind': 'user', 'operation_id': 'drop',
                 'target_resource': user,
-                'draft': {'cascade': False, 'confirmation': 'drop-user'},
+                'draft': {'confirmation': 'drop-user'},
                 '_provider_route': route,
             })
             _apply(provider, {
                 'resource_kind': 'role', 'operation_id': 'drop',
                 'target_resource': role,
-                'draft': {'cascade': False, 'confirmation': 'drop-role'},
+                'draft': {'confirmation': 'drop-role'},
                 '_provider_route': route,
             })
             current = provider.list_resources(request)
@@ -829,7 +821,7 @@ def verify(binary, server_log):
                 'resource_kind': 'collection', 'operation_id': 'create',
                 'target_resource': None,
                 'draft': {
-                    'name': import_collection, 'definition': '',
+                    'name': import_collection,
                     'options': {'database': runtime.database},
                 },
                 '_provider_route': route,
@@ -901,7 +893,7 @@ def verify(binary, server_log):
                 'resource_kind': 'collection', 'operation_id': 'drop',
                 'target_resource': imported_target,
                 'draft': {
-                    'cascade': False, 'confirmation': 'drop-imported',
+                    'confirmation': 'drop-imported',
                 },
                 '_provider_route': route,
             })
@@ -909,7 +901,7 @@ def verify(binary, server_log):
                 'resource_kind': 'collection', 'operation_id': 'drop',
                 'target_resource': target,
                 'draft': {
-                    'cascade': False, 'confirmation': 'drop-collection',
+                    'confirmation': 'drop-collection',
                 },
                 '_provider_route': route,
             })
@@ -917,7 +909,7 @@ def verify(binary, server_log):
                 'resource_kind': 'database', 'operation_id': 'drop',
                 'target_resource': database_target,
                 'draft': {
-                    'cascade': False, 'confirmation': 'drop-database',
+                    'confirmation': 'drop-database',
                 },
                 '_provider_route': route,
             })

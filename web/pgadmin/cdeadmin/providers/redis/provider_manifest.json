@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.redis", "provider_version": "0.1.0", "profile_id": "redis-native", "profile_version": "8.6.2", "evidence_reference": "cde-redis-provider:redis-8.10.1-full-matrix:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.redis", "provider_version": "0.1.0", "profile_id": "redis-native", "profile_version": "8.6.2", "evidence_reference": "cdeadmin-redis-full-topology-live:8.10.1:20260909"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental",
@@ -66,5 +66,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "Redis operational tools"}
     ]
   },
-  "provenance": {"purpose": "Redis 8.6.2 reference profile supporting Redis >=8.6.0", "protocol": "resp", "client_state": "redis_py_6.4.0_verified", "runtime_state": "redis_8.10.1_full_topology_matrix_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-redis-live:redis-8.10.1:full-topology-matrix:20260902"}
+  "provenance": {"purpose": "Redis 8.6.2 reference profile supporting Redis >=8.6.0", "protocol": "resp", "client_state": "redis_py_6.4.0_verified", "runtime_state": "redis_8.10.1_full_topology_matrix_verified", "activation_gate": "passed", "object_experience_gate": "passed", "live_evidence_reference": "cdeadmin-redis-full-topology-live:8.10.1:20260909", "standalone_evidence_sha256": "cfe45155a336699a298956571a47fc955981b7616c213607b800cd945fbc2d71", "replica_evidence_sha256": "722d1e62eba657c570a28eb0561524749847e5da6fe6c58328d5d8f7ef79bcbc", "sentinel_evidence_sha256": "9e0f24f5db4d0cdb6ae3e5d15fcbcc20ce2d9287e3ab5a4f9c6e92bc45387cf6", "cluster_evidence_sha256": "17cb53a3505d690a3e72a665b1205fd0108a69e295f100350d151e9382038afa", "strict_object_evidence_sha256": "ca788e9e64c6cb648faac55dfb927d1c8016d96674b0b8e9b941043dfcf23ce7"}
 }

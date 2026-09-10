@@ -788,6 +788,14 @@ class ProviderVisualAdministration:
             'projection': copy.deepcopy(payload.get('projection')),
             'sort': copy.deepcopy(payload.get('sort')),
         }
+        # Ordered key/value providers expose bounded scans as a native page
+        # primitive.  Preserve those explicit bounds for the provider callback;
+        # the provider remains responsible for validating their encoding and
+        # ordering.  Omitting them here silently broadened a requested scan to
+        # the provider's default range.
+        for field_id in ('start_key', 'end_key'):
+            if field_id in payload:
+                callback_request[field_id] = copy.deepcopy(payload[field_id])
         session_id = payload.get('session_id')
         if session_id is not None:
             session_id = _required_string(session_id, 'session_id')

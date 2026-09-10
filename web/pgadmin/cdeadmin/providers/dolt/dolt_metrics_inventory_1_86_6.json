@@ -1,0 +1,4108 @@
+{
+  "collection_authority": "Dolt 1.86.6 exhaustive SHOW STATUS",
+  "completeness": {
+    "admitted_metric_count": 646,
+    "observation_count": 682,
+    "runtime_version": "1.86.6",
+    "show_status_catalog_exhausted": true
+  },
+  "endpoint_selection": "Every native SHOW STATUS row.",
+  "engine_id": "dolt",
+  "inventory_id": "dolt.metrics-inventory.1.86.6.v1",
+  "observations": [
+    {
+      "description": "Dolt SHOW STATUS variable Aborted_clients.",
+      "native_name": "Aborted_clients",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Aborted_connects.",
+      "native_name": "Aborted_connects",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Acl_cache_items_count.",
+      "native_name": "Acl_cache_items_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_current_size.",
+      "native_name": "Audit_log_current_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_event_max_drop_size.",
+      "native_name": "Audit_log_event_max_drop_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_events.",
+      "native_name": "Audit_log_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_events_filtered.",
+      "native_name": "Audit_log_events_filtered",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_events_lost.",
+      "native_name": "Audit_log_events_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_events_written.",
+      "native_name": "Audit_log_events_written",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_total_size.",
+      "native_name": "Audit_log_total_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Audit_log_write_waits.",
+      "native_name": "Audit_log_write_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Authentication_ldap_sasl_supported_methods.",
+      "native_name": "Authentication_ldap_sasl_supported_methods",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Binlog_cache_disk_use.",
+      "native_name": "Binlog_cache_disk_use",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Binlog_cache_use.",
+      "native_name": "Binlog_cache_use",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Binlog_stmt_cache_disk_use.",
+      "native_name": "Binlog_stmt_cache_disk_use",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Binlog_stmt_cache_use.",
+      "native_name": "Binlog_stmt_cache_use",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Bytes_received.",
+      "native_name": "Bytes_received",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Bytes_sent.",
+      "native_name": "Bytes_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Caching_sha2_password_rsa_public_key.",
+      "native_name": "Caching_sha2_password_rsa_public_key",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_admin_commands.",
+      "native_name": "Com_admin_commands",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_db.",
+      "native_name": "Com_alter_db",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_event.",
+      "native_name": "Com_alter_event",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_function.",
+      "native_name": "Com_alter_function",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_procedure.",
+      "native_name": "Com_alter_procedure",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_resource_group.",
+      "native_name": "Com_alter_resource_group",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_server.",
+      "native_name": "Com_alter_server",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_table.",
+      "native_name": "Com_alter_table",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_tablespace.",
+      "native_name": "Com_alter_tablespace",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_user.",
+      "native_name": "Com_alter_user",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_alter_user_default_role.",
+      "native_name": "Com_alter_user_default_role",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_analyze.",
+      "native_name": "Com_analyze",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_assign_to_keycache.",
+      "native_name": "Com_assign_to_keycache",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_begin.",
+      "native_name": "Com_begin",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_binlog.",
+      "native_name": "Com_binlog",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_call_procedure.",
+      "native_name": "Com_call_procedure",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_change_db.",
+      "native_name": "Com_change_db",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_change_master.",
+      "native_name": "Com_change_master",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_change_repl_filter.",
+      "native_name": "Com_change_repl_filter",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_change_replication_source.",
+      "native_name": "Com_change_replication_source",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_check.",
+      "native_name": "Com_check",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_checksum.",
+      "native_name": "Com_checksum",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_clone.",
+      "native_name": "Com_clone",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_commit.",
+      "native_name": "Com_commit",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_db.",
+      "native_name": "Com_create_db",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_event.",
+      "native_name": "Com_create_event",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_function.",
+      "native_name": "Com_create_function",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_index.",
+      "native_name": "Com_create_index",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_procedure.",
+      "native_name": "Com_create_procedure",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_resource_group.",
+      "native_name": "Com_create_resource_group",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_role.",
+      "native_name": "Com_create_role",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_server.",
+      "native_name": "Com_create_server",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_table.",
+      "native_name": "Com_create_table",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_trigger.",
+      "native_name": "Com_create_trigger",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_udf.",
+      "native_name": "Com_create_udf",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_user.",
+      "native_name": "Com_create_user",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_create_view.",
+      "native_name": "Com_create_view",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_dealloc_sql.",
+      "native_name": "Com_dealloc_sql",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_delete.",
+      "native_name": "Com_delete",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_delete_multi.",
+      "native_name": "Com_delete_multi",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_do.",
+      "native_name": "Com_do",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_db.",
+      "native_name": "Com_drop_db",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_event.",
+      "native_name": "Com_drop_event",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_function.",
+      "native_name": "Com_drop_function",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_index.",
+      "native_name": "Com_drop_index",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_procedure.",
+      "native_name": "Com_drop_procedure",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_resource_group.",
+      "native_name": "Com_drop_resource_group",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_role.",
+      "native_name": "Com_drop_role",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_server.",
+      "native_name": "Com_drop_server",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_table.",
+      "native_name": "Com_drop_table",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_trigger.",
+      "native_name": "Com_drop_trigger",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_user.",
+      "native_name": "Com_drop_user",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_drop_view.",
+      "native_name": "Com_drop_view",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_empty_query.",
+      "native_name": "Com_empty_query",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_execute_sql.",
+      "native_name": "Com_execute_sql",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_explain_other.",
+      "native_name": "Com_explain_other",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_flush.",
+      "native_name": "Com_flush",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_get_diagnostics.",
+      "native_name": "Com_get_diagnostics",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_grant.",
+      "native_name": "Com_grant",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_grant_roles.",
+      "native_name": "Com_grant_roles",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_group_replication_start.",
+      "native_name": "Com_group_replication_start",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_group_replication_stop.",
+      "native_name": "Com_group_replication_stop",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_ha_close.",
+      "native_name": "Com_ha_close",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_ha_open.",
+      "native_name": "Com_ha_open",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_ha_read.",
+      "native_name": "Com_ha_read",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_help.",
+      "native_name": "Com_help",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_insert.",
+      "native_name": "Com_insert",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_insert_select.",
+      "native_name": "Com_insert_select",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_install_component.",
+      "native_name": "Com_install_component",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_install_plugin.",
+      "native_name": "Com_install_plugin",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_kill.",
+      "native_name": "Com_kill",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_load.",
+      "native_name": "Com_load",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_lock_tables.",
+      "native_name": "Com_lock_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_optimize.",
+      "native_name": "Com_optimize",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_preload_keys.",
+      "native_name": "Com_preload_keys",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_prepare_sql.",
+      "native_name": "Com_prepare_sql",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_purge.",
+      "native_name": "Com_purge",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_purge_before_date.",
+      "native_name": "Com_purge_before_date",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_release_savepoint.",
+      "native_name": "Com_release_savepoint",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_rename_table.",
+      "native_name": "Com_rename_table",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_rename_user.",
+      "native_name": "Com_rename_user",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_repair.",
+      "native_name": "Com_repair",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_replace.",
+      "native_name": "Com_replace",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_replace_select.",
+      "native_name": "Com_replace_select",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_replica_start.",
+      "native_name": "Com_replica_start",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_replica_stop.",
+      "native_name": "Com_replica_stop",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_reset.",
+      "native_name": "Com_reset",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_resignal.",
+      "native_name": "Com_resignal",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_restart.",
+      "native_name": "Com_restart",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_revoke.",
+      "native_name": "Com_revoke",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_revoke_all.",
+      "native_name": "Com_revoke_all",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_revoke_roles.",
+      "native_name": "Com_revoke_roles",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_rollback.",
+      "native_name": "Com_rollback",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_rollback_to_savepoint.",
+      "native_name": "Com_rollback_to_savepoint",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_savepoint.",
+      "native_name": "Com_savepoint",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_select.",
+      "native_name": "Com_select",
+      "observed_value": "2",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_set_option.",
+      "native_name": "Com_set_option",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_set_resource_group.",
+      "native_name": "Com_set_resource_group",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_set_role.",
+      "native_name": "Com_set_role",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_authors.",
+      "native_name": "Com_show_authors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_binlog_events.",
+      "native_name": "Com_show_binlog_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_binlogs.",
+      "native_name": "Com_show_binlogs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_charsets.",
+      "native_name": "Com_show_charsets",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_collations.",
+      "native_name": "Com_show_collations",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_contributors.",
+      "native_name": "Com_show_contributors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_db.",
+      "native_name": "Com_show_create_db",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_event.",
+      "native_name": "Com_show_create_event",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_func.",
+      "native_name": "Com_show_create_func",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_proc.",
+      "native_name": "Com_show_create_proc",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_table.",
+      "native_name": "Com_show_create_table",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_trigger.",
+      "native_name": "Com_show_create_trigger",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_create_user.",
+      "native_name": "Com_show_create_user",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_databases.",
+      "native_name": "Com_show_databases",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_engine_logs.",
+      "native_name": "Com_show_engine_logs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_engine_mutex.",
+      "native_name": "Com_show_engine_mutex",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_engine_status.",
+      "native_name": "Com_show_engine_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_errors.",
+      "native_name": "Com_show_errors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_events.",
+      "native_name": "Com_show_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_fields.",
+      "native_name": "Com_show_fields",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_function_code.",
+      "native_name": "Com_show_function_code",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_function_status.",
+      "native_name": "Com_show_function_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_grants.",
+      "native_name": "Com_show_grants",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_keys.",
+      "native_name": "Com_show_keys",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_master_status.",
+      "native_name": "Com_show_master_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_ndb_status.",
+      "native_name": "Com_show_ndb_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_open_tables.",
+      "native_name": "Com_show_open_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_plugins.",
+      "native_name": "Com_show_plugins",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_privileges.",
+      "native_name": "Com_show_privileges",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_procedure_code.",
+      "native_name": "Com_show_procedure_code",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_procedure_status.",
+      "native_name": "Com_show_procedure_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_processlist.",
+      "native_name": "Com_show_processlist",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_profile.",
+      "native_name": "Com_show_profile",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_profiles.",
+      "native_name": "Com_show_profiles",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_relaylog_events.",
+      "native_name": "Com_show_relaylog_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_replica_status.",
+      "native_name": "Com_show_replica_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_replicas.",
+      "native_name": "Com_show_replicas",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_slave_hosts.",
+      "native_name": "Com_show_slave_hosts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_slave_status.",
+      "native_name": "Com_show_slave_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_status.",
+      "native_name": "Com_show_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_storage_engines.",
+      "native_name": "Com_show_storage_engines",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_table_status.",
+      "native_name": "Com_show_table_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_tables.",
+      "native_name": "Com_show_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_triggers.",
+      "native_name": "Com_show_triggers",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_variables.",
+      "native_name": "Com_show_variables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_show_warnings.",
+      "native_name": "Com_show_warnings",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_shutdown.",
+      "native_name": "Com_shutdown",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_signal.",
+      "native_name": "Com_signal",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_slave_start.",
+      "native_name": "Com_slave_start",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_slave_stop.",
+      "native_name": "Com_slave_stop",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_close.",
+      "native_name": "Com_stmt_close",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_execute.",
+      "native_name": "Com_stmt_execute",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_fetch.",
+      "native_name": "Com_stmt_fetch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_prepare.",
+      "native_name": "Com_stmt_prepare",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_reprepare.",
+      "native_name": "Com_stmt_reprepare",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_reset.",
+      "native_name": "Com_stmt_reset",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_stmt_send_long_data.",
+      "native_name": "Com_stmt_send_long_data",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_truncate.",
+      "native_name": "Com_truncate",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_uninstall_component.",
+      "native_name": "Com_uninstall_component",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_uninstall_plugin.",
+      "native_name": "Com_uninstall_plugin",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_unlock_tables.",
+      "native_name": "Com_unlock_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_update.",
+      "native_name": "Com_update",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_update_multi.",
+      "native_name": "Com_update_multi",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_commit.",
+      "native_name": "Com_xa_commit",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_end.",
+      "native_name": "Com_xa_end",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_prepare.",
+      "native_name": "Com_xa_prepare",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_recover.",
+      "native_name": "Com_xa_recover",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_rollback.",
+      "native_name": "Com_xa_rollback",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Com_xa_start.",
+      "native_name": "Com_xa_start",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Compression.",
+      "native_name": "Compression",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Compression_algorithm.",
+      "native_name": "Compression_algorithm",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Compression_level.",
+      "native_name": "Compression_level",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_control_delay_generated.",
+      "native_name": "Connection_control_delay_generated",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_accept.",
+      "native_name": "Connection_errors_accept",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_internal.",
+      "native_name": "Connection_errors_internal",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_max_connections.",
+      "native_name": "Connection_errors_max_connections",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_peer_address.",
+      "native_name": "Connection_errors_peer_address",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_select.",
+      "native_name": "Connection_errors_select",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connection_errors_tcpwrap.",
+      "native_name": "Connection_errors_tcpwrap",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Connections.",
+      "native_name": "Connections",
+      "observed_value": "5",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Created_tmp_disk_tables.",
+      "native_name": "Created_tmp_disk_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Created_tmp_files.",
+      "native_name": "Created_tmp_files",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Created_tmp_tables.",
+      "native_name": "Created_tmp_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_ca.",
+      "native_name": "Current_tls_ca",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_capath.",
+      "native_name": "Current_tls_capath",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_cert.",
+      "native_name": "Current_tls_cert",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_cipher.",
+      "native_name": "Current_tls_cipher",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_ciphersuites.",
+      "native_name": "Current_tls_ciphersuites",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_crl.",
+      "native_name": "Current_tls_crl",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_crlpath.",
+      "native_name": "Current_tls_crlpath",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_key.",
+      "native_name": "Current_tls_key",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Current_tls_version.",
+      "native_name": "Current_tls_version",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Delayed_errors.",
+      "native_name": "Delayed_errors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Delayed_insert_threads.",
+      "native_name": "Delayed_insert_threads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Delayed_writes.",
+      "native_name": "Delayed_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Error_log_buffered_bytes.",
+      "native_name": "Error_log_buffered_bytes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Error_log_buffered_events.",
+      "native_name": "Error_log_buffered_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Error_log_expired_events.",
+      "native_name": "Error_log_expired_events",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Error_log_latest_write.",
+      "native_name": "Error_log_latest_write",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Firewall_access_denied.",
+      "native_name": "Firewall_access_denied",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Firewall_access_granted.",
+      "native_name": "Firewall_access_granted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Firewall_cached_entries.",
+      "native_name": "Firewall_cached_entries",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Flush_commands.",
+      "native_name": "Flush_commands",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Global_connection_memory.",
+      "native_name": "Global_connection_memory",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_commit.",
+      "native_name": "Handler_commit",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_delete.",
+      "native_name": "Handler_delete",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_discover.",
+      "native_name": "Handler_discover",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_external_lock.",
+      "native_name": "Handler_external_lock",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_mrr_init.",
+      "native_name": "Handler_mrr_init",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_prepare.",
+      "native_name": "Handler_prepare",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_first.",
+      "native_name": "Handler_read_first",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_key.",
+      "native_name": "Handler_read_key",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_last.",
+      "native_name": "Handler_read_last",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_next.",
+      "native_name": "Handler_read_next",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_prev.",
+      "native_name": "Handler_read_prev",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_rnd.",
+      "native_name": "Handler_read_rnd",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_read_rnd_next.",
+      "native_name": "Handler_read_rnd_next",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_rollback.",
+      "native_name": "Handler_rollback",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_savepoint.",
+      "native_name": "Handler_savepoint",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_savepoint_rollback.",
+      "native_name": "Handler_savepoint_rollback",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_update.",
+      "native_name": "Handler_update",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Handler_write.",
+      "native_name": "Handler_write",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_bytes_data.",
+      "native_name": "Innodb_buffer_pool_bytes_data",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_bytes_dirty.",
+      "native_name": "Innodb_buffer_pool_bytes_dirty",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_dump_status.",
+      "native_name": "Innodb_buffer_pool_dump_status",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_load_status.",
+      "native_name": "Innodb_buffer_pool_load_status",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_data.",
+      "native_name": "Innodb_buffer_pool_pages_data",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_dirty.",
+      "native_name": "Innodb_buffer_pool_pages_dirty",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_flushed.",
+      "native_name": "Innodb_buffer_pool_pages_flushed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_free.",
+      "native_name": "Innodb_buffer_pool_pages_free",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_latched.",
+      "native_name": "Innodb_buffer_pool_pages_latched",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_misc.",
+      "native_name": "Innodb_buffer_pool_pages_misc",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_pages_total.",
+      "native_name": "Innodb_buffer_pool_pages_total",
+      "observed_value": "1",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_read_ahead.",
+      "native_name": "Innodb_buffer_pool_read_ahead",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_read_ahead_evicted.",
+      "native_name": "Innodb_buffer_pool_read_ahead_evicted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_read_ahead_rnd.",
+      "native_name": "Innodb_buffer_pool_read_ahead_rnd",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_read_requests.",
+      "native_name": "Innodb_buffer_pool_read_requests",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_reads.",
+      "native_name": "Innodb_buffer_pool_reads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_resize_status.",
+      "native_name": "Innodb_buffer_pool_resize_status",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_resize_status_code.",
+      "native_name": "Innodb_buffer_pool_resize_status_code",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_resize_status_progress.",
+      "native_name": "Innodb_buffer_pool_resize_status_progress",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_wait_free.",
+      "native_name": "Innodb_buffer_pool_wait_free",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_buffer_pool_write_requests.",
+      "native_name": "Innodb_buffer_pool_write_requests",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_fsyncs.",
+      "native_name": "Innodb_data_fsyncs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_pending_fsyncs.",
+      "native_name": "Innodb_data_pending_fsyncs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_pending_reads.",
+      "native_name": "Innodb_data_pending_reads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_pending_writes.",
+      "native_name": "Innodb_data_pending_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_read.",
+      "native_name": "Innodb_data_read",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_reads.",
+      "native_name": "Innodb_data_reads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_writes.",
+      "native_name": "Innodb_data_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_data_written.",
+      "native_name": "Innodb_data_written",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_dblwr_pages_written.",
+      "native_name": "Innodb_dblwr_pages_written",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_dblwr_writes.",
+      "native_name": "Innodb_dblwr_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_have_atomic_builtins.",
+      "native_name": "Innodb_have_atomic_builtins",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_log_waits.",
+      "native_name": "Innodb_log_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_log_write_requests.",
+      "native_name": "Innodb_log_write_requests",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_log_writes.",
+      "native_name": "Innodb_log_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_num_open_files.",
+      "native_name": "Innodb_num_open_files",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_os_log_fsyncs.",
+      "native_name": "Innodb_os_log_fsyncs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_os_log_pending_fsyncs.",
+      "native_name": "Innodb_os_log_pending_fsyncs",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_os_log_pending_writes.",
+      "native_name": "Innodb_os_log_pending_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_os_log_written.",
+      "native_name": "Innodb_os_log_written",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_page_size.",
+      "native_name": "Innodb_page_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_pages_created.",
+      "native_name": "Innodb_pages_created",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_pages_read.",
+      "native_name": "Innodb_pages_read",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_pages_written.",
+      "native_name": "Innodb_pages_written",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_capacity_resized.",
+      "native_name": "Innodb_redo_log_capacity_resized",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_checkpoint_lsn.",
+      "native_name": "Innodb_redo_log_checkpoint_lsn",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_current_lsn.",
+      "native_name": "Innodb_redo_log_current_lsn",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_enabled.",
+      "native_name": "Innodb_redo_log_enabled",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_flushed_to_disk_lsn.",
+      "native_name": "Innodb_redo_log_flushed_to_disk_lsn",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_logical_size.",
+      "native_name": "Innodb_redo_log_logical_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_physical_size.",
+      "native_name": "Innodb_redo_log_physical_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_read_only.",
+      "native_name": "Innodb_redo_log_read_only",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_resize_status.",
+      "native_name": "Innodb_redo_log_resize_status",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_redo_log_uuid.",
+      "native_name": "Innodb_redo_log_uuid",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_row_lock_current_waits.",
+      "native_name": "Innodb_row_lock_current_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_row_lock_time.",
+      "native_name": "Innodb_row_lock_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_row_lock_time_avg.",
+      "native_name": "Innodb_row_lock_time_avg",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_row_lock_time_max.",
+      "native_name": "Innodb_row_lock_time_max",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_row_lock_waits.",
+      "native_name": "Innodb_row_lock_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_rows_deleted.",
+      "native_name": "Innodb_rows_deleted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_rows_inserted.",
+      "native_name": "Innodb_rows_inserted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_rows_read.",
+      "native_name": "Innodb_rows_read",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_rows_updated.",
+      "native_name": "Innodb_rows_updated",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_system_rows_deleted.",
+      "native_name": "Innodb_system_rows_deleted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_system_rows_inserted.",
+      "native_name": "Innodb_system_rows_inserted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_system_rows_read.",
+      "native_name": "Innodb_system_rows_read",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_system_rows_updated.",
+      "native_name": "Innodb_system_rows_updated",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_truncated_status_writes.",
+      "native_name": "Innodb_truncated_status_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_undo_tablespaces_active.",
+      "native_name": "Innodb_undo_tablespaces_active",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_undo_tablespaces_explicit.",
+      "native_name": "Innodb_undo_tablespaces_explicit",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_undo_tablespaces_implicit.",
+      "native_name": "Innodb_undo_tablespaces_implicit",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Innodb_undo_tablespaces_total.",
+      "native_name": "Innodb_undo_tablespaces_total",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_blocks_not_flushed.",
+      "native_name": "Key_blocks_not_flushed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_blocks_unused.",
+      "native_name": "Key_blocks_unused",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_blocks_used.",
+      "native_name": "Key_blocks_used",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_read_requests.",
+      "native_name": "Key_read_requests",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_reads.",
+      "native_name": "Key_reads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_write_requests.",
+      "native_name": "Key_write_requests",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Key_writes.",
+      "native_name": "Key_writes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Last_query_cost.",
+      "native_name": "Last_query_cost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Last_query_partial_plans.",
+      "native_name": "Last_query_partial_plans",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Locked_connects.",
+      "native_name": "Locked_connects",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Max_execution_time_exceeded.",
+      "native_name": "Max_execution_time_exceeded",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Max_execution_time_set.",
+      "native_name": "Max_execution_time_set",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Max_execution_time_set_failed.",
+      "native_name": "Max_execution_time_set_failed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Max_used_connections.",
+      "native_name": "Max_used_connections",
+      "observed_value": "1",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Max_used_connections_time.",
+      "native_name": "Max_used_connections_time",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_aborted_clients.",
+      "native_name": "Mysqlx_aborted_clients",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_address.",
+      "native_name": "Mysqlx_address",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_received.",
+      "native_name": "Mysqlx_bytes_received",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_received_compressed_payload.",
+      "native_name": "Mysqlx_bytes_received_compressed_payload",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_received_uncompressed_frame.",
+      "native_name": "Mysqlx_bytes_received_uncompressed_frame",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_sent.",
+      "native_name": "Mysqlx_bytes_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_sent_compressed_payload.",
+      "native_name": "Mysqlx_bytes_sent_compressed_payload",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_bytes_sent_uncompressed_frame.",
+      "native_name": "Mysqlx_bytes_sent_uncompressed_frame",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_compression_algorithm.",
+      "native_name": "Mysqlx_compression_algorithm",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_compression_level.",
+      "native_name": "Mysqlx_compression_level",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_connection_accept_errors.",
+      "native_name": "Mysqlx_connection_accept_errors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_connection_errors.",
+      "native_name": "Mysqlx_connection_errors",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_connections_accepted.",
+      "native_name": "Mysqlx_connections_accepted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_connections_closed.",
+      "native_name": "Mysqlx_connections_closed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_connections_rejected.",
+      "native_name": "Mysqlx_connections_rejected",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_create_view.",
+      "native_name": "Mysqlx_crud_create_view",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_delete.",
+      "native_name": "Mysqlx_crud_delete",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_drop_view.",
+      "native_name": "Mysqlx_crud_drop_view",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_find.",
+      "native_name": "Mysqlx_crud_find",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_insert.",
+      "native_name": "Mysqlx_crud_insert",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_modify_view.",
+      "native_name": "Mysqlx_crud_modify_view",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_crud_update.",
+      "native_name": "Mysqlx_crud_update",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_cursor_close.",
+      "native_name": "Mysqlx_cursor_close",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_cursor_fetch.",
+      "native_name": "Mysqlx_cursor_fetch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_cursor_open.",
+      "native_name": "Mysqlx_cursor_open",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_errors_sent.",
+      "native_name": "Mysqlx_errors_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_errors_unknown_message_type.",
+      "native_name": "Mysqlx_errors_unknown_message_type",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_expect_close.",
+      "native_name": "Mysqlx_expect_close",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_expect_open.",
+      "native_name": "Mysqlx_expect_open",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_init_error.",
+      "native_name": "Mysqlx_init_error",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_messages_sent.",
+      "native_name": "Mysqlx_messages_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_notice_global_sent.",
+      "native_name": "Mysqlx_notice_global_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_notice_other_sent.",
+      "native_name": "Mysqlx_notice_other_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_notice_warning_sent.",
+      "native_name": "Mysqlx_notice_warning_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_notified_by_group_replication.",
+      "native_name": "Mysqlx_notified_by_group_replication",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_port.",
+      "native_name": "Mysqlx_port",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_prep_deallocate.",
+      "native_name": "Mysqlx_prep_deallocate",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_prep_execute.",
+      "native_name": "Mysqlx_prep_execute",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_prep_prepare.",
+      "native_name": "Mysqlx_prep_prepare",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_rows_sent.",
+      "native_name": "Mysqlx_rows_sent",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions.",
+      "native_name": "Mysqlx_sessions",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions_accepted.",
+      "native_name": "Mysqlx_sessions_accepted",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions_closed.",
+      "native_name": "Mysqlx_sessions_closed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions_fatal_error.",
+      "native_name": "Mysqlx_sessions_fatal_error",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions_killed.",
+      "native_name": "Mysqlx_sessions_killed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_sessions_rejected.",
+      "native_name": "Mysqlx_sessions_rejected",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_socket.",
+      "native_name": "Mysqlx_socket",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_accept_renegotiates.",
+      "native_name": "Mysqlx_ssl_accept_renegotiates",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_accepts.",
+      "native_name": "Mysqlx_ssl_accepts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_active.",
+      "native_name": "Mysqlx_ssl_active",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_cipher.",
+      "native_name": "Mysqlx_ssl_cipher",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_cipher_list.",
+      "native_name": "Mysqlx_ssl_cipher_list",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_ctx_verify_depth.",
+      "native_name": "Mysqlx_ssl_ctx_verify_depth",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_ctx_verify_mode.",
+      "native_name": "Mysqlx_ssl_ctx_verify_mode",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_finished_accepts.",
+      "native_name": "Mysqlx_ssl_finished_accepts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_server_not_after.",
+      "native_name": "Mysqlx_ssl_server_not_after",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_server_not_before.",
+      "native_name": "Mysqlx_ssl_server_not_before",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_verify_depth.",
+      "native_name": "Mysqlx_ssl_verify_depth",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_verify_mode.",
+      "native_name": "Mysqlx_ssl_verify_mode",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_ssl_version.",
+      "native_name": "Mysqlx_ssl_version",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_create_collection.",
+      "native_name": "Mysqlx_stmt_create_collection",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_create_collection_index.",
+      "native_name": "Mysqlx_stmt_create_collection_index",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_disable_notices.",
+      "native_name": "Mysqlx_stmt_disable_notices",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_drop_collection.",
+      "native_name": "Mysqlx_stmt_drop_collection",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_drop_collection_index.",
+      "native_name": "Mysqlx_stmt_drop_collection_index",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_enable_notices.",
+      "native_name": "Mysqlx_stmt_enable_notices",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_ensure_collection.",
+      "native_name": "Mysqlx_stmt_ensure_collection",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_execute_mysqlx.",
+      "native_name": "Mysqlx_stmt_execute_mysqlx",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_execute_sql.",
+      "native_name": "Mysqlx_stmt_execute_sql",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_execute_xplugin.",
+      "native_name": "Mysqlx_stmt_execute_xplugin",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_get_collection_options.",
+      "native_name": "Mysqlx_stmt_get_collection_options",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_kill_client.",
+      "native_name": "Mysqlx_stmt_kill_client",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_list_clients.",
+      "native_name": "Mysqlx_stmt_list_clients",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_list_notices.",
+      "native_name": "Mysqlx_stmt_list_notices",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_list_objects.",
+      "native_name": "Mysqlx_stmt_list_objects",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_modify_collection_options.",
+      "native_name": "Mysqlx_stmt_modify_collection_options",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_stmt_ping.",
+      "native_name": "Mysqlx_stmt_ping",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_worker_threads.",
+      "native_name": "Mysqlx_worker_threads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Mysqlx_worker_threads_active.",
+      "native_name": "Mysqlx_worker_threads_active",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_deferred_count.",
+      "native_name": "Ndb_api_adaptive_send_deferred_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_deferred_count_replica.",
+      "native_name": "Ndb_api_adaptive_send_deferred_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_deferred_count_session.",
+      "native_name": "Ndb_api_adaptive_send_deferred_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_deferred_count_slave.",
+      "native_name": "Ndb_api_adaptive_send_deferred_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_forced_count.",
+      "native_name": "Ndb_api_adaptive_send_forced_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_forced_count_replica.",
+      "native_name": "Ndb_api_adaptive_send_forced_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_forced_count_session.",
+      "native_name": "Ndb_api_adaptive_send_forced_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_forced_count_slave.",
+      "native_name": "Ndb_api_adaptive_send_forced_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_unforced_count.",
+      "native_name": "Ndb_api_adaptive_send_unforced_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_unforced_count_replica.",
+      "native_name": "Ndb_api_adaptive_send_unforced_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_unforced_count_session.",
+      "native_name": "Ndb_api_adaptive_send_unforced_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_adaptive_send_unforced_count_slave.",
+      "native_name": "Ndb_api_adaptive_send_unforced_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_received_count.",
+      "native_name": "Ndb_api_bytes_received_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_received_count_replica.",
+      "native_name": "Ndb_api_bytes_received_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_received_count_session.",
+      "native_name": "Ndb_api_bytes_received_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_received_count_slave.",
+      "native_name": "Ndb_api_bytes_received_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_sent_count.",
+      "native_name": "Ndb_api_bytes_sent_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_sent_count_replica.",
+      "native_name": "Ndb_api_bytes_sent_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_sent_count_session.",
+      "native_name": "Ndb_api_bytes_sent_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_bytes_sent_count_slave.",
+      "native_name": "Ndb_api_bytes_sent_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_bytes_count.",
+      "native_name": "Ndb_api_event_bytes_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_bytes_count_injector.",
+      "native_name": "Ndb_api_event_bytes_count_injector",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_data_count.",
+      "native_name": "Ndb_api_event_data_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_data_count_injector.",
+      "native_name": "Ndb_api_event_data_count_injector",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_nondata_count.",
+      "native_name": "Ndb_api_event_nondata_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_event_nondata_count_injector.",
+      "native_name": "Ndb_api_event_nondata_count_injector",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pk_op_count.",
+      "native_name": "Ndb_api_pk_op_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pk_op_count_replica.",
+      "native_name": "Ndb_api_pk_op_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pk_op_count_session.",
+      "native_name": "Ndb_api_pk_op_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pk_op_count_slave.",
+      "native_name": "Ndb_api_pk_op_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pruned_scan_count.",
+      "native_name": "Ndb_api_pruned_scan_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pruned_scan_count_replica.",
+      "native_name": "Ndb_api_pruned_scan_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pruned_scan_count_session.",
+      "native_name": "Ndb_api_pruned_scan_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_pruned_scan_count_slave.",
+      "native_name": "Ndb_api_pruned_scan_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_range_scan_count.",
+      "native_name": "Ndb_api_range_scan_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_range_scan_count_replica.",
+      "native_name": "Ndb_api_range_scan_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_range_scan_count_session.",
+      "native_name": "Ndb_api_range_scan_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_range_scan_count_slave.",
+      "native_name": "Ndb_api_range_scan_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_read_row_count.",
+      "native_name": "Ndb_api_read_row_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_read_row_count_replica.",
+      "native_name": "Ndb_api_read_row_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_read_row_count_session.",
+      "native_name": "Ndb_api_read_row_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_read_row_count_slave.",
+      "native_name": "Ndb_api_read_row_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_scan_batch_count.",
+      "native_name": "Ndb_api_scan_batch_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_scan_batch_count_replica.",
+      "native_name": "Ndb_api_scan_batch_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_scan_batch_count_session.",
+      "native_name": "Ndb_api_scan_batch_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_scan_batch_count_slave.",
+      "native_name": "Ndb_api_scan_batch_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_table_scan_count.",
+      "native_name": "Ndb_api_table_scan_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_table_scan_count_replica.",
+      "native_name": "Ndb_api_table_scan_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_table_scan_count_session.",
+      "native_name": "Ndb_api_table_scan_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_table_scan_count_slave.",
+      "native_name": "Ndb_api_table_scan_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_abort_count.",
+      "native_name": "Ndb_api_trans_abort_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_abort_count_replica.",
+      "native_name": "Ndb_api_trans_abort_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_abort_count_session.",
+      "native_name": "Ndb_api_trans_abort_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_abort_count_slave.",
+      "native_name": "Ndb_api_trans_abort_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_close_count.",
+      "native_name": "Ndb_api_trans_close_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_close_count_replica.",
+      "native_name": "Ndb_api_trans_close_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_close_count_session.",
+      "native_name": "Ndb_api_trans_close_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_close_count_slave.",
+      "native_name": "Ndb_api_trans_close_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_commit_count.",
+      "native_name": "Ndb_api_trans_commit_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_commit_count_replica.",
+      "native_name": "Ndb_api_trans_commit_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_commit_count_session.",
+      "native_name": "Ndb_api_trans_commit_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_commit_count_slave.",
+      "native_name": "Ndb_api_trans_commit_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_local_read_row_count.",
+      "native_name": "Ndb_api_trans_local_read_row_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_local_read_row_count_replica.",
+      "native_name": "Ndb_api_trans_local_read_row_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_local_read_row_count_session.",
+      "native_name": "Ndb_api_trans_local_read_row_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_local_read_row_count_slave.",
+      "native_name": "Ndb_api_trans_local_read_row_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_start_count.",
+      "native_name": "Ndb_api_trans_start_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_start_count_replica.",
+      "native_name": "Ndb_api_trans_start_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_start_count_session.",
+      "native_name": "Ndb_api_trans_start_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_trans_start_count_slave.",
+      "native_name": "Ndb_api_trans_start_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_uk_op_count.",
+      "native_name": "Ndb_api_uk_op_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_uk_op_count_replica.",
+      "native_name": "Ndb_api_uk_op_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_uk_op_count_session.",
+      "native_name": "Ndb_api_uk_op_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_uk_op_count_slave.",
+      "native_name": "Ndb_api_uk_op_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_exec_complete_count.",
+      "native_name": "Ndb_api_wait_exec_complete_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_exec_complete_count_replica.",
+      "native_name": "Ndb_api_wait_exec_complete_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_exec_complete_count_session.",
+      "native_name": "Ndb_api_wait_exec_complete_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_exec_complete_count_slave.",
+      "native_name": "Ndb_api_wait_exec_complete_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_meta_request_count.",
+      "native_name": "Ndb_api_wait_meta_request_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_meta_request_count_replica.",
+      "native_name": "Ndb_api_wait_meta_request_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_meta_request_count_session.",
+      "native_name": "Ndb_api_wait_meta_request_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_meta_request_count_slave.",
+      "native_name": "Ndb_api_wait_meta_request_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_nanos_count.",
+      "native_name": "Ndb_api_wait_nanos_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_nanos_count_replica.",
+      "native_name": "Ndb_api_wait_nanos_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_nanos_count_session.",
+      "native_name": "Ndb_api_wait_nanos_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_nanos_count_slave.",
+      "native_name": "Ndb_api_wait_nanos_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_scan_result_count.",
+      "native_name": "Ndb_api_wait_scan_result_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_scan_result_count_replica.",
+      "native_name": "Ndb_api_wait_scan_result_count_replica",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_scan_result_count_session.",
+      "native_name": "Ndb_api_wait_scan_result_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_api_wait_scan_result_count_slave.",
+      "native_name": "Ndb_api_wait_scan_result_count_slave",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_cluster_node_id.",
+      "native_name": "Ndb_cluster_node_id",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_config_from_host.",
+      "native_name": "Ndb_config_from_host",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_config_from_port.",
+      "native_name": "Ndb_config_from_port",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_config_generation.",
+      "native_name": "Ndb_config_generation",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_epoch.",
+      "native_name": "Ndb_conflict_fn_epoch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_epoch2.",
+      "native_name": "Ndb_conflict_fn_epoch2",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_epoch2_trans.",
+      "native_name": "Ndb_conflict_fn_epoch2_trans",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_epoch_trans.",
+      "native_name": "Ndb_conflict_fn_epoch_trans",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_max.",
+      "native_name": "Ndb_conflict_fn_max",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_max_del_win.",
+      "native_name": "Ndb_conflict_fn_max_del_win",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_max_del_win_ins.",
+      "native_name": "Ndb_conflict_fn_max_del_win_ins",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_max_ins.",
+      "native_name": "Ndb_conflict_fn_max_ins",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_fn_old.",
+      "native_name": "Ndb_conflict_fn_old",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_last_conflict_epoch.",
+      "native_name": "Ndb_conflict_last_conflict_epoch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_last_stable_epoch.",
+      "native_name": "Ndb_conflict_last_stable_epoch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_reflected_op_discard_count.",
+      "native_name": "Ndb_conflict_reflected_op_discard_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_reflected_op_prepare_count.",
+      "native_name": "Ndb_conflict_reflected_op_prepare_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_refresh_op_count.",
+      "native_name": "Ndb_conflict_refresh_op_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_trans_conflict_commit_count.",
+      "native_name": "Ndb_conflict_trans_conflict_commit_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_trans_detect_iter_count.",
+      "native_name": "Ndb_conflict_trans_detect_iter_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_trans_reject_count.",
+      "native_name": "Ndb_conflict_trans_reject_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_trans_row_conflict_count.",
+      "native_name": "Ndb_conflict_trans_row_conflict_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_conflict_trans_row_reject_count.",
+      "native_name": "Ndb_conflict_trans_row_reject_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_epoch_delete_delete_count.",
+      "native_name": "Ndb_epoch_delete_delete_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_execute_count.",
+      "native_name": "Ndb_execute_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_last_commit_epoch_server.",
+      "native_name": "Ndb_last_commit_epoch_server",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_last_commit_epoch_session.",
+      "native_name": "Ndb_last_commit_epoch_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_metadata_blacklist_size.",
+      "native_name": "Ndb_metadata_blacklist_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_metadata_detected_count.",
+      "native_name": "Ndb_metadata_detected_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_metadata_excluded_count.",
+      "native_name": "Ndb_metadata_excluded_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_metadata_synced_count.",
+      "native_name": "Ndb_metadata_synced_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_number_of_data_nodes.",
+      "native_name": "Ndb_number_of_data_nodes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_pruned_scan_count.",
+      "native_name": "Ndb_pruned_scan_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_pushed_queries_defined.",
+      "native_name": "Ndb_pushed_queries_defined",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_pushed_queries_dropped.",
+      "native_name": "Ndb_pushed_queries_dropped",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_pushed_queries_executed.",
+      "native_name": "Ndb_pushed_queries_executed",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_pushed_reads.",
+      "native_name": "Ndb_pushed_reads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_scan_count.",
+      "native_name": "Ndb_scan_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_slave_max_replicated_epoch.",
+      "native_name": "Ndb_slave_max_replicated_epoch",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ndb_trans_hint_count_session.",
+      "native_name": "Ndb_trans_hint_count_session",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Not_flushed_delayed_rows.",
+      "native_name": "Not_flushed_delayed_rows",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ongoing_anonymous_gtid_violating_transaction_count.",
+      "native_name": "Ongoing_anonymous_gtid_violating_transaction_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ongoing_anonymous_transaction_count.",
+      "native_name": "Ongoing_anonymous_transaction_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ongoing_automatic_gtid_violating_transaction_count.",
+      "native_name": "Ongoing_automatic_gtid_violating_transaction_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Open_files.",
+      "native_name": "Open_files",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Open_streams.",
+      "native_name": "Open_streams",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Open_table_definitions.",
+      "native_name": "Open_table_definitions",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Open_tables.",
+      "native_name": "Open_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Opened_files.",
+      "native_name": "Opened_files",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Opened_table_definitions.",
+      "native_name": "Opened_table_definitions",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Opened_tables.",
+      "native_name": "Opened_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_accounts_lost.",
+      "native_name": "Performance_schema_accounts_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_cond_classes_lost.",
+      "native_name": "Performance_schema_cond_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_cond_instances_lost.",
+      "native_name": "Performance_schema_cond_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_digest_lost.",
+      "native_name": "Performance_schema_digest_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_file_classes_lost.",
+      "native_name": "Performance_schema_file_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_file_handles_lost.",
+      "native_name": "Performance_schema_file_handles_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_file_instances_lost.",
+      "native_name": "Performance_schema_file_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_hosts_lost.",
+      "native_name": "Performance_schema_hosts_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_index_stat_lost.",
+      "native_name": "Performance_schema_index_stat_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_locker_lost.",
+      "native_name": "Performance_schema_locker_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_memory_classes_lost.",
+      "native_name": "Performance_schema_memory_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_metadata_lock_lost.",
+      "native_name": "Performance_schema_metadata_lock_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_mutex_classes_lost.",
+      "native_name": "Performance_schema_mutex_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_mutex_instances_lost.",
+      "native_name": "Performance_schema_mutex_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_nested_statement_lost.",
+      "native_name": "Performance_schema_nested_statement_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_prepared_statements_lost.",
+      "native_name": "Performance_schema_prepared_statements_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_program_lost.",
+      "native_name": "Performance_schema_program_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_rwlock_classes_lost.",
+      "native_name": "Performance_schema_rwlock_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_rwlock_instances_lost.",
+      "native_name": "Performance_schema_rwlock_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_session_connect_attrs_longest_seen.",
+      "native_name": "Performance_schema_session_connect_attrs_longest_seen",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_session_connect_attrs_lost.",
+      "native_name": "Performance_schema_session_connect_attrs_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_socket_classes_lost.",
+      "native_name": "Performance_schema_socket_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_socket_instances_lost.",
+      "native_name": "Performance_schema_socket_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_stage_classes_lost.",
+      "native_name": "Performance_schema_stage_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_statement_classes_lost.",
+      "native_name": "Performance_schema_statement_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_table_handles_lost.",
+      "native_name": "Performance_schema_table_handles_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_table_instances_lost.",
+      "native_name": "Performance_schema_table_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_table_lock_stat_lost.",
+      "native_name": "Performance_schema_table_lock_stat_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_thread_classes_lost.",
+      "native_name": "Performance_schema_thread_classes_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_thread_instances_lost.",
+      "native_name": "Performance_schema_thread_instances_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Performance_schema_users_lost.",
+      "native_name": "Performance_schema_users_lost",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Prepared_stmt_count.",
+      "native_name": "Prepared_stmt_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Queries.",
+      "native_name": "Queries",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Questions.",
+      "native_name": "Questions",
+      "observed_value": "6",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Replica_open_temp_tables.",
+      "native_name": "Replica_open_temp_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Replica_rows_last_search_algorithm_used.",
+      "native_name": "Replica_rows_last_search_algorithm_used",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Resource_group_supported.",
+      "native_name": "Resource_group_supported",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rewriter_number_loaded_rules.",
+      "native_name": "Rewriter_number_loaded_rules",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rewriter_number_reloads.",
+      "native_name": "Rewriter_number_reloads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rewriter_number_rewritten_queries.",
+      "native_name": "Rewriter_number_rewritten_queries",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rewriter_reload_error.",
+      "native_name": "Rewriter_reload_error",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_clients.",
+      "native_name": "Rpl_semi_sync_master_clients",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_net_avg_wait_time.",
+      "native_name": "Rpl_semi_sync_master_net_avg_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_net_wait_time.",
+      "native_name": "Rpl_semi_sync_master_net_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_net_waits.",
+      "native_name": "Rpl_semi_sync_master_net_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_no_times.",
+      "native_name": "Rpl_semi_sync_master_no_times",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_no_tx.",
+      "native_name": "Rpl_semi_sync_master_no_tx",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_status.",
+      "native_name": "Rpl_semi_sync_master_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_timefunc_failures.",
+      "native_name": "Rpl_semi_sync_master_timefunc_failures",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_tx_avg_wait_time.",
+      "native_name": "Rpl_semi_sync_master_tx_avg_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_tx_wait_time.",
+      "native_name": "Rpl_semi_sync_master_tx_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_tx_waits.",
+      "native_name": "Rpl_semi_sync_master_tx_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_wait_pos_backtraverse.",
+      "native_name": "Rpl_semi_sync_master_wait_pos_backtraverse",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_wait_sessions.",
+      "native_name": "Rpl_semi_sync_master_wait_sessions",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_master_yes_tx.",
+      "native_name": "Rpl_semi_sync_master_yes_tx",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_replica_status.",
+      "native_name": "Rpl_semi_sync_replica_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_slave_status.",
+      "native_name": "Rpl_semi_sync_slave_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_clients.",
+      "native_name": "Rpl_semi_sync_source_clients",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_net_avg_wait_time.",
+      "native_name": "Rpl_semi_sync_source_net_avg_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_net_wait_time.",
+      "native_name": "Rpl_semi_sync_source_net_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_net_waits.",
+      "native_name": "Rpl_semi_sync_source_net_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_no_times.",
+      "native_name": "Rpl_semi_sync_source_no_times",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_no_tx.",
+      "native_name": "Rpl_semi_sync_source_no_tx",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_status.",
+      "native_name": "Rpl_semi_sync_source_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_timefunc_failures.",
+      "native_name": "Rpl_semi_sync_source_timefunc_failures",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_tx_avg_wait_time.",
+      "native_name": "Rpl_semi_sync_source_tx_avg_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_tx_wait_time.",
+      "native_name": "Rpl_semi_sync_source_tx_wait_time",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_tx_waits.",
+      "native_name": "Rpl_semi_sync_source_tx_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_wait_pos_backtraverse.",
+      "native_name": "Rpl_semi_sync_source_wait_pos_backtraverse",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_wait_sessions.",
+      "native_name": "Rpl_semi_sync_source_wait_sessions",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rpl_semi_sync_source_yes_tx.",
+      "native_name": "Rpl_semi_sync_source_yes_tx",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Rsa_public_key.",
+      "native_name": "Rsa_public_key",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Secondary_engine_execution_count.",
+      "native_name": "Secondary_engine_execution_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Select_full_join.",
+      "native_name": "Select_full_join",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Select_full_range_join.",
+      "native_name": "Select_full_range_join",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Select_range.",
+      "native_name": "Select_range",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Select_range_check.",
+      "native_name": "Select_range_check",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Select_scan.",
+      "native_name": "Select_scan",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Slave_open_temp_tables.",
+      "native_name": "Slave_open_temp_tables",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Slave_rows_last_search_algorithm_used.",
+      "native_name": "Slave_rows_last_search_algorithm_used",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Slow_launch_threads.",
+      "native_name": "Slow_launch_threads",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Slow_queries.",
+      "native_name": "Slow_queries",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Sort_merge_passes.",
+      "native_name": "Sort_merge_passes",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Sort_range.",
+      "native_name": "Sort_range",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Sort_rows.",
+      "native_name": "Sort_rows",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Sort_scan.",
+      "native_name": "Sort_scan",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_accept_renegotiates.",
+      "native_name": "Ssl_accept_renegotiates",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_accepts.",
+      "native_name": "Ssl_accepts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_callback_cache_hits.",
+      "native_name": "Ssl_callback_cache_hits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_cipher.",
+      "native_name": "Ssl_cipher",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_cipher_list.",
+      "native_name": "Ssl_cipher_list",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_client_connects.",
+      "native_name": "Ssl_client_connects",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_connect_renegotiates.",
+      "native_name": "Ssl_connect_renegotiates",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_ctx_verify_depth.",
+      "native_name": "Ssl_ctx_verify_depth",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_ctx_verify_mode.",
+      "native_name": "Ssl_ctx_verify_mode",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_default_timeout.",
+      "native_name": "Ssl_default_timeout",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_finished_accepts.",
+      "native_name": "Ssl_finished_accepts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_finished_connects.",
+      "native_name": "Ssl_finished_connects",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_server_not_after.",
+      "native_name": "Ssl_server_not_after",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_server_not_before.",
+      "native_name": "Ssl_server_not_before",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_hits.",
+      "native_name": "Ssl_session_cache_hits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_misses.",
+      "native_name": "Ssl_session_cache_misses",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_mode.",
+      "native_name": "Ssl_session_cache_mode",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_overflows.",
+      "native_name": "Ssl_session_cache_overflows",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_size.",
+      "native_name": "Ssl_session_cache_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_timeout.",
+      "native_name": "Ssl_session_cache_timeout",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_session_cache_timeouts.",
+      "native_name": "Ssl_session_cache_timeouts",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_sessions_reused.",
+      "native_name": "Ssl_sessions_reused",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_used_session_cache_entries.",
+      "native_name": "Ssl_used_session_cache_entries",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_verify_depth.",
+      "native_name": "Ssl_verify_depth",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_verify_mode.",
+      "native_name": "Ssl_verify_mode",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Ssl_version.",
+      "native_name": "Ssl_version",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Table_locks_immediate.",
+      "native_name": "Table_locks_immediate",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Table_locks_waited.",
+      "native_name": "Table_locks_waited",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Table_open_cache_hits.",
+      "native_name": "Table_open_cache_hits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Table_open_cache_misses.",
+      "native_name": "Table_open_cache_misses",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Table_open_cache_overflows.",
+      "native_name": "Table_open_cache_overflows",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Tc_log_max_pages_used.",
+      "native_name": "Tc_log_max_pages_used",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Tc_log_page_size.",
+      "native_name": "Tc_log_page_size",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Tc_log_page_waits.",
+      "native_name": "Tc_log_page_waits",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Telemetry_traces_supported.",
+      "native_name": "Telemetry_traces_supported",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Threads_cached.",
+      "native_name": "Threads_cached",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Threads_connected.",
+      "native_name": "Threads_connected",
+      "observed_value": "1",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Threads_created.",
+      "native_name": "Threads_created",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Threads_running.",
+      "native_name": "Threads_running",
+      "observed_value": "1",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Tls_library_version.",
+      "native_name": "Tls_library_version",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Uptime.",
+      "native_name": "Uptime",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable Uptime_since_flush_status.",
+      "native_name": "Uptime_since_flush_status",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable dragnet.Status.",
+      "native_name": "dragnet.Status",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable group_replication_primary_member.",
+      "native_name": "group_replication_primary_member",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable mecab_charset.",
+      "native_name": "mecab_charset",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable validate_password.dictionary_file_last_parsed.",
+      "native_name": "validate_password.dictionary_file_last_parsed",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable validate_password.dictionary_file_words_count.",
+      "native_name": "validate_password.dictionary_file_words_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable validate_password_dictionary_file_last_parsed.",
+      "native_name": "validate_password_dictionary_file_last_parsed",
+      "observed_value": "",
+      "observed_value_type": "text"
+    },
+    {
+      "description": "Dolt SHOW STATUS variable validate_password_dictionary_file_words_count.",
+      "native_name": "validate_password_dictionary_file_words_count",
+      "observed_value": "0",
+      "observed_value_type": "number"
+    }
+  ],
+  "reference_version": "1.86.6",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

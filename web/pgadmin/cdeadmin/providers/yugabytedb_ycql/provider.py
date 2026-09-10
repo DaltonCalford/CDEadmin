@@ -29,6 +29,7 @@ PROFILE = PilotProfile(
     resource_kinds=(
         'cluster', 'datacenter', 'node', 'keyspace', 'table', 'column',
         'index', 'user-defined-type', 'role', 'permission', 'query',
+        'tracing-session', 'shell',
     ),
     admin_tools=('ycqlsh',),
     required_permissions=('network', 'secret_read'),
@@ -39,6 +40,19 @@ PROFILE = PilotProfile(
     result_records_field='rows',
     result_export_formats=('csv', 'json', 'jsonl'),
     result_worker_required=True,
+    dialect_contract_id=(
+        'yugabytedb.ycql-dialect.2025.2.2.2.v1'
+    ),
+    dialect_evidence=(
+        'yugabytedb-2025.2.2.2-ycql-source-parser-inventory',
+        'yugabytedb-2025.2.2.2-ycql-native-task-live-execution',
+    ),
+    dialect_contract_file=(
+        'yugabytedb_ycql_dialect_2025_2_2_2.json'
+    ),
+    metrics_contract_file=(
+        'yugabytedb_ycql_metrics_2025_2_2_2.json'
+    ),
 )
 
 

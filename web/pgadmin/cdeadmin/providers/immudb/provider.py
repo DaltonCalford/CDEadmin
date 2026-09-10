@@ -46,9 +46,23 @@ PROFILE = PilotProfile(
     ),
     ('immuadmin', 'immuclient', 'proof-verifier', 'hot-backup'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'immudb-sql', 'quote_open': '"',
         'quote_close': '"', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (),
+        'window_operations': (
+            'lag', 'delta', 'percent_change', 'rank', 'dense_rank',
+        ),
     },
+    dialect_contract_id='immudb.dialect.1.11.0.v1',
+    dialect_evidence=(
+        'immudb-1.11.0-source-pinned-parser-and-runtime-inventory',
+        'immudb-1.11.0-native-task-live-execution',
+    ),
+    dialect_contract_file='immudb_dialect_1_11_0.json',
+    metrics_contract_file='immudb_metrics_1_11_0.json',
 )
 
 
@@ -952,6 +966,11 @@ def _compile_control(request):
             ),
             'operation': f'{kind}.{operation}',
             'provider_constructed': True,
+            **({
+                'source': f'DROP USER {username}',
+                'parameter_count': 0,
+                'parameters_redacted': False,
+            } if kind == 'user' and operation == 'drop' else {}),
             'sensitive_values_redacted': kind in {
                 'user', 'key', 'document',
             } or bool(

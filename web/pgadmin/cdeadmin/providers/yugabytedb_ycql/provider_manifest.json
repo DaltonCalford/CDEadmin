@@ -2,10 +2,10 @@
   "identity": {
     "contract_version": "1.1.0",
     "provider_id": "org.cdeadmin.yugabytedb.ycql",
-    "provider_version": "0.1.0",
+    "provider_version": "0.2.0",
     "profile_id": "yugabytedb-ycql",
     "profile_version": "2025.2.2.2",
-    "evidence_reference": "cdeadmin-yugabytedb-ycql-full-live:20260904"
+    "evidence_reference": "cdeadmin-yugabytedb-ycql-exact-live:2025.2.2.2:20260910"
   },
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
@@ -20,7 +20,8 @@
     {"permission_id": "data_read", "granted": true, "scope": ["endpoint", "resource"]},
     {"permission_id": "data_write", "granted": true, "scope": ["endpoint", "resource"]},
     {"permission_id": "administer", "granted": true, "scope": ["endpoint", "resource"]},
-    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]}
+    {"permission_id": "execute", "granted": true, "scope": ["endpoint"]},
+    {"permission_id": "filesystem", "granted": true, "scope": ["endpoint", "resource"]}
   ],
   "required_permissions": ["network", "secret_read"],
   "composition": {"experience_families": ["yugabytedb-ycql"], "target_adapter_ids": ["ycql-cassandra-driver"]},
@@ -56,8 +57,9 @@
       {"field_id": "consistency", "route_key": "consistency", "label": "Default consistency", "control": "select", "group": "YugabyteDB YCQL consistency", "default": "LOCAL_ONE", "options": [{"value": "ONE", "label": "ONE"}, {"value": "TWO", "label": "TWO"}, {"value": "THREE", "label": "THREE"}, {"value": "QUORUM", "label": "QUORUM"}, {"value": "ALL", "label": "ALL"}, {"value": "LOCAL_QUORUM", "label": "LOCAL_QUORUM"}, {"value": "EACH_QUORUM", "label": "EACH_QUORUM"}, {"value": "LOCAL_ONE", "label": "LOCAL_ONE"}]},
       {"field_id": "serial_consistency", "route_key": "serial_consistency", "label": "Serial consistency", "control": "select", "group": "YugabyteDB YCQL consistency", "default": "LOCAL_SERIAL", "options": [{"value": "SERIAL", "label": "SERIAL"}, {"value": "LOCAL_SERIAL", "label": "LOCAL_SERIAL"}]},
       {"field_id": "request_timeout", "route_key": "request_timeout", "label": "Request timeout (seconds)", "control": "number", "group": "YugabyteDB YCQL timeouts", "default": 30, "minimum": 1, "maximum": 600},
-      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "YugabyteDB YCQL timeouts", "default": 10, "minimum": 1, "maximum": 120}
+      {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "YugabyteDB YCQL timeouts", "default": 10, "minimum": 1, "maximum": 120},
+      {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "YCQL shell workspace", "control": "text", "group": "YugabyteDB YCQL tools", "help": "Absolute non-root directory explicitly granted to provider-owned YCQL shell files."}
     ]
   },
-  "provenance": {"purpose": "YugabyteDB 2025.2.2.2 native YCQL implementation", "protocol": "cql-native-v4", "client_state": "cassandra_driver_3.30.1_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "object_experience_gate": "passed", "live_evidence_reference": "cdeadmin-yugabytedb-ycql-full-live:2025.2.2.2-b11:20260904", "runtime_image_digest": "sha256:1fdda2ae928facf0b7b25b7c1183c540567c33730cce10a557c81c33a8e18422", "evidence_sha256": "7814a8edeb3b737f4cca7d0402346260e1df53386d42b416884977e8a3e4bc66", "strict_object_evidence_sha256": "f345997147a0ed813a9b477f1cf46e57a67c748eaec6969fe6ce4be97d540b73", "dual_interface_gate": "passed", "dual_interface_evidence_reference": "cdeadmin-yugabytedb-dual-interface-live:20260904"}
+  "provenance": {"purpose": "YugabyteDB 2025.2.2.2 native YCQL implementation", "protocol": "cql-native-v4", "client_state": "cassandra_driver_3.30.1_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed_exact_ycql_dialect_metrics_20_concept_object_security_shell_trace_and_shared_control_evidence", "dialect_contract": "yugabytedb.ycql-dialect.2025.2.2.2.v1", "dialect_contract_sha256": "9ae7c807d63ce9e7daee95abab1839d13fa845137928f9e3e9c7a3ec122dbfed", "metrics_contract": "yugabytedb.ycql-metrics.2025.2.2.2.v1", "metrics_contract_sha256": "a9b4d1bfee1f1398642d2406bc4e4706f8ad1efc861b06cae9c62be1dc564722", "object_experience_gate": "passed_20_of_20_concepts", "live_evidence_reference": "cdeadmin-yugabytedb-ycql-exact-live:2025.2.2.2:20260910", "runtime_image_digest": "sha256:1fdda2ae928facf0b7b25b7c1183c540567c33730cce10a557c81c33a8e18422", "evidence_sha256": "054f150e3dc66a4e1a168e3a3d9a37ad2400d5f0b99372a20f5698f9e80f131a", "object_evidence_sha256": "ede5b4d4f55e9cfb25c4f213613453496345ee03561840ed3e8270eab0dbd9d9", "strict_object_evidence_sha256": "3bc3a0a5ca0462be378d893d0f132789879795e2dfe6bc9b570336cf414f201e", "shared_control_evidence_sha256": "3621c3b81807bcac63bfc5e2d49858131028023d7410353b922d4dcb31a70eee", "authentication_gate": "passed_native_password_role_and_grant_round_trip", "native_shell_gate": "passed_exact_ycqlsh_file_execution", "native_trace_gate": "passed_exact_server_log_trace_request_receipt", "dual_interface_gate": "passed", "dual_interface_evidence_reference": "cdeadmin-yugabytedb-dual-interface-live:20260904"}
 }

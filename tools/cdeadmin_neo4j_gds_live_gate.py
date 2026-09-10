@@ -239,7 +239,6 @@ def main(argv=None):
             raise RuntimeError('GDS inspect response did not identify graph')
         _apply(
             provider, route, 'drop', target=projection_target,
-            draft={'confirmation': graph_name},
         )
         observed.add('drop')
         created = False

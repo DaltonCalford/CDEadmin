@@ -276,7 +276,17 @@ class PostgreSQLProvider:
         from pgadmin.cdeadmin.semantic_models.compiler import compile_sql
         return compile_sql(model, query, {
             'language_profile': 'postgresql-sql',
-            'quote_open': '"', 'supports_rollup': True,
+            'quote_open': '"', 'quote_close': '"',
+            'supports_rollup': True, 'limit_style': 'limit',
+            'true_literal': 'TRUE', 'false_literal': 'FALSE',
+            'time_operations': (
+                'as_of', 'range', 'period_to_date', 'period_comparison',
+            ),
+            'window_operations': (
+                'running_sum', 'moving_sum', 'moving_average', 'lag',
+                'delta', 'percent_change', 'rank', 'dense_rank',
+            ),
+            'contract_complete': True,
         })
 
     def describe_semantics(self, request):

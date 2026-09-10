@@ -217,6 +217,9 @@ def verify(args):
         endpoint_id=f'foundationdb-mutation-{uuid.uuid4()}',
         session_namespace=f'foundationdb-session-{uuid.uuid4()}',
         mode='legacy_native',
+        experience_family='foundationdb',
+        provider_id=PROFILE.provider_id,
+        profile_id=PROFILE.profile_id,
         runtime_verification_state='verified',
         declared_runtime_family='foundationdb',
         verified_runtime_family='foundationdb',
@@ -264,7 +267,7 @@ def verify(args):
     try:
         operations.append(_apply(
             provider, route, 'directory', 'create',
-            {'name': directory_name, 'definition': '', 'options': {}},
+            {'name': directory_name},
         ))
         directory_created = True
         names = {
@@ -623,7 +626,7 @@ def verify(args):
             try:
                 cleanup.append(_apply(
                     provider, route, 'directory', 'drop', {
-                        'cascade': False, 'confirmation': directory_name,
+                        'confirmation': directory_name,
                     }, directory,
                 ))
             except Exception as exc:

@@ -190,7 +190,13 @@
     "protocol": "firebird_wire",
     "client_state": "firebird-driver_1.10.11_with_firebird_5.0.4_client_library",
     "runtime_state": "exact_provider_live_verified",
-    "activation_gate": "provider_live_activation_passed_pending_screenshot_and_manual_ui_review",
-    "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260907"
+    "activation_gate": "passed_exact_dialect_sql_editor_service_manager_fault_fixture_and_primary_relational_object_evidence_pending_screenshot_and_manual_ui_review",
+    "live_evidence_reference": "cde-rel-live:firebird-5.0.4:20260910",
+    "object_experience_gate": "passed",
+    "provider_live_evidence_sha256": "1769824c35fb77bdc6e849c63e14a660eddd3a26c1426aca9037651a89086d75",
+    "object_evidence_sha256": "08ae34c443e2be9358432ba40675cda7909cc93a944c4c843eb45a9cf845731a",
+    "service_evidence_sha256": "c10a7d6cb6ccf8d14787f0179d64445e0a0b1b9f0499284e7470bb4b6f09158c",
+    "fault_fixture_evidence_sha256": "4287596f91dbe669d2bade3c87857b08a63cf90d8b7ef1ea839425710e6927ae",
+    "strict_object_evidence_sha256": "0fd5ca7b88dfa2b7945cfaee88edb07dd7a57453ea4dbb259b24f32dcd68d90a"
   }
 }

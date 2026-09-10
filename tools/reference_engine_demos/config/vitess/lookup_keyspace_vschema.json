@@ -1,26 +1,8 @@
 {
-	"sharded": true,
+	"sharded": false,
 	"tables": {
-		"messages_message_lookup": {
-			"column_vindexes": [
-				{
-					"column": "id",
-					"name": "xxhash"
-				}
-			]
-		},
-		"tokens_token_lookup": {
-			"column_vindexes": [
-				{
-					"column": "id",
-					"name": "xxhash"
-				}
-			]
-		}
+		"messages_message_lookup": {},
+		"tokens_token_lookup": {}
 	},
-	"vindexes": {
-		"xxhash": {
-			"type": "xxhash"
-		}
-	}
+	"vindexes": {}
 }

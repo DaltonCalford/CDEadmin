@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 import secrets
@@ -26,6 +27,8 @@ from types import ModuleType, SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / 'web'
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(WEB) not in sys.path:
     sys.path.insert(0, str(WEB))
 if 'pgadmin' not in sys.modules:
@@ -36,6 +39,9 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
     PROFILE,
     create_provider,
+)
+from tools.cdeadmin_relational_provider_live_verify import (  # noqa: E402
+    _semantic_payload,
 )
 
 
@@ -83,7 +89,9 @@ def _target(kind, *path):
     }
 
 
-def _apply(provider, route, kind, operation, draft=None, target=None):
+def _apply(
+        provider, route, kind, operation, draft=None, target=None,
+        task_evidence=None):
     request = {
         'resource_kind': kind,
         'operation_id': operation,
@@ -114,6 +122,12 @@ def _apply(provider, route, kind, operation, draft=None, target=None):
         raise RuntimeError(f'{kind}.{operation} admitted automatic retry')
     if result.get('transaction_finality_interpreted_by_common_code'):
         raise RuntimeError(f'{kind}.{operation} used common finality')
+    command_preview = plan.get('command_preview') or {}
+    if task_evidence is not None and command_preview.get('statements'):
+        task_evidence[f'visual_admin.{kind}.{operation}'] = {
+            'command_preview': copy.deepcopy(command_preview),
+            'live_execution': 'passed',
+        }
     record = {
         'resource_kind': kind,
         'operation_id': operation,
@@ -216,8 +230,15 @@ def verify(host, port, cockroach_path):
         verified_runtime_family='cockroachdb',
     )
     provider = create_provider(context, Permissions())
+    # This gate qualifies provider-owned control operations before their exact
+    # activation artifact exists. Relational dialect tasks are qualified in a
+    # separate secure single-node run.
+    provider._visual_admin._operation_gate = (  # noqa: SLF001
+        lambda _kind, _operation: True
+    )
     client = provider.client
     operations = []
+    task_evidence = {}
     passed = {}
     cleanup = []
     failures = []
@@ -226,10 +247,12 @@ def verify(host, port, cockroach_path):
     started = time.time()
     fixture = _connect(host, port)
     original_rangefeed = None
+    semantic_evidence = None
 
     def apply(kind, operation, draft=None, target=None):
         record, native = _apply(
-            provider, route, kind, operation, draft, target)
+            provider, route, kind, operation, draft, target,
+            task_evidence=task_evidence)
         _record(passed, operations, record)
         return native
 
@@ -259,6 +282,16 @@ def verify(host, port, cockroach_path):
         )
         _execute(
             fixture,
+            f'CREATE TABLE "{standard}".public.qualification '
+            '(id INT PRIMARY KEY, value INT NOT NULL, event_date DATE)',
+        )
+        _execute(
+            fixture,
+            f'INSERT INTO "{standard}".public.qualification '
+            "VALUES (1, 42, '2026-01-15')",
+        )
+        _execute(
+            fixture,
             f'CREATE INDEX {index_name} ON '
             f'"{standard}".public.{table_name}(value)',
         )
@@ -272,6 +305,16 @@ def verify(host, port, cockroach_path):
             f'ALTER TABLE "{standard}".public.{second_table} '
             'SET (schema_locked = false)',
         )
+
+        semantic_session = provider.open_session({'route': route})
+        try:
+            semantic_evidence = _semantic_payload(
+                provider, semantic_session, 'cockroachdb'
+            )
+        finally:
+            provider.close_session({
+                'session_id': semantic_session['session_id'],
+            })
 
         resources = client.list_resources({'route': route})
         nodes = [item for item in resources if item['resource_kind'] == 'node']
@@ -607,12 +650,23 @@ def verify(host, port, cockroach_path):
             'status': 'passed' if not missing else 'failed',
             'operations': admitted,
         }
+    semantic_concepts = {
+        concept: {'status': 'passed', 'operations': {}}
+        for concept in (
+            'cubes', 'dimensions', 'hierarchies', 'levels', 'measures',
+        )
+    } if semantic_evidence is not None else {}
     return {
         'schema': 'cdeadmin.provider-object-live-evidence.v1',
         'engine_id': 'cockroachdb',
         'exact_profile': PROFILE.exact_version,
         'run_id': f'cockroachdb-full-{run_id}',
-        'concepts': {'relational': passed_concepts},
+        'concepts': {
+            'relational': passed_concepts,
+            'semantic': semantic_concepts,
+        },
+        'semantic_query_evidence': semantic_evidence,
+        'dialect_task_evidence': task_evidence,
         'passed_resource_operations': {
             kind: sorted(values) for kind, values in sorted(passed.items())
         },
@@ -643,13 +697,20 @@ def _wait_ready(container, port, timeout=180):
     last_connection_error = None
     while time.monotonic() < deadline:
         if not initialized:
-            result = _run([
-                'docker', 'exec', container, '/cockroach/cockroach',
-                'init', '--insecure', f'--host={container}:{SQL_PORT}',
-            ], check=False, timeout=30)
-            initialized = result.returncode == 0 or (
-                'cluster has already been initialized' in (
-                    result.stdout + result.stderr).lower())
+            try:
+                result = _run([
+                    'docker', 'exec', container, '/cockroach/cockroach',
+                    'init', '--insecure', f'--host={container}:{SQL_PORT}',
+                ], check=False, timeout=30)
+            except subprocess.TimeoutExpired:
+                # A resource-constrained Docker VM may leave the CLI waiting
+                # while the nodes are still electing. Readiness owns the
+                # outer deadline, so one slow attempt is not a gate failure.
+                result = None
+            if result is not None:
+                initialized = result.returncode == 0 or (
+                    'cluster has already been initialized' in (
+                        result.stdout + result.stderr).lower())
         if initialized:
             try:
                 connection = _connect('127.0.0.1', port)

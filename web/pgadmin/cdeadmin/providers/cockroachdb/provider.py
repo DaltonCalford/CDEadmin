@@ -42,9 +42,26 @@ PROFILE = PilotProfile(
     ),
     ('cockroach-sql', 'node-status', 'debug-zip', 'backup-restore'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'cockroachdb-sql', 'quote_open': '"',
-        'supports_rollup': True,
+        'quote_close': '"', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
+    dialect_contract_id='cockroachdb.dialect.26.1.3.v1',
+    dialect_evidence=(
+        'cockroachdb-26.1.3-source-and-runtime-inventory',
+        'cockroachdb-26.1.3-secure-and-five-node-task-live-execution',
+    ),
+    dialect_contract_file='cockroachdb_dialect_26_1_3.json',
+    metrics_contract_file='cockroachdb_metrics_26_1_3.json',
 )
 
 

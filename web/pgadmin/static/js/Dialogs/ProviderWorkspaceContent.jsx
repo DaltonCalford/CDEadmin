@@ -1014,16 +1014,35 @@ function resourceDatabaseTargetId(resource) {
   return resource?.extensions?.cdeadmin?.database_target_id || null;
 }
 
+function preferredResourceId(resources, initialResource) {
+  if (!initialResource) return '';
+  const exact = resources.find((item) =>
+    item.resource_id === initialResource.resource_id);
+  if (exact) return exact.resource_id;
+
+  const selectedPath = initialResource.display_path || [];
+  const ancestors = resources.filter((item) => {
+    const candidatePath = item.display_path || [];
+    return candidatePath.length > 0 &&
+      candidatePath.length <= selectedPath.length &&
+      candidatePath.every((part, index) => part === selectedPath[index]);
+  }).sort((left, right) =>
+    (right.display_path?.length || 0) - (left.display_path?.length || 0));
+  return ancestors[0]?.resource_id || '';
+}
+
 const KEY_VALUE_KINDS = new Set([
   'key', 'string', 'hash', 'list', 'set', 'sorted-set', 'stream',
   'geospatial', 'bitmap', 'hyperloglog', 'vector-set',
 ]);
 
-function KeyValueDataGrid({catalog, resources, post, setError}) {
+function KeyValueDataGrid({catalog, resources, post, setError,
+  initialResource}) {
   const keys = (resources || []).filter(
     (item) => KEY_VALUE_KINDS.has(item.resource_kind)
   );
-  const [targetId, setTargetId] = useState(keys[0]?.resource_id || '');
+  const [targetId, setTargetId] = useState(() =>
+    preferredResourceId(keys, initialResource) || keys[0]?.resource_id || '');
   const [page, setPage] = useState(null);
   const [edits, setEdits] = useState({});
   const [newValue, setNewValue] = useState('{}');
@@ -1038,11 +1057,17 @@ function KeyValueDataGrid({catalog, resources, post, setError}) {
   );
 
   useEffect(() => {
+    const preferredId = preferredResourceId(keys, initialResource);
+    if (preferredId && preferredId !== targetId) {
+      setTargetId(preferredId);
+      setPage(null);
+      return;
+    }
     if (!keys.some((item) => item.resource_id === targetId)) {
       setTargetId(keys[0]?.resource_id || '');
       setPage(null);
     }
-  }, [keys, targetId]);
+  }, [initialResource, keys, targetId]);
 
   const load = async (continuation=null) => {
     if (!target) return;
@@ -1209,6 +1234,7 @@ KeyValueDataGrid.propTypes = {
   resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialResource: PropTypes.object,
 };
 
 function StructuredDataGrid({catalog, resources, post, setError,
@@ -1602,23 +1628,32 @@ const ANALYTIC_CONTAINER_KINDS = {
   'bitemporal-document-relational': ['table'],
 };
 
-function AnalyticDataBrowser({modelFamily, resources, post, setError}) {
+function AnalyticDataBrowser({modelFamily, resources, post, setError,
+  initialResource}) {
   const kinds = ANALYTIC_CONTAINER_KINDS[modelFamily] || [];
   const containers = (resources || []).filter(
     (item) => kinds.includes(item.resource_kind)
   );
-  const [targetId, setTargetId] = useState(containers[0]?.resource_id || '');
+  const [targetId, setTargetId] = useState(() =>
+    preferredResourceId(containers, initialResource) ||
+      containers[0]?.resource_id || '');
   const [filterSource, setFilterSource] = useState('{}');
   const [page, setPage] = useState(null);
   const [working, setWorking] = useState(false);
   const target = containers.find((item) => item.resource_id === targetId);
 
   useEffect(() => {
+    const preferredId = preferredResourceId(containers, initialResource);
+    if (preferredId && preferredId !== targetId) {
+      setTargetId(preferredId);
+      setPage(null);
+      return;
+    }
     if (!containers.some((item) => item.resource_id === targetId)) {
       setTargetId(containers[0]?.resource_id || '');
       setPage(null);
     }
-  }, [containers, targetId]);
+  }, [containers, initialResource, targetId]);
 
   const load = async (continuation=null) => {
     if (!target) return;
@@ -1701,6 +1736,7 @@ AnalyticDataBrowser.propTypes = {
   resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialResource: PropTypes.object,
 };
 
 function ResultTable({rendered}) {
@@ -2336,7 +2372,8 @@ ResultControls.propTypes = {
   deliveryProfiles: PropTypes.array,
 };
 
-function DocumentDataGrid({catalog, resources, post, setError}) {
+function DocumentDataGrid({catalog, resources, post, setError,
+  initialResource}) {
   const collections = (resources || []).filter(
     (item) => item.resource_kind === 'collection'
   );
@@ -2347,7 +2384,9 @@ function DocumentDataGrid({catalog, resources, post, setError}) {
   const admitted = (operationId) => operations.some(
     (item) => item.operation_id === operationId && item.execution_available
   );
-  const [targetId, setTargetId] = useState(collections[0]?.resource_id || '');
+  const [targetId, setTargetId] = useState(() =>
+    preferredResourceId(collections, initialResource) ||
+      collections[0]?.resource_id || '');
   const [page, setPage] = useState(null);
   const [edits, setEdits] = useState({});
   const [newDocument, setNewDocument] = useState('{}');
@@ -2361,11 +2400,17 @@ function DocumentDataGrid({catalog, resources, post, setError}) {
   const target = collections.find((item) => item.resource_id === targetId);
 
   useEffect(() => {
+    const preferredId = preferredResourceId(collections, initialResource);
+    if (preferredId && preferredId !== targetId) {
+      setTargetId(preferredId);
+      setPage(null);
+      return;
+    }
     if (!collections.some((item) => item.resource_id === targetId)) {
       setTargetId(collections[0]?.resource_id || '');
       setPage(null);
     }
-  }, [collections, targetId]);
+  }, [collections, initialResource, targetId]);
 
   const load = async (continuation=null) => {
     if (!target) return;
@@ -2563,9 +2608,11 @@ DocumentDataGrid.propTypes = {
   resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialResource: PropTypes.object,
 };
 
-function GraphDataStudio({catalog, resources, post, setError}) {
+function GraphDataStudio({catalog, resources, post, setError,
+  initialResource}) {
   const graphs = (resources || []).filter((item) => item.resource_kind === 'graph');
   const nodeDescriptor = (catalog?.objects || []).find(
     (item) => item.resource_kind === 'node'
@@ -2576,7 +2623,8 @@ function GraphDataStudio({catalog, resources, post, setError}) {
   const admitted = (descriptor, operationId) => (descriptor?.operations || []).some(
     (item) => item.operation_id === operationId && item.execution_available
   );
-  const [targetId, setTargetId] = useState(graphs[0]?.resource_id || '');
+  const [targetId, setTargetId] = useState(() =>
+    preferredResourceId(graphs, initialResource) || graphs[0]?.resource_id || '');
   const [page, setPage] = useState(null);
   const [labels, setLabels] = useState('Node');
   const [properties, setProperties] = useState('{}');
@@ -2588,6 +2636,19 @@ function GraphDataStudio({catalog, resources, post, setError}) {
   const [deleteCandidate, setDeleteCandidate] = useState(null);
   const [working, setWorking] = useState(false);
   const target = graphs.find((item) => item.resource_id === targetId);
+
+  useEffect(() => {
+    const preferredId = preferredResourceId(graphs, initialResource);
+    if (preferredId && preferredId !== targetId) {
+      setTargetId(preferredId);
+      setPage(null);
+      return;
+    }
+    if (!graphs.some((item) => item.resource_id === targetId)) {
+      setTargetId(graphs[0]?.resource_id || '');
+      setPage(null);
+    }
+  }, [graphs, initialResource, targetId]);
 
   const load = async (continuation=null) => {
     if (!target) return;
@@ -2652,7 +2713,6 @@ function GraphDataStudio({catalog, resources, post, setError}) {
       const source = edits[`${resourceKind}:${entity.element_id}`] ??
         JSON.stringify(entity.properties || {}, null, 2);
       await mutate(resourceKind, 'update', entityTarget(resourceKind, entity), {
-        selector: {element_id: entity.element_id},
         changes: {properties: JSON.parse(source)},
       });
       await load();
@@ -2671,10 +2731,10 @@ function GraphDataStudio({catalog, resources, post, setError}) {
     }
     setWorking(true); setError(null);
     try {
-      await mutate(resourceKind, 'delete', entityTarget(resourceKind, entity), {
-        selector: {element_id: entity.element_id},
-        confirmation: `delete-${resourceKind}`,
-      }, true);
+      await mutate(
+        resourceKind, 'delete', entityTarget(resourceKind, entity),
+        resourceKind === 'node' ? {selector: {detach: true}} : {}, true
+      );
       await load();
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -2798,13 +2858,17 @@ GraphDataStudio.propTypes = {
   resources: PropTypes.array,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialResource: PropTypes.object,
 };
 
-function ChangeStreamViewer({resources, languageProfile, post, setError}) {
+function ChangeStreamViewer({resources, languageProfile, post, setError,
+  initialResource}) {
   const collections = (resources || []).filter(
     (item) => item.resource_kind === 'collection'
   );
-  const [targetId, setTargetId] = useState(collections[0]?.resource_id || '');
+  const [targetId, setTargetId] = useState(() =>
+    preferredResourceId(collections, initialResource) ||
+      collections[0]?.resource_id || '');
   const [pipeline, setPipeline] = useState('[]');
   const [resumeToken, setResumeToken] = useState('');
   const [sessionId, setSessionId] = useState(null);
@@ -2812,6 +2876,20 @@ function ChangeStreamViewer({resources, languageProfile, post, setError}) {
   const [events, setEvents] = useState([]);
   const [working, setWorking] = useState(false);
   const target = collections.find((item) => item.resource_id === targetId);
+
+  useEffect(() => {
+    const preferredId = preferredResourceId(collections, initialResource);
+    if (preferredId && preferredId !== targetId && !occurrenceId) {
+      setTargetId(preferredId);
+      setEvents([]);
+      setResumeToken('');
+      return;
+    }
+    if (!collections.some((item) => item.resource_id === targetId) &&
+        !occurrenceId) {
+      setTargetId(collections[0]?.resource_id || '');
+    }
+  }, [collections, initialResource, occurrenceId, targetId]);
 
   const poll = async (id=occurrenceId) => {
     if (!id) return;
@@ -2910,6 +2988,7 @@ ChangeStreamViewer.propTypes = {
   languageProfile: PropTypes.string,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  initialResource: PropTypes.object,
 };
 
 function portableId(value, fallback='item') {
@@ -6229,16 +6308,19 @@ export default function ProviderWorkspaceContent({
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'document' &&
         <DocumentDataGrid catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialResource={selectedResource} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family === 'graph' &&
         <GraphDataStudio catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialResource={selectedResource} />}
       {workspace && tab === 'data' && workspace.visual_admin?.model_family ===
         'data-structure-key-value' &&
         <KeyValueDataGrid catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialResource={selectedResource} />}
       {workspace && tab === 'data' && [
         'time-series-analytic', 'vector-analytic', 'search-analytic',
         'search-document-analytic', 'columnar-analytic', 'wide-column',
@@ -6247,7 +6329,8 @@ export default function ProviderWorkspaceContent({
         <AnalyticDataBrowser
           modelFamily={workspace.visual_admin.model_family}
           resources={resourcePage?.items || []}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialResource={selectedResource} />}
       {workspace && tab === 'data' && ![
         'document', 'graph', 'data-structure-key-value',
         'time-series-analytic', 'vector-analytic', 'search-analytic',
@@ -6265,7 +6348,8 @@ export default function ProviderWorkspaceContent({
       {workspace && tab === 'streams' && workspace.visual_admin?.model_family === 'document' &&
         <ChangeStreamViewer resources={resourcePage?.items || []}
           languageProfile={workspace.languages?.[0]?.language_profile}
-          post={post} setError={setError} />}
+          post={post} setError={setError}
+          initialResource={selectedResource} />}
       <ModalFooter><Button onClick={closeModal}>{gettext('Close')}</Button></ModalFooter>
     </ModalContent>
   );

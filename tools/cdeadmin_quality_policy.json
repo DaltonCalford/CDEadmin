@@ -1,7 +1,7 @@
 {
   "schema": "cdeadmin.quality-policy.v1",
   "baseline_id": "pgadmin4-9.17-bc58657d3d3a-20260831",
-  "source_budget_revision": "cde-durable-report-scheduler-20260904",
+  "source_budget_revision": "cde-reference-portfolio-complete-20260910",
   "production_provider_roots": [
     "web/pgadmin/cdeadmin/providers"
   ],
@@ -21,8 +21,8 @@
   "contract_schema": "web/pgadmin/cdeadmin/contracts/v1/contract.schema.json",
   "contract_runtime": "web/pgadmin/cdeadmin/contracts/v1/runtime.py",
   "source_budgets": {
-    "production_cdeadmin_bytes_baseline": 1276252,
-    "production_cdeadmin_bytes_maximum": 3500000,
+    "production_cdeadmin_bytes_baseline": 55089135,
+    "production_cdeadmin_bytes_maximum": 63352406,
     "frontend_cdeadmin_bytes_maximum": 12000
   },
   "built_bundle": {
@@ -30,11 +30,11 @@
       "web/pgadmin/static/js/generated",
       "web/pgadmin/static/css/generated"
     ],
-    "baseline_bytes": 34664870,
-    "maximum_bytes": 38131357
+    "baseline_bytes": 67498313,
+    "maximum_bytes": 77623060
   },
   "startup": {
-    "route_count": 1366,
+    "route_count": 1400,
     "wall_seconds_maximum": 8.0,
     "max_rss_kib_maximum": 240000,
     "required_extensions": [

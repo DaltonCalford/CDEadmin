@@ -42,8 +42,18 @@ PROFILE = PilotProfile(
     result_export_formats=('json', 'jsonl', 'csv'),
     result_worker_required=True,
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'xtdb-sql-2.1', 'quote_open': '"',
-        'supports_rollup': False,
+        'quote_close': '"', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
 )
 

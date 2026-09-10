@@ -41,9 +41,27 @@ PROFILE = PilotProfile(
     ),
     ('mysql-client', 'tiup', 'br', 'ticdc'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'tidb-sql', 'quote_open': '`',
         'quote_close': '`', 'supports_rollup': True,
+        'rollup_style': 'with_rollup', 'rollup_allows_order_by': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
+    dialect_contract_id='tidb.dialect.8.5.6.v1',
+    dialect_evidence=(
+        'tidb-8.5.6-source-pinned-parser-and-runtime-inventory',
+        'tidb-8.5.6-native-task-live-execution',
+    ),
+    dialect_contract_file='tidb_dialect_8_5_6.json',
+    metrics_contract_file='tidb_metrics_8_5_6.json',
 )
 
 
@@ -788,7 +806,9 @@ def _run_cdc(route, arguments, timeout=None):
                 route, 'ticdc_cert', 'TiCDC certificate file'),
             '--key', _trusted_file(route, 'ticdc_key', 'TiCDC key file'),
         ])
-    user = route.get('ticdc_user') or route.get('user')
+    # TiCDC authentication is an independent control-plane boundary. Never
+    # reinterpret the TiDB SQL principal as a TiCDC HTTP/API principal.
+    user = route.get('ticdc_user')
     if user is not None:
         if not isinstance(user, str) or not user or len(user) > 256 or any(
                 character in user for character in '\x00\r\n'):

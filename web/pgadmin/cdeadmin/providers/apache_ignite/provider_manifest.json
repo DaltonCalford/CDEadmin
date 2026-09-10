@@ -39,5 +39,5 @@
     ],
     "connection_capability_set": "apache-ignite-thin-v1"
   },
-  "provenance": {"purpose":"Apache Ignite exact-profile distributed provider","protocol":"ignite_thin","client_state":"pyignite_0.6.1_installed","runtime_state":"exact_runtime_qualified","activation_gate":"blocked_pending_exact_contract_and_ui_evidence"}
+  "provenance": {"purpose":"Apache Ignite exact-profile distributed provider","protocol":"ignite_thin","client_state":"pyignite_0.6.1_installed","runtime_state":"exact_runtime_qualified","activation_gate":"passed_exact_contract_and_ui_evidence","live_evidence_reference":"cde-distributed:apache-ignite-native-live:20260902","native_live_evidence_sha256":"a0e9a3591212d20a97f75046dde09a383ff07545c13b994ad6671b5aecc68de5","object_live_evidence_sha256":"945ebe05cc39955170b65674e4ac4046afb6279f14c66f62f814a4c88737f831","extended_live_evidence_sha256":"1e33cda7240df51e10ba9a2b4ed7fa112444438684174b8843fc3d84b45a7ef7","failover_live_evidence_sha256":"280f066ea8bd5d527b2e2e3be69fef90dbbaaed77839077aa102373e922f8a44","strict_object_evidence_sha256":"7b00b3e7abf047059ab6393895b5881cd959417426253d561b5b5fac59162689"}
 }

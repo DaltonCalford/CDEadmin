@@ -22,7 +22,10 @@ import argparse
 import json
 import os
 import secrets
+import shutil
+import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -55,15 +58,33 @@ CATEGORIES = (
     'consistency', 'security', 'fault', 'tooling', 'object_operations', 'tls',
 )
 OBJECT_OPERATIONS = {
+    'cluster': {'inspect'},
+    'datacenter': {'inspect'},
+    'node': {'inspect'},
     'keyspace': {'inspect', 'create', 'alter', 'drop'},
     'table': {
-        'inspect', 'create', 'alter', 'insert', 'update', 'delete', 'drop',
+        'inspect', 'create', 'alter', 'insert', 'update', 'delete',
+        'truncate', 'drop',
     },
     'column': {'inspect', 'create', 'rename', 'drop'},
+    'index': {'inspect', 'create', 'drop'},
     'user-defined-type': {'inspect', 'create', 'alter', 'drop'},
-    'materialized-view': {'inspect', 'create', 'drop'},
+    'materialized-view': {'inspect', 'create', 'alter', 'drop'},
+    'trigger': {'inspect', 'create', 'drop'},
+    'function': {'inspect', 'create', 'drop'},
+    'aggregate': {'inspect', 'create', 'drop'},
+    'role': {'inspect', 'create', 'alter', 'grant', 'revoke', 'drop'},
+    'permission': {'inspect', 'grant', 'revoke'},
+    'identity': {'inspect', 'create', 'drop'},
+    'query': {'inspect'},
+    'tracing-session': {'inspect'},
     'replication': {'inspect', 'alter'},
+    'repair': {'inspect', 'execute'},
     'compaction': {'inspect', 'execute'},
+    'snapshot': {'inspect', 'execute'},
+    'backup': {'inspect', 'execute'},
+    'restore': {'inspect', 'execute'},
+    'shell': {'inspect', 'execute'},
 }
 CONCEPT_BINDINGS = {
     'keyspaces': ('keyspace',),
@@ -71,7 +92,21 @@ CONCEPT_BINDINGS = {
     'columns': ('column',),
     'types': ('user-defined-type',),
     'materialized_views': ('materialized-view',),
-    'replication_and_compaction': ('replication', 'compaction'),
+    'indexes': ('index',),
+    'triggers': ('trigger',),
+    'functions': ('function',),
+    'aggregates': ('aggregate',),
+    'roles_and_permissions': ('role', 'permission'),
+    'identities': ('identity',),
+    'replication': ('replication',),
+    'compaction': ('compaction',),
+    'topology': ('cluster', 'datacenter', 'node'),
+    'queries': ('query',),
+    'tracing': ('tracing-session',),
+    'repair': ('repair',),
+    'snapshots': ('snapshot',),
+    'backup_and_restore': ('backup', 'restore'),
+    'shell': ('shell',),
 }
 
 
@@ -117,6 +152,7 @@ def parser():
     value.add_argument('--contact-points', default='127.0.0.2,127.0.0.3')
     value.add_argument('--port', type=int, default=19042)
     value.add_argument('--jmx-port', type=int, default=17199)
+    value.add_argument('--storage-port', type=int, default=17000)
     value.add_argument('--local-dc', default='datacenter1')
     value.add_argument('--username', default='cassandra')
     value.add_argument(
@@ -124,6 +160,9 @@ def parser():
         default='disabled',
     )
     value.add_argument('--expected-nodes', type=int, default=3)
+    value.add_argument(
+        '--fixture-container', default='cdeadmin-demo-cassandra',
+    )
     value.add_argument('--workspace', type=Path, required=True)
     value.add_argument('--output', type=Path)
     value.add_argument('--object-output', type=Path)
@@ -165,7 +204,19 @@ def _context(tls_mode):
 
 def _apply(provider, request):
     label = f'{request["resource_kind"]}.{request["operation_id"]}'
+    plan = None
     try:
+        validation = provider.validate_visual_admin(request)
+        if not validation['valid']:
+            failures = '; '.join(
+                f"{item.get('field_id', '<form>')}: "
+                f"{item.get('message', item)}"
+                for item in validation.get('errors', [])
+            )
+            raise RuntimeError(
+                f'{label} validation failed: '
+                f'{failures or "unspecified validation failure"}'
+            )
         plan = provider.plan_visual_admin(request)
         if plan['state'] != 'ready':
             raise RuntimeError('Cassandra visual plan is not ready')
@@ -182,6 +233,21 @@ def _apply(provider, request):
         raise RuntimeError('Cassandra did not accept the provider plan')
     if native.get('transaction_finality_interpreted_by_common_code'):
         raise RuntimeError('common code interpreted Cassandra finality')
+    if provider.client.admin_operation_requires_dialect(
+        request['resource_kind'], request['operation_id']
+    ):
+        evidence = getattr(
+            provider, '_qualification_dialect_task_evidence', None
+        )
+        if isinstance(evidence, list):
+            evidence.append({
+                'task_id': (
+                    f'visual_admin.{request["resource_kind"]}.'
+                    f'{request["operation_id"]}'
+                ),
+                'status': 'passed',
+                'command_preview': plan['command_preview'],
+            })
     return result
 
 
@@ -232,15 +298,21 @@ def verify(args, password):
     type_name = 'address'
     index_name = 'items_value_sai'
     view_name = 'items_by_value'
+    trigger_name = 'qualification_trigger'
+    trigger_class = 'org.cdeadmin.cassandra.CDEadminQualificationTrigger'
     function_name = 'sum_state'
     aggregate_name = 'sum_int'
     role_name = prefix + '_role'
+    member_role_name = prefix + '_member'
+    identity_name = f'spiffe://cdeadmin/qualification/{run_id}'
     role_password = secrets.token_urlsafe(32)
     admin_reference = 'qualification-admin'
+    jmx_reference = 'qualification-jmx'
     role_reference = 'qualification-role'
     bad_reference = 'qualification-bad'
     secrets_by_reference = {
         admin_reference: password,
+        jmx_reference: password,
         role_reference: role_password,
         bad_reference: 'definitely-not-the-correct-password-' + run_id,
     }
@@ -248,8 +320,10 @@ def verify(args, password):
     context = _context(args.tls_mode)
     client = CassandraClient(permissions.acquire_secret)
     provider = create_provider(context, permissions, client)
+    provider._qualification_dialect_task_evidence = []
     workspace = args.workspace.resolve()
     workspace.mkdir(parents=True, exist_ok=True)
+    restore_fixture_root = workspace / f'{prefix}_sstable_restore'
     route = {
         'route_id': f'exact-live-{args.tls_mode}',
         'host': args.host, 'port': args.port,
@@ -260,6 +334,10 @@ def verify(args, password):
         'local_dc': args.local_dc,
         'username': args.username,
         'credential_reference_id': admin_reference,
+        'credential_references': {
+            'database_password': admin_reference,
+            'jmx_password': jmx_reference,
+        },
         'principal_reference': 'cdeadmin-live-qualifier',
         'tls_mode': args.tls_mode,
         'consistency': 'LOCAL_QUORUM',
@@ -268,12 +346,61 @@ def verify(args, password):
         'request_timeout': 60,
         'connect_timeout': 15,
         'jmx_port': args.jmx_port,
+        'storage_port': args.storage_port,
+        'jmx_auth_mode': 'password',
+        'jmx_username': args.username,
         'tool_workspace': str(workspace),
     }
     base_request = {
         'route': route,
         'capability_generation': f'exact-live-{run_id}',
     }
+
+    def wait_for_catalog(source, parameters, label):
+        from cassandra.auth import PlainTextAuthProvider
+        from cassandra.cluster import Cluster
+        from cassandra.policies import WhiteListRoundRobinPolicy
+
+        nodes = [args.host] + route['contact_points']
+        deadline = time.monotonic() + route.get(
+            'schema_agreement_timeout', 10
+        ) + 20
+        pending = list(dict.fromkeys(nodes))
+        last_errors = {}
+        while pending and time.monotonic() < deadline:
+            remaining = []
+            for host in pending:
+                cluster = Cluster(
+                    contact_points=[host], port=args.port,
+                    auth_provider=PlainTextAuthProvider(
+                        username=args.username, password=password,
+                    ),
+                    protocol_version=5,
+                    load_balancing_policy=WhiteListRoundRobinPolicy([host]),
+                    connect_timeout=10,
+                    control_connection_timeout=10,
+                )
+                session_value = None
+                try:
+                    session_value = cluster.connect()
+                    rows = list(session_value.execute(source, parameters))
+                    if not rows:
+                        remaining.append(host)
+                except Exception as exc:
+                    last_errors[host] = type(exc).__name__
+                    remaining.append(host)
+                finally:
+                    if session_value is not None:
+                        session_value.shutdown()
+                    cluster.shutdown()
+            pending = remaining
+            if pending:
+                time.sleep(0.5)
+        if pending:
+            raise RuntimeError(
+                f'{label} did not converge on nodes {pending}: '
+                f'{last_errors}'
+            )
     categories = {name: 'not_run' for name in CATEGORIES}
     details = {}
     failures = []
@@ -370,8 +497,9 @@ def verify(args, password):
         expected_objects = {
             'cluster', 'datacenter', 'node', 'keyspace', 'table',
             'column', 'index', 'materialized-view', 'user-defined-type',
-            'function', 'aggregate', 'role', 'permission', 'replication',
-            'compaction',
+            'trigger', 'function', 'aggregate', 'role', 'permission',
+            'identity', 'replication', 'query', 'tracing-session', 'repair',
+            'compaction', 'snapshot', 'backup', 'restore', 'shell',
         }
         observed = {item['resource_kind'] for item in descriptor['objects']}
         if observed != expected_objects:
@@ -520,7 +648,7 @@ def verify(args, password):
         })
         _apply(provider, _request(
             route, 'column', 'drop',
-            {'cascade': False, 'confirmation': 'drop-column'},
+            {'confirmation': 'drop-column'},
             regular_column,
         ))
         _apply(provider, _request(route, 'index', 'create', {
@@ -534,6 +662,19 @@ def verify(args, password):
             'partition_keys': ['value'],
             'clustering_keys': ['tenant', 'item_id'], 'options': {},
         }))
+        _apply(provider, _request(
+            route, 'materialized-view', 'alter', {
+                'options': {
+                    'comment': 'CDEadmin live qualification view',
+                },
+            }, _target('materialized-view', view_name, {
+                'keyspace_name': keyspace, 'view_name': view_name,
+            }),
+        ))
+        _apply(provider, _request(route, 'trigger', 'create', {
+            'keyspace': keyspace, 'table': table,
+            'name': trigger_name, 'class_name': trigger_class,
+        }))
         _apply(provider, _request(route, 'function', 'create', {
             'keyspace': keyspace, 'name': function_name,
             'arguments': [
@@ -545,6 +686,11 @@ def verify(args, password):
             'body': ('return (state_value == null ? 0 : state_value) + '
                      '(input_value == null ? 0 : input_value);'),
         }))
+        wait_for_catalog(
+            'SELECT function_name FROM system_schema.functions WHERE '
+            'keyspace_name = %s AND function_name = %s',
+            (keyspace, function_name), 'function schema',
+        )
         _apply(provider, _request(route, 'aggregate', 'create', {
             'keyspace': keyspace, 'name': aggregate_name,
             'argument_types': ['int'],
@@ -556,6 +702,7 @@ def verify(args, password):
             ('keyspace', keyspace), ('table', table),
             ('user-defined-type', type_name), ('index', index_name),
             ('materialized-view', view_name),
+            ('trigger', trigger_name),
             ('function', function_name), ('aggregate', aggregate_name),
         }
         observed = {(item['resource_kind'], item['display_name'])
@@ -581,7 +728,11 @@ def verify(args, password):
         observed_operations['table'].update({'create', 'alter'})
         observed_operations['column'].update({'create', 'rename', 'drop'})
         observed_operations['user-defined-type'].update({'create', 'alter'})
-        observed_operations['materialized-view'].add('create')
+        observed_operations['index'].add('create')
+        observed_operations['materialized-view'].update({'create', 'alter'})
+        observed_operations['trigger'].add('create')
+        observed_operations['function'].add('create')
+        observed_operations['aggregate'].add('create')
 
     def data_gate():
         nonlocal identity_token
@@ -669,6 +820,9 @@ def verify(args, password):
 
     def security_gate():
         role_target = _target('role', role_name, {'role': role_name})
+        member_target = _target(
+            'role', member_role_name, {'role': member_role_name}
+        )
         _apply(provider, _request(route, 'role', 'create', {
             'name': role_name, 'login': True, 'superuser': False,
             'password_credential_reference': role_reference,
@@ -678,6 +832,20 @@ def verify(args, password):
             'login': True, 'superuser': False,
             'options': {},
         }, role_target))
+        _apply(provider, _request(route, 'role', 'create', {
+            'name': member_role_name, 'login': False, 'superuser': False,
+            'options': {},
+        }))
+        membership = {
+            'principal': member_role_name,
+            'privileges': [role_name],
+        }
+        _apply(provider, _request(
+            route, 'role', 'grant', membership, member_target,
+        ))
+        _apply(provider, _request(
+            route, 'role', 'revoke', membership, member_target,
+        ))
         permission = {
             'principal': role_name, 'privileges': ['SELECT', 'MODIFY'],
             'resource': {'kind': 'table', 'keyspace': keyspace,
@@ -700,10 +868,28 @@ def verify(args, password):
             route, 'permission', 'revoke', permission,
             _target('permission', role_name, {'role': role_name}),
         ))
-        return {'role_discovered': True, 'permission_discovered': True,
-                'credentials_reported': False}
+        _apply(provider, _request(route, 'identity', 'create', {
+            'identity': identity_name, 'role': role_name,
+        }))
+        identities = [
+            item for item in provider.list_resources(base_request)
+            if item['resource_kind'] == 'identity' and
+            item['display_name'] == identity_name
+        ]
+        if len(identities) != 1:
+            raise RuntimeError('certificate identity was not discovered')
+        return {
+            'role_discovered': True, 'permission_discovered': True,
+            'identity_discovered': True, 'credentials_reported': False,
+        }
 
     category('security', security_gate)
+    if categories['security'] == 'passed':
+        observed_operations['role'].update({
+            'create', 'alter', 'grant', 'revoke',
+        })
+        observed_operations['permission'].update({'grant', 'revoke'})
+        observed_operations['identity'].add('create')
 
     def fault_gate():
         invalid = dict(route)
@@ -716,6 +902,8 @@ def verify(args, password):
             raise RuntimeError('old native protocol route was accepted')
         bad = dict(route)
         bad['credential_reference_id'] = bad_reference
+        bad['credential_references'] = dict(route['credential_references'])
+        bad['credential_references']['database_password'] = bad_reference
         try:
             client.runtime_identity({'route': bad})
         except CassandraClientError:
@@ -766,20 +954,26 @@ def verify(args, password):
         tool('snapshot', 'clearsnapshot', {
             'name': snapshot_name, 'keyspace': keyspace,
         })
+        sstable_path = workspace / 'sstables'
+        sstable_path.mkdir(exist_ok=True)
         try:
-            tool('restore', 'sstableloader', {'path': 'sstables'})
+            tool('restore', 'sstableloader', {'path': sstable_path.name})
         except CassandraClientError as exc:
-            if 'visible process argument' not in str(exc):
-                raise
+            if 'environment authprovider' in str(exc).lower():
+                raise RuntimeError(
+                    'sstableloader environment AuthProvider is unavailable'
+                ) from exc
+            loader_observation = 'native-empty-input-refusal'
         else:
-            raise RuntimeError('authenticated sstableloader was not refused')
+            loader_observation = 'accepted-empty-input'
         return {
             'cqlsh_return_code': shell['tool_result']['return_code'],
             'cqlsh_tls_mode': route['tls_mode'],
             'nodetool_snapshot_return_code': snapshot[
                 'tool_result'
             ]['return_code'],
-            'authenticated_sstableloader_refused': True,
+            'authenticated_sstableloader_environment_provider': True,
+            'sstableloader_observation': loader_observation,
         }
 
     category('tooling', tooling_gate)
@@ -800,6 +994,18 @@ def verify(args, password):
         keyspace_target = _target(
             'keyspace', keyspace, {'keyspace_name': keyspace}
         )
+        cluster_target = next(
+            item for item in resources
+            if item['resource_kind'] == 'cluster'
+        )
+        datacenter_target = next(
+            item for item in resources
+            if item['resource_kind'] == 'datacenter'
+        )
+        node_target = next(
+            item for item in resources
+            if item['resource_kind'] == 'node'
+        )
         replication_target = _target(
             'replication', keyspace, {'keyspace_name': keyspace}
         )
@@ -813,16 +1019,76 @@ def verify(args, password):
         view_target = _target('materialized-view', view_name, {
             'keyspace_name': keyspace, 'view_name': view_name,
         })
+        index_target = _target('index', index_name, {
+            'keyspace_name': keyspace, 'table_name': table,
+            'index_name': index_name,
+        })
+        trigger_target = _target('trigger', trigger_name, {
+            'keyspace_name': keyspace, 'table_name': table,
+            'trigger_name': trigger_name,
+        })
+        function_target = _target('function', function_name, {
+            'keyspace_name': keyspace, 'function_name': function_name,
+            'argument_types': ['int', 'int'],
+        })
+        aggregate_target = _target('aggregate', aggregate_name, {
+            'keyspace_name': keyspace, 'aggregate_name': aggregate_name,
+            'argument_types': ['int'],
+        })
+        role_target = _target('role', role_name, {'role': role_name})
+        member_target = _target(
+            'role', member_role_name, {'role': member_role_name}
+        )
+        permission_target = _target(
+            'permission', role_name, {'role': role_name}
+        )
+        identity_target = _target('identity', identity_name, {
+            'identity': identity_name, 'role': role_name,
+        })
+        query_target = _target('query', 'CQL query execution', {
+            'name': 'CQL query execution', 'virtual_resource': True,
+        })
+        tracing_id = uuid.uuid4()
+        tracing_target = _target('tracing-session', str(tracing_id), {
+            'session_id': {'$type': 'UUID', '$value': str(tracing_id)},
+        })
+        repair_target = _target('repair', 'Repair operations', {
+            'name': 'Repair operations', 'tool_resource': True,
+        })
         compaction_target = _target(
             'compaction', 'Compaction operations', {
                 'name': 'Compaction operations', 'tool_resource': True,
             }
         )
+        snapshot_target = _target('snapshot', 'Snapshot operations', {
+            'name': 'Snapshot operations', 'tool_resource': True,
+        })
+        backup_target = _target('backup', 'SSTable backup tools', {
+            'name': 'SSTable backup tools', 'tool_resource': True,
+        })
+        restore_target = _target('restore', 'SSTable restore tools', {
+            'name': 'SSTable restore tools', 'tool_resource': True,
+        })
+        shell_target = _target('shell', 'CQL shell', {
+            'name': 'CQL shell', 'tool_resource': True,
+        })
+        observe('cluster', 'inspect', target=cluster_target)
+        observe('datacenter', 'inspect', target=datacenter_target)
+        observe('node', 'inspect', target=node_target)
         observe('keyspace', 'inspect', target=keyspace_target)
         observe('table', 'inspect', target=table_target)
         observe('column', 'inspect', target=column_target)
+        observe('index', 'inspect', target=index_target)
         observe('user-defined-type', 'inspect', target=type_target)
         observe('materialized-view', 'inspect', target=view_target)
+        observe('trigger', 'inspect', target=trigger_target)
+        observe('function', 'inspect', target=function_target)
+        observe('aggregate', 'inspect', target=aggregate_target)
+        observe('role', 'inspect', target=role_target)
+        observe('permission', 'inspect', target=permission_target)
+        observe('identity', 'inspect', target=identity_target)
+        observe('query', 'inspect', target=query_target)
+        observe('tracing-session', 'inspect', target=tracing_target)
         observe('replication', 'inspect', target=replication_target)
         observe('replication', 'alter', {
             'replication': {
@@ -831,11 +1097,137 @@ def verify(args, password):
             },
             'durable_writes': True,
         }, replication_target)
+        observe('repair', 'inspect', target=repair_target)
+        observe('repair', 'execute', {
+            'action': 'repair', 'arguments': {'keyspace': keyspace},
+            'confirmation': 'repair-keyspace',
+        }, repair_target)
         observe('compaction', 'inspect', target=compaction_target)
         observe('compaction', 'execute', {
             'action': 'compact', 'arguments': {'keyspace': keyspace},
             'confirmation': 'compact-keyspace',
         }, compaction_target)
+        snapshot_name = prefix + '_object_snapshot'
+        observe('snapshot', 'inspect', target=snapshot_target)
+        observe('snapshot', 'execute', {
+            'action': 'snapshot',
+            'arguments': {'name': snapshot_name, 'keyspace': keyspace},
+            'confirmation': 'snapshot-keyspace',
+        }, snapshot_target)
+        observe('snapshot', 'execute', {
+            'action': 'clearsnapshot',
+            'arguments': {'name': snapshot_name, 'keyspace': keyspace},
+            'confirmation': 'clear-snapshot',
+        }, snapshot_target)
+        backup_name = prefix + '_backup'
+        observe('backup', 'inspect', target=backup_target)
+        observe('backup', 'execute', {
+            'action': 'snapshot',
+            'arguments': {'name': backup_name, 'keyspace': keyspace},
+            'confirmation': 'create-backup',
+        }, backup_target)
+        observe('backup', 'execute', {
+            'action': 'snapshot',
+            'arguments': {
+                'name': backup_name + '_second', 'keyspace': keyspace,
+            },
+            'confirmation': 'create-backup',
+        }, backup_target)
+        for name in (backup_name, backup_name + '_second'):
+            observe('snapshot', 'execute', {
+                'action': 'clearsnapshot',
+                'arguments': {'name': name, 'keyspace': keyspace},
+                'confirmation': 'clear-backup-snapshot',
+            }, snapshot_target)
+        restore_snapshot = prefix + '_restore_source'
+        observe('backup', 'execute', {
+            'action': 'snapshot',
+            'arguments': {
+                'name': restore_snapshot, 'keyspace': keyspace,
+            },
+            'confirmation': 'create-restore-source',
+        }, backup_target)
+        located = subprocess.run([
+            'docker', 'exec', args.fixture_container, 'find',
+            f'/var/lib/cassandra/data/{keyspace}', '-type', 'd',
+            '-path', f'*/snapshots/{restore_snapshot}', '-print',
+        ], check=False, capture_output=True, text=True)
+        if located.returncode != 0:
+            raise RuntimeError('Cassandra snapshot source lookup failed')
+        snapshot_paths = [
+            Path(value.strip()) for value in located.stdout.splitlines()
+            if value.strip()
+        ]
+        snapshot_path = next((
+            value for value in snapshot_paths
+            if value.parents[1].name.startswith(table + '-')
+        ), None)
+        if snapshot_path is None:
+            raise RuntimeError('Cassandra table snapshot was not found')
+        restore_table_path = restore_fixture_root / keyspace / table
+        restore_table_path.mkdir(parents=True)
+        copied = subprocess.run([
+            'docker', 'cp',
+            f'{args.fixture_container}:{snapshot_path}/.',
+            str(restore_table_path),
+        ], check=False, capture_output=True, text=True)
+        if copied.returncode != 0 or not any(restore_table_path.iterdir()):
+            raise RuntimeError('Cassandra table snapshot copy failed')
+        observe('snapshot', 'execute', {
+            'action': 'clearsnapshot',
+            'arguments': {
+                'name': restore_snapshot, 'keyspace': keyspace,
+            },
+            'confirmation': 'clear-restore-source',
+        }, snapshot_target)
+        observe('restore', 'inspect', target=restore_target)
+        shell_file = workspace / f'{prefix}_object.cql'
+        shell_file.write_text(
+            'SELECT release_version FROM system.local;\n',
+            encoding='utf-8',
+        )
+        observe('shell', 'inspect', target=shell_target)
+        observe('shell', 'execute', {
+            'action': 'file', 'arguments': {'path': shell_file.name},
+        }, shell_target)
+        observe('table', 'truncate', {
+            'confirmation': table,
+        }, table_target)
+        count_result = _execute(
+            provider, session['session_id'],
+            f'SELECT COUNT(*) AS row_count FROM "{keyspace}"."{table}"',
+        )
+        if _rows(count_result)[0]['row_count'] != 0:
+            raise RuntimeError('table truncate did not remove all rows')
+        observe('restore', 'execute', {
+            'action': 'sstableloader',
+            'arguments': {
+                'path': str(restore_table_path.relative_to(workspace)),
+            },
+            'confirmation': 'restore-sstable-data',
+        }, restore_target)
+        restored_result = _execute(
+            provider, session['session_id'],
+            f'SELECT COUNT(*) AS row_count FROM "{keyspace}"."{table}"',
+        )
+        restored_count = _rows(restored_result)[0]['row_count']
+        if restored_count < 1:
+            raise RuntimeError('sstableloader restored no table rows')
+        observe('identity', 'drop', {
+            'confirmation': identity_name,
+        }, identity_target)
+        observe('aggregate', 'drop', {
+            'confirmation': aggregate_name,
+        }, aggregate_target)
+        observe('function', 'drop', {
+            'confirmation': function_name,
+        }, function_target)
+        observe('trigger', 'drop', {
+            'confirmation': trigger_name,
+        }, trigger_target)
+        observe('index', 'drop', {
+            'confirmation': index_name,
+        }, index_target)
         observe('materialized-view', 'drop', {
             'confirmation': 'drop-view',
         }, view_target)
@@ -848,14 +1240,28 @@ def verify(args, password):
         observe('keyspace', 'drop', {
             'confirmation': 'drop-keyspace',
         }, keyspace_target)
+        observe('role', 'drop', {
+            'confirmation': member_role_name,
+        }, member_target)
+        observe('role', 'drop', {
+            'confirmation': role_name,
+        }, role_target)
         return {
             'passed_resource_operations': {
                 kind: sorted(operations)
                 for kind, operations in observed_operations.items()
             },
+            'restore_validation': {
+                'method': 'native-sstableloader',
+                'rows_after_truncate': 0,
+                'rows_after_restore': restored_count,
+                'passed': restored_count >= 1,
+            },
         }
 
     category('object_operations', object_operations_gate)
+    if restore_fixture_root.exists():
+        shutil.rmtree(restore_fixture_root)
 
     def tls_gate():
         if args.tls_mode == 'disabled':
@@ -876,6 +1282,8 @@ def verify(args, password):
         )
         try:
             for statement in (
+                f"DROP IDENTITY IF EXISTS '{identity_name}'",
+                f'DROP ROLE IF EXISTS "{member_role_name}"',
                 f'DROP ROLE IF EXISTS "{role_name}"',
                 f'DROP KEYSPACE IF EXISTS "{keyspace}"',
             ):
@@ -904,6 +1312,17 @@ def verify(args, password):
         name for name in CATEGORIES
         if name != 'tls' or args.tls_mode != 'disabled'
     ]
+    dialect_task_evidence = getattr(
+        provider, '_qualification_dialect_task_evidence', []
+    )
+    expected_dialect_tasks = set(client.admin_dialect_task_ids())
+    passed_dialect_tasks = {
+        item['task_id'] for item in dialect_task_evidence
+        if item.get('status') == 'passed'
+    }
+    missing_dialect_tasks = sorted(
+        expected_dialect_tasks.difference(passed_dialect_tasks)
+    )
     report = {
         'schema': 'cdeadmin.cassandra-live-gate.v1',
         'run_id': run_id,
@@ -917,11 +1336,17 @@ def verify(args, password):
         },
         'categories': categories,
         'details': details,
+        'dialect_task_evidence': dialect_task_evidence,
+        'dialect_task_summary': {
+            'expected': len(expected_dialect_tasks),
+            'passed': len(passed_dialect_tasks),
+            'missing': missing_dialect_tasks,
+        },
         'failures': failures,
         'cleanup_failures': cleanup_failures,
         'required_passed': all(
             categories[name] == 'passed' for name in required_categories
-        ) and not cleanup_failures,
+        ) and not cleanup_failures and not missing_dialect_tasks,
         'transaction_finality_interpreted_by_common_code': False,
         'credential_material_recorded': False,
     }

@@ -25,6 +25,7 @@ import importlib
 import inspect
 import ipaddress
 import json
+import os
 import re
 import shutil
 import ssl
@@ -142,6 +143,16 @@ def _identifier(value: object, label: str) -> str:
     return value
 
 
+def _identity(value: object, label='certificate identity') -> str:
+    """Validate an external-auth identity without identifier semantics."""
+    if not isinstance(value, str) or not value.strip():
+        raise CassandraClientError(f'{label} must not be empty')
+    value = value.strip()
+    if len(value) > 4096 or any(ord(char) < 32 for char in value):
+        raise CassandraClientError(f'{label} contains forbidden characters')
+    return value
+
+
 def _quoted(value: object, label='identifier') -> str:
     return '"' + _identifier(value, label).replace('"', '""') + '"'
 
@@ -229,11 +240,13 @@ class CassandraClient:
         ('column', 'SELECT * FROM system_schema.columns'),
         ('index', 'SELECT * FROM system_schema.indexes'),
         ('materialized-view', 'SELECT * FROM system_schema.views'),
+        ('trigger', 'SELECT * FROM system_schema.triggers'),
         ('user-defined-type', 'SELECT * FROM system_schema.types'),
         ('function', 'SELECT * FROM system_schema.functions'),
         ('aggregate', 'SELECT * FROM system_schema.aggregates'),
         ('role', 'LIST ROLES'),
         ('permission', 'LIST ALL PERMISSIONS'),
+        ('identity', 'SELECT * FROM system_auth.identity_to_role'),
         ('tracing-session', (
             'SELECT session_id, command, duration, request, '
             'started_at FROM system_traces.sessions'
@@ -252,9 +265,11 @@ class CassandraClient:
         'keyspace': 'keyspace_name', 'table': 'table_name',
         'column': 'column_name', 'index': 'index_name',
         'materialized-view': 'view_name',
+        'trigger': 'trigger_name',
         'user-defined-type': 'type_name', 'function': 'function_name',
         'aggregate': 'aggregate_name', 'role': 'role',
-        'permission': 'permission', 'tracing-session': 'session_id',
+        'permission': 'permission', 'identity': 'identity',
+        'tracing-session': 'session_id',
     }
 
     ROUTE_KEYS = frozenset({
@@ -262,7 +277,8 @@ class CassandraClient:
         'user', 'principal_reference', 'credential_reference_id', 'local_dc',
         'tls_mode', 'compression', 'consistency', 'serial_consistency',
         'request_timeout', 'connect_timeout', 'protocol_version',
-        'tool_workspace', 'jmx_port', 'tls_ca_file', 'auth_mode',
+        'tool_workspace', 'jmx_port', 'storage_port', 'tls_ca_file',
+        'auth_mode',
         'credential_kinds', 'credential_references',
         'tls_certificate_file', 'tls_key_file', 'tls_check_hostname',
         'tls_min_version', 'tls_ciphers', 'load_balancing_policy',
@@ -271,6 +287,7 @@ class CassandraClient:
         'heartbeat_timeout', 'schema_agreement_timeout',
         'reconnect_base_delay', 'reconnect_max_delay',
         'reconnect_max_attempts', 'executor_threads', 'application_name',
+        'jmx_auth_mode', 'jmx_username',
     })
     CONSISTENCIES = frozenset({
         'ANY', 'ONE', 'TWO', 'THREE', 'QUORUM', 'ALL', 'LOCAL_QUORUM',
@@ -285,13 +302,16 @@ class CassandraClient:
         'replication': frozenset({'inspect', 'alter'}),
         'table': frozenset({
             'inspect', 'create', 'alter', 'insert', 'update', 'delete',
-            'drop',
+            'truncate', 'drop',
         }),
         'column': frozenset({
             'inspect', 'create', 'rename', 'drop',
         }),
         'index': frozenset({'inspect', 'create', 'drop'}),
-        'materialized-view': frozenset({'inspect', 'create', 'drop'}),
+        'materialized-view': frozenset({
+            'inspect', 'create', 'alter', 'drop',
+        }),
+        'trigger': frozenset({'inspect', 'create', 'drop'}),
         'user-defined-type': frozenset({
             'inspect', 'create', 'alter', 'drop',
         }),
@@ -301,6 +321,7 @@ class CassandraClient:
             'inspect', 'create', 'alter', 'grant', 'revoke', 'drop',
         }),
         'permission': frozenset({'inspect', 'grant', 'revoke'}),
+        'identity': frozenset({'inspect', 'create', 'drop'}),
         'query': frozenset({'inspect'}),
         'tracing-session': frozenset({'inspect'}),
         'repair': frozenset({'inspect', 'execute'}),
@@ -365,8 +386,15 @@ class CassandraClient:
         self._row_identities: dict[str, _RowIdentity] = {}
         self._admin_cursors: dict[str, _AdminCursor] = {}
         self._tool_runner = ProviderToolRunner({
-            'cqlsh': 'cqlsh', 'nodetool': 'nodetool',
-            'sstableloader': 'sstableloader',
+            'cqlsh': os.environ.get(
+                'CDEADMIN_CASSANDRA_CQLSH_BINARY', 'cqlsh'
+            ),
+            'nodetool': os.environ.get(
+                'CDEADMIN_CASSANDRA_NODETOOL_BINARY', 'nodetool'
+            ),
+            'sstableloader': os.environ.get(
+                'CDEADMIN_CASSANDRA_SSTABLELOADER_BINARY', 'sstableloader'
+            ),
         })
 
     @classmethod
@@ -546,6 +574,32 @@ class CassandraClient:
         route['jmx_port'] = _bounded_int(
             route.get('jmx_port'), 7199, 1, 65535, 'JMX port'
         )
+        route['storage_port'] = _bounded_int(
+            route.get('storage_port'), 7000, 1, 65535,
+            'Cassandra storage port'
+        )
+        jmx_auth_mode = route.get('jmx_auth_mode', 'none')
+        if jmx_auth_mode not in {'none', 'password'}:
+            raise CassandraClientError(
+                'Cassandra JMX authentication mode is invalid'
+            )
+        route['jmx_auth_mode'] = jmx_auth_mode
+        if route.get('jmx_username') is not None:
+            route['jmx_username'] = _identifier(
+                route['jmx_username'], 'Cassandra JMX username'
+            )
+        if jmx_auth_mode == 'password' and (
+            route.get('jmx_username') is None or
+            'jmx_password' not in route['credential_references']
+        ):
+            raise CassandraClientError(
+                'Cassandra JMX password authentication requires a username '
+                'and JMX credential reference'
+            )
+        if jmx_auth_mode == 'none' and route.get('jmx_username') is not None:
+            raise CassandraClientError(
+                'Cassandra JMX username requires password authentication'
+            )
         return route
 
     @staticmethod
@@ -687,13 +741,17 @@ class CassandraClient:
                 )
             credentials = {}
             with ExitStack() as stack:
+                unsupported = sorted(set(references).difference({
+                    'database_password', 'tls_private_key_password',
+                    'jmx_password',
+                }))
+                if unsupported:
+                    raise CassandraClientError(
+                        'Cassandra credential kind is unsupported'
+                    )
                 for kind, reference in sorted(references.items()):
-                    if kind not in {
-                        'database_password', 'tls_private_key_password'
-                    }:
-                        raise CassandraClientError(
-                            'Cassandra credential kind is unsupported'
-                        )
+                    if kind == 'jmx_password':
+                        continue
                     lease = stack.enter_context(self._secret_acquirer(
                         _identifier(reference, 'credential reference'),
                         principal, 'connect', kind,
@@ -812,9 +870,17 @@ class CassandraClient:
             raise CassandraClientError(
                 'CQL parameters must be an object or array'
             )
+        tracing = request.get('trace', False)
+        if not isinstance(tracing, bool):
+            raise CassandraClientError('CQL trace flag must be boolean')
         try:
             statement = self._statement(source, handle.route)
-            future = handle.session.execute_async(statement, parameters)
+            if tracing:
+                future = handle.session.execute_async(
+                    statement, parameters, trace=True
+                )
+            else:
+                future = handle.session.execute_async(statement, parameters)
             # cassandra-driver applies ``Session.default_timeout`` to the
             # future. ResponseFuture.result() deliberately accepts no timeout
             # argument in the qualified 3.30.1 API.
@@ -939,6 +1005,20 @@ class CassandraClient:
             return [cls._json_value(item) for item in value]
         return {'$driver_value': str(value)}
 
+    @classmethod
+    def _driver_parameter(cls, value):
+        """Restore JSON-safe native identities before driver binding."""
+        if isinstance(value, Mapping) and set(value) == {'$type', '$value'}:
+            value_type = value.get('$type')
+            encoded = value.get('$value')
+            if value_type == 'UUID':
+                return uuid.UUID(str(encoded))
+            if value_type == 'IPv4Address':
+                return ipaddress.IPv4Address(str(encoded))
+            if value_type == 'IPv6Address':
+                return ipaddress.IPv6Address(str(encoded))
+        return value
+
     @staticmethod
     def _close_native(cluster, session):
         if session is not None:
@@ -966,8 +1046,9 @@ class CassandraClient:
     def _resource(kind, name, native, parent=None):
         identity = ':'.join(str(native.get(key, '')) for key in (
             'keyspace_name', 'table_name', 'column_name', 'index_name',
-            'view_name', 'type_name', 'function_name', 'aggregate_name',
-            'name', 'host_id', 'role', 'permission', 'session_id',
+            'view_name', 'trigger_name', 'type_name', 'function_name',
+            'aggregate_name', 'name', 'host_id', 'role', 'identity',
+            'permission', 'session_id',
         )) or str(name)
         encoded = quote(identity, safe='')
         generation = hashlib.sha256(json.dumps(
@@ -1139,6 +1220,27 @@ class CassandraClient:
             resource_kind, frozenset()
         )
 
+    @classmethod
+    def admin_operation_requires_dialect(cls, resource_kind, operation_id):
+        """Identify Cassandra statements generated by visual tasks."""
+        return (
+            resource_kind not in cls.TOOL_KINDS and
+            operation_id != 'inspect' and
+            operation_id in cls.ADMIN_OPERATIONS.get(resource_kind, ())
+        )
+
+    @classmethod
+    def admin_dialect_task_ids(cls):
+        """Return the complete exact-profile generated-CQL task inventory."""
+        return tuple(sorted(
+            f'visual_admin.{resource_kind}.{operation_id}'
+            for resource_kind, operations in cls.ADMIN_OPERATIONS.items()
+            for operation_id in operations
+            if cls.admin_operation_requires_dialect(
+                resource_kind, operation_id
+            )
+        ))
+
     @staticmethod
     def _form(form_id, title, fields):
         return {'form_id': form_id, 'title': title, 'fields': fields}
@@ -1183,9 +1285,21 @@ class CassandraClient:
                 'columns': declaration('column'),
                 'types': declaration('user-defined-type'),
                 'materialized_views': declaration('materialized-view'),
-                'replication_and_compaction': declaration(
-                    'replication', 'compaction'
-                ),
+                'indexes': declaration('index'),
+                'triggers': declaration('trigger'),
+                'functions': declaration('function'),
+                'aggregates': declaration('aggregate'),
+                'roles_and_permissions': declaration('role', 'permission'),
+                'identities': declaration('identity'),
+                'replication': declaration('replication'),
+                'compaction': declaration('compaction'),
+                'topology': declaration('cluster', 'datacenter', 'node'),
+                'queries': declaration('query'),
+                'tracing': declaration('tracing-session'),
+                'repair': declaration('repair'),
+                'snapshots': declaration('snapshot'),
+                'backup_and_restore': declaration('backup', 'restore'),
+                'shell': declaration('shell'),
             }}
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
@@ -1212,7 +1326,8 @@ class CassandraClient:
             return self._form('cassandra-inspect', 'Inspect', [])
         if operation == 'drop' and kind in {
             'aggregate', 'column', 'function', 'index', 'keyspace',
-            'materialized-view', 'role', 'table', 'user-defined-type',
+            'materialized-view', 'role', 'table', 'trigger',
+            'user-defined-type', 'identity',
         }:
             return self._form(
                 f'cassandra-{kind}-drop',
@@ -1289,13 +1404,17 @@ class CassandraClient:
                       required=True),
                 ],
             )
-        if kind == 'column' and operation in {
-            'create', 'alter', 'rename'
-        }:
+        if kind == 'table' and operation == 'truncate':
+            return self._form(
+                'cassandra-table-truncate', 'Truncate table', [
+                    f('confirmation', 'Type the selected table name to '
+                      'confirm removal of every row', required=True),
+                ],
+            )
+        if kind == 'column' and operation in {'create', 'rename'}:
             fields = {
                 'create': [f('name', 'Column name', required=True),
                            f('type', 'CQL type', required=True)],
-                'alter': [f('type', 'New CQL type', required=True)],
                 'rename': [f('new_name', 'New column name', required=True)],
             }[operation]
             return self._form(f'cassandra-column-{operation}',
@@ -1332,6 +1451,20 @@ class CassandraClient:
                       default=[]),
                     f('options', 'View options', 'json', False, default={}),
                 ])
+        if kind == 'materialized-view' and operation == 'alter':
+            return self._form(
+                'cassandra-materialized-view-alter',
+                'Alter materialized view options', [
+                    f('options', 'View options', 'json', True, default={}),
+                ],
+            )
+        if kind == 'trigger' and operation == 'create':
+            return self._form('cassandra-trigger-create', 'Create trigger', [
+                f('keyspace', 'Keyspace', required=True),
+                f('table', 'Table', required=True),
+                f('name', 'Trigger name', required=True),
+                f('class_name', 'Java trigger class', required=True),
+            ])
         if kind == 'user-defined-type' and operation in {'create', 'alter'}:
             fields = [] if operation == 'alter' else [
                 f('keyspace', 'Keyspace', required=True),
@@ -1399,6 +1532,14 @@ class CassandraClient:
                       default={'kind': 'all-keyspaces'}),
                     f('confirmation', 'Confirmation', required=False),
                 ])
+        if kind == 'identity' and operation == 'create':
+            return self._form(
+                'cassandra-identity-create',
+                'Add certificate identity to role', [
+                    f('identity', 'Certificate identity', required=True),
+                    f('role', 'Cassandra role', required=True),
+                ],
+            )
         if kind in self.TOOL_KINDS and operation == 'execute':
             return self._form(
                 f'cassandra-{kind}-execute', f'Run {kind} operation', [
@@ -1623,6 +1764,10 @@ class CassandraClient:
             return {'statements': [self._view_statement(
                 operation, draft, native
             )]}
+        if kind == 'trigger':
+            return {'statements': [self._trigger_statement(
+                operation, draft, native
+            )]}
         if kind == 'user-defined-type':
             return {'statements': [self._type_statement(
                 operation, draft, native
@@ -1635,7 +1780,7 @@ class CassandraClient:
             return {'statements': [self._aggregate_statement(
                 operation, draft, native
             )]}
-        if kind in {'role', 'permission'}:
+        if kind in {'role', 'permission', 'identity'}:
             return {'statements': self._security_statements(
                 kind, operation, draft, native, preview
             )}
@@ -1730,6 +1875,9 @@ class CassandraClient:
         target = f'{_quoted(keyspace)}.{_quoted(table)}'
         if operation == 'drop':
             return [{'source': f'DROP TABLE {target}', 'parameters': (),
+                     'values_parameterized': True}]
+        if operation == 'truncate':
+            return [{'source': f'TRUNCATE TABLE {target}', 'parameters': (),
                      'values_parameterized': True}]
         if operation == 'insert':
             values = _mapping(draft.get('values'), 'insert values')
@@ -1832,9 +1980,6 @@ class CassandraClient:
         if operation == 'create':
             source = f'ALTER TABLE {target} ADD {_quoted(column)} ' \
                 f'{_type_expression(draft.get("type"))}'
-        elif operation == 'alter':
-            source = f'ALTER TABLE {target} ALTER {_quoted(column)} TYPE ' \
-                f'{_type_expression(draft.get("type"))}'
         elif operation == 'rename':
             if native.get('kind') not in {
                 'partition_key', 'clustering'
@@ -1899,6 +2044,19 @@ class CassandraClient:
             return {'source': f'DROP MATERIALIZED VIEW '
                     f'{_quoted(keyspace)}.{_quoted(name)}',
                     'parameters': (), 'values_parameterized': True}
+        if operation == 'alter':
+            keyspace = self._target_name(native, 'keyspace_name', 'keyspace')
+            name = self._target_name(native, 'view_name', 'view')
+            options = _mapping(draft.get('options'), 'view options')
+            if not options:
+                raise CassandraClientError(
+                    'materialized view options must not be empty'
+                )
+            return {
+                'source': f'ALTER MATERIALIZED VIEW {_quoted(keyspace)}.'
+                f'{_quoted(name)}' + self._with_options(options),
+                'parameters': (), 'values_parameterized': False,
+            }
         keyspace = _identifier(draft.get('keyspace'), 'keyspace')
         name = _identifier(draft.get('name'), 'view')
         base = _identifier(draft.get('base_table'), 'base table')
@@ -1937,6 +2095,33 @@ class CassandraClient:
         )
         if draft.get('options'):
             source += self._with_options(draft['options'])
+        return {'source': source, 'parameters': (),
+                'values_parameterized': False}
+
+    def _trigger_statement(self, operation, draft, native):
+        if operation == 'create':
+            keyspace = _identifier(draft.get('keyspace'), 'keyspace')
+            table = _identifier(draft.get('table'), 'table')
+            name = _identifier(draft.get('name'), 'trigger')
+            class_name = _identifier(
+                draft.get('class_name'), 'Java trigger class'
+            )
+            if not _JAVA_NAME.fullmatch(class_name):
+                raise CassandraClientError('Java trigger class is invalid')
+            source = (
+                f'CREATE TRIGGER IF NOT EXISTS {_quoted(name)} ON '
+                f'{_quoted(keyspace)}.{_quoted(table)} USING '
+                f'{_literal(class_name)}'
+            )
+        elif operation == 'drop':
+            keyspace, table = self._table_target(native)
+            name = self._target_name(native, 'trigger_name', 'trigger')
+            source = (
+                f'DROP TRIGGER {_quoted(name)} ON '
+                f'{_quoted(keyspace)}.{_quoted(table)}'
+            )
+        else:
+            raise CassandraClientError('trigger operation is unavailable')
         return {'source': source, 'parameters': (),
                 'values_parameterized': False}
 
@@ -2045,6 +2230,26 @@ class CassandraClient:
                 'values_parameterized': False}
 
     def _security_statements(self, kind, operation, draft, native, preview):
+        if kind == 'identity':
+            identity = (
+                _identity(draft.get('identity'))
+                if operation == 'create'
+                else _identity(native.get('identity'))
+            )
+            if operation == 'create':
+                role = _identifier(draft.get('role'), 'role')
+                source = (
+                    f'ADD IDENTITY IF NOT EXISTS {_literal(identity)} TO '
+                    f'ROLE {_literal(role)}'
+                )
+            elif operation == 'drop':
+                source = f'DROP IDENTITY IF EXISTS {_literal(identity)}'
+            else:
+                raise CassandraClientError(
+                    'identity operation is unavailable'
+                )
+            return [{'source': source, 'parameters': (),
+                     'values_parameterized': False}]
         if kind == 'role' and operation in {'create', 'alter'}:
             name = (
                 _identifier(draft.get('name'), 'role')
@@ -2181,6 +2386,12 @@ class CassandraClient:
                                   'keyspace_name = %s AND view_name = %s',
                                   (native.get('keyspace_name'),
                                    native.get('view_name'))),
+            'trigger': ('SELECT * FROM system_schema.triggers WHERE '
+                        'keyspace_name = %s AND table_name = %s AND '
+                        'trigger_name = %s',
+                        (native.get('keyspace_name'),
+                         native.get('table_name'),
+                         native.get('trigger_name'))),
             'user-defined-type': ('SELECT * FROM system_schema.types WHERE '
                                   'keyspace_name = %s AND type_name = %s',
                                   (native.get('keyspace_name'),
@@ -2194,6 +2405,8 @@ class CassandraClient:
                           (native.get('keyspace_name'),
                            native.get('aggregate_name'))),
             'permission': ('LIST ALL PERMISSIONS', ()),
+            'identity': ('SELECT * FROM system_auth.identity_to_role WHERE '
+                         'identity = %s', (native.get('identity'),)),
             'query': ('SELECT * FROM system_views.clients', ()),
             'tracing-session': ('SELECT * FROM system_traces.sessions WHERE '
                                 'session_id = %s',
@@ -2205,6 +2418,9 @@ class CassandraClient:
             raise CassandraClientError(
                 'Cassandra inspection operation is unavailable'
             ) from exc
+        parameters = tuple(
+            self._driver_parameter(value) for value in parameters
+        )
         return [{'source': source, 'parameters': parameters,
                  'values_parameterized': bool(parameters)}]
 
@@ -2481,18 +2697,24 @@ class CassandraClient:
     @staticmethod
     def _tool_grant(executable, route):
         port = route['jmx_port'] if executable == 'nodetool' else route['port']
+        secret_environment_names = {
+            'cqlsh': ('CQLSH_PYTHON',),
+            'sstableloader': (
+                'CDEADMIN_CASSANDRA_TOOL_USERNAME',
+                'CDEADMIN_CASSANDRA_TOOL_PASSWORD',
+                'EXTRA_CLASSPATH',
+            ),
+        }.get(executable, ())
         return ProviderToolGrant(
             executable,
             _identifier(route.get('tool_workspace'), 'tool workspace'),
             _identifier(route.get('host'), 'endpoint host'),
             port,
-            secret_environment_names=(
-                ('CQLSH_PYTHON',) if executable == 'cqlsh' else ()
-            ),
+            secret_environment_names=secret_environment_names,
         )
 
-    def _tool_secret(self, route, callback):
-        reference = route.get('credential_reference_id')
+    def _tool_secret(self, route, secret_kind, purpose, callback):
+        reference = route.get('credential_references', {}).get(secret_kind)
         if reference is None:
             return callback(None)
         if not callable(self._secret_acquirer):
@@ -2504,7 +2726,7 @@ class CassandraClient:
             _identifier(
                 route.get('principal_reference'), 'principal reference'
             ),
-            'provider_tool', 'database_password',
+            purpose, secret_kind,
         )
         with lease:
             return lease.use(
@@ -2525,18 +2747,13 @@ class CassandraClient:
         executable, command = self._tool_command(kind, action, arguments,
                                                  route)
         grant = self._tool_grant(executable, route)
-        if executable == 'sstableloader' and route.get(
-            'credential_reference_id'
-        ):
-            raise CassandraClientError(
-                'authenticated sstableloader is refused because Cassandra '
-                'accepts its password only as a visible process argument'
-            )
 
         def invoke(password):
+            tool_command = list(command)
             secret_config = None
             secret_argument = '--config={path}'
             secret_suffix = '.conf'
+            secret_argument_position = None
             secret_environment = None
             if executable == 'cqlsh':
                 sections = []
@@ -2567,26 +2784,85 @@ class CassandraClient:
                 python = shutil.which('python3.11')
                 if python is not None:
                     secret_environment = {'CQLSH_PYTHON': python}
+            elif password is not None and executable == 'nodetool':
+                username_field = 'jmx_username'
+                username = _identifier(
+                    route.get(username_field),
+                    'Cassandra JMX username',
+                )
+                tool_command[0:0] = ['-u', username]
+                secret_config = f'{username} {password}\n'.encode('utf-8')
+                secret_argument = ('-pwf', '{path}')
+                secret_suffix = '.password'
+                secret_argument_position = 0
+            elif password is not None and executable == 'sstableloader':
+                username = _identifier(
+                    route.get('username'), 'Cassandra username'
+                )
+                auth_jar = os.environ.get(
+                    'CDEADMIN_CASSANDRA_AUTH_PROVIDER_JAR'
+                )
+                if not auth_jar:
+                    raise CassandraClientError(
+                        'Cassandra sstableloader environment AuthProvider '
+                        'is unavailable'
+                    )
+                auth_path = Path(auth_jar).resolve(strict=False)
+                if not auth_path.is_absolute() or not auth_path.is_file():
+                    raise CassandraClientError(
+                        'Cassandra sstableloader AuthProvider JAR is '
+                        'unavailable'
+                    )
+                tool_command[0:0] = [
+                    '-ap',
+                    ('org.cdeadmin.cassandra.'
+                     'CDEadminEnvironmentAuthProvider'),
+                ]
+                secret_environment = {
+                    'CDEADMIN_CASSANDRA_TOOL_USERNAME': username,
+                    'CDEADMIN_CASSANDRA_TOOL_PASSWORD': password,
+                    'EXTRA_CLASSPATH': str(auth_path),
+                }
             return self._tool_runner.run(
-                grant, command, secret_config=secret_config,
+                grant, tool_command, secret_config=secret_config,
                 secret_argument=secret_argument,
                 secret_suffix=secret_suffix,
+                secret_argument_position=secret_argument_position,
                 redact_values=(str(password or ''),),
                 secret_environment=secret_environment,
             )
 
         try:
-            result = (
-                self._tool_secret(route, invoke)
-                if executable == 'cqlsh'
-                else invoke(None)
-            )
+            if executable == 'cqlsh':
+                result = self._tool_secret(
+                    route, 'database_password', 'provider_tool', invoke
+                )
+            elif executable == 'nodetool' and (
+                route['jmx_auth_mode'] == 'password'
+            ):
+                result = self._tool_secret(
+                    route, 'jmx_password', 'provider_tool_jmx', invoke
+                )
+            elif executable == 'sstableloader' and route['auth_mode'] in {
+                'password', 'password-mutual-tls'
+            }:
+                result = self._tool_secret(
+                    route, 'database_password', 'provider_tool', invoke
+                )
+            else:
+                result = invoke(None)
         except ProviderToolError as exc:
             raise CassandraClientError(str(exc)) from None
         if result['return_code'] != 0:
+            diagnostic = result['stderr']
+            if len(diagnostic) > 2400:
+                diagnostic = (
+                    diagnostic[:1200] + '\n...[truncated]...\n' +
+                    diagnostic[-1200:]
+                )
             raise CassandraClientError(
                 f'Cassandra {executable} exited with a failure: '
-                f'{result["stderr"][-500:]}'
+                f'{diagnostic}'
             )
         result.update({'operation': action, 'acknowledged': True})
         return {
@@ -2646,7 +2922,9 @@ class CassandraClient:
                 'SSTable path',
             )
             return 'sstableloader', [
-                '-d', _identifier(route.get('host'), 'host'), str(path)
+                '-d', _identifier(route.get('host'), 'host'),
+                '-p', str(route['port']),
+                '-sp', str(route['storage_port']), str(path)
             ]
         if kind == 'shell' and action == 'file':
             _root, path = self._workspace_path(

@@ -137,6 +137,30 @@ class ProviderToolRunnerTests(unittest.TestCase):
                     input_path=input_path,
                 )
 
+    def test_split_secret_option_is_inserted_without_shell_parsing(self):
+        with tempfile.TemporaryDirectory(
+            prefix='cdeadmin-provider-tool-split-secret-'
+        ) as workspace:
+            runner = ProviderToolRunner({'python': sys.executable})
+            grant = ProviderToolGrant(
+                executable_id='python', workspace=workspace,
+                endpoint_host='127.0.0.1', endpoint_port=7199,
+            )
+            result = runner.run(
+                grant, [
+                    '-c',
+                    'import pathlib,sys;print(sys.argv[1]);print('
+                    'pathlib.Path(sys.argv[2]).read_text(),end="")',
+                ],
+                secret_config=b'private-password-file',
+                secret_argument=('-pwf', '{path}'),
+                secret_argument_position=2,
+                redact_values=('private-password-file',),
+            )
+            self.assertEqual(0, result['return_code'])
+            self.assertEqual('-pwf\n[redacted]', result['stdout'])
+            self.assertEqual([], list(Path(workspace).iterdir()))
+
 
 if __name__ == '__main__':
     unittest.main()

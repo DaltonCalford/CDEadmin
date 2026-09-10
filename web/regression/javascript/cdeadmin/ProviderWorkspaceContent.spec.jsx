@@ -1537,6 +1537,47 @@ describe('ProviderWorkspaceContent', () => {
     });
   });
 
+  it('opens the MongoDB collection owning the selected child resource', async () => {
+    const firstCollection = {
+      resource_id: 'mongodb:collection:example:first',
+      resource_kind: 'collection', display_name: 'first',
+      display_path: ['MongoDB', 'example', 'first'],
+    };
+    const selectedCollection = {
+      resource_id: 'mongodb:collection:example:selected',
+      resource_kind: 'collection', display_name: 'selected',
+      display_path: ['MongoDB', 'example', 'selected'],
+    };
+    const selectedIndex = {
+      resource_id: 'mongodb:index:example:selected:lookup',
+      resource_kind: 'index', display_name: 'lookup',
+      display_path: ['MongoDB', 'example', 'selected', 'lookup'],
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: [firstCollection, selectedCollection,
+        selectedIndex]},
+      visual_admin: {
+        engine_id: 'mongodb', model_family: 'document',
+        objects: [{resource_kind: 'document', operations: []}],
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {documents: []}}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="data" initialContext={{
+        resource_id: selectedIndex.resource_id, resource_kind: 'index',
+      }} />);
+    const collectionSelector = await screen.findByRole('combobox', {
+      name: 'Collection',
+    });
+    await waitFor(() => expect(collectionSelector)
+      .toHaveTextContent('MongoDB.example.selected'));
+    fireEvent.click(screen.getByText('Load documents'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    expect(api.post.mock.calls[0][1].request.target_resource)
+      .toEqual(selectedCollection);
+  });
+
   it('loads and edits Neo4j nodes through provider-owned plans', async () => {
     const graph = {
       resource_id: 'neo4j:graph:neo4j', resource_kind: 'graph',
@@ -1585,7 +1626,6 @@ describe('ProviderWorkspaceContent', () => {
         display_name: '4:one',
       },
       draft: {
-        selector: {element_id: '4:one'},
         changes: {properties: {name: 'Alicia'}},
       },
     });
@@ -1652,6 +1692,44 @@ describe('ProviderWorkspaceContent', () => {
       action: 'visual_admin_rows',
       request: {target_resource: table, limit: 200, continuation: null},
     });
+  });
+
+  it('opens the analytic container owning the selected child resource', async () => {
+    const firstTable = {
+      resource_id: 'influxdb:table:metrics:first', resource_kind: 'table',
+      display_name: 'first', display_path: ['metrics', 'first'],
+    };
+    const selectedTable = {
+      resource_id: 'influxdb:table:metrics:selected', resource_kind: 'table',
+      display_name: 'selected', display_path: ['metrics', 'selected'],
+    };
+    const selectedField = {
+      resource_id: 'influxdb:field:metrics:selected:usage',
+      resource_kind: 'field', display_name: 'usage',
+      display_path: ['metrics', 'selected', 'usage'],
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      resource_page: {items: [firstTable, selectedTable, selectedField]},
+      visual_admin: {
+        engine_id: 'influxdb', model_family: 'time-series-analytic',
+        objects: [{resource_kind: 'table', operations: []}],
+      },
+    }}});
+    api.post.mockResolvedValue({data: {data: {records: []}}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="data" initialContext={{
+        resource_id: selectedField.resource_id, resource_kind: 'field',
+      }} />);
+    const containerSelector = await screen.findByRole('combobox', {
+      name: 'Analytic data container',
+    });
+    await waitFor(() => expect(containerSelector)
+      .toHaveTextContent('metrics.selected'));
+    fireEvent.click(screen.getByText('Load data'));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    expect(api.post.mock.calls[0][1].request.target_resource)
+      .toEqual(selectedTable);
   });
 
   it('previews and explicitly confirms provider bulk imports', async () => {

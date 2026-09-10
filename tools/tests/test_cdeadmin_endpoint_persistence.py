@@ -92,7 +92,7 @@ def load_model():
 class EndpointPersistenceSourceTests(unittest.TestCase):
     def test_model_version_and_tables_are_declared(self):
         source = MODEL_PATH.read_text(encoding='utf-8')
-        self.assertRegex(source, r'SCHEMA_VERSION\s*=\s*55\b')
+        self.assertRegex(source, r'SCHEMA_VERSION\s*=\s*57\b')
         for table in (
             'cde_endpoint',
             'cde_endpoint_runtime_identity',
@@ -121,7 +121,7 @@ class EndpointPersistenceSourceTests(unittest.TestCase):
         self.assertNotIn('table.c.password', source)
         self.assertNotIn('table.c.tunnel_password', source)
 
-    def test_endpoint_migration_is_the_only_graph_head(self):
+    def test_endpoint_migration_remains_in_the_linear_graph(self):
         revisions = set()
         predecessors = set()
         for path in (ROOT / 'web/migrations/versions').glob('*.py'):
@@ -136,7 +136,8 @@ class EndpointPersistenceSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_report_scheduler_v1'}, revisions - predecessors
+            {'cde_split_route_database_targets_v1'},
+            revisions - predecessors,
         )
 
     def test_model_keeps_legacy_passwords_out_of_endpoint_json(self):

@@ -47,9 +47,26 @@ PROFILE = PilotProfile(
     ),
     ('mysql-client', 'vtctldclient', 'vtadmin', 'backup-restore'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'vitess-sql', 'quote_open': '`',
         'quote_close': '`', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        # VTGate 23.0.3 cannot guarantee window execution for a query that
+        # spans shards. Keep semantic windows unavailable at this profile;
+        # single-shard native SQL remains available in SQL Studio.
+        'window_operations': (),
     },
+    dialect_contract_id='vitess.dialect.23.0.3.v1',
+    dialect_evidence=(
+        'vitess-23.0.3-source-and-runtime-inventory',
+        'vitess-23.0.3-native-task-live-execution',
+    ),
+    dialect_contract_file='vitess_dialect_23_0_3.json',
+    metrics_contract_file='vitess_metrics_23_0_3.json',
 )
 
 
@@ -497,12 +514,14 @@ class VitessControlAdministration(VitessAdministration):
             return _CONTROL_ADMINISTRATION.plan(request)
         return super().plan(request)
 
-    def apply(self, client, request):
+    def apply(self, client, request, connection=None):
         plan = request.get('plan') or {}
         if _CONTROL_ADMINISTRATION.control_plane.supports(
                 plan.get('resource_kind'), plan.get('operation_id')):
-            return _CONTROL_ADMINISTRATION.apply(client, request)
-        return super().apply(client, request)
+            return _CONTROL_ADMINISTRATION.apply(
+                client, request, connection=connection
+            )
+        return super().apply(client, request, connection=connection)
 
     @staticmethod
     def _control_request(request):

@@ -200,6 +200,10 @@
     "protocol": "foundationdb_native",
     "client_state": "foundationdb_7.3.77_installed",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"
+    "activation_gate": "passed_exact_contract_and_ui_evidence",
+    "live_evidence_reference": "cde-distributed:foundationdb-native-live:20260902",
+    "native_live_evidence_sha256": "00a7dbc361eb6e55c8605318a58978d489bf9f76f88865043bf0188490ccd820",
+    "object_live_evidence_sha256": "f6be70a6d5bf9f3968995a4eb1dc4bc0a6dfa7afc5a35d222cbcd92446de6967",
+    "strict_object_evidence_sha256": "de3d2e8c9572b74cf869be4643860d0ff75507f9f46d5782334afca8f8fc7dad"
   }
 }

@@ -76,10 +76,12 @@ def run(options):
     from pgadmin.cdeadmin.providers.firebird.provider import (
         PROFILE,
         _client_library_identity,
+        _configure_client_library,
         _firebird_service_operation,
         _server_arguments,
         _server_identity,
     )
+    _configure_client_library(driver)
 
     suffix = uuid.uuid4().hex
     root = options.database_root.rstrip('/')

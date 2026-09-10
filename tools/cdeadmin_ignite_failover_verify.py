@@ -15,9 +15,11 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
@@ -34,7 +36,24 @@ if 'pgadmin' not in sys.modules:
     sys.modules['pgadmin'] = package
 
 
+class _Lease:
+    def __init__(self, value):
+        self.value = bytearray(value.encode('utf-8'))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.value[:] = b'\x00' * len(self.value)
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
 class Permissions:
+    def __init__(self, password):
+        self.password = password
+
     @staticmethod
     def require(_permission, _scope='endpoint'):
         return None
@@ -43,9 +62,10 @@ class Permissions:
     def allows(_permission, _scope='endpoint'):
         return True
 
-    @staticmethod
-    def acquire_secret(*_args):
-        raise RuntimeError('Ignite qualification has no credential')
+    def acquire_secret(self, reference, *_args):
+        if reference != 'root':
+            raise RuntimeError('Ignite qualification secret is unavailable')
+        return _Lease(self.password)
 
 
 def arguments():
@@ -54,14 +74,19 @@ def arguments():
     parser.add_argument('--port', type=int, default=10800)
     parser.add_argument('--rest-port', type=int, default=18080)
     parser.add_argument('--secondary-container', required=True)
+    parser.add_argument(
+        '--password-environment', default='CDEADMIN_IGNITE_PASSWORD')
     parser.add_argument('--allow-failure-injection', action='store_true')
     parser.add_argument('--output', type=Path, required=True)
     return parser.parse_args()
 
 
-def topology(host, port):
+def topology(host, port, username, password):
+    query = urllib.parse.urlencode({
+        'cmd': 'top', 'user': username, 'password': password,
+    })
     with urllib.request.urlopen(
-        f'http://{host}:{port}/ignite?cmd=top', timeout=5
+        f'http://{host}:{port}/ignite?{query}', timeout=5
     ) as response:
         payload = json.loads(response.read(1024 * 1024))
     if payload.get('successStatus') != 0:
@@ -69,13 +94,13 @@ def topology(host, port):
     return payload.get('response') or []
 
 
-def wait_topology(host, port, expected, timeout=90):
+def wait_topology(host, port, expected, username, password, timeout=90):
     started = time.monotonic()
     observations = 0
     while time.monotonic() - started < timeout:
         observations += 1
         try:
-            nodes = topology(host, port)
+            nodes = topology(host, port, username, password)
             if len(nodes) == expected:
                 return {
                     'node_count': len(nodes), 'observations': observations,
@@ -137,6 +162,9 @@ def verify(args):
         raise RuntimeError(
             'live failure injection requires --allow-failure-injection'
         )
+    password = os.environ.get(args.password_environment)
+    if password is None:
+        raise RuntimeError('Ignite password environment is absent')
     module = importlib.import_module(
         'pgadmin.cdeadmin.providers.apache_ignite.provider'
     )
@@ -144,14 +172,20 @@ def verify(args):
         endpoint_id=f'ignite-failover-{uuid.uuid4()}',
         session_namespace=f'ignite-failover-session-{uuid.uuid4()}',
         mode='legacy_native', runtime_verification_state='verified',
+        experience_family='apache_ignite',
+        provider_id='org.cdeadmin.apache-ignite',
+        profile_id='apache-ignite-native',
         declared_runtime_family='apache_ignite',
         verified_runtime_family='apache_ignite',
     )
-    provider = module.create_provider(context, Permissions())
+    provider = module.create_provider(context, Permissions(password))
     route = {
         'route_id': 'ignite-failover-gate', 'host': args.host,
         'port': args.port, 'rest_port': args.rest_port,
         'partition_aware': True,
+        'auth_mode': 'username-password', 'username': 'ignite',
+        'principal_reference': 'cdeadmin-ignite-failover-live-gate',
+        'credential_references': {'database_password': 'root'},
     }
     cache_name = f'cdeadmin_failover_{uuid.uuid4().hex[:12]}'
     target = {
@@ -173,7 +207,7 @@ def verify(args):
     secondary_stopped = False
     try:
         evidence['steps']['initial_topology'] = wait_topology(
-            args.host, args.rest_port, 2
+            args.host, args.rest_port, 2, 'ignite', password
         )
         identity = provider.discover_endpoint({'route': route})[
             'verified_runtime'
@@ -197,7 +231,7 @@ def verify(args):
         docker('stop', args.secondary_container)
         secondary_stopped = True
         evidence['steps']['degraded_topology'] = wait_topology(
-            args.host, args.rest_port, 1
+            args.host, args.rest_port, 1, 'ignite', password
         )
         page = provider.read_visual_admin_rows({
             '_provider_route': route, 'target_resource': target, 'limit': 100,
@@ -218,7 +252,7 @@ def verify(args):
         docker('start', args.secondary_container)
         secondary_stopped = False
         evidence['steps']['recovered_topology'] = wait_topology(
-            args.host, args.rest_port, 2
+            args.host, args.rest_port, 2, 'ignite', password
         )
         page = provider.read_visual_admin_rows({
             '_provider_route': route, 'target_resource': target, 'limit': 100,
@@ -239,7 +273,8 @@ def verify(args):
         if secondary_stopped:
             try:
                 docker('start', args.secondary_container)
-                wait_topology(args.host, args.rest_port, 2)
+                wait_topology(
+                    args.host, args.rest_port, 2, 'ignite', password)
             except Exception as exc:
                 evidence['failures'].append(
                     f'recovery {type(exc).__name__}: {exc}'
@@ -248,7 +283,7 @@ def verify(args):
             try:
                 evidence['steps']['cleanup'] = apply(
                     provider, route, target, 'drop', {
-                        'cascade': False, 'confirmation': cache_name,
+                        'confirmation': cache_name,
                     },
                 )
             except Exception as exc:

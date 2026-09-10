@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.influxdb", "provider_version": "0.1.0", "profile_id": "influxdb-native", "profile_version": "3.9.0", "evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.influxdb", "provider_version": "0.1.0", "profile_id": "influxdb-native", "profile_version": "3.9.0", "evidence_reference": "cdeadmin-influxdb-full-live:20260909"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
@@ -26,5 +26,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "InfluxDB safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "InfluxDB 3.9.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "influxdb_3.9.0_core_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:influxdb-3.9.0:http-json:20260902", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab"}
+  "provenance": {"purpose": "InfluxDB 3.9.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "object_experience_gate": "passed", "semantic_model_gate": "passed", "live_evidence_reference": "cdeadmin-influxdb-full-live:3.9.0:20260909", "runtime_image_digest": "sha256:0712f79a7c4e7b3da3f5777fa340bf5a65b165b5a5d44dc6631b6a50663352ab", "evidence_sha256": "816375e0c62541195b2b9b67c04e485fe18a76a60c9a807af3ecf82ceab8bc8b", "strict_object_evidence_sha256": "7621746f13bd2f8bdb9b69ac08c1c99d923d9ad63d7bd093162a0b2c5f5eecb3"}
 }

@@ -1,0 +1,3745 @@
+{
+  "completeness": {
+    "antlr_grammar_files_exhausted": [
+      "src/antlr/Cql.g",
+      "src/antlr/Parser.g",
+      "src/antlr/Lexer.g"
+    ],
+    "inventory_counts": {
+      "commands": 122,
+      "data_types": 30,
+      "diagnostics": 20,
+      "functions": 161,
+      "lexical_rules": 224,
+      "operators": 13,
+      "session_settings": 0,
+      "statements": 43
+    },
+    "native_function_registry_exhausted": true,
+    "native_type_registry_exhausted": true,
+    "protocol_diagnostic_catalog_exhausted": true,
+    "reserved_keyword_catalog_exhausted": true,
+    "runtime_interface": "CQL native protocol v5",
+    "runtime_version": "5.0.8",
+    "session_setting_catalog": "no_server_session_setting_catalog; CQL USE and provider route consistency defaults are separate native surfaces"
+  },
+  "engine_id": "cassandra",
+  "interface_id": "cql",
+  "inventories": {
+    "commands": [
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0001",
+        "native_name": "query",
+        "source": "src/antlr/Cql.g:133"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0002",
+        "native_name": "cqlStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0003",
+        "native_name": "useStatement",
+        "source": "src/antlr/Parser.g:257"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0004",
+        "native_name": "selectStatement",
+        "source": "src/antlr/Parser.g:267"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0005",
+        "native_name": "selectors",
+        "source": "src/antlr/Parser.g:304"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0006",
+        "native_name": "selector",
+        "source": "src/antlr/Parser.g:309"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0007",
+        "native_name": "unaliasedSelector",
+        "source": "src/antlr/Parser.g:314"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0008",
+        "native_name": "selectionAddition",
+        "source": "src/antlr/Parser.g:318"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0009",
+        "native_name": "selectionMultiplication",
+        "source": "src/antlr/Parser.g:325"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0010",
+        "native_name": "selectionGroup",
+        "source": "src/antlr/Parser.g:333"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0011",
+        "native_name": "selectionGroupWithField",
+        "source": "src/antlr/Parser.g:339"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0012",
+        "native_name": "selectionGroupWithoutField",
+        "source": "src/antlr/Parser.g:364"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0013",
+        "native_name": "selectionTypeHint",
+        "source": "src/antlr/Parser.g:375"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0014",
+        "native_name": "selectionList",
+        "source": "src/antlr/Parser.g:379"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0015",
+        "native_name": "selectionMapOrSet",
+        "source": "src/antlr/Parser.g:385"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0016",
+        "native_name": "selectionTupleOrNestedSelector",
+        "source": "src/antlr/Parser.g:402"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0017",
+        "native_name": "simpleUnaliasedSelector",
+        "source": "src/antlr/Parser.g:412"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0018",
+        "native_name": "selectionFunction",
+        "source": "src/antlr/Parser.g:418"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0019",
+        "native_name": "selectionLiteral",
+        "source": "src/antlr/Parser.g:427"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0020",
+        "native_name": "selectionFunctionArgs",
+        "source": "src/antlr/Parser.g:434"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0021",
+        "native_name": "sident",
+        "source": "src/antlr/Parser.g:441"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0022",
+        "native_name": "whereClause",
+        "source": "src/antlr/Parser.g:447"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0023",
+        "native_name": "insertStatement",
+        "source": "src/antlr/Parser.g:485"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0024",
+        "native_name": "jsonValue",
+        "source": "src/antlr/Parser.g:523"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0025",
+        "native_name": "updateStatement",
+        "source": "src/antlr/Parser.g:545"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0026",
+        "native_name": "updateConditions",
+        "source": "src/antlr/Parser.g:566"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0027",
+        "native_name": "deleteStatement",
+        "source": "src/antlr/Parser.g:579"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0028",
+        "native_name": "deleteSelection",
+        "source": "src/antlr/Parser.g:600"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0029",
+        "native_name": "deleteOp",
+        "source": "src/antlr/Parser.g:606"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0030",
+        "native_name": "batchStatement",
+        "source": "src/antlr/Parser.g:640"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0031",
+        "native_name": "batchStatementObjective",
+        "source": "src/antlr/Parser.g:656"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0032",
+        "native_name": "createAggregateStatement",
+        "source": "src/antlr/Parser.g:662"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0033",
+        "native_name": "dropAggregateStatement",
+        "source": "src/antlr/Parser.g:690"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0034",
+        "native_name": "createFunctionStatement",
+        "source": "src/antlr/Parser.g:711"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0035",
+        "native_name": "dropFunctionStatement",
+        "source": "src/antlr/Parser.g:739"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0036",
+        "native_name": "createKeyspaceStatement",
+        "source": "src/antlr/Parser.g:763"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0037",
+        "native_name": "createTableStatement",
+        "source": "src/antlr/Parser.g:779"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0038",
+        "native_name": "columnMask",
+        "source": "src/antlr/Parser.g:798"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0039",
+        "native_name": "createTypeStatement",
+        "source": "src/antlr/Parser.g:833"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0040",
+        "native_name": "createIndexStatement",
+        "source": "src/antlr/Parser.g:848"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0041",
+        "native_name": "createMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:878"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0042",
+        "native_name": "createTriggerStatement",
+        "source": "src/antlr/Parser.g:918"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0043",
+        "native_name": "dropTriggerStatement",
+        "source": "src/antlr/Parser.g:930"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0044",
+        "native_name": "alterKeyspaceStatement",
+        "source": "src/antlr/Parser.g:939"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0045",
+        "native_name": "alterTableStatement",
+        "source": "src/antlr/Parser.g:957"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0046",
+        "native_name": "isStaticColumn",
+        "source": "src/antlr/Parser.g:989"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0047",
+        "native_name": "alterMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:994"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0048",
+        "native_name": "alterTypeStatement",
+        "source": "src/antlr/Parser.g:1012"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0049",
+        "native_name": "dropKeyspaceStatement",
+        "source": "src/antlr/Parser.g:1030"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0050",
+        "native_name": "dropTableStatement",
+        "source": "src/antlr/Parser.g:1038"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0051",
+        "native_name": "dropTypeStatement",
+        "source": "src/antlr/Parser.g:1046"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0052",
+        "native_name": "dropIndexStatement",
+        "source": "src/antlr/Parser.g:1054"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0053",
+        "native_name": "dropMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:1063"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0054",
+        "native_name": "truncateStatement",
+        "source": "src/antlr/Parser.g:1072"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0055",
+        "native_name": "grantPermissionsStatement",
+        "source": "src/antlr/Parser.g:1079"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0056",
+        "native_name": "revokePermissionsStatement",
+        "source": "src/antlr/Parser.g:1092"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0057",
+        "native_name": "grantRoleStatement",
+        "source": "src/antlr/Parser.g:1105"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0058",
+        "native_name": "revokeRoleStatement",
+        "source": "src/antlr/Parser.g:1116"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0059",
+        "native_name": "listPermissionsStatement",
+        "source": "src/antlr/Parser.g:1124"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0060",
+        "native_name": "permission",
+        "source": "src/antlr/Parser.g:1138"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0061",
+        "native_name": "permissionOrAll",
+        "source": "src/antlr/Parser.g:1143"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0062",
+        "native_name": "resource",
+        "source": "src/antlr/Parser.g:1148"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0063",
+        "native_name": "dataResource",
+        "source": "src/antlr/Parser.g:1155"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0064",
+        "native_name": "jmxResource",
+        "source": "src/antlr/Parser.g:1162"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0065",
+        "native_name": "roleResource",
+        "source": "src/antlr/Parser.g:1170"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0066",
+        "native_name": "functionResource",
+        "source": "src/antlr/Parser.g:1175"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0067",
+        "native_name": "createUserStatement",
+        "source": "src/antlr/Parser.g:1197"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0068",
+        "native_name": "alterUserStatement",
+        "source": "src/antlr/Parser.g:1219"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0069",
+        "native_name": "dropUserStatement",
+        "source": "src/antlr/Parser.g:1241"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0070",
+        "native_name": "addIdentityStatement",
+        "source": "src/antlr/Parser.g:1251"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0071",
+        "native_name": "listUsersStatement",
+        "source": "src/antlr/Parser.g:1274"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0072",
+        "native_name": "createRoleStatement",
+        "source": "src/antlr/Parser.g:1291"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0073",
+        "native_name": "alterRoleStatement",
+        "source": "src/antlr/Parser.g:1331"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0074",
+        "native_name": "dropRoleStatement",
+        "source": "src/antlr/Parser.g:1352"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0075",
+        "native_name": "listRolesStatement",
+        "source": "src/antlr/Parser.g:1363"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0076",
+        "native_name": "describeStatement",
+        "source": "src/antlr/Parser.g:1410"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0077",
+        "native_name": "cident",
+        "source": "src/antlr/Parser.g:1449"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0078",
+        "native_name": "ident",
+        "source": "src/antlr/Parser.g:1454"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0079",
+        "native_name": "fident",
+        "source": "src/antlr/Parser.g:1460"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0080",
+        "native_name": "noncol_ident",
+        "source": "src/antlr/Parser.g:1467"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0081",
+        "native_name": "keyspaceName",
+        "source": "src/antlr/Parser.g:1474"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0082",
+        "native_name": "indexName",
+        "source": "src/antlr/Parser.g:1479"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0083",
+        "native_name": "columnFamilyName",
+        "source": "src/antlr/Parser.g:1484"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0084",
+        "native_name": "userTypeName",
+        "source": "src/antlr/Parser.g:1489"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0085",
+        "native_name": "userOrRoleName",
+        "source": "src/antlr/Parser.g:1493"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0086",
+        "native_name": "constant",
+        "source": "src/antlr/Parser.g:1527"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0087",
+        "native_name": "fullMapLiteral",
+        "source": "src/antlr/Parser.g:1540"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0088",
+        "native_name": "collectionLiteral",
+        "source": "src/antlr/Parser.g:1564"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0089",
+        "native_name": "listLiteral",
+        "source": "src/antlr/Parser.g:1572"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0090",
+        "native_name": "tupleLiteral",
+        "source": "src/antlr/Parser.g:1585"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0091",
+        "native_name": "value",
+        "source": "src/antlr/Parser.g:1591"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0092",
+        "native_name": "intValue",
+        "source": "src/antlr/Parser.g:1601"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0093",
+        "native_name": "allowedFunctionName",
+        "source": "src/antlr/Parser.g:1613"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0094",
+        "native_name": "function",
+        "source": "src/antlr/Parser.g:1621"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0095",
+        "native_name": "functionArgs",
+        "source": "src/antlr/Parser.g:1626"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0096",
+        "native_name": "term",
+        "source": "src/antlr/Parser.g:1631"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0097",
+        "native_name": "termAddition",
+        "source": "src/antlr/Parser.g:1635"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0098",
+        "native_name": "termMultiplication",
+        "source": "src/antlr/Parser.g:1642"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0099",
+        "native_name": "termGroup",
+        "source": "src/antlr/Parser.g:1650"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0100",
+        "native_name": "simpleTerm",
+        "source": "src/antlr/Parser.g:1655"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0101",
+        "native_name": "propertyValue",
+        "source": "src/antlr/Parser.g:1759"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0102",
+        "native_name": "relationType",
+        "source": "src/antlr/Parser.g:1764"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0103",
+        "native_name": "containsOperator",
+        "source": "src/antlr/Parser.g:1808"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0104",
+        "native_name": "inMarker",
+        "source": "src/antlr/Parser.g:1812"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0105",
+        "native_name": "tupleOfIdentifiers",
+        "source": "src/antlr/Parser.g:1817"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0106",
+        "native_name": "singleColumnInValues",
+        "source": "src/antlr/Parser.g:1822"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0107",
+        "native_name": "tupleOfTupleLiterals",
+        "source": "src/antlr/Parser.g:1827"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0108",
+        "native_name": "markerForTuple",
+        "source": "src/antlr/Parser.g:1832"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0109",
+        "native_name": "tupleOfMarkersForTuples",
+        "source": "src/antlr/Parser.g:1837"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0110",
+        "native_name": "inMarkerForTuple",
+        "source": "src/antlr/Parser.g:1842"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0111",
+        "native_name": "comparatorType",
+        "source": "src/antlr/Parser.g:1847"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0112",
+        "native_name": "native_type",
+        "source": "src/antlr/Parser.g:1873"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0113",
+        "native_name": "collection_type",
+        "source": "src/antlr/Parser.g:1897"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0114",
+        "native_name": "tuple_type",
+        "source": "src/antlr/Parser.g:1910"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0115",
+        "native_name": "vector_type",
+        "source": "src/antlr/Parser.g:1916"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0116",
+        "native_name": "username",
+        "source": "src/antlr/Parser.g:1921"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0117",
+        "native_name": "identity",
+        "source": "src/antlr/Parser.g:1927"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0118",
+        "native_name": "mbean",
+        "source": "src/antlr/Parser.g:1933"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0119",
+        "native_name": "non_type_ident",
+        "source": "src/antlr/Parser.g:1939"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0120",
+        "native_name": "unreserved_keyword",
+        "source": "src/antlr/Parser.g:1946"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0121",
+        "native_name": "unreserved_function_keyword",
+        "source": "src/antlr/Parser.g:1951"
+      },
+      {
+        "inventory_class": "antlr_parser_rule",
+        "item_id": "commands.0122",
+        "native_name": "basic_unreserved_keyword",
+        "source": "src/antlr/Parser.g:1956"
+      }
+    ],
+    "data_types": [
+      {
+        "item_id": "data_types.0001",
+        "native_name": "ascii",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:89",
+        "type_class": "native_scalar",
+        "type_implementation": "AsciiType.instance"
+      },
+      {
+        "item_id": "data_types.0002",
+        "native_name": "bigint",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:90",
+        "type_class": "native_scalar",
+        "type_implementation": "LongType.instance"
+      },
+      {
+        "item_id": "data_types.0003",
+        "native_name": "blob",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:91",
+        "type_class": "native_scalar",
+        "type_implementation": "BytesType.instance"
+      },
+      {
+        "item_id": "data_types.0004",
+        "native_name": "boolean",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:92",
+        "type_class": "native_scalar",
+        "type_implementation": "BooleanType.instance"
+      },
+      {
+        "item_id": "data_types.0005",
+        "native_name": "counter",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:94",
+        "type_class": "native_scalar",
+        "type_implementation": "CounterColumnType.instance"
+      },
+      {
+        "item_id": "data_types.0006",
+        "native_name": "date",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:95",
+        "type_class": "native_scalar",
+        "type_implementation": "SimpleDateType.instance"
+      },
+      {
+        "item_id": "data_types.0007",
+        "native_name": "decimal",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:96",
+        "type_class": "native_scalar",
+        "type_implementation": "DecimalType.instance"
+      },
+      {
+        "item_id": "data_types.0008",
+        "native_name": "double",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:97",
+        "type_class": "native_scalar",
+        "type_implementation": "DoubleType.instance"
+      },
+      {
+        "item_id": "data_types.0009",
+        "native_name": "duration",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:97",
+        "type_class": "native_scalar",
+        "type_implementation": "DurationType.instance"
+      },
+      {
+        "item_id": "data_types.0010",
+        "native_name": "empty",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:99",
+        "type_class": "native_scalar",
+        "type_implementation": "EmptyType.instance"
+      },
+      {
+        "item_id": "data_types.0011",
+        "native_name": "float",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:99",
+        "type_class": "native_scalar",
+        "type_implementation": "FloatType.instance"
+      },
+      {
+        "item_id": "data_types.0012",
+        "native_name": "inet",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:100",
+        "type_class": "native_scalar",
+        "type_implementation": "InetAddressType.instance"
+      },
+      {
+        "item_id": "data_types.0013",
+        "native_name": "int",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:102",
+        "type_class": "native_scalar",
+        "type_implementation": "Int32Type.instance"
+      },
+      {
+        "item_id": "data_types.0014",
+        "native_name": "smallint",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:102",
+        "type_class": "native_scalar",
+        "type_implementation": "ShortType.instance"
+      },
+      {
+        "item_id": "data_types.0015",
+        "native_name": "text",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:103",
+        "type_class": "native_scalar",
+        "type_implementation": "UTF8Type.instance"
+      },
+      {
+        "item_id": "data_types.0016",
+        "native_name": "time",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:104",
+        "type_class": "native_scalar",
+        "type_implementation": "TimeType.instance"
+      },
+      {
+        "item_id": "data_types.0017",
+        "native_name": "timestamp",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:105",
+        "type_class": "native_scalar",
+        "type_implementation": "TimestampType.instance"
+      },
+      {
+        "item_id": "data_types.0018",
+        "native_name": "timeuuid",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:107",
+        "type_class": "native_scalar",
+        "type_implementation": "TimeUUIDType.instance"
+      },
+      {
+        "item_id": "data_types.0019",
+        "native_name": "tinyint",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:108",
+        "type_class": "native_scalar",
+        "type_implementation": "ByteType.instance"
+      },
+      {
+        "item_id": "data_types.0020",
+        "native_name": "uuid",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:108",
+        "type_class": "native_scalar",
+        "type_implementation": "UUIDType.instance"
+      },
+      {
+        "item_id": "data_types.0021",
+        "native_name": "varchar",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:109",
+        "type_class": "native_scalar",
+        "type_implementation": "UTF8Type.instance"
+      },
+      {
+        "item_id": "data_types.0022",
+        "native_name": "varint",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java:110",
+        "type_class": "native_scalar",
+        "type_implementation": "IntegerType.instance"
+      },
+      {
+        "item_id": "data_types.0023",
+        "native_name": "list",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "list<element_type>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0024",
+        "native_name": "set",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "set<element_type>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0025",
+        "native_name": "map",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "map<key_type,value_type>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0026",
+        "native_name": "tuple",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "tuple<types...>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0027",
+        "native_name": "vector",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "vector<element_type,dimensions>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0028",
+        "native_name": "frozen",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "frozen<collection_or_user_type>",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0029",
+        "native_name": "user-defined-type",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "keyspace.type_name",
+        "type_class": "composite_or_custom"
+      },
+      {
+        "item_id": "data_types.0030",
+        "native_name": "custom",
+        "source": "src/java/org/apache/cassandra/cql3/CQL3Type.java",
+        "syntax": "'java_type_name'",
+        "type_class": "composite_or_custom"
+      }
+    ],
+    "diagnostics": [
+      {
+        "item_id": "diagnostics.0001",
+        "native_name": "SERVER_ERROR",
+        "protocol_error_code": "0x0000",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:34"
+      },
+      {
+        "item_id": "diagnostics.0002",
+        "native_name": "PROTOCOL_ERROR",
+        "protocol_error_code": "0x000A",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:35"
+      },
+      {
+        "item_id": "diagnostics.0003",
+        "native_name": "BAD_CREDENTIALS",
+        "protocol_error_code": "0x0100",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:36"
+      },
+      {
+        "item_id": "diagnostics.0004",
+        "native_name": "UNAVAILABLE",
+        "protocol_error_code": "0x1000",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:40"
+      },
+      {
+        "item_id": "diagnostics.0005",
+        "native_name": "OVERLOADED",
+        "protocol_error_code": "0x1001",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:41"
+      },
+      {
+        "item_id": "diagnostics.0006",
+        "native_name": "IS_BOOTSTRAPPING",
+        "protocol_error_code": "0x1002",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:42"
+      },
+      {
+        "item_id": "diagnostics.0007",
+        "native_name": "TRUNCATE_ERROR",
+        "protocol_error_code": "0x1003",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:43"
+      },
+      {
+        "item_id": "diagnostics.0008",
+        "native_name": "WRITE_TIMEOUT",
+        "protocol_error_code": "0x1100",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:44"
+      },
+      {
+        "item_id": "diagnostics.0009",
+        "native_name": "READ_TIMEOUT",
+        "protocol_error_code": "0x1200",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:45"
+      },
+      {
+        "item_id": "diagnostics.0010",
+        "native_name": "READ_FAILURE",
+        "protocol_error_code": "0x1300",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:46"
+      },
+      {
+        "item_id": "diagnostics.0011",
+        "native_name": "FUNCTION_FAILURE",
+        "protocol_error_code": "0x1400",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:47"
+      },
+      {
+        "item_id": "diagnostics.0012",
+        "native_name": "WRITE_FAILURE",
+        "protocol_error_code": "0x1500",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:48"
+      },
+      {
+        "item_id": "diagnostics.0013",
+        "native_name": "CDC_WRITE_FAILURE",
+        "protocol_error_code": "0x1600",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:49"
+      },
+      {
+        "item_id": "diagnostics.0014",
+        "native_name": "CAS_WRITE_UNKNOWN",
+        "protocol_error_code": "0x1700",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:50"
+      },
+      {
+        "item_id": "diagnostics.0015",
+        "native_name": "SYNTAX_ERROR",
+        "protocol_error_code": "0x2000",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:53"
+      },
+      {
+        "item_id": "diagnostics.0016",
+        "native_name": "UNAUTHORIZED",
+        "protocol_error_code": "0x2100",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:54"
+      },
+      {
+        "item_id": "diagnostics.0017",
+        "native_name": "INVALID",
+        "protocol_error_code": "0x2200",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:55"
+      },
+      {
+        "item_id": "diagnostics.0018",
+        "native_name": "CONFIG_ERROR",
+        "protocol_error_code": "0x2300",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:56"
+      },
+      {
+        "item_id": "diagnostics.0019",
+        "native_name": "ALREADY_EXISTS",
+        "protocol_error_code": "0x2400",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:57"
+      },
+      {
+        "item_id": "diagnostics.0020",
+        "native_name": "UNPREPARED",
+        "protocol_error_code": "0x2500",
+        "source": "src/java/org/apache/cassandra/exceptions/ExceptionCode.java:58"
+      }
+    ],
+    "functions": [
+      {
+        "item_id": "functions.0001",
+        "native_name": "_negate",
+        "registry": "OperationFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/OperationFcts.java:177"
+      },
+      {
+        "item_id": "functions.0002",
+        "native_name": "abs",
+        "registry": "MathFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/MathFcts.java:56"
+      },
+      {
+        "item_id": "functions.0003",
+        "native_name": "ascii_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0004",
+        "native_name": "asciiasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0005",
+        "native_name": "avg",
+        "registry": "AggregateFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/AggregateFcts.java:181"
+      },
+      {
+        "item_id": "functions.0006",
+        "native_name": "bigint_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0007",
+        "native_name": "bigintasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0008",
+        "native_name": "blob_as_ascii",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0009",
+        "native_name": "blob_as_bigint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0010",
+        "native_name": "blob_as_boolean",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0011",
+        "native_name": "blob_as_counter",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0012",
+        "native_name": "blob_as_date",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0013",
+        "native_name": "blob_as_decimal",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0014",
+        "native_name": "blob_as_double",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0015",
+        "native_name": "blob_as_duration",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0016",
+        "native_name": "blob_as_empty",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0017",
+        "native_name": "blob_as_float",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0018",
+        "native_name": "blob_as_inet",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0019",
+        "native_name": "blob_as_int",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0020",
+        "native_name": "blob_as_smallint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0021",
+        "native_name": "blob_as_text",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0022",
+        "native_name": "blob_as_time",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0023",
+        "native_name": "blob_as_timestamp",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0024",
+        "native_name": "blob_as_timeuuid",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0025",
+        "native_name": "blob_as_tinyint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0026",
+        "native_name": "blob_as_uuid",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0027",
+        "native_name": "blob_as_varchar",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0028",
+        "native_name": "blob_as_varint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0029",
+        "native_name": "blobasascii",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0030",
+        "native_name": "blobasbigint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0031",
+        "native_name": "blobasboolean",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0032",
+        "native_name": "blobascounter",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0033",
+        "native_name": "blobasdate",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0034",
+        "native_name": "blobasdecimal",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0035",
+        "native_name": "blobasdouble",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0036",
+        "native_name": "blobasduration",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0037",
+        "native_name": "blobasempty",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0038",
+        "native_name": "blobasfloat",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0039",
+        "native_name": "blobasinet",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0040",
+        "native_name": "blobasint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0041",
+        "native_name": "blobassmallint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0042",
+        "native_name": "blobastext",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0043",
+        "native_name": "blobastime",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0044",
+        "native_name": "blobastimestamp",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0045",
+        "native_name": "blobastimeuuid",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0046",
+        "native_name": "blobastinyint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0047",
+        "native_name": "blobasuuid",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0048",
+        "native_name": "blobasvarchar",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0049",
+        "native_name": "blobasvarint",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0050",
+        "native_name": "boolean_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0051",
+        "native_name": "booleanasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0052",
+        "native_name": "castAs",
+        "registry": "CastFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:61"
+      },
+      {
+        "item_id": "functions.0053",
+        "native_name": "castAsAscii",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0054",
+        "native_name": "castAsBigint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0055",
+        "native_name": "castAsBoolean",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0056",
+        "native_name": "castAsCounter",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0057",
+        "native_name": "castAsDate",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0058",
+        "native_name": "castAsDecimal",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0059",
+        "native_name": "castAsDouble",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0060",
+        "native_name": "castAsDuration",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0061",
+        "native_name": "castAsEmpty",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0062",
+        "native_name": "castAsFloat",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0063",
+        "native_name": "castAsInet",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0064",
+        "native_name": "castAsInt",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0065",
+        "native_name": "castAsSmallint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0066",
+        "native_name": "castAsText",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0067",
+        "native_name": "castAsTime",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0068",
+        "native_name": "castAsTimestamp",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0069",
+        "native_name": "castAsTimeuuid",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0070",
+        "native_name": "castAsTinyint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0071",
+        "native_name": "castAsUuid",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0072",
+        "native_name": "castAsVarchar",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0073",
+        "native_name": "castAsVarint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0074",
+        "native_name": "cast_as_",
+        "registry": "CastFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:57"
+      },
+      {
+        "item_id": "functions.0075",
+        "native_name": "cast_as_ascii",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0076",
+        "native_name": "cast_as_bigint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0077",
+        "native_name": "cast_as_boolean",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0078",
+        "native_name": "cast_as_counter",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0079",
+        "native_name": "cast_as_date",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0080",
+        "native_name": "cast_as_decimal",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0081",
+        "native_name": "cast_as_double",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0082",
+        "native_name": "cast_as_duration",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0083",
+        "native_name": "cast_as_empty",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0084",
+        "native_name": "cast_as_float",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0085",
+        "native_name": "cast_as_inet",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0086",
+        "native_name": "cast_as_int",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0087",
+        "native_name": "cast_as_smallint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0088",
+        "native_name": "cast_as_text",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0089",
+        "native_name": "cast_as_time",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0090",
+        "native_name": "cast_as_timestamp",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0091",
+        "native_name": "cast_as_timeuuid",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0092",
+        "native_name": "cast_as_tinyint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0093",
+        "native_name": "cast_as_uuid",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0094",
+        "native_name": "cast_as_varchar",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0095",
+        "native_name": "cast_as_varint",
+        "registry": "CastFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CastFcts.java:1"
+      },
+      {
+        "item_id": "functions.0096",
+        "native_name": "collection_avg",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:103"
+      },
+      {
+        "item_id": "functions.0097",
+        "native_name": "collection_count",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:67"
+      },
+      {
+        "item_id": "functions.0098",
+        "native_name": "collection_max",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:85"
+      },
+      {
+        "item_id": "functions.0099",
+        "native_name": "collection_min",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:76"
+      },
+      {
+        "item_id": "functions.0100",
+        "native_name": "collection_sum",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:94"
+      },
+      {
+        "item_id": "functions.0101",
+        "native_name": "count",
+        "registry": "AggregateFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/AggregateFcts.java:945"
+      },
+      {
+        "item_id": "functions.0102",
+        "native_name": "counter_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0103",
+        "native_name": "counterasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0104",
+        "native_name": "current_date",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:43"
+      },
+      {
+        "item_id": "functions.0105",
+        "native_name": "current_time",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:44"
+      },
+      {
+        "item_id": "functions.0106",
+        "native_name": "current_timestamp",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:42"
+      },
+      {
+        "item_id": "functions.0107",
+        "native_name": "current_timeuuid",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:41"
+      },
+      {
+        "item_id": "functions.0108",
+        "native_name": "date_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0109",
+        "native_name": "dateasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0110",
+        "native_name": "decimal_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0111",
+        "native_name": "decimalasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0112",
+        "native_name": "double_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0113",
+        "native_name": "doubleasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0114",
+        "native_name": "duration_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0115",
+        "native_name": "durationasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0116",
+        "native_name": "empty_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0117",
+        "native_name": "emptyasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0118",
+        "native_name": "exp",
+        "registry": "MathFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/MathFcts.java:61"
+      },
+      {
+        "item_id": "functions.0119",
+        "native_name": "float_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0120",
+        "native_name": "floatasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0121",
+        "native_name": "floor",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:461"
+      },
+      {
+        "item_id": "functions.0122",
+        "native_name": "from_json",
+        "registry": "FromJsonFct",
+        "source": "src/java/org/apache/cassandra/cql3/functions/FromJsonFct.java:88"
+      },
+      {
+        "item_id": "functions.0123",
+        "native_name": "fromjson",
+        "registry": "FromJsonFct",
+        "source": "src/java/org/apache/cassandra/cql3/functions/FromJsonFct.java:89"
+      },
+      {
+        "item_id": "functions.0124",
+        "native_name": "inet_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0125",
+        "native_name": "inetasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0126",
+        "native_name": "int_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0127",
+        "native_name": "intasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0128",
+        "native_name": "log",
+        "registry": "MathFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/MathFcts.java:66"
+      },
+      {
+        "item_id": "functions.0129",
+        "native_name": "log10",
+        "registry": "MathFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/MathFcts.java:71"
+      },
+      {
+        "item_id": "functions.0130",
+        "native_name": "map_keys",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:49"
+      },
+      {
+        "item_id": "functions.0131",
+        "native_name": "map_values",
+        "registry": "CollectionFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/CollectionFcts.java:58"
+      },
+      {
+        "item_id": "functions.0132",
+        "native_name": "max",
+        "registry": "AggregateFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/AggregateFcts.java:65"
+      },
+      {
+        "item_id": "functions.0133",
+        "native_name": "min",
+        "registry": "AggregateFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/AggregateFcts.java:76"
+      },
+      {
+        "item_id": "functions.0134",
+        "native_name": "now",
+        "registry": "TimeFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TimeFcts.java:40"
+      },
+      {
+        "item_id": "functions.0135",
+        "native_name": "round",
+        "registry": "MathFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/MathFcts.java:76"
+      },
+      {
+        "item_id": "functions.0136",
+        "native_name": "similarity_cosine",
+        "registry": "VectorFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/VectorFcts.java:36"
+      },
+      {
+        "item_id": "functions.0137",
+        "native_name": "similarity_dot_product",
+        "registry": "VectorFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/VectorFcts.java:38"
+      },
+      {
+        "item_id": "functions.0138",
+        "native_name": "similarity_euclidean",
+        "registry": "VectorFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/VectorFcts.java:37"
+      },
+      {
+        "item_id": "functions.0139",
+        "native_name": "smallint_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0140",
+        "native_name": "smallintasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0141",
+        "native_name": "sum",
+        "registry": "AggregateFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/AggregateFcts.java:142"
+      },
+      {
+        "item_id": "functions.0142",
+        "native_name": "text_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0143",
+        "native_name": "textasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0144",
+        "native_name": "time_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0145",
+        "native_name": "timeasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0146",
+        "native_name": "timestamp_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0147",
+        "native_name": "timestampasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0148",
+        "native_name": "timeuuid_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0149",
+        "native_name": "timeuuidasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0150",
+        "native_name": "tinyint_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0151",
+        "native_name": "tinyintasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0152",
+        "native_name": "to_json",
+        "registry": "ToJsonFct",
+        "source": "src/java/org/apache/cassandra/cql3/functions/ToJsonFct.java:81"
+      },
+      {
+        "item_id": "functions.0153",
+        "native_name": "tojson",
+        "registry": "ToJsonFct",
+        "source": "src/java/org/apache/cassandra/cql3/functions/ToJsonFct.java:82"
+      },
+      {
+        "item_id": "functions.0154",
+        "native_name": "token",
+        "registry": "TokenFct",
+        "source": "src/java/org/apache/cassandra/cql3/functions/TokenFct.java:75"
+      },
+      {
+        "item_id": "functions.0155",
+        "native_name": "uuid",
+        "registry": "UuidFcts",
+        "source": "src/java/org/apache/cassandra/cql3/functions/UuidFcts.java:33"
+      },
+      {
+        "item_id": "functions.0156",
+        "native_name": "uuid_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0157",
+        "native_name": "uuidasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0158",
+        "native_name": "varchar_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0159",
+        "native_name": "varcharasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0160",
+        "native_name": "varint_as_blob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      },
+      {
+        "item_id": "functions.0161",
+        "native_name": "varintasblob",
+        "registry": "BytesConversionFcts:generated_from_CQL3Type.Native",
+        "source": "src/java/org/apache/cassandra/cql3/functions/BytesConversionFcts.java:1"
+      }
+    ],
+    "lexical_rules": [
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0001",
+        "native_name": "ADD",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:1"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0002",
+        "native_name": "ALLOW",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:2"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0003",
+        "native_name": "ALTER",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:3"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0004",
+        "native_name": "AND",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:4"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0005",
+        "native_name": "APPLY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:5"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0006",
+        "native_name": "ASC",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:6"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0007",
+        "native_name": "AUTHORIZE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:7"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0008",
+        "native_name": "BATCH",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:8"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0009",
+        "native_name": "BEGIN",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:9"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0010",
+        "native_name": "BY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:10"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0011",
+        "native_name": "COLUMNFAMILY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:11"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0012",
+        "native_name": "CREATE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:12"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0013",
+        "native_name": "DELETE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:13"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0014",
+        "native_name": "DESC",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:14"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0015",
+        "native_name": "DESCRIBE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:15"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0016",
+        "native_name": "DROP",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:16"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0017",
+        "native_name": "ENTRIES",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:17"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0018",
+        "native_name": "EXECUTE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:18"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0019",
+        "native_name": "FROM",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:19"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0020",
+        "native_name": "FULL",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:20"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0021",
+        "native_name": "GRANT",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:21"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0022",
+        "native_name": "IF",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:22"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0023",
+        "native_name": "IN",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:23"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0024",
+        "native_name": "INDEX",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:24"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0025",
+        "native_name": "INFINITY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:25"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0026",
+        "native_name": "INSERT",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:26"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0027",
+        "native_name": "INTO",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:27"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0028",
+        "native_name": "IS",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:28"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0029",
+        "native_name": "KEYSPACE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:29"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0030",
+        "native_name": "LIMIT",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:30"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0031",
+        "native_name": "MATERIALIZED",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:31"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0032",
+        "native_name": "MODIFY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:32"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0033",
+        "native_name": "NAN",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:33"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0034",
+        "native_name": "NORECURSIVE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:34"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0035",
+        "native_name": "NOT",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:35"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0036",
+        "native_name": "NULL",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:36"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0037",
+        "native_name": "OF",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:37"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0038",
+        "native_name": "ON",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:38"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0039",
+        "native_name": "OR",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:39"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0040",
+        "native_name": "ORDER",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:40"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0041",
+        "native_name": "PRIMARY",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:41"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0042",
+        "native_name": "RENAME",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:42"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0043",
+        "native_name": "REVOKE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:43"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0044",
+        "native_name": "SCHEMA",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:44"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0045",
+        "native_name": "SELECT",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:45"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0046",
+        "native_name": "SET",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:46"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0047",
+        "native_name": "TABLE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:47"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0048",
+        "native_name": "TO",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:48"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0049",
+        "native_name": "TOKEN",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:49"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0050",
+        "native_name": "TRUNCATE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:50"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0051",
+        "native_name": "UNLOGGED",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:51"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0052",
+        "native_name": "UPDATE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:52"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0053",
+        "native_name": "USE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:53"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0054",
+        "native_name": "USING",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:54"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0055",
+        "native_name": "VIEW",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:55"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0056",
+        "native_name": "WHERE",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:56"
+      },
+      {
+        "category": "reserved_keyword",
+        "item_id": "lexical_rules.0057",
+        "native_name": "WITH",
+        "source": "src/resources/org/apache/cassandra/cql3/reserved_keywords.txt:57"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0058",
+        "native_name": "K_SELECT",
+        "source": "src/antlr/Lexer.g:62"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0059",
+        "native_name": "K_FROM",
+        "source": "src/antlr/Lexer.g:63"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0060",
+        "native_name": "K_AS",
+        "source": "src/antlr/Lexer.g:64"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0061",
+        "native_name": "K_WHERE",
+        "source": "src/antlr/Lexer.g:65"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0062",
+        "native_name": "K_AND",
+        "source": "src/antlr/Lexer.g:66"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0063",
+        "native_name": "K_KEY",
+        "source": "src/antlr/Lexer.g:67"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0064",
+        "native_name": "K_KEYS",
+        "source": "src/antlr/Lexer.g:68"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0065",
+        "native_name": "K_ENTRIES",
+        "source": "src/antlr/Lexer.g:69"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0066",
+        "native_name": "K_FULL",
+        "source": "src/antlr/Lexer.g:70"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0067",
+        "native_name": "K_INSERT",
+        "source": "src/antlr/Lexer.g:71"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0068",
+        "native_name": "K_UPDATE",
+        "source": "src/antlr/Lexer.g:72"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0069",
+        "native_name": "K_WITH",
+        "source": "src/antlr/Lexer.g:73"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0070",
+        "native_name": "K_LIMIT",
+        "source": "src/antlr/Lexer.g:74"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0071",
+        "native_name": "K_PER",
+        "source": "src/antlr/Lexer.g:75"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0072",
+        "native_name": "K_PARTITION",
+        "source": "src/antlr/Lexer.g:76"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0073",
+        "native_name": "K_USING",
+        "source": "src/antlr/Lexer.g:77"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0074",
+        "native_name": "K_USE",
+        "source": "src/antlr/Lexer.g:78"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0075",
+        "native_name": "K_DISTINCT",
+        "source": "src/antlr/Lexer.g:79"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0076",
+        "native_name": "K_COUNT",
+        "source": "src/antlr/Lexer.g:80"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0077",
+        "native_name": "K_SET",
+        "source": "src/antlr/Lexer.g:81"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0078",
+        "native_name": "K_BEGIN",
+        "source": "src/antlr/Lexer.g:82"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0079",
+        "native_name": "K_UNLOGGED",
+        "source": "src/antlr/Lexer.g:83"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0080",
+        "native_name": "K_BATCH",
+        "source": "src/antlr/Lexer.g:84"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0081",
+        "native_name": "K_APPLY",
+        "source": "src/antlr/Lexer.g:85"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0082",
+        "native_name": "K_TRUNCATE",
+        "source": "src/antlr/Lexer.g:86"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0083",
+        "native_name": "K_DELETE",
+        "source": "src/antlr/Lexer.g:87"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0084",
+        "native_name": "K_IN",
+        "source": "src/antlr/Lexer.g:88"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0085",
+        "native_name": "K_CREATE",
+        "source": "src/antlr/Lexer.g:89"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0086",
+        "native_name": "K_SCHEMA",
+        "source": "src/antlr/Lexer.g:90"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0087",
+        "native_name": "K_KEYSPACE",
+        "source": "src/antlr/Lexer.g:91"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0088",
+        "native_name": "K_KEYSPACES",
+        "source": "src/antlr/Lexer.g:93"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0089",
+        "native_name": "K_COLUMNFAMILY",
+        "source": "src/antlr/Lexer.g:94"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0090",
+        "native_name": "K_TABLES",
+        "source": "src/antlr/Lexer.g:96"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0091",
+        "native_name": "K_MATERIALIZED",
+        "source": "src/antlr/Lexer.g:98"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0092",
+        "native_name": "K_VIEW",
+        "source": "src/antlr/Lexer.g:99"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0093",
+        "native_name": "K_INDEX",
+        "source": "src/antlr/Lexer.g:100"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0094",
+        "native_name": "K_CUSTOM",
+        "source": "src/antlr/Lexer.g:101"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0095",
+        "native_name": "K_ON",
+        "source": "src/antlr/Lexer.g:102"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0096",
+        "native_name": "K_TO",
+        "source": "src/antlr/Lexer.g:103"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0097",
+        "native_name": "K_DROP",
+        "source": "src/antlr/Lexer.g:104"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0098",
+        "native_name": "K_PRIMARY",
+        "source": "src/antlr/Lexer.g:105"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0099",
+        "native_name": "K_INTO",
+        "source": "src/antlr/Lexer.g:106"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0100",
+        "native_name": "K_VALUES",
+        "source": "src/antlr/Lexer.g:107"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0101",
+        "native_name": "K_TIMESTAMP",
+        "source": "src/antlr/Lexer.g:108"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0102",
+        "native_name": "K_TTL",
+        "source": "src/antlr/Lexer.g:109"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0103",
+        "native_name": "K_CAST",
+        "source": "src/antlr/Lexer.g:110"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0104",
+        "native_name": "K_ALTER",
+        "source": "src/antlr/Lexer.g:111"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0105",
+        "native_name": "K_RENAME",
+        "source": "src/antlr/Lexer.g:112"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0106",
+        "native_name": "K_ADD",
+        "source": "src/antlr/Lexer.g:113"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0107",
+        "native_name": "K_TYPE",
+        "source": "src/antlr/Lexer.g:114"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0108",
+        "native_name": "K_TYPES",
+        "source": "src/antlr/Lexer.g:115"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0109",
+        "native_name": "K_COMPACT",
+        "source": "src/antlr/Lexer.g:116"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0110",
+        "native_name": "K_STORAGE",
+        "source": "src/antlr/Lexer.g:117"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0111",
+        "native_name": "K_ORDER",
+        "source": "src/antlr/Lexer.g:118"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0112",
+        "native_name": "K_BY",
+        "source": "src/antlr/Lexer.g:119"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0113",
+        "native_name": "K_ASC",
+        "source": "src/antlr/Lexer.g:120"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0114",
+        "native_name": "K_DESC",
+        "source": "src/antlr/Lexer.g:121"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0115",
+        "native_name": "K_ALLOW",
+        "source": "src/antlr/Lexer.g:122"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0116",
+        "native_name": "K_FILTERING",
+        "source": "src/antlr/Lexer.g:123"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0117",
+        "native_name": "K_IF",
+        "source": "src/antlr/Lexer.g:124"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0118",
+        "native_name": "K_IS",
+        "source": "src/antlr/Lexer.g:125"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0119",
+        "native_name": "K_CONTAINS",
+        "source": "src/antlr/Lexer.g:126"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0120",
+        "native_name": "K_GROUP",
+        "source": "src/antlr/Lexer.g:127"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0121",
+        "native_name": "K_CLUSTER",
+        "source": "src/antlr/Lexer.g:128"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0122",
+        "native_name": "K_INTERNALS",
+        "source": "src/antlr/Lexer.g:129"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0123",
+        "native_name": "K_ONLY",
+        "source": "src/antlr/Lexer.g:130"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0124",
+        "native_name": "K_GRANT",
+        "source": "src/antlr/Lexer.g:132"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0125",
+        "native_name": "K_ALL",
+        "source": "src/antlr/Lexer.g:133"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0126",
+        "native_name": "K_PERMISSION",
+        "source": "src/antlr/Lexer.g:134"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0127",
+        "native_name": "K_PERMISSIONS",
+        "source": "src/antlr/Lexer.g:135"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0128",
+        "native_name": "K_OF",
+        "source": "src/antlr/Lexer.g:136"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0129",
+        "native_name": "K_REVOKE",
+        "source": "src/antlr/Lexer.g:137"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0130",
+        "native_name": "K_MODIFY",
+        "source": "src/antlr/Lexer.g:138"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0131",
+        "native_name": "K_AUTHORIZE",
+        "source": "src/antlr/Lexer.g:139"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0132",
+        "native_name": "K_DESCRIBE",
+        "source": "src/antlr/Lexer.g:140"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0133",
+        "native_name": "K_EXECUTE",
+        "source": "src/antlr/Lexer.g:141"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0134",
+        "native_name": "K_NORECURSIVE",
+        "source": "src/antlr/Lexer.g:142"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0135",
+        "native_name": "K_MBEAN",
+        "source": "src/antlr/Lexer.g:143"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0136",
+        "native_name": "K_MBEANS",
+        "source": "src/antlr/Lexer.g:144"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0137",
+        "native_name": "K_USER",
+        "source": "src/antlr/Lexer.g:146"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0138",
+        "native_name": "K_USERS",
+        "source": "src/antlr/Lexer.g:147"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0139",
+        "native_name": "K_ROLE",
+        "source": "src/antlr/Lexer.g:148"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0140",
+        "native_name": "K_ROLES",
+        "source": "src/antlr/Lexer.g:149"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0141",
+        "native_name": "K_SUPERUSER",
+        "source": "src/antlr/Lexer.g:150"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0142",
+        "native_name": "K_NOSUPERUSER",
+        "source": "src/antlr/Lexer.g:151"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0143",
+        "native_name": "K_PASSWORD",
+        "source": "src/antlr/Lexer.g:152"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0144",
+        "native_name": "K_HASHED",
+        "source": "src/antlr/Lexer.g:153"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0145",
+        "native_name": "K_LOGIN",
+        "source": "src/antlr/Lexer.g:154"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0146",
+        "native_name": "K_NOLOGIN",
+        "source": "src/antlr/Lexer.g:155"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0147",
+        "native_name": "K_OPTIONS",
+        "source": "src/antlr/Lexer.g:156"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0148",
+        "native_name": "K_ACCESS",
+        "source": "src/antlr/Lexer.g:157"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0149",
+        "native_name": "K_DATACENTERS",
+        "source": "src/antlr/Lexer.g:158"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0150",
+        "native_name": "K_CIDRS",
+        "source": "src/antlr/Lexer.g:159"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0151",
+        "native_name": "K_IDENTITY",
+        "source": "src/antlr/Lexer.g:160"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0152",
+        "native_name": "K_CLUSTERING",
+        "source": "src/antlr/Lexer.g:162"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0153",
+        "native_name": "K_ASCII",
+        "source": "src/antlr/Lexer.g:163"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0154",
+        "native_name": "K_BIGINT",
+        "source": "src/antlr/Lexer.g:164"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0155",
+        "native_name": "K_BLOB",
+        "source": "src/antlr/Lexer.g:165"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0156",
+        "native_name": "K_BOOLEAN",
+        "source": "src/antlr/Lexer.g:166"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0157",
+        "native_name": "K_COUNTER",
+        "source": "src/antlr/Lexer.g:167"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0158",
+        "native_name": "K_DECIMAL",
+        "source": "src/antlr/Lexer.g:168"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0159",
+        "native_name": "K_DOUBLE",
+        "source": "src/antlr/Lexer.g:169"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0160",
+        "native_name": "K_DURATION",
+        "source": "src/antlr/Lexer.g:170"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0161",
+        "native_name": "K_FLOAT",
+        "source": "src/antlr/Lexer.g:171"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0162",
+        "native_name": "K_INET",
+        "source": "src/antlr/Lexer.g:172"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0163",
+        "native_name": "K_INT",
+        "source": "src/antlr/Lexer.g:173"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0164",
+        "native_name": "K_SMALLINT",
+        "source": "src/antlr/Lexer.g:174"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0165",
+        "native_name": "K_TINYINT",
+        "source": "src/antlr/Lexer.g:175"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0166",
+        "native_name": "K_TEXT",
+        "source": "src/antlr/Lexer.g:176"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0167",
+        "native_name": "K_UUID",
+        "source": "src/antlr/Lexer.g:177"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0168",
+        "native_name": "K_VARCHAR",
+        "source": "src/antlr/Lexer.g:178"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0169",
+        "native_name": "K_VARINT",
+        "source": "src/antlr/Lexer.g:179"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0170",
+        "native_name": "K_TIMEUUID",
+        "source": "src/antlr/Lexer.g:180"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0171",
+        "native_name": "K_TOKEN",
+        "source": "src/antlr/Lexer.g:181"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0172",
+        "native_name": "K_WRITETIME",
+        "source": "src/antlr/Lexer.g:182"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0173",
+        "native_name": "K_MAXWRITETIME",
+        "source": "src/antlr/Lexer.g:183"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0174",
+        "native_name": "K_DATE",
+        "source": "src/antlr/Lexer.g:184"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0175",
+        "native_name": "K_TIME",
+        "source": "src/antlr/Lexer.g:185"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0176",
+        "native_name": "K_NULL",
+        "source": "src/antlr/Lexer.g:187"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0177",
+        "native_name": "K_NOT",
+        "source": "src/antlr/Lexer.g:188"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0178",
+        "native_name": "K_EXISTS",
+        "source": "src/antlr/Lexer.g:189"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0179",
+        "native_name": "K_MAP",
+        "source": "src/antlr/Lexer.g:191"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0180",
+        "native_name": "K_LIST",
+        "source": "src/antlr/Lexer.g:192"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0181",
+        "native_name": "K_POSITIVE_NAN",
+        "source": "src/antlr/Lexer.g:193"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0182",
+        "native_name": "K_NEGATIVE_NAN",
+        "source": "src/antlr/Lexer.g:194"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0183",
+        "native_name": "K_POSITIVE_INFINITY",
+        "source": "src/antlr/Lexer.g:195"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0184",
+        "native_name": "K_NEGATIVE_INFINITY",
+        "source": "src/antlr/Lexer.g:196"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0185",
+        "native_name": "K_TUPLE",
+        "source": "src/antlr/Lexer.g:197"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0186",
+        "native_name": "K_TRIGGER",
+        "source": "src/antlr/Lexer.g:199"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0187",
+        "native_name": "K_STATIC",
+        "source": "src/antlr/Lexer.g:200"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0188",
+        "native_name": "K_FROZEN",
+        "source": "src/antlr/Lexer.g:201"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0189",
+        "native_name": "K_FUNCTION",
+        "source": "src/antlr/Lexer.g:203"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0190",
+        "native_name": "K_FUNCTIONS",
+        "source": "src/antlr/Lexer.g:204"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0191",
+        "native_name": "K_AGGREGATE",
+        "source": "src/antlr/Lexer.g:205"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0192",
+        "native_name": "K_AGGREGATES",
+        "source": "src/antlr/Lexer.g:206"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0193",
+        "native_name": "K_SFUNC",
+        "source": "src/antlr/Lexer.g:207"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0194",
+        "native_name": "K_STYPE",
+        "source": "src/antlr/Lexer.g:208"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0195",
+        "native_name": "K_FINALFUNC",
+        "source": "src/antlr/Lexer.g:209"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0196",
+        "native_name": "K_INITCOND",
+        "source": "src/antlr/Lexer.g:210"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0197",
+        "native_name": "K_RETURNS",
+        "source": "src/antlr/Lexer.g:211"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0198",
+        "native_name": "K_CALLED",
+        "source": "src/antlr/Lexer.g:212"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0199",
+        "native_name": "K_INPUT",
+        "source": "src/antlr/Lexer.g:213"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0200",
+        "native_name": "K_LANGUAGE",
+        "source": "src/antlr/Lexer.g:214"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0201",
+        "native_name": "K_OR",
+        "source": "src/antlr/Lexer.g:215"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0202",
+        "native_name": "K_REPLACE",
+        "source": "src/antlr/Lexer.g:216"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0203",
+        "native_name": "K_JSON",
+        "source": "src/antlr/Lexer.g:218"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0204",
+        "native_name": "K_DEFAULT",
+        "source": "src/antlr/Lexer.g:219"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0205",
+        "native_name": "K_UNSET",
+        "source": "src/antlr/Lexer.g:220"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0206",
+        "native_name": "K_LIKE",
+        "source": "src/antlr/Lexer.g:221"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0207",
+        "native_name": "K_MASKED",
+        "source": "src/antlr/Lexer.g:223"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0208",
+        "native_name": "K_UNMASK",
+        "source": "src/antlr/Lexer.g:224"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0209",
+        "native_name": "K_SELECT_MASKED",
+        "source": "src/antlr/Lexer.g:225"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0210",
+        "native_name": "K_VECTOR",
+        "source": "src/antlr/Lexer.g:227"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0211",
+        "native_name": "K_ANN",
+        "source": "src/antlr/Lexer.g:228"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0212",
+        "native_name": "EMPTY_QUOTED_NAME",
+        "source": "src/antlr/Lexer.g:287"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0213",
+        "native_name": "INTEGER",
+        "source": "src/antlr/Lexer.g:337"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0214",
+        "native_name": "QMARK",
+        "source": "src/antlr/Lexer.g:341"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0215",
+        "native_name": "RANGE",
+        "source": "src/antlr/Lexer.g:345"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0216",
+        "native_name": "FLOAT",
+        "source": "src/antlr/Lexer.g:353"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0217",
+        "native_name": "BOOLEAN",
+        "source": "src/antlr/Lexer.g:362"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0218",
+        "native_name": "DURATION",
+        "source": "src/antlr/Lexer.g:366"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0219",
+        "native_name": "IDENT",
+        "source": "src/antlr/Lexer.g:374"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0220",
+        "native_name": "HEXNUMBER",
+        "source": "src/antlr/Lexer.g:378"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0221",
+        "native_name": "UUID",
+        "source": "src/antlr/Lexer.g:382"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0222",
+        "native_name": "WS",
+        "source": "src/antlr/Lexer.g:390"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0223",
+        "native_name": "COMMENT",
+        "source": "src/antlr/Lexer.g:394"
+      },
+      {
+        "category": "antlr_lexer_rule",
+        "item_id": "lexical_rules.0224",
+        "native_name": "MULTILINE_COMMENT",
+        "source": "src/antlr/Lexer.g:398"
+      }
+    ],
+    "operators": [
+      {
+        "item_id": "operators.0001",
+        "native_name": "+",
+        "source": "src/antlr/Parser.g:320"
+      },
+      {
+        "item_id": "operators.0002",
+        "native_name": "-",
+        "source": "src/antlr/Parser.g:321"
+      },
+      {
+        "item_id": "operators.0003",
+        "native_name": "*",
+        "source": "src/antlr/Parser.g:327"
+      },
+      {
+        "item_id": "operators.0004",
+        "native_name": "/",
+        "source": "src/antlr/Parser.g:328"
+      },
+      {
+        "item_id": "operators.0005",
+        "native_name": "%",
+        "source": "src/antlr/Parser.g:329"
+      },
+      {
+        "item_id": "operators.0006",
+        "native_name": "=",
+        "source": "src/antlr/Parser.g:1379"
+      },
+      {
+        "item_id": "operators.0007",
+        "native_name": "+=",
+        "source": "src/antlr/Parser.g:1704"
+      },
+      {
+        "item_id": "operators.0008",
+        "native_name": "-=",
+        "source": "src/antlr/Parser.g:1704"
+      },
+      {
+        "item_id": "operators.0009",
+        "native_name": "<",
+        "source": "src/antlr/Parser.g:1766"
+      },
+      {
+        "item_id": "operators.0010",
+        "native_name": "<=",
+        "source": "src/antlr/Parser.g:1767"
+      },
+      {
+        "item_id": "operators.0011",
+        "native_name": ">",
+        "source": "src/antlr/Parser.g:1768"
+      },
+      {
+        "item_id": "operators.0012",
+        "native_name": ">=",
+        "source": "src/antlr/Parser.g:1769"
+      },
+      {
+        "item_id": "operators.0013",
+        "native_name": "!=",
+        "source": "src/antlr/Parser.g:1770"
+      }
+    ],
+    "session_settings": [],
+    "statements": [
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0001",
+        "native_name": "selectStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0002",
+        "native_name": "insertStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0003",
+        "native_name": "updateStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0004",
+        "native_name": "batchStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0005",
+        "native_name": "deleteStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0006",
+        "native_name": "useStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0007",
+        "native_name": "truncateStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0008",
+        "native_name": "createKeyspaceStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0009",
+        "native_name": "createTableStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0010",
+        "native_name": "createIndexStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0011",
+        "native_name": "dropKeyspaceStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0012",
+        "native_name": "dropTableStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0013",
+        "native_name": "dropIndexStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0014",
+        "native_name": "alterTableStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0015",
+        "native_name": "alterKeyspaceStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0016",
+        "native_name": "grantPermissionsStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0017",
+        "native_name": "revokePermissionsStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0018",
+        "native_name": "listPermissionsStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0019",
+        "native_name": "createUserStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0020",
+        "native_name": "alterUserStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0021",
+        "native_name": "dropUserStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0022",
+        "native_name": "listUsersStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0023",
+        "native_name": "createTriggerStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0024",
+        "native_name": "dropTriggerStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0025",
+        "native_name": "createTypeStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0026",
+        "native_name": "alterTypeStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0027",
+        "native_name": "dropTypeStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0028",
+        "native_name": "createFunctionStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0029",
+        "native_name": "dropFunctionStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0030",
+        "native_name": "createAggregateStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0031",
+        "native_name": "dropAggregateStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0032",
+        "native_name": "createRoleStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0033",
+        "native_name": "alterRoleStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0034",
+        "native_name": "dropRoleStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0035",
+        "native_name": "listRolesStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0036",
+        "native_name": "grantRoleStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0037",
+        "native_name": "revokeRoleStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0038",
+        "native_name": "createMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0039",
+        "native_name": "dropMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0040",
+        "native_name": "alterMaterializedViewStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0041",
+        "native_name": "describeStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0042",
+        "native_name": "addIdentityStatement",
+        "source": "src/antlr/Parser.g:207"
+      },
+      {
+        "inventory_class": "top_level_cql_statement",
+        "item_id": "statements.0043",
+        "native_name": "dropIdentityStatement",
+        "source": "src/antlr/Parser.g:207"
+      }
+    ]
+  },
+  "inventory_id": "cassandra.dialect-inventory.5.0.8.v1",
+  "reference_version": "5.0.8",
+  "schema": "cdeadmin.engine-dialect-inventory.v1",
+  "source_archive": "cassandra-5.0.8.tar.gz",
+  "source_archive_sha256": "d378d59b5f539dd69c4d3c284bb7e8c767dc255090b11acf3f4722e0833af24c"
+}

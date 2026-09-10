@@ -340,6 +340,10 @@ def run(options):
     )
     driver = None
     import firebird.driver as driver
+    from pgadmin.cdeadmin.providers.firebird.provider import (
+        _configure_client_library,
+    )
+    _configure_client_library(driver)
 
     suffix = uuid.uuid4().hex
     prefix = f'{options.database_root.rstrip("/")}/cdeadmin_ui_{suffix}'

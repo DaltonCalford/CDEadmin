@@ -64,6 +64,9 @@ class Permissions:
 def context(engine_id='mysql', verified=True):
     return SimpleNamespace(
         endpoint_id='2575de74-2cac-4a68-b9bd-d361d7505d8b',
+        experience_family=engine_id,
+        provider_id=f'org.cdeadmin.{engine_id}',
+        profile_id=f'{engine_id}-native',
         mode='legacy_native',
         runtime_verification_state='verified' if verified else 'unverified',
         verified_runtime_family=engine_id if verified else None,
@@ -119,6 +122,24 @@ class NativeAdapter:
             'fields': copy.deepcopy(create['form']['fields']),
         }
         return catalog
+
+
+class OrderedKeyAdapter(NativeAdapter):
+    def __init__(self):
+        super().__init__()
+        self.row_requests = []
+
+    def read_admin_rows(self, request):
+        self.row_requests.append(request)
+        return {
+            'columns': [
+                {'name': 'key', 'engine_type': 'bytes'},
+                {'name': 'value', 'engine_type': 'bytes'},
+            ],
+            'rows': [{'values': {'key': 'bounded', 'value': 'value'}}],
+            'editable': True,
+            'continuation': None,
+        }
 
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
@@ -801,6 +822,32 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
                 'plan_id': plan['plan_id'],
                 'plan_digest': plan['plan_digest'],
             })
+
+    def test_ordered_key_row_page_preserves_explicit_scan_bounds(self):
+        adapter = OrderedKeyAdapter()
+        provider = ProviderVisualAdministration(
+            context('foundationdb'), Permissions(),
+            'foundationdb', '7.3.77', adapter,
+        )
+
+        page = provider.read_rows({
+            '_provider_route': {'route_id': 'bounded-test'},
+            'target_resource': {
+                'resource_kind': 'key-range',
+                'resource_id': 'foundationdb:key-range:default',
+            },
+            'start_key': 'alpha',
+            'end_key': 'omega',
+            'limit': 25,
+        })
+
+        self.assertEqual('alpha', adapter.row_requests[0]['start_key'])
+        self.assertEqual('omega', adapter.row_requests[0]['end_key'])
+        self.assertEqual(25, adapter.row_requests[0]['limit'])
+        self.assertEqual(
+            'org.cdeadmin.foundationdb-foundationdb-native-admin-key-range',
+            page['grid']['grid_id'],
+        )
 
 
 if __name__ == '__main__':

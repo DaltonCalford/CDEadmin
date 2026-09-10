@@ -29,7 +29,7 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
         result = audit(self.catalogs)
         self.assertEqual(26, result['profile_count'])
         self.assertEqual(35, result['family_slice_count'])
-        self.assertEqual(466, result['concept_count'])
+        self.assertEqual(494, result['concept_count'])
         self.assertEqual(
             result['concept_count'],
             result['catalogued_count'] +
@@ -43,7 +43,7 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
             result['native_graphical_operation_count'],
             result['graphical_operation_count'],
         )
-        self.assertEqual(1570, result['graphical_operation_count'])
+        self.assertEqual(1982, result['graphical_operation_count'])
         self.assertEqual(0, result['activation_permission_failure_count'])
         self.assertEqual(0, result['provider_identity_failure_count'])
         self.assertEqual(0, result['shared_semantics_failure_count'])

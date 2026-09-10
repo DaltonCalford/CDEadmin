@@ -64,10 +64,10 @@ class Result:
 
 class Future:
     warnings = ()
-    trace_id = None
 
-    def __init__(self, result):
+    def __init__(self, result, trace_id=None):
         self.native_result = result
+        self.trace_id = trace_id
 
     def result(self):
         return self.native_result
@@ -168,10 +168,17 @@ class Session:
             return Result([])
         return Result([{'ok': True}])
 
-    def execute_async(self, statement, parameters=()):
+    def execute_async(self, statement, parameters=(), **options):
         source = statement.query_string
-        self.cluster.factory.statements.append((source, parameters, {}))
-        return Future(Result([{'tenant': 'one', 'id': 1}]))
+        self.cluster.factory.statements.append((source, parameters, options))
+        trace_id = (
+            '11111111-2222-3333-4444-555555555555'
+            if options.get('trace') and self.cluster.factory.returns_trace_id
+            else None
+        )
+        return Future(
+            Result([{'tenant': 'one', 'id': 1}]), trace_id=trace_id
+        )
 
     @staticmethod
     def shutdown():
@@ -193,9 +200,11 @@ class DriverCluster:
 
 
 class ClusterFactory:
-    def __init__(self, version='2025.2.2.2', protocol='4'):
+    def __init__(self, version='2025.2.2.2', protocol='4',
+                 returns_trace_id=False):
         self.version = version
         self.protocol = protocol
+        self.returns_trace_id = returns_trace_id
         self.clusters = []
         self.statements = []
 
@@ -219,8 +228,9 @@ class Consistency:
     LOCAL_ONE = 10
 
 
-def fake_module(version='2025.2.2.2', protocol='4'):
-    factory = ClusterFactory(version, protocol)
+def fake_module(version='2025.2.2.2', protocol='4',
+                returns_trace_id=False):
+    factory = ClusterFactory(version, protocol, returns_trace_id)
     module = SimpleNamespace(
         __version__='3.30.1', Cluster=factory,
         PlainTextAuthProvider=lambda **values: values,
@@ -242,8 +252,8 @@ def route(**changes):
     return value
 
 
-def adapter(version='2025.2.2.2', protocol='4'):
-    module, factory = fake_module(version, protocol)
+def adapter(version='2025.2.2.2', protocol='4', returns_trace_id=False):
+    module, factory = fake_module(version, protocol, returns_trace_id)
 
     def version_urlopen(*_args, **_values):
         return VersionResponse(version)
@@ -335,11 +345,11 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
             'cluster', 'datacenter', 'node', 'keyspace', 'table', 'column',
-            'user-defined-type', 'role', 'permission', 'query',
+            'user-defined-type', 'role', 'permission', 'query', 'shell',
         }.issubset(kinds))
         self.assertFalse({
             'materialized-view', 'function', 'aggregate',
-            'tracing-session', 'repair', 'snapshot', 'shell',
+            'tracing-session', 'repair', 'snapshot',
         }.intersection(kinds))
         queried = '\n'.join(item[0] for item in factory.statements)
         self.assertNotIn('system_schema.views', queried)
@@ -471,6 +481,37 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
         }
         self.assertNotIn('materialized-view', advertised)
         self.assertNotIn('function', advertised)
+        self.assertIn('tracing-session', advertised)
+        self.assertIn('shell', advertised)
+
+    def test_native_trace_receipt_is_discoverable_without_query_text(self):
+        client, _factory = adapter()
+        handle = client.open_session({'route': route()})
+        token = client.execute(handle, {
+            'source': 'SELECT * FROM qualification.events',
+            'parameters': (), 'trace': True,
+        })
+        self.assertIsNone(token.future.trace_id)
+        traces = [
+            item for item in client.list_resources({'route': route()})
+            if item['resource_kind'] == 'tracing-session'
+        ]
+        self.assertEqual(1, len(traces))
+        native = traces[0]['native']
+        self.assertIsNone(native['trace_id'])
+        self.assertTrue(native['trace_requested'])
+        self.assertEqual('server-log', native[
+            'server_trace_storage'
+        ])
+        self.assertNotIn('source', native)
+        self.assertEqual(64, len(native['source_sha256']))
+        with self.assertRaisesRegex(
+            YugabyteDBYCQLClientError, 'trace flag must be boolean'
+        ):
+            client.execute(handle, {
+                'source': 'SELECT * FROM qualification.events',
+                'parameters': (), 'trace': 'yes',
+            })
 
     def test_manifest_records_ycql_endpoint_contract(self):
         manifest = json.loads((
@@ -493,8 +534,17 @@ class YugabyteDBYCQLProviderTests(unittest.TestCase):
             'protocol_id': 'cql',
         }, manifest['registration']['interface'])
         self.assertEqual(
-            'blocked_pending_exact_contract_and_ui_evidence',
+            'passed_exact_ycql_dialect_metrics_20_concept_object_security_'
+            'shell_trace_and_shared_control_evidence',
             manifest['provenance']['activation_gate'],
+        )
+        self.assertEqual(
+            'yugabytedb.ycql-dialect.2025.2.2.2.v1',
+            manifest['provenance']['dialect_contract'],
+        )
+        self.assertEqual(
+            'yugabytedb.ycql-metrics.2025.2.2.2.v1',
+            manifest['provenance']['metrics_contract'],
         )
         self.assertEqual(
             'passed', manifest['provenance']['dual_interface_gate']

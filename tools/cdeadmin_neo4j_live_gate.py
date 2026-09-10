@@ -134,6 +134,17 @@ def consume(result):
 
 
 def _apply(provider, request):
+    validation = provider.validate_visual_admin(request)
+    if not validation['valid']:
+        failures = '; '.join(
+            f"{item.get('field_id', '<form>')}: {item.get('message', item)}"
+            for item in validation.get('errors', [])
+        )
+        raise RuntimeError(
+            'Neo4j visual validation failed for '
+            f"{request.get('resource_kind')}:{request.get('operation_id')}: "
+            f'{failures or "unspecified validation failure"}'
+        )
     plan = provider.plan_visual_admin(request)
     if plan['state'] != 'ready':
         raise RuntimeError('Neo4j visual administration plan is not ready')
@@ -233,7 +244,7 @@ def main(argv=None):
     rel_type = prefix + '_rel'
     index_name = prefix + '_index'
     constraint_name = prefix + '_constraint'
-    database_name = prefix + '_database'
+    database_name = prefix.replace('_', '-') + '-database'
     role_name = prefix + '_role'
     gates = []
     passed_visual_operations = {}
@@ -402,21 +413,18 @@ def main(argv=None):
                             'name': 'visual-alpha', 'external_id': prefix,
                         },
                     },
-                    'options': {},
                 })['provider_result']['records'][0]['n']
                 second = apply('node', 'insert', graph_target, {
                     'values': {
                         'labels': [visual_label],
                         'properties': {'name': 'visual-beta'},
                     },
-                    'options': {},
                 })['provider_result']['records'][0]['n']
                 first_target = target(
                     'node', first['element_id'], first
                 )
                 apply('node', 'inspect', first_target)
                 apply('node', 'update', first_target, {
-                    'selector': {'element_id': first['element_id']},
                     'changes': {'properties': {'reviewed': True}},
                 })
 
@@ -428,7 +436,6 @@ def main(argv=None):
                             'end_node_element_id': second['element_id'],
                             'properties': {'weight': 7},
                         },
-                        'options': {},
                     },
                 )['provider_result']['records'][0]['r']
                 relationship_target = target(
@@ -436,9 +443,6 @@ def main(argv=None):
                 )
                 apply('relationship', 'inspect', relationship_target)
                 apply('relationship', 'update', relationship_target, {
-                    'selector': {
-                        'element_id': relationship['element_id'],
-                    },
                     'changes': {'properties': {'weight': 8}},
                 })
 
@@ -520,21 +524,12 @@ def main(argv=None):
                 })
 
                 apply('relationship', 'delete', relationship_target, {
-                    'selector': {
-                        'element_id': relationship['element_id'],
-                    },
-                    'confirmation': relationship['element_id'],
                 })
                 apply('node', 'delete', first_target, {
-                    'selector': {'element_id': first['element_id']},
-                    'confirmation': first['element_id'],
+                    'selector': {'detach': True},
                 })
-                apply('index', 'drop', visual_index, {
-                    'confirmation': index_name + '_visual',
-                })
-                apply('constraint', 'drop', visual_constraint, {
-                    'confirmation': constraint_name + '_visual',
-                })
+                apply('index', 'drop', visual_index)
+                apply('constraint', 'drop', visual_constraint)
                 observed_operations = {
                     kind: sorted(values)
                     for kind, values in passed_visual_operations.items()

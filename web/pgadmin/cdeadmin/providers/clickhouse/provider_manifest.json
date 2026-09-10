@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.clickhouse", "provider_version": "0.1.0", "profile_id": "clickhouse-native", "profile_version": "25.12.10.7-stable", "evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.clickhouse", "provider_version": "0.1.0", "profile_id": "clickhouse-native", "profile_version": "25.12.10.7-stable", "evidence_reference": "cdeadmin-clickhouse-full-live:20260909"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
@@ -30,5 +30,5 @@
       {"field_id": "role", "route_key": "role", "label": "Initial role", "control": "text", "group": "ClickHouse security"}
     ]
   },
-  "provenance": {"purpose": "ClickHouse 25.12.10.7 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "clickhouse_25.12.10.7_standalone_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-clickhouse-live:clickhouse-25.12.10.7:http-json:20260902", "runtime_image_digest": "sha256:59efe7d83b1e13c2e439a80adcce1fad186489d69a55d4b763102280a359a4cc"}
+  "provenance": {"purpose": "ClickHouse 25.12.10.7 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "object_experience_gate": "passed", "semantic_model_gate": "passed", "live_evidence_reference": "cdeadmin-clickhouse-full-live:25.12.10.7:20260909", "runtime_image_digest": "sha256:59efe7d83b1e13c2e439a80adcce1fad186489d69a55d4b763102280a359a4cc", "evidence_sha256": "bfb1d891cf991237284ea4ed3fe51c56f0306f2c0e14ca2c3b9752148d1fab75", "strict_object_evidence_sha256": "1a8eba9d7a9936ea8305a23138723cb4fd72c9e20eb0ea83f09f19683ef017e6"}
 }

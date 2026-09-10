@@ -244,12 +244,42 @@ def _write_tidb_config(root):
     return config
 
 
+def _write_tikv_config(root):
+    config = root / 'tikv.toml'
+    # The exact TiKV runtime otherwise reserves the greater of 5 GiB or five
+    # percent of the host filesystem. A disposable qualification store must
+    # not inherit the workstation's aggregate disk-usage policy; TiDB's own BR
+    # integration fixtures use this same bounded reserve setting.
+    config.write_text(
+        '# Disposable single-node qualification profile.\n'
+        'memory-usage-limit = "2GB"\n\n'
+        '[memory]\n'
+        'enable-heap-profiling = false\n\n'
+        '[readpool.unified]\n'
+        'min-thread-count = 1\n'
+        'max-thread-count = 2\n\n'
+        '[server]\n'
+        'grpc-concurrency = 2\n'
+        'stats-concurrency = 0\n\n'
+        '[storage]\n'
+        'reserve-space = "1KB"\n'
+        'scheduler-worker-pool-size = 2\n\n'
+        '[storage.block-cache]\n'
+        'capacity = "512MB"\n\n'
+        '[raftstore]\n'
+        'capacity = "2GB"\n',
+        encoding='utf-8',
+    )
+    return config
+
+
 def _write_tiflash_config(root, ports):
     learner = root / 'tiflash-learner.toml'
     learner.write_text(
         '[server]\n'
         f'engine-addr = "127.0.0.1:{ports["flash_service"]}"\n\n'
         '[raftstore]\n'
+        'capacity = "2GB"\n'
         'apply-pool-size = 2\nstore-pool-size = 2\n'
         'snap-handle-pool-size = 2\n\n'
         '[security]\nredact-info-log = true\n',
@@ -311,8 +341,10 @@ def _start_cluster(root, toolchain, processes):
         f'http://127.0.0.1:{ports["pd_client"]}/pd/api/v1/version',
         processes,
     )
+    tikv_config = _write_tikv_config(root)
     processes.start('tikv', [
         str(binaries / 'tikv-server'),
+        f'--config={tikv_config}',
         f'--addr=127.0.0.1:{ports["tikv"]}',
         f'--advertise-addr=127.0.0.1:{ports["tikv"]}',
         f'--status-addr=127.0.0.1:{ports["tikv_status"]}',
@@ -660,16 +692,16 @@ def _control_evidence(root, toolchain, ports):
         'database', 'backup_br', {'storage_uri': database_uri},
         database_target, 300,
     )
-    _sql(ports['tidb'], f'DROP DATABASE `{database}`')
+    _sql(ports['tidb'], f'DROP DATABASE IF EXISTS `{database}`')
     apply(
         'database', 'restore_br', {'storage_uri': database_uri},
         database_target, 300,
     )
-    _sql(ports['tidb'], f'DROP DATABASE `{database}`')
+    _sql(ports['tidb'], f'DROP DATABASE IF EXISTS `{database}`')
     apply('cluster', 'restore_full', {
         'storage_uri': full_uri, 'verification_database': database,
     }, cluster, 300)
-    _sql(ports['tidb'], f'DROP DATABASE `{database}`')
+    _sql(ports['tidb'], f'DROP DATABASE IF EXISTS `{database}`')
     _sql(
         ports['tidb'],
         'DROP DATABASE IF EXISTS '

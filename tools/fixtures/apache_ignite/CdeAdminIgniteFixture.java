@@ -21,6 +21,8 @@ import org.apache.ignite.compute.ComputeTaskSplitAdapter;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.services.Service;
 import org.apache.ignite.services.ServiceContext;
+import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
+import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 
 
 /** Supplies cancellable task and service instances for exact live gates. */
@@ -36,7 +38,11 @@ public final class CdeAdminIgniteFixture {
         }
         IgniteConfiguration configuration = new IgniteConfiguration();
         configuration.setClientMode(true);
+        configuration.setAuthenticationEnabled(true);
         configuration.setIgniteInstanceName("cdeadmin-fixture-deployer");
+        configuration.setDiscoverySpi(new TcpDiscoverySpi().setIpFinder(
+            new TcpDiscoveryVmIpFinder().setAddresses(
+                Collections.singletonList("127.0.0.1:47500"))));
         try (Ignite ignite = Ignition.start(configuration)) {
             ignite.services().deployClusterSingleton(
                 arguments[1], new CancellableService());

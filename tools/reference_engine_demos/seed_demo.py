@@ -452,6 +452,7 @@ def seed_redis():
     import redis
     client = redis.Redis(host="127.0.0.1", port=56379,
                          decode_responses=True)
+    retry(client.ping)
     pipe = client.pipeline(transaction=True)
     pipe.set("cdeadmin:demo:welcome", "ScratchRobin field-service demo")
     pipe.hset("cdeadmin:demo:customer:1", mapping={"name": CUSTOMERS[0][1],
@@ -810,13 +811,24 @@ def seed_opensearch_sql_ppl():
 
 
 def seed_cassandra(engine="cassandra"):
+    from cassandra.auth import PlainTextAuthProvider
     from cassandra.cluster import Cluster
-    port = 59043 if engine == "cassandra" else 59042
+    port = 19042 if engine == "cassandra" else 59042
+    contact_points = (
+        ["127.0.0.1", "127.0.0.2", "127.0.0.3"]
+        if engine == "cassandra" else ["127.0.0.1"]
+    )
 
-    def connect():
+    def connect(password=None):
+        options = {}
+        if password is not None:
+            options["auth_provider"] = PlainTextAuthProvider(
+                username="cassandra", password=password,
+            )
         cluster = Cluster(
-            ["127.0.0.1"], port=port, connect_timeout=10,
+            contact_points, port=port, connect_timeout=10,
             control_connection_timeout=10,
+            **options,
         )
         try:
             return cluster, cluster.connect()
@@ -824,7 +836,40 @@ def seed_cassandra(engine="cassandra"):
             cluster.shutdown()
             raise
 
-    cluster, session = retry(connect, timeout=300)
+    if engine == "cassandra":
+        def authenticated_connect():
+            errors = []
+            for password in (PASSWORD, "cassandra"):
+                try:
+                    return connect(password)
+                except Exception as exc:
+                    errors.append(exc)
+            raise errors[-1]
+
+        cluster, session = retry(authenticated_connect, timeout=300)
+        session.execute(
+            "ALTER ROLE cassandra WITH PASSWORD = 'CDEadminDemo-2026!'"
+        )
+        session.execute(
+            "ALTER KEYSPACE system_auth WITH replication = "
+            "{'class':'NetworkTopologyStrategy','datacenter1':3}"
+        )
+    else:
+        def yugabyte_authenticated_connect():
+            errors = []
+            for password in (PASSWORD, "cassandra"):
+                try:
+                    return connect(password)
+                except Exception as exc:
+                    errors.append(exc)
+            raise errors[-1]
+
+        cluster, session = retry(
+            yugabyte_authenticated_connect, timeout=300
+        )
+        session.execute(
+            "ALTER ROLE cassandra WITH PASSWORD = 'CDEadminDemo-2026!'"
+        )
     session.execute("CREATE KEYSPACE IF NOT EXISTS cdeadmin_demo WITH "
                     "replication = {'class':'SimpleStrategy','replication_factor':1}")
     session.execute(
@@ -844,17 +889,29 @@ def seed_cassandra(engine="cassandra"):
                     "vibration double, PRIMARY KEY ((asset_id), recorded_at)) WITH "
                     "CLUSTERING ORDER BY (recorded_at DESC)")
     cluster.shutdown()
+    if engine == "cassandra":
+        subprocess.run([
+            "docker", "exec", "cdeadmin-demo-cassandra",
+            "/opt/cassandra/bin/nodetool", "-u", "cassandra", "-pwf",
+            "/etc/cassandra/jmxremote.password", "-p", "17199",
+            "repair", "system_auth",
+        ], check=True)
     return {"keyspace": "cdeadmin_demo", "rows": 4,
-            "tables": ["work_orders", "sensor_readings"]}
+            "tables": ["work_orders", "sensor_readings"],
+            "authenticated": True,
+            "nodes": 3 if engine == "cassandra" else 1}
 
 
 def seed_ignite():
     from pyignite import Client
+    authentication = urllib.parse.urlencode({
+        "cmd": "version", "user": "ignite", "password": "ignite",
+    })
     retry(lambda: request_raw(
-        "http://127.0.0.1:58080/ignite?cmd=version",
+        "http://127.0.0.1:58080/ignite?" + authentication,
         method="GET", body=None,
     ), timeout=300)
-    client = Client(timeout=10)
+    client = Client(username="ignite", password="ignite", timeout=10)
     context = client.connect("127.0.0.1", 51080)
     context.__enter__()
     try:
@@ -916,8 +973,8 @@ def _tikv_helper(operation):
         raise RuntimeError("TiKV helper is not bootstrapped; run "
                            "bootstrap.py first")
     request = {
-        "pd_endpoints": ["127.0.0.1:52379"], "api_version": 1,
-        "enable_ttl": False, "operation_timeout_seconds": 30,
+        "pd_endpoints": ["127.0.0.1:52379"], "api_version": 2,
+        "enable_ttl": True, "operation_timeout_seconds": 30,
         "transaction_mode": "optimistic", **operation,
     }
     for field in ("key", "value", "start_key", "end_key"):
@@ -958,7 +1015,7 @@ def seed_tikv():
     return {
         "key_prefix": prefix + "*", "keys": len(records),
         "ordered_key_value": True, "native_client": "client-go",
-        "stores": topology.get("count", 0), "api_version": 1,
+        "stores": topology.get("count", 0), "api_version": 2,
     }
 
 

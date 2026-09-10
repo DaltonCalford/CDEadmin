@@ -149,7 +149,7 @@
     {"engine_id": "duckdb", "reference_profile": "1.5.2", "batch": "relational", "actual_boundaries": ["embedded_duckdb"]},
     {"engine_id": "firebird", "reference_profile": "5.0.4", "batch": "relational", "actual_boundaries": ["firebird_wire"]},
     {"engine_id": "foundationdb", "reference_profile": "7.3.77", "batch": "distributed", "actual_boundaries": ["foundationdb_api"]},
-    {"engine_id": "immudb", "reference_profile": "1.11.0", "batch": "distributed", "actual_boundaries": ["grpc"]},
+    {"engine_id": "immudb", "reference_profile": "1.11.0", "batch": "distributed", "actual_boundaries": ["postgresql_wire", "http_json"]},
     {"engine_id": "influxdb", "reference_profile": "3.9.0", "batch": "analytic", "actual_boundaries": ["http_json", "arrow_flight"]},
     {"engine_id": "mariadb", "reference_profile": "12.2.2", "batch": "relational", "actual_boundaries": ["mysql_wire"]},
     {"engine_id": "milvus", "reference_profile": "2.6.5", "batch": "analytic", "actual_boundaries": ["grpc"]},

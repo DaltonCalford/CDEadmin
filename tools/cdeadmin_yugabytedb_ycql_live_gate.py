@@ -86,6 +86,7 @@ def parser():
     result.add_argument('--local-dc', default='datacenter1')
     result.add_argument('--username')
     result.add_argument('--password-env', default='CDEADMIN_YCQL_PASSWORD')
+    result.add_argument('--workspace', type=Path, required=True)
     result.add_argument('--output', type=Path)
     result.add_argument('--object-output', type=Path)
     result.add_argument('--shared-control-evidence', type=Path)
@@ -99,7 +100,7 @@ def context():
         mode='legacy_native',
         experience_family='yugabytedb-ycql',
         provider_id=PROFILE.provider_id,
-        provider_version='0.1.0',
+        provider_version='0.2.0',
         profile_id=PROFILE.profile_id,
         profile_version=PROFILE.exact_version,
         target_adapter_id='ycql-cassandra-driver',
@@ -110,7 +111,7 @@ def context():
         diagnostic_namespace=str(uuid.uuid4()),
         effective_permissions=frozenset({
             'network', 'secret_read', 'data_read', 'data_write',
-            'administer', 'execute',
+            'administer', 'execute', 'filesystem',
         }),
         declared_runtime_family='yugabytedb',
         verified_runtime_family='yugabytedb',
@@ -164,7 +165,8 @@ def apply(provider, value, operation_evidence=None):
         'confirmed': True,
     })
     native = result['provider_result']
-    if native.get('accepted') is not True:
+    if native.get('accepted') is not True and native.get(
+            'driver_observation_only') is not True:
         raise RuntimeError('provider plan was not accepted')
     if native.get('transaction_finality_interpreted_by_common_code'):
         raise RuntimeError('common code interpreted YCQL finality')
@@ -172,6 +174,16 @@ def apply(provider, value, operation_evidence=None):
         operation_evidence.setdefault(
             value['resource_kind'], set()
         ).add(value['operation_id'])
+        if provider.client.admin_operation_requires_dialect(
+                value['resource_kind'], value['operation_id']):
+            task_id = (
+                f"visual_admin.{value['resource_kind']}."
+                f"{value['operation_id']}"
+            )
+            operation_evidence.setdefault('_dialect_tasks', {})[task_id] = {
+                'command_preview': plan['command_preview'],
+                'live_execution': 'passed',
+            }
     return result
 
 
@@ -192,6 +204,8 @@ def verify(args):
     permissions = Permissions(password)
     client = YugabyteDBYCQLClient(permissions.acquire_secret)
     provider = create_provider(context(), permissions, client)
+    workspace = args.workspace.resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
     route = {
         'route_id': 'exact-live-qualification',
         'host': args.host,
@@ -207,6 +221,7 @@ def verify(args):
         'protocol_version': 4,
         'request_timeout': 60,
         'connect_timeout': 15,
+        'tool_workspace': str(workspace),
     }
     if args.username:
         route.update({
@@ -309,6 +324,15 @@ def verify(args):
             raise RuntimeError(
                 f'resource discovery omitted {expected - observed}'
             )
+        for kind in ('cluster', 'datacenter', 'node', 'query', 'shell'):
+            resource = next(
+                item for item in resources
+                if item['resource_kind'] == kind
+            )
+            provider.inspect_resource({
+                'route': route, 'resource_id': resource['resource_id'],
+            })
+            operation_evidence.setdefault(kind, set()).add('inspect')
         table_resource = next(
             item for item in resources
             if item['resource_kind'] == 'table' and
@@ -404,7 +428,7 @@ def verify(args):
         operation_evidence.setdefault('index', set()).add('inspect')
         forbidden = {
             'materialized-view', 'function', 'aggregate',
-            'tracing-session', 'repair', 'compaction', 'snapshot',
+            'repair', 'compaction', 'snapshot',
         }
         if forbidden.intersection(item[0] for item in observed):
             raise RuntimeError('Cassandra-only resources were advertised')
@@ -465,8 +489,25 @@ def verify(args):
                 'WHERE tenant = %s'
             ),
             'parameters': ('one',),
+            'trace': True,
         })
         result = provider.describe_result(operation)
+        trace_observation = result['schema']['native_observation']
+        trace_id = trace_observation.get('trace_request_receipt_id')
+        if not trace_id or trace_observation.get(
+                'trace_requested') is not True:
+            raise RuntimeError('YCQL trace request receipt is unavailable')
+        trace_resource = next(
+            item for item in provider.list_resources(endpoint_request)
+            if item['resource_kind'] == 'tracing-session' and
+            item['display_name'] == trace_id
+        )
+        provider.inspect_resource({
+            'route': route, 'resource_id': trace_resource['resource_id'],
+        })
+        operation_evidence.setdefault('tracing-session', set()).add(
+            'inspect'
+        )
         transaction = provider.describe_transaction({
             'session_id': session['session_id'],
         })
@@ -474,11 +515,37 @@ def verify(args):
             raise RuntimeError('common finality inference was enabled')
         return {
             'result_kind': result['result_kind'],
+            'trace_request_receipt': trace_id,
+            'native_trace_id': trace_observation.get('trace_id'),
+            'trace_storage': trace_observation.get('trace_storage'),
             'opaque_outcome': True,
             'transaction': transaction,
         }
 
     category('language_and_native_outcome', language_gate)
+
+    def shell_gate():
+        source = workspace / f'ycql_{run_id}.cql'
+        source.write_text(
+            'SELECT release_version FROM system.local;\n',
+            encoding='utf-8',
+        )
+        shell = next(
+            item for item in provider.list_resources(endpoint_request)
+            if item['resource_kind'] == 'shell'
+        )
+        result = apply(provider, request(
+            route, 'shell', 'execute', {
+                'action': 'file', 'arguments': {'path': source.name},
+            }, shell,
+        ), operation_evidence)
+        output = result['provider_result']['tool_result']['stdout']
+        if '3.9-SNAPSHOT' not in output:
+            raise RuntimeError('ycqlsh did not return the YCQL release')
+        source.unlink(missing_ok=True)
+        return {'exact_ycqlsh_file_execution': True}
+
+    category('native_shell', shell_gate)
 
     def security_gate():
         apply(provider, request(route, 'role', 'create', {
@@ -585,10 +652,6 @@ def verify(args):
             ('table', table_name, {
                 'keyspace_name': keyspace, 'table_name': table_name,
             }),
-            ('role', role_name, {'role': role_name}),
-            ('role', role_name + '_member', {
-                'role': role_name + '_member',
-            }),
         ):
             try:
                 apply(provider, request(
@@ -616,6 +679,26 @@ def verify(args):
     finally:
         provider.close()
 
+    dialect_task_evidence = operation_evidence.pop('_dialect_tasks', {})
+    expected_tasks = set(client.admin_dialect_task_ids())
+    if set(dialect_task_evidence) != expected_tasks:
+        failures.append('dialect_task_coverage')
+        categories['dialect_task_coverage'] = {
+            'state': 'failed',
+            'detail': {
+                'missing': sorted(
+                    expected_tasks - set(dialect_task_evidence)
+                ),
+                'unexpected': sorted(
+                    set(dialect_task_evidence) - expected_tasks
+                ),
+            },
+        }
+    else:
+        categories['dialect_task_coverage'] = {
+            'state': 'passed',
+            'detail': {'task_count': len(expected_tasks)},
+        }
     report = {
         'schema': 'cdeadmin.yugabytedb-ycql-live-gate.v1',
         'engine_id': 'yugabytedb',
@@ -628,6 +711,7 @@ def verify(args):
             kind: sorted(operations)
             for kind, operations in sorted(operation_evidence.items())
         },
+        'dialect_task_evidence': dialect_task_evidence,
         'failures': failures,
     }
     return report
@@ -649,14 +733,31 @@ def main():
                 'YCQL object evidence requires shared control evidence')
         shared_raw = args.shared_control_evidence.resolve().read_bytes()
         shared = json.loads(shared_raw)
+        attestation = shared.get(
+            'external_surface_attestations', {}
+        ).get('cdeadmin.yugabytedb.control-plane', {})
+        required_shared_concepts = {
+            'replication', 'compaction', 'snapshots', 'backup_and_restore',
+        }
+        attested_concepts = attestation.get('concepts', {})
         if (
                 shared.get('schema') !=
                 'cdeadmin.provider-object-live-evidence.v1' or
                 shared.get('engine_id') != 'yugabytedb' or
                 shared.get('exact_profile') != EXPECTED_SERVER or
-                shared.get('concepts', {}).get('relational', {}).get(
-                    'replication_objects', {}
-                ).get('status') != 'passed'):
+                attestation.get('schema') !=
+                'cdeadmin.external-control-surface-attestation.v1' or
+                attestation.get('surface_id') !=
+                'cdeadmin.yugabytedb.control-plane' or
+                attestation.get('exact_profile') != EXPECTED_SERVER or
+                attestation.get('provider_finality_authority') is not True or
+                attestation.get('automatic_mutation_retry') is not False or
+                not isinstance(attested_concepts, dict) or
+                any(
+                    attested_concepts.get(concept_id, {}).get('status') !=
+                    'passed'
+                    for concept_id in required_shared_concepts
+                )):
             raise RuntimeError(
                 'shared YugabyteDB control evidence is not admissible')
         operations = report['operation_evidence']
@@ -683,9 +784,41 @@ def main():
                 'materialized_views': {
                     'status': 'passed', 'operations': {},
                 },
-                'replication_and_compaction': {
+                'indexes': {'status': 'passed', 'operations': {
+                    'index': operations['index'],
+                }},
+                'roles_and_permissions': {
+                    'status': 'passed', 'operations': {
+                        'role': operations['role'],
+                        'permission': operations['permission'],
+                    },
+                },
+                'replication': {
                     'status': 'passed', 'operations': {},
                 },
+                'compaction': {
+                    'status': 'passed', 'operations': {},
+                },
+                'topology': {'status': 'passed', 'operations': {
+                    'cluster': operations['cluster'],
+                    'datacenter': operations['datacenter'],
+                    'node': operations['node'],
+                }},
+                'queries': {'status': 'passed', 'operations': {
+                    'query': operations['query'],
+                }},
+                'tracing': {'status': 'passed', 'operations': {
+                    'tracing-session': operations['tracing-session'],
+                }},
+                'snapshots': {
+                    'status': 'passed', 'operations': {},
+                },
+                'backup_and_restore': {
+                    'status': 'passed', 'operations': {},
+                },
+                'shell': {'status': 'passed', 'operations': {
+                    'shell': operations['shell'],
+                }},
             }},
             'operation_failures': {},
             'automatic_mutation_retry': False,

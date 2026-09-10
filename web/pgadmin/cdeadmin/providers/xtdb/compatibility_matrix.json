@@ -20,7 +20,7 @@
     {"platform": "windows", "contract_suite": "ci_required", "live_suite": "not_run"}
   ],
   "qualified_deployments": [
-    {"deployment": "disposable_standalone_plaintext", "server_version": "2.1.0", "status": "passed", "evidence_reference": "cde-xtdb-live:xtdb-2.1.0:standalone:20260902"}
+    {"deployment": "disposable_standalone_plaintext", "server_version": "2.1.0", "status": "passed", "evidence_reference": "cdeadmin-xtdb-full-live:2.1.0:20260909"}
   ],
   "activation_state": "production_experimental_provider",
   "remaining_live_boundaries": ["password_authentication", "verified_tls", "restart", "controlled_disconnect_fault", "distributed_topology", "read_only_port"]

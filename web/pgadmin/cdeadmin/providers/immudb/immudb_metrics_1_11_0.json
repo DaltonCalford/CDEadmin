@@ -1,0 +1,2831 @@
+{
+  "authoritative_metric_count": 77,
+  "authoritative_metric_ids": [
+    "immudb.prometheus.0001.go_gc_duration_seconds",
+    "immudb.prometheus.0002.go_goroutines",
+    "immudb.prometheus.0003.go_info",
+    "immudb.prometheus.0004.go_memstats_alloc_bytes",
+    "immudb.prometheus.0005.go_memstats_alloc_bytes_total",
+    "immudb.prometheus.0006.go_memstats_buck_hash_sys_bytes",
+    "immudb.prometheus.0007.go_memstats_frees_total",
+    "immudb.prometheus.0008.go_memstats_gc_sys_bytes",
+    "immudb.prometheus.0009.go_memstats_heap_alloc_bytes",
+    "immudb.prometheus.0010.go_memstats_heap_idle_bytes",
+    "immudb.prometheus.0011.go_memstats_heap_inuse_bytes",
+    "immudb.prometheus.0012.go_memstats_heap_objects",
+    "immudb.prometheus.0013.go_memstats_heap_released_bytes",
+    "immudb.prometheus.0014.go_memstats_heap_sys_bytes",
+    "immudb.prometheus.0015.go_memstats_last_gc_time_seconds",
+    "immudb.prometheus.0016.go_memstats_lookups_total",
+    "immudb.prometheus.0017.go_memstats_mallocs_total",
+    "immudb.prometheus.0018.go_memstats_mcache_inuse_bytes",
+    "immudb.prometheus.0019.go_memstats_mcache_sys_bytes",
+    "immudb.prometheus.0020.go_memstats_mspan_inuse_bytes",
+    "immudb.prometheus.0021.go_memstats_mspan_sys_bytes",
+    "immudb.prometheus.0022.go_memstats_next_gc_bytes",
+    "immudb.prometheus.0023.go_memstats_other_sys_bytes",
+    "immudb.prometheus.0024.go_memstats_stack_inuse_bytes",
+    "immudb.prometheus.0025.go_memstats_stack_sys_bytes",
+    "immudb.prometheus.0026.go_memstats_sys_bytes",
+    "immudb.prometheus.0027.go_threads",
+    "immudb.prometheus.0028.grpc_server_handled_total",
+    "immudb.prometheus.0029.grpc_server_handling_seconds",
+    "immudb.prometheus.0030.grpc_server_msg_received_total",
+    "immudb.prometheus.0031.grpc_server_msg_sent_total",
+    "immudb.prometheus.0032.grpc_server_started_total",
+    "immudb.prometheus.0033.immudb_active_sessions",
+    "immudb.prometheus.0034.immudb_btree_flushed_entries_last_cycle",
+    "immudb.prometheus.0035.immudb_btree_flushed_entries_total",
+    "immudb.prometheus.0036.immudb_btree_flushed_nodes_last_cycle",
+    "immudb.prometheus.0037.immudb_btree_flushed_nodes_total",
+    "immudb.prometheus.0038.immudb_btree_leaf_node_entries",
+    "immudb.prometheus.0039.immudb_btree_nodes_data_begin",
+    "immudb.prometheus.0040.immudb_btree_nodes_data_end",
+    "immudb.prometheus.0041.immudb_catalog_cache_total",
+    "immudb.prometheus.0042.immudb_clients_last_message_at_unix_seconds",
+    "immudb.prometheus.0043.immudb_db_size_bytes",
+    "immudb.prometheus.0044.immudb_index_seek_latency_seconds",
+    "immudb.prometheus.0045.immudb_last_committed_trx_id",
+    "immudb.prometheus.0046.immudb_last_indexed_trx_id",
+    "immudb.prometheus.0047.immudb_loaded_databases",
+    "immudb.prometheus.0048.immudb_multiapp_cache_events",
+    "immudb.prometheus.0049.immudb_multiapp_read_bytes",
+    "immudb.prometheus.0050.immudb_multiapp_read_events",
+    "immudb.prometheus.0051.immudb_number_of_rpcs_per_client",
+    "immudb.prometheus.0052.immudb_number_of_stored_entries",
+    "immudb.prometheus.0053.immudb_query_latency_seconds",
+    "immudb.prometheus.0054.immudb_remote_storage_kind",
+    "immudb.prometheus.0055.immudb_remoteapp_corrupted_metadata",
+    "immudb.prometheus.0056.immudb_remoteapp_download_events",
+    "immudb.prometheus.0057.immudb_remoteapp_open_time",
+    "immudb.prometheus.0058.immudb_remoteapp_read_bytes",
+    "immudb.prometheus.0059.immudb_remoteapp_read_events",
+    "immudb.prometheus.0060.immudb_remoteapp_s3_download_bytes",
+    "immudb.prometheus.0061.immudb_remoteapp_s3_in_flight_requests",
+    "immudb.prometheus.0062.immudb_remoteapp_s3_upload_bytes",
+    "immudb.prometheus.0063.immudb_remoteapp_uncached_read_bytes",
+    "immudb.prometheus.0064.immudb_remoteapp_uncached_read_events",
+    "immudb.prometheus.0065.immudb_remoteapp_upload_events",
+    "immudb.prometheus.0066.immudb_remoteapp_upload_time",
+    "immudb.prometheus.0067.immudb_stream_send_blocked_duration_seconds",
+    "immudb.prometheus.0068.immudb_uptime_hours",
+    "immudb.prometheus.0069.process_cpu_seconds_total",
+    "immudb.prometheus.0070.process_max_fds",
+    "immudb.prometheus.0071.process_open_fds",
+    "immudb.prometheus.0072.process_resident_memory_bytes",
+    "immudb.prometheus.0073.process_start_time_seconds",
+    "immudb.prometheus.0074.process_virtual_memory_bytes",
+    "immudb.prometheus.0075.process_virtual_memory_max_bytes",
+    "immudb.prometheus.0076.promhttp_metric_handler_requests_in_flight",
+    "immudb.prometheus.0077.promhttp_metric_handler_requests_total"
+  ],
+  "authoritative_observation_count": 77,
+  "authoritative_observation_ids": [
+    "immudb.prometheus.0001.go_gc_duration_seconds",
+    "immudb.prometheus.0002.go_goroutines",
+    "immudb.prometheus.0003.go_info",
+    "immudb.prometheus.0004.go_memstats_alloc_bytes",
+    "immudb.prometheus.0005.go_memstats_alloc_bytes_total",
+    "immudb.prometheus.0006.go_memstats_buck_hash_sys_bytes",
+    "immudb.prometheus.0007.go_memstats_frees_total",
+    "immudb.prometheus.0008.go_memstats_gc_sys_bytes",
+    "immudb.prometheus.0009.go_memstats_heap_alloc_bytes",
+    "immudb.prometheus.0010.go_memstats_heap_idle_bytes",
+    "immudb.prometheus.0011.go_memstats_heap_inuse_bytes",
+    "immudb.prometheus.0012.go_memstats_heap_objects",
+    "immudb.prometheus.0013.go_memstats_heap_released_bytes",
+    "immudb.prometheus.0014.go_memstats_heap_sys_bytes",
+    "immudb.prometheus.0015.go_memstats_last_gc_time_seconds",
+    "immudb.prometheus.0016.go_memstats_lookups_total",
+    "immudb.prometheus.0017.go_memstats_mallocs_total",
+    "immudb.prometheus.0018.go_memstats_mcache_inuse_bytes",
+    "immudb.prometheus.0019.go_memstats_mcache_sys_bytes",
+    "immudb.prometheus.0020.go_memstats_mspan_inuse_bytes",
+    "immudb.prometheus.0021.go_memstats_mspan_sys_bytes",
+    "immudb.prometheus.0022.go_memstats_next_gc_bytes",
+    "immudb.prometheus.0023.go_memstats_other_sys_bytes",
+    "immudb.prometheus.0024.go_memstats_stack_inuse_bytes",
+    "immudb.prometheus.0025.go_memstats_stack_sys_bytes",
+    "immudb.prometheus.0026.go_memstats_sys_bytes",
+    "immudb.prometheus.0027.go_threads",
+    "immudb.prometheus.0028.grpc_server_handled_total",
+    "immudb.prometheus.0029.grpc_server_handling_seconds",
+    "immudb.prometheus.0030.grpc_server_msg_received_total",
+    "immudb.prometheus.0031.grpc_server_msg_sent_total",
+    "immudb.prometheus.0032.grpc_server_started_total",
+    "immudb.prometheus.0033.immudb_active_sessions",
+    "immudb.prometheus.0034.immudb_btree_flushed_entries_last_cycle",
+    "immudb.prometheus.0035.immudb_btree_flushed_entries_total",
+    "immudb.prometheus.0036.immudb_btree_flushed_nodes_last_cycle",
+    "immudb.prometheus.0037.immudb_btree_flushed_nodes_total",
+    "immudb.prometheus.0038.immudb_btree_leaf_node_entries",
+    "immudb.prometheus.0039.immudb_btree_nodes_data_begin",
+    "immudb.prometheus.0040.immudb_btree_nodes_data_end",
+    "immudb.prometheus.0041.immudb_catalog_cache_total",
+    "immudb.prometheus.0042.immudb_clients_last_message_at_unix_seconds",
+    "immudb.prometheus.0043.immudb_db_size_bytes",
+    "immudb.prometheus.0044.immudb_index_seek_latency_seconds",
+    "immudb.prometheus.0045.immudb_last_committed_trx_id",
+    "immudb.prometheus.0046.immudb_last_indexed_trx_id",
+    "immudb.prometheus.0047.immudb_loaded_databases",
+    "immudb.prometheus.0048.immudb_multiapp_cache_events",
+    "immudb.prometheus.0049.immudb_multiapp_read_bytes",
+    "immudb.prometheus.0050.immudb_multiapp_read_events",
+    "immudb.prometheus.0051.immudb_number_of_rpcs_per_client",
+    "immudb.prometheus.0052.immudb_number_of_stored_entries",
+    "immudb.prometheus.0053.immudb_query_latency_seconds",
+    "immudb.prometheus.0054.immudb_remote_storage_kind",
+    "immudb.prometheus.0055.immudb_remoteapp_corrupted_metadata",
+    "immudb.prometheus.0056.immudb_remoteapp_download_events",
+    "immudb.prometheus.0057.immudb_remoteapp_open_time",
+    "immudb.prometheus.0058.immudb_remoteapp_read_bytes",
+    "immudb.prometheus.0059.immudb_remoteapp_read_events",
+    "immudb.prometheus.0060.immudb_remoteapp_s3_download_bytes",
+    "immudb.prometheus.0061.immudb_remoteapp_s3_in_flight_requests",
+    "immudb.prometheus.0062.immudb_remoteapp_s3_upload_bytes",
+    "immudb.prometheus.0063.immudb_remoteapp_uncached_read_bytes",
+    "immudb.prometheus.0064.immudb_remoteapp_uncached_read_events",
+    "immudb.prometheus.0065.immudb_remoteapp_upload_events",
+    "immudb.prometheus.0066.immudb_remoteapp_upload_time",
+    "immudb.prometheus.0067.immudb_stream_send_blocked_duration_seconds",
+    "immudb.prometheus.0068.immudb_uptime_hours",
+    "immudb.prometheus.0069.process_cpu_seconds_total",
+    "immudb.prometheus.0070.process_max_fds",
+    "immudb.prometheus.0071.process_open_fds",
+    "immudb.prometheus.0072.process_resident_memory_bytes",
+    "immudb.prometheus.0073.process_start_time_seconds",
+    "immudb.prometheus.0074.process_virtual_memory_bytes",
+    "immudb.prometheus.0075.process_virtual_memory_max_bytes",
+    "immudb.prometheus.0076.promhttp_metric_handler_requests_in_flight",
+    "immudb.prometheus.0077.promhttp_metric_handler_requests_total"
+  ],
+  "catalog_evidence": {
+    "artifact": "immudb_metrics_inventory_1_11_0.json",
+    "authority": "immudb 1.11.0 runtime",
+    "format": "cdeadmin.engine-metrics-inventory.v1",
+    "license_id": "PostgreSQL",
+    "sha256": "e9625a5597cf2a37d2ef5511231a2b30c71feca7cd69dbcf32b1439b9469a86c"
+  },
+  "classification_evidence": [
+    {
+      "artifact": "immudb-1.11.0.tar.gz",
+      "authority": "Codenotary immudb project",
+      "evidence_id": "immudb-1.11.0-source-metric-registry",
+      "evidence_kind": "documentation",
+      "format": "immudb 1.11.0 source archive",
+      "license_id": "BUSL-1.1",
+      "sha256": "ac07da5552f4d14a4d646059a633d48c7e9d668989c4522b8a9924f0c55286e0"
+    },
+    {
+      "artifact": "immudb_metrics_inventory_1_11_0.json",
+      "authority": "immudb 1.11.0 runtime",
+      "evidence_id": "immudb-1.11.0-runtime-prometheus-catalog",
+      "evidence_kind": "catalog",
+      "format": "cdeadmin.engine-metrics-inventory.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "e9625a5597cf2a37d2ef5511231a2b30c71feca7cd69dbcf32b1439b9469a86c"
+    },
+    {
+      "artifact": "dialect_qualification_live.json",
+      "authority": "immudb 1.11.0 runtime",
+      "evidence_id": "immudb-1.11.0-task-live-execution",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.relational-provider-live-verification.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "291cddf01d880a9c207848cf5e9836cd13ca649bd1b119fd9f5121f3d1488d2c"
+    }
+  ],
+  "contract_id": "immudb.metrics.1.11.0.v1",
+  "engine_id": "immudb",
+  "interface_id": "immudb-native",
+  "live_evidence_ids": [
+    "immudb-1.11.0-runtime-prometheus-catalog",
+    "immudb-1.11.0-task-live-execution"
+  ],
+  "metrics": [
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "summary",
+      "metric_id": "immudb.prometheus.0001.go_gc_duration_seconds",
+      "observation_id": "immudb.prometheus.0001.go_gc_duration_seconds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0002.go_goroutines",
+      "observation_id": "immudb.prometheus.0002.go_goroutines",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0003.go_info",
+      "observation_id": "immudb.prometheus.0003.go_info",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0004.go_memstats_alloc_bytes",
+      "observation_id": "immudb.prometheus.0004.go_memstats_alloc_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0005.go_memstats_alloc_bytes_total",
+      "observation_id": "immudb.prometheus.0005.go_memstats_alloc_bytes_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0006.go_memstats_buck_hash_sys_bytes",
+      "observation_id": "immudb.prometheus.0006.go_memstats_buck_hash_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0007.go_memstats_frees_total",
+      "observation_id": "immudb.prometheus.0007.go_memstats_frees_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0008.go_memstats_gc_sys_bytes",
+      "observation_id": "immudb.prometheus.0008.go_memstats_gc_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0009.go_memstats_heap_alloc_bytes",
+      "observation_id": "immudb.prometheus.0009.go_memstats_heap_alloc_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0010.go_memstats_heap_idle_bytes",
+      "observation_id": "immudb.prometheus.0010.go_memstats_heap_idle_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0011.go_memstats_heap_inuse_bytes",
+      "observation_id": "immudb.prometheus.0011.go_memstats_heap_inuse_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0012.go_memstats_heap_objects",
+      "observation_id": "immudb.prometheus.0012.go_memstats_heap_objects",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0013.go_memstats_heap_released_bytes",
+      "observation_id": "immudb.prometheus.0013.go_memstats_heap_released_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0014.go_memstats_heap_sys_bytes",
+      "observation_id": "immudb.prometheus.0014.go_memstats_heap_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0015.go_memstats_last_gc_time_seconds",
+      "observation_id": "immudb.prometheus.0015.go_memstats_last_gc_time_seconds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0016.go_memstats_lookups_total",
+      "observation_id": "immudb.prometheus.0016.go_memstats_lookups_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0017.go_memstats_mallocs_total",
+      "observation_id": "immudb.prometheus.0017.go_memstats_mallocs_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0018.go_memstats_mcache_inuse_bytes",
+      "observation_id": "immudb.prometheus.0018.go_memstats_mcache_inuse_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0019.go_memstats_mcache_sys_bytes",
+      "observation_id": "immudb.prometheus.0019.go_memstats_mcache_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0020.go_memstats_mspan_inuse_bytes",
+      "observation_id": "immudb.prometheus.0020.go_memstats_mspan_inuse_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0021.go_memstats_mspan_sys_bytes",
+      "observation_id": "immudb.prometheus.0021.go_memstats_mspan_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0022.go_memstats_next_gc_bytes",
+      "observation_id": "immudb.prometheus.0022.go_memstats_next_gc_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0023.go_memstats_other_sys_bytes",
+      "observation_id": "immudb.prometheus.0023.go_memstats_other_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0024.go_memstats_stack_inuse_bytes",
+      "observation_id": "immudb.prometheus.0024.go_memstats_stack_inuse_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0025.go_memstats_stack_sys_bytes",
+      "observation_id": "immudb.prometheus.0025.go_memstats_stack_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0026.go_memstats_sys_bytes",
+      "observation_id": "immudb.prometheus.0026.go_memstats_sys_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0027.go_threads",
+      "observation_id": "immudb.prometheus.0027.go_threads",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0028.grpc_server_handled_total",
+      "observation_id": "immudb.prometheus.0028.grpc_server_handled_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0029.grpc_server_handling_seconds",
+      "observation_id": "immudb.prometheus.0029.grpc_server_handling_seconds",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0030.grpc_server_msg_received_total",
+      "observation_id": "immudb.prometheus.0030.grpc_server_msg_received_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0031.grpc_server_msg_sent_total",
+      "observation_id": "immudb.prometheus.0031.grpc_server_msg_sent_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0032.grpc_server_started_total",
+      "observation_id": "immudb.prometheus.0032.grpc_server_started_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0033.immudb_active_sessions",
+      "observation_id": "immudb.prometheus.0033.immudb_active_sessions",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0034.immudb_btree_flushed_entries_last_cycle",
+      "observation_id": "immudb.prometheus.0034.immudb_btree_flushed_entries_last_cycle",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0035.immudb_btree_flushed_entries_total",
+      "observation_id": "immudb.prometheus.0035.immudb_btree_flushed_entries_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0036.immudb_btree_flushed_nodes_last_cycle",
+      "observation_id": "immudb.prometheus.0036.immudb_btree_flushed_nodes_last_cycle",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0037.immudb_btree_flushed_nodes_total",
+      "observation_id": "immudb.prometheus.0037.immudb_btree_flushed_nodes_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0038.immudb_btree_leaf_node_entries",
+      "observation_id": "immudb.prometheus.0038.immudb_btree_leaf_node_entries",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0039.immudb_btree_nodes_data_begin",
+      "observation_id": "immudb.prometheus.0039.immudb_btree_nodes_data_begin",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0040.immudb_btree_nodes_data_end",
+      "observation_id": "immudb.prometheus.0040.immudb_btree_nodes_data_end",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0041.immudb_catalog_cache_total",
+      "observation_id": "immudb.prometheus.0041.immudb_catalog_cache_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0042.immudb_clients_last_message_at_unix_seconds",
+      "observation_id": "immudb.prometheus.0042.immudb_clients_last_message_at_unix_seconds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0043.immudb_db_size_bytes",
+      "observation_id": "immudb.prometheus.0043.immudb_db_size_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0044.immudb_index_seek_latency_seconds",
+      "observation_id": "immudb.prometheus.0044.immudb_index_seek_latency_seconds",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0045.immudb_last_committed_trx_id",
+      "observation_id": "immudb.prometheus.0045.immudb_last_committed_trx_id",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0046.immudb_last_indexed_trx_id",
+      "observation_id": "immudb.prometheus.0046.immudb_last_indexed_trx_id",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0047.immudb_loaded_databases",
+      "observation_id": "immudb.prometheus.0047.immudb_loaded_databases",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0048.immudb_multiapp_cache_events",
+      "observation_id": "immudb.prometheus.0048.immudb_multiapp_cache_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0049.immudb_multiapp_read_bytes",
+      "observation_id": "immudb.prometheus.0049.immudb_multiapp_read_bytes",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0050.immudb_multiapp_read_events",
+      "observation_id": "immudb.prometheus.0050.immudb_multiapp_read_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0051.immudb_number_of_rpcs_per_client",
+      "observation_id": "immudb.prometheus.0051.immudb_number_of_rpcs_per_client",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0052.immudb_number_of_stored_entries",
+      "observation_id": "immudb.prometheus.0052.immudb_number_of_stored_entries",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0053.immudb_query_latency_seconds",
+      "observation_id": "immudb.prometheus.0053.immudb_query_latency_seconds",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0054.immudb_remote_storage_kind",
+      "observation_id": "immudb.prometheus.0054.immudb_remote_storage_kind",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0055.immudb_remoteapp_corrupted_metadata",
+      "observation_id": "immudb.prometheus.0055.immudb_remoteapp_corrupted_metadata",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0056.immudb_remoteapp_download_events",
+      "observation_id": "immudb.prometheus.0056.immudb_remoteapp_download_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0057.immudb_remoteapp_open_time",
+      "observation_id": "immudb.prometheus.0057.immudb_remoteapp_open_time",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0058.immudb_remoteapp_read_bytes",
+      "observation_id": "immudb.prometheus.0058.immudb_remoteapp_read_bytes",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0059.immudb_remoteapp_read_events",
+      "observation_id": "immudb.prometheus.0059.immudb_remoteapp_read_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0060.immudb_remoteapp_s3_download_bytes",
+      "observation_id": "immudb.prometheus.0060.immudb_remoteapp_s3_download_bytes",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0061.immudb_remoteapp_s3_in_flight_requests",
+      "observation_id": "immudb.prometheus.0061.immudb_remoteapp_s3_in_flight_requests",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0062.immudb_remoteapp_s3_upload_bytes",
+      "observation_id": "immudb.prometheus.0062.immudb_remoteapp_s3_upload_bytes",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0063.immudb_remoteapp_uncached_read_bytes",
+      "observation_id": "immudb.prometheus.0063.immudb_remoteapp_uncached_read_bytes",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0064.immudb_remoteapp_uncached_read_events",
+      "observation_id": "immudb.prometheus.0064.immudb_remoteapp_uncached_read_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0065.immudb_remoteapp_upload_events",
+      "observation_id": "immudb.prometheus.0065.immudb_remoteapp_upload_events",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0066.immudb_remoteapp_upload_time",
+      "observation_id": "immudb.prometheus.0066.immudb_remoteapp_upload_time",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "histogram",
+      "metric_id": "immudb.prometheus.0067.immudb_stream_send_blocked_duration_seconds",
+      "observation_id": "immudb.prometheus.0067.immudb_stream_send_blocked_duration_seconds",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0068.immudb_uptime_hours",
+      "observation_id": "immudb.prometheus.0068.immudb_uptime_hours",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0069.process_cpu_seconds_total",
+      "observation_id": "immudb.prometheus.0069.process_cpu_seconds_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0070.process_max_fds",
+      "observation_id": "immudb.prometheus.0070.process_max_fds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0071.process_open_fds",
+      "observation_id": "immudb.prometheus.0071.process_open_fds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0072.process_resident_memory_bytes",
+      "observation_id": "immudb.prometheus.0072.process_resident_memory_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0073.process_start_time_seconds",
+      "observation_id": "immudb.prometheus.0073.process_start_time_seconds",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0074.process_virtual_memory_bytes",
+      "observation_id": "immudb.prometheus.0074.process_virtual_memory_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0075.process_virtual_memory_max_bytes",
+      "observation_id": "immudb.prometheus.0075.process_virtual_memory_max_bytes",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "preserve_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "gauge",
+      "metric_id": "immudb.prometheus.0076.promhttp_metric_handler_requests_in_flight",
+      "observation_id": "immudb.prometheus.0076.promhttp_metric_handler_requests_in_flight",
+      "reset_behavior": "current_observation",
+      "unit": "native_unit"
+    },
+    {
+      "aggregation": "sum_by_native_labels",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "kind": "counter",
+      "metric_id": "immudb.prometheus.0077.promhttp_metric_handler_requests_total",
+      "observation_id": "immudb.prometheus.0077.promhttp_metric_handler_requests_total",
+      "reset_behavior": "process_restart",
+      "unit": "native_unit"
+    }
+  ],
+  "native_observations": [
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "A summary of the pause duration of garbage collection cycles.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_gc_duration_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0001.go_gc_duration_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "summary",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of goroutines that currently exist.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_goroutines",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0002.go_goroutines",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Information about the Go environment.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_info",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0003.go_info",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes allocated and still in use.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_alloc_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0004.go_memstats_alloc_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of bytes allocated, even if freed.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_alloc_bytes_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0005.go_memstats_alloc_bytes_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes used by the profiling bucket hash table.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_buck_hash_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0006.go_memstats_buck_hash_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of frees.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_frees_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0007.go_memstats_frees_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes used for garbage collection system metadata.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_gc_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0008.go_memstats_gc_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes allocated and still in use.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_alloc_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0009.go_memstats_heap_alloc_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes waiting to be used.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_idle_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0010.go_memstats_heap_idle_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes that are in use.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_inuse_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0011.go_memstats_heap_inuse_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of allocated objects.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_objects",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0012.go_memstats_heap_objects",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes released to OS.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_released_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0013.go_memstats_heap_released_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes obtained from system.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_heap_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0014.go_memstats_heap_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of seconds since 1970 of last garbage collection.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_last_gc_time_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0015.go_memstats_last_gc_time_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of pointer lookups.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_lookups_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0016.go_memstats_lookups_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of mallocs.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_mallocs_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0017.go_memstats_mallocs_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes in use by mcache structures.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_mcache_inuse_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0018.go_memstats_mcache_inuse_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes used for mcache structures obtained from system.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_mcache_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0019.go_memstats_mcache_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes in use by mspan structures.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_mspan_inuse_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0020.go_memstats_mspan_inuse_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes used for mspan structures obtained from system.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_mspan_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0021.go_memstats_mspan_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of heap bytes when next garbage collection will take place.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_next_gc_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0022.go_memstats_next_gc_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes used for other system allocations.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_other_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0023.go_memstats_other_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes in use by the stack allocator.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_stack_inuse_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0024.go_memstats_stack_inuse_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes obtained from system for stack allocator.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_stack_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0025.go_memstats_stack_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes obtained from system.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_memstats_sys_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0026.go_memstats_sys_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of OS threads created.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "go_threads",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0027.go_threads",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of RPCs completed on the server, regardless of success or failure.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "grpc_server_handled_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0028.grpc_server_handled_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Histogram of response latency (seconds) of gRPC that had been application-level handled by the server.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "grpc_server_handling_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0029.grpc_server_handling_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of RPC stream messages received on the server.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "grpc_server_msg_received_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0030.grpc_server_msg_received_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of gRPC stream messages sent by the server.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "grpc_server_msg_sent_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0031.grpc_server_msg_sent_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of RPCs started on the server.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "grpc_server_started_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0032.grpc_server_started_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Numer of active sessions",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_active_sessions",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0033.immudb_active_sessions",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Numbers of btree entries written to disk during the last flush process",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_flushed_entries_last_cycle",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0034.immudb_btree_flushed_entries_last_cycle",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of btree entries written to disk during flush since the immudb process was started",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_flushed_entries_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0035.immudb_btree_flushed_entries_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Numbers of btree nodes written to disk during the last flush process",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_flushed_nodes_last_cycle",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0036.immudb_btree_flushed_nodes_last_cycle",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of btree nodes written to disk during flush since the immudb process was started",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_flushed_nodes_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0037.immudb_btree_flushed_nodes_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Histogram of number of entries in as single leaf btree node, calculated when visiting btree nodes",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_leaf_node_entries",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0038.immudb_btree_leaf_node_entries",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Beginning offset for btree nodes data file",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_nodes_data_begin",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0039.immudb_btree_nodes_data_begin",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "End offset for btree nodes data appendable",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_btree_nodes_data_end",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0040.immudb_btree_nodes_data_end",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Catalog cache lookups by result (hit/miss). Hit ratio = hit / (hit+miss).",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_catalog_cache_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0041.immudb_catalog_cache_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Timestamp at which clients have sent their most recent message.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_clients_last_message_at_unix_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0042.immudb_clients_last_message_at_unix_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Database size in bytes.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_db_size_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0043.immudb_db_size_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Latency of individual index seek operations.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_index_seek_latency_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0044.immudb_index_seek_latency_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "The highest id of committed transaction",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_last_committed_trx_id",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0045.immudb_last_committed_trx_id",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "The highest id of indexed transaction",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_last_indexed_trx_id",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0046.immudb_last_indexed_trx_id",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Numer of loaded databases",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_loaded_databases",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0047.immudb_loaded_databases",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Immudb multiapp cache event counters",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_multiapp_cache_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0048.immudb_multiapp_cache_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of bytes read",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_multiapp_read_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0049.immudb_multiapp_read_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Immudb multiapp read event counters",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_multiapp_read_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0050.immudb_multiapp_read_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of handled RPCs per client.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_number_of_rpcs_per_client",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0051.immudb_number_of_rpcs_per_client",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of key-value entries currently stored by the database.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_number_of_stored_entries",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0052.immudb_number_of_stored_entries",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Per-op gRPC handler latency in seconds (op = grpc.FullMethod).",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_query_latency_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0053.immudb_query_latency_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Set to 1 for remote storage kind for given database",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remote_storage_kind",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0054.immudb_remote_storage_kind",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of corrupted metadata detections in an immudb remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_corrupted_metadata",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0055.immudb_remoteapp_corrupted_metadata",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Immudb remote storage download event counters",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_download_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0056.immudb_remoteapp_download_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Histogram of the total time required to open a chunk of data stored on an immudb remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_open_time",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0057.immudb_remoteapp_open_time",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of bytes read from immudb remote storage (including cached reads)",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_read_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0058.immudb_remoteapp_read_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Read event counters for immudb remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_read_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0059.immudb_remoteapp_read_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number data bytes (excluding headers) downloaded from s3",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_s3_download_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0060.immudb_remoteapp_s3_download_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of S3 HTTP requests currently in flight.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_s3_in_flight_requests",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0061.immudb_remoteapp_s3_in_flight_requests",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number data bytes (excluding headers) uploaded to s3",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_s3_upload_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0062.immudb_remoteapp_s3_upload_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Direct (uncached) read byte counters for immudb remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_uncached_read_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0063.immudb_remoteapp_uncached_read_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Direct (uncached) read event counters for immudb remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_uncached_read_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0064.immudb_remoteapp_uncached_read_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Immudb remote storage upload event counters",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_upload_events",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0065.immudb_remoteapp_upload_events",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Histogram of the total time required to upload a chunk to the remote storage",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_remoteapp_upload_time",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0066.immudb_remoteapp_upload_time",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Duration of individual stream chunk Send calls. Tail values indicate slow stream receivers.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_stream_send_blocked_duration_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0067.immudb_stream_send_blocked_duration_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "histogram",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Server uptime in hours.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "immudb_uptime_hours",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0068.immudb_uptime_hours",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total user and system CPU time spent in seconds.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_cpu_seconds_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0069.process_cpu_seconds_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Maximum number of open file descriptors.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_max_fds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0070.process_max_fds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Number of open file descriptors.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_open_fds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0071.process_open_fds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Resident memory size in bytes.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_resident_memory_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0072.process_resident_memory_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Start time of the process since unix epoch in seconds.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_start_time_seconds",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0073.process_start_time_seconds",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Virtual memory size in bytes.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_virtual_memory_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0074.process_virtual_memory_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Maximum amount of virtual memory available in bytes.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "process_virtual_memory_max_bytes",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0075.process_virtual_memory_max_bytes",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Current number of scrapes being served.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "promhttp_metric_handler_requests_in_flight",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0076.promhttp_metric_handler_requests_in_flight",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "gauge",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    },
+    {
+      "cardinality": "one_per_native_label_set",
+      "collection_cost": "single_prometheus_catalog_snapshot",
+      "description": "Total number of scrapes by HTTP status code.",
+      "evidence_ids": [
+        "immudb-1.11.0-source-metric-registry",
+        "immudb-1.11.0-runtime-prometheus-catalog",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "native_name": "promhttp_metric_handler_requests_total",
+      "observation_class": "operational_metric",
+      "observation_id": "immudb.prometheus.0077.promhttp_metric_handler_requests_total",
+      "poll_interval_seconds": 15,
+      "privilege": "metrics_endpoint_access",
+      "prometheus_type": "counter",
+      "redaction": "provider_label_redaction_policy",
+      "scope": "native_label_set",
+      "source": "GET /metrics",
+      "value_type": "number",
+      "version_condition": "1.11.0"
+    }
+  ],
+  "profile_id": "immudb-native",
+  "provider_id": "org.cdeadmin.immudb",
+  "reference_version": "1.11.0",
+  "schema": "cdeadmin.engine-metrics.v2"
+}

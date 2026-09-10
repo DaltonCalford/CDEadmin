@@ -132,7 +132,9 @@ def _wait_until_ready(container, certificate_root, timeout):
     )
 
 
-def run(image, server_log, work_root, startup_timeout=300):
+def run(
+        image, server_log, work_root, startup_timeout=300,
+        dialect_qualification=False):
     identity = _image_identity(image)
     container = f'cdeadmin-cockroachdb-object-{secrets.token_hex(6)}'
     started = False
@@ -165,7 +167,8 @@ def run(image, server_log, work_root, startup_timeout=300):
                 certificate_root / 'client.root.key',
             )
             result = verify(
-                'cockroachdb', '127.0.0.1', port, account=account
+                'cockroachdb', '127.0.0.1', port, account=account,
+                dialect_qualification=dialect_qualification,
             )
         finally:
             server_log.parent.mkdir(parents=True, exist_ok=True)
@@ -196,11 +199,16 @@ def main(argv=None):
     parser.add_argument('--server-log', type=Path, required=True)
     parser.add_argument('--work-root', type=Path)
     parser.add_argument('--startup-timeout', type=int, default=300)
+    parser.add_argument(
+        '--dialect-qualification', action='store_true',
+        help='Bypass the absent-contract gate only to collect task evidence.',
+    )
     options = parser.parse_args(argv)
     work_root = options.work_root or options.output.parent
     result = run(
         options.image, options.server_log, work_root,
         startup_timeout=options.startup_timeout,
+        dialect_qualification=options.dialect_qualification,
     )
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(
@@ -226,7 +234,11 @@ def main(argv=None):
         'tls_private_material_exported': False,
         'server_stopped': result['server_stopped'],
     }, indent=2, sort_keys=True))
-    return 0 if result['activation_ready'] else 1
+    readiness_key = (
+        'dialect_qualification_ready' if options.dialect_qualification
+        else 'activation_ready'
+    )
+    return 0 if result[readiness_key] else 1
 
 
 if __name__ == '__main__':

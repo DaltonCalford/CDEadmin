@@ -348,6 +348,9 @@ def main():
             context = SimpleNamespace(
                 endpoint_id=f'xtdb-semantic-{suffix}',
                 session_namespace=f'xtdb-semantic-session-{suffix}',
+                experience_family='xtdb',
+                provider_id='org.cdeadmin.xtdb',
+                profile_id='xtdb-native',
                 mode='legacy_native', runtime_verification_state='verified',
                 verified_runtime_family='xtdb',
                 declared_runtime_family='xtdb',
@@ -488,6 +491,9 @@ def main():
                 context = SimpleNamespace(
                     endpoint_id=f'xtdb-visual-{suffix}',
                     session_namespace=f'xtdb-visual-session-{suffix}',
+                    experience_family='xtdb',
+                    provider_id='org.cdeadmin.xtdb',
+                    profile_id='xtdb-native',
                     mode='legacy_native',
                     runtime_verification_state='verified',
                     verified_runtime_family='xtdb',

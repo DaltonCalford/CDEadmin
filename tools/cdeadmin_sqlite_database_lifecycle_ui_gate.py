@@ -556,13 +556,10 @@ def _render_case(driver, wait, options, forms, mode, database_label=None):
 
 def _submit_target_form(driver, wait, mode, values):
     fill_fields(wait, [f'{label}={value}' for label, value in values.items()])
-    prefix = mode.replace('_', ' ').title() + ' '
-    button = wait.until(lambda value: next((
-        item for item in value.find_elements(
-            By.CSS_SELECTOR, '[role="dialog"] button'
-        ) if item.is_displayed() and item.is_enabled() and
-        item.accessible_name.startswith(prefix)
-    ), None))
+    title = driver.find_elements(
+        By.CSS_SELECTOR, '[role="dialog"] h2'
+    )[-1].text
+    button = wait.until(lambda value: visible_named_control(value, title))
     wait.until(lambda _driver: button.is_enabled())
     button.click()
 
@@ -622,13 +619,12 @@ def _submit_lifecycle(driver, wait, options, mode, values):
     )
     if confirmation is not None:
         driver.execute_script('arguments[0].click()', confirmation)
-    prefix = mode.replace('_', ' ').title() + ' '
-    apply_button = wait.until(lambda value: next((
-        item for item in value.find_elements(
-            By.CSS_SELECTOR, '[role="dialog"] button'
-        ) if item.is_displayed() and
-        item.accessible_name.startswith(prefix)
-    ), None))
+    title = driver.find_elements(
+        By.CSS_SELECTOR, '[role="dialog"] h2'
+    )[-1].text
+    apply_button = wait.until(
+        lambda value: visible_named_control(value, title)
+    )
     wait.until(lambda _driver: apply_button.is_enabled())
     apply_button.click()
     wait.until(lambda value: (

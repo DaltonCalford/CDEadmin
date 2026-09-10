@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.mongodb", "provider_version": "0.1.0", "profile_id": "mongodb-native", "profile_version": "8.2.6", "evidence_reference": "cde-prep-150:actual-engine-pilots-20260831"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.mongodb", "provider_version": "0.1.0", "profile_id": "mongodb-native", "profile_version": "8.2.6", "evidence_reference": "cdeadmin-mongodb-full-live:20260909"},
   "package_type": "engine", "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
   "contracts": ["EndpointProvider", "ResourceProvider", "LanguageProvider", "SessionProvider", "ExecutionProvider", "ResultProvider", "ResultRenderer", "DiagnosticProvider", "OperationProvider", "ToolProvider", "SecurityProvider"],
@@ -86,5 +86,5 @@
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Backup/import/export workspace", "control": "text", "group": "MongoDB operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
     ]
   },
-  "provenance": {"purpose": "CDE-PREP-150 MongoDB exact-profile pilot", "protocol": "mongodb_wire", "client_state": "pymongo_4.17.0_installed", "runtime_state": "verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-mongodb-live:mongodb-8.2.6:20260901"}
+  "provenance": {"purpose": "MongoDB 8.2.6 exact-profile implementation", "protocol": "mongodb_wire", "client_state": "pymongo_4.17.0_with_c_extension_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "object_experience_gate": "passed", "live_evidence_reference": "cdeadmin-mongodb-full-live:8.2.6:20260909", "evidence_sha256": "7b7e16f78f44b16b15ec488cbe7dcca5b948e6c5cf11e4f3c20abb447b3a3472", "strict_object_evidence_sha256": "bc8f9b6a46ba1fc959920ed0a9bac468fc398d4be04f1f3782d24f4b9f6c0700"}
 }

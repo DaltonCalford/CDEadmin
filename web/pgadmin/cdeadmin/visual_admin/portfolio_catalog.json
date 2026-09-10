@@ -628,6 +628,12 @@
         {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": true}
       ]
     },
+    "truncate": {
+      "title": "Truncate all data",
+      "fields": [
+        {"field_id": "confirmation", "label": "Provider confirmation phrase", "control": "text", "required": true, "max_length": 1024}
+      ]
+    },
     "grant": {
       "title": "Grant",
       "fields": [
@@ -709,6 +715,7 @@
       {"operation_id": "insert", "title": "Insert", "mutation_class": "write", "form_id": "data_insert", "target_required": true},
       {"operation_id": "update", "title": "Update", "mutation_class": "write", "form_id": "data_update", "target_required": true},
       {"operation_id": "delete", "title": "Delete", "mutation_class": "destructive", "form_id": "data_delete", "target_required": true, "confirmation_required": true},
+      {"operation_id": "truncate", "title": "Truncate", "mutation_class": "destructive", "form_id": "truncate", "target_required": true, "confirmation_required": true},
       {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
     ],
     "data_item": [
@@ -853,12 +860,21 @@
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "index", "title": "Index", "operation_profile": "definition"},
         {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
+        {"resource_kind": "trigger", "title": "Trigger", "operation_profile": "definition"},
         {"resource_kind": "user-defined-type", "title": "User-defined type", "operation_profile": "definition"},
         {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
         {"resource_kind": "aggregate", "title": "Aggregate", "operation_profile": "definition"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
         {"resource_kind": "permission", "title": "Permission", "operation_profile": "security"},
-        {"resource_kind": "compaction", "title": "Compaction operations", "operation_profile": "operational"}
+        {"resource_kind": "identity", "title": "Certificate identity", "operation_profile": "security"},
+        {"resource_kind": "query", "title": "CQL query activity", "operation_profile": "read_only"},
+        {"resource_kind": "tracing-session", "title": "Tracing session", "operation_profile": "read_only"},
+        {"resource_kind": "repair", "title": "Repair operations", "operation_profile": "operational"},
+        {"resource_kind": "compaction", "title": "Compaction operations", "operation_profile": "operational"},
+        {"resource_kind": "snapshot", "title": "Snapshot operations", "operation_profile": "operational"},
+        {"resource_kind": "backup", "title": "SSTable backup tools", "operation_profile": "operational"},
+        {"resource_kind": "restore", "title": "SSTable restore tools", "operation_profile": "operational"},
+        {"resource_kind": "shell", "title": "CQL shell", "operation_profile": "operational"}
       ]
     },
     {

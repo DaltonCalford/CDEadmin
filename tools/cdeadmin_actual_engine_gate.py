@@ -30,6 +30,13 @@ EXPECTED = (
     ('opensearch_sql_ppl', '3.6.0-sql-ppl', 9),
     ('duckdb', '1.5.2', 6),
     ('firebird', '5.0.4', 7), ('sqlite', '3.53.0', 8),
+    ('apache_ignite', '2.17.0', 10),
+    ('cockroachdb', '26.1.3', 11), ('dolt', '1.86.6', 12),
+    ('foundationdb', '7.3.77', 13), ('immudb', '1.11.0', 14),
+    ('tidb', '8.5.6', 15), ('tikv', '8.5.6', 16),
+    ('vitess', '23.0.3', 17),
+    ('yugabytedb', '2025.2.2.2', 18),
+    ('yugabytedb', '2025.2.2.2', 18),
 )
 CATEGORIES = {
     'resource', 'language_api', 'result', 'transaction',
@@ -40,6 +47,8 @@ FORBIDDEN_FOUNDATION_NAMES = {
     'neo4j', 'cassandra', 'redis', 'clickhouse', 'duckdb', 'firebird',
     'sqlite', 'xtdb', 'influxdb', 'milvus', 'opensearch',
     'opensearch_sql_ppl',
+    'apache_ignite', 'cockroachdb', 'dolt', 'foundationdb', 'immudb',
+    'tidb', 'tikv', 'vitess', 'yugabytedb',
 }
 FORBIDDEN_AUTHORITY_METHODS = {
     'begin', 'commit', 'rollback', 'savepoint', 'retry', 'recover',

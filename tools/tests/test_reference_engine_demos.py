@@ -74,7 +74,11 @@ class ReferenceEngineDemoTestCase(unittest.TestCase):
             if not path.is_file() or path.suffix not in checked_suffixes:
                 continue
             content = path.read_text(encoding="utf-8")
-            self.assertNotIn("/home/", content, str(path))
+            # Exact container distributions may legitimately live below a
+            # product-owned home (for example /home/yugabyte). Reject the
+            # workstation-specific path that would make the fixture
+            # non-portable, not every valid container path.
+            self.assertNotIn("/home/dcalford/", content, str(path))
             self.assertNotIn(":latest", content, str(path))
 
     def test_portable_firebird_redis_and_helper_profiles(self):
@@ -92,6 +96,32 @@ class ReferenceEngineDemoTestCase(unittest.TestCase):
             )
         )
 
+    def test_tikv_fixture_uses_four_api_v2_ttl_stores(self):
+        profiles = {item["engine"]: item for item in self.profiles}
+        tikv = profiles["tikv"]
+        self.assertEqual(2, tikv["api_version"])
+        self.assertTrue(tikv["enable_ttl"])
+        self.assertEqual(4, len(self.estate.TIKV_NODES))
+        self.assertEqual(
+            "api-v2-four-store-control-plane-v1",
+            self.estate.TIKV_CONFIGURATION,
+        )
+
+        names = [node[0] for node in self.estate.TIKV_NODES]
+        client_ports = [node[1] for node in self.estate.TIKV_NODES]
+        status_ports = [node[2] for node in self.estate.TIKV_NODES]
+        volumes = [node[3] for node in self.estate.TIKV_NODES]
+        self.assertEqual(4, len(set(names)))
+        self.assertEqual(4, len(set(client_ports)))
+        self.assertEqual(4, len(set(status_ports)))
+        self.assertEqual(4, len(set(volumes)))
+
+        configuration = (
+            DEMO / "config/tikv/api-v2.toml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("api-version = 2", configuration)
+        self.assertIn("enable-ttl = true", configuration)
+
     def test_required_checked_in_configuration_exists(self):
         required = (
             "bootstrap.py", "demo_estate.py", "seed_demo.py",
@@ -101,6 +131,7 @@ class ReferenceEngineDemoTestCase(unittest.TestCase):
             "config/vitess/docker-compose.yml",
             "config/vitess/test_keyspace_vschema.json",
             "config/vitess/tables/test_keyspace_schema_file.sql",
+            "config/tikv/api-v2.toml",
         )
         for relative in required:
             self.assertTrue((DEMO / relative).is_file(), relative)

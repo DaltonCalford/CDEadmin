@@ -1,0 +1,401 @@
+{
+  "collection_authority": "immudb 1.11.0 native Prometheus endpoint",
+  "completeness": {
+    "admitted_metric_count": 77,
+    "observation_count": 77,
+    "prometheus_help_type_catalog_exhausted": true,
+    "runtime_version": "1.11.0"
+  },
+  "endpoint_selection": "Every series having native HELP and TYPE declarations.",
+  "engine_id": "immudb",
+  "inventory_id": "immudb.metrics-inventory.1.11.0.v1",
+  "observations": [
+    {
+      "description": "A summary of the pause duration of garbage collection cycles.",
+      "native_name": "go_gc_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Number of goroutines that currently exist.",
+      "native_name": "go_goroutines",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Information about the Go environment.",
+      "native_name": "go_info",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes allocated and still in use.",
+      "native_name": "go_memstats_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of bytes allocated, even if freed.",
+      "native_name": "go_memstats_alloc_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes used by the profiling bucket hash table.",
+      "native_name": "go_memstats_buck_hash_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of frees.",
+      "native_name": "go_memstats_frees_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes used for garbage collection system metadata.",
+      "native_name": "go_memstats_gc_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes allocated and still in use.",
+      "native_name": "go_memstats_heap_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes waiting to be used.",
+      "native_name": "go_memstats_heap_idle_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes that are in use.",
+      "native_name": "go_memstats_heap_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of allocated objects.",
+      "native_name": "go_memstats_heap_objects",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes released to OS.",
+      "native_name": "go_memstats_heap_released_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes obtained from system.",
+      "native_name": "go_memstats_heap_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of seconds since 1970 of last garbage collection.",
+      "native_name": "go_memstats_last_gc_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of pointer lookups.",
+      "native_name": "go_memstats_lookups_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Total number of mallocs.",
+      "native_name": "go_memstats_mallocs_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes in use by mcache structures.",
+      "native_name": "go_memstats_mcache_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for mcache structures obtained from system.",
+      "native_name": "go_memstats_mcache_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes in use by mspan structures.",
+      "native_name": "go_memstats_mspan_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for mspan structures obtained from system.",
+      "native_name": "go_memstats_mspan_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes when next garbage collection will take place.",
+      "native_name": "go_memstats_next_gc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for other system allocations.",
+      "native_name": "go_memstats_other_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes in use by the stack allocator.",
+      "native_name": "go_memstats_stack_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes obtained from system for stack allocator.",
+      "native_name": "go_memstats_stack_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes obtained from system.",
+      "native_name": "go_memstats_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of OS threads created.",
+      "native_name": "go_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of RPCs completed on the server, regardless of success or failure.",
+      "native_name": "grpc_server_handled_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Histogram of response latency (seconds) of gRPC that had been application-level handled by the server.",
+      "native_name": "grpc_server_handling_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Total number of RPC stream messages received on the server.",
+      "native_name": "grpc_server_msg_received_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Total number of gRPC stream messages sent by the server.",
+      "native_name": "grpc_server_msg_sent_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Total number of RPCs started on the server.",
+      "native_name": "grpc_server_started_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Numer of active sessions",
+      "native_name": "immudb_active_sessions",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Numbers of btree entries written to disk during the last flush process",
+      "native_name": "immudb_btree_flushed_entries_last_cycle",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of btree entries written to disk during flush since the immudb process was started",
+      "native_name": "immudb_btree_flushed_entries_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Numbers of btree nodes written to disk during the last flush process",
+      "native_name": "immudb_btree_flushed_nodes_last_cycle",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of btree nodes written to disk during flush since the immudb process was started",
+      "native_name": "immudb_btree_flushed_nodes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Histogram of number of entries in as single leaf btree node, calculated when visiting btree nodes",
+      "native_name": "immudb_btree_leaf_node_entries",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Beginning offset for btree nodes data file",
+      "native_name": "immudb_btree_nodes_data_begin",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "End offset for btree nodes data appendable",
+      "native_name": "immudb_btree_nodes_data_end",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Catalog cache lookups by result (hit/miss). Hit ratio = hit / (hit+miss).",
+      "native_name": "immudb_catalog_cache_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Timestamp at which clients have sent their most recent message.",
+      "native_name": "immudb_clients_last_message_at_unix_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Database size in bytes.",
+      "native_name": "immudb_db_size_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Latency of individual index seek operations.",
+      "native_name": "immudb_index_seek_latency_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The highest id of committed transaction",
+      "native_name": "immudb_last_committed_trx_id",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The highest id of indexed transaction",
+      "native_name": "immudb_last_indexed_trx_id",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Numer of loaded databases",
+      "native_name": "immudb_loaded_databases",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Immudb multiapp cache event counters",
+      "native_name": "immudb_multiapp_cache_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes read",
+      "native_name": "immudb_multiapp_read_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Immudb multiapp read event counters",
+      "native_name": "immudb_multiapp_read_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of handled RPCs per client.",
+      "native_name": "immudb_number_of_rpcs_per_client",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of key-value entries currently stored by the database.",
+      "native_name": "immudb_number_of_stored_entries",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Per-op gRPC handler latency in seconds (op = grpc.FullMethod).",
+      "native_name": "immudb_query_latency_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Set to 1 for remote storage kind for given database",
+      "native_name": "immudb_remote_storage_kind",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of corrupted metadata detections in an immudb remote storage",
+      "native_name": "immudb_remoteapp_corrupted_metadata",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Immudb remote storage download event counters",
+      "native_name": "immudb_remoteapp_download_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Histogram of the total time required to open a chunk of data stored on an immudb remote storage",
+      "native_name": "immudb_remoteapp_open_time",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Total number of bytes read from immudb remote storage (including cached reads)",
+      "native_name": "immudb_remoteapp_read_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Read event counters for immudb remote storage",
+      "native_name": "immudb_remoteapp_read_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number data bytes (excluding headers) downloaded from s3",
+      "native_name": "immudb_remoteapp_s3_download_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of S3 HTTP requests currently in flight.",
+      "native_name": "immudb_remoteapp_s3_in_flight_requests",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number data bytes (excluding headers) uploaded to s3",
+      "native_name": "immudb_remoteapp_s3_upload_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Direct (uncached) read byte counters for immudb remote storage",
+      "native_name": "immudb_remoteapp_uncached_read_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Direct (uncached) read event counters for immudb remote storage",
+      "native_name": "immudb_remoteapp_uncached_read_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Immudb remote storage upload event counters",
+      "native_name": "immudb_remoteapp_upload_events",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Histogram of the total time required to upload a chunk to the remote storage",
+      "native_name": "immudb_remoteapp_upload_time",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Duration of individual stream chunk Send calls. Tail values indicate slow stream receivers.",
+      "native_name": "immudb_stream_send_blocked_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Server uptime in hours.",
+      "native_name": "immudb_uptime_hours",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Total user and system CPU time spent in seconds.",
+      "native_name": "process_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Maximum number of open file descriptors.",
+      "native_name": "process_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of open file descriptors.",
+      "native_name": "process_open_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Resident memory size in bytes.",
+      "native_name": "process_resident_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Start time of the process since unix epoch in seconds.",
+      "native_name": "process_start_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Virtual memory size in bytes.",
+      "native_name": "process_virtual_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Maximum amount of virtual memory available in bytes.",
+      "native_name": "process_virtual_memory_max_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Current number of scrapes being served.",
+      "native_name": "promhttp_metric_handler_requests_in_flight",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of scrapes by HTTP status code.",
+      "native_name": "promhttp_metric_handler_requests_total",
+      "prometheus_type": "counter"
+    }
+  ],
+  "reference_version": "1.11.0",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

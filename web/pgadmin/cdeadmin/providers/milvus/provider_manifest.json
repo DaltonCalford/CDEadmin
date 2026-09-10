@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.milvus", "provider_version": "0.1.0", "profile_id": "milvus-native", "profile_version": "2.6.5", "evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.milvus", "provider_version": "0.1.0", "profile_id": "milvus-native", "profile_version": "2.6.5", "evidence_reference": "cdeadmin-milvus-full-live:20260909"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
@@ -28,5 +28,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "Milvus safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "Milvus 2.6.5 exact-profile implementation", "protocol": "grpc", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "milvus_2.6.5_standalone_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:milvus-2.6.5:grpc:20260902", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178"}
+  "provenance": {"purpose": "Milvus 2.6.5 exact-profile implementation", "protocol": "grpc", "client_state": "pymilvus_2.6.5_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "object_experience_gate": "passed", "live_evidence_reference": "cdeadmin-milvus-full-live:2.6.5:20260909", "runtime_image_digest": "sha256:fb57464669737ee9a9c43c6faa891527adab601241b0b488091c5f4eb4a13178", "evidence_sha256": "1d674ee458d9f39b57b714ec53ae6aea68cc124203133f478684dec5562c2808", "strict_object_evidence_sha256": "6d7dc1d33cfc95eeef26f12a4ea9eb503c20eeda2121fb04aa2ba714c4b3aeda"}
 }

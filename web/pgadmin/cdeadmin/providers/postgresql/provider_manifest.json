@@ -57,6 +57,13 @@
     "purpose": "CDE-PREP-050 preserved PostgreSQL behavior adapter",
     "catalog_authority": "web/pgadmin/browser/server_groups/servers/databases",
     "driver_authority": "web/pgadmin/utils/driver/psycopg3",
-    "transaction_authority": "PostgreSQL provider-native behavior"
+    "transaction_authority": "PostgreSQL provider-native behavior",
+    "runtime_state": "exact_preserved_surface_live_verified",
+    "activation_gate": "passed_exact_postgresql_18_3_preserved_surface_and_primary_relational_object_evidence_pending_screenshot_and_manual_ui_review",
+    "live_evidence_reference": "cde-rel-live:postgresql-18.3:20260910",
+    "object_experience_gate": "passed",
+    "provider_live_evidence_sha256": "41e1b93be4e020fb8ae036ea2f4926843b92573b7dd5f2cb20c9befacec4d0a3",
+    "object_evidence_sha256": "90877aeb541624edc603c551afb25dfdab59901e0acee7bf61759ebca9c6eb9f",
+    "strict_object_evidence_sha256": "0fd5ca7b88dfa2b7945cfaee88edb07dd7a57453ea4dbb259b24f32dcd68d90a"
   }
 }

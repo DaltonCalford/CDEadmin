@@ -33,8 +33,18 @@ PROFILE = PilotProfile(
     result_export_formats=('csv', 'json', 'jsonl'),
     result_worker_required=True,
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'influxdb3-sql-influxql', 'quote_open': '"',
-        'supports_rollup': False,
+        'quote_close': '"', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
 )
 

@@ -193,15 +193,32 @@ class ProviderToolRunner:
                     stream.write(bytes(secret_config))
                     stream.flush()
                     os.fsync(stream.fileno())
-                if not isinstance(secret_argument, str) or (
-                    '{path}' not in secret_argument
+                if isinstance(secret_argument, str):
+                    secret_arguments = [secret_argument]
+                elif (
+                    isinstance(secret_argument, (list, tuple)) and
+                    secret_argument and all(
+                        isinstance(item, str) and item
+                        for item in secret_argument
+                    )
                 ):
+                    secret_arguments = list(secret_argument)
+                else:
                     raise ProviderToolError(
                         'provider tool secret argument is invalid'
                     )
-                secret_option = secret_argument.format(path=config_path)
+                if sum(
+                    item.count('{path}') for item in secret_arguments
+                ) != 1:
+                    raise ProviderToolError(
+                        'provider tool secret argument is invalid'
+                    )
+                secret_options = [
+                    item.format(path=config_path)
+                    for item in secret_arguments
+                ]
                 if secret_argument_position is None:
-                    command.append(secret_option)
+                    command.extend(secret_options)
                 elif (
                     isinstance(secret_argument_position, bool) or
                     not isinstance(secret_argument_position, int) or
@@ -211,7 +228,8 @@ class ProviderToolRunner:
                         'provider tool secret argument position is invalid'
                     )
                 else:
-                    command.insert(1 + secret_argument_position, secret_option)
+                    offset = 1 + secret_argument_position
+                    command[offset:offset] = secret_options
             try:
                 run_options = {
                     'cwd': workspace,

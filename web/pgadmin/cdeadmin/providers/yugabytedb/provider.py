@@ -47,9 +47,27 @@ PROFILE = PilotProfile(
     ),
     ('ysqlsh', 'yb-admin', 'backup-restore'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'ysql', 'quote_open': '"',
-        'supports_rollup': True,
+        'quote_close': '"', 'supports_rollup': True,
+        'rollup_style': 'function', 'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
+    dialect_contract_id='yugabytedb.ysql-dialect.2025.2.2.2.v1',
+    dialect_evidence=(
+        'yugabytedb-2025.2.2.2-ysql-source-and-runtime-inventory',
+        'yugabytedb-2025.2.2.2-ysql-native-task-live-execution',
+    ),
+    dialect_contract_file=(
+        'yugabytedb_ysql_dialect_2025_2_2_2.json'),
+    metrics_contract_file='yugabytedb_metrics_2025_2_2_2.json',
 )
 
 
@@ -276,12 +294,14 @@ class YugabyteDBAdministration(RelationalAdministration):
             return _CONTROL_ADMINISTRATION.plan(request)
         return super().plan(request)
 
-    def apply(self, client, request):
+    def apply(self, client, request, connection=None):
         plan = request.get('plan') or {}
         if _CONTROL_ADMINISTRATION.control_plane.supports(
                 plan.get('resource_kind'), plan.get('operation_id')):
-            return _CONTROL_ADMINISTRATION.apply(client, request)
-        return super().apply(client, request)
+            return _CONTROL_ADMINISTRATION.apply(
+                client, request, connection=connection
+            )
+        return super().apply(client, request, connection=connection)
 
     @staticmethod
     def _control_request(request):

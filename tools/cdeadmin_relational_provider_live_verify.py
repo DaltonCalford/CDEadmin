@@ -62,32 +62,39 @@ from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     create_provider as create_duckdb_provider,
 )
 from pgadmin.cdeadmin.providers.cockroachdb.provider import (  # noqa: E402
+    ADMINISTRATION as COCKROACHDB_ADMINISTRATION,
     PROFILE as COCKROACHDB_PROFILE,
     create_provider as create_cockroachdb_provider,
 )
 from pgadmin.cdeadmin.providers.dolt.provider import (  # noqa: E402
+    ADMINISTRATION as DOLT_ADMINISTRATION,
     PROFILE as DOLT_PROFILE,
     create_provider as create_dolt_provider,
 )
 from pgadmin.cdeadmin.providers.tidb.provider import (  # noqa: E402
+    ADMINISTRATION as TIDB_ADMINISTRATION,
     PROFILE as TIDB_PROFILE,
     create_provider as create_tidb_provider,
 )
 from pgadmin.cdeadmin.providers.vitess.provider import (  # noqa: E402
+    ADMINISTRATION as VITESS_ADMINISTRATION,
     PROFILE as VITESS_PROFILE,
     create_provider as create_vitess_provider,
 )
 from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
+    ADMINISTRATION as YUGABYTEDB_ADMINISTRATION,
     PROFILE as YUGABYTEDB_PROFILE,
     create_provider as create_yugabytedb_provider,
 )
 from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
+    ADMINISTRATION as IMMUDB_ADMINISTRATION,
     PROFILE as IMMUDB_PROFILE,
     create_provider as create_immudb_provider,
 )
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     ADMINISTRATION as FIREBIRD_ADMINISTRATION,
     PROFILE as FIREBIRD_PROFILE,
+    _configure_client_library as configure_firebird_client_library,
     _initialize_connection as initialize_firebird_connection,
     create_provider as create_firebird_provider,
 )
@@ -138,9 +145,15 @@ EMBEDDED_ADMINISTRATIONS = {
 }
 
 NETWORK_ADMINISTRATIONS = {
+    'cockroachdb': COCKROACHDB_ADMINISTRATION,
+    'dolt': DOLT_ADMINISTRATION,
     'firebird': FIREBIRD_ADMINISTRATION,
+    'immudb': IMMUDB_ADMINISTRATION,
     'mysql': MYSQL_ADMINISTRATION,
     'mariadb': MARIADB_ADMINISTRATION,
+    'tidb': TIDB_ADMINISTRATION,
+    'vitess': VITESS_ADMINISTRATION,
+    'yugabytedb': YUGABYTEDB_ADMINISTRATION,
 }
 
 TARGET_ADAPTERS = {
@@ -487,32 +500,67 @@ def _relational_editor_evidence(provider, request, engine):
                     f'database.{operation_id}', 'database', operation_id,
                     draft, database_resource,
                 )
-            if engine == 'mariadb':
+            if engine in {'mysql', 'mariadb'}:
                 with tempfile.TemporaryDirectory(
-                        prefix='cdeadmin-mariadb-tool-live-') as workspace:
+                        prefix=f'cdeadmin-{engine}-tool-live-') as workspace:
                     route['tool_workspace'] = workspace
                     try:
-                        if server_resource is None:
-                            failures[
-                                'server.check_upgrade_required'
-                            ] = 'ServerResourceMissing'
+                        if engine == 'mariadb':
+                            if server_resource is None:
+                                failures[
+                                    'server.check_upgrade_required'
+                                ] = 'ServerResourceMissing'
+                            else:
+                                attempt(
+                                    'server.check_upgrade_required', 'server',
+                                    'check_upgrade_required', {},
+                                    server_resource,
+                                )
+                        if engine == 'mysql':
+                            backup_draft = {
+                                'path': 'qualification-dump',
+                                'consistent': True,
+                                'checksum': True,
+                                'chunking': True,
+                                'threads': 2,
+                                'show_progress': False,
+                                'events': True,
+                                'routines': True,
+                                'triggers': True,
+                            }
+                            restore_draft = {
+                                'path': 'qualification-dump',
+                                'confirmation': str(route['database']),
+                                'drop_existing_objects': True,
+                                'enable_local_infile': True,
+                                'reset_progress': True,
+                                'show_progress': False,
+                                'threads': 2,
+                            }
                         else:
-                            attempt(
-                                'server.check_upgrade_required', 'server',
-                                'check_upgrade_required', {}, server_resource,
-                            )
-                        backup_passed = attempt(
-                            'database.backup_logical', 'database',
-                            'backup_logical', {
+                            backup_draft = {
                                 'path': 'qualification.sql',
-                                'include_schema': True, 'include_data': True,
+                                'include_schema': True,
+                                'include_data': True,
                                 'single_transaction': True,
                                 'lock_all_tables': False,
                                 'add_drop_database': True,
-                                'add_drop_table': True, 'routines': True,
-                                'events': True, 'triggers': True,
+                                'add_drop_table': True,
+                                'routines': True,
+                                'events': True,
+                                'triggers': True,
                                 'hex_blob': True,
-                            }, database_resource,
+                            }
+                            restore_draft = {
+                                'path': 'qualification.sql',
+                                'confirmation': str(route['database']),
+                                'abort_on_error': True,
+                                'binary_mode': True,
+                            }
+                        backup_passed = attempt(
+                            'database.backup_logical', 'database',
+                            'backup_logical', backup_draft,
+                            database_resource,
                         )
                         if backup_passed:
                             mutation = provider.client._connect({
@@ -532,12 +580,8 @@ def _relational_editor_evidence(provider, request, engine):
                                 )
                             restored = attempt(
                                 'database.restore_logical', 'database',
-                                'restore_logical', {
-                                    'path': 'qualification.sql',
-                                    'confirmation': str(route['database']),
-                                    'abort_on_error': True,
-                                    'binary_mode': True,
-                                }, database_resource,
+                                'restore_logical', restore_draft,
+                                database_resource,
                             )
                             if restored:
                                 verification = provider.client._connect({
@@ -1419,6 +1463,56 @@ def _relational_editor_evidence(provider, request, engine):
                             'confirmation': 'drop-live-editor-sequence',
                         }, sequence,
                     )
+
+    if engine == 'vitess' and qualification is not None:
+        # Vitess sequences are native VSchema resources backed by a table in
+        # an unsharded keyspace.  The reference topology deliberately keeps
+        # lookup_keyspace unsharded for this purpose.
+        original_database = route['database']
+        route['database'] = 'lookup_keyspace'
+        try:
+            if attempt(
+                'sequence.create', 'sequence', 'create', {
+                    'name': 'cde_editor_sequence',
+                    'parent': 'lookup_keyspace',
+                    'start': 1,
+                    'cache': 1000,
+                },
+            ):
+                sequence = inspect_created(
+                    'sequence.inspect', 'sequence', 'cde_editor_sequence'
+                )
+                if sequence is not None:
+                    attempt(
+                        'sequence.alter', 'sequence', 'alter', {
+                            'restart': 10,
+                            'cache': 250,
+                        }, sequence,
+                    )
+                    attempt(
+                        'sequence.drop', 'sequence', 'drop', {
+                            'confirmation': 'drop-live-editor-sequence',
+                        }, sequence,
+                    )
+        finally:
+            route['database'] = original_database
+
+        if attempt(
+            'vindex.create', 'vindex', 'create', {
+                'name': 'cde_editor_vindex',
+                'vindex_type': 'xxhash',
+                'parameters': {},
+            },
+        ):
+            vindex = inspect_created(
+                'vindex.inspect', 'vindex', 'cde_editor_vindex'
+            )
+            if vindex is not None:
+                attempt(
+                    'vindex.drop', 'vindex', 'drop', {
+                        'confirmation': 'drop-live-editor-vindex',
+                    }, vindex,
+                )
 
     if engine in {'cockroachdb', 'yugabytedb'} and (
             qualification is not None):
@@ -2463,6 +2557,14 @@ def _relational_editor_evidence(provider, request, engine):
         provider, passed, engine, scope='visual-editor-operations',
         failures=failures,
     )
+    administration = NETWORK_ADMINISTRATIONS.get(engine)
+    if administration is not None:
+        expected_tasks = set(administration.dialect_task_ids())
+        task_evidence = {
+            task_id: evidence
+            for task_id, evidence in task_evidence.items()
+            if task_id in expected_tasks
+        }
     result['dialect_task_evidence'] = task_evidence
     if operation_observations:
         result['native_operation_observations'] = operation_observations
@@ -2607,6 +2709,8 @@ def _immudb_multimodel_editor_evidence(provider, request):
     suffix = secrets.token_hex(4)
     key_name = f'cdeadmin-key-{suffix}'
     collection_name = f'cdeadmin_docs_{suffix}'
+    user_name = f'cdeadmin_user_{suffix}'
+    task_evidence = {}
 
     def record(kind, operation):
         passed.setdefault(kind, set()).add(operation)
@@ -2614,7 +2718,8 @@ def _immudb_multimodel_editor_evidence(provider, request):
     def apply(label, kind, operation, draft, target=None):
         try:
             result = _apply_editor(
-                provider, route, kind, operation, draft, target=target
+                provider, route, kind, operation, draft, target=target,
+                task_evidence=task_evidence,
             )
             record(kind, operation)
             return result
@@ -2731,11 +2836,60 @@ def _immudb_multimodel_editor_evidence(provider, request):
     if collection is not None:
         apply('collection.drop', 'collection', 'drop', {}, collection)
 
-    return _object_operation_evidence(
+    user = None
+    initial_password = secrets.token_urlsafe(24)
+    changed_password = secrets.token_urlsafe(24)
+    if apply('user.create', 'user', 'create', {
+        'name': user_name,
+        'password': initial_password,
+        'permission': 'read',
+        'database': route['database'],
+    }):
+        user = _target(provider.list_resources(request), 'user', user_name)
+        if user is None:
+            failures['user.inspect'] = 'CreatedResourceMissing'
+        else:
+            provider.inspect_resource({
+                **request, 'resource_id': user['resource_id'],
+            })
+            record('user', 'inspect')
+            apply('user.change-password', 'user', 'change_password', {
+                'new_password': changed_password,
+            }, user)
+            apply('user.deactivate', 'user', 'set_active', {
+                'active': False,
+            }, user)
+            apply('user.reactivate', 'user', 'set_active', {
+                'active': True,
+            }, user)
+            apply('permission.grant', 'permission', 'grant', {
+                'username': user_name,
+                'database': route['database'],
+                'permission': 'readwrite',
+            })
+            apply('permission.revoke', 'permission', 'revoke', {
+                'username': user_name,
+                'database': route['database'],
+                'permission': 'readwrite',
+            })
+    if user is not None:
+        apply('user.drop', 'user', 'drop', {}, user)
+    initial_password = ''
+    changed_password = ''
+
+    result = _object_operation_evidence(
         provider, passed, 'immudb',
         scope='native-multimodel-editor-operations',
         failures=failures,
     )
+    expected_tasks = set(
+        NETWORK_ADMINISTRATIONS['immudb'].dialect_task_ids()
+    )
+    result['dialect_task_evidence'] = {
+        task_id: evidence for task_id, evidence in task_evidence.items()
+        if task_id in expected_tasks
+    }
+    return result
 
 
 def _context(profile):
@@ -2751,7 +2905,7 @@ def _context(profile):
         *profile.required_permissions, 'secret_read', 'data_read',
         'data_write', 'administer', 'execute', 'backup_admin',
         'restore_admin', 'topology_admin', 'maintenance_admin',
-        'replication_admin', 'upgrade_admin',
+        'replication_admin', 'security_admin', 'upgrade_admin',
     })
     return EndpointContext(
         endpoint_id=endpoint_id,
@@ -2787,6 +2941,7 @@ def _permissions(context, secret_service):
         'topology_admin': {'endpoint', 'resource'},
         'maintenance_admin': {'endpoint', 'resource'},
         'replication_admin': {'endpoint', 'resource'},
+        'security_admin': {'endpoint', 'resource'},
         'upgrade_admin': {'endpoint', 'resource'},
     }
     grants = {
@@ -2870,19 +3025,13 @@ class _TemporaryAccount:
                 ' PARTITION BY HASH(id) PARTITIONS 2'
                 if self.engine in {'mysql', 'mariadb', 'tidb'} else ''
             )
-            event_date = (
-                ', event_date DATE NULL'
-                if self.engine in {'mysql', 'mariadb'} else ''
-            )
+            event_date = ', event_date DATE NULL'
             cursor.execute(
                 f'CREATE TABLE {database}.qualification '
                 '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL'
                 f'{event_date}){partition}'
             )
-            values = (
-                "(1, 42, '2026-01-15')"
-                if self.engine in {'mysql', 'mariadb'} else '(1, 42)'
-            )
+            values = "(1, 42, '2026-01-15')"
             cursor.execute(
                 f'INSERT INTO {database}.qualification VALUES {values}'
             )
@@ -3021,7 +3170,8 @@ class _VitessAccount:
             )
             cursor.execute(
                 f'CREATE TABLE `{self.database}`.`qualification` '
-                '(id BIGINT NOT NULL PRIMARY KEY, value BIGINT NOT NULL) '
+                '(id BIGINT NOT NULL PRIMARY KEY, value BIGINT NOT NULL, '
+                'event_date DATE NULL) '
                 'PARTITION BY HASH(id) PARTITIONS 2'
             )
             cursor.execute(
@@ -3030,7 +3180,7 @@ class _VitessAccount:
             )
             cursor.execute(
                 f'INSERT INTO `{self.database}`.`qualification` '
-                '(id, value) VALUES (1, 42)'
+                "(id, value, event_date) VALUES (1, 42, '2026-01-15')"
             )
         except Exception:
             self.drop()
@@ -3162,14 +3312,16 @@ class _CockroachDBAccount:
                 sql.SQL(
                     'CREATE TABLE {}.public.qualification '
                     '(id INTEGER NOT NULL PRIMARY KEY, '
-                    'value INTEGER NOT NULL) PARTITION BY LIST (id) '
+                    'value INTEGER NOT NULL, event_date DATE NULL) '
+                    'PARTITION BY LIST (id) '
                     '(PARTITION cde_one VALUES IN (1), '
                     'PARTITION cde_two VALUES IN (2))'
                 ).format(sql.Identifier(self.database))
             )
             self.connection.execute(
                 sql.SQL(
-                    'INSERT INTO {}.public.qualification VALUES (1, 42)'
+                    "INSERT INTO {}.public.qualification VALUES "
+                    "(1, 42, '2026-01-15')"
                 ).format(sql.Identifier(self.database))
             )
             self.created = True
@@ -3253,7 +3405,8 @@ class _YugabyteDBAccount:
         try:
             cursor.execute(
                 'CREATE TABLE public.qualification '
-                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL) '
+                '(id INTEGER NOT NULL PRIMARY KEY, value INTEGER NOT NULL, '
+                'event_date DATE NULL) '
                 'PARTITION BY RANGE (id)'
             )
             cursor.execute(
@@ -3261,7 +3414,8 @@ class _YugabyteDBAccount:
                 'public.qualification FOR VALUES FROM (MINVALUE) TO (1000)'
             )
             cursor.execute(
-                'INSERT INTO public.qualification VALUES (1, 42)'
+                "INSERT INTO public.qualification VALUES "
+                "(1, 42, '2026-01-15')"
             )
         except Exception:
             self.drop()
@@ -3339,10 +3493,12 @@ class _ImmudbAccount:
             cursor.execute('DROP TABLE IF EXISTS qualification')
             cursor.execute(
                 'CREATE TABLE qualification '
-                '(id INTEGER, value INTEGER, PRIMARY KEY id)'
+                '(id INTEGER, value INTEGER, event_date TIMESTAMP, '
+                'PRIMARY KEY id)'
             )
             cursor.execute(
-                'INSERT INTO qualification (id, value) VALUES (1, 42)'
+                'INSERT INTO qualification (id, value, event_date) VALUES '
+                "(1, 42, TIMESTAMP '2026-01-15 00:00:00')"
             )
         except Exception:
             self.drop()
@@ -3395,16 +3551,18 @@ class _FirebirdAccount:
         return f'{self.host}/{self.port}:{self.database}'
 
     def _admin_connect(self):
-        from firebird.driver import connect
+        import firebird.driver as firebird_driver
 
-        return connect(
+        configure_firebird_client_library(firebird_driver)
+        return firebird_driver.connect(
             self.dsn, user=self.admin_user, password=self.admin_password
         )
 
     def create(self):
-        from firebird.driver import create_database
+        import firebird.driver as firebird_driver
 
-        connection = create_database(
+        configure_firebird_client_library(firebird_driver)
+        connection = firebird_driver.create_database(
             self.dsn, user=self.admin_user, password=self.admin_password,
             overwrite=True,
         )
@@ -3439,8 +3597,6 @@ class _FirebirdAccount:
         finally:
             cursor.close()
             connection.close()
-        import firebird.driver as firebird_driver
-
         connection = firebird_driver.connect(
             self.dsn, user=self.username, password=self.password,
             role='RDB$ADMIN',

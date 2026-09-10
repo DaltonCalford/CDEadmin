@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.opensearch_sql_ppl", "provider_version": "0.1.0", "profile_id": "opensearch-sql-ppl", "profile_version": "3.6.0-sql-ppl", "evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.opensearch_sql_ppl", "provider_version": "0.1.0", "profile_id": "opensearch-sql-ppl", "profile_version": "3.6.0-sql-ppl", "evidence_reference": "cdeadmin-opensearch-sql-ppl-full-live:20260909"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental", "enabled": true, "fixture": false, "production_registration": true,
@@ -28,5 +28,5 @@
       {"field_id": "read_only", "route_key": "read_only", "label": "Read-only route", "control": "boolean", "group": "OpenSearch safety", "default": false}
     ]
   },
-  "provenance": {"purpose": "OpenSearch SQL/PPL 3.6.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "opensearch_3.6.0_sql_plugin_3.6.0.0_verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-analytic-live:opensearch-sql-ppl-3.6.0:http-json:20260902", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d"}
+  "provenance": {"purpose": "OpenSearch SQL/PPL 3.6.0 exact-profile implementation", "protocol": "http_json", "client_state": "python_stdlib_http_json_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed", "object_experience_gate": "passed", "live_evidence_reference": "cdeadmin-opensearch-sql-ppl-full-live:3.6.0:20260909", "runtime_image_digest": "sha256:b5dd1512af2a99748c942cfbbd7f32162623336b210667d0fc6333c6321f171d", "object_evidence_sha256": "39bf7860c6ac000e1272cadecf44767039f133fa238fbb3ca5a966953a01cdd5", "strict_object_evidence_sha256": "cf2996d87beed4b88d0a2c12f282b9366c1f1be26afe28111054e26ee330458b"}
 }

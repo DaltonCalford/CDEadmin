@@ -1,7 +1,7 @@
 {
   "schema": "cdeadmin.yugabytedb-ycql-compatibility-matrix.v1",
   "provider_id": "org.cdeadmin.yugabytedb.ycql",
-  "provider_version": "0.1.0",
+  "provider_version": "0.2.0",
   "protocol": "cql-native-v4",
   "endpoint_implementation_policy": "native_ycql_and_version_api_identity",
   "reference_profile": {
@@ -40,6 +40,6 @@
   "required_categories": [
     "runtime_identity", "schema_and_discovery", "visual_data_crud",
     "language_and_native_outcome", "security", "operation_evidence",
-    "fail_closed", "cleanup"
+    "native_shell", "dialect_task_coverage", "fail_closed", "cleanup"
   ]
 }

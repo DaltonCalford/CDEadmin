@@ -459,7 +459,7 @@ class ProfileMigrationSourceTests(unittest.TestCase):
     def test_schema_version_models_and_linear_migration_are_declared(self):
         model_source = MODEL_PATH.read_text(encoding='utf-8')
         migration_source = MIGRATION_PATH.read_text(encoding='utf-8')
-        self.assertRegex(model_source, r'SCHEMA_VERSION\s*=\s*55\b')
+        self.assertRegex(model_source, r'SCHEMA_VERSION\s*=\s*57\b')
         self.assertIn(
             "__tablename__ = 'cde_profile_migration_run'", model_source
         )
@@ -474,7 +474,7 @@ class ProfileMigrationSourceTests(unittest.TestCase):
             migration_source.casefold(), r'attach\s+database|update\s+server'
         )
 
-    def test_profile_migration_is_only_revision_graph_head(self):
+    def test_profile_migration_remains_in_the_linear_graph(self):
         revisions = set()
         predecessors = set()
         for path in (ROOT / 'web/migrations/versions').glob('*.py'):
@@ -490,7 +490,8 @@ class ProfileMigrationSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_report_scheduler_v1'}, revisions - predecessors
+            {'cde_split_route_database_targets_v1'},
+            revisions - predecessors,
         )
 
 

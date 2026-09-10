@@ -214,7 +214,11 @@
     "protocol": "tikv_grpc",
     "client_state": "pinned_client_go_helper",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence",
-    "helper_sha256": "3c83fb272cd1107df961c8a551433745b8d7759415f4cabdeb0e8cf8a99223e7"
+    "activation_gate": "passed_exact_contract_and_ui_evidence",
+    "live_evidence_reference": "cde-distributed:tikv-live:20260902",
+    "helper_sha256": "3c83fb272cd1107df961c8a551433745b8d7759415f4cabdeb0e8cf8a99223e7",
+    "native_live_evidence_sha256": "e8cb94addbaaad6c34242febc00489d69d1fdb201d2c072093245d33836fd9b3",
+    "full_control_live_evidence_sha256": "499dcc0e5c9743e899d14d55770262cd6d93e31c946ec852e76a5812788158cb",
+    "strict_object_evidence_sha256": "434b80eef4b4fdee0f075d18bfbb78dd3c4bdb8ea3bddc48a95dc920fb815a45"
   }
 }

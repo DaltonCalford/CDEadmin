@@ -155,8 +155,24 @@ EXPERIENCE_REQUIREMENTS = {
         'types': _concept('Types', 'type', 'user-defined-type'),
         'materialized_views': _concept(
             'Materialized views', 'materialized-view'),
-        'replication_and_compaction': _concept(
-            'Replication and compaction', 'replication', 'compaction'),
+        'indexes': _concept('Indexes', 'index'),
+        'triggers': _concept('Triggers', 'trigger'),
+        'functions': _concept('Functions', 'function'),
+        'aggregates': _concept('Aggregates', 'aggregate'),
+        'roles_and_permissions': _concept(
+            'Roles and permissions', 'role', 'permission'),
+        'identities': _concept('Authentication identities', 'identity'),
+        'replication': _concept('Replication', 'replication'),
+        'compaction': _concept('Compaction', 'compaction'),
+        'topology': _concept(
+            'Cluster topology', 'cluster', 'datacenter', 'node'),
+        'queries': _concept('Queries', 'query'),
+        'tracing': _concept('Query tracing', 'tracing-session'),
+        'repair': _concept('Repair', 'repair'),
+        'snapshots': _concept('Snapshots', 'snapshot'),
+        'backup_and_restore': _concept(
+            'Backup and restore', 'backup', 'restore'),
+        'shell': _concept('Native command shell', 'shell'),
     },
     'semantic': {
         'cubes': _concept('Cubes', 'cube'),

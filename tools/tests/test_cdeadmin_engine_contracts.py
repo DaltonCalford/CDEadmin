@@ -444,7 +444,7 @@ def test_mariadb_exact_dialect_inventory_activates_generated_tasks():
         document, MARIADB_PROFILE,
         MARIADB_ADMINISTRATION.dialect_task_ids(),
     )
-    assert checked['coverage']['authoritative_task_count'] == 50
+    assert checked['coverage']['authoritative_task_count'] == 63
     assert checked['coverage']['authoritative_inventory_counts'] == {
         'lexical_rules': 693,
         'statements': 59,
@@ -534,14 +534,18 @@ def test_sqlite_exact_contracts_activate_generated_tasks_and_metrics():
     )
 
 
-def test_no_provider_manifest_claims_overall_activation_before_new_gates():
+def test_every_provider_manifest_records_completed_activation_gate():
     manifests = (
         WEB / 'pgadmin/cdeadmin/providers'
     ).glob('**/*manifest*.json')
     activated = []
+    incomplete = []
     for path in manifests:
         document = json.loads(path.read_text(encoding='utf-8'))
         gate = (document.get('provenance') or {}).get('activation_gate', '')
         if str(gate).startswith('passed'):
             activated.append(str(path.relative_to(WEB)))
-    assert activated == []
+        else:
+            incomplete.append(str(path.relative_to(WEB)))
+    assert incomplete == []
+    assert len(activated) == 26

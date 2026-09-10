@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import uuid
@@ -36,7 +37,24 @@ from pgadmin.cdeadmin.providers.apache_ignite.provider import (  # noqa: E402
 )
 
 
+class _Lease:
+    def __init__(self, value):
+        self.value = bytearray(value.encode('utf-8'))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.value[:] = b'\x00' * len(self.value)
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
 class _Permissions:
+    def __init__(self, password):
+        self.password = password
+
     @staticmethod
     def require(_permission, _scope='endpoint'):
         return None
@@ -45,9 +63,10 @@ class _Permissions:
     def allows(_permission, _scope='endpoint'):
         return True
 
-    @staticmethod
-    def acquire_secret(*_args):
-        raise RuntimeError('Ignite qualification has no credential')
+    def acquire_secret(self, reference, *_args):
+        if reference != 'root':
+            raise RuntimeError('Ignite qualification secret is unavailable')
+        return _Lease(self.password)
 
 
 def parser():
@@ -55,6 +74,8 @@ def parser():
     value.add_argument('--host', default='127.0.0.1')
     value.add_argument('--port', type=int, default=10800)
     value.add_argument('--rest-port', type=int, default=8080)
+    value.add_argument(
+        '--password-environment', default='CDEADMIN_IGNITE_PASSWORD')
     value.add_argument('--allow-mutation', action='store_true')
     value.add_argument('--output', type=Path, required=True)
     return value
@@ -100,21 +121,31 @@ def verify(args):
         raise RuntimeError(
             'live mutation verification requires --allow-mutation'
         )
+    password = os.environ.get(args.password_environment)
+    if password is None:
+        raise RuntimeError('Ignite password environment is absent')
     context = SimpleNamespace(
         endpoint_id=f'apache-ignite-mutation-{uuid.uuid4()}',
         session_namespace=f'apache-ignite-session-{uuid.uuid4()}',
         mode='legacy_native',
+        experience_family='apache_ignite',
+        provider_id=PROFILE.provider_id,
+        profile_id=PROFILE.profile_id,
         runtime_verification_state='verified',
         declared_runtime_family='apache_ignite',
         verified_runtime_family='apache_ignite',
     )
-    provider = create_provider(context, _Permissions())
+    provider = create_provider(context, _Permissions(password))
     route = {
         'route_id': 'apache-ignite-mutation-gate',
         'host': args.host,
         'port': args.port,
         'rest_port': args.rest_port,
         'partition_aware': True,
+        'auth_mode': 'username-password',
+        'username': 'ignite',
+        'principal_reference': 'cdeadmin-ignite-native-live-gate',
+        'credential_references': {'database_password': 'root'},
     }
     suffix = uuid.uuid4().hex[:12]
     cache_name = f'cdeadmin_gate_{suffix}'
@@ -194,7 +225,7 @@ def verify(args):
             try:
                 cleanup.append(_apply(
                     provider, route, 'drop', {
-                        'cascade': False, 'confirmation': cache_name,
+                        'confirmation': cache_name,
                     }, target,
                 ))
             except Exception as exc:

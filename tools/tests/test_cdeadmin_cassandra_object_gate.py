@@ -23,7 +23,7 @@ class CassandraObjectExperienceGateTestCase(unittest.TestCase):
         coverage = result['coverage']
         self.assertEqual(0, coverage['undeclared_count'])
         self.assertEqual(0, coverage['blocking_missing_count'])
-        self.assertEqual(6, len(coverage['families'][0]['concepts']))
+        self.assertEqual(20, len(coverage['families'][0]['concepts']))
 
 
 if __name__ == '__main__':

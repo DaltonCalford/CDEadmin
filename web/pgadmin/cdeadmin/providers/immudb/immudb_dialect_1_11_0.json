@@ -1,0 +1,4575 @@
+{
+  "complete_grammar_inventory": {
+    "artifact": "immudb_dialect_inventory_1_11_0.json",
+    "diagnostic_catalog_exhausted": true,
+    "function_registry_exhausted": true,
+    "grammar_productions_exhausted": true,
+    "inventory_counts": {
+      "commands": 91,
+      "data_types": 8,
+      "diagnostics": 74,
+      "functions": 81,
+      "lexical_rules": 128,
+      "operators": 18,
+      "session_settings": 20,
+      "statements": 65
+    },
+    "runtime_catalogs_exhausted": true,
+    "runtime_version": "1.11.0",
+    "sha256": "983408446f0c5bba4abeb37522569bcf0119e163197cfd69dbb94a99c6582954"
+  },
+  "contract_id": "immudb.dialect.1.11.0.v1",
+  "coverage": {
+    "authoritative_inventory_counts": {
+      "commands": 91,
+      "data_types": 8,
+      "diagnostics": 74,
+      "functions": 81,
+      "lexical_rules": 128,
+      "operators": 18,
+      "session_settings": 20,
+      "statements": 65
+    },
+    "authoritative_task_count": 13,
+    "authoritative_task_ids": [
+      "visual_admin.column.create",
+      "visual_admin.column.drop",
+      "visual_admin.column.rename",
+      "visual_admin.index.create",
+      "visual_admin.index.drop",
+      "visual_admin.table.alter",
+      "visual_admin.table.create",
+      "visual_admin.table.delete",
+      "visual_admin.table.drop",
+      "visual_admin.table.insert",
+      "visual_admin.table.rename",
+      "visual_admin.table.update",
+      "visual_admin.user.drop"
+    ],
+    "implemented_task_count": 13,
+    "language_acceptance_authority": "engine_parser",
+    "scope": "cdeadmin_generated_tasks"
+  },
+  "engine_id": "immudb",
+  "grammar_evidence": {
+    "artifact": "immudb-1.11.0.tar.gz",
+    "authority": "Codenotary immudb project",
+    "format": "immudb 1.11.0 source archive",
+    "license_id": "BUSL-1.1",
+    "sha256": "ac07da5552f4d14a4d646059a633d48c7e9d668989c4522b8a9924f0c55286e0"
+  },
+  "interface_id": "immudb-native",
+  "inventories": {
+    "commands": [
+      {
+        "item_id": "commands.0001",
+        "native_name": "sql",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:228"
+      },
+      {
+        "item_id": "commands.0002",
+        "native_name": "sqlstmts",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:239"
+      },
+      {
+        "item_id": "commands.0003",
+        "native_name": "opt_separator",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:250"
+      },
+      {
+        "item_id": "commands.0004",
+        "native_name": "sqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:252"
+      },
+      {
+        "item_id": "commands.0005",
+        "native_name": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "commands.0006",
+        "native_name": "sqlPrivileges",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:490"
+      },
+      {
+        "item_id": "commands.0007",
+        "native_name": "sqlPrivilege",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:506"
+      },
+      {
+        "item_id": "commands.0008",
+        "native_name": "permission",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:543"
+      },
+      {
+        "item_id": "commands.0009",
+        "native_name": "opt_if_not_exists",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:564"
+      },
+      {
+        "item_id": "commands.0010",
+        "native_name": "dmlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "commands.0011",
+        "native_name": "values_or_query",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:616"
+      },
+      {
+        "item_id": "commands.0012",
+        "native_name": "opt_on_conflict",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:628"
+      },
+      {
+        "item_id": "commands.0013",
+        "native_name": "opt_returning",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:643"
+      },
+      {
+        "item_id": "commands.0014",
+        "native_name": "updates",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:658"
+      },
+      {
+        "item_id": "commands.0015",
+        "native_name": "update",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:669"
+      },
+      {
+        "item_id": "commands.0016",
+        "native_name": "rows",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:675"
+      },
+      {
+        "item_id": "commands.0017",
+        "native_name": "row",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:686"
+      },
+      {
+        "item_id": "commands.0018",
+        "native_name": "cols",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:692"
+      },
+      {
+        "item_id": "commands.0019",
+        "native_name": "opt_values",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:703"
+      },
+      {
+        "item_id": "commands.0020",
+        "native_name": "values",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:713"
+      },
+      {
+        "item_id": "commands.0021",
+        "native_name": "val",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:724"
+      },
+      {
+        "item_id": "commands.0022",
+        "native_name": "sql_type",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:791"
+      },
+      {
+        "item_id": "commands.0023",
+        "native_name": "fnCall",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:802"
+      },
+      {
+        "item_id": "commands.0024",
+        "native_name": "tableElems",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:813"
+      },
+      {
+        "item_id": "commands.0025",
+        "native_name": "tableElem",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:824"
+      },
+      {
+        "item_id": "commands.0026",
+        "native_name": "colSpec",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:846"
+      },
+      {
+        "item_id": "commands.0027",
+        "native_name": "opt_primary_key",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:861"
+      },
+      {
+        "item_id": "commands.0028",
+        "native_name": "opt_max_len",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:872"
+      },
+      {
+        "item_id": "commands.0029",
+        "native_name": "opt_default",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:887"
+      },
+      {
+        "item_id": "commands.0030",
+        "native_name": "opt_auto_increment",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:897"
+      },
+      {
+        "item_id": "commands.0031",
+        "native_name": "opt_not_null",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:907"
+      },
+      {
+        "item_id": "commands.0032",
+        "native_name": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "commands.0033",
+        "native_name": "select_stmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1026"
+      },
+      {
+        "item_id": "commands.0034",
+        "native_name": "opt_all",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1053"
+      },
+      {
+        "item_id": "commands.0035",
+        "native_name": "opt_distinct",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1063"
+      },
+      {
+        "item_id": "commands.0036",
+        "native_name": "opt_targets",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1073"
+      },
+      {
+        "item_id": "commands.0037",
+        "native_name": "targets",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1084"
+      },
+      {
+        "item_id": "commands.0038",
+        "native_name": "selector",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1095"
+      },
+      {
+        "item_id": "commands.0039",
+        "native_name": "jsonFields",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1135"
+      },
+      {
+        "item_id": "commands.0040",
+        "native_name": "col",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1146"
+      },
+      {
+        "item_id": "commands.0041",
+        "native_name": "tableName",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1158"
+      },
+      {
+        "item_id": "commands.0042",
+        "native_name": "col_name",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1160"
+      },
+      {
+        "item_id": "commands.0043",
+        "native_name": "col_names",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1166"
+      },
+      {
+        "item_id": "commands.0044",
+        "native_name": "one_or_more_col_names",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1172"
+      },
+      {
+        "item_id": "commands.0045",
+        "native_name": "insert_cols",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1184"
+      },
+      {
+        "item_id": "commands.0046",
+        "native_name": "colNameKeyword",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1191"
+      },
+      {
+        "item_id": "commands.0047",
+        "native_name": "qualifiedName",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1205"
+      },
+      {
+        "item_id": "commands.0048",
+        "native_name": "unreserved_keyword",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1210"
+      },
+      {
+        "item_id": "commands.0049",
+        "native_name": "ds",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1245"
+      },
+      {
+        "item_id": "commands.0050",
+        "native_name": "tableRef",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1308"
+      },
+      {
+        "item_id": "commands.0051",
+        "native_name": "opt_period",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1314"
+      },
+      {
+        "item_id": "commands.0052",
+        "native_name": "opt_period_start",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1320"
+      },
+      {
+        "item_id": "commands.0053",
+        "native_name": "opt_period_end",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1335"
+      },
+      {
+        "item_id": "commands.0054",
+        "native_name": "period_instant",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1350"
+      },
+      {
+        "item_id": "commands.0055",
+        "native_name": "opt_joins",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1361"
+      },
+      {
+        "item_id": "commands.0056",
+        "native_name": "joins",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1371"
+      },
+      {
+        "item_id": "commands.0057",
+        "native_name": "join",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1382"
+      },
+      {
+        "item_id": "commands.0058",
+        "native_name": "opt_join_type",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1431"
+      },
+      {
+        "item_id": "commands.0059",
+        "native_name": "opt_join_cond",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1441"
+      },
+      {
+        "item_id": "commands.0060",
+        "native_name": "opt_where",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1451"
+      },
+      {
+        "item_id": "commands.0061",
+        "native_name": "opt_groupby",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1461"
+      },
+      {
+        "item_id": "commands.0062",
+        "native_name": "opt_having",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1471"
+      },
+      {
+        "item_id": "commands.0063",
+        "native_name": "opt_limit",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1481"
+      },
+      {
+        "item_id": "commands.0064",
+        "native_name": "opt_offset",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1506"
+      },
+      {
+        "item_id": "commands.0065",
+        "native_name": "opt_orderby",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1516"
+      },
+      {
+        "item_id": "commands.0066",
+        "native_name": "opt_indexon",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1526"
+      },
+      {
+        "item_id": "commands.0067",
+        "native_name": "ordexps",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1537"
+      },
+      {
+        "item_id": "commands.0068",
+        "native_name": "opt_ord",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1548"
+      },
+      {
+        "item_id": "commands.0069",
+        "native_name": "opt_nulls_order",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1563"
+      },
+      {
+        "item_id": "commands.0070",
+        "native_name": "opt_partition",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1578"
+      },
+      {
+        "item_id": "commands.0071",
+        "native_name": "cte_defs",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1588"
+      },
+      {
+        "item_id": "commands.0072",
+        "native_name": "cte_def",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1599"
+      },
+      {
+        "item_id": "commands.0073",
+        "native_name": "opt_as",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1605"
+      },
+      {
+        "item_id": "commands.0074",
+        "native_name": "check",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1642"
+      },
+      {
+        "item_id": "commands.0075",
+        "native_name": "opt_exp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1653"
+      },
+      {
+        "item_id": "commands.0076",
+        "native_name": "case_when_exp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1664"
+      },
+      {
+        "item_id": "commands.0077",
+        "native_name": "when_then_clauses",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1675"
+      },
+      {
+        "item_id": "commands.0078",
+        "native_name": "opt_else",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1687"
+      },
+      {
+        "item_id": "commands.0079",
+        "native_name": "exp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1698"
+      },
+      {
+        "item_id": "commands.0080",
+        "native_name": "orExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1702"
+      },
+      {
+        "item_id": "commands.0081",
+        "native_name": "andExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1707"
+      },
+      {
+        "item_id": "commands.0082",
+        "native_name": "notExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1712"
+      },
+      {
+        "item_id": "commands.0083",
+        "native_name": "cmpExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1717"
+      },
+      {
+        "item_id": "commands.0084",
+        "native_name": "primaryBool",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1744"
+      },
+      {
+        "item_id": "commands.0085",
+        "native_name": "addExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1764"
+      },
+      {
+        "item_id": "commands.0086",
+        "native_name": "mulExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1770"
+      },
+      {
+        "item_id": "commands.0087",
+        "native_name": "unaryExp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1777"
+      },
+      {
+        "item_id": "commands.0088",
+        "native_name": "primary",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1792"
+      },
+      {
+        "item_id": "commands.0089",
+        "native_name": "boundexp",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1798"
+      },
+      {
+        "item_id": "commands.0090",
+        "native_name": "opt_not",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1820"
+      },
+      {
+        "item_id": "commands.0091",
+        "native_name": "timestamp_field",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:1831"
+      }
+    ],
+    "data_types": [
+      {
+        "grammar_token": "INTEGER_TYPE",
+        "item_id": "data_types.0001",
+        "native_name": "INTEGER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "BOOLEAN_TYPE",
+        "item_id": "data_types.0002",
+        "native_name": "BOOLEAN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "VARCHAR_TYPE",
+        "item_id": "data_types.0003",
+        "native_name": "VARCHAR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "UUID_TYPE",
+        "item_id": "data_types.0004",
+        "native_name": "UUID",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "BLOB_TYPE",
+        "item_id": "data_types.0005",
+        "native_name": "BLOB",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "TIMESTAMP_TYPE",
+        "item_id": "data_types.0006",
+        "native_name": "TIMESTAMP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "FLOAT_TYPE",
+        "item_id": "data_types.0007",
+        "native_name": "FLOAT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "JSON_TYPE",
+        "item_id": "data_types.0008",
+        "native_name": "JSON",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125"
+      }
+    ],
+    "diagnostics": [
+      {
+        "item_id": "diagnostics.0001",
+        "native_name": "ErrNoSupported",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:32"
+      },
+      {
+        "item_id": "diagnostics.0002",
+        "native_name": "ErrIllegalArguments",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:33"
+      },
+      {
+        "item_id": "diagnostics.0003",
+        "native_name": "ErrMultiIndexingNotEnabled",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:34"
+      },
+      {
+        "item_id": "diagnostics.0004",
+        "native_name": "ErrParsingError",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:35"
+      },
+      {
+        "item_id": "diagnostics.0005",
+        "native_name": "ErrDDLorDMLTxOnly",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:36"
+      },
+      {
+        "item_id": "diagnostics.0006",
+        "native_name": "ErrUnspecifiedMultiDBHandler",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:37"
+      },
+      {
+        "item_id": "diagnostics.0007",
+        "native_name": "ErrDatabaseDoesNotExist",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:38"
+      },
+      {
+        "item_id": "diagnostics.0008",
+        "native_name": "ErrDatabaseAlreadyExists",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:39"
+      },
+      {
+        "item_id": "diagnostics.0009",
+        "native_name": "ErrTableAlreadyExists",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:40"
+      },
+      {
+        "item_id": "diagnostics.0010",
+        "native_name": "ErrTableDoesNotExist",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:41"
+      },
+      {
+        "item_id": "diagnostics.0011",
+        "native_name": "ErrColumnDoesNotExist",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:42"
+      },
+      {
+        "item_id": "diagnostics.0012",
+        "native_name": "ErrColumnAlreadyExists",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:43"
+      },
+      {
+        "item_id": "diagnostics.0013",
+        "native_name": "ErrCannotDropColumn",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:44"
+      },
+      {
+        "item_id": "diagnostics.0014",
+        "native_name": "ErrSameOldAndNewNames",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:45"
+      },
+      {
+        "item_id": "diagnostics.0015",
+        "native_name": "ErrColumnNotIndexed",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:46"
+      },
+      {
+        "item_id": "diagnostics.0016",
+        "native_name": "ErrFunctionDoesNotExist",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:47"
+      },
+      {
+        "item_id": "diagnostics.0017",
+        "native_name": "ErrLimitedKeyType",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:48"
+      },
+      {
+        "item_id": "diagnostics.0018",
+        "native_name": "ErrLimitedAutoIncrement",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:49"
+      },
+      {
+        "item_id": "diagnostics.0019",
+        "native_name": "ErrLimitedMaxLen",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:50"
+      },
+      {
+        "item_id": "diagnostics.0020",
+        "native_name": "ErrDuplicatedColumn",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:51"
+      },
+      {
+        "item_id": "diagnostics.0021",
+        "native_name": "ErrInvalidColumn",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:52"
+      },
+      {
+        "item_id": "diagnostics.0022",
+        "native_name": "ErrInvalidCheckConstraint",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:53"
+      },
+      {
+        "item_id": "diagnostics.0023",
+        "native_name": "ErrCheckConstraintViolation",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:54"
+      },
+      {
+        "item_id": "diagnostics.0024",
+        "native_name": "ErrReservedWord",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:55"
+      },
+      {
+        "item_id": "diagnostics.0025",
+        "native_name": "ErrNoPrimaryKey",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:56"
+      },
+      {
+        "item_id": "diagnostics.0026",
+        "native_name": "ErrPKCanNotBeNull",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:57"
+      },
+      {
+        "item_id": "diagnostics.0027",
+        "native_name": "ErrPKCanNotBeUpdated",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:58"
+      },
+      {
+        "item_id": "diagnostics.0028",
+        "native_name": "ErrMultiplePrimaryKeys",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:59"
+      },
+      {
+        "item_id": "diagnostics.0029",
+        "native_name": "ErrNotNullableColumnCannotBeNull",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:60"
+      },
+      {
+        "item_id": "diagnostics.0030",
+        "native_name": "ErrNewColumnMustBeNullable",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:61"
+      },
+      {
+        "item_id": "diagnostics.0031",
+        "native_name": "ErrIndexAlreadyExists",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:62"
+      },
+      {
+        "item_id": "diagnostics.0032",
+        "native_name": "ErrMaxNumberOfColumnsInIndexExceeded",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:63"
+      },
+      {
+        "item_id": "diagnostics.0033",
+        "native_name": "ErrIndexNotFound",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:64"
+      },
+      {
+        "item_id": "diagnostics.0034",
+        "native_name": "ErrConstraintNotFound",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:65"
+      },
+      {
+        "item_id": "diagnostics.0035",
+        "native_name": "ErrInvalidNumberOfValues",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:66"
+      },
+      {
+        "item_id": "diagnostics.0036",
+        "native_name": "ErrInvalidValue",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:67"
+      },
+      {
+        "item_id": "diagnostics.0037",
+        "native_name": "ErrInferredMultipleTypes",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:68"
+      },
+      {
+        "item_id": "diagnostics.0038",
+        "native_name": "ErrExpectingDQLStmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:69"
+      },
+      {
+        "item_id": "diagnostics.0039",
+        "native_name": "ErrColumnMustAppearInGroupByOrAggregation",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:70"
+      },
+      {
+        "item_id": "diagnostics.0040",
+        "native_name": "ErrIllegalMappedKey",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:71"
+      },
+      {
+        "item_id": "diagnostics.0041",
+        "native_name": "ErrCorruptedData",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:72"
+      },
+      {
+        "item_id": "diagnostics.0042",
+        "native_name": "ErrBrokenCatalogColSpecExpirable",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:73"
+      },
+      {
+        "item_id": "diagnostics.0043",
+        "native_name": "ErrBrokenCatalogCheckConstraintExpirable",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:74"
+      },
+      {
+        "item_id": "diagnostics.0044",
+        "native_name": "ErrNoMoreRows",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:75"
+      },
+      {
+        "item_id": "diagnostics.0045",
+        "native_name": "ErrInvalidTypes",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:76"
+      },
+      {
+        "item_id": "diagnostics.0046",
+        "native_name": "ErrUnsupportedJoinType",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:77"
+      },
+      {
+        "item_id": "diagnostics.0047",
+        "native_name": "ErrInvalidCondition",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:78"
+      },
+      {
+        "item_id": "diagnostics.0048",
+        "native_name": "ErrHavingClauseRequiresGroupClause",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:79"
+      },
+      {
+        "item_id": "diagnostics.0049",
+        "native_name": "ErrNotComparableValues",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:80"
+      },
+      {
+        "item_id": "diagnostics.0050",
+        "native_name": "ErrNumericTypeExpected",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:81"
+      },
+      {
+        "item_id": "diagnostics.0051",
+        "native_name": "ErrUnexpected",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:82"
+      },
+      {
+        "item_id": "diagnostics.0052",
+        "native_name": "ErrMaxKeyLengthExceeded",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:83"
+      },
+      {
+        "item_id": "diagnostics.0053",
+        "native_name": "ErrMaxLengthExceeded",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:84"
+      },
+      {
+        "item_id": "diagnostics.0054",
+        "native_name": "ErrColumnIsNotAnAggregation",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:85"
+      },
+      {
+        "item_id": "diagnostics.0055",
+        "native_name": "ErrLimitedCount",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:86"
+      },
+      {
+        "item_id": "diagnostics.0056",
+        "native_name": "ErrWindowRowsLimitExceeded",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:87"
+      },
+      {
+        "item_id": "diagnostics.0057",
+        "native_name": "ErrTxDoesNotExist",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:88"
+      },
+      {
+        "item_id": "diagnostics.0058",
+        "native_name": "ErrNestedTxNotSupported",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:89"
+      },
+      {
+        "item_id": "diagnostics.0059",
+        "native_name": "ErrNoOngoingTx",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:90"
+      },
+      {
+        "item_id": "diagnostics.0060",
+        "native_name": "ErrNonTransactionalStmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:91"
+      },
+      {
+        "item_id": "diagnostics.0061",
+        "native_name": "ErrDivisionByZero",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:92"
+      },
+      {
+        "item_id": "diagnostics.0062",
+        "native_name": "ErrMissingParameter",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:93"
+      },
+      {
+        "item_id": "diagnostics.0063",
+        "native_name": "ErrUnsupportedParameter",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:94"
+      },
+      {
+        "item_id": "diagnostics.0064",
+        "native_name": "ErrDuplicatedParameters",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:95"
+      },
+      {
+        "item_id": "diagnostics.0065",
+        "native_name": "ErrLimitedIndexCreation",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:96"
+      },
+      {
+        "item_id": "diagnostics.0066",
+        "native_name": "ErrTooManyRows",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:97"
+      },
+      {
+        "item_id": "diagnostics.0067",
+        "native_name": "ErrAlreadyClosed",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:98"
+      },
+      {
+        "item_id": "diagnostics.0068",
+        "native_name": "ErrAmbiguousSelector",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:99"
+      },
+      {
+        "item_id": "diagnostics.0069",
+        "native_name": "ErrUnsupportedCast",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:100"
+      },
+      {
+        "item_id": "diagnostics.0070",
+        "native_name": "ErrColumnMismatchInUnionStmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:101"
+      },
+      {
+        "item_id": "diagnostics.0071",
+        "native_name": "ErrCannotIndexJson",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:102"
+      },
+      {
+        "item_id": "diagnostics.0072",
+        "native_name": "ErrInvalidTxMetadata",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:103"
+      },
+      {
+        "item_id": "diagnostics.0073",
+        "native_name": "ErrAccessDenied",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:104"
+      },
+      {
+        "item_id": "diagnostics.0074",
+        "native_name": "ErrDiffRequiresPeriod",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/engine.go:105"
+      }
+    ],
+    "functions": [
+      {
+        "item_id": "functions.0001",
+        "native_name": "COALESCE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:33"
+      },
+      {
+        "item_id": "functions.0002",
+        "native_name": "LENGTH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:34"
+      },
+      {
+        "item_id": "functions.0003",
+        "native_name": "SUBSTRING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:35"
+      },
+      {
+        "item_id": "functions.0004",
+        "native_name": "CONCAT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:36"
+      },
+      {
+        "item_id": "functions.0005",
+        "native_name": "LOWER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:37"
+      },
+      {
+        "item_id": "functions.0006",
+        "native_name": "UPPER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:38"
+      },
+      {
+        "item_id": "functions.0007",
+        "native_name": "TRIM",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:39"
+      },
+      {
+        "item_id": "functions.0008",
+        "native_name": "NOW",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:40"
+      },
+      {
+        "item_id": "functions.0009",
+        "native_name": "RANDOM_UUID",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:41"
+      },
+      {
+        "item_id": "functions.0010",
+        "native_name": "DATABASES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:42"
+      },
+      {
+        "item_id": "functions.0011",
+        "native_name": "TABLES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:43"
+      },
+      {
+        "item_id": "functions.0012",
+        "native_name": "TABLE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:44"
+      },
+      {
+        "item_id": "functions.0013",
+        "native_name": "USERS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:45"
+      },
+      {
+        "item_id": "functions.0014",
+        "native_name": "COLUMNS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:46"
+      },
+      {
+        "item_id": "functions.0015",
+        "native_name": "INDEXES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:47"
+      },
+      {
+        "item_id": "functions.0016",
+        "native_name": "GRANTS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:48"
+      },
+      {
+        "item_id": "functions.0017",
+        "native_name": "JSON_TYPEOF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:49"
+      },
+      {
+        "item_id": "functions.0018",
+        "native_name": "PG_GET_USERBYID",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:50"
+      },
+      {
+        "item_id": "functions.0019",
+        "native_name": "PG_TABLE_IS_VISIBLE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:51"
+      },
+      {
+        "item_id": "functions.0020",
+        "native_name": "SHOBJ_DESCRIPTION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:52"
+      },
+      {
+        "item_id": "functions.0021",
+        "native_name": "CURRENT_DATABASE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:53"
+      },
+      {
+        "item_id": "functions.0022",
+        "native_name": "CURRENT_SCHEMA",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:54"
+      },
+      {
+        "item_id": "functions.0023",
+        "native_name": "CURRENT_SCHEMAS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:55"
+      },
+      {
+        "item_id": "functions.0024",
+        "native_name": "CURRENT_USER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:56"
+      },
+      {
+        "item_id": "functions.0025",
+        "native_name": "FORMAT_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:57"
+      },
+      {
+        "item_id": "functions.0026",
+        "native_name": "PG_GET_EXPR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:58"
+      },
+      {
+        "item_id": "functions.0027",
+        "native_name": "PG_GET_CONSTRAINTDEF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:59"
+      },
+      {
+        "item_id": "functions.0028",
+        "native_name": "PG_GET_INDEXDEF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:60"
+      },
+      {
+        "item_id": "functions.0029",
+        "native_name": "PG_ENCODING_TO_CHAR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:61"
+      },
+      {
+        "item_id": "functions.0030",
+        "native_name": "OBJ_DESCRIPTION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:62"
+      },
+      {
+        "item_id": "functions.0031",
+        "native_name": "HAS_TABLE_PRIVILEGE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:63"
+      },
+      {
+        "item_id": "functions.0032",
+        "native_name": "HAS_SCHEMA_PRIVILEGE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:64"
+      },
+      {
+        "item_id": "functions.0033",
+        "native_name": "HAS_DATABASE_PRIVILEGE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:65"
+      },
+      {
+        "item_id": "functions.0034",
+        "native_name": "HAS_FUNCTION_PRIVILEGE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:66"
+      },
+      {
+        "item_id": "functions.0035",
+        "native_name": "ARRAY_UPPER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:67"
+      },
+      {
+        "item_id": "functions.0036",
+        "native_name": "ARRAY_TO_STRING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:68"
+      },
+      {
+        "item_id": "functions.0037",
+        "native_name": "QUOTE_IDENT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:69"
+      },
+      {
+        "item_id": "functions.0038",
+        "native_name": "PG_TOTAL_RELATION_SIZE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:70"
+      },
+      {
+        "item_id": "functions.0039",
+        "native_name": "PG_RELATION_SIZE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:71"
+      },
+      {
+        "item_id": "functions.0040",
+        "native_name": "PG_GET_SERIAL_SEQUENCE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:72"
+      },
+      {
+        "item_id": "functions.0041",
+        "native_name": "COL_DESCRIPTION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:73"
+      },
+      {
+        "item_id": "functions.0042",
+        "native_name": "ABS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:76"
+      },
+      {
+        "item_id": "functions.0043",
+        "native_name": "CEIL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:77"
+      },
+      {
+        "item_id": "functions.0044",
+        "native_name": "FLOOR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:78"
+      },
+      {
+        "item_id": "functions.0045",
+        "native_name": "ROUND",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:79"
+      },
+      {
+        "item_id": "functions.0046",
+        "native_name": "POWER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:80"
+      },
+      {
+        "item_id": "functions.0047",
+        "native_name": "SQRT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:81"
+      },
+      {
+        "item_id": "functions.0048",
+        "native_name": "MOD",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:82"
+      },
+      {
+        "item_id": "functions.0049",
+        "native_name": "SIGN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:83"
+      },
+      {
+        "item_id": "functions.0050",
+        "native_name": "REPLACE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:86"
+      },
+      {
+        "item_id": "functions.0051",
+        "native_name": "REVERSE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:87"
+      },
+      {
+        "item_id": "functions.0052",
+        "native_name": "LEFT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:88"
+      },
+      {
+        "item_id": "functions.0053",
+        "native_name": "RIGHT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:89"
+      },
+      {
+        "item_id": "functions.0054",
+        "native_name": "REPEAT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:90"
+      },
+      {
+        "item_id": "functions.0055",
+        "native_name": "POSITION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:91"
+      },
+      {
+        "item_id": "functions.0056",
+        "native_name": "CHAR_LENGTH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:92"
+      },
+      {
+        "item_id": "functions.0057",
+        "native_name": "OCTET_LENGTH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:93"
+      },
+      {
+        "item_id": "functions.0058",
+        "native_name": "NULLIF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:96"
+      },
+      {
+        "item_id": "functions.0059",
+        "native_name": "GREATEST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:97"
+      },
+      {
+        "item_id": "functions.0060",
+        "native_name": "LEAST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:98"
+      },
+      {
+        "item_id": "functions.0061",
+        "native_name": "LPAD",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:101"
+      },
+      {
+        "item_id": "functions.0062",
+        "native_name": "RPAD",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:102"
+      },
+      {
+        "item_id": "functions.0063",
+        "native_name": "SPLIT_PART",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:103"
+      },
+      {
+        "item_id": "functions.0064",
+        "native_name": "INITCAP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:104"
+      },
+      {
+        "item_id": "functions.0065",
+        "native_name": "CHR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:105"
+      },
+      {
+        "item_id": "functions.0066",
+        "native_name": "ASCII",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:106"
+      },
+      {
+        "item_id": "functions.0067",
+        "native_name": "MD5",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:107"
+      },
+      {
+        "item_id": "functions.0068",
+        "native_name": "TRANSLATE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:108"
+      },
+      {
+        "item_id": "functions.0069",
+        "native_name": "DATE_TRUNC",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:111"
+      },
+      {
+        "item_id": "functions.0070",
+        "native_name": "TO_CHAR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:112"
+      },
+      {
+        "item_id": "functions.0071",
+        "native_name": "DATE_PART",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:113"
+      },
+      {
+        "item_id": "functions.0072",
+        "native_name": "AGE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:114"
+      },
+      {
+        "item_id": "functions.0073",
+        "native_name": "CLOCK_TIMESTAMP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:115"
+      },
+      {
+        "item_id": "functions.0074",
+        "native_name": "SUBSTR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:118"
+      },
+      {
+        "item_id": "functions.0075",
+        "native_name": "STRPOS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:119"
+      },
+      {
+        "item_id": "functions.0076",
+        "native_name": "CONCAT_WS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:120"
+      },
+      {
+        "item_id": "functions.0077",
+        "native_name": "REGEXP_REPLACE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:121"
+      },
+      {
+        "item_id": "functions.0078",
+        "native_name": "NEXTVAL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:124"
+      },
+      {
+        "item_id": "functions.0079",
+        "native_name": "CURRVAL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:125"
+      },
+      {
+        "item_id": "functions.0080",
+        "native_name": "RANDOM",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:128"
+      },
+      {
+        "item_id": "functions.0081",
+        "native_name": "TO_NUMBER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:130"
+      }
+    ],
+    "lexical_rules": [
+      {
+        "item_id": "lexical_rules.0001",
+        "native_name": "CREATE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0002",
+        "native_name": "DROP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0003",
+        "native_name": "TRUNCATE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0004",
+        "native_name": "USE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0005",
+        "native_name": "DATABASE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0006",
+        "native_name": "USER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0007",
+        "native_name": "WITH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0008",
+        "native_name": "PASSWORD",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0009",
+        "native_name": "READ",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0010",
+        "native_name": "READWRITE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0011",
+        "native_name": "ADMIN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0012",
+        "native_name": "SNAPSHOT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0013",
+        "native_name": "HISTORY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0014",
+        "native_name": "DIFF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0015",
+        "native_name": "SINCE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0016",
+        "native_name": "AFTER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0017",
+        "native_name": "BEFORE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0018",
+        "native_name": "UNTIL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0019",
+        "native_name": "TX",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0020",
+        "native_name": "OF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0021",
+        "native_name": "INTEGER_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0022",
+        "native_name": "BOOLEAN_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0023",
+        "native_name": "VARCHAR_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0024",
+        "native_name": "UUID_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0025",
+        "native_name": "BLOB_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0026",
+        "native_name": "TIMESTAMP_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0027",
+        "native_name": "FLOAT_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0028",
+        "native_name": "JSON_TYPE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0029",
+        "native_name": "TABLE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0030",
+        "native_name": "UNIQUE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0031",
+        "native_name": "INDEX",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0032",
+        "native_name": "ON",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0033",
+        "native_name": "ALTER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0034",
+        "native_name": "ADD",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0035",
+        "native_name": "RENAME",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0036",
+        "native_name": "TO",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0037",
+        "native_name": "COLUMN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0038",
+        "native_name": "CONSTRAINT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0039",
+        "native_name": "PRIMARY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0040",
+        "native_name": "KEY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0041",
+        "native_name": "CHECK",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0042",
+        "native_name": "GRANT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0043",
+        "native_name": "REVOKE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0044",
+        "native_name": "GRANTS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0045",
+        "native_name": "FOR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0046",
+        "native_name": "PRIVILEGES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0047",
+        "native_name": "BEGIN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0048",
+        "native_name": "TRANSACTION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0049",
+        "native_name": "COMMIT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0050",
+        "native_name": "ROLLBACK",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0051",
+        "native_name": "SAVEPOINT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0052",
+        "native_name": "RELEASE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0053",
+        "native_name": "INSERT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0054",
+        "native_name": "UPSERT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0055",
+        "native_name": "INTO",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0056",
+        "native_name": "VALUES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0057",
+        "native_name": "DELETE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0058",
+        "native_name": "UPDATE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0059",
+        "native_name": "SET",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0060",
+        "native_name": "CONFLICT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0061",
+        "native_name": "DO",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0062",
+        "native_name": "NOTHING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0063",
+        "native_name": "RETURNING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0064",
+        "native_name": "SELECT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0065",
+        "native_name": "DISTINCT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0066",
+        "native_name": "FROM",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0067",
+        "native_name": "JOIN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0068",
+        "native_name": "HAVING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0069",
+        "native_name": "WHERE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0070",
+        "native_name": "GROUP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0071",
+        "native_name": "BY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0072",
+        "native_name": "LIMIT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0073",
+        "native_name": "OFFSET",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0074",
+        "native_name": "ORDER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0075",
+        "native_name": "ASC",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0076",
+        "native_name": "DESC",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0077",
+        "native_name": "AS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0078",
+        "native_name": "UNION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0079",
+        "native_name": "ALL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0080",
+        "native_name": "CASE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0081",
+        "native_name": "WHEN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0082",
+        "native_name": "THEN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0083",
+        "native_name": "ELSE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0084",
+        "native_name": "END",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0085",
+        "native_name": "EXCEPT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0086",
+        "native_name": "INTERSECT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0087",
+        "native_name": "NULLS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0088",
+        "native_name": "FIRST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0089",
+        "native_name": "LAST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0090",
+        "native_name": "NOT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0091",
+        "native_name": "LIKE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0092",
+        "native_name": "ILIKE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0093",
+        "native_name": "IF",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0094",
+        "native_name": "EXISTS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0095",
+        "native_name": "IN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0096",
+        "native_name": "IS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0097",
+        "native_name": "OVER",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0098",
+        "native_name": "PARTITION",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0099",
+        "native_name": "EXPLAIN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0100",
+        "native_name": "RECURSIVE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0101",
+        "native_name": "NATURAL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0102",
+        "native_name": "USING",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0103",
+        "native_name": "FETCH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0104",
+        "native_name": "ROWS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0105",
+        "native_name": "ONLY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0106",
+        "native_name": "LATERAL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0107",
+        "native_name": "AUTO_INCREMENT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0108",
+        "native_name": "NULL",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0109",
+        "native_name": "CAST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0110",
+        "native_name": "SCAST",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0111",
+        "native_name": "DEFAULT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0112",
+        "native_name": "SHOW",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0113",
+        "native_name": "DATABASES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0114",
+        "native_name": "TABLES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0115",
+        "native_name": "USERS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0116",
+        "native_name": "VIEW",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0117",
+        "native_name": "FOREIGN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0118",
+        "native_name": "REFERENCES",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0119",
+        "native_name": "SEQUENCE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0120",
+        "native_name": "CASCADE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0121",
+        "native_name": "BETWEEN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:133",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0122",
+        "native_name": "EXTRACT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0123",
+        "native_name": "YEAR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0124",
+        "native_name": "MONTH",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0125",
+        "native_name": "DAY",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0126",
+        "native_name": "HOUR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0127",
+        "native_name": "MINUTE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0128",
+        "native_name": "SECOND",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      }
+    ],
+    "operators": [
+      {
+        "grammar_token": "','",
+        "item_id": "operators.0001",
+        "native_name": ",",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:153"
+      },
+      {
+        "grammar_token": "AS",
+        "item_id": "operators.0002",
+        "native_name": "AS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:154"
+      },
+      {
+        "grammar_token": "BETWEEN",
+        "item_id": "operators.0003",
+        "native_name": "BETWEEN",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:156"
+      },
+      {
+        "grammar_token": "OR",
+        "item_id": "operators.0004",
+        "native_name": "OR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:158"
+      },
+      {
+        "grammar_token": "AND",
+        "item_id": "operators.0005",
+        "native_name": "AND",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:159"
+      },
+      {
+        "grammar_token": "NOT",
+        "item_id": "operators.0006",
+        "native_name": "NOT",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:161"
+      },
+      {
+        "grammar_token": "CMPOP",
+        "item_id": "operators.0007",
+        "native_name": "CMPOP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "LIKE",
+        "item_id": "operators.0008",
+        "native_name": "LIKE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "ILIKE",
+        "item_id": "operators.0009",
+        "native_name": "ILIKE",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "NOT_MATCHES_OP",
+        "item_id": "operators.0010",
+        "native_name": "NOT_MATCHES_OP",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "IS",
+        "item_id": "operators.0011",
+        "native_name": "IS",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "'+'",
+        "item_id": "operators.0012",
+        "native_name": "+",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:165"
+      },
+      {
+        "grammar_token": "'-'",
+        "item_id": "operators.0013",
+        "native_name": "-",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:165"
+      },
+      {
+        "grammar_token": "'*'",
+        "item_id": "operators.0014",
+        "native_name": "*",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'/'",
+        "item_id": "operators.0015",
+        "native_name": "/",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'%'",
+        "item_id": "operators.0016",
+        "native_name": "%",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'.'",
+        "item_id": "operators.0017",
+        "native_name": ".",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:167"
+      },
+      {
+        "grammar_token": "STMT_SEPARATOR",
+        "item_id": "operators.0018",
+        "native_name": "STMT_SEPARATOR",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:169"
+      }
+    ],
+    "session_settings": [
+      {
+        "item_id": "session_settings.0001",
+        "native_name": "server_version",
+        "observed_value": "14.0",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0002",
+        "native_name": "server_version_num",
+        "observed_value": "140000",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0003",
+        "native_name": "server_encoding",
+        "observed_value": "UTF8",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0004",
+        "native_name": "client_encoding",
+        "observed_value": "UTF8",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0005",
+        "native_name": "TimeZone",
+        "observed_value": "UTC",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0006",
+        "native_name": "DateStyle",
+        "observed_value": "ISO, MDY",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0007",
+        "native_name": "IntervalStyle",
+        "observed_value": "postgres",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0008",
+        "native_name": "lc_collate",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0009",
+        "native_name": "lc_ctype",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0010",
+        "native_name": "lc_messages",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0011",
+        "native_name": "lc_monetary",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0012",
+        "native_name": "lc_numeric",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0013",
+        "native_name": "lc_time",
+        "observed_value": "C",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0014",
+        "native_name": "standard_conforming_strings",
+        "observed_value": "on",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0015",
+        "native_name": "integer_datetimes",
+        "observed_value": "on",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0016",
+        "native_name": "max_connections",
+        "observed_value": "100",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0017",
+        "native_name": "max_prepared_transactions",
+        "observed_value": "0",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0018",
+        "native_name": "search_path",
+        "observed_value": "public",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0019",
+        "native_name": "default_transaction_isolation",
+        "observed_value": "read committed",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0020",
+        "native_name": "transaction_isolation",
+        "observed_value": "read committed",
+        "proof_ids": [
+          "immudb-1.11.0-runtime-catalog"
+        ],
+        "source": "pg_settings"
+      }
+    ],
+    "statements": [
+      {
+        "item_id": "statements.0001",
+        "native_name": "BEGIN TRANSACTION",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0002",
+        "native_name": "BEGIN",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0003",
+        "native_name": "COMMIT",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0004",
+        "native_name": "ROLLBACK",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0005",
+        "native_name": "SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0006",
+        "native_name": "RELEASE SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0007",
+        "native_name": "ROLLBACK TO SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0008",
+        "native_name": "ROLLBACK TO IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0009",
+        "native_name": "CREATE DATABASE IF NOT EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0010",
+        "native_name": "CREATE DATABASE IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0011",
+        "native_name": "USE IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0012",
+        "native_name": "USE DATABASE IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0013",
+        "native_name": "USE SNAPSHOT opt_period",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0014",
+        "native_name": "CREATE TABLE IF NOT EXISTS tableName '(' tableElems ')'",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0015",
+        "native_name": "CREATE TABLE tableName '(' tableElems ')'",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0016",
+        "native_name": "DROP TABLE qualifiedName",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0017",
+        "native_name": "DROP TABLE IF EXISTS qualifiedName",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0018",
+        "native_name": "DROP TABLE qualifiedName CASCADE",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0019",
+        "native_name": "DROP TABLE IF EXISTS qualifiedName CASCADE",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0020",
+        "native_name": "TRUNCATE TABLE qualifiedName",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0021",
+        "native_name": "CREATE VIEW IF NOT EXISTS IDENTIFIER AS dqlstmt",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0022",
+        "native_name": "CREATE VIEW IDENTIFIER AS dqlstmt",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0023",
+        "native_name": "DROP VIEW IF EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0024",
+        "native_name": "DROP VIEW IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0025",
+        "native_name": "CREATE SEQUENCE IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0026",
+        "native_name": "DROP SEQUENCE IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0027",
+        "native_name": "DROP SEQUENCE IF EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0028",
+        "native_name": "CREATE INDEX opt_if_not_exists ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0029",
+        "native_name": "CREATE INDEX opt_if_not_exists ON tableName '(' col_names ')' WHERE exp",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0030",
+        "native_name": "CREATE UNIQUE INDEX opt_if_not_exists ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0031",
+        "native_name": "CREATE UNIQUE INDEX opt_if_not_exists ON tableName '(' col_names ')' WHERE exp",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0032",
+        "native_name": "DROP INDEX ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0033",
+        "native_name": "DROP INDEX tableName DOT col_name",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0034",
+        "native_name": "ALTER TABLE tableName ADD COLUMN colSpec",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0035",
+        "native_name": "ALTER TABLE tableName RENAME TO tableName",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0036",
+        "native_name": "ALTER TABLE tableName RENAME COLUMN col_name TO col_name",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0037",
+        "native_name": "ALTER TABLE tableName DROP COLUMN col_name",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0038",
+        "native_name": "ALTER TABLE tableName DROP CONSTRAINT IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0039",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name SET NOT NULL",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0040",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name DROP NOT NULL",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0041",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name IDENTIFIER sql_type",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0042",
+        "native_name": "CREATE USER IDENTIFIER WITH PASSWORD VARCHAR_LIT permission",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0043",
+        "native_name": "ALTER USER IDENTIFIER WITH PASSWORD VARCHAR_LIT permission",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0044",
+        "native_name": "DROP USER IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0045",
+        "native_name": "GRANT sqlPrivileges ON DATABASE qualifiedName TO USER IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0046",
+        "native_name": "REVOKE sqlPrivileges ON DATABASE qualifiedName TO USER IDENTIFIER",
+        "production": "ddlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0047",
+        "native_name": "INSERT INTO tableRef insert_cols values_or_query opt_on_conflict opt_returning",
+        "production": "dmlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0048",
+        "native_name": "UPSERT INTO tableRef insert_cols values_or_query opt_returning",
+        "production": "dmlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0049",
+        "native_name": "DELETE FROM tableRef opt_where opt_indexon opt_limit opt_offset opt_returning",
+        "production": "dmlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0050",
+        "native_name": "UPDATE tableRef SET updates opt_where opt_indexon opt_limit opt_offset opt_returning",
+        "production": "dmlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0051",
+        "native_name": "select_stmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0052",
+        "native_name": "WITH cte_defs select_stmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0053",
+        "native_name": "WITH cte_defs select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0054",
+        "native_name": "WITH RECURSIVE cte_defs select_stmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0055",
+        "native_name": "WITH RECURSIVE cte_defs select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0056",
+        "native_name": "select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0057",
+        "native_name": "select_stmt EXCEPT dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0058",
+        "native_name": "select_stmt INTERSECT dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0059",
+        "native_name": "SHOW DATABASES",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0060",
+        "native_name": "SHOW TABLES",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0061",
+        "native_name": "SHOW TABLE IDENTIFIER",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0062",
+        "native_name": "SHOW USERS",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0063",
+        "native_name": "SHOW GRANTS",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0064",
+        "native_name": "SHOW GRANTS FOR IDENTIFIER",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0065",
+        "native_name": "EXPLAIN dqlstmt",
+        "production": "dqlstmt",
+        "proof_ids": [
+          "immudb-1.11.0-source-grammar"
+        ],
+        "source": "embedded/sql/sql_grammar.y:922"
+      }
+    ]
+  },
+  "language_profiles": [
+    "immudb-sql"
+  ],
+  "live_evidence_ids": [
+    "immudb-1.11.0-task-live-execution"
+  ],
+  "profile_id": "immudb-native",
+  "proof_records": [
+    {
+      "artifact": "immudb-1.11.0.tar.gz",
+      "authority": "Codenotary immudb project",
+      "evidence_id": "immudb-1.11.0-source-grammar",
+      "evidence_kind": "grammar",
+      "format": "immudb 1.11.0 source archive",
+      "license_id": "BUSL-1.1",
+      "sha256": "ac07da5552f4d14a4d646059a633d48c7e9d668989c4522b8a9924f0c55286e0"
+    },
+    {
+      "artifact": "immudb_dialect_inventory_1_11_0.json",
+      "authority": "immudb 1.11.0 runtime",
+      "evidence_id": "immudb-1.11.0-runtime-catalog",
+      "evidence_kind": "catalog",
+      "format": "cdeadmin.engine-dialect-inventory.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "983408446f0c5bba4abeb37522569bcf0119e163197cfd69dbb94a99c6582954"
+    },
+    {
+      "artifact": "dialect_qualification_live.json",
+      "authority": "immudb 1.11.0 runtime",
+      "evidence_id": "immudb-1.11.0-task-parser-acceptance",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.relational-provider-live-verification.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "291cddf01d880a9c207848cf5e9836cd13ca649bd1b119fd9f5121f3d1488d2c"
+    },
+    {
+      "artifact": "dialect_qualification_live.json",
+      "authority": "immudb 1.11.0 runtime",
+      "evidence_id": "immudb-1.11.0-task-live-execution",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.relational-provider-live-verification.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "291cddf01d880a9c207848cf5e9836cd13ca649bd1b119fd9f5121f3d1488d2c"
+    },
+    {
+      "artifact": "__init__.py",
+      "authority": "Psycopg project",
+      "evidence_id": "psycopg-3.3.4",
+      "evidence_kind": "driver",
+      "format": "Python source",
+      "license_id": "LGPL-3.0-only",
+      "sha256": "5f1607a193cb63e60a0c5687209d2bd0e3029760b9559e9968f31d6b5d82c778"
+    }
+  ],
+  "provider_id": "org.cdeadmin.immudb",
+  "reference_version": "1.11.0",
+  "schema": "cdeadmin.engine-dialect.v2",
+  "syntax_decisions": {
+    "cancellation": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "provider session cancellation when available"
+    },
+    "explain": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "EXPLAIN"
+    },
+    "identifier_quoting": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "double_quote_with_doubled_quote_escape"
+    },
+    "pagination": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "LIMIT with optional OFFSET"
+    },
+    "parameter_binding": {
+      "proof_ids": [
+        "psycopg-3.3.4"
+      ],
+      "syntax": "psycopg_percent_s_or_native_rest_fields"
+    },
+    "string_literals": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "single_quote_with_doubled_quote_escape"
+    },
+    "transaction_control": {
+      "proof_ids": [
+        "immudb-1.11.0-source-grammar"
+      ],
+      "syntax": "BEGIN TRANSACTION; COMMIT; ROLLBACK"
+    }
+  },
+  "task_templates": [
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:column.create",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:column.create"
+      ],
+      "task_id": "visual_admin.column.create"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:column.drop",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:column.drop"
+      ],
+      "task_id": "visual_admin.column.drop"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:column.rename",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:column.rename"
+      ],
+      "task_id": "visual_admin.column.rename"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:index.create",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:index.create"
+      ],
+      "task_id": "visual_admin.index.create"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:index.drop",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:index.drop"
+      ],
+      "task_id": "visual_admin.index.drop"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "immudb-rest-v1:table.alter",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "immudb-rest-v1:table.alter"
+      ],
+      "task_id": "visual_admin.table.alter"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "CREATE TABLE \"cde_editor_probe\" (\"id\" INTEGER NOT NULL PRIMARY KEY, \"value\" INTEGER)",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "CREATE TABLE \"cde_editor_probe\" (\"id\" INTEGER NOT NULL PRIMARY KEY, \"value\" INTEGER)"
+      ],
+      "task_id": "visual_admin.table.create"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [
+        "parameter_1",
+        "parameter_2"
+      ],
+      "source": "DELETE FROM \"public\".\"qualification\" WHERE \"id\" = %s AND \"value\" = %s AND \"event_date\" IS NULL RETURNING 1",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "DELETE FROM \"public\".\"qualification\" WHERE \"id\" = %s AND \"value\" = %s AND \"event_date\" IS NULL RETURNING 1"
+      ],
+      "task_id": "visual_admin.table.delete"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "DROP TABLE \"public\".\"cde_editor_probe_renamed\"",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "DROP TABLE \"public\".\"cde_editor_probe_renamed\""
+      ],
+      "task_id": "visual_admin.table.drop"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [
+        "parameter_1",
+        "parameter_2"
+      ],
+      "source": "INSERT INTO \"public\".\"qualification\" (\"id\", \"value\") VALUES (%s, %s)",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "INSERT INTO \"public\".\"qualification\" (\"id\", \"value\") VALUES (%s, %s)"
+      ],
+      "task_id": "visual_admin.table.insert"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "ALTER TABLE \"public\".\"cde_editor_probe\" RENAME TO \"cde_editor_probe_renamed\"",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "ALTER TABLE \"public\".\"cde_editor_probe\" RENAME TO \"cde_editor_probe_renamed\""
+      ],
+      "task_id": "visual_admin.table.rename"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [
+        "parameter_1",
+        "parameter_2",
+        "parameter_3"
+      ],
+      "source": "UPDATE \"public\".\"qualification\" SET \"value\" = %s WHERE \"id\" = %s AND \"value\" = %s AND \"event_date\" IS NULL RETURNING 1",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "UPDATE \"public\".\"qualification\" SET \"value\" = %s WHERE \"id\" = %s AND \"value\" = %s AND \"event_date\" IS NULL RETURNING 1"
+      ],
+      "task_id": "visual_admin.table.update"
+    },
+    {
+      "binding_style": "provider_transport_specific",
+      "proof_ids": [
+        "immudb-1.11.0-task-parser-acceptance",
+        "immudb-1.11.0-task-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "DROP USER cdeadmin_user_c53e4dd2",
+      "source_format": "ordered_provider_native_operations",
+      "statements": [
+        "DROP USER cdeadmin_user_c53e4dd2"
+      ],
+      "task_id": "visual_admin.user.drop"
+    }
+  ]
+}

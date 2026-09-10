@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -39,7 +40,24 @@ from pgadmin.cdeadmin.providers.apache_ignite.provider import (  # noqa: E402
 )
 
 
+class _Lease:
+    def __init__(self, value):
+        self.value = bytearray(value.encode('utf-8'))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.value[:] = b'\x00' * len(self.value)
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
 class _Permissions:
+    def __init__(self, password):
+        self.password = password
+
     @staticmethod
     def require(_permission, _scope='endpoint'):
         return None
@@ -48,9 +66,10 @@ class _Permissions:
     def allows(_permission, _scope='endpoint'):
         return True
 
-    @staticmethod
-    def acquire_secret(*_args):
-        raise RuntimeError('this qualification does not use credentials')
+    def acquire_secret(self, reference, *_args):
+        if reference != 'root':
+            raise RuntimeError('Ignite qualification secret is unavailable')
+        return _Lease(self.password)
 
 
 def parser():
@@ -60,6 +79,8 @@ def parser():
     value.add_argument('--rest-port', type=int, default=8080)
     value.add_argument('--control-port', type=int)
     value.add_argument('--control-sh', type=Path, required=True)
+    value.add_argument(
+        '--password-environment', default='CDEADMIN_IGNITE_PASSWORD')
     value.add_argument('--offline-node-container', required=True)
     value.add_argument('--fixture-container', required=True)
     value.add_argument('--allow-mutation', action='store_true')
@@ -140,7 +161,8 @@ def _deploy_service(container, name):
     if re.fullmatch(r'[A-Za-z0-9_.-]{1,128}', name) is None:
         raise RuntimeError('fixture service name is invalid')
     result = subprocess.run([
-        'docker', 'exec', container, 'java', '-Xms128m', '-Xmx256m',
+        'docker', 'exec', container, 'timeout', '45s',
+        'java', '-Xms128m', '-Xmx256m',
         '-cp', '/opt/ignite/apache-ignite/libs/*',
         'org.cdeadmin.ignitefixture.CdeAdminIgniteFixture',
         'deploy-service', name,
@@ -150,13 +172,14 @@ def _deploy_service(container, name):
         raise RuntimeError('Ignite service fixture deployment failed')
 
 
-def _start_task(host, rest_port):
+def _start_task(host, rest_port, username, password):
     body = urllib.parse.urlencode({
         'cmd': 'exe',
         'name': (
             'org.cdeadmin.ignitefixture.'
             'CdeAdminIgniteFixture$LongTask'),
         'p1': 'cdeadmin-live-gate', 'async': 'true',
+        'user': username, 'password': password,
     }).encode('utf-8')
     request = urllib.request.Request(
         f'http://{host}:{rest_port}/ignite', data=body, method='POST')
@@ -182,14 +205,20 @@ def _wait_resource(client, route, kind, predicate):
 def verify(args):
     if not args.allow_mutation:
         raise RuntimeError('qualification requires --allow-mutation')
+    password = os.environ.get(args.password_environment)
+    if password is None:
+        raise RuntimeError('Ignite password environment is absent')
     context = SimpleNamespace(
         endpoint_id=f'ignite-object-{uuid.uuid4()}',
         session_namespace=f'ignite-object-session-{uuid.uuid4()}',
         mode='legacy_native', runtime_verification_state='verified',
+        experience_family='apache_ignite',
+        provider_id=PROFILE.provider_id,
+        profile_id=PROFILE.profile_id,
         declared_runtime_family='apache_ignite',
         verified_runtime_family='apache_ignite',
     )
-    provider = create_provider(context, _Permissions())
+    provider = create_provider(context, _Permissions(password))
     client = provider.client
     route = {
         'route_id': f'ignite-object-{uuid.uuid4()}',
@@ -198,6 +227,9 @@ def verify(args):
         'control_port': args.control_port or args.port,
         'control_sh_path': str(args.control_sh.resolve()),
         'partition_aware': True,
+        'auth_mode': 'username-password', 'username': 'ignite',
+        'principal_reference': 'cdeadmin-ignite-object-live-gate',
+        'credential_references': {'database_password': 'root'},
     }
     suffix = uuid.uuid4().hex[:10].upper()
     table_name = 'T' + suffix
@@ -263,6 +295,15 @@ def verify(args):
             raise RuntimeError(
                 'baseline mutation qualification requires two server nodes')
         node_ids = sorted(item['display_name'] for item in nodes)
+        offline_node = next((
+            item for item in nodes
+            if args.offline_node_container in str(
+                item.get('native', {}).get('HOSTNAMES', ''))
+        ), None)
+        if offline_node is None:
+            raise RuntimeError(
+                'offline-node container was not matched to an Ignite node')
+        offline_node_id = offline_node['display_name']
         run('baseline-topology', 'configure_auto_adjust', {
             'enabled': False,
         })
@@ -270,13 +311,13 @@ def verify(args):
         offline_container_stopped = True
         _wait_nodes(client, route, 1)
         run('baseline-topology', 'remove_nodes', {
-            'consistent_ids': [node_ids[-1]],
+            'consistent_ids': [offline_node_id],
         })
         _container('start', args.offline_node_container)
         offline_container_stopped = False
         nodes = _wait_nodes(client, route, 2)
         run('baseline-topology', 'add_nodes', {
-            'consistent_ids': [node_ids[-1]],
+            'consistent_ids': [offline_node_id],
         })
         run('baseline-topology', 'set_nodes', {
             'consistent_ids': node_ids,
@@ -303,7 +344,7 @@ def verify(args):
         run('service', 'cancel', target=service_target)
         service_target = None
 
-        _start_task(args.host, args.rest_port)
+        _start_task(args.host, args.rest_port, 'ignite', password)
         task_target = _wait_resource(
             client, route, 'compute-task',
             lambda item: str(item.get('native', {}).get(

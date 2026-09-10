@@ -27,6 +27,10 @@ SQLITE_SHA256 = (
 FOUNDATIONDB_IMAGE = "foundationdb/foundationdb:7.3.77"
 FIREBIRD_IMAGE = "firebirdsql/firebird:5.0.4"
 MARIADB_IMAGE = "mariadb:12.2.2"
+MYSQL_IMAGE = "mysql:9.7.0"
+CASSANDRA_IMAGE = "cassandra:5.0.8"
+IGNITE_IMAGE = "apacheignite/ignite:2.17.0"
+YUGABYTE_IMAGE = "yugabytedb/yugabyte:2025.2.2.2-b11"
 
 
 def run(command, *, cwd=None):
@@ -116,6 +120,71 @@ def build_tikv_helper():
         sys.executable, REPOSITORY / "tools/cdeadmin_build_tikv_helper.py",
         "--output", output, "--evidence", evidence,
     ])
+
+
+def build_ignite_fixture():
+    """Compile the exact-version task/service fixture used by live gates."""
+    require_program("docker")
+    require_program("javac")
+    require_program("jar")
+    source = REPOSITORY / "tools/fixtures/apache_ignite/" \
+        "CdeAdminIgniteFixture.java"
+    output_root = RUNTIME / "ignite-fixture"
+    output = output_root / "cdeadmin-ignite-fixture.jar"
+    evidence = RUNTIME / "build_evidence/ignite-fixture.json"
+    source_digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    expected = {
+        "schema": "cdeadmin.ignite-fixture-build.v1",
+        "image": IGNITE_IMAGE,
+        "source_sha256": source_digest,
+        "java_release": 11,
+    }
+    if output.is_file() and evidence.is_file():
+        try:
+            observed = json.loads(evidence.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            observed = None
+        if isinstance(observed, dict) and all(
+                observed.get(key) == value for key, value in expected.items()
+        ) and observed.get("jar_sha256") == hashlib.sha256(
+                output.read_bytes()).hexdigest():
+            print(f"Ignite fixture already bootstrapped: {output}")
+            return
+    name = f"cdeadmin-demo-ignite-libs-{os.getpid()}"
+    with tempfile.TemporaryDirectory(
+            prefix="cdeadmin-ignite-fixture-") as temporary:
+        temporary_path = Path(temporary)
+        dependencies = temporary_path / "dependencies"
+        classes = temporary_path / "classes"
+        dependencies.mkdir()
+        classes.mkdir()
+        run(["docker", "create", "--name", name, IGNITE_IMAGE, "true"])
+        try:
+            for library in ("ignite-core-2.17.0.jar", "cache-api-1.0.0.jar"):
+                run([
+                    "docker", "cp",
+                    f"{name}:/opt/ignite/apache-ignite/libs/{library}",
+                    dependencies / library,
+                ])
+        finally:
+            subprocess.run(
+                ["docker", "rm", "-f", name], check=False,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        classpath = os.pathsep.join(
+            str(path) for path in sorted(dependencies.glob("*.jar"))
+        )
+        run([
+            "javac", "--release", "11", "-cp", classpath,
+            "-d", classes, source,
+        ])
+        output_root.mkdir(parents=True, exist_ok=True)
+        run(["jar", "--create", "--file", output, "-C", classes, "."])
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text(json.dumps({
+        **expected,
+        "jar_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
+    }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def extract_foundationdb_client():
@@ -226,6 +295,133 @@ def extract_mariadb_clients():
         )
 
 
+def extract_mysql_shell():
+    """Extract the exact MySQL Shell and its private OpenSSL runtime."""
+    require_program("docker")
+    prefix = RUNTIME / "mysql"
+    executable = prefix / "bin/mysqlsh"
+    openssl = prefix / "lib64/libssl.so.3.5.1"
+    crypto = prefix / "lib64/libcrypto.so.3.5.1"
+    environment = dict(os.environ)
+    environment["LD_LIBRARY_PATH"] = str(prefix / "lib64")
+    if executable.is_file() and openssl.is_file() and crypto.is_file():
+        identity = subprocess.run(
+            [str(executable), "--version"], check=False, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=environment,
+        ).stdout
+        if "Ver 9.7.0" in identity:
+            print(f"MySQL Shell already bootstrapped: {executable}")
+            return
+    name = f"cdeadmin-demo-mysql-shell-{os.getpid()}"
+    run(["docker", "create", "--name", name, MYSQL_IMAGE, "true"])
+    try:
+        if prefix.exists():
+            shutil.rmtree(prefix)
+        for directory in ("bin", "lib", "libexec", "share", "lib64"):
+            (prefix / directory).mkdir(parents=True, exist_ok=True)
+        for source, destination in (
+            ("/usr/bin/mysqlsh", prefix / "bin/mysqlsh"),
+            ("/usr/lib/mysqlsh", prefix / "lib/mysqlsh"),
+            ("/usr/libexec/mysqlsh", prefix / "libexec/mysqlsh"),
+            ("/usr/share/mysqlsh", prefix / "share/mysqlsh"),
+            ("/usr/lib64/libssl.so.3.5.1", openssl),
+            ("/usr/lib64/libcrypto.so.3.5.1", crypto),
+        ):
+            run(["docker", "cp", f"{name}:{source}", destination])
+        executable.chmod(0o755)
+        (prefix / "lib64/libssl.so.3").symlink_to(openssl.name)
+        (prefix / "lib64/libcrypto.so.3").symlink_to(crypto.name)
+        identity = subprocess.run(
+            [str(executable), "--version"], check=False, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=environment,
+        ).stdout
+        if "Ver 9.7.0" not in identity:
+            raise RuntimeError(
+                "extracted MySQL Shell is not the required 9.7.0 runtime"
+            )
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", name], check=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+
+def extract_cassandra_clients():
+    """Extract the exact Cassandra tools and libraries used by forms."""
+    require_program("docker")
+    root = RUNTIME / "cassandra"
+    tools = tuple(root / f"bin/{name}" for name in (
+        "cqlsh", "nodetool", "sstableloader",
+    ))
+    release_jar = root / "lib/apache-cassandra-5.0.8.jar"
+    client_options = root / "conf/jvm17-clients.options"
+    if (all(path.is_file() for path in tools) and release_jar.is_file() and
+            client_options.is_file()):
+        print(f"Cassandra clients already bootstrapped: {tools[0]}")
+        return
+    name = f"cdeadmin-demo-cassandra-client-{os.getpid()}"
+    run(["docker", "create", "--name", name, CASSANDRA_IMAGE, "true"])
+    try:
+        if root.exists():
+            shutil.rmtree(root)
+        root.mkdir(parents=True)
+        run(["docker", "cp", f"{name}:/opt/cassandra/.", root])
+        configuration = root / "conf"
+        if configuration.is_symlink():
+            configuration.unlink()
+        configuration.mkdir(exist_ok=True)
+        run(["docker", "cp", f"{name}:/etc/cassandra/.", configuration])
+        if not release_jar.is_file() or not all(
+                path.is_file() for path in tools):
+            raise RuntimeError(
+                "extracted Cassandra client distribution is not 5.0.8"
+            )
+        for path in tools:
+            path.chmod(0o755)
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", name], check=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+
+def extract_yugabytedb_ycql_client():
+    """Extract the exact YCQL shell shipped by YugabyteDB 2025.2.2.2."""
+    require_program("docker")
+    root = RUNTIME / "yugabytedb"
+    executable = root / "bin/ycqlsh"
+    script = root / "bin/ycqlsh.py"
+    library = root / "pylib/cqlshlib"
+    if executable.is_file() and script.is_file() and library.is_dir():
+        print(f"YugabyteDB YCQL client already bootstrapped: {executable}")
+        return
+    name = f"cdeadmin-demo-ycql-client-{os.getpid()}"
+    run(["docker", "create", "--name", name, YUGABYTE_IMAGE, "true"])
+    try:
+        if root.exists():
+            shutil.rmtree(root)
+        root.mkdir(parents=True)
+        for child in ("bin/ycqlsh", "bin/ycqlsh.py", "pylib", "lib"):
+            destination = root / child
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            run([
+                "docker", "cp", f"{name}:/home/yugabyte/{child}",
+                destination,
+            ])
+        executable.chmod(0o755)
+        if not script.is_file() or not library.is_dir():
+            raise RuntimeError(
+                "extracted YugabyteDB YCQL client is incomplete"
+            )
+    finally:
+        subprocess.run(
+            ["docker", "rm", "-f", name], check=False,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+
 def generate_profiles():
     template = (ROOT / "connection_profiles.template.json").read_text(
         encoding="utf-8"
@@ -256,9 +452,13 @@ def arguments():
         help="Use this verified SQLite source archive instead of downloading",
     )
     parser.add_argument("--skip-tikv", action="store_true")
+    parser.add_argument("--skip-ignite-fixture", action="store_true")
     parser.add_argument("--skip-foundationdb", action="store_true")
     parser.add_argument("--skip-firebird-client", action="store_true")
     parser.add_argument("--skip-mariadb-client", action="store_true")
+    parser.add_argument("--skip-mysql-shell", action="store_true")
+    parser.add_argument("--skip-cassandra-client", action="store_true")
+    parser.add_argument("--skip-yugabytedb-client", action="store_true")
     return parser.parse_args()
 
 
@@ -271,12 +471,20 @@ def main():
         build_sqlite(args.sqlite_archive)
     if not args.skip_tikv:
         build_tikv_helper()
+    if not args.skip_ignite_fixture:
+        build_ignite_fixture()
     if not args.skip_foundationdb:
         extract_foundationdb_client()
     if not args.skip_firebird_client:
         extract_firebird_client()
     if not args.skip_mariadb_client:
         extract_mariadb_clients()
+    if not args.skip_mysql_shell:
+        extract_mysql_shell()
+    if not args.skip_cassandra_client:
+        extract_cassandra_clients()
+    if not args.skip_yugabytedb_client:
+        extract_yugabytedb_ycql_client()
     generate_profiles()
     print("Reference-engine demo bootstrap completed.")
     return 0

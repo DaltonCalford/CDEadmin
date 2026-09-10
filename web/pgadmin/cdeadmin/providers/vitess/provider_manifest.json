@@ -2,10 +2,10 @@
   "identity": {
     "contract_version": "1.1.0",
     "provider_id": "org.cdeadmin.vitess",
-    "provider_version": "0.1.0",
+    "provider_version": "0.2.0",
     "profile_id": "vitess-native",
     "profile_version": "23.0.3",
-    "evidence_reference": "cde-distributed:vitess-native-live:20260902"
+    "evidence_reference": "cdeadmin-vitess-exact-live:23.0.3:20260910"
   },
   "package_type": "engine",
   "sdk_compatibility": {
@@ -372,6 +372,16 @@
     "protocol": "mysql_wire",
     "client_state": "mysql_connector_26.7.0_installed",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"
+    "activation_gate": "passed_exact_dialect_metrics_semantic_object_and_control_plane_evidence",
+    "dialect_contract": "vitess.dialect.23.0.3.v1",
+    "metrics_contract": "vitess.metrics.23.0.3.v1",
+    "live_evidence_reference": "cdeadmin-vitess-exact-live:23.0.3:20260910",
+    "object_experience_gate": "passed",
+    "full_live_evidence_sha256": "c65def575e062e08f8e461b239bd9baf4902d7ea2b5c1f1ab1c3be7eb1b56fb2",
+    "object_evidence_sha256": "6f900a61273b0341af7fcb2b4c8b6d0ce63cf7d7d2db2d7ee38742df80ff3d23",
+    "strict_object_evidence_sha256": "55c01508d447200da2048b0ac2f6fa51de5af1521bfc1c7d61929df11304201f",
+    "native_vreplication_gate": "passed_materialize_movetables_reshard_and_stream_inspection",
+    "native_online_ddl_gate": "passed_launch_retry_complete_cancel_cleanup_throttle_unthrottle_and_force_cutover",
+    "native_traffic_gate": "passed_switch_reverse_and_complete"
   }
 }

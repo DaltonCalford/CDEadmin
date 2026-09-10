@@ -1,0 +1,1148 @@
+{
+  "collection_authority": "Vitess 23.0.3 native VTGate and VTctld Prometheus endpoints",
+  "completeness": {
+    "admitted_metric_count": 188,
+    "components_exhausted": [
+      "vtgate",
+      "vtctld"
+    ],
+    "observation_count": 188,
+    "prometheus_help_type_catalog_exhausted": true,
+    "runtime_version": "23.0.3"
+  },
+  "endpoint_selection": "Every series having native HELP and TYPE declarations on both reference control and query-plane endpoints.",
+  "engine_id": "vitess",
+  "inventory_id": "vitess.metrics-inventory.23.0.3.v1",
+  "observations": [
+    {
+      "component": "vtgate",
+      "description": "A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.",
+      "native_name": "go_gc_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "component": "vtgate",
+      "description": "Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.",
+      "native_name": "go_gc_gogc_percent",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.",
+      "native_name": "go_gc_gomemlimit_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of goroutines that currently exist.",
+      "native_name": "go_goroutines",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Information about the Go environment.",
+      "native_name": "go_info",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.",
+      "native_name": "go_memstats_alloc_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.",
+      "native_name": "go_memstats_buck_hash_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_frees_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.",
+      "native_name": "go_memstats_gc_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_heap_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_idle_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes",
+      "native_name": "go_memstats_heap_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of currently allocated objects. Equals to /gc/heap/objects:objects.",
+      "native_name": "go_memstats_heap_objects",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.",
+      "native_name": "go_memstats_heap_released_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of seconds since 1970 of last garbage collection.",
+      "native_name": "go_memstats_last_gc_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_mallocs_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.",
+      "native_name": "go_memstats_mcache_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.",
+      "native_name": "go_memstats_mcache_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.",
+      "native_name": "go_memstats_mspan_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.",
+      "native_name": "go_memstats_mspan_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.",
+      "native_name": "go_memstats_next_gc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.",
+      "native_name": "go_memstats_other_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.",
+      "native_name": "go_memstats_stack_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.",
+      "native_name": "go_memstats_stack_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes obtained from system. Equals to /memory/classes/total:byte.",
+      "native_name": "go_memstats_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.",
+      "native_name": "go_sched_gomaxprocs_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of OS threads created.",
+      "native_name": "go_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Total user and system CPU time spent in seconds.",
+      "native_name": "process_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Maximum number of open file descriptors.",
+      "native_name": "process_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes received by the process over the network.",
+      "native_name": "process_network_receive_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of bytes sent by the process over the network.",
+      "native_name": "process_network_transmit_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of open file descriptors.",
+      "native_name": "process_open_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Resident memory size in bytes.",
+      "native_name": "process_resident_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Start time of the process since unix epoch in seconds.",
+      "native_name": "process_start_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Virtual memory size in bytes.",
+      "native_name": "process_virtual_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Maximum amount of virtual memory available in bytes.",
+      "native_name": "process_virtual_memory_max_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Current number of scrapes being served.",
+      "native_name": "promhttp_metric_handler_requests_in_flight",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Total number of scrapes by HTTP status code.",
+      "native_name": "promhttp_metric_handler_requests_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "VtgateApi timings",
+      "native_name": "vtgate_api",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtgate",
+      "description": "Vtgate API error counts per error type",
+      "native_name": "vtgate_api_error_counts",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Rows affected by a write (DML) operation through the VTgate API",
+      "native_name": "vtgate_api_rows_affected",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Rows returned through the VTgate API",
+      "native_name": "vtgate_api_rows_returned",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "[DEPRECATED] How long it took to complete the last backup operation (in seconds)",
+      "native_name": "vtgate_backup_duration_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "The configured per vtgate buffer size",
+      "native_name": "vtgate_buffer_size",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "build information exposed via label",
+      "native_name": "vtgate_build_information",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "build number",
+      "native_name": "vtgate_build_number",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "build timestamp",
+      "native_name": "vtgate_build_timestamp",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Atomic Commit failed to conclude after commit decision is made",
+      "native_name": "vtgate_commit_unresolved",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "The number of compressed binlog transaction payloads that were processed in memory",
+      "native_name": "vtgate_compressed_transaction_payloads_in_memory",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "The number of compressed binlog transaction payloads that were processed using a stream",
+      "native_name": "vtgate_compressed_transaction_payloads_via_stream",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "The number of times the queryInfo buffer becomes full",
+      "native_name": "vtgate_gateway_stats_chan_full_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of times the healthcheck broadcast channel was full",
+      "native_name": "vtgate_health_check_channel_full_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "crc32 checksum of the current healthcheck state",
+      "native_name": "vtgate_healthcheck_checksum",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "the number of healthcheck connections registered",
+      "native_name": "vtgate_healthcheck_connections",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Healthcheck Errors",
+      "native_name": "vtgate_healthcheck_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "File descriptor limit",
+      "native_name": "vtgate_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Connections accepted by MySQL server",
+      "native_name": "vtgate_mysql_server_conn_accepted",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Active MySQL server connections",
+      "native_name": "vtgate_mysql_server_conn_count",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Active MySQL server connections by TLS version",
+      "native_name": "vtgate_mysql_server_conn_count_by_tls_ver",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Active MySQL server connections per user",
+      "native_name": "vtgate_mysql_server_conn_count_per_user",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Active MySQL server connections that haven't authenticated yet",
+      "native_name": "vtgate_mysql_server_conn_count_unauthenticated",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Connections refused by MySQL server",
+      "native_name": "vtgate_mysql_server_conn_refused",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Connections that took more than the configured mysql-slow-connect-warn-threshold to establish",
+      "native_name": "vtgate_mysql_server_conn_slow",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "MySQL server timings",
+      "native_name": "vtgate_mysql_server_timings",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtgate",
+      "description": "Count of partially successful scatter queries",
+      "native_name": "vtgate_partial_success_scatter_queries",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Counts queries executed at VTGate by query type, plan type, and tablet type.",
+      "native_name": "vtgate_query_executions",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Counts queries executed at VTGate per table by query type and table.",
+      "native_name": "vtgate_query_executions_by_table",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache capacity",
+      "native_name": "vtgate_query_plan_cache_capacity",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache evictions",
+      "native_name": "vtgate_query_plan_cache_evictions",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache hits",
+      "native_name": "vtgate_query_plan_cache_hits",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache length",
+      "native_name": "vtgate_query_plan_cache_length",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache misses",
+      "native_name": "vtgate_query_plan_cache_misses",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query plan cache size",
+      "native_name": "vtgate_query_plan_cache_size",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Counts queries routed from VTGate to VTTablet by query type, plan type, and tablet type.",
+      "native_name": "vtgate_query_routes",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Query text characters processed through the VTGate API",
+      "native_name": "vtgate_query_text_characters_processed",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Resilient srvtopo server operations",
+      "native_name": "vtgate_resilient_srv_topo_server",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "[DEPRECATED] How long it took to complete the last restore operation (in seconds)",
+      "native_name": "vtgate_restore_duration_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of errors during sidecar schema upgrade",
+      "native_name": "vtgate_sidecar_dbddl_error_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of queries executed",
+      "native_name": "vtgate_sidecar_dbddl_query_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "stream log send count",
+      "native_name": "vtgate_streamlog_send",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "total number of failed checks",
+      "native_name": "vtgate_throttler_check_any_error",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "total number of checks",
+      "native_name": "vtgate_throttler_check_any_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "heartbeat requests",
+      "native_name": "vtgate_throttler_heartbeat_requests",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "probe recently checked",
+      "native_name": "vtgate_throttler_probe_recently_checked",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "TopologyConnOperations timings",
+      "native_name": "vtgate_topology_conn_operations",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtgate",
+      "description": "TopologyConnReadWait timings",
+      "native_name": "vtgate_topology_conn_read_waits",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtgate",
+      "description": "crc32 checksum of the topology watcher state",
+      "native_name": "vtgate_topology_watcher_checksum",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Topology watcher error counts",
+      "native_name": "vtgate_topology_watcher_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "maximum time since the topology watcher refreshed a cell",
+      "native_name": "vtgate_topology_watcher_max_refresh_lag",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Topology watcher operation counts",
+      "native_name": "vtgate_topology_watcher_operations",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Counts transactions processed at VTGate by shard distribution (single or cross), transaction type (read write or read only)",
+      "native_name": "vtgate_transactions_processed",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Uptime in nanoseconds",
+      "native_name": "vtgate_uptime",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of events that had to wait because the skew across shards was too high",
+      "native_name": "vtgate_v_stream_events_delayed_by_skew_alignment",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Number of parameters unrecognized by Vindexes",
+      "native_name": "vtgate_vindex_unknown_parameters",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtgate",
+      "description": "Vtgate vschema counts",
+      "native_name": "vtgate_vtgatevschema_counts",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtgate",
+      "description": "Scatter connection timings",
+      "native_name": "vtgate_vttablet_call",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtgate",
+      "description": "Vtgate warnings",
+      "native_name": "vtgate_warnings",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.",
+      "native_name": "go_gc_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "component": "vtctld",
+      "description": "Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.",
+      "native_name": "go_gc_gogc_percent",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.",
+      "native_name": "go_gc_gomemlimit_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of goroutines that currently exist.",
+      "native_name": "go_goroutines",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Information about the Go environment.",
+      "native_name": "go_info",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.",
+      "native_name": "go_memstats_alloc_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.",
+      "native_name": "go_memstats_buck_hash_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_frees_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.",
+      "native_name": "go_memstats_gc_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_heap_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_idle_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes",
+      "native_name": "go_memstats_heap_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of currently allocated objects. Equals to /gc/heap/objects:objects.",
+      "native_name": "go_memstats_heap_objects",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.",
+      "native_name": "go_memstats_heap_released_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of seconds since 1970 of last garbage collection.",
+      "native_name": "go_memstats_last_gc_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_mallocs_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.",
+      "native_name": "go_memstats_mcache_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.",
+      "native_name": "go_memstats_mcache_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.",
+      "native_name": "go_memstats_mspan_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.",
+      "native_name": "go_memstats_mspan_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.",
+      "native_name": "go_memstats_next_gc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.",
+      "native_name": "go_memstats_other_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.",
+      "native_name": "go_memstats_stack_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.",
+      "native_name": "go_memstats_stack_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes obtained from system. Equals to /memory/classes/total:byte.",
+      "native_name": "go_memstats_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.",
+      "native_name": "go_sched_gomaxprocs_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of OS threads created.",
+      "native_name": "go_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Total user and system CPU time spent in seconds.",
+      "native_name": "process_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Maximum number of open file descriptors.",
+      "native_name": "process_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes received by the process over the network.",
+      "native_name": "process_network_receive_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of bytes sent by the process over the network.",
+      "native_name": "process_network_transmit_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of open file descriptors.",
+      "native_name": "process_open_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Resident memory size in bytes.",
+      "native_name": "process_resident_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Start time of the process since unix epoch in seconds.",
+      "native_name": "process_start_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Virtual memory size in bytes.",
+      "native_name": "process_virtual_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Maximum amount of virtual memory available in bytes.",
+      "native_name": "process_virtual_memory_max_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Current number of scrapes being served.",
+      "native_name": "promhttp_metric_handler_requests_in_flight",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Total number of scrapes by HTTP status code.",
+      "native_name": "promhttp_metric_handler_requests_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "[DEPRECATED] How long it took to complete the last backup operation (in seconds)",
+      "native_name": "vtctld_backup_duration_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "build information exposed via label",
+      "native_name": "vtctld_build_information",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "build number",
+      "native_name": "vtctld_build_number",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "build timestamp",
+      "native_name": "vtctld_build_timestamp",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "The number of compressed binlog transaction payloads that were processed in memory",
+      "native_name": "vtctld_compressed_transaction_payloads_in_memory",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "The number of compressed binlog transaction payloads that were processed using a stream",
+      "native_name": "vtctld_compressed_transaction_payloads_via_stream",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of times the healthcheck broadcast channel was full",
+      "native_name": "vtctld_health_check_channel_full_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "File descriptor limit",
+      "native_name": "vtctld_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Connections accepted by MySQL server",
+      "native_name": "vtctld_mysql_server_conn_accepted",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Active MySQL server connections",
+      "native_name": "vtctld_mysql_server_conn_count",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Active MySQL server connections that haven't authenticated yet",
+      "native_name": "vtctld_mysql_server_conn_count_unauthenticated",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Connections refused by MySQL server",
+      "native_name": "vtctld_mysql_server_conn_refused",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Connections that took more than the configured mysql-slow-connect-warn-threshold to establish",
+      "native_name": "vtctld_mysql_server_conn_slow",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Count of partially successful scatter queries",
+      "native_name": "vtctld_partial_success_scatter_queries",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "[DEPRECATED] How long it took to complete the last restore operation (in seconds)",
+      "native_name": "vtctld_restore_duration_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of errors during sidecar schema upgrade",
+      "native_name": "vtctld_sidecar_dbddl_error_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of queries executed",
+      "native_name": "vtctld_sidecar_dbddl_query_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "number of context timeouts during dial()",
+      "native_name": "vtctld_tabletmanagerclient_cachedconn_dial_timeouts",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "timings for various dial paths",
+      "native_name": "vtctld_tabletmanagerclient_cachedconn_dial_timings",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtctld",
+      "description": "number of times a call to dial() resulted in a dialing a new grpc clientconn",
+      "native_name": "vtctld_tabletmanagerclient_cachedconn_new",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "number of times a call to dial() was able to reuse an existing connection",
+      "native_name": "vtctld_tabletmanagerclient_cachedconn_reuse",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "total number of failed checks",
+      "native_name": "vtctld_throttler_check_any_error",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "total number of checks",
+      "native_name": "vtctld_throttler_check_any_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "heartbeat requests",
+      "native_name": "vtctld_throttler_heartbeat_requests",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "probe recently checked",
+      "native_name": "vtctld_throttler_probe_recently_checked",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "TopologyConnErrors errors per operation",
+      "native_name": "vtctld_topology_conn_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "TopologyConnOperations timings",
+      "native_name": "vtctld_topology_conn_operations",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtctld",
+      "description": "TopologyConnReadWait timings",
+      "native_name": "vtctld_topology_conn_read_waits",
+      "prometheus_type": "histogram"
+    },
+    {
+      "component": "vtctld",
+      "description": "Topology watcher error counts",
+      "native_name": "vtctld_topology_watcher_errors",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Topology watcher operation counts",
+      "native_name": "vtctld_topology_watcher_operations",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "update stream key range statement count",
+      "native_name": "vtctld_update_stream_key_range_statements",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "update stream key range transaction count",
+      "native_name": "vtctld_update_stream_key_range_transactions",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "update stream table statement count",
+      "native_name": "vtctld_update_stream_tables_statements",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "update stream table transaction count",
+      "native_name": "vtctld_update_stream_tables_transactions",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Uptime in nanoseconds",
+      "native_name": "vtctld_uptime",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of current vdiffs",
+      "native_name": "vtctld_v_diff_count",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of errors encountered across all vdiff actions",
+      "native_name": "vtctld_v_diff_error_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of rows compared across all vdiffs",
+      "native_name": "vtctld_v_diff_rows_compared_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication vplayer queries with consolidated row events counts aggregated across all streams",
+      "native_name": "vtctld_v_replication_bulk_query_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of times the copy phase looped aggregated across streams",
+      "native_name": "vtctld_v_replication_copy_loop_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication rows copied in copy phase aggregated across all streams",
+      "native_name": "vtctld_v_replication_copy_row_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Max vreplication seconds behind primary",
+      "native_name": "vtctld_v_replication_lag_seconds_max",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication seconds behind primary aggregated across all streams",
+      "native_name": "vtctld_v_replication_lag_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication query noop counts aggregated across all streams",
+      "native_name": "vtctld_v_replication_noop_query_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication per phase timings aggregated across all phases and streams",
+      "native_name": "vtctld_v_replication_phase_timings_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication query counts aggregated across all streams",
+      "native_name": "vtctld_v_replication_query_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "Number of vreplication streams",
+      "native_name": "vtctld_v_replication_stream_count",
+      "prometheus_type": "gauge"
+    },
+    {
+      "component": "vtctld",
+      "description": "The total number of times that vreplication has been throttled",
+      "native_name": "vtctld_v_replication_throttled_count_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "component": "vtctld",
+      "description": "vreplication vplayer transaction query batch counts aggregated across all streams",
+      "native_name": "vtctld_v_replication_trx_query_batch_count_total",
+      "prometheus_type": "counter"
+    }
+  ],
+  "reference_version": "23.0.3",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

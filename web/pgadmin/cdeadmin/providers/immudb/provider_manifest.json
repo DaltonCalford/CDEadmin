@@ -2,10 +2,10 @@
   "identity": {
     "contract_version": "1.1.0",
     "provider_id": "org.cdeadmin.immudb",
-    "provider_version": "0.1.0",
+    "provider_version": "0.2.0",
     "profile_id": "immudb-native",
     "profile_version": "1.11.0",
-    "evidence_reference": "cde-distributed:immudb-1.11.0:control-plane:20260902"
+    "evidence_reference": "cdeadmin-immudb-exact-live:1.11.0:20260910"
   },
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
@@ -59,6 +59,13 @@
     "protocol": "postgresql_wire_plus_native_rest",
     "client_state": "psycopg_3.3.4_installed",
     "runtime_state": "exact_runtime_verified",
-    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence"
+    "activation_gate": "passed_exact_dialect_metrics_object_and_control_plane_evidence",
+    "dialect_contract": "immudb.dialect.1.11.0.v1",
+    "metrics_contract": "immudb.metrics.1.11.0.v1",
+    "live_evidence_reference": "cdeadmin-immudb-exact-live:1.11.0:20260910",
+    "control_plane_evidence_sha256": "8efbb076b77f501f042d5150806834eebf39c43770cc4164a6c7133be2731aa5",
+    "object_evidence_sha256": "bac31510a95dacf96341f9f4dce61a9d7dc2e5dfc16493c5539d7d937061792a",
+    "strict_object_evidence_sha256": "361ddd58cb78e5b94adb781275f522153a959bc3718117e8a7e89411a6af2b92",
+    "conditional_history_truncation_gate": "passed_exact_server_retention_precondition"
   }
 }

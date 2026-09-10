@@ -12,10 +12,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -380,6 +383,25 @@ class CassandraProviderTests(unittest.TestCase):
             ):
                 adapter.open_session({'route': value})
 
+    def test_jmx_password_auth_requires_separate_typed_reference(self):
+        adapter, _factory = client()
+        for value in (
+            route(jmx_auth_mode='password'),
+            route(jmx_auth_mode='password', jmx_username='operator'),
+        ):
+            with self.assertRaisesRegex(
+                CassandraClientError, 'JMX password authentication requires'
+            ):
+                adapter._route({'route': value})
+        normalized = adapter._route({'route': route(
+            jmx_auth_mode='password', jmx_username='operator',
+            credential_references={'jmx_password': 'jmx-secret'},
+        )})
+        self.assertEqual('operator', normalized['jmx_username'])
+        self.assertEqual(
+            'jmx-secret', normalized['credential_references']['jmx_password']
+        )
+
     def test_route_rejects_uri_unknown_fields_and_old_protocol(self):
         adapter, _factory = client()
         for value in (
@@ -548,6 +570,115 @@ class CassandraProviderTests(unittest.TestCase):
             'provider_tool'
         ])
         self.assertEqual([], plan['command_preview']['statements'])
+
+    def test_nodetool_uses_private_jmx_password_file(self):
+        calls = []
+        leases = []
+
+        def acquire(reference, _principal, purpose, kind):
+            self.assertEqual('jmx-secret', reference)
+            self.assertEqual('provider_tool_jmx', purpose)
+            self.assertEqual('jmx_password', kind)
+            lease = SecretLease(b'jmx-private')
+            leases.append(lease)
+            return lease
+
+        class Runner:
+            def run(self, grant, arguments, **options):
+                calls.append((grant, arguments, options))
+                return {'return_code': 0, 'stdout': '', 'stderr': ''}
+
+        adapter, _factory = client(acquire)
+        adapter._tool_runner = Runner()
+        result = adapter.apply_admin_operation({'provider_payload': {
+            'resource_kind': 'snapshot', 'operation_id': 'execute',
+            'draft': {'action': 'snapshot', 'arguments': {
+                'name': 'qualification', 'keyspace': 'qualification',
+            }},
+            'native': {}, '_provider_route': route(
+                tool_workspace='/tmp/cdeadmin-tools', jmx_port=7199,
+                jmx_auth_mode='password', jmx_username='operator',
+                credential_references={'jmx_password': 'jmx-secret'},
+                principal_reference='principal-one',
+            ),
+        }})
+        self.assertTrue(result['tool_result']['acknowledged'])
+        _grant, arguments, options = calls[0]
+        self.assertEqual(['-u', 'operator'], arguments[:2])
+        self.assertEqual(
+            b'operator jmx-private\n', options['secret_config']
+        )
+        self.assertEqual(
+            ('-pwf', '{path}'), options['secret_argument']
+        )
+        self.assertEqual(0, options['secret_argument_position'])
+        self.assertTrue(leases[0].closed)
+        self.assertEqual({0}, set(leases[0].value))
+
+    def test_sstableloader_uses_leased_environment_auth_provider(self):
+        calls = []
+        leases = []
+
+        def acquire(reference, _principal, purpose, kind):
+            self.assertEqual('database-secret', reference)
+            self.assertEqual('provider_tool', purpose)
+            self.assertEqual('database_password', kind)
+            lease = SecretLease(b'sstable-private')
+            leases.append(lease)
+            return lease
+
+        class Runner:
+            def run(self, grant, arguments, **options):
+                calls.append((grant, arguments, options))
+                return {'return_code': 0, 'stdout': '', 'stderr': ''}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            auth_jar = root / 'cdeadmin-auth.jar'
+            auth_jar.write_bytes(b'qualification-jar')
+            (root / 'qualification' / 'widgets').mkdir(parents=True)
+            with patch.dict(os.environ, {
+                'CDEADMIN_CASSANDRA_AUTH_PROVIDER_JAR': str(auth_jar),
+            }):
+                adapter, _factory = client(acquire)
+                adapter._tool_runner = Runner()
+                result = adapter.apply_admin_operation({
+                    'provider_payload': {
+                        'resource_kind': 'restore',
+                        'operation_id': 'execute',
+                        'draft': {
+                            'action': 'sstableloader',
+                            'arguments': {
+                                'path': 'qualification/widgets',
+                            },
+                        },
+                        'native': {},
+                        '_provider_route': route(
+                            tool_workspace=str(root), username='operator',
+                            auth_mode='password',
+                            credential_references={
+                                'database_password': 'database-secret',
+                            },
+                            principal_reference='principal-one',
+                        ),
+                    },
+                })
+        self.assertTrue(result['tool_result']['acknowledged'])
+        _grant, arguments, options = calls[0]
+        self.assertEqual('-ap', arguments[0])
+        self.assertEqual(
+            'org.cdeadmin.cassandra.CDEadminEnvironmentAuthProvider',
+            arguments[1],
+        )
+        self.assertIn('-p', arguments)
+        self.assertNotIn('sstable-private', arguments)
+        self.assertEqual({
+            'CDEADMIN_CASSANDRA_TOOL_USERNAME': 'operator',
+            'CDEADMIN_CASSANDRA_TOOL_PASSWORD': 'sstable-private',
+            'EXTRA_CLASSPATH': str(auth_jar),
+        }, options['secret_environment'])
+        self.assertTrue(leases[0].closed)
+        self.assertEqual({0}, set(leases[0].value))
 
     def test_cqlsh_tls_command_cannot_downgrade_to_plaintext(self):
         adapter, _factory = client()

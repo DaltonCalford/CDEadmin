@@ -907,15 +907,14 @@ class Neo4jProviderTests(unittest.TestCase):
         self.assertTrue(manifest['production_registration'])
         self.assertEqual('experimental', manifest['support_state'])
         self.assertEqual(
-            'blocked_pending_exact_contract_and_ui_evidence',
-            manifest['provenance']['activation_gate'],
+            'passed', manifest['provenance']['activation_gate']
         )
         self.assertEqual(
             '11_of_11_concepts_and_31_of_31_operations_live',
             manifest['provenance']['object_experience_state'],
         )
         self.assertEqual(
-            'cde-neo4j-object-live:neo4j-2026.04.0-full:20260904',
+            'cdeadmin-neo4j-full-live:2026.04.0:20260909',
             manifest['provenance']['live_evidence_reference'],
         )
 

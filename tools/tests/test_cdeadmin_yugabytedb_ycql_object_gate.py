@@ -55,9 +55,43 @@ class YugabyteDBYCQLObjectGateTests(unittest.TestCase):
                 'materialized_views': {
                     'status': 'passed', 'operations': {},
                 },
-                'replication_and_compaction': {
+                'indexes': {'status': 'passed', 'operations': {
+                    'index': ['inspect', 'create', 'drop'],
+                }},
+                'roles_and_permissions': {
+                    'status': 'passed', 'operations': {
+                        'role': [
+                            'inspect', 'create', 'alter', 'grant', 'revoke',
+                            'drop',
+                        ],
+                        'permission': ['inspect', 'grant', 'revoke'],
+                    },
+                },
+                'replication': {
                     'status': 'passed', 'operations': {},
                 },
+                'compaction': {
+                    'status': 'passed', 'operations': {},
+                },
+                'topology': {'status': 'passed', 'operations': {
+                    'cluster': ['inspect'], 'datacenter': ['inspect'],
+                    'node': ['inspect'],
+                }},
+                'queries': {'status': 'passed', 'operations': {
+                    'query': ['inspect'],
+                }},
+                'tracing': {'status': 'passed', 'operations': {
+                    'tracing-session': ['inspect'],
+                }},
+                'snapshots': {
+                    'status': 'passed', 'operations': {},
+                },
+                'backup_and_restore': {
+                    'status': 'passed', 'operations': {},
+                },
+                'shell': {'status': 'passed', 'operations': {
+                    'shell': ['inspect', 'execute'],
+                }},
             }},
         }
 

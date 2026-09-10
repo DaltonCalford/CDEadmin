@@ -63,12 +63,20 @@ ADMINISTRATIONS = {
 }
 
 
-def provider_catalogs(live_evidence_paths=()):
+def provider_catalogs(live_evidence_paths=(), engine_ids=None):
+    selected = set(engine_ids or ADMINISTRATIONS)
+    unknown = selected.difference(ADMINISTRATIONS)
+    if unknown:
+        raise ValueError(
+            'unknown distributed/hybrid relational engine: ' +
+            ', '.join(sorted(unknown))
+        )
     catalogs = {
         engine_id: enrich_engine_experience(
             administration.catalog(catalog_for_engine(engine_id))
         )
         for engine_id, administration in ADMINISTRATIONS.items()
+        if engine_id in selected
     }
     for evidence_path in live_evidence_paths:
         evidence, artifact = load_live_evidence(evidence_path)
@@ -78,6 +86,16 @@ def provider_catalogs(live_evidence_paths=()):
                 'live evidence is not for a distributed/hybrid relational '
                 f'engine: {engine_id}'
             )
+        # A provider may publish one cryptographically bound live document for
+        # several native models. Retain only families declared by the selected
+        # provider catalog and leave unrelated families to their own gates.
+        evidence = copy.deepcopy(evidence)
+        evidence['concepts'] = {
+            family_id: family
+            for family_id, family in evidence.get('concepts', {}).items()
+            if family_id in catalogs[engine_id].get(
+                'concept_declarations', {})
+        }
         catalogs[engine_id] = enrich_engine_experience(
             apply_live_evidence(
                 catalogs[engine_id], evidence, artifact=artifact,
@@ -86,12 +104,12 @@ def provider_catalogs(live_evidence_paths=()):
     return catalogs
 
 
-def audit(live_evidence_paths=()):
+def audit(live_evidence_paths=(), engine_ids=None):
     engines = {}
     structural_failures = []
     live_failures = []
     for engine_id, catalog in sorted(
-            provider_catalogs(live_evidence_paths).items()):
+            provider_catalogs(live_evidence_paths, engine_ids).items()):
         coverage = copy.deepcopy(catalog['concept_coverage'])
         if not coverage['declaration_ready']:
             structural_failures.append(engine_id)
@@ -118,8 +136,12 @@ def main(argv=None):
         '--live-evidence', type=Path, action='append', default=[],
         help='Provider-generated exact object-operation evidence artifact.',
     )
+    parser.add_argument(
+        '--engine', action='append', choices=sorted(ADMINISTRATIONS),
+        help='Gate only the selected engine; may be repeated.',
+    )
     options = parser.parse_args(argv)
-    result = audit(options.live_evidence)
+    result = audit(options.live_evidence, options.engine)
     document = json.dumps(result, indent=2, sort_keys=True) + '\n'
     if options.output:
         options.output.parent.mkdir(parents=True, exist_ok=True)

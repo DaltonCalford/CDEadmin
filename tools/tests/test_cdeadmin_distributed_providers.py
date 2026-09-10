@@ -644,6 +644,60 @@ class DistributedProviderTests(unittest.TestCase):
         )
         self.assertNotIn('provider_action', table_placement)
 
+        table_compaction = compile_yugabytedb_action({
+            'resource_kind': 'table',
+            'operation_id': 'compact',
+            'target_resource': {
+                'resource_id': 'table:public:orders',
+                'display_path': ['public', 'orders'],
+                'native': {'table_id': 'd' * 32},
+            },
+            'draft': {
+                'timeout_seconds': 45,
+                'include_indexes': False,
+                'include_vector_indexes': True,
+            },
+        })
+        self.assertEqual([
+            'compact_table_by_id', 'd' * 32, '45',
+            'ADD_VECTOR_INDEXES',
+        ], table_compaction['provider_action']['arguments'])
+        self.assertEqual('resource', table_compaction['impact']['scope'])
+
+        ycql_compaction = compile_yugabytedb_action({
+            'resource_kind': 'table',
+            'operation_id': 'compact',
+            'target_resource': {
+                'resource_id': 'table:application:orders',
+                'display_path': ['application', 'orders'],
+                'native': {
+                    'keyspace_name': 'application',
+                    'table_name': 'orders',
+                },
+            },
+            'draft': {
+                'timeout_seconds': 20,
+                'include_indexes': True,
+                'include_vector_indexes': False,
+            },
+        })
+        self.assertEqual([
+            'compact_table', 'ycql.application', 'orders', '20',
+            'ADD_INDEXES',
+        ], ycql_compaction['provider_action']['arguments'])
+
+        with self.assertRaisesRegex(
+                RelationalClientError, 'ADD_INDEXES.*only for YCQL'):
+            compile_yugabytedb_action({
+                'resource_kind': 'table', 'operation_id': 'compact',
+                '_provider_route': {'database': 'application'},
+                'target_resource': {
+                    'resource_id': 'table:public:orders',
+                    'display_path': ['public', 'orders'],
+                },
+                'draft': {'timeout_seconds': 20, 'include_indexes': True},
+            })
+
     @patch(
         'pgadmin.cdeadmin.providers.yugabytedb.control_plane._run'
     )
@@ -1958,6 +2012,23 @@ class DistributedProviderTests(unittest.TestCase):
             'secret-canary', runner.call_args.kwargs['env']['TICDC_PASSWORD']
         )
         self.assertEqual('[]', response['stdout'])
+
+    def test_tidb_sql_user_is_not_reused_as_ticdc_principal(self):
+        route = {
+            'user': 'sql-root',
+            'ticdc_path': '/bin/true',
+            'ticdc_server': 'http://127.0.0.1:8300',
+        }
+        version = SimpleNamespace(
+            returncode=0, stdout='Release Version: v8.5.6\n', stderr=''
+        )
+        result = SimpleNamespace(returncode=0, stdout='[]', stderr='')
+        with patch(
+            'pgadmin.cdeadmin.providers.tidb.provider.subprocess.run',
+            side_effect=[version, result],
+        ) as runner:
+            run_tidb_cdc(route, ['cli', 'changefeed', 'list'])
+        self.assertNotIn('--user', runner.call_args.args[0])
 
     def test_tidb_ticdc_password_is_leased_only_for_provider_tool(self):
         acquisitions = []

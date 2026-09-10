@@ -1,0 +1,1811 @@
+{
+  "collection_authority": "TiDB 8.5.6 native Prometheus endpoint",
+  "completeness": {
+    "admitted_metric_count": 359,
+    "observation_count": 359,
+    "prometheus_help_type_catalog_exhausted": true,
+    "runtime_version": "8.5.6"
+  },
+  "endpoint_selection": "Every series having native HELP and TYPE declarations.",
+  "engine_id": "tidb",
+  "inventory_id": "tidb.metrics-inventory.8.5.6.v1",
+  "observations": [
+    {
+      "description": "Backup region latency distributions.",
+      "native_name": "br_raw_backup_region_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Count of calls made from Go to C by the current process. Sourced from /cgo/go-to-c-calls:calls.",
+      "native_name": "go_cgo_go_to_c_calls_calls_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time goroutines spent performing GC tasks to assist the GC and prevent it from falling behind the application. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/gc/mark/assist:cpu-seconds.",
+      "native_name": "go_cpu_classes_gc_mark_assist_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent performing GC tasks on processors (as defined by GOMAXPROCS) dedicated to those tasks. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/gc/mark/dedicated:cpu-seconds.",
+      "native_name": "go_cpu_classes_gc_mark_dedicated_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent performing GC tasks on spare CPU resources that the Go scheduler could not otherwise find a use for. This should be subtracted from the total GC CPU time to obtain a measure of compulsory GC CPU time. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/gc/mark/idle:cpu-seconds.",
+      "native_name": "go_cpu_classes_gc_mark_idle_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent with the application paused by the GC. Even if only one thread is running during the pause, this is computed as GOMAXPROCS times the pause latency because nothing else can be executing. This is the exact sum of samples in /sched/pauses/total/gc:seconds if each sample is multiplied by GOMAXPROCS at the time it is taken. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/gc/pause:cpu-seconds.",
+      "native_name": "go_cpu_classes_gc_pause_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent performing GC tasks. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sum of all metrics in /cpu/classes/gc. Sourced from /cpu/classes/gc/total:cpu-seconds.",
+      "native_name": "go_cpu_classes_gc_total_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total available CPU time not spent executing any Go or Go runtime code. In other words, the part of /cpu/classes/total:cpu-seconds that was unused. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/idle:cpu-seconds.",
+      "native_name": "go_cpu_classes_idle_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent returning unused memory to the underlying platform in response eagerly in response to memory pressure. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/scavenge/assist:cpu-seconds.",
+      "native_name": "go_cpu_classes_scavenge_assist_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent performing background tasks to return unused memory to the underlying platform. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/scavenge/background:cpu-seconds.",
+      "native_name": "go_cpu_classes_scavenge_background_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent performing tasks that return unused memory to the underlying platform. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sum of all metrics in /cpu/classes/scavenge. Sourced from /cpu/classes/scavenge/total:cpu-seconds.",
+      "native_name": "go_cpu_classes_scavenge_total_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total available CPU time for user Go code or the Go runtime, as defined by GOMAXPROCS. In other words, GOMAXPROCS integrated over the wall-clock duration this process has been executing for. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sum of all metrics in /cpu/classes. Sourced from /cpu/classes/total:cpu-seconds.",
+      "native_name": "go_cpu_classes_total_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated total CPU time spent running user Go code. This may also include some small amount of time spent in the Go runtime. This metric is an overestimate, and not directly comparable to system CPU time measurements. Compare only with other /cpu/classes metrics. Sourced from /cpu/classes/user:cpu-seconds.",
+      "native_name": "go_cpu_classes_user_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Count of completed GC cycles generated by the Go runtime. Sourced from /gc/cycles/automatic:gc-cycles.",
+      "native_name": "go_gc_cycles_automatic_gc_cycles_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Count of completed GC cycles forced by the application. Sourced from /gc/cycles/forced:gc-cycles.",
+      "native_name": "go_gc_cycles_forced_gc_cycles_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Count of all completed GC cycles. Sourced from /gc/cycles/total:gc-cycles.",
+      "native_name": "go_gc_cycles_total_gc_cycles_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.",
+      "native_name": "go_gc_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.",
+      "native_name": "go_gc_gogc_percent",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.",
+      "native_name": "go_gc_gomemlimit_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Distribution of heap allocations by approximate size. Bucket counts increase monotonically. Note that this does not include tiny objects as defined by /gc/heap/tiny/allocs:objects, only tiny blocks. Sourced from /gc/heap/allocs-by-size:bytes.",
+      "native_name": "go_gc_heap_allocs_by_size_bytes",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Cumulative sum of memory allocated to the heap by the application. Sourced from /gc/heap/allocs:bytes.",
+      "native_name": "go_gc_heap_allocs_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Cumulative count of heap allocations triggered by the application. Note that this does not include tiny objects as defined by /gc/heap/tiny/allocs:objects, only tiny blocks. Sourced from /gc/heap/allocs:objects.",
+      "native_name": "go_gc_heap_allocs_objects_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Distribution of freed heap allocations by approximate size. Bucket counts increase monotonically. Note that this does not include tiny objects as defined by /gc/heap/tiny/allocs:objects, only tiny blocks. Sourced from /gc/heap/frees-by-size:bytes.",
+      "native_name": "go_gc_heap_frees_by_size_bytes",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Cumulative sum of heap memory freed by the garbage collector. Sourced from /gc/heap/frees:bytes.",
+      "native_name": "go_gc_heap_frees_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Cumulative count of heap allocations whose storage was freed by the garbage collector. Note that this does not include tiny objects as defined by /gc/heap/tiny/allocs:objects, only tiny blocks. Sourced from /gc/heap/frees:objects.",
+      "native_name": "go_gc_heap_frees_objects_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Heap size target for the end of the GC cycle. Sourced from /gc/heap/goal:bytes.",
+      "native_name": "go_gc_heap_goal_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Heap memory occupied by live objects that were marked by the previous GC. Sourced from /gc/heap/live:bytes.",
+      "native_name": "go_gc_heap_live_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of objects, live or unswept, occupying heap memory. Sourced from /gc/heap/objects:objects.",
+      "native_name": "go_gc_heap_objects_objects",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Count of small allocations that are packed together into blocks. These allocations are counted separately from other allocations because each individual allocation is not tracked by the runtime, only their block. Each block is already accounted for in allocs-by-size and frees-by-size. Sourced from /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_gc_heap_tiny_allocs_objects_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "GC cycle the last time the GC CPU limiter was enabled. This metric is useful for diagnosing the root cause of an out-of-memory error, because the limiter trades memory for CPU time when the GC's CPU time gets too high. This is most likely to occur with use of SetMemoryLimit. The first GC cycle is cycle 1, so a value of 0 indicates that it was never enabled. Sourced from /gc/limiter/last-enabled:gc-cycle.",
+      "native_name": "go_gc_limiter_last_enabled_gc_cycle",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Deprecated. Prefer the identical /sched/pauses/total/gc:seconds. Sourced from /gc/pauses:seconds.",
+      "native_name": "go_gc_pauses_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The total amount of global variable space that is scannable. Sourced from /gc/scan/globals:bytes.",
+      "native_name": "go_gc_scan_globals_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The total amount of heap space that is scannable. Sourced from /gc/scan/heap:bytes.",
+      "native_name": "go_gc_scan_heap_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The number of bytes of stack that were scanned last GC cycle. Sourced from /gc/scan/stack:bytes.",
+      "native_name": "go_gc_scan_stack_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The total amount space that is scannable. Sum of all metrics in /gc/scan. Sourced from /gc/scan/total:bytes.",
+      "native_name": "go_gc_scan_total_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The stack size of new goroutines. Sourced from /gc/stack/starting-size:bytes.",
+      "native_name": "go_gc_stack_starting_size_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=allowmultiplevcs=... setting. Sourced from /godebug/non-default-behavior/allowmultiplevcs:events.",
+      "native_name": "go_godebug_non_default_behavior_allowmultiplevcs_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the time package due to a non-default GODEBUG=asynctimerchan=... setting. Sourced from /godebug/non-default-behavior/asynctimerchan:events.",
+      "native_name": "go_godebug_non_default_behavior_asynctimerchan_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the runtime package due to a non-default GODEBUG=containermaxprocs=... setting. Sourced from /godebug/non-default-behavior/containermaxprocs:events.",
+      "native_name": "go_godebug_non_default_behavior_containermaxprocs_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=embedfollowsymlinks=... setting. Sourced from /godebug/non-default-behavior/embedfollowsymlinks:events.",
+      "native_name": "go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the os/exec package due to a non-default GODEBUG=execerrdot=... setting. Sourced from /godebug/non-default-behavior/execerrdot:events.",
+      "native_name": "go_godebug_non_default_behavior_execerrdot_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=gocachehash=... setting. Sourced from /godebug/non-default-behavior/gocachehash:events.",
+      "native_name": "go_godebug_non_default_behavior_gocachehash_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=gocachetest=... setting. Sourced from /godebug/non-default-behavior/gocachetest:events.",
+      "native_name": "go_godebug_non_default_behavior_gocachetest_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=gocacheverify=... setting. Sourced from /godebug/non-default-behavior/gocacheverify:events.",
+      "native_name": "go_godebug_non_default_behavior_gocacheverify_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the cmd/go package due to a non-default GODEBUG=gotestjsonbuildtext=... setting. Sourced from /godebug/non-default-behavior/gotestjsonbuildtext:events.",
+      "native_name": "go_godebug_non_default_behavior_gotestjsonbuildtext_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the go/types package due to a non-default GODEBUG=gotypesalias=... setting. Sourced from /godebug/non-default-behavior/gotypesalias:events.",
+      "native_name": "go_godebug_non_default_behavior_gotypesalias_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the html/template package due to a non-default GODEBUG=htmlmetacontenturlescape=... setting. Sourced from /godebug/non-default-behavior/htmlmetacontenturlescape:events.",
+      "native_name": "go_godebug_non_default_behavior_htmlmetacontenturlescape_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=http2client=... setting. Sourced from /godebug/non-default-behavior/http2client:events.",
+      "native_name": "go_godebug_non_default_behavior_http2client_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=http2server=... setting. Sourced from /godebug/non-default-behavior/http2server:events.",
+      "native_name": "go_godebug_non_default_behavior_http2server_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=httpcookiemaxnum=... setting. Sourced from /godebug/non-default-behavior/httpcookiemaxnum:events.",
+      "native_name": "go_godebug_non_default_behavior_httpcookiemaxnum_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=httplaxcontentlength=... setting. Sourced from /godebug/non-default-behavior/httplaxcontentlength:events.",
+      "native_name": "go_godebug_non_default_behavior_httplaxcontentlength_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=httpmuxgo121=... setting. Sourced from /godebug/non-default-behavior/httpmuxgo121:events.",
+      "native_name": "go_godebug_non_default_behavior_httpmuxgo121_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/http package due to a non-default GODEBUG=httpservecontentkeepheaders=... setting. Sourced from /godebug/non-default-behavior/httpservecontentkeepheaders:events.",
+      "native_name": "go_godebug_non_default_behavior_httpservecontentkeepheaders_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the go/build package due to a non-default GODEBUG=installgoroot=... setting. Sourced from /godebug/non-default-behavior/installgoroot:events.",
+      "native_name": "go_godebug_non_default_behavior_installgoroot_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the mime/multipart package due to a non-default GODEBUG=multipartmaxheaders=... setting. Sourced from /godebug/non-default-behavior/multipartmaxheaders:events.",
+      "native_name": "go_godebug_non_default_behavior_multipartmaxheaders_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the mime/multipart package due to a non-default GODEBUG=multipartmaxparts=... setting. Sourced from /godebug/non-default-behavior/multipartmaxparts:events.",
+      "native_name": "go_godebug_non_default_behavior_multipartmaxparts_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net package due to a non-default GODEBUG=multipathtcp=... setting. Sourced from /godebug/non-default-behavior/multipathtcp:events.",
+      "native_name": "go_godebug_non_default_behavior_multipathtcp_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net package due to a non-default GODEBUG=netedns0=... setting. Sourced from /godebug/non-default-behavior/netedns0:events.",
+      "native_name": "go_godebug_non_default_behavior_netedns0_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the runtime package due to a non-default GODEBUG=panicnil=... setting. Sourced from /godebug/non-default-behavior/panicnil:events.",
+      "native_name": "go_godebug_non_default_behavior_panicnil_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the math/rand package due to a non-default GODEBUG=randautoseed=... setting. Sourced from /godebug/non-default-behavior/randautoseed:events.",
+      "native_name": "go_godebug_non_default_behavior_randautoseed_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the math/rand package due to a non-default GODEBUG=randseednop=... setting. Sourced from /godebug/non-default-behavior/randseednop:events.",
+      "native_name": "go_godebug_non_default_behavior_randseednop_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/rsa package due to a non-default GODEBUG=rsa1024min=... setting. Sourced from /godebug/non-default-behavior/rsa1024min:events.",
+      "native_name": "go_godebug_non_default_behavior_rsa1024min_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the archive/tar package due to a non-default GODEBUG=tarinsecurepath=... setting. Sourced from /godebug/non-default-behavior/tarinsecurepath:events.",
+      "native_name": "go_godebug_non_default_behavior_tarinsecurepath_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tls10server=... setting. Sourced from /godebug/non-default-behavior/tls10server:events.",
+      "native_name": "go_godebug_non_default_behavior_tls10server_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tls3des=... setting. Sourced from /godebug/non-default-behavior/tls3des:events.",
+      "native_name": "go_godebug_non_default_behavior_tls3des_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tlsmaxrsasize=... setting. Sourced from /godebug/non-default-behavior/tlsmaxrsasize:events.",
+      "native_name": "go_godebug_non_default_behavior_tlsmaxrsasize_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tlsrsakex=... setting. Sourced from /godebug/non-default-behavior/tlsrsakex:events.",
+      "native_name": "go_godebug_non_default_behavior_tlsrsakex_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tlssha1=... setting. Sourced from /godebug/non-default-behavior/tlssha1:events.",
+      "native_name": "go_godebug_non_default_behavior_tlssha1_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=tlsunsafeekm=... setting. Sourced from /godebug/non-default-behavior/tlsunsafeekm:events.",
+      "native_name": "go_godebug_non_default_behavior_tlsunsafeekm_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the runtime package due to a non-default GODEBUG=updatemaxprocs=... setting. Sourced from /godebug/non-default-behavior/updatemaxprocs:events.",
+      "native_name": "go_godebug_non_default_behavior_updatemaxprocs_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the net/url package due to a non-default GODEBUG=urlmaxqueryparams=... setting. Sourced from /godebug/non-default-behavior/urlmaxqueryparams:events.",
+      "native_name": "go_godebug_non_default_behavior_urlmaxqueryparams_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the os package due to a non-default GODEBUG=winreadlinkvolume=... setting. Sourced from /godebug/non-default-behavior/winreadlinkvolume:events.",
+      "native_name": "go_godebug_non_default_behavior_winreadlinkvolume_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the os package due to a non-default GODEBUG=winsymlink=... setting. Sourced from /godebug/non-default-behavior/winsymlink:events.",
+      "native_name": "go_godebug_non_default_behavior_winsymlink_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/tls package due to a non-default GODEBUG=x509keypairleaf=... setting. Sourced from /godebug/non-default-behavior/x509keypairleaf:events.",
+      "native_name": "go_godebug_non_default_behavior_x509keypairleaf_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/x509 package due to a non-default GODEBUG=x509negativeserial=... setting. Sourced from /godebug/non-default-behavior/x509negativeserial:events.",
+      "native_name": "go_godebug_non_default_behavior_x509negativeserial_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/x509 package due to a non-default GODEBUG=x509rsacrt=... setting. Sourced from /godebug/non-default-behavior/x509rsacrt:events.",
+      "native_name": "go_godebug_non_default_behavior_x509rsacrt_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/x509 package due to a non-default GODEBUG=x509sha256skid=... setting. Sourced from /godebug/non-default-behavior/x509sha256skid:events.",
+      "native_name": "go_godebug_non_default_behavior_x509sha256skid_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/x509 package due to a non-default GODEBUG=x509usefallbackroots=... setting. Sourced from /godebug/non-default-behavior/x509usefallbackroots:events.",
+      "native_name": "go_godebug_non_default_behavior_x509usefallbackroots_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the crypto/x509 package due to a non-default GODEBUG=x509usepolicies=... setting. Sourced from /godebug/non-default-behavior/x509usepolicies:events.",
+      "native_name": "go_godebug_non_default_behavior_x509usepolicies_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of non-default behaviors executed by the archive/zip package due to a non-default GODEBUG=zipinsecurepath=... setting. Sourced from /godebug/non-default-behavior/zipinsecurepath:events.",
+      "native_name": "go_godebug_non_default_behavior_zipinsecurepath_events_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of goroutines that currently exist.",
+      "native_name": "go_goroutines",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Information about the Go environment.",
+      "native_name": "go_info",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is completely free and eligible to be returned to the underlying system, but has not been. This metric is the runtime's estimate of free address space that is backed by physical memory. Sourced from /memory/classes/heap/free:bytes.",
+      "native_name": "go_memory_classes_heap_free_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory occupied by live objects and dead objects that have not yet been marked free by the garbage collector. Sourced from /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memory_classes_heap_objects_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is completely free and has been returned to the underlying system. This metric is the runtime's estimate of free address space that is still mapped into the process, but is not backed by physical memory. Sourced from /memory/classes/heap/released:bytes.",
+      "native_name": "go_memory_classes_heap_released_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory allocated from the heap that is reserved for stack space, whether or not it is currently in-use. Currently, this represents all stack memory for goroutines. It also includes all OS thread stacks in non-cgo programs. Note that stacks may be allocated differently in the future, and this may change. Sourced from /memory/classes/heap/stacks:bytes.",
+      "native_name": "go_memory_classes_heap_stacks_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is reserved for heap objects but is not currently used to hold heap objects. Sourced from /memory/classes/heap/unused:bytes.",
+      "native_name": "go_memory_classes_heap_unused_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is reserved for runtime mcache structures, but not in-use. Sourced from /memory/classes/metadata/mcache/free:bytes.",
+      "native_name": "go_memory_classes_metadata_mcache_free_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is occupied by runtime mcache structures that are currently being used. Sourced from /memory/classes/metadata/mcache/inuse:bytes.",
+      "native_name": "go_memory_classes_metadata_mcache_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is reserved for runtime mspan structures, but not in-use. Sourced from /memory/classes/metadata/mspan/free:bytes.",
+      "native_name": "go_memory_classes_metadata_mspan_free_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is occupied by runtime mspan structures that are currently being used. Sourced from /memory/classes/metadata/mspan/inuse:bytes.",
+      "native_name": "go_memory_classes_metadata_mspan_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is reserved for or used to hold runtime metadata. Sourced from /memory/classes/metadata/other:bytes.",
+      "native_name": "go_memory_classes_metadata_other_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Stack memory allocated by the underlying operating system. In non-cgo programs this metric is currently zero. This may change in the future.In cgo programs this metric includes OS thread stacks allocated directly from the OS. Currently, this only accounts for one stack in c-shared and c-archive build modes, and other sources of stacks from the OS are not measured. This too may change in the future. Sourced from /memory/classes/os-stacks:bytes.",
+      "native_name": "go_memory_classes_os_stacks_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory used by execution trace buffers, structures for debugging the runtime, finalizer and profiler specials, and more. Sourced from /memory/classes/other:bytes.",
+      "native_name": "go_memory_classes_other_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory that is used by the stack trace hash map used for profiling. Sourced from /memory/classes/profiling/buckets:bytes.",
+      "native_name": "go_memory_classes_profiling_buckets_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "All memory mapped by the Go runtime into the current process as read-write. Note that this does not include memory mapped by code called via cgo or via the syscall package. Sum of all metrics in /memory/classes. Sourced from /memory/classes/total:bytes.",
+      "native_name": "go_memory_classes_total_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.",
+      "native_name": "go_memstats_alloc_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.",
+      "native_name": "go_memstats_buck_hash_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_frees_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.",
+      "native_name": "go_memstats_gc_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.",
+      "native_name": "go_memstats_heap_alloc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_idle_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes",
+      "native_name": "go_memstats_heap_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of currently allocated objects. Equals to /gc/heap/objects:objects.",
+      "native_name": "go_memstats_heap_objects",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.",
+      "native_name": "go_memstats_heap_released_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.",
+      "native_name": "go_memstats_heap_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of seconds since 1970 of last garbage collection.",
+      "native_name": "go_memstats_last_gc_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.",
+      "native_name": "go_memstats_mallocs_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.",
+      "native_name": "go_memstats_mcache_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.",
+      "native_name": "go_memstats_mcache_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.",
+      "native_name": "go_memstats_mspan_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.",
+      "native_name": "go_memstats_mspan_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.",
+      "native_name": "go_memstats_next_gc_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.",
+      "native_name": "go_memstats_other_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.",
+      "native_name": "go_memstats_stack_inuse_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.",
+      "native_name": "go_memstats_stack_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes obtained from system. Equals to /memory/classes/total:byte.",
+      "native_name": "go_memstats_sys_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.",
+      "native_name": "go_sched_gomaxprocs_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Count of live goroutines. Sourced from /sched/goroutines:goroutines.",
+      "native_name": "go_sched_goroutines_goroutines",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Distribution of the time goroutines have spent in the scheduler in a runnable state before actually running. Bucket counts increase monotonically. Sourced from /sched/latencies:seconds.",
+      "native_name": "go_sched_latencies_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Distribution of individual GC-related stop-the-world stopping latencies. This is the time it takes from deciding to stop the world until all Ps are stopped. This is a subset of the total GC-related stop-the-world time (/sched/pauses/total/gc:seconds). During this time, some threads may be executing. Bucket counts increase monotonically. Sourced from /sched/pauses/stopping/gc:seconds.",
+      "native_name": "go_sched_pauses_stopping_gc_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Distribution of individual non-GC-related stop-the-world stopping latencies. This is the time it takes from deciding to stop the world until all Ps are stopped. This is a subset of the total non-GC-related stop-the-world time (/sched/pauses/total/other:seconds). During this time, some threads may be executing. Bucket counts increase monotonically. Sourced from /sched/pauses/stopping/other:seconds.",
+      "native_name": "go_sched_pauses_stopping_other_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Distribution of individual GC-related stop-the-world pause latencies. This is the time from deciding to stop the world until the world is started again. Some of this time is spent getting all threads to stop (this is measured directly in /sched/pauses/stopping/gc:seconds), during which some threads may still be running. Bucket counts increase monotonically. Sourced from /sched/pauses/total/gc:seconds.",
+      "native_name": "go_sched_pauses_total_gc_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Distribution of individual non-GC-related stop-the-world pause latencies. This is the time from deciding to stop the world until the world is started again. Some of this time is spent getting all threads to stop (measured directly in /sched/pauses/stopping/other:seconds). Bucket counts increase monotonically. Sourced from /sched/pauses/total/other:seconds.",
+      "native_name": "go_sched_pauses_total_other_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Approximate cumulative time goroutines have spent blocked on a sync.Mutex, sync.RWMutex, or runtime-internal lock. This metric is useful for identifying global changes in lock contention. Collect a mutex or block profile using the runtime/pprof package for more detailed contention data. Sourced from /sync/mutex/wait/total:seconds.",
+      "native_name": "go_sync_mutex_wait_total_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of OS threads created.",
+      "native_name": "go_threads",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled success cmds.",
+      "native_name": "pd_client_cmd_handle_cmds_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of failed handled cmds.",
+      "native_name": "pd_client_cmd_handle_failed_cmds_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Circuit breaker counters",
+      "native_name": "pd_client_request_circuit_breaker_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Estimated latency of an RTT of getting TSO",
+      "native_name": "pd_client_request_estimate_tso_latency",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled requests.",
+      "native_name": "pd_client_request_handle_requests_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the batch size of handled requests.",
+      "native_name": "pd_client_request_handle_tso_batch_size",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the best batch size of handled requests.",
+      "native_name": "pd_client_request_handle_tso_best_batch_size",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "tso batch send latency",
+      "native_name": "pd_client_request_tso_batch_send_latency",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Total user and system CPU time spent in seconds.",
+      "native_name": "process_cpu_seconds_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Maximum number of open file descriptors.",
+      "native_name": "process_max_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Number of bytes received by the process over the network.",
+      "native_name": "process_network_receive_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bytes sent by the process over the network.",
+      "native_name": "process_network_transmit_bytes_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of open file descriptors.",
+      "native_name": "process_open_fds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Resident memory size in bytes.",
+      "native_name": "process_resident_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Start time of the process since unix epoch in seconds.",
+      "native_name": "process_start_time_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Virtual memory size in bytes.",
+      "native_name": "process_virtual_memory_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Maximum amount of virtual memory available in bytes.",
+      "native_name": "process_virtual_memory_max_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Current number of scrapes being served.",
+      "native_name": "promhttp_metric_handler_requests_in_flight",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Total number of scrapes by HTTP status code.",
+      "native_name": "promhttp_metric_handler_requests_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of failed request.",
+      "native_name": "resource_manager_client_request_fail",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of wait duration of failed request.",
+      "native_name": "resource_manager_client_request_limit_reserve_time_failed",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of retry time for request.",
+      "native_name": "resource_manager_client_request_retry",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of running kv request.",
+      "native_name": "resource_manager_client_request_running_kv_request",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of wait duration of successful request.",
+      "native_name": "resource_manager_client_request_success",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Status of the resource group.",
+      "native_name": "resource_manager_client_resource_group_status",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of token consume.",
+      "native_name": "resource_manager_client_token_request_consume",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of latency(s) of token request.",
+      "native_name": "resource_manager_client_token_request_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of low token request.",
+      "native_name": "resource_manager_client_token_request_low_token_notified",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of token request by every resource group.",
+      "native_name": "resource_manager_client_token_request_resource_group",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled autoid.",
+      "native_name": "tidb_autoid_operation_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Status of the TiDB server configurations.",
+      "native_name": "tidb_config_status",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of deploy syncer",
+      "native_name": "tidb_ddl_deploy_syncer_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of the 3 DDL job tables",
+      "native_name": "tidb_ddl_job_table_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of update self version",
+      "native_name": "tidb_ddl_update_self_ver_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of creating ddl/worker and isowner.",
+      "native_name": "tidb_ddl_worker_operation_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "coprocessor cache hit, evict and miss number",
+      "native_name": "tidb_distsql_copr_cache",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "counter of total copr read local read hit.",
+      "native_name": "tidb_distsql_copr_closest_read",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "copr task response data size in bytes.",
+      "native_name": "tidb_distsql_copr_resp_size",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled queries.",
+      "native_name": "tidb_distsql_handle_query_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "number of partial results for each query.",
+      "native_name": "tidb_distsql_partial_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "number of scanned keys for each query.",
+      "native_name": "tidb_distsql_scan_keys_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "number of scanned keys for each partial result.",
+      "native_name": "tidb_distsql_scan_keys_partial_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Gauge of used slots on a executor node.",
+      "native_name": "tidb_disttask_used_slots",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counters of infoCache: get/hit.",
+      "native_name": "tidb_domain_infocache_counters",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "infoschema cache v2 hit, evict and miss number",
+      "native_name": "tidb_domain_infoschema_v2_cache",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "infoschema cache v2 limit",
+      "native_name": "tidb_domain_infoschema_v2_cache_limit",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "infoschema cache v2 size",
+      "native_name": "tidb_domain_infoschema_v2_cache_size",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "When the last time the lease is expired, it is in seconds",
+      "native_name": "tidb_domain_lease_expire_time",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in load schema.",
+      "native_name": "tidb_domain_load_schema_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of load schema",
+      "native_name": "tidb_domain_load_schema_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of load sysvar cache",
+      "native_name": "tidb_domain_load_sysvarcache_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counters of server affected rows.",
+      "native_name": "tidb_executor_affected_rows",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of Expensive Executors.",
+      "native_name": "tidb_executor_expensive_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter for index lookup cop tasks",
+      "native_name": "tidb_executor_index_lookup_cop_task_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in running index-lookup executor.",
+      "native_name": "tidb_executor_index_lookup_execute_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Row number for each index lookup executor",
+      "native_name": "tidb_executor_index_lookup_row_number",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of index lookup push-down rows.",
+      "native_name": "tidb_executor_index_lookup_rows",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (ms) of mpp coordinator operations.",
+      "native_name": "tidb_executor_mpp_coordinator_latency",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Mpp Coordinator related stats",
+      "native_name": "tidb_executor_mpp_coordinator_stats",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of ongoing transactions.",
+      "native_name": "tidb_executor_ongoing_txn_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Summary of each execution phase duration.",
+      "native_name": "tidb_executor_phase_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Counter of StmtNode.",
+      "native_name": "tidb_executor_statement_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Gauge of active parallel upload worker count.",
+      "native_name": "tidb_global_sort_upload_worker_cnt",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "infoschema v2 TableByName API duration",
+      "native_name": "tidb_infoschema_table_by_name_duration_nanoseconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "If the node is the owner of advancers, set this to `1`, otherwise `0`.",
+      "native_name": "tidb_log_backup_advancer_owner",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The time cost of each step during advancer ticking.",
+      "native_name": "tidb_log_backup_advancer_tick_duration_sec",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of resetting autoid client connection.",
+      "native_name": "tidb_meta_autoid_client_conn_reset_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in parse SQL.",
+      "native_name": "tidb_meta_autoid_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of tidb meta data operations.",
+      "native_name": "tidb_meta_operation_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of system time jumps backward.",
+      "native_name": "tidb_monitor_time_jump_back_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of new session.",
+      "native_name": "tidb_owner_new_session_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "gauge of plan replayer registered task",
+      "native_name": "tidb_plan_replayer_register_task",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "counter of plan replayer captured task",
+      "native_name": "tidb_plan_replayer_task",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "exponential moving average of CPU usage",
+      "native_name": "tidb_rm_ema_cpu_usage",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of binding cache hit.",
+      "native_name": "tidb_server_binding_cache_hit_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Memory limit of binding cache.",
+      "native_name": "tidb_server_binding_cache_mem_limit",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Memory usage of binding cache.",
+      "native_name": "tidb_server_binding_cache_mem_usage",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of binding cache miss.",
+      "native_name": "tidb_server_binding_cache_miss_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Number of bindings in binding cache.",
+      "native_name": "tidb_server_binding_cache_num_bindings",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of connection idle time (s).",
+      "native_name": "tidb_server_conn_idle_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Number of connections.",
+      "native_name": "tidb_server_connections",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of cpu profiling",
+      "native_name": "tidb_server_cpu_profile_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of critical errors.",
+      "native_name": "tidb_server_critical_error_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of connections disconnected.",
+      "native_name": "tidb_server_disconnection_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of tidb-server event.",
+      "native_name": "tidb_server_event_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Duration (us) for getting token, it should be small until concurrency limit is reached.",
+      "native_name": "tidb_server_get_token_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The value of GOGC",
+      "native_name": "tidb_server_gogc",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled queries.",
+      "native_name": "tidb_server_handle_query_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of hand shake error.",
+      "native_name": "tidb_server_handshake_error_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Indicate the tidb server info, and the value is the start timestamp (s).",
+      "native_name": "tidb_server_info",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The total count of internal sessions.",
+      "native_name": "tidb_server_internal_sessions",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Duration (us) for loading table cache.",
+      "native_name": "tidb_server_load_table_cache_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The value of GOMAXPROCS.",
+      "native_name": "tidb_server_maxprocs",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The value of memory quota bytes.",
+      "native_name": "tidb_server_memory_quota_bytes",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The number of queries contained in a multi-query statement.",
+      "native_name": "tidb_server_multi_query_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counters of packet IO bytes.",
+      "native_name": "tidb_server_packet_io_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of all pd api execution time (s)",
+      "native_name": "tidb_server_pd_api_execution_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of the pd http api requests",
+      "native_name": "tidb_server_pd_api_request_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Total plan cache memory usage of all sessions in a instance",
+      "native_name": "tidb_server_plan_cache_instance_memory_usage",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of plan of all prepared plan cache in a instance",
+      "native_name": "tidb_server_plan_cache_instance_plan_num_total",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of plan cache miss.",
+      "native_name": "tidb_server_plan_cache_miss_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of query using plan cache.",
+      "native_name": "tidb_server_plan_cache_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "number of prepared statements.",
+      "native_name": "tidb_server_prepared_stmts",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of execution rpc count of handled query statements.",
+      "native_name": "tidb_server_query_statement_rpc_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of queries.",
+      "native_name": "tidb_server_query_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of WriteConflict caused by RCCheckTS.",
+      "native_name": "tidb_server_rc_check_ts_conflict_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of query read from table cache.",
+      "native_name": "tidb_server_read_from_tablecache_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of all cop processing time (s) of of slow queries.",
+      "native_name": "tidb_server_slow_query_cop_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of all cop total keys / processed keys in slow queries.",
+      "native_name": "tidb_server_slow_query_cop_mvcc_ratio",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of of slow queries.",
+      "native_name": "tidb_server_slow_query_process_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of all cop waiting time (s) of of slow queries.",
+      "native_name": "tidb_server_slow_query_wait_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Statues of failed tiflash mpp store,-1 means detector heartbeat,0 means reachable,1 means abnormal.",
+      "native_name": "tidb_server_tiflash_failed_store",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of TiFlash queries.",
+      "native_name": "tidb_server_tiflash_query_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of timer event.",
+      "native_name": "tidb_server_timer_event_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The number of concurrent executing session",
+      "native_name": "tidb_server_tokens",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of ttl event.",
+      "native_name": "tidb_server_ttl_event_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The count of TTL rows inserted",
+      "native_name": "tidb_server_ttl_insert_rows",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The jobs count in the specified status",
+      "native_name": "tidb_server_ttl_job_status",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "The time spent in each phase",
+      "native_name": "tidb_server_ttl_phase_time",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The count of expired rows processed in TTL jobs",
+      "native_name": "tidb_server_ttl_processed_expired_rows",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of handled TTL queries.",
+      "native_name": "tidb_server_ttl_query_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The tasks count in the specified status",
+      "native_name": "tidb_server_ttl_task_status",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed delay time in seconds for TTL tables.",
+      "native_name": "tidb_server_ttl_watermark_delay",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in query optimize.",
+      "native_name": "tidb_session_compile_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in running executor.",
+      "native_name": "tidb_session_execute_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of non-transactional delete",
+      "native_name": "tidb_session_non_transactional_dml_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) in parse SQL.",
+      "native_name": "tidb_session_parse_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of the total number of queries for the resource group",
+      "native_name": "tidb_session_resource_group_query_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of internal restricted sql.",
+      "native_name": "tidb_session_restricted_sql_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of session retry count.",
+      "native_name": "tidb_session_retry_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of a statement deadlock detect duration.",
+      "native_name": "tidb_session_statement_deadlock_detect_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Keys locking for a single statement",
+      "native_name": "tidb_session_statement_lock_keys_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of statement pessimistic retry count",
+      "native_name": "tidb_session_statement_pessimistic_retry_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Keys locking for a single statement",
+      "native_name": "tidb_session_statement_shared_lock_keys_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of a transaction execution duration, including retry.",
+      "native_name": "tidb_session_transaction_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "The counter of statements and transactions in which fair locking is used or takes effect",
+      "native_name": "tidb_session_transaction_fair_locking_usage",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of duration of pessimistic DMLs, distinguished by first attempt and retries",
+      "native_name": "tidb_session_transaction_pessimistic_dml_duration_by_attempt",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of statements count in each transaction.",
+      "native_name": "tidb_session_transaction_statement_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "How many times transactions enter this state",
+      "native_name": "tidb_session_txn_state_entering_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of different states of a transaction.",
+      "native_name": "tidb_session_txn_state_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of validating read ts by getting a timestamp from PD",
+      "native_name": "tidb_session_validate_read_ts_from_pd_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of small transaction write time (s).",
+      "native_name": "tidb_sli_small_txn_write_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Read throughput of TiKV read in Bytes/s.",
+      "native_name": "tidb_sli_tikv_read_throughput",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Read time of TiKV small read.",
+      "native_name": "tidb_sli_tikv_small_read_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of transaction write throughput (bytes/second).",
+      "native_name": "tidb_sli_txn_write_throughput",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time (s) of auto analyze.",
+      "native_name": "tidb_statistics_auto_analyze_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "counter of the historical stats operation",
+      "native_name": "tidb_statistics_historical_stats",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of pseudo estimation caused by outdated stats.",
+      "native_name": "tidb_statistics_pseudo_estimation_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of latency time (ms) of stats read during sync-load.",
+      "native_name": "tidb_statistics_read_stats_latency_millis",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter for statsCache operation",
+      "native_name": "tidb_statistics_stats_cache_op",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "gauge of stats cache value",
+      "native_name": "tidb_statistics_stats_cache_val",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of processing time for the background statistics loading job",
+      "native_name": "tidb_statistics_stats_delta_load_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time for the background stats_meta update job",
+      "native_name": "tidb_statistics_stats_delta_update_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Gauge of stats healthy",
+      "native_name": "tidb_statistics_stats_healthy",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of stats inaccuracy rate.",
+      "native_name": "tidb_statistics_stats_inaccuracy_rate",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of processing time for the background stats usage update job",
+      "native_name": "tidb_statistics_stats_usage_update_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of deduplicated sync load.",
+      "native_name": "tidb_statistics_sync_load_dedup_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of latency time (ms) of sync load.",
+      "native_name": "tidb_statistics_sync_load_latency_millis",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of sync load timeout.",
+      "native_name": "tidb_statistics_sync_load_timeout_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of sync load.",
+      "native_name": "tidb_statistics_sync_load_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of keys locked in aggressive locking mode",
+      "native_name": "tidb_tikvclient_aggressive_locking_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of async batch get by txn snapshot.",
+      "native_name": "tidb_tikvclient_async_batch_get_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of async commit transactions.",
+      "native_name": "tidb_tikvclient_async_commit_txn_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of async send req by region request sender.",
+      "native_name": "tidb_tikvclient_async_send_req_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "total backoff seconds of a single backoffer.",
+      "native_name": "tidb_tikvclient_backoff_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "best batch size estimated by the batch client",
+      "native_name": "tidb_tikvclient_batch_best_size",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Counter of no available batch client.",
+      "native_name": "tidb_tikvclient_batch_client_no_available_connection_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "batch client recycle connection and reconnect duration",
+      "native_name": "tidb_tikvclient_batch_client_reset",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "batch client unavailable",
+      "native_name": "tidb_tikvclient_batch_client_unavailable_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "batch client wait new connection establish",
+      "native_name": "tidb_tikvclient_batch_client_wait_connection_establish",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "tidb txn token wait duration to process batches",
+      "native_name": "tidb_tikvclient_batch_executor_token_wait_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "arrival interval of the head request in batch",
+      "native_name": "tidb_tikvclient_batch_head_arrival_interval_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "number of requests batched by extra fetch",
+      "native_name": "tidb_tikvclient_batch_more_requests_total",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "number of requests pending in the batch channel",
+      "native_name": "tidb_tikvclient_batch_pending_requests",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "batch recv loop duration breakdown by steps",
+      "native_name": "tidb_tikvclient_batch_recv_loop_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "batch request duration breakdown by steps",
+      "native_name": "tidb_tikvclient_batch_request_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "number of requests in one batch",
+      "native_name": "tidb_tikvclient_batch_requests",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "batch send loop duration breakdown by steps",
+      "native_name": "tidb_tikvclient_batch_send_loop_duration_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "batch send tail latency",
+      "native_name": "tidb_tikvclient_batch_send_tail_latency_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "event of tikv transport layer overload",
+      "native_name": "tidb_tikvclient_batch_wait_overload",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of 2PC transactions.",
+      "native_name": "tidb_tikvclient_commit_txn_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Slow scores of each tikv node that is calculated by TiKV and sent to the client by health feedback",
+      "native_name": "tidb_tikvclient_feedback_slow_score",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Gauge of GC configs.",
+      "native_name": "tidb_tikvclient_gc_config",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of gc scan lock request more than once in the same region.",
+      "native_name": "tidb_tikvclient_gc_region_too_many_locks",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of gc worker actions.",
+      "native_name": "tidb_tikvclient_gc_worker_actions_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "State of gRPC connection",
+      "native_name": "tidb_tikvclient_grpc_connection_state",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of operations about TiKV health feedback",
+      "native_name": "tidb_tikvclient_health_feedback_ops_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of access kv status api.",
+      "native_name": "tidb_tikvclient_kv_status_api_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Load region information duration",
+      "native_name": "tidb_tikvclient_load_region_cache_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of loading region.",
+      "native_name": "tidb_tikvclient_load_region_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of load safepoint.",
+      "native_name": "tidb_tikvclient_load_safepoint_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Wait time of a get local latch.",
+      "native_name": "tidb_tikvclient_local_latch_wait_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "failure statistic of secondary lock cleanup task.",
+      "native_name": "tidb_tikvclient_lock_cleanup_task_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of lock resolver actions.",
+      "native_name": "tidb_tikvclient_lock_resolver_actions_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "The actual working update interval for the low resolution TSO. As there are adaptive mechanism internally, this value may differ from the config.",
+      "native_name": "tidb_tikvclient_low_resolution_tso_update_interval_seconds",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of 1PC transactions.",
+      "native_name": "tidb_tikvclient_one_pc_txn_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "tidb txn pessimistic lock keys duration",
+      "native_name": "tidb_tikvclient_pessimistic_lock_keys_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Flush time of pipelined memdb.",
+      "native_name": "tidb_tikvclient_pipelined_flush_duration",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of length of pipelined flushed memdb",
+      "native_name": "tidb_tikvclient_pipelined_flush_len",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of size of pipelined flushed memdb",
+      "native_name": "tidb_tikvclient_pipelined_flush_size",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of flows under PreferLeader mode.",
+      "native_name": "tidb_tikvclient_prefer_leader_flows_gauge",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Counter of assertions used in prewrite requests",
+      "native_name": "tidb_tikvclient_prewrite_assertion_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time of rawkv cmds.",
+      "native_name": "tidb_tikvclient_rawkv_cmd_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Size of key/value to put, in bytes.",
+      "native_name": "tidb_tikvclient_rawkv_kv_size_bytes",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Summary of read requests bytes",
+      "native_name": "tidb_tikvclient_read_request_bytes",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Counter of region cache.",
+      "native_name": "tidb_tikvclient_region_cache_operations_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of how many times a region request retries.",
+      "native_name": "tidb_tikvclient_request_retry_times",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of sending request duration.",
+      "native_name": "tidb_tikvclient_request_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of time difference between TiDB and TiKV.",
+      "native_name": "tidb_tikvclient_rpc_net_latency_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Summary of sending request with multi dimensions.",
+      "native_name": "tidb_tikvclient_source_request_seconds",
+      "prometheus_type": "summary"
+    },
+    {
+      "description": "Counter of stale read requests bytes",
+      "native_name": "tidb_tikvclient_stale_read_bytes",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of stale read hit/miss",
+      "native_name": "tidb_tikvclient_stale_read_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of stale read requests",
+      "native_name": "tidb_tikvclient_stale_read_req_counter",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of stale region from PD",
+      "native_name": "tidb_tikvclient_stale_region_from_pd",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Liveness state of each tikv",
+      "native_name": "tidb_tikvclient_store_liveness_state",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Slow scores of each tikv node based on RPC timecosts",
+      "native_name": "tidb_tikvclient_store_slow_score",
+      "prometheus_type": "gauge"
+    },
+    {
+      "description": "Bucketed histogram of seconds cost for waiting timestamp future.",
+      "native_name": "tidb_tikvclient_ts_future_wait_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of ttlManager live too long.",
+      "native_name": "tidb_tikvclient_ttl_lifetime_reach_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucketed histogram of processing time of txn cmds.",
+      "native_name": "tidb_tikvclient_txn_cmd_duration_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the backoff count in committing a transaction.",
+      "native_name": "tidb_tikvclient_txn_commit_backoff_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the total backoff duration in committing a transaction.",
+      "native_name": "tidb_tikvclient_txn_commit_backoff_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the txn_heartbeat request duration.",
+      "native_name": "tidb_tikvclient_txn_heart_beat",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of attempts to get the lagging TSO in one commit",
+      "native_name": "tidb_tikvclient_txn_lag_commit_ts_attempt_count",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of seconds waiting commit TSO lag.",
+      "native_name": "tidb_tikvclient_txn_lag_commit_ts_wait_seconds",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Number of regions in a transaction.",
+      "native_name": "tidb_tikvclient_txn_regions_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucketed histogram of the txn ttl manager lifetime duration.",
+      "native_name": "tidb_tikvclient_txn_ttl_manager",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Count of kv pairs to write in a transaction.",
+      "native_name": "tidb_tikvclient_txn_write_kv_num",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Size of kv pairs to write in a transaction.",
+      "native_name": "tidb_tikvclient_txn_write_size_bytes",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Counter of validating read ts by getting a timestamp from PD",
+      "native_name": "tidb_tikvclient_validate_read_ts_from_pd_count",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Counter of ignored top-sql metrics (register-sql, register-plan, collect-data and report-data), normally it should be 0.",
+      "native_name": "tidb_topsql_ignored_total",
+      "prometheus_type": "counter"
+    },
+    {
+      "description": "Bucket histogram of reporting records/sql/plan count to the top-sql agent.",
+      "native_name": "tidb_topsql_report_data_total",
+      "prometheus_type": "histogram"
+    },
+    {
+      "description": "Bucket histogram of reporting time (s) to the top-sql agent",
+      "native_name": "tidb_topsql_report_duration_seconds",
+      "prometheus_type": "histogram"
+    }
+  ],
+  "reference_version": "8.5.6",
+  "schema": "cdeadmin.engine-metrics-inventory.v1"
+}

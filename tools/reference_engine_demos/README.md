@@ -50,12 +50,14 @@ Bootstrap performs these reproducible client-side steps:
    three back the currently admitted logical backup, logical restore, and
    read-only server upgrade-requirement forms. The remaining tools are staged
    for later constrained provider workflows and are not advertised as active
-   administration capabilities.
+   administration capabilities;
+6. extracts the exact Cassandra 5.0.8 `cqlsh`, `nodetool`, and
+   `sstableloader` distribution used by provider-owned administration forms.
 
 It also renders `runtime/connection_profiles.json` from the portable template.
 Source `environment.sh` before starting CDEadmin when FoundationDB, Firebird,
-or MariaDB administration tools are being tested so the extracted native
-clients are discoverable.
+MariaDB, or Cassandra administration tools are being tested so the extracted
+native clients are discoverable.
 
 Register all rendered profiles for an existing CDEadmin account with:
 
@@ -171,8 +173,22 @@ and must never be reused outside this isolated local fixture.
 OpenSearch native, SQL, and PPL profiles share one OpenSearch deployment.
 YugabyteDB YSQL and YCQL profiles share one YugabyteDB deployment. They remain
 separate profiles because CDEadmin exercises different protocols and object
-models. Embedded SQLite and DuckDB create project-local files. Vitess uses the
-checked-in Compose topology under `config/vitess/`.
+models. The YCQL listener has native password authentication enabled so the
+role, grant, and authentication surfaces can be tested honestly; its isolated
+demo credential is `cassandra` / `CDEadminDemo-2026!`. Embedded SQLite and
+DuckDB create project-local files. Vitess uses the checked-in Compose topology
+under `config/vitess/`. TiKV uses the checked-in API-v2/TTL configuration under
+`config/tikv/` and starts four exact 8.5.6 stores. That topology is required to
+exercise native RawKV, TxnKV, TTL, Region placement, peer movement, and
+reversible control-plane workflows.
+
+The Cassandra demo is an authenticated three-node cluster. It binds each
+node's CQL and JMX listeners to `127.0.0.1`, `127.0.0.2`, or `127.0.0.3` at
+ports `19042` and `17199`. Both interfaces use the documented demonstration
+credential `cassandra` / `CDEadminDemo-2026!`; CDEadmin retains those values
+only through its normal encrypted secret workflow. Starting Cassandra may
+replace an obsolete single-node demo container configuration, but retains and
+reattaches its named data volume.
 
 ## Version and licensing policy
 

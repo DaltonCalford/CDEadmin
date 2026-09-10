@@ -20,8 +20,8 @@ PROFILE = PilotProfile(
     resource_kinds=(
         'cluster', 'datacenter', 'node', 'keyspace', 'table', 'column',
         'replication', 'index', 'materialized-view', 'user-defined-type',
-        'function',
-        'aggregate', 'role', 'permission', 'query', 'tracing-session',
+        'trigger', 'function', 'aggregate', 'role', 'permission', 'identity',
+        'query', 'tracing-session',
         'repair', 'compaction', 'snapshot', 'backup', 'restore', 'shell',
     ),
     admin_tools=(
@@ -35,6 +35,13 @@ PROFILE = PilotProfile(
     result_records_field='rows',
     result_export_formats=('csv', 'json', 'jsonl'),
     result_worker_required=True,
+    dialect_contract_id='cassandra.dialect.5.0.8.v1',
+    dialect_evidence=(
+        'cassandra-5.0.8-source-parser-inventory',
+        'cassandra-5.0.8-native-task-live-execution',
+    ),
+    dialect_contract_file='cassandra_dialect_5_0_8.json',
+    metrics_contract_file='cassandra_metrics_5_0_8.json',
 )
 
 

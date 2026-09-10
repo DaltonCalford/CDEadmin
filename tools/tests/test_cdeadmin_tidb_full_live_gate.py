@@ -17,6 +17,8 @@ from tools.cdeadmin_tidb_full_live_gate import (
     _current_tso,
     _write_pd_config,
     _write_tidb_config,
+    _write_tiflash_config,
+    _write_tikv_config,
 )
 
 
@@ -36,12 +38,21 @@ def test_generated_single_node_configs_are_valid_toml(tmp_path):
 
     pd_config = tomllib.loads(_write_pd_config(tmp_path).read_text())
     tidb_config = tomllib.loads(_write_tidb_config(tmp_path).read_text())
+    tikv_config = tomllib.loads(_write_tikv_config(tmp_path).read_text())
 
     assert pd_config['replication']['max-replicas'] == 1
     assert tidb_config['split-table'] is False
     assert tidb_config['log']['slow-query-file'] == str(
         tmp_path / 'logs' / 'tidb-slow.log'
     )
+    assert tikv_config['memory-usage-limit'] == '2GB'
+    assert tikv_config['memory']['enable-heap-profiling'] is False
+    assert tikv_config['readpool']['unified']['max-thread-count'] == 2
+    assert tikv_config['server']['grpc-concurrency'] == 2
+    assert tikv_config['storage']['reserve-space'] == '1KB'
+    assert tikv_config['storage']['scheduler-worker-pool-size'] == 2
+    assert tikv_config['storage']['block-cache']['capacity'] == '512MB'
+    assert tikv_config['raftstore']['capacity'] == '2GB'
 
 
 def test_current_tso_is_captured_inside_an_explicit_transaction(monkeypatch):
@@ -74,3 +85,19 @@ def test_current_tso_is_captured_inside_an_explicit_transaction(monkeypatch):
     assert statements == [
         'BEGIN', 'SELECT TIDB_CURRENT_TSO()', 'ROLLBACK',
     ]
+
+
+def test_tiflash_learner_uses_bounded_test_capacity(tmp_path):
+    (tmp_path / 'logs').mkdir()
+    ports = {
+        'flash_service': 3930,
+        'flash_proxy': 20170,
+        'flash_status': 20292,
+        'flash_metrics': 8234,
+        'pd_client': 2379,
+    }
+    _write_tiflash_config(tmp_path, ports)
+    learner = tomllib.loads(
+        (tmp_path / 'tiflash-learner.toml').read_text()
+    )
+    assert learner['raftstore']['capacity'] == '2GB'

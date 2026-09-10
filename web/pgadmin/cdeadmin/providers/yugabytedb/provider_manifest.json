@@ -2,10 +2,10 @@
   "identity": {
     "contract_version": "1.1.0",
     "provider_id": "org.cdeadmin.yugabytedb",
-    "provider_version": "0.1.0",
+    "provider_version": "0.2.0",
     "profile_id": "yugabytedb-native",
     "profile_version": "2025.2.2.2",
-    "evidence_reference": "cdeadmin-yugabytedb-full-live:20260904"
+    "evidence_reference": "cdeadmin-yugabytedb-ysql-exact-live:2025.2.2.2:20260910"
   },
   "package_type": "engine",
   "sdk_compatibility": {
@@ -201,10 +201,15 @@
     "protocol": "postgresql_wire",
     "client_state": "psycopg_3.3.4_installed",
     "runtime_state": "exact_runtime_qualified",
-    "activation_gate": "blocked_pending_exact_contract_and_ui_evidence",
+    "activation_gate": "passed_exact_dialect_metrics_semantic_object_and_control_plane_evidence",
+    "dialect_contract": "yugabytedb.ysql-dialect.2025.2.2.2.v1",
+    "metrics_contract": "yugabytedb.metrics.2025.2.2.2.v1",
+    "live_evidence_reference": "cdeadmin-yugabytedb-ysql-exact-live:2025.2.2.2:20260910",
     "object_experience_gate": "passed",
-    "full_live_evidence_sha256": "b459932d4690375ae656ad95acb835392cbf52ef68ce6c5f9e0a17500e58e9f2",
-    "strict_object_evidence_sha256": "95f339172a7800021dc7b32099f08a4836f97bc9dbbfe6484357b779f98e7fec",
+    "full_live_evidence_sha256": "3198ac03687f5061ccd79b564f0ec8bce08deefd56862b241eb4078b5e420e7b",
+    "object_evidence_sha256": "3621c3b81807bcac63bfc5e2d49858131028023d7410353b922d4dcb31a70eee",
+    "strict_object_evidence_sha256": "cfcbd9d8ef8bfdeed38a7ec9f33a268fe09734d13d5cbadc15b4128ee41d1bf0",
+    "native_compaction_gate": "passed_yb_admin_compact_table_by_id_with_remote_observation",
     "dual_interface_gate": "passed",
     "dual_interface_evidence_reference": "cdeadmin-yugabytedb-dual-interface-live:20260904"
   }

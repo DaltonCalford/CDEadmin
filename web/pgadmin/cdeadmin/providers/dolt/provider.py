@@ -35,9 +35,26 @@ PROFILE = PilotProfile(
     ),
     ('dolt-sql', 'dolt-log', 'dolt-diff', 'dolt-backup'),
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'dolt-sql', 'quote_open': '`',
         'quote_close': '`', 'supports_rollup': False,
+        'limit_style': 'limit',
+        'true_literal': 'TRUE', 'false_literal': 'FALSE',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
+    dialect_contract_id='dolt.dialect.1.86.6.v1',
+    dialect_evidence=(
+        'dolt-1.86.6-source-pinned-parser-and-runtime-inventory',
+        'dolt-1.86.6-native-task-live-execution',
+    ),
+    dialect_contract_file='dolt_dialect_1_86_6.json',
+    metrics_contract_file='dolt_metrics_1_86_6.json',
 )
 
 

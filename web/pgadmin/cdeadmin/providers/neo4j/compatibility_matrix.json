@@ -8,7 +8,7 @@
     "server_version": "2026.04.0",
     "driver": "neo4j",
     "driver_version": "6.3.0",
-    "status": "qualified_community_surface"
+    "status": "qualified_full_graph_surface"
   },
   "qualified_deployments": [
     {
@@ -35,11 +35,24 @@
       "deployment": "offline_dump_and_consistency_check",
       "server_version": "2026.04.0",
       "status": "passed"
+    },
+    {
+      "deployment": "graph_data_science_2026.04.0",
+      "server_version": "2026.04.0",
+      "status": "passed",
+      "evidence_reference": "cdeadmin-neo4j-full-live:2026.04.0:20260909"
+    },
+    {
+      "deployment": "three_member_enterprise_cluster",
+      "server_version": "2026.04.0",
+      "status": "passed",
+      "evidence_reference": "cdeadmin-neo4j-full-live:2026.04.0:20260909"
     }
   ],
   "edition_scope": {
     "community": "qualified",
-    "enterprise_database_security_topology_backup": "not_qualified"
+    "enterprise_database_security_topology_backup": "qualified",
+    "graph_data_science": "qualified_digest_bound_2026.04.0"
   },
   "client_platforms": [
     {"platform": "linux", "contract_suite": "passed", "live_suite": "passed"},

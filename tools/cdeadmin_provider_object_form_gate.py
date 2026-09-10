@@ -170,9 +170,22 @@ def _prepare_tree(driver, wait, options):
             const tree = window.pgAdmin?.Browser?.tree;
             const item = tree?.selected?.();
             const data = item ? tree.itemData(item) : null;
-            return Boolean(data && data._type === 'cde_database_target' &&
+            const selected = Boolean(
+              data && data._type === 'cde_database_target' &&
               (data.label === arguments[0] ||
-               data._label === arguments[0]));
+               data._label === arguments[0])
+            );
+            if (selected) {
+              let endpointItem = item;
+              while (endpointItem &&
+                     tree.itemData(endpointItem)?._type !== 'server') {
+                endpointItem = tree.hasParent(endpointItem) ?
+                  tree.parent(endpointItem) : null;
+              }
+              window.__cdeadminQaDatabaseItem = item;
+              window.__cdeadminQaEndpointItem = endpointItem;
+            }
+            return selected;
             """,
             options.database,
         ))
@@ -196,10 +209,7 @@ def _prepare_tree(driver, wait, options):
     driver.execute_script(
         """
         const tree = window.pgAdmin.Browser.tree;
-        let item = tree.selected();
-        while (item && tree.itemData(item)?._type !== 'server') {
-          item = tree.hasParent(item) ? tree.parent(item) : null;
-        }
+        const item = window.__cdeadminQaEndpointItem;
         const node = window.pgAdmin.Browser.Nodes.server;
         node.callbacks.open_cde_workspace.call(node, {item}, 'resources');
         """
@@ -215,10 +225,7 @@ def _prepare_tree(driver, wait, options):
         wait.until(lambda value: value.execute_script(
             """
             const tree = window.pgAdmin?.Browser?.tree;
-            let item = tree?.selected?.();
-            while (item && tree.itemData(item)?._type !== 'server') {
-              item = tree.hasParent(item) ? tree.parent(item) : null;
-            }
+            const item = window.__cdeadminQaEndpointItem;
             const data = item ? tree.itemData(item) : null;
             return Boolean(data?.cde_session_authenticated &&
               data?.runtime_verification_state === 'verified');
@@ -226,22 +233,56 @@ def _prepare_tree(driver, wait, options):
         ))
         wait.until(lambda value: visible_named_control(value, 'Close'))
     except TimeoutException as exc:
-        diagnostic = driver.execute_script(
+        diagnostic = driver.execute_async_script(
             """
+            const done = arguments[arguments.length - 1];
             const tree = window.pgAdmin?.Browser?.tree;
-            let item = tree?.selected?.();
-            while (item && tree.itemData(item)?._type !== 'server') {
-              item = tree.hasParent(item) ? tree.parent(item) : null;
-            }
+            const item = window.__cdeadminQaEndpointItem;
             const data = item ? tree.itemData(item) : null;
-            return {
+            const node = window.pgAdmin?.Browser?.Nodes?.server;
+            const base = {
               authenticated: data?.cde_session_authenticated ?? false,
               verification_state:
                 data?.runtime_verification_state ?? null,
+              profile_id: data?.cde_profile_id ?? null,
+              endpoint_url: item && data && node ? node.generate_url(
+                item, 'verify_endpoint', data, true
+              ) : null,
+              visible_dialogs: [...document.querySelectorAll(
+                '[role="dialog"]'
+              )].filter(element => element.offsetParent !== null).map(
+                element => element.innerText.slice(0, 1000)
+              ),
               alerts: [...document.querySelectorAll('[role="alert"]')]
                 .filter(element => element.offsetParent !== null)
                 .map(element => element.innerText.slice(0, 500)),
             };
+            if (!base.endpoint_url) {
+              done(base);
+              return;
+            }
+            const headers = {};
+            if (window.pgAdmin.csrf_token_header &&
+                window.pgAdmin.csrf_token) {
+              headers[window.pgAdmin.csrf_token_header] =
+                window.pgAdmin.csrf_token;
+            }
+            fetch(base.endpoint_url, {
+              method: 'POST', credentials: 'same-origin', headers,
+              body: new FormData(),
+            }).then(async response => {
+              const body = await response.json().catch(() => null);
+              done({...base, direct_probe: {
+                status: response.status,
+                success: body?.success ?? null,
+                error: body?.errormsg ?? null,
+                verification_state:
+                  body?.data?.runtime_verification_state ?? null,
+              }});
+            }).catch(error => done({
+              ...base,
+              direct_probe: {error: String(error)},
+            }));
             """
         )
         raise RuntimeError(
@@ -259,9 +300,10 @@ def _workspace_probe(driver):
         const done = arguments[arguments.length - 1];
         const app = window.pgAdmin;
         const tree = app?.Browser?.tree;
-        const databaseItem = tree?.selected?.();
+        const databaseItem = window.__cdeadminQaDatabaseItem ||
+          tree?.selected?.();
         const database = databaseItem ? tree.itemData(databaseItem) : null;
-        let endpointItem = databaseItem;
+        let endpointItem = window.__cdeadminQaEndpointItem || databaseItem;
         while (endpointItem &&
                tree.itemData(endpointItem)?._type !== 'server') {
           endpointItem = tree.hasParent(endpointItem) ?
@@ -372,11 +414,7 @@ def _open_focused_form(driver, operation, target, database_target_id):
         const target = arguments[1];
         const databaseTargetId = arguments[2];
         const app = window.pgAdmin;
-        const tree = app.Browser.tree;
-        let item = tree.selected();
-        while (item && tree.itemData(item)?._type !== 'server') {
-          item = tree.hasParent(item) ? tree.parent(item) : null;
-        }
+        const item = window.__cdeadminQaEndpointItem;
         const node = app.Browser.Nodes.server;
         node.callbacks.open_cde_workspace.call(node, {item},
           'administration', {

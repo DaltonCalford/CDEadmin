@@ -114,6 +114,9 @@ from pgadmin.cdeadmin.providers.dolt.provider import (  # noqa: E402
 from pgadmin.cdeadmin.providers.foundationdb.provider import (  # noqa: E402
     FoundationDBProvider, PROFILE as FOUNDATIONDB,
 )
+from pgadmin.cdeadmin.providers.immudb.provider import (  # noqa: E402
+    ImmudbProvider, PROFILE as IMMUDB,
+)
 from pgadmin.cdeadmin.providers.tidb.provider import (  # noqa: E402
     TiDBProvider, PROFILE as TIDB,
 )
@@ -125,6 +128,9 @@ from pgadmin.cdeadmin.providers.vitess.provider import (  # noqa: E402
 )
 from pgadmin.cdeadmin.providers.yugabytedb.provider import (  # noqa: E402
     YugabyteDBProvider, PROFILE as YUGABYTEDB,
+)
+from pgadmin.cdeadmin.providers.yugabytedb_ycql.provider import (  # noqa: E402
+    YugabyteDBYCQLProvider, PROFILE as YUGABYTEDB_YCQL,
 )
 from tools.cdeadmin_actual_engine_gate import evaluate  # noqa: E402
 
@@ -149,10 +155,12 @@ PILOTS = (
     (CockroachDBProvider, COCKROACHDB),
     (DoltProvider, DOLT),
     (FoundationDBProvider, FOUNDATIONDB),
+    (ImmudbProvider, IMMUDB),
     (TiDBProvider, TIDB),
     (TiKVProvider, TIKV),
     (VitessProvider, VITESS),
     (YugabyteDBProvider, YUGABYTEDB),
+    (YugabyteDBYCQLProvider, YUGABYTEDB_YCQL),
 )
 PROVIDER_ROOT = WEB / 'pgadmin/cdeadmin/providers'
 RECORD_PATH = PROVIDER_ROOT / 'actual_engine_pilots.json'
@@ -341,7 +349,7 @@ class ActualEnginePilotContractTests(unittest.TestCase):
     def test_repository_policy_gate_passes(self):
         result = evaluate(ROOT)
         self.assertTrue(result['valid'], result['errors'])
-        self.assertEqual(16, result['pilot_profiles'])
+        self.assertEqual(26, result['pilot_profiles'])
         self.assertEqual(0, result['donor_manifests_verified'])
 
     def test_only_live_qualified_manifests_are_activatable(self):
@@ -352,18 +360,10 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                 (PROVIDER_ROOT / row['manifest']).read_text(encoding='utf-8')
             )
             validated = validate_contract('ProviderManifest', manifest, schema)
-            qualified = row['engine_id'] in {
-                'mysql', 'mariadb', 'mongodb', 'duckdb', 'firebird',
-                'neo4j', 'cassandra', 'redis', 'xtdb', 'clickhouse',
-                'sqlite', 'influxdb', 'milvus', 'opensearch',
-                'opensearch_sql_ppl',
-            }
-            self.assertEqual(qualified, validated['enabled'])
+            self.assertTrue(validated['enabled'])
+            self.assertTrue(validated['production_registration'])
             self.assertEqual(
-                qualified, validated['production_registration']
-            )
-            self.assertEqual(
-                'experimental' if qualified else 'deferred',
+                'experimental',
                 validated['support_state'],
             )
 
@@ -385,6 +385,16 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                 ('duckdb', '1.5.2', 6),
                 ('firebird', '5.0.4', 7),
                 ('sqlite', '3.53.0', 8),
+                ('apache_ignite', '2.17.0', 10),
+                ('cockroachdb', '26.1.3', 11),
+                ('dolt', '1.86.6', 12),
+                ('foundationdb', '7.3.77', 13),
+                ('immudb', '1.11.0', 14),
+                ('tidb', '8.5.6', 15),
+                ('tikv', '8.5.6', 16),
+                ('vitess', '23.0.3', 17),
+                ('yugabytedb', '2025.2.2.2', 18),
+                ('yugabytedb', '2025.2.2.2', 18),
             ],
             [(row['engine_id'], row['exact_profile'], row['order'])
              for row in record['pilots']],
@@ -408,6 +418,15 @@ class ActualEnginePilotContractTests(unittest.TestCase):
         self.assertEqual('passed', live_status.pop('milvus'))
         self.assertEqual('passed', live_status.pop('opensearch'))
         self.assertEqual('passed', live_status.pop('opensearch_sql_ppl'))
+        self.assertEqual('passed', live_status.pop('apache_ignite'))
+        self.assertEqual('passed', live_status.pop('cockroachdb'))
+        self.assertEqual('passed', live_status.pop('dolt'))
+        self.assertEqual('passed', live_status.pop('foundationdb'))
+        self.assertEqual('passed', live_status.pop('immudb'))
+        self.assertEqual('passed', live_status.pop('tidb'))
+        self.assertEqual('passed', live_status.pop('tikv'))
+        self.assertEqual('passed', live_status.pop('vitess'))
+        self.assertEqual('passed', live_status.pop('yugabytedb'))
         self.assertTrue(all(
             status == 'not_run' for status in live_status.values()
         ))
@@ -454,14 +473,14 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                 discovered['verified_runtime']['verification_state'],
             )
 
-    def test_incomplete_shared_sql_dialects_fail_closed(self):
-        incomplete_sql = {
-            'xtdb', 'clickhouse', 'influxdb', 'cockroachdb', 'dolt',
-            'tidb', 'vitess', 'yugabytedb',
-        }
+    def test_declared_semantic_compilers_are_available(self):
+        incomplete_sql = set()
+        non_semantic_profiles = {'yugabytedb-ycql'}
         native = {'mongodb', 'neo4j', 'opensearch'}
         activated_sql = {
             'duckdb', 'firebird', 'mysql', 'mariadb', 'sqlite',
+            'clickhouse', 'cockroachdb', 'influxdb', 'xtdb',
+            'dolt', 'immudb', 'tidb', 'vitess', 'yugabytedb',
         }
         observed = set()
         for provider_type, profile in PILOTS:
@@ -475,7 +494,15 @@ class ActualEnginePilotContractTests(unittest.TestCase):
                      'period_comparison'},
                     set(descriptor['time_intelligence']['operations']),
                 )
-            if profile.engine_id in incomplete_sql:
+            if profile.profile_id in non_semantic_profiles:
+                observed.add(profile.engine_id)
+                self.assertFalse(descriptor['execution_available'])
+                self.assertIsNotNone(descriptor['reason'])
+                with self.assertRaises(SemanticCompilationUnavailable):
+                    instance.compile_semantic_query(
+                        semantic_model(profile.engine_id), semantic_query()
+                    )
+            elif profile.engine_id in incomplete_sql:
                 observed.add(profile.engine_id)
                 self.assertFalse(descriptor['execution_available'])
                 self.assertIsNotNone(descriptor['reason'])

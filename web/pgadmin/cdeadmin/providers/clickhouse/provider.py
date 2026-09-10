@@ -36,8 +36,18 @@ PROFILE = PilotProfile(
     result_export_formats=('csv', 'json', 'jsonl'),
     result_worker_required=True,
     semantic_sql_dialect={
+        'contract_complete': True,
         'language_profile': 'clickhouse-sql', 'quote_open': '`',
         'quote_close': '`', 'supports_rollup': True,
+        'rollup_style': 'function', 'limit_style': 'limit',
+        'true_literal': 'true', 'false_literal': 'false',
+        'time_operations': (
+            'as_of', 'range', 'period_to_date', 'period_comparison',
+        ),
+        'window_operations': (
+            'running_sum', 'moving_sum', 'moving_average', 'lag', 'delta',
+            'percent_change', 'rank', 'dense_rank',
+        ),
     },
     semantic_materialization_kind='materialized-view',
     semantic_materialization_defaults={

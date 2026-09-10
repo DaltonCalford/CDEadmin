@@ -1057,6 +1057,9 @@ def verify(args):
     context = SimpleNamespace(
         endpoint_id=f'tikv-control-{uuid.uuid4()}',
         session_namespace=f'tikv-control-session-{uuid.uuid4()}',
+        experience_family='tikv',
+        provider_id=PROFILE.provider_id,
+        profile_id=PROFILE.profile_id,
         mode='legacy_native', runtime_verification_state='verified',
         declared_runtime_family='tikv', verified_runtime_family='tikv',
     )

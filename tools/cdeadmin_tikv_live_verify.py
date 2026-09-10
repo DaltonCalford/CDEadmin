@@ -32,6 +32,7 @@ if 'pgadmin' not in sys.modules:
     sys.modules['pgadmin'] = package
 
 from pgadmin.cdeadmin.providers.tikv.provider import (  # noqa: E402
+    PROFILE,
     create_provider,
 )
 
@@ -132,6 +133,9 @@ def verify(args):
     context = SimpleNamespace(
         endpoint_id=f'tikv-mutation-{uuid.uuid4()}',
         session_namespace=f'tikv-mutation-session-{uuid.uuid4()}',
+        experience_family='tikv',
+        provider_id=PROFILE.provider_id,
+        profile_id=PROFILE.profile_id,
         mode='legacy_native',
         runtime_verification_state='verified',
         declared_runtime_family='tikv',

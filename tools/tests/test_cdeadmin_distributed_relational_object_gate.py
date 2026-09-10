@@ -26,6 +26,11 @@ class DistributedRelationalObjectGateTests(unittest.TestCase):
         self.assertEqual(set(ADMINISTRATIONS), set(result['engines']))
         self.assertEqual(6, result['engine_count'])
 
+    def test_gate_can_qualify_one_selected_provider(self):
+        result = audit(engine_ids=['yugabytedb'])
+        self.assertEqual({'yugabytedb'}, set(result['engines']))
+        self.assertEqual(1, result['engine_count'])
+
     def test_cockroach_declaration_is_complete_but_live_fail_closed(self):
         result = audit()
         coverage = result['engines']['cockroachdb']

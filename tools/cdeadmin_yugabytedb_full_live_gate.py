@@ -208,6 +208,51 @@ def _new_resource(provider, route, kind, before):
     )
 
 
+def _shared_control_attestation(qualification):
+    """Bind YCQL external concepts to operations run on the same runtime."""
+    required = {
+        'replication': {
+            'changefeed': {'create', 'inspect', 'drop'},
+            'xcluster-replication': {
+                'create', 'inspect', 'set_enabled', 'add_tables',
+                'remove_tables', 'drop',
+            },
+        },
+        'compaction': {'table': {'compact'}},
+        'snapshots': {
+            'schedule': {'create', 'inspect', 'alter', 'restore', 'drop'},
+        },
+        'backup_and_restore': {
+            'schedule': {'create', 'restore', 'drop'},
+        },
+    }
+    concepts = {}
+    for concept_id, obligations in required.items():
+        operations = {}
+        missing = {}
+        for kind, expected in obligations.items():
+            observed = set(qualification.passed.get(kind, ()))
+            admitted = sorted(observed.intersection(expected))
+            if admitted:
+                operations[kind] = admitted
+            absent = sorted(expected.difference(observed))
+            if absent:
+                missing[kind] = absent
+        concepts[concept_id] = {
+            'status': 'passed' if not missing else 'failed',
+            'operations': operations,
+            'missing_operations': missing,
+        }
+    return {
+        'schema': 'cdeadmin.external-control-surface-attestation.v1',
+        'surface_id': 'cdeadmin.yugabytedb.control-plane',
+        'exact_profile': PROFILE.exact_version,
+        'concepts': concepts,
+        'provider_finality_authority': True,
+        'automatic_mutation_retry': False,
+    }
+
+
 def _create_database_and_tables(
         qualification, provider, route, database, tables, label):
     admin_route = dict(route, database='yugabyte')
@@ -269,6 +314,13 @@ def _exercise(args, consumer, producer, consumer_route, producer_route):
             item for item in resources
             if item.get('resource_kind') == 'table' and
             item.get('display_name') == tables[0]
+        )
+        qualification.apply(
+            consumer, consumer_route, 'table', 'compact', {
+                'timeout_seconds': 60,
+                'include_indexes': False,
+                'include_vector_indexes': False,
+            }, table_resource,
         )
         tablespace_created = qualification.apply(
             consumer, consumer_route, 'tablespace', 'create', {
@@ -465,13 +517,25 @@ def run(args):
             baseline = json.loads(args.baseline_object_evidence.read_text(
                 encoding='utf-8'))
             evidence = _merge_object_evidence(baseline, evidence)
+        evidence['external_surface_attestations'] = {
+            'cdeadmin.yugabytedb.control-plane': (
+                _shared_control_attestation(qualification)
+            ),
+        }
     finally:
         consumer.close()
         producer.close()
     return {
         'schema': 'cdeadmin.yugabytedb-full-live-verification.v1',
         'engine_id': PROFILE.engine_id, 'exact_profile': PROFILE.exact_version,
-        'activation_ready': not evidence['operation_failures'],
+        'activation_ready': (
+            not evidence['operation_failures'] and all(
+                concept['status'] == 'passed'
+                for concept in evidence['external_surface_attestations'][
+                    'cdeadmin.yugabytedb.control-plane'
+                ]['concepts'].values()
+            )
+        ),
         'verified_runtime': discovered['verified_runtime'],
         'producer_verified_runtime': producer_discovered['verified_runtime'],
         'runtime_images': images,

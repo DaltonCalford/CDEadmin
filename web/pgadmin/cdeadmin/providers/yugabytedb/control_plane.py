@@ -54,6 +54,20 @@ OPERATIONS = (
         post_state_required=False
     ),
     ControlPlaneOperation(
+        'table', 'compact', 'Compact table tablets', 'admin',
+        'maintenance_admin', (
+            cp_field('timeout_seconds', 'Completion timeout (seconds)',
+                     'number', False, default=20, minimum=1,
+                     maximum=86400),
+            cp_field('include_indexes', 'Also compact YCQL indexes',
+                     'boolean', False, default=False),
+            cp_field('include_vector_indexes',
+                     'Also compact vector indexes', 'boolean', False,
+                     default=False),
+        ), impact_scope='resource', long_running=True,
+        post_state_required=False
+    ),
+    ControlPlaneOperation(
         'node', 'add_blacklist', 'Drain node replicas', 'admin',
         'maintenance_admin', impact_scope='node', long_running=True
     ),
@@ -264,6 +278,53 @@ def _qualified_table(request):
     ))
 
 
+def _compact_table_arguments(request, draft):
+    """Compile the exact 2025.2.2.2 ``yb-admin compact_table`` shape."""
+    target = request.get('target_resource')
+    if not isinstance(target, dict):
+        raise RelationalClientError('YugabyteDB compact target is required')
+    native = target.get('native')
+    native = native if isinstance(native, dict) else {}
+    table_id = native.get('table_id')
+    if table_id:
+        arguments = [
+            'compact_table_by_id',
+            _safe(table_id, 'table ID', _UUID_PATTERN),
+        ]
+    else:
+        keyspace = native.get('keyspace_name')
+        table = native.get('table_name')
+        if keyspace or table:
+            namespace = 'ycql.' + _safe(keyspace, 'YCQL keyspace')
+            table = _safe(table, 'YCQL table')
+        else:
+            route = request.get('_provider_route')
+            database = (
+                route.get('database') if isinstance(route, dict) else None
+            )
+            namespace = 'ysql.' + _safe(database, 'YSQL database')
+            table = _target(request)
+        arguments = ['compact_table', namespace, table]
+
+    timeout = draft.get('timeout_seconds', 20)
+    arguments.append(_positive_integer(
+        timeout, 'compaction timeout', 86400))
+    include_indexes = draft.get('include_indexes', False)
+    include_vector_indexes = draft.get('include_vector_indexes', False)
+    if not isinstance(include_indexes, bool) or not isinstance(
+            include_vector_indexes, bool):
+        raise RelationalClientError(
+            'YugabyteDB compaction index options are invalid')
+    if include_indexes:
+        if not native.get('keyspace_name'):
+            raise RelationalClientError(
+                'YugabyteDB ADD_INDEXES is available only for YCQL tables')
+        arguments.append('ADD_INDEXES')
+    if include_vector_indexes:
+        arguments.append('ADD_VECTOR_INDEXES')
+    return arguments
+
+
 def _placements(value):
     placements = _list(value, 'placement', r'[A-Za-z0-9_.:-]+', 256)
     for placement in placements:
@@ -291,7 +352,7 @@ def compile_action(request):
     operation = request['operation_id']
     draft = request.get('draft') or {}
     arguments = []
-    if kind == 'table':
+    if kind == 'table' and operation == 'configure_placement':
         # YugabyteDB rejects modify_table_placement_info for YSQL tables and
         # explicitly requires placement through YSQL tablespaces.  Compile
         # the provider-owned form to the supported YSQL operation instead of
@@ -315,7 +376,9 @@ def compile_action(request):
                 'data_movement_possible': True,
             },
         }
-    if kind == 'placement-policy':
+    if kind == 'table' and operation == 'compact':
+        arguments = _compact_table_arguments(request, draft)
+    elif kind == 'placement-policy':
         if operation == 'clear':
             arguments = ['clear_placement_info']
         else:
@@ -506,7 +569,7 @@ def compile_action(request):
             'provider_constructed': True,
         },
         'impact': {
-            'scope': 'resource' if kind == 'tablet' else (
+            'scope': 'resource' if kind in {'table', 'tablet'} else (
                 'node' if kind == 'node' else 'cluster'),
             'target_resource_id': (
                 request.get('target_resource') or {}

@@ -161,7 +161,7 @@ class DistributedSQLControlPlane(RelationalAdministration):
             },
         }
 
-    def apply(self, client, request):
+    def apply(self, client, request, connection=None):
         plan = request.get('plan')
         if isinstance(plan, Mapping) and self.control_plane.supports(
                 plan.get('resource_kind'), plan.get('operation_id')):
@@ -180,7 +180,7 @@ class DistributedSQLControlPlane(RelationalAdministration):
                     raise RelationalClientError(
                         'provider action result is invalid')
                 return copy.deepcopy(dict(value))
-        return super().apply(client, request)
+        return super().apply(client, request, connection=connection)
 
     def inspect_operation(self, client, request):
         if not callable(self._control_inspector):

@@ -1,5 +1,5 @@
 {
-  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.cassandra", "provider_version": "0.1.0", "profile_id": "cassandra-native", "profile_version": "5.0.8", "evidence_reference": "cde-cassandra-provider:offline-implementation:20260902"},
+  "identity": {"contract_version": "1.1.0", "provider_id": "org.cdeadmin.cassandra", "provider_version": "0.2.0", "profile_id": "cassandra-native", "profile_version": "5.0.8", "evidence_reference": "cdeadmin-cassandra-full-live:20260910"},
   "package_type": "engine",
   "sdk_compatibility": {"minimum": "1.1.0", "maximum_exclusive": "2.0.0"},
   "support_state": "experimental",
@@ -42,8 +42,14 @@
       {"field_id": "request_timeout", "route_key": "request_timeout", "label": "Request timeout (seconds)", "control": "number", "group": "Cassandra timeouts", "default": 30, "minimum": 1, "maximum": 600},
       {"field_id": "connect_timeout", "route_key": "connect_timeout", "label": "Connect timeout (seconds)", "control": "number", "group": "Cassandra timeouts", "default": 10, "minimum": 1, "maximum": 120},
       {"field_id": "jmx_port", "route_key": "jmx_port", "label": "JMX administration port", "control": "number", "group": "Cassandra operational tools", "default": 7199, "minimum": 1, "maximum": 65535},
+      {"field_id": "storage_port", "route_key": "storage_port", "label": "Internode streaming port", "control": "number", "group": "Cassandra operational tools", "default": 7000, "minimum": 1, "maximum": 65535, "help": "Storage port advertised by Cassandra for SSTable streaming operations."},
+      {"field_id": "jmx_auth_mode", "route_key": "jmx_auth_mode", "label": "JMX authentication", "control": "select", "group": "Cassandra operational tools", "default": "none", "options": [{"value": "none", "label": "No JMX authentication"}, {"value": "password", "label": "JMX username and password file"}]},
+      {"field_id": "jmx_username", "route_key": "jmx_username", "label": "JMX username", "control": "text", "group": "Cassandra operational tools", "visible_when": {"field_id": "jmx_auth_mode", "equals": "password"}},
       {"field_id": "tool_workspace", "route_key": "tool_workspace", "label": "Administration tool workspace", "control": "text", "group": "Cassandra operational tools", "help": "Absolute non-root directory explicitly granted to provider-owned tools."}
+    ],
+    "secret_fields": [
+      {"field_id": "jmx_password", "secret_kind": "jmx_password", "label": "JMX password", "group": "Cassandra operational tools", "required": true, "visible_when": {"field_id": "jmx_auth_mode", "equals": "password"}}
     ]
   },
-  "provenance": {"purpose": "Cassandra 5.0.8 exact-profile implementation", "protocol": "cql", "client_state": "cassandra_driver_3.30.1_installed", "runtime_state": "verified", "activation_gate": "blocked_pending_exact_contract_and_ui_evidence", "live_evidence_reference": "cde-cassandra-live:cassandra-5.0.8:20260902"}
+  "provenance": {"purpose": "Cassandra 5.0.8 exact-profile implementation", "protocol": "cql-native-v5", "client_state": "cassandra_driver_3.30.1_verified", "runtime_state": "exact_runtime_qualified", "activation_gate": "passed_exact_dialect_metrics_20_concept_ui_and_native_restore_evidence", "object_experience_gate": "passed_20_of_20_concepts_and_all_declared_operations", "live_evidence_reference": "cdeadmin-cassandra-full-live:5.0.8:20260910", "evidence_sha256": "4783132dba06cfe7fea6a97e71e5cc20e59a58f4f49369f099100c9fdf93e32c", "strict_object_evidence_sha256": "be2389a3a7729923412d877d818900d17112225c877376ab301e380444c2c0a4", "object_gate_sha256": "81f692b4191b6f271c240b213fdabe6330a6a292e847ed2d5a73a23579cae20e", "native_restore_gate": "passed_truncate_sstableloader_stream_and_row_recovery"}
 }

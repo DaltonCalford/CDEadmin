@@ -1,0 +1,2788 @@
+{
+  "completeness": {
+    "diagnostic_catalog_exhausted": true,
+    "function_registry_exhausted": true,
+    "grammar_productions_exhausted": true,
+    "inventory_counts": {
+      "commands": 91,
+      "data_types": 8,
+      "diagnostics": 74,
+      "functions": 81,
+      "lexical_rules": 128,
+      "operators": 18,
+      "session_settings": 20,
+      "statements": 65
+    },
+    "runtime_catalogs_exhausted": true,
+    "runtime_version": "1.11.0"
+  },
+  "engine_id": "immudb",
+  "inventories": {
+    "commands": [
+      {
+        "item_id": "commands.0001",
+        "native_name": "sql",
+        "source": "embedded/sql/sql_grammar.y:228"
+      },
+      {
+        "item_id": "commands.0002",
+        "native_name": "sqlstmts",
+        "source": "embedded/sql/sql_grammar.y:239"
+      },
+      {
+        "item_id": "commands.0003",
+        "native_name": "opt_separator",
+        "source": "embedded/sql/sql_grammar.y:250"
+      },
+      {
+        "item_id": "commands.0004",
+        "native_name": "sqlstmt",
+        "source": "embedded/sql/sql_grammar.y:252"
+      },
+      {
+        "item_id": "commands.0005",
+        "native_name": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "commands.0006",
+        "native_name": "sqlPrivileges",
+        "source": "embedded/sql/sql_grammar.y:490"
+      },
+      {
+        "item_id": "commands.0007",
+        "native_name": "sqlPrivilege",
+        "source": "embedded/sql/sql_grammar.y:506"
+      },
+      {
+        "item_id": "commands.0008",
+        "native_name": "permission",
+        "source": "embedded/sql/sql_grammar.y:543"
+      },
+      {
+        "item_id": "commands.0009",
+        "native_name": "opt_if_not_exists",
+        "source": "embedded/sql/sql_grammar.y:564"
+      },
+      {
+        "item_id": "commands.0010",
+        "native_name": "dmlstmt",
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "commands.0011",
+        "native_name": "values_or_query",
+        "source": "embedded/sql/sql_grammar.y:616"
+      },
+      {
+        "item_id": "commands.0012",
+        "native_name": "opt_on_conflict",
+        "source": "embedded/sql/sql_grammar.y:628"
+      },
+      {
+        "item_id": "commands.0013",
+        "native_name": "opt_returning",
+        "source": "embedded/sql/sql_grammar.y:643"
+      },
+      {
+        "item_id": "commands.0014",
+        "native_name": "updates",
+        "source": "embedded/sql/sql_grammar.y:658"
+      },
+      {
+        "item_id": "commands.0015",
+        "native_name": "update",
+        "source": "embedded/sql/sql_grammar.y:669"
+      },
+      {
+        "item_id": "commands.0016",
+        "native_name": "rows",
+        "source": "embedded/sql/sql_grammar.y:675"
+      },
+      {
+        "item_id": "commands.0017",
+        "native_name": "row",
+        "source": "embedded/sql/sql_grammar.y:686"
+      },
+      {
+        "item_id": "commands.0018",
+        "native_name": "cols",
+        "source": "embedded/sql/sql_grammar.y:692"
+      },
+      {
+        "item_id": "commands.0019",
+        "native_name": "opt_values",
+        "source": "embedded/sql/sql_grammar.y:703"
+      },
+      {
+        "item_id": "commands.0020",
+        "native_name": "values",
+        "source": "embedded/sql/sql_grammar.y:713"
+      },
+      {
+        "item_id": "commands.0021",
+        "native_name": "val",
+        "source": "embedded/sql/sql_grammar.y:724"
+      },
+      {
+        "item_id": "commands.0022",
+        "native_name": "sql_type",
+        "source": "embedded/sql/sql_grammar.y:791"
+      },
+      {
+        "item_id": "commands.0023",
+        "native_name": "fnCall",
+        "source": "embedded/sql/sql_grammar.y:802"
+      },
+      {
+        "item_id": "commands.0024",
+        "native_name": "tableElems",
+        "source": "embedded/sql/sql_grammar.y:813"
+      },
+      {
+        "item_id": "commands.0025",
+        "native_name": "tableElem",
+        "source": "embedded/sql/sql_grammar.y:824"
+      },
+      {
+        "item_id": "commands.0026",
+        "native_name": "colSpec",
+        "source": "embedded/sql/sql_grammar.y:846"
+      },
+      {
+        "item_id": "commands.0027",
+        "native_name": "opt_primary_key",
+        "source": "embedded/sql/sql_grammar.y:861"
+      },
+      {
+        "item_id": "commands.0028",
+        "native_name": "opt_max_len",
+        "source": "embedded/sql/sql_grammar.y:872"
+      },
+      {
+        "item_id": "commands.0029",
+        "native_name": "opt_default",
+        "source": "embedded/sql/sql_grammar.y:887"
+      },
+      {
+        "item_id": "commands.0030",
+        "native_name": "opt_auto_increment",
+        "source": "embedded/sql/sql_grammar.y:897"
+      },
+      {
+        "item_id": "commands.0031",
+        "native_name": "opt_not_null",
+        "source": "embedded/sql/sql_grammar.y:907"
+      },
+      {
+        "item_id": "commands.0032",
+        "native_name": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "commands.0033",
+        "native_name": "select_stmt",
+        "source": "embedded/sql/sql_grammar.y:1026"
+      },
+      {
+        "item_id": "commands.0034",
+        "native_name": "opt_all",
+        "source": "embedded/sql/sql_grammar.y:1053"
+      },
+      {
+        "item_id": "commands.0035",
+        "native_name": "opt_distinct",
+        "source": "embedded/sql/sql_grammar.y:1063"
+      },
+      {
+        "item_id": "commands.0036",
+        "native_name": "opt_targets",
+        "source": "embedded/sql/sql_grammar.y:1073"
+      },
+      {
+        "item_id": "commands.0037",
+        "native_name": "targets",
+        "source": "embedded/sql/sql_grammar.y:1084"
+      },
+      {
+        "item_id": "commands.0038",
+        "native_name": "selector",
+        "source": "embedded/sql/sql_grammar.y:1095"
+      },
+      {
+        "item_id": "commands.0039",
+        "native_name": "jsonFields",
+        "source": "embedded/sql/sql_grammar.y:1135"
+      },
+      {
+        "item_id": "commands.0040",
+        "native_name": "col",
+        "source": "embedded/sql/sql_grammar.y:1146"
+      },
+      {
+        "item_id": "commands.0041",
+        "native_name": "tableName",
+        "source": "embedded/sql/sql_grammar.y:1158"
+      },
+      {
+        "item_id": "commands.0042",
+        "native_name": "col_name",
+        "source": "embedded/sql/sql_grammar.y:1160"
+      },
+      {
+        "item_id": "commands.0043",
+        "native_name": "col_names",
+        "source": "embedded/sql/sql_grammar.y:1166"
+      },
+      {
+        "item_id": "commands.0044",
+        "native_name": "one_or_more_col_names",
+        "source": "embedded/sql/sql_grammar.y:1172"
+      },
+      {
+        "item_id": "commands.0045",
+        "native_name": "insert_cols",
+        "source": "embedded/sql/sql_grammar.y:1184"
+      },
+      {
+        "item_id": "commands.0046",
+        "native_name": "colNameKeyword",
+        "source": "embedded/sql/sql_grammar.y:1191"
+      },
+      {
+        "item_id": "commands.0047",
+        "native_name": "qualifiedName",
+        "source": "embedded/sql/sql_grammar.y:1205"
+      },
+      {
+        "item_id": "commands.0048",
+        "native_name": "unreserved_keyword",
+        "source": "embedded/sql/sql_grammar.y:1210"
+      },
+      {
+        "item_id": "commands.0049",
+        "native_name": "ds",
+        "source": "embedded/sql/sql_grammar.y:1245"
+      },
+      {
+        "item_id": "commands.0050",
+        "native_name": "tableRef",
+        "source": "embedded/sql/sql_grammar.y:1308"
+      },
+      {
+        "item_id": "commands.0051",
+        "native_name": "opt_period",
+        "source": "embedded/sql/sql_grammar.y:1314"
+      },
+      {
+        "item_id": "commands.0052",
+        "native_name": "opt_period_start",
+        "source": "embedded/sql/sql_grammar.y:1320"
+      },
+      {
+        "item_id": "commands.0053",
+        "native_name": "opt_period_end",
+        "source": "embedded/sql/sql_grammar.y:1335"
+      },
+      {
+        "item_id": "commands.0054",
+        "native_name": "period_instant",
+        "source": "embedded/sql/sql_grammar.y:1350"
+      },
+      {
+        "item_id": "commands.0055",
+        "native_name": "opt_joins",
+        "source": "embedded/sql/sql_grammar.y:1361"
+      },
+      {
+        "item_id": "commands.0056",
+        "native_name": "joins",
+        "source": "embedded/sql/sql_grammar.y:1371"
+      },
+      {
+        "item_id": "commands.0057",
+        "native_name": "join",
+        "source": "embedded/sql/sql_grammar.y:1382"
+      },
+      {
+        "item_id": "commands.0058",
+        "native_name": "opt_join_type",
+        "source": "embedded/sql/sql_grammar.y:1431"
+      },
+      {
+        "item_id": "commands.0059",
+        "native_name": "opt_join_cond",
+        "source": "embedded/sql/sql_grammar.y:1441"
+      },
+      {
+        "item_id": "commands.0060",
+        "native_name": "opt_where",
+        "source": "embedded/sql/sql_grammar.y:1451"
+      },
+      {
+        "item_id": "commands.0061",
+        "native_name": "opt_groupby",
+        "source": "embedded/sql/sql_grammar.y:1461"
+      },
+      {
+        "item_id": "commands.0062",
+        "native_name": "opt_having",
+        "source": "embedded/sql/sql_grammar.y:1471"
+      },
+      {
+        "item_id": "commands.0063",
+        "native_name": "opt_limit",
+        "source": "embedded/sql/sql_grammar.y:1481"
+      },
+      {
+        "item_id": "commands.0064",
+        "native_name": "opt_offset",
+        "source": "embedded/sql/sql_grammar.y:1506"
+      },
+      {
+        "item_id": "commands.0065",
+        "native_name": "opt_orderby",
+        "source": "embedded/sql/sql_grammar.y:1516"
+      },
+      {
+        "item_id": "commands.0066",
+        "native_name": "opt_indexon",
+        "source": "embedded/sql/sql_grammar.y:1526"
+      },
+      {
+        "item_id": "commands.0067",
+        "native_name": "ordexps",
+        "source": "embedded/sql/sql_grammar.y:1537"
+      },
+      {
+        "item_id": "commands.0068",
+        "native_name": "opt_ord",
+        "source": "embedded/sql/sql_grammar.y:1548"
+      },
+      {
+        "item_id": "commands.0069",
+        "native_name": "opt_nulls_order",
+        "source": "embedded/sql/sql_grammar.y:1563"
+      },
+      {
+        "item_id": "commands.0070",
+        "native_name": "opt_partition",
+        "source": "embedded/sql/sql_grammar.y:1578"
+      },
+      {
+        "item_id": "commands.0071",
+        "native_name": "cte_defs",
+        "source": "embedded/sql/sql_grammar.y:1588"
+      },
+      {
+        "item_id": "commands.0072",
+        "native_name": "cte_def",
+        "source": "embedded/sql/sql_grammar.y:1599"
+      },
+      {
+        "item_id": "commands.0073",
+        "native_name": "opt_as",
+        "source": "embedded/sql/sql_grammar.y:1605"
+      },
+      {
+        "item_id": "commands.0074",
+        "native_name": "check",
+        "source": "embedded/sql/sql_grammar.y:1642"
+      },
+      {
+        "item_id": "commands.0075",
+        "native_name": "opt_exp",
+        "source": "embedded/sql/sql_grammar.y:1653"
+      },
+      {
+        "item_id": "commands.0076",
+        "native_name": "case_when_exp",
+        "source": "embedded/sql/sql_grammar.y:1664"
+      },
+      {
+        "item_id": "commands.0077",
+        "native_name": "when_then_clauses",
+        "source": "embedded/sql/sql_grammar.y:1675"
+      },
+      {
+        "item_id": "commands.0078",
+        "native_name": "opt_else",
+        "source": "embedded/sql/sql_grammar.y:1687"
+      },
+      {
+        "item_id": "commands.0079",
+        "native_name": "exp",
+        "source": "embedded/sql/sql_grammar.y:1698"
+      },
+      {
+        "item_id": "commands.0080",
+        "native_name": "orExp",
+        "source": "embedded/sql/sql_grammar.y:1702"
+      },
+      {
+        "item_id": "commands.0081",
+        "native_name": "andExp",
+        "source": "embedded/sql/sql_grammar.y:1707"
+      },
+      {
+        "item_id": "commands.0082",
+        "native_name": "notExp",
+        "source": "embedded/sql/sql_grammar.y:1712"
+      },
+      {
+        "item_id": "commands.0083",
+        "native_name": "cmpExp",
+        "source": "embedded/sql/sql_grammar.y:1717"
+      },
+      {
+        "item_id": "commands.0084",
+        "native_name": "primaryBool",
+        "source": "embedded/sql/sql_grammar.y:1744"
+      },
+      {
+        "item_id": "commands.0085",
+        "native_name": "addExp",
+        "source": "embedded/sql/sql_grammar.y:1764"
+      },
+      {
+        "item_id": "commands.0086",
+        "native_name": "mulExp",
+        "source": "embedded/sql/sql_grammar.y:1770"
+      },
+      {
+        "item_id": "commands.0087",
+        "native_name": "unaryExp",
+        "source": "embedded/sql/sql_grammar.y:1777"
+      },
+      {
+        "item_id": "commands.0088",
+        "native_name": "primary",
+        "source": "embedded/sql/sql_grammar.y:1792"
+      },
+      {
+        "item_id": "commands.0089",
+        "native_name": "boundexp",
+        "source": "embedded/sql/sql_grammar.y:1798"
+      },
+      {
+        "item_id": "commands.0090",
+        "native_name": "opt_not",
+        "source": "embedded/sql/sql_grammar.y:1820"
+      },
+      {
+        "item_id": "commands.0091",
+        "native_name": "timestamp_field",
+        "source": "embedded/sql/sql_grammar.y:1831"
+      }
+    ],
+    "data_types": [
+      {
+        "grammar_token": "INTEGER_TYPE",
+        "item_id": "data_types.0001",
+        "native_name": "INTEGER",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "BOOLEAN_TYPE",
+        "item_id": "data_types.0002",
+        "native_name": "BOOLEAN",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "VARCHAR_TYPE",
+        "item_id": "data_types.0003",
+        "native_name": "VARCHAR",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "UUID_TYPE",
+        "item_id": "data_types.0004",
+        "native_name": "UUID",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "BLOB_TYPE",
+        "item_id": "data_types.0005",
+        "native_name": "BLOB",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "TIMESTAMP_TYPE",
+        "item_id": "data_types.0006",
+        "native_name": "TIMESTAMP",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "FLOAT_TYPE",
+        "item_id": "data_types.0007",
+        "native_name": "FLOAT",
+        "source": "embedded/sql/sql_grammar.y:125"
+      },
+      {
+        "grammar_token": "JSON_TYPE",
+        "item_id": "data_types.0008",
+        "native_name": "JSON",
+        "source": "embedded/sql/sql_grammar.y:125"
+      }
+    ],
+    "diagnostics": [
+      {
+        "item_id": "diagnostics.0001",
+        "native_name": "ErrNoSupported",
+        "source": "embedded/sql/engine.go:32"
+      },
+      {
+        "item_id": "diagnostics.0002",
+        "native_name": "ErrIllegalArguments",
+        "source": "embedded/sql/engine.go:33"
+      },
+      {
+        "item_id": "diagnostics.0003",
+        "native_name": "ErrMultiIndexingNotEnabled",
+        "source": "embedded/sql/engine.go:34"
+      },
+      {
+        "item_id": "diagnostics.0004",
+        "native_name": "ErrParsingError",
+        "source": "embedded/sql/engine.go:35"
+      },
+      {
+        "item_id": "diagnostics.0005",
+        "native_name": "ErrDDLorDMLTxOnly",
+        "source": "embedded/sql/engine.go:36"
+      },
+      {
+        "item_id": "diagnostics.0006",
+        "native_name": "ErrUnspecifiedMultiDBHandler",
+        "source": "embedded/sql/engine.go:37"
+      },
+      {
+        "item_id": "diagnostics.0007",
+        "native_name": "ErrDatabaseDoesNotExist",
+        "source": "embedded/sql/engine.go:38"
+      },
+      {
+        "item_id": "diagnostics.0008",
+        "native_name": "ErrDatabaseAlreadyExists",
+        "source": "embedded/sql/engine.go:39"
+      },
+      {
+        "item_id": "diagnostics.0009",
+        "native_name": "ErrTableAlreadyExists",
+        "source": "embedded/sql/engine.go:40"
+      },
+      {
+        "item_id": "diagnostics.0010",
+        "native_name": "ErrTableDoesNotExist",
+        "source": "embedded/sql/engine.go:41"
+      },
+      {
+        "item_id": "diagnostics.0011",
+        "native_name": "ErrColumnDoesNotExist",
+        "source": "embedded/sql/engine.go:42"
+      },
+      {
+        "item_id": "diagnostics.0012",
+        "native_name": "ErrColumnAlreadyExists",
+        "source": "embedded/sql/engine.go:43"
+      },
+      {
+        "item_id": "diagnostics.0013",
+        "native_name": "ErrCannotDropColumn",
+        "source": "embedded/sql/engine.go:44"
+      },
+      {
+        "item_id": "diagnostics.0014",
+        "native_name": "ErrSameOldAndNewNames",
+        "source": "embedded/sql/engine.go:45"
+      },
+      {
+        "item_id": "diagnostics.0015",
+        "native_name": "ErrColumnNotIndexed",
+        "source": "embedded/sql/engine.go:46"
+      },
+      {
+        "item_id": "diagnostics.0016",
+        "native_name": "ErrFunctionDoesNotExist",
+        "source": "embedded/sql/engine.go:47"
+      },
+      {
+        "item_id": "diagnostics.0017",
+        "native_name": "ErrLimitedKeyType",
+        "source": "embedded/sql/engine.go:48"
+      },
+      {
+        "item_id": "diagnostics.0018",
+        "native_name": "ErrLimitedAutoIncrement",
+        "source": "embedded/sql/engine.go:49"
+      },
+      {
+        "item_id": "diagnostics.0019",
+        "native_name": "ErrLimitedMaxLen",
+        "source": "embedded/sql/engine.go:50"
+      },
+      {
+        "item_id": "diagnostics.0020",
+        "native_name": "ErrDuplicatedColumn",
+        "source": "embedded/sql/engine.go:51"
+      },
+      {
+        "item_id": "diagnostics.0021",
+        "native_name": "ErrInvalidColumn",
+        "source": "embedded/sql/engine.go:52"
+      },
+      {
+        "item_id": "diagnostics.0022",
+        "native_name": "ErrInvalidCheckConstraint",
+        "source": "embedded/sql/engine.go:53"
+      },
+      {
+        "item_id": "diagnostics.0023",
+        "native_name": "ErrCheckConstraintViolation",
+        "source": "embedded/sql/engine.go:54"
+      },
+      {
+        "item_id": "diagnostics.0024",
+        "native_name": "ErrReservedWord",
+        "source": "embedded/sql/engine.go:55"
+      },
+      {
+        "item_id": "diagnostics.0025",
+        "native_name": "ErrNoPrimaryKey",
+        "source": "embedded/sql/engine.go:56"
+      },
+      {
+        "item_id": "diagnostics.0026",
+        "native_name": "ErrPKCanNotBeNull",
+        "source": "embedded/sql/engine.go:57"
+      },
+      {
+        "item_id": "diagnostics.0027",
+        "native_name": "ErrPKCanNotBeUpdated",
+        "source": "embedded/sql/engine.go:58"
+      },
+      {
+        "item_id": "diagnostics.0028",
+        "native_name": "ErrMultiplePrimaryKeys",
+        "source": "embedded/sql/engine.go:59"
+      },
+      {
+        "item_id": "diagnostics.0029",
+        "native_name": "ErrNotNullableColumnCannotBeNull",
+        "source": "embedded/sql/engine.go:60"
+      },
+      {
+        "item_id": "diagnostics.0030",
+        "native_name": "ErrNewColumnMustBeNullable",
+        "source": "embedded/sql/engine.go:61"
+      },
+      {
+        "item_id": "diagnostics.0031",
+        "native_name": "ErrIndexAlreadyExists",
+        "source": "embedded/sql/engine.go:62"
+      },
+      {
+        "item_id": "diagnostics.0032",
+        "native_name": "ErrMaxNumberOfColumnsInIndexExceeded",
+        "source": "embedded/sql/engine.go:63"
+      },
+      {
+        "item_id": "diagnostics.0033",
+        "native_name": "ErrIndexNotFound",
+        "source": "embedded/sql/engine.go:64"
+      },
+      {
+        "item_id": "diagnostics.0034",
+        "native_name": "ErrConstraintNotFound",
+        "source": "embedded/sql/engine.go:65"
+      },
+      {
+        "item_id": "diagnostics.0035",
+        "native_name": "ErrInvalidNumberOfValues",
+        "source": "embedded/sql/engine.go:66"
+      },
+      {
+        "item_id": "diagnostics.0036",
+        "native_name": "ErrInvalidValue",
+        "source": "embedded/sql/engine.go:67"
+      },
+      {
+        "item_id": "diagnostics.0037",
+        "native_name": "ErrInferredMultipleTypes",
+        "source": "embedded/sql/engine.go:68"
+      },
+      {
+        "item_id": "diagnostics.0038",
+        "native_name": "ErrExpectingDQLStmt",
+        "source": "embedded/sql/engine.go:69"
+      },
+      {
+        "item_id": "diagnostics.0039",
+        "native_name": "ErrColumnMustAppearInGroupByOrAggregation",
+        "source": "embedded/sql/engine.go:70"
+      },
+      {
+        "item_id": "diagnostics.0040",
+        "native_name": "ErrIllegalMappedKey",
+        "source": "embedded/sql/engine.go:71"
+      },
+      {
+        "item_id": "diagnostics.0041",
+        "native_name": "ErrCorruptedData",
+        "source": "embedded/sql/engine.go:72"
+      },
+      {
+        "item_id": "diagnostics.0042",
+        "native_name": "ErrBrokenCatalogColSpecExpirable",
+        "source": "embedded/sql/engine.go:73"
+      },
+      {
+        "item_id": "diagnostics.0043",
+        "native_name": "ErrBrokenCatalogCheckConstraintExpirable",
+        "source": "embedded/sql/engine.go:74"
+      },
+      {
+        "item_id": "diagnostics.0044",
+        "native_name": "ErrNoMoreRows",
+        "source": "embedded/sql/engine.go:75"
+      },
+      {
+        "item_id": "diagnostics.0045",
+        "native_name": "ErrInvalidTypes",
+        "source": "embedded/sql/engine.go:76"
+      },
+      {
+        "item_id": "diagnostics.0046",
+        "native_name": "ErrUnsupportedJoinType",
+        "source": "embedded/sql/engine.go:77"
+      },
+      {
+        "item_id": "diagnostics.0047",
+        "native_name": "ErrInvalidCondition",
+        "source": "embedded/sql/engine.go:78"
+      },
+      {
+        "item_id": "diagnostics.0048",
+        "native_name": "ErrHavingClauseRequiresGroupClause",
+        "source": "embedded/sql/engine.go:79"
+      },
+      {
+        "item_id": "diagnostics.0049",
+        "native_name": "ErrNotComparableValues",
+        "source": "embedded/sql/engine.go:80"
+      },
+      {
+        "item_id": "diagnostics.0050",
+        "native_name": "ErrNumericTypeExpected",
+        "source": "embedded/sql/engine.go:81"
+      },
+      {
+        "item_id": "diagnostics.0051",
+        "native_name": "ErrUnexpected",
+        "source": "embedded/sql/engine.go:82"
+      },
+      {
+        "item_id": "diagnostics.0052",
+        "native_name": "ErrMaxKeyLengthExceeded",
+        "source": "embedded/sql/engine.go:83"
+      },
+      {
+        "item_id": "diagnostics.0053",
+        "native_name": "ErrMaxLengthExceeded",
+        "source": "embedded/sql/engine.go:84"
+      },
+      {
+        "item_id": "diagnostics.0054",
+        "native_name": "ErrColumnIsNotAnAggregation",
+        "source": "embedded/sql/engine.go:85"
+      },
+      {
+        "item_id": "diagnostics.0055",
+        "native_name": "ErrLimitedCount",
+        "source": "embedded/sql/engine.go:86"
+      },
+      {
+        "item_id": "diagnostics.0056",
+        "native_name": "ErrWindowRowsLimitExceeded",
+        "source": "embedded/sql/engine.go:87"
+      },
+      {
+        "item_id": "diagnostics.0057",
+        "native_name": "ErrTxDoesNotExist",
+        "source": "embedded/sql/engine.go:88"
+      },
+      {
+        "item_id": "diagnostics.0058",
+        "native_name": "ErrNestedTxNotSupported",
+        "source": "embedded/sql/engine.go:89"
+      },
+      {
+        "item_id": "diagnostics.0059",
+        "native_name": "ErrNoOngoingTx",
+        "source": "embedded/sql/engine.go:90"
+      },
+      {
+        "item_id": "diagnostics.0060",
+        "native_name": "ErrNonTransactionalStmt",
+        "source": "embedded/sql/engine.go:91"
+      },
+      {
+        "item_id": "diagnostics.0061",
+        "native_name": "ErrDivisionByZero",
+        "source": "embedded/sql/engine.go:92"
+      },
+      {
+        "item_id": "diagnostics.0062",
+        "native_name": "ErrMissingParameter",
+        "source": "embedded/sql/engine.go:93"
+      },
+      {
+        "item_id": "diagnostics.0063",
+        "native_name": "ErrUnsupportedParameter",
+        "source": "embedded/sql/engine.go:94"
+      },
+      {
+        "item_id": "diagnostics.0064",
+        "native_name": "ErrDuplicatedParameters",
+        "source": "embedded/sql/engine.go:95"
+      },
+      {
+        "item_id": "diagnostics.0065",
+        "native_name": "ErrLimitedIndexCreation",
+        "source": "embedded/sql/engine.go:96"
+      },
+      {
+        "item_id": "diagnostics.0066",
+        "native_name": "ErrTooManyRows",
+        "source": "embedded/sql/engine.go:97"
+      },
+      {
+        "item_id": "diagnostics.0067",
+        "native_name": "ErrAlreadyClosed",
+        "source": "embedded/sql/engine.go:98"
+      },
+      {
+        "item_id": "diagnostics.0068",
+        "native_name": "ErrAmbiguousSelector",
+        "source": "embedded/sql/engine.go:99"
+      },
+      {
+        "item_id": "diagnostics.0069",
+        "native_name": "ErrUnsupportedCast",
+        "source": "embedded/sql/engine.go:100"
+      },
+      {
+        "item_id": "diagnostics.0070",
+        "native_name": "ErrColumnMismatchInUnionStmt",
+        "source": "embedded/sql/engine.go:101"
+      },
+      {
+        "item_id": "diagnostics.0071",
+        "native_name": "ErrCannotIndexJson",
+        "source": "embedded/sql/engine.go:102"
+      },
+      {
+        "item_id": "diagnostics.0072",
+        "native_name": "ErrInvalidTxMetadata",
+        "source": "embedded/sql/engine.go:103"
+      },
+      {
+        "item_id": "diagnostics.0073",
+        "native_name": "ErrAccessDenied",
+        "source": "embedded/sql/engine.go:104"
+      },
+      {
+        "item_id": "diagnostics.0074",
+        "native_name": "ErrDiffRequiresPeriod",
+        "source": "embedded/sql/engine.go:105"
+      }
+    ],
+    "functions": [
+      {
+        "item_id": "functions.0001",
+        "native_name": "COALESCE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:33"
+      },
+      {
+        "item_id": "functions.0002",
+        "native_name": "LENGTH",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:34"
+      },
+      {
+        "item_id": "functions.0003",
+        "native_name": "SUBSTRING",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:35"
+      },
+      {
+        "item_id": "functions.0004",
+        "native_name": "CONCAT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:36"
+      },
+      {
+        "item_id": "functions.0005",
+        "native_name": "LOWER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:37"
+      },
+      {
+        "item_id": "functions.0006",
+        "native_name": "UPPER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:38"
+      },
+      {
+        "item_id": "functions.0007",
+        "native_name": "TRIM",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:39"
+      },
+      {
+        "item_id": "functions.0008",
+        "native_name": "NOW",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:40"
+      },
+      {
+        "item_id": "functions.0009",
+        "native_name": "RANDOM_UUID",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:41"
+      },
+      {
+        "item_id": "functions.0010",
+        "native_name": "DATABASES",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:42"
+      },
+      {
+        "item_id": "functions.0011",
+        "native_name": "TABLES",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:43"
+      },
+      {
+        "item_id": "functions.0012",
+        "native_name": "TABLE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:44"
+      },
+      {
+        "item_id": "functions.0013",
+        "native_name": "USERS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:45"
+      },
+      {
+        "item_id": "functions.0014",
+        "native_name": "COLUMNS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:46"
+      },
+      {
+        "item_id": "functions.0015",
+        "native_name": "INDEXES",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:47"
+      },
+      {
+        "item_id": "functions.0016",
+        "native_name": "GRANTS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:48"
+      },
+      {
+        "item_id": "functions.0017",
+        "native_name": "JSON_TYPEOF",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:49"
+      },
+      {
+        "item_id": "functions.0018",
+        "native_name": "PG_GET_USERBYID",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:50"
+      },
+      {
+        "item_id": "functions.0019",
+        "native_name": "PG_TABLE_IS_VISIBLE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:51"
+      },
+      {
+        "item_id": "functions.0020",
+        "native_name": "SHOBJ_DESCRIPTION",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:52"
+      },
+      {
+        "item_id": "functions.0021",
+        "native_name": "CURRENT_DATABASE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:53"
+      },
+      {
+        "item_id": "functions.0022",
+        "native_name": "CURRENT_SCHEMA",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:54"
+      },
+      {
+        "item_id": "functions.0023",
+        "native_name": "CURRENT_SCHEMAS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:55"
+      },
+      {
+        "item_id": "functions.0024",
+        "native_name": "CURRENT_USER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:56"
+      },
+      {
+        "item_id": "functions.0025",
+        "native_name": "FORMAT_TYPE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:57"
+      },
+      {
+        "item_id": "functions.0026",
+        "native_name": "PG_GET_EXPR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:58"
+      },
+      {
+        "item_id": "functions.0027",
+        "native_name": "PG_GET_CONSTRAINTDEF",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:59"
+      },
+      {
+        "item_id": "functions.0028",
+        "native_name": "PG_GET_INDEXDEF",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:60"
+      },
+      {
+        "item_id": "functions.0029",
+        "native_name": "PG_ENCODING_TO_CHAR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:61"
+      },
+      {
+        "item_id": "functions.0030",
+        "native_name": "OBJ_DESCRIPTION",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:62"
+      },
+      {
+        "item_id": "functions.0031",
+        "native_name": "HAS_TABLE_PRIVILEGE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:63"
+      },
+      {
+        "item_id": "functions.0032",
+        "native_name": "HAS_SCHEMA_PRIVILEGE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:64"
+      },
+      {
+        "item_id": "functions.0033",
+        "native_name": "HAS_DATABASE_PRIVILEGE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:65"
+      },
+      {
+        "item_id": "functions.0034",
+        "native_name": "HAS_FUNCTION_PRIVILEGE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:66"
+      },
+      {
+        "item_id": "functions.0035",
+        "native_name": "ARRAY_UPPER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:67"
+      },
+      {
+        "item_id": "functions.0036",
+        "native_name": "ARRAY_TO_STRING",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:68"
+      },
+      {
+        "item_id": "functions.0037",
+        "native_name": "QUOTE_IDENT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:69"
+      },
+      {
+        "item_id": "functions.0038",
+        "native_name": "PG_TOTAL_RELATION_SIZE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:70"
+      },
+      {
+        "item_id": "functions.0039",
+        "native_name": "PG_RELATION_SIZE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:71"
+      },
+      {
+        "item_id": "functions.0040",
+        "native_name": "PG_GET_SERIAL_SEQUENCE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:72"
+      },
+      {
+        "item_id": "functions.0041",
+        "native_name": "COL_DESCRIPTION",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:73"
+      },
+      {
+        "item_id": "functions.0042",
+        "native_name": "ABS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:76"
+      },
+      {
+        "item_id": "functions.0043",
+        "native_name": "CEIL",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:77"
+      },
+      {
+        "item_id": "functions.0044",
+        "native_name": "FLOOR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:78"
+      },
+      {
+        "item_id": "functions.0045",
+        "native_name": "ROUND",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:79"
+      },
+      {
+        "item_id": "functions.0046",
+        "native_name": "POWER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:80"
+      },
+      {
+        "item_id": "functions.0047",
+        "native_name": "SQRT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:81"
+      },
+      {
+        "item_id": "functions.0048",
+        "native_name": "MOD",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:82"
+      },
+      {
+        "item_id": "functions.0049",
+        "native_name": "SIGN",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:83"
+      },
+      {
+        "item_id": "functions.0050",
+        "native_name": "REPLACE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:86"
+      },
+      {
+        "item_id": "functions.0051",
+        "native_name": "REVERSE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:87"
+      },
+      {
+        "item_id": "functions.0052",
+        "native_name": "LEFT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:88"
+      },
+      {
+        "item_id": "functions.0053",
+        "native_name": "RIGHT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:89"
+      },
+      {
+        "item_id": "functions.0054",
+        "native_name": "REPEAT",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:90"
+      },
+      {
+        "item_id": "functions.0055",
+        "native_name": "POSITION",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:91"
+      },
+      {
+        "item_id": "functions.0056",
+        "native_name": "CHAR_LENGTH",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:92"
+      },
+      {
+        "item_id": "functions.0057",
+        "native_name": "OCTET_LENGTH",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:93"
+      },
+      {
+        "item_id": "functions.0058",
+        "native_name": "NULLIF",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:96"
+      },
+      {
+        "item_id": "functions.0059",
+        "native_name": "GREATEST",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:97"
+      },
+      {
+        "item_id": "functions.0060",
+        "native_name": "LEAST",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:98"
+      },
+      {
+        "item_id": "functions.0061",
+        "native_name": "LPAD",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:101"
+      },
+      {
+        "item_id": "functions.0062",
+        "native_name": "RPAD",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:102"
+      },
+      {
+        "item_id": "functions.0063",
+        "native_name": "SPLIT_PART",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:103"
+      },
+      {
+        "item_id": "functions.0064",
+        "native_name": "INITCAP",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:104"
+      },
+      {
+        "item_id": "functions.0065",
+        "native_name": "CHR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:105"
+      },
+      {
+        "item_id": "functions.0066",
+        "native_name": "ASCII",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:106"
+      },
+      {
+        "item_id": "functions.0067",
+        "native_name": "MD5",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:107"
+      },
+      {
+        "item_id": "functions.0068",
+        "native_name": "TRANSLATE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:108"
+      },
+      {
+        "item_id": "functions.0069",
+        "native_name": "DATE_TRUNC",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:111"
+      },
+      {
+        "item_id": "functions.0070",
+        "native_name": "TO_CHAR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:112"
+      },
+      {
+        "item_id": "functions.0071",
+        "native_name": "DATE_PART",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:113"
+      },
+      {
+        "item_id": "functions.0072",
+        "native_name": "AGE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:114"
+      },
+      {
+        "item_id": "functions.0073",
+        "native_name": "CLOCK_TIMESTAMP",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:115"
+      },
+      {
+        "item_id": "functions.0074",
+        "native_name": "SUBSTR",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:118"
+      },
+      {
+        "item_id": "functions.0075",
+        "native_name": "STRPOS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:119"
+      },
+      {
+        "item_id": "functions.0076",
+        "native_name": "CONCAT_WS",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:120"
+      },
+      {
+        "item_id": "functions.0077",
+        "native_name": "REGEXP_REPLACE",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:121"
+      },
+      {
+        "item_id": "functions.0078",
+        "native_name": "NEXTVAL",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:124"
+      },
+      {
+        "item_id": "functions.0079",
+        "native_name": "CURRVAL",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:125"
+      },
+      {
+        "item_id": "functions.0080",
+        "native_name": "RANDOM",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:128"
+      },
+      {
+        "item_id": "functions.0081",
+        "native_name": "TO_NUMBER",
+        "registry": "builtinFunctions",
+        "source": "embedded/sql/functions.go:130"
+      }
+    ],
+    "lexical_rules": [
+      {
+        "item_id": "lexical_rules.0001",
+        "native_name": "CREATE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0002",
+        "native_name": "DROP",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0003",
+        "native_name": "TRUNCATE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0004",
+        "native_name": "USE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0005",
+        "native_name": "DATABASE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0006",
+        "native_name": "USER",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0007",
+        "native_name": "WITH",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0008",
+        "native_name": "PASSWORD",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0009",
+        "native_name": "READ",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0010",
+        "native_name": "READWRITE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0011",
+        "native_name": "ADMIN",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0012",
+        "native_name": "SNAPSHOT",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0013",
+        "native_name": "HISTORY",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0014",
+        "native_name": "DIFF",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0015",
+        "native_name": "SINCE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0016",
+        "native_name": "AFTER",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0017",
+        "native_name": "BEFORE",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0018",
+        "native_name": "UNTIL",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0019",
+        "native_name": "TX",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0020",
+        "native_name": "OF",
+        "source": "embedded/sql/sql_grammar.y:124",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0021",
+        "native_name": "INTEGER_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0022",
+        "native_name": "BOOLEAN_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0023",
+        "native_name": "VARCHAR_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0024",
+        "native_name": "UUID_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0025",
+        "native_name": "BLOB_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0026",
+        "native_name": "TIMESTAMP_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0027",
+        "native_name": "FLOAT_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0028",
+        "native_name": "JSON_TYPE",
+        "source": "embedded/sql/sql_grammar.y:125",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0029",
+        "native_name": "TABLE",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0030",
+        "native_name": "UNIQUE",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0031",
+        "native_name": "INDEX",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0032",
+        "native_name": "ON",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0033",
+        "native_name": "ALTER",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0034",
+        "native_name": "ADD",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0035",
+        "native_name": "RENAME",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0036",
+        "native_name": "TO",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0037",
+        "native_name": "COLUMN",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0038",
+        "native_name": "CONSTRAINT",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0039",
+        "native_name": "PRIMARY",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0040",
+        "native_name": "KEY",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0041",
+        "native_name": "CHECK",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0042",
+        "native_name": "GRANT",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0043",
+        "native_name": "REVOKE",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0044",
+        "native_name": "GRANTS",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0045",
+        "native_name": "FOR",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0046",
+        "native_name": "PRIVILEGES",
+        "source": "embedded/sql/sql_grammar.y:126",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0047",
+        "native_name": "BEGIN",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0048",
+        "native_name": "TRANSACTION",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0049",
+        "native_name": "COMMIT",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0050",
+        "native_name": "ROLLBACK",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0051",
+        "native_name": "SAVEPOINT",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0052",
+        "native_name": "RELEASE",
+        "source": "embedded/sql/sql_grammar.y:127",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0053",
+        "native_name": "INSERT",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0054",
+        "native_name": "UPSERT",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0055",
+        "native_name": "INTO",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0056",
+        "native_name": "VALUES",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0057",
+        "native_name": "DELETE",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0058",
+        "native_name": "UPDATE",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0059",
+        "native_name": "SET",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0060",
+        "native_name": "CONFLICT",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0061",
+        "native_name": "DO",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0062",
+        "native_name": "NOTHING",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0063",
+        "native_name": "RETURNING",
+        "source": "embedded/sql/sql_grammar.y:128",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0064",
+        "native_name": "SELECT",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0065",
+        "native_name": "DISTINCT",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0066",
+        "native_name": "FROM",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0067",
+        "native_name": "JOIN",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0068",
+        "native_name": "HAVING",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0069",
+        "native_name": "WHERE",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0070",
+        "native_name": "GROUP",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0071",
+        "native_name": "BY",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0072",
+        "native_name": "LIMIT",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0073",
+        "native_name": "OFFSET",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0074",
+        "native_name": "ORDER",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0075",
+        "native_name": "ASC",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0076",
+        "native_name": "DESC",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0077",
+        "native_name": "AS",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0078",
+        "native_name": "UNION",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0079",
+        "native_name": "ALL",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0080",
+        "native_name": "CASE",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0081",
+        "native_name": "WHEN",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0082",
+        "native_name": "THEN",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0083",
+        "native_name": "ELSE",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0084",
+        "native_name": "END",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0085",
+        "native_name": "EXCEPT",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0086",
+        "native_name": "INTERSECT",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0087",
+        "native_name": "NULLS",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0088",
+        "native_name": "FIRST",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0089",
+        "native_name": "LAST",
+        "source": "embedded/sql/sql_grammar.y:129",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0090",
+        "native_name": "NOT",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0091",
+        "native_name": "LIKE",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0092",
+        "native_name": "ILIKE",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0093",
+        "native_name": "IF",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0094",
+        "native_name": "EXISTS",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0095",
+        "native_name": "IN",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0096",
+        "native_name": "IS",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0097",
+        "native_name": "OVER",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0098",
+        "native_name": "PARTITION",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0099",
+        "native_name": "EXPLAIN",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0100",
+        "native_name": "RECURSIVE",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0101",
+        "native_name": "NATURAL",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0102",
+        "native_name": "USING",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0103",
+        "native_name": "FETCH",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0104",
+        "native_name": "ROWS",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0105",
+        "native_name": "ONLY",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0106",
+        "native_name": "LATERAL",
+        "source": "embedded/sql/sql_grammar.y:130",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0107",
+        "native_name": "AUTO_INCREMENT",
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0108",
+        "native_name": "NULL",
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0109",
+        "native_name": "CAST",
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0110",
+        "native_name": "SCAST",
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0111",
+        "native_name": "DEFAULT",
+        "source": "embedded/sql/sql_grammar.y:131",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0112",
+        "native_name": "SHOW",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0113",
+        "native_name": "DATABASES",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0114",
+        "native_name": "TABLES",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0115",
+        "native_name": "USERS",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0116",
+        "native_name": "VIEW",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0117",
+        "native_name": "FOREIGN",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0118",
+        "native_name": "REFERENCES",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0119",
+        "native_name": "SEQUENCE",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0120",
+        "native_name": "CASCADE",
+        "source": "embedded/sql/sql_grammar.y:132",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0121",
+        "native_name": "BETWEEN",
+        "source": "embedded/sql/sql_grammar.y:133",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0122",
+        "native_name": "EXTRACT",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0123",
+        "native_name": "YEAR",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0124",
+        "native_name": "MONTH",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0125",
+        "native_name": "DAY",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0126",
+        "native_name": "HOUR",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0127",
+        "native_name": "MINUTE",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      },
+      {
+        "item_id": "lexical_rules.0128",
+        "native_name": "SECOND",
+        "source": "embedded/sql/sql_grammar.y:134",
+        "token_class": "keyword"
+      }
+    ],
+    "operators": [
+      {
+        "grammar_token": "','",
+        "item_id": "operators.0001",
+        "native_name": ",",
+        "source": "embedded/sql/sql_grammar.y:153"
+      },
+      {
+        "grammar_token": "AS",
+        "item_id": "operators.0002",
+        "native_name": "AS",
+        "source": "embedded/sql/sql_grammar.y:154"
+      },
+      {
+        "grammar_token": "BETWEEN",
+        "item_id": "operators.0003",
+        "native_name": "BETWEEN",
+        "source": "embedded/sql/sql_grammar.y:156"
+      },
+      {
+        "grammar_token": "OR",
+        "item_id": "operators.0004",
+        "native_name": "OR",
+        "source": "embedded/sql/sql_grammar.y:158"
+      },
+      {
+        "grammar_token": "AND",
+        "item_id": "operators.0005",
+        "native_name": "AND",
+        "source": "embedded/sql/sql_grammar.y:159"
+      },
+      {
+        "grammar_token": "NOT",
+        "item_id": "operators.0006",
+        "native_name": "NOT",
+        "source": "embedded/sql/sql_grammar.y:161"
+      },
+      {
+        "grammar_token": "CMPOP",
+        "item_id": "operators.0007",
+        "native_name": "CMPOP",
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "LIKE",
+        "item_id": "operators.0008",
+        "native_name": "LIKE",
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "ILIKE",
+        "item_id": "operators.0009",
+        "native_name": "ILIKE",
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "NOT_MATCHES_OP",
+        "item_id": "operators.0010",
+        "native_name": "NOT_MATCHES_OP",
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "IS",
+        "item_id": "operators.0011",
+        "native_name": "IS",
+        "source": "embedded/sql/sql_grammar.y:163"
+      },
+      {
+        "grammar_token": "'+'",
+        "item_id": "operators.0012",
+        "native_name": "+",
+        "source": "embedded/sql/sql_grammar.y:165"
+      },
+      {
+        "grammar_token": "'-'",
+        "item_id": "operators.0013",
+        "native_name": "-",
+        "source": "embedded/sql/sql_grammar.y:165"
+      },
+      {
+        "grammar_token": "'*'",
+        "item_id": "operators.0014",
+        "native_name": "*",
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'/'",
+        "item_id": "operators.0015",
+        "native_name": "/",
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'%'",
+        "item_id": "operators.0016",
+        "native_name": "%",
+        "source": "embedded/sql/sql_grammar.y:166"
+      },
+      {
+        "grammar_token": "'.'",
+        "item_id": "operators.0017",
+        "native_name": ".",
+        "source": "embedded/sql/sql_grammar.y:167"
+      },
+      {
+        "grammar_token": "STMT_SEPARATOR",
+        "item_id": "operators.0018",
+        "native_name": "STMT_SEPARATOR",
+        "source": "embedded/sql/sql_grammar.y:169"
+      }
+    ],
+    "session_settings": [
+      {
+        "item_id": "session_settings.0001",
+        "native_name": "server_version",
+        "observed_value": "14.0",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0002",
+        "native_name": "server_version_num",
+        "observed_value": "140000",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0003",
+        "native_name": "server_encoding",
+        "observed_value": "UTF8",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0004",
+        "native_name": "client_encoding",
+        "observed_value": "UTF8",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0005",
+        "native_name": "TimeZone",
+        "observed_value": "UTC",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0006",
+        "native_name": "DateStyle",
+        "observed_value": "ISO, MDY",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0007",
+        "native_name": "IntervalStyle",
+        "observed_value": "postgres",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0008",
+        "native_name": "lc_collate",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0009",
+        "native_name": "lc_ctype",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0010",
+        "native_name": "lc_messages",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0011",
+        "native_name": "lc_monetary",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0012",
+        "native_name": "lc_numeric",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0013",
+        "native_name": "lc_time",
+        "observed_value": "C",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0014",
+        "native_name": "standard_conforming_strings",
+        "observed_value": "on",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0015",
+        "native_name": "integer_datetimes",
+        "observed_value": "on",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0016",
+        "native_name": "max_connections",
+        "observed_value": "100",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0017",
+        "native_name": "max_prepared_transactions",
+        "observed_value": "0",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0018",
+        "native_name": "search_path",
+        "observed_value": "public",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0019",
+        "native_name": "default_transaction_isolation",
+        "observed_value": "read committed",
+        "source": "pg_settings"
+      },
+      {
+        "item_id": "session_settings.0020",
+        "native_name": "transaction_isolation",
+        "observed_value": "read committed",
+        "source": "pg_settings"
+      }
+    ],
+    "statements": [
+      {
+        "item_id": "statements.0001",
+        "native_name": "BEGIN TRANSACTION",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0002",
+        "native_name": "BEGIN",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0003",
+        "native_name": "COMMIT",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0004",
+        "native_name": "ROLLBACK",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0005",
+        "native_name": "SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0006",
+        "native_name": "RELEASE SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0007",
+        "native_name": "ROLLBACK TO SAVEPOINT IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0008",
+        "native_name": "ROLLBACK TO IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0009",
+        "native_name": "CREATE DATABASE IF NOT EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0010",
+        "native_name": "CREATE DATABASE IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0011",
+        "native_name": "USE IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0012",
+        "native_name": "USE DATABASE IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0013",
+        "native_name": "USE SNAPSHOT opt_period",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0014",
+        "native_name": "CREATE TABLE IF NOT EXISTS tableName '(' tableElems ')'",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0015",
+        "native_name": "CREATE TABLE tableName '(' tableElems ')'",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0016",
+        "native_name": "DROP TABLE qualifiedName",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0017",
+        "native_name": "DROP TABLE IF EXISTS qualifiedName",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0018",
+        "native_name": "DROP TABLE qualifiedName CASCADE",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0019",
+        "native_name": "DROP TABLE IF EXISTS qualifiedName CASCADE",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0020",
+        "native_name": "TRUNCATE TABLE qualifiedName",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0021",
+        "native_name": "CREATE VIEW IF NOT EXISTS IDENTIFIER AS dqlstmt",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0022",
+        "native_name": "CREATE VIEW IDENTIFIER AS dqlstmt",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0023",
+        "native_name": "DROP VIEW IF EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0024",
+        "native_name": "DROP VIEW IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0025",
+        "native_name": "CREATE SEQUENCE IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0026",
+        "native_name": "DROP SEQUENCE IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0027",
+        "native_name": "DROP SEQUENCE IF EXISTS IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0028",
+        "native_name": "CREATE INDEX opt_if_not_exists ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0029",
+        "native_name": "CREATE INDEX opt_if_not_exists ON tableName '(' col_names ')' WHERE exp",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0030",
+        "native_name": "CREATE UNIQUE INDEX opt_if_not_exists ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0031",
+        "native_name": "CREATE UNIQUE INDEX opt_if_not_exists ON tableName '(' col_names ')' WHERE exp",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0032",
+        "native_name": "DROP INDEX ON tableName '(' col_names ')'",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0033",
+        "native_name": "DROP INDEX tableName DOT col_name",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0034",
+        "native_name": "ALTER TABLE tableName ADD COLUMN colSpec",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0035",
+        "native_name": "ALTER TABLE tableName RENAME TO tableName",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0036",
+        "native_name": "ALTER TABLE tableName RENAME COLUMN col_name TO col_name",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0037",
+        "native_name": "ALTER TABLE tableName DROP COLUMN col_name",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0038",
+        "native_name": "ALTER TABLE tableName DROP CONSTRAINT IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0039",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name SET NOT NULL",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0040",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name DROP NOT NULL",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0041",
+        "native_name": "ALTER TABLE tableName ALTER COLUMN col_name IDENTIFIER sql_type",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0042",
+        "native_name": "CREATE USER IDENTIFIER WITH PASSWORD VARCHAR_LIT permission",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0043",
+        "native_name": "ALTER USER IDENTIFIER WITH PASSWORD VARCHAR_LIT permission",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0044",
+        "native_name": "DROP USER IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0045",
+        "native_name": "GRANT sqlPrivileges ON DATABASE qualifiedName TO USER IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0046",
+        "native_name": "REVOKE sqlPrivileges ON DATABASE qualifiedName TO USER IDENTIFIER",
+        "production": "ddlstmt",
+        "source": "embedded/sql/sql_grammar.y:254"
+      },
+      {
+        "item_id": "statements.0047",
+        "native_name": "INSERT INTO tableRef insert_cols values_or_query opt_on_conflict opt_returning",
+        "production": "dmlstmt",
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0048",
+        "native_name": "UPSERT INTO tableRef insert_cols values_or_query opt_returning",
+        "production": "dmlstmt",
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0049",
+        "native_name": "DELETE FROM tableRef opt_where opt_indexon opt_limit opt_offset opt_returning",
+        "production": "dmlstmt",
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0050",
+        "native_name": "UPDATE tableRef SET updates opt_where opt_indexon opt_limit opt_offset opt_returning",
+        "production": "dmlstmt",
+        "source": "embedded/sql/sql_grammar.y:575"
+      },
+      {
+        "item_id": "statements.0051",
+        "native_name": "select_stmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0052",
+        "native_name": "WITH cte_defs select_stmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0053",
+        "native_name": "WITH cte_defs select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0054",
+        "native_name": "WITH RECURSIVE cte_defs select_stmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0055",
+        "native_name": "WITH RECURSIVE cte_defs select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0056",
+        "native_name": "select_stmt UNION opt_all dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0057",
+        "native_name": "select_stmt EXCEPT dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0058",
+        "native_name": "select_stmt INTERSECT dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0059",
+        "native_name": "SHOW DATABASES",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0060",
+        "native_name": "SHOW TABLES",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0061",
+        "native_name": "SHOW TABLE IDENTIFIER",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0062",
+        "native_name": "SHOW USERS",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0063",
+        "native_name": "SHOW GRANTS",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0064",
+        "native_name": "SHOW GRANTS FOR IDENTIFIER",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      },
+      {
+        "item_id": "statements.0065",
+        "native_name": "EXPLAIN dqlstmt",
+        "production": "dqlstmt",
+        "source": "embedded/sql/sql_grammar.y:922"
+      }
+    ]
+  },
+  "inventory_id": "immudb.dialect-inventory.1.11.0.v1",
+  "reference_version": "1.11.0",
+  "schema": "cdeadmin.engine-dialect-inventory.v1",
+  "source_archive": "immudb-1.11.0.tar.gz",
+  "source_archive_sha256": "ac07da5552f4d14a4d646059a633d48c7e9d668989c4522b8a9924f0c55286e0"
+}
