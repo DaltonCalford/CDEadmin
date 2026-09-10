@@ -1,6 +1,8 @@
 # LLM Module Tests
 
-This directory contains comprehensive tests for the pgAdmin LLM/AI functionality.
+This directory contains tests for the CDEadmin LLM/AI functionality. The
+``pgadmin`` package path is a retained compatibility identifier from the
+project's pgAdmin 4 9.17 source baseline; it does not identify the product.
 
 ## Test Files
 

@@ -2705,6 +2705,7 @@ class ServerNode(PGChildNodeView):
                     )
         except (EndpointRegistrationError,
                 ProviderNavigatorError) as exc:
+            db.session.rollback()
             return make_json_response(
                 status=409, success=0, errormsg=str(exc)
             )

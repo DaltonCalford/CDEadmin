@@ -144,6 +144,26 @@ class OrderedKeyAdapter(NativeAdapter):
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
 
+    def test_firebird_properties_surface_native_metadata_sections(self):
+        resources = {
+            item['resource_kind']: item
+            for item in catalog_for_engine('firebird')['objects']
+        }
+        expected_ddl = {
+            'table', 'view', 'index', 'constraint', 'domain', 'sequence',
+            'trigger', 'procedure', 'function', 'package', 'exception',
+            'role', 'external-function',
+        }
+        for kind in expected_ddl:
+            self.assertIn('ddl', resources[kind]['editor']['sections'])
+        for kind in {'procedure', 'function', 'external-function'}:
+            self.assertIn(
+                'parameters', resources[kind]['editor']['sections']
+            )
+        for kind in {'table', 'view'}:
+            self.assertIn('columns', resources[kind]['editor']['sections'])
+            self.assertIn('data', resources[kind]['editor']['sections'])
+
     def test_every_object_has_provider_specific_navigator_and_editor(self):
         for engine_id in PORTFOLIO_ENGINE_IDS:
             catalog = catalog_for_engine(engine_id)

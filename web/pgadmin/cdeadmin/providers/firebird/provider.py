@@ -936,65 +936,135 @@ def _resources(connection, request):
         queries = (
             ('column', 'SELECT TRIM(RF.RDB$RELATION_NAME), '
              'TRIM(RF.RDB$FIELD_NAME), TRIM(RF.RDB$FIELD_SOURCE), '
-             'RF.RDB$NULL_FLAG, RF.RDB$DEFAULT_SOURCE '
+             'RF.RDB$NULL_FLAG, '
+             'CAST(RF.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
+             'F.RDB$FIELD_TYPE, F.RDB$FIELD_SUB_TYPE, '
+             'F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
+             'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
+             'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
+             'TRIM(CO.RDB$COLLATION_NAME), RF.RDB$IDENTITY_TYPE, '
+             'TRIM(RF.RDB$GENERATOR_NAME), '
+             'CAST(F.RDB$COMPUTED_SOURCE AS VARCHAR(8191)), '
+             'RF.RDB$FIELD_POSITION, '
+             'CAST(RF.RDB$DESCRIPTION AS VARCHAR(8191)) '
              'FROM RDB$RELATION_FIELDS RF JOIN RDB$RELATIONS R ON '
-             'R.RDB$RELATION_NAME = RF.RDB$RELATION_NAME WHERE '
+             'R.RDB$RELATION_NAME = RF.RDB$RELATION_NAME JOIN RDB$FIELDS F '
+             'ON F.RDB$FIELD_NAME = RF.RDB$FIELD_SOURCE LEFT JOIN '
+             'RDB$CHARACTER_SETS CS ON CS.RDB$CHARACTER_SET_ID = '
+             'F.RDB$CHARACTER_SET_ID LEFT JOIN RDB$COLLATIONS CO ON '
+             'CO.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID AND '
+             'CO.RDB$COLLATION_ID = COALESCE(RF.RDB$COLLATION_ID, '
+             'F.RDB$COLLATION_ID) WHERE '
              'COALESCE(R.RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, '
              'RF.RDB$FIELD_POSITION'),
             ('index', 'SELECT TRIM(RDB$RELATION_NAME), '
-             'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE '
+             'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, '
+             'RDB$INDEX_TYPE, RDB$STATISTICS, '
+             'CAST(RDB$EXPRESSION_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)) '
              'FROM RDB$INDICES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1, 2'),
             ('constraint', 'SELECT TRIM(C.RDB$RELATION_NAME), '
-             'TRIM(C.RDB$CONSTRAINT_NAME), TRIM(C.RDB$CONSTRAINT_TYPE) '
+             'TRIM(C.RDB$CONSTRAINT_NAME), TRIM(C.RDB$CONSTRAINT_TYPE), '
+             'TRIM(C.RDB$INDEX_NAME) '
              'FROM RDB$RELATION_CONSTRAINTS C JOIN RDB$RELATIONS R ON '
              'R.RDB$RELATION_NAME = C.RDB$RELATION_NAME WHERE '
              'COALESCE(R.RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, 2'),
         )
+        query_detail_names = {
+            'column': (
+                'domain', 'not_null', 'default_source', 'field_type',
+                'field_sub_type', 'field_length', 'field_scale',
+                'field_precision', 'character_length', 'segment_length',
+                'character_set', 'collation', 'identity_type',
+                'generator_name', 'computed_source', 'position',
+                'description',
+            ),
+            'index': (
+                'unique', 'inactive', 'index_type', 'statistics',
+                'expression_source', 'description',
+            ),
+            'constraint': ('constraint_type', 'index_name'),
+        }
         for kind, source in queries:
             for row in optional(source):
                 parent, name, *details = row
                 add(kind, [parent], name, {
-                    'details': [
-                        None if item is None else str(item).strip()
-                        for item in details
-                    ],
+                    field: None if detail is None else str(detail).strip()
+                    for field, detail in zip(query_detail_names[kind], details)
                 })
         simple_queries = (
-            ('domain', 'SELECT TRIM(RDB$FIELD_NAME), RDB$FIELD_TYPE '
-             'FROM RDB$FIELDS WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
+            ('domain', 'SELECT TRIM(F.RDB$FIELD_NAME), F.RDB$FIELD_TYPE, '
+             'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
+             'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
+             'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
+             'TRIM(CO.RDB$COLLATION_NAME), F.RDB$NULL_FLAG, '
+             'CAST(F.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
+             'CAST(F.RDB$VALIDATION_SOURCE AS VARCHAR(8191)), '
+             'CAST(F.RDB$DESCRIPTION AS VARCHAR(8191)), F.RDB$DIMENSIONS '
+             'FROM RDB$FIELDS F LEFT JOIN RDB$CHARACTER_SETS CS ON '
+             'CS.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID LEFT JOIN '
+             'RDB$COLLATIONS CO ON CO.RDB$CHARACTER_SET_ID = '
+             'F.RDB$CHARACTER_SET_ID AND CO.RDB$COLLATION_ID = '
+             'F.RDB$COLLATION_ID WHERE COALESCE(F.RDB$SYSTEM_FLAG, 0) = 0 '
              "AND RDB$FIELD_NAME NOT STARTING WITH 'RDB$' ORDER BY 1"),
             ('sequence', 'SELECT TRIM(RDB$GENERATOR_NAME), '
-             'RDB$INITIAL_VALUE FROM RDB$GENERATORS WHERE '
+             'RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT FROM '
+             'RDB$GENERATORS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('trigger', 'SELECT TRIM(RDB$TRIGGER_NAME), '
              'TRIM(RDB$RELATION_NAME), RDB$TRIGGER_TYPE, '
-             'RDB$TRIGGER_INACTIVE FROM RDB$TRIGGERS WHERE '
+             'RDB$TRIGGER_INACTIVE, RDB$TRIGGER_SEQUENCE, '
+             'CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$SQL_SECURITY, '
+             'TRIM(RDB$ENTRYPOINT), TRIM(RDB$ENGINE_NAME) '
+             'FROM RDB$TRIGGERS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('procedure', 'SELECT TRIM(RDB$PROCEDURE_NAME), '
-             'TRIM(RDB$PACKAGE_NAME) FROM RDB$PROCEDURES WHERE '
+             'TRIM(RDB$PACKAGE_NAME), '
+             'CAST(RDB$PROCEDURE_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$PROCEDURE_TYPE, '
+             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
+             'TRIM(RDB$ENGINE_NAME) FROM RDB$PROCEDURES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
-             'TRIM(RDB$PACKAGE_NAME) FROM RDB$FUNCTIONS WHERE '
+             'TRIM(RDB$PACKAGE_NAME), '
+             'CAST(RDB$FUNCTION_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$FUNCTION_TYPE, '
+             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
+             'TRIM(RDB$ENGINE_NAME), RDB$DETERMINISTIC_FLAG, '
+             'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NULL ORDER BY 1'),
             ('external-function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
-             'TRIM(RDB$MODULE_NAME) FROM RDB$FUNCTIONS WHERE '
+             'TRIM(RDB$MODULE_NAME), TRIM(RDB$ENTRYPOINT), '
+             'TRIM(RDB$ENGINE_NAME), TRIM(RDB$PACKAGE_NAME), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), '
+             'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS '
+             'WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NOT NULL ORDER BY 1'),
             ('package', 'SELECT TRIM(RDB$PACKAGE_NAME), '
-             'RDB$PACKAGE_HEADER_SOURCE FROM RDB$PACKAGES WHERE '
+             'CAST(RDB$PACKAGE_HEADER_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$PACKAGE_BODY_SOURCE AS VARCHAR(8191)), '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$VALID_BODY_FLAG, '
+             'RDB$SQL_SECURITY FROM RDB$PACKAGES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('exception', 'SELECT TRIM(RDB$EXCEPTION_NAME), '
-             'RDB$MESSAGE FROM RDB$EXCEPTIONS WHERE '
+             'RDB$MESSAGE, CAST(RDB$DESCRIPTION AS VARCHAR(8191)) '
+             'FROM RDB$EXCEPTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('role', 'SELECT TRIM(RDB$ROLE_NAME), RDB$SYSTEM_PRIVILEGES '
+            ('role', 'SELECT TRIM(RDB$ROLE_NAME), RDB$SYSTEM_PRIVILEGES, '
+             'TRIM(RDB$OWNER_NAME) '
              'FROM RDB$ROLES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1'),
             ('character-set', 'SELECT TRIM(RDB$CHARACTER_SET_NAME), '
-             'RDB$BYTES_PER_CHARACTER FROM RDB$CHARACTER_SETS ORDER BY 1'),
+             'RDB$BYTES_PER_CHARACTER, TRIM(RDB$DEFAULT_COLLATE_NAME), '
+             'TRIM(RDB$FORM_OF_USE) FROM RDB$CHARACTER_SETS ORDER BY 1'),
             ('collation', 'SELECT TRIM(RDB$COLLATION_NAME), '
-             'RDB$CHARACTER_SET_ID FROM RDB$COLLATIONS ORDER BY 1'),
+             'RDB$CHARACTER_SET_ID, RDB$COLLATION_ATTRIBUTES, '
+             'TRIM(RDB$BASE_COLLATION_NAME), RDB$SPECIFIC_ATTRIBUTES '
+             'FROM RDB$COLLATIONS ORDER BY 1'),
             ('user', 'SELECT TRIM(SEC$USER_NAME), TRIM(SEC$PLUGIN) '
              'FROM SEC$USERS ORDER BY 1'),
             ('plugin', 'SELECT TRIM(RDB$CONFIG_NAME), '
@@ -1003,12 +1073,185 @@ def _resources(connection, request):
             ('publication', 'SELECT TRIM(RDB$PUBLICATION_NAME), '
              'RDB$ACTIVE_FLAG FROM RDB$PUBLICATIONS ORDER BY 1'),
         )
+        simple_detail_names = {
+            'domain': (
+                'field_type', 'field_sub_type', 'field_length',
+                'field_scale', 'field_precision', 'character_length',
+                'segment_length', 'character_set', 'collation', 'not_null',
+                'default_source', 'validation_source', 'description',
+                'dimensions',
+            ),
+            'sequence': ('initial_value', 'increment'),
+            'trigger': (
+                'relation', 'trigger_type', 'inactive', 'position',
+                'metadata_source', 'description', 'sql_security',
+                'entrypoint', 'engine_name',
+            ),
+            'procedure': (
+                'package', 'metadata_source', 'description',
+                'procedure_type', 'valid_blr', 'sql_security', 'entrypoint',
+                'engine_name',
+            ),
+            'function': (
+                'package', 'metadata_source', 'description',
+                'function_type', 'valid_blr', 'sql_security', 'entrypoint',
+                'engine_name', 'deterministic', 'return_argument',
+                'legacy',
+            ),
+            'external-function': (
+                'module_name', 'entrypoint', 'engine_name', 'package',
+                'description', 'return_argument', 'legacy',
+            ),
+            'package': (
+                'header_source', 'body_source', 'description',
+                'valid_body', 'sql_security',
+            ),
+            'exception': ('message', 'description'),
+            'role': ('system_privileges', 'owner'),
+            'character-set': (
+                'bytes_per_character', 'default_collation', 'form_of_use',
+            ),
+            'collation': (
+                'character_set_id', 'attributes', 'base_collation',
+                'specific_attributes',
+            ),
+            'user': ('plugin',),
+            'plugin': ('value',),
+            'publication': ('active',),
+        }
         for kind, source in simple_queries:
             for row in optional(source):
-                name, detail = row[0], row[1]
-                add(kind, [], name, {
-                    'detail': None if detail is None else str(detail).strip(),
-                })
+                native = {
+                    field: None if detail is None else str(detail).strip()
+                    for field, detail in zip(
+                        simple_detail_names[kind], row[1:]
+                    )
+                }
+                add(kind, [], row[0], native)
+
+        def routine_named(kind, name, package):
+            name = str(name or '').strip()
+            package = str(package or '').strip()
+            return [
+                item for item in resources.values()
+                if item['resource_kind'] == kind and
+                item['display_name'] == name and
+                str(item.get('native', {}).get('package') or '') == package
+            ]
+
+        procedure_parameters = optional(
+            'SELECT TRIM(RDB$PROCEDURE_NAME), TRIM(RDB$PACKAGE_NAME), '
+            'TRIM(RDB$PARAMETER_NAME), RDB$PARAMETER_TYPE, '
+            'RDB$PARAMETER_NUMBER, TRIM(P.RDB$FIELD_SOURCE), '
+            'P.RDB$NULL_FLAG, '
+            'CAST(P.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
+            'CAST(P.RDB$DESCRIPTION AS VARCHAR(8191)), '
+            'P.RDB$PARAMETER_MECHANISM, F.RDB$FIELD_TYPE, '
+            'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
+            'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
+            'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
+            'TRIM(CO.RDB$COLLATION_NAME), TRIM(P.RDB$RELATION_NAME), '
+            'TRIM(P.RDB$FIELD_NAME) FROM RDB$PROCEDURE_PARAMETERS P '
+            'JOIN RDB$FIELDS F ON F.RDB$FIELD_NAME = P.RDB$FIELD_SOURCE '
+            'LEFT JOIN RDB$CHARACTER_SETS CS ON CS.RDB$CHARACTER_SET_ID = '
+            'F.RDB$CHARACTER_SET_ID LEFT JOIN RDB$COLLATIONS CO ON '
+            'CO.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID AND '
+            'CO.RDB$COLLATION_ID = COALESCE(P.RDB$COLLATION_ID, '
+            'F.RDB$COLLATION_ID) '
+            'ORDER BY 1, 2, 4, 5'
+        )
+        for row in procedure_parameters:
+            procedure, package, name, mode, position, domain, not_null, \
+                default_source, description, mechanism, field_type, \
+                field_sub_type, field_length, field_scale, field_precision, \
+                character_length, segment_length, character_set, collation, \
+                relation_name, field_name = row
+            parameter = {
+                'name': str(name or '').strip(),
+                'mode': 'input' if mode == 0 else 'output',
+                'position': position,
+                'domain': str(domain or '').strip() or None,
+                'not_null': not_null,
+                'default_source': default_source,
+                'description': description,
+                'mechanism': mechanism,
+                'field_type': field_type,
+                'field_sub_type': field_sub_type,
+                'field_length': field_length,
+                'field_scale': field_scale,
+                'field_precision': field_precision,
+                'character_length': character_length,
+                'segment_length': segment_length,
+                'character_set': character_set,
+                'collation': collation,
+                'relation_name': relation_name,
+                'field_name': field_name,
+            }
+            for routine in routine_named(
+                    'procedure', procedure, package):
+                routine.setdefault('native', {}).setdefault(
+                    'parameters', []
+                ).append(parameter)
+
+        function_arguments = optional(
+            'SELECT TRIM(A.RDB$FUNCTION_NAME), TRIM(A.RDB$PACKAGE_NAME), '
+            'TRIM(A.RDB$ARGUMENT_NAME), A.RDB$ARGUMENT_POSITION, '
+            'TRIM(A.RDB$FIELD_SOURCE), A.RDB$NULL_FLAG, '
+            'CAST(A.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), A.RDB$MECHANISM, '
+            'A.RDB$ARGUMENT_MECHANISM, '
+            'COALESCE(F.RDB$FIELD_TYPE, A.RDB$FIELD_TYPE), '
+            'COALESCE(F.RDB$FIELD_SUB_TYPE, A.RDB$FIELD_SUB_TYPE), '
+            'COALESCE(F.RDB$FIELD_LENGTH, A.RDB$FIELD_LENGTH), '
+            'COALESCE(F.RDB$FIELD_SCALE, A.RDB$FIELD_SCALE), '
+            'COALESCE(F.RDB$FIELD_PRECISION, A.RDB$FIELD_PRECISION), '
+            'COALESCE(F.RDB$CHARACTER_LENGTH, A.RDB$CHARACTER_LENGTH), '
+            'F.RDB$SEGMENT_LENGTH, '
+            'TRIM(CS.RDB$CHARACTER_SET_NAME), '
+            'TRIM(CO.RDB$COLLATION_NAME), TRIM(A.RDB$RELATION_NAME), '
+            'TRIM(A.RDB$FIELD_NAME) FROM RDB$FUNCTION_ARGUMENTS A '
+            'LEFT JOIN RDB$FIELDS F ON F.RDB$FIELD_NAME = '
+            'A.RDB$FIELD_SOURCE LEFT JOIN RDB$CHARACTER_SETS CS ON '
+            'CS.RDB$CHARACTER_SET_ID = COALESCE(F.RDB$CHARACTER_SET_ID, '
+            'A.RDB$CHARACTER_SET_ID) LEFT JOIN RDB$COLLATIONS CO ON '
+            'CO.RDB$CHARACTER_SET_ID = COALESCE(F.RDB$CHARACTER_SET_ID, '
+            'A.RDB$CHARACTER_SET_ID) AND CO.RDB$COLLATION_ID = '
+            'COALESCE(A.RDB$COLLATION_ID, F.RDB$COLLATION_ID) '
+            'ORDER BY 1, 2, 4'
+        )
+        for row in function_arguments:
+            function, package, name, position, domain, not_null, \
+                default_source, mechanism, argument_mechanism, field_type, \
+                field_sub_type, field_length, field_scale, field_precision, \
+                character_length, segment_length, character_set, collation, \
+                relation_name, field_name = row
+            argument = {
+                'name': str(name or '').strip() or None,
+                'position': position,
+                'domain': str(domain or '').strip() or None,
+                'not_null': not_null,
+                'default_source': default_source,
+                'mechanism': mechanism,
+                'argument_mechanism': argument_mechanism,
+                'field_type': field_type,
+                'field_sub_type': field_sub_type,
+                'field_length': field_length,
+                'field_scale': field_scale,
+                'field_precision': field_precision,
+                'character_length': character_length,
+                'segment_length': segment_length,
+                'character_set': character_set,
+                'collation': collation,
+                'relation_name': relation_name,
+                'field_name': field_name,
+            }
+            for kind in ('function', 'external-function'):
+                for routine in routine_named(kind, function, package):
+                    argument['return_value'] = str(position) == str(
+                        routine.get('native', {}).get('return_argument')
+                    )
+                    routine.setdefault('native', {}).setdefault(
+                        'parameters', []
+                    ).append(argument)
         grantable_kinds = {
             'database', 'table', 'view', 'domain', 'sequence', 'procedure',
             'function', 'external-function', 'package', 'exception', 'role',
@@ -1051,6 +1294,817 @@ def _resources(connection, request):
                 'user_type': user_type,
                 'object_type': object_type,
             })
+        dependency_rows = optional(
+            'SELECT TRIM(RDB$DEPENDENT_NAME), RDB$DEPENDENT_TYPE, '
+            'TRIM(RDB$DEPENDED_ON_NAME), RDB$DEPENDED_ON_TYPE, '
+            'TRIM(RDB$FIELD_NAME), TRIM(RDB$PACKAGE_NAME) '
+            'FROM RDB$DEPENDENCIES ORDER BY 1, 3, 5'
+        )
+
+        dependency_kinds = {
+            0: {'table', 'view'}, 1: {'view'}, 2: {'trigger'},
+            3: set(), 4: {'constraint'}, 5: {'procedure'},
+            6: {'index'}, 7: {'exception'}, 8: {'user'},
+            9: {'domain'}, 10: {'index'}, 11: {'character-set'},
+            12: set(), 13: {'role'}, 14: {'sequence'},
+            15: {'function', 'external-function'}, 16: set(),
+            17: {'collation'}, 18: {'package'}, 19: {'package'},
+            20: {'privilege'}, 21: {'database'},
+        }
+        dependency_type_names = {
+            0: 'relation', 1: 'view', 2: 'trigger', 3: 'computed field',
+            4: 'validation', 5: 'procedure', 6: 'expression index',
+            7: 'exception', 8: 'user', 9: 'domain', 10: 'index',
+            11: 'character set', 12: 'user group', 13: 'SQL role',
+            14: 'sequence', 15: 'function', 16: 'BLOB filter',
+            17: 'collation', 18: 'package header', 19: 'package body',
+            20: 'privilege', 21: 'database', 34: 'job',
+            35: 'tablespace', 37: 'partial index condition',
+        }
+
+        def objects_named(name, object_type=None):
+            normalized = str(name or '').strip()
+            kinds = dependency_kinds.get(object_type)
+            if object_type is not None and kinds is None:
+                return []
+            return [
+                item for item in resources.values()
+                if item['display_name'] == normalized and (
+                    kinds is None or item['resource_kind'] in kinds
+                )
+            ]
+
+        for (
+                dependent_name, dependent_type, depended_name,
+                depended_type, field_name, package_name) in dependency_rows:
+            dependency = {
+                'object_name': str(depended_name or '').strip(),
+                'object_type_code': depended_type,
+                'object_type': dependency_type_names.get(
+                    depended_type, f'object type {depended_type}'
+                ),
+                'field_name': str(field_name or '').strip() or None,
+                'package_name': str(package_name or '').strip() or None,
+            }
+            dependent = {
+                'object_name': str(dependent_name or '').strip(),
+                'object_type_code': dependent_type,
+                'object_type': dependency_type_names.get(
+                    dependent_type, f'object type {dependent_type}'
+                ),
+                'field_name': str(field_name or '').strip() or None,
+                'package_name': str(package_name or '').strip() or None,
+            }
+            for item in objects_named(dependent_name, dependent_type):
+                item.setdefault('native', {}).setdefault(
+                    'dependencies', []
+                ).append(dependency)
+            for item in objects_named(depended_name, depended_type):
+                item.setdefault('native', {}).setdefault(
+                    'dependents', []
+                ).append(dependent)
+
+        for index_name, field_name, position in optional(
+            'SELECT TRIM(RDB$INDEX_NAME), TRIM(RDB$FIELD_NAME), '
+            'RDB$FIELD_POSITION FROM RDB$INDEX_SEGMENTS ORDER BY 1, 3'
+        ):
+            for index in objects_named(index_name):
+                if index['resource_kind'] == 'index':
+                    index.setdefault('native', {}).setdefault(
+                        'segments', []
+                    ).append({
+                        'field_name': str(field_name).strip(),
+                        'position': position,
+                    })
+
+        for (
+                constraint_name, referenced_relation, update_rule,
+                delete_rule, referenced_index) in optional(
+                    'SELECT TRIM(RC.RDB$CONSTRAINT_NAME), '
+                    'TRIM(UQ.RDB$RELATION_NAME), '
+                    'TRIM(RC.RDB$UPDATE_RULE), '
+                    'TRIM(RC.RDB$DELETE_RULE), TRIM(UQ.RDB$INDEX_NAME) '
+                    'FROM RDB$REF_CONSTRAINTS RC JOIN '
+                    'RDB$RELATION_CONSTRAINTS UQ ON '
+                    'UQ.RDB$CONSTRAINT_NAME = RC.RDB$CONST_NAME_UQ '
+                    'ORDER BY 1'):
+            for constraint in objects_named(constraint_name):
+                if constraint['resource_kind'] == 'constraint':
+                    constraint.setdefault('native', {}).update({
+                        'referenced_relation': str(
+                            referenced_relation or ''
+                        ).strip() or None,
+                        'referenced_index': str(
+                            referenced_index or ''
+                        ).strip() or None,
+                        'update_rule': str(update_rule or '').strip() or None,
+                        'delete_rule': str(delete_rule or '').strip() or None,
+                    })
+
+        for constraint_name, check_source in optional(
+            'SELECT TRIM(CC.RDB$CONSTRAINT_NAME), '
+            'CAST(T.RDB$TRIGGER_SOURCE AS VARCHAR(8191)) '
+            'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$TRIGGERS T ON '
+            'T.RDB$TRIGGER_NAME = CC.RDB$TRIGGER_NAME ORDER BY 1'
+        ):
+            for constraint in objects_named(constraint_name):
+                if constraint['resource_kind'] == 'constraint':
+                    constraint.setdefault('native', {})['check_source'] = (
+                        None if check_source is None else
+                        str(check_source).strip()
+                    )
+
+        for item in tuple(resources.values()):
+            if item['resource_kind'] != 'privilege':
+                continue
+            grant = dict(item.get('native', {}))
+            granted_object = grant.get('granted_object') or ''
+            object_name, _, field_name = granted_object.partition('.')
+            privilege_target_kinds = {
+                0: {'table', 'view'}, 5: {'procedure'}, 7: {'exception'},
+                9: {'domain'}, 13: {'role'}, 14: {'sequence'},
+                15: {'function', 'external-function'}, 17: {'collation'},
+                18: {'package'}, 21: {'database'},
+            }
+            target_kinds = privilege_target_kinds.get(
+                grant.get('object_type'), set()
+            )
+            targets = (
+                [target for target in resources.values()
+                 if target['resource_kind'] == 'database']
+                if grant.get('object_type') == 21 else
+                [target for target in objects_named(object_name)
+                 if target['resource_kind'] in target_kinds]
+            )
+            for target in targets:
+                target.setdefault('native', {}).setdefault(
+                    'privileges', []
+                ).append(grant)
+            if field_name:
+                for target in objects_named(field_name):
+                    if target['resource_kind'] == 'column' and (
+                            target['display_path'][-2] == object_name):
+                        target.setdefault('native', {}).setdefault(
+                            'privileges', []
+                        ).append(grant)
+            principal_kind = {
+                8: 'user', 13: 'role',
+            }.get(grant.get('user_type'))
+            for principal in objects_named(grant.get('grantee')):
+                if principal['resource_kind'] == principal_kind:
+                    principal.setdefault('native', {}).setdefault(
+                        'privileges', []
+                    ).append(grant)
+
+        def identifier(value):
+            return '"' + str(value).replace('"', '""') + '"'
+
+        def numeric(value, default=None):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        field_dimensions = {}
+        for field_name, position, lower, upper in optional(
+            'SELECT TRIM(RDB$FIELD_NAME), RDB$DIMENSION, '
+            'RDB$LOWER_BOUND, RDB$UPPER_BOUND FROM RDB$FIELD_DIMENSIONS '
+            'ORDER BY 1, 2'
+        ):
+            field_dimensions.setdefault(
+                str(field_name).strip(), []
+            ).append({
+                'position': position,
+                'lower_bound': lower,
+                'upper_bound': upper,
+            })
+
+        def data_type(field, include_domain=True):
+            """Render an exact Firebird field type or fail closed."""
+            domain = str(field.get('domain') or '').strip()
+            if include_domain and domain and not domain.upper().startswith(
+                    'RDB$'):
+                return identifier(domain)
+            field_type = numeric(field.get('field_type'))
+            subtype = numeric(field.get('field_sub_type'), 0)
+            raw_scale = numeric(field.get('field_scale'), 0)
+            scale = abs(raw_scale)
+            precision = numeric(field.get('field_precision'))
+            length = numeric(field.get('character_length'))
+            if length is None:
+                length = numeric(field.get('field_length'))
+
+            if field_type == 27 and raw_scale < 0:
+                value = f'NUMERIC(15,{scale})'
+            elif field_type in {7, 8, 16, 26}:
+                if raw_scale == 0 and subtype == 0:
+                    value = {
+                        7: 'SMALLINT', 8: 'INTEGER', 16: 'BIGINT',
+                        26: 'INT128',
+                    }[field_type]
+                else:
+                    keyword = 'DECIMAL' if subtype == 2 else 'NUMERIC'
+                    if field_type != 26 and (
+                            precision is None or precision <= 0 or
+                            precision > 18):
+                        precision = 18
+                    if precision is None:
+                        return None
+                    value = f'{keyword}({precision},{scale})'
+            elif field_type in {14, 37, 40}:
+                if length is None:
+                    return None
+                keyword = {
+                    14: 'BINARY' if subtype == 1 else 'CHAR',
+                    37: 'VARCHAR', 40: 'CSTRING',
+                }[field_type]
+                value = f'{keyword}({length})'
+            elif field_type == 261:
+                blob_subtype = {
+                    0: 'BINARY', 1: 'TEXT',
+                }.get(subtype, str(subtype))
+                value = f'BLOB SUB_TYPE {blob_subtype}'
+                segment = numeric(field.get('segment_length'))
+                if segment:
+                    value += f' SEGMENT SIZE {segment}'
+            else:
+                value = {
+                    9: 'QUAD', 10: 'FLOAT', 11: 'D_FLOAT', 12: 'DATE',
+                    13: 'TIME', 23: 'BOOLEAN', 24: 'DECFLOAT(16)',
+                    25: 'DECFLOAT(34)', 27: 'DOUBLE PRECISION',
+                    28: 'TIME WITH TIME ZONE',
+                    29: 'TIMESTAMP WITH TIME ZONE', 35: 'TIMESTAMP',
+                }.get(field_type)
+                if value is None:
+                    return None
+
+            charset = str(field.get('character_set') or '').strip()
+            if charset and field_type in {14, 37, 40, 261}:
+                value += f' CHARACTER SET {identifier(charset)}'
+            dimensions = field_dimensions.get(domain, [])
+            if dimensions and not (
+                    include_domain and domain and
+                    not domain.upper().startswith('RDB$')):
+                value += '[' + ', '.join(
+                    f'{dimension["lower_bound"]}:'
+                    f'{dimension["upper_bound"]}'
+                    for dimension in dimensions
+                ) + ']'
+            return value
+
+        def parameter_definition(parameter, include_name=True):
+            relation = str(parameter.get('relation_name') or '').strip()
+            field_name = str(parameter.get('field_name') or '').strip()
+            mechanism = numeric(
+                parameter.get('argument_mechanism'),
+                numeric(parameter.get('mechanism'), 0),
+            )
+            if relation and field_name:
+                value = (
+                    f'COLUMN {identifier(relation)}.{identifier(field_name)}'
+                )
+                if mechanism == 1:
+                    value = f'TYPE OF {value}'
+            else:
+                value = data_type(parameter)
+                if value is None:
+                    return None
+                if mechanism == 1:
+                    value = f'TYPE OF {value}'
+            if include_name:
+                name = str(parameter.get('name') or '').strip()
+                if not name:
+                    return None
+                value = f'{identifier(name)} {value}'
+            if str(parameter.get('not_null')) == '1':
+                value += ' NOT NULL'
+            collation = str(parameter.get('collation') or '').strip()
+            if collation:
+                value += f' COLLATE {identifier(collation)}'
+            default = str(parameter.get('default_source') or '').strip()
+            if include_name and default:
+                value += f' {default}'
+            return value
+
+        def sql_security(value):
+            flag = numeric(value)
+            if flag is None:
+                return None
+            return 'SQL SECURITY DEFINER' if flag else 'SQL SECURITY INVOKER'
+
+        def trigger_action(value):
+            trigger_type = numeric(value)
+            if trigger_type is None:
+                return None
+            trigger_mask = 3 << 13
+            trigger_family = trigger_type & trigger_mask
+            if trigger_family == 0:
+                prefix = 'AFTER' if (trigger_type + 1) & 1 else 'BEFORE'
+                suffixes = []
+                names = ('', 'INSERT', 'UPDATE', 'DELETE')
+                for slot in range(1, 4):
+                    suffix = ((trigger_type + 1) >> (slot * 2 - 1)) & 3
+                    if suffix:
+                        suffixes.append(names[suffix])
+                return None if not suffixes else (
+                    f'{prefix} ' + ' OR '.join(suffixes)
+                )
+            if trigger_family == 1 << 13:
+                event = trigger_type & ~(1 << 13)
+                events = (
+                    'CONNECT', 'DISCONNECT', 'TRANSACTION START',
+                    'TRANSACTION COMMIT', 'TRANSACTION ROLLBACK',
+                )
+                return f'ON {events[event]}' if event < len(events) else None
+            if trigger_family != 2 << 13:
+                return None
+            unsigned = trigger_type & ((1 << 64) - 1)
+            prefix = 'AFTER' if unsigned & 1 else 'BEFORE'
+            any_mask = ((1 << 63) - 1) & ~trigger_mask & ~1
+            if unsigned & any_mask == any_mask:
+                return f'{prefix} ANY DDL STATEMENT'
+            action_names = {
+                1: 'CREATE TABLE', 2: 'ALTER TABLE', 3: 'DROP TABLE',
+                4: 'CREATE PROCEDURE', 5: 'ALTER PROCEDURE',
+                6: 'DROP PROCEDURE', 7: 'CREATE FUNCTION',
+                8: 'ALTER FUNCTION', 9: 'DROP FUNCTION',
+                10: 'CREATE TRIGGER', 11: 'ALTER TRIGGER',
+                12: 'DROP TRIGGER', 16: 'CREATE EXCEPTION',
+                17: 'ALTER EXCEPTION', 18: 'DROP EXCEPTION',
+                19: 'CREATE VIEW', 20: 'ALTER VIEW', 21: 'DROP VIEW',
+                22: 'CREATE DOMAIN', 23: 'ALTER DOMAIN',
+                24: 'DROP DOMAIN', 25: 'CREATE ROLE', 26: 'ALTER ROLE',
+                27: 'DROP ROLE', 28: 'CREATE INDEX', 29: 'ALTER INDEX',
+                30: 'DROP INDEX', 31: 'CREATE SEQUENCE',
+                32: 'ALTER SEQUENCE', 33: 'DROP SEQUENCE',
+                34: 'CREATE USER', 35: 'ALTER USER', 36: 'DROP USER',
+                37: 'CREATE COLLATION', 38: 'DROP COLLATION',
+                39: 'ALTER CHARACTER SET', 40: 'CREATE PACKAGE',
+                41: 'ALTER PACKAGE', 42: 'DROP PACKAGE',
+                43: 'CREATE PACKAGE BODY', 44: 'DROP PACKAGE BODY',
+                45: 'CREATE MAPPING', 46: 'ALTER MAPPING',
+                47: 'DROP MAPPING',
+            }
+            actions = [
+                action_names[position] for position in range(1, 64)
+                if unsigned & (1 << position) and
+                position not in {13, 14, 15} and
+                position in action_names
+            ]
+            return None if not actions else f'{prefix} ' + ' OR '.join(actions)
+
+        def index_segments(index_name):
+            index = next((
+                candidate for candidate in objects_named(index_name)
+                if candidate['resource_kind'] == 'index'
+            ), None)
+            return [] if index is None else [
+                segment['field_name']
+                for segment in index.get('native', {}).get('segments', [])
+            ]
+
+        def constraint_clause(item):
+            native = item.get('native', {})
+            kind = str(native.get('constraint_type') or '').strip().upper()
+            raw_name = str(item['display_name']).strip()
+            prefix = '' if raw_name.upper().startswith('INTEG_') else (
+                f'CONSTRAINT {identifier(raw_name)} '
+            )
+            fields = index_segments(native.get('index_name'))
+            field_list = ', '.join(identifier(field) for field in fields)
+            if kind == 'PRIMARY KEY':
+                return f'{prefix}PRIMARY KEY ({field_list})'
+            if kind == 'UNIQUE':
+                return f'{prefix}UNIQUE ({field_list})'
+            if kind == 'FOREIGN KEY':
+                referenced = index_segments(native.get('referenced_index'))
+                referenced_list = ', '.join(
+                    identifier(field) for field in referenced
+                )
+                value = (
+                    f'{prefix}FOREIGN KEY ({field_list}) '
+                    f'REFERENCES {identifier(native["referenced_relation"])} '
+                    f'({referenced_list})'
+                )
+                if native.get('update_rule') and str(
+                        native['update_rule']).upper() != 'RESTRICT':
+                    value += f' ON UPDATE {native["update_rule"]}'
+                if native.get('delete_rule') and str(
+                        native['delete_rule']).upper() != 'RESTRICT':
+                    value += f' ON DELETE {native["delete_rule"]}'
+                return value
+            if kind == 'CHECK' and native.get('check_source'):
+                source = str(native['check_source']).strip()
+                if not source.upper().startswith('CHECK'):
+                    source = f'CHECK ({source})'
+                return f'{prefix}{source}'
+            if kind == 'NOT NULL':
+                return None
+            return None
+
+        def routine_parts(native, mode=None):
+            parameters = sorted(
+                native.get('parameters', []),
+                key=lambda value: numeric(value.get('position'), 0),
+            )
+            if mode is not None:
+                parameters = [
+                    parameter for parameter in parameters
+                    if parameter.get('mode') == mode
+                ]
+            rendered = [
+                parameter_definition(parameter) for parameter in parameters
+            ]
+            return None if any(value is None for value in rendered) else (
+                rendered
+            )
+
+        def udf_parameter(parameter):
+            rendered_type = data_type(parameter)
+            if rendered_type is None:
+                return None
+            mechanism = numeric(parameter.get('mechanism'), 1)
+            absolute = abs(mechanism)
+            suffix = {
+                0: ' BY VALUE', 1: '', 2: ' BY DESCRIPTOR',
+                3: '', 4: ' BY SCALAR ARRAY', 5: ' NULL',
+            }.get(absolute)
+            if suffix is None:
+                return None
+            if mechanism < 0:
+                suffix += ' FREE_IT'
+            return rendered_type + suffix
+
+        constraint_indexes = {
+            str(item.get('native', {}).get('index_name') or '').strip()
+            for item in resources.values()
+            if item['resource_kind'] == 'constraint'
+        }
+
+        for item in resources.values():
+            kind = item['resource_kind']
+            name = item['display_name']
+            native = item.setdefault('native', {})
+            if kind == 'view' and native.get('definition'):
+                native['ddl'] = (
+                    f'CREATE VIEW {identifier(name)} AS\n'
+                    f'{str(native["definition"]).strip()};'
+                )
+            elif kind == 'role':
+                native['ddl'] = f'CREATE ROLE {identifier(name)};'
+            elif kind == 'sequence':
+                initial = native.get('initial_value')
+                increment = native.get('increment')
+                clauses = []
+                if initial not in (None, ''):
+                    clauses.append(f'START WITH {initial}')
+                if increment not in (None, ''):
+                    clauses.append(f'INCREMENT BY {increment}')
+                native['ddl'] = ' '.join([
+                    'CREATE SEQUENCE', identifier(name), *clauses,
+                ]) + ';'
+            elif kind == 'exception' and native.get('message') is not None:
+                message = str(native['message']).replace("'", "''")
+                native['ddl'] = (
+                    f"CREATE EXCEPTION {identifier(name)} '{message}';"
+                )
+            elif kind == 'package' and native.get('header_source'):
+                security = sql_security(native.get('sql_security'))
+                header = f'CREATE PACKAGE {identifier(name)}'
+                if security:
+                    header += f' {security}'
+                header += (
+                    f' AS\n{str(native["header_source"]).strip()};'
+                )
+                body = str(native.get('body_source') or '').strip()
+                if body:
+                    header += (
+                        f'\n\nCREATE PACKAGE BODY {identifier(name)} AS\n'
+                        f'{body};'
+                    )
+                native['ddl'] = header
+            elif kind == 'domain':
+                rendered_type = data_type(native, include_domain=False)
+                if rendered_type is not None:
+                    definition = (
+                        f'CREATE DOMAIN {identifier(name)} AS {rendered_type}'
+                    )
+                    default = str(
+                        native.get('default_source') or ''
+                    ).strip()
+                    if default:
+                        definition += f' {default}'
+                    if str(native.get('not_null')) == '1':
+                        definition += ' NOT NULL'
+                    validation = str(
+                        native.get('validation_source') or ''
+                    ).strip()
+                    if validation:
+                        definition += f' {validation}'
+                    collation = str(native.get('collation') or '').strip()
+                    if collation:
+                        definition += f' COLLATE {identifier(collation)}'
+                    native['ddl'] = definition + ';'
+            elif kind == 'trigger' and native.get('metadata_source'):
+                action = trigger_action(native.get('trigger_type'))
+                if action:
+                    definition = f'CREATE TRIGGER {identifier(name)}'
+                    relation = str(native.get('relation') or '').strip()
+                    if relation:
+                        definition += f' FOR {identifier(relation)}'
+                    definition += (
+                        '\n' + (
+                            'INACTIVE' if str(native.get('inactive')) == '1'
+                            else 'ACTIVE'
+                        ) + f' {action} POSITION '
+                        f'{numeric(native.get("position"), 0)}'
+                    )
+                    security = sql_security(native.get('sql_security'))
+                    if security:
+                        definition += f'\n{security}'
+                    entrypoint = str(native.get('entrypoint') or '').strip()
+                    engine = str(native.get('engine_name') or '').strip()
+                    if entrypoint:
+                        entrypoint = entrypoint.replace("'", "''")
+                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
+                    if engine:
+                        definition += f'\nENGINE {identifier(engine)}'
+                    source = str(native['metadata_source']).strip()
+                    definition += (
+                        f'\n{source};' if source.upper().startswith('AS ') else
+                        f'\nAS\n{source};'
+                    )
+                    native['ddl'] = definition
+            elif kind == 'procedure' and not native.get('package'):
+                inputs = routine_parts(native, 'input')
+                outputs = routine_parts(native, 'output')
+                source = str(native.get('metadata_source') or '').strip()
+                if inputs is not None and outputs is not None and source:
+                    definition = f'CREATE PROCEDURE {identifier(name)}'
+                    if inputs:
+                        definition += ' (' + ', '.join(inputs) + ')'
+                    if outputs:
+                        definition += ' RETURNS (' + ', '.join(outputs) + ')'
+                    entrypoint = str(native.get('entrypoint') or '').strip()
+                    engine = str(native.get('engine_name') or '').strip()
+                    if entrypoint:
+                        entrypoint = entrypoint.replace("'", "''")
+                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
+                    security = sql_security(native.get('sql_security'))
+                    if security:
+                        definition += f'\n{security}'
+                    if engine:
+                        definition += f'\nENGINE {identifier(engine)}'
+                    definition += f'\nAS\n{source};'
+                    native['ddl'] = definition
+            elif kind == 'function' and not native.get('package'):
+                parameters = sorted(
+                    native.get('parameters', []),
+                    key=lambda value: numeric(value.get('position'), 0),
+                )
+                inputs = [
+                    parameter_definition(parameter)
+                    for parameter in parameters
+                    if not parameter.get('return_value')
+                ]
+                return_values = [
+                    parameter_definition(parameter, include_name=False)
+                    for parameter in parameters
+                    if parameter.get('return_value')
+                ]
+                source = str(native.get('metadata_source') or '').strip()
+                if not any(value is None for value in inputs) and len(
+                        return_values) == 1 and return_values[0] and source:
+                    definition = (
+                        f'CREATE FUNCTION {identifier(name)} (' +
+                        ', '.join(inputs) + ') RETURNS ' + return_values[0]
+                    )
+                    if str(native.get('deterministic')) == '1':
+                        definition += '\nDETERMINISTIC'
+                    entrypoint = str(native.get('entrypoint') or '').strip()
+                    engine = str(native.get('engine_name') or '').strip()
+                    if entrypoint:
+                        entrypoint = entrypoint.replace("'", "''")
+                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
+                    security = sql_security(native.get('sql_security'))
+                    if security:
+                        definition += f'\n{security}'
+                    if engine:
+                        definition += f'\nENGINE {identifier(engine)}'
+                    definition += f'\nAS\n{source};'
+                    native['ddl'] = definition
+            elif kind == 'external-function':
+                parameters = sorted(
+                    native.get('parameters', []),
+                    key=lambda value: numeric(value.get('position'), 0),
+                )
+                return_argument = numeric(native.get('return_argument'), 0)
+                arguments = []
+                return_definition = None
+                for parameter in parameters:
+                    rendered = udf_parameter(parameter)
+                    if rendered is None:
+                        arguments = None
+                        break
+                    position = numeric(parameter.get('position'), 0)
+                    if position == return_argument:
+                        return_definition = (
+                            rendered if position == 0 else
+                            f'PARAMETER {position}'
+                        )
+                        if position == 0:
+                            continue
+                    arguments.append(rendered)
+                if arguments is not None and return_definition:
+                    module = str(native.get('module_name') or '').replace(
+                        "'", "''"
+                    )
+                    entrypoint = str(native.get('entrypoint') or '').replace(
+                        "'", "''"
+                    )
+                    if module and entrypoint:
+                        native['ddl'] = (
+                            f'DECLARE EXTERNAL FUNCTION {identifier(name)} '
+                            f'{", ".join(arguments)} RETURNS '
+                            f'{return_definition}\nENTRY_POINT '
+                            f"'{entrypoint}' MODULE_NAME '{module}';"
+                        )
+            elif kind == 'index':
+                relation = item['display_path'][-2] if len(
+                    item['display_path']
+                ) > 1 else None
+                if relation:
+                    native['state'] = {
+                        'active': native.get('inactive') in {
+                            None, '0', 0,
+                        },
+                    }
+                    components = ['CREATE']
+                    if str(native.get('unique')) == '1':
+                        components.append('UNIQUE')
+                    if str(native.get('index_type')) == '1':
+                        components.append('DESCENDING')
+                    components.extend([
+                        'INDEX', identifier(name), 'ON', identifier(relation),
+                    ])
+                    expression = str(
+                        native.get('expression_source') or ''
+                    ).strip()
+                    if expression:
+                        if expression.upper().startswith('COMPUTED BY'):
+                            target = expression
+                        else:
+                            target = f'COMPUTED BY ({expression})'
+                    else:
+                        segments = native.get('segments', [])
+                        target = '(' + ', '.join(
+                            identifier(segment['field_name'])
+                            for segment in segments
+                        ) + ')'
+                    if (expression or native.get('segments')) and \
+                            name not in constraint_indexes:
+                        native['ddl'] = ' '.join(components) + (
+                            f' {target};'
+                        )
+            elif kind == 'constraint' and len(item['display_path']) > 1:
+                clause = constraint_clause(item)
+                if clause:
+                    native['ddl'] = (
+                        f'ALTER TABLE {identifier(item["display_path"][-2])} '
+                        f'ADD {clause};'
+                    )
+        plural = {
+            'column': 'columns', 'index': 'indexes',
+            'constraint': 'constraints',
+        }
+        for item in tuple(resources.values()):
+            kind = item['resource_kind']
+            native = item.setdefault('native', {})
+            path = item['display_path']
+            if kind in plural and len(path) > 1:
+                parent_name = path[-2]
+                child = {'name': item['display_name'], **native}
+                for parent in objects_named(parent_name):
+                    if parent['resource_kind'] in {'table', 'view'}:
+                        parent.setdefault('native', {}).setdefault(
+                            plural[kind], []
+                        ).append(child)
+            if kind == 'trigger' and native.get('relation'):
+                child = {'name': item['display_name'], **native}
+                for parent in objects_named(native['relation']):
+                    if parent['resource_kind'] in {'table', 'view'}:
+                        parent.setdefault('native', {}).setdefault(
+                            'triggers', []
+                        ).append(child)
+        for item in resources.values():
+            if item['resource_kind'] != 'table':
+                continue
+            native = item.setdefault('native', {})
+            lines = []
+            for column in native.get('columns', []):
+                computed = str(column.get('computed_source') or '').strip()
+                if computed:
+                    expression = computed if computed.startswith('(') else (
+                        f'({computed})'
+                    )
+                    definition = (
+                        f'{identifier(column["name"])} COMPUTED BY '
+                        f'{expression}'
+                    )
+                else:
+                    rendered_type = data_type(column)
+                    if rendered_type is None:
+                        lines = None
+                        break
+                    definition = (
+                        f'{identifier(column["name"])} {rendered_type}'
+                    )
+                    identity_type = numeric(column.get('identity_type'))
+                    if identity_type is not None:
+                        definition += (
+                            ' GENERATED ALWAYS AS IDENTITY' if
+                            identity_type == 0 else
+                            ' GENERATED BY DEFAULT AS IDENTITY'
+                        )
+                    default = str(column.get('default_source') or '').strip()
+                    if default:
+                        definition += f' {default}'
+                    if str(column.get('not_null')) == '1':
+                        definition += ' NOT NULL'
+                    collation = str(
+                        column.get('collation') or ''
+                    ).strip()
+                    if collation:
+                        definition += f' COLLATE {identifier(collation)}'
+                lines.append(definition)
+            if lines is None:
+                native['ddl_available'] = False
+                native['ddl_unavailable_reason'] = (
+                    'The exact Firebird field type could not be rendered.'
+                )
+                continue
+            lines.extend(
+                clause for constraint in native.get('constraints', [])
+                if (clause := constraint_clause({
+                    'display_name': constraint['name'],
+                    'native': constraint,
+                })) is not None
+            )
+            relation_type = numeric(native.get('relation_type'), 0)
+            prefix = 'CREATE TABLE'
+            suffix = ''
+            if relation_type in {4, 5}:
+                prefix = 'CREATE GLOBAL TEMPORARY TABLE'
+                suffix = (
+                    ' ON COMMIT PRESERVE ROWS' if relation_type == 4 else
+                    ' ON COMMIT DELETE ROWS'
+                )
+            elif relation_type == 2 and native.get('external_file'):
+                external = str(native['external_file']).replace("'", "''")
+                prefix += (
+                    f" {identifier(item['display_name'])} EXTERNAL FILE "
+                    f"'{external}'"
+                )
+                native['ddl'] = (
+                    f'{prefix} (\n  ' + ',\n  '.join(lines) + f'\n){suffix};'
+                )
+                continue
+            native['ddl'] = (
+                f'{prefix} {identifier(item["display_name"])} (\n  ' +
+                ',\n  '.join(lines) + f'\n){suffix};'
+            )
+        dependency_capable = {
+            'database', 'table', 'view', 'column', 'index', 'constraint',
+            'domain', 'sequence', 'trigger', 'procedure', 'function',
+            'package', 'exception', 'role', 'character-set', 'collation',
+            'external-function', 'publication',
+        }
+        privilege_capable = grantable_kinds | {'user'}
+        for item in resources.values():
+            kind = item['resource_kind']
+            native = item.setdefault('native', {})
+            sections = ['properties']
+            if native.get('definition') is not None or native.get(
+                    'metadata_source') is not None:
+                sections.append('definition')
+            if native.get('ddl') is not None:
+                sections.append('ddl')
+            if kind in dependency_capable:
+                sections.extend(['dependencies', 'dependents'])
+            if kind in privilege_capable:
+                sections.append('privileges')
+            if kind in {'table', 'view'}:
+                sections.extend([
+                    'columns', 'constraints', 'indexes', 'triggers', 'data',
+                ])
+            if kind in {'procedure', 'function', 'external-function'}:
+                sections.append('parameters')
+            if 'statistics' in native:
+                sections.append('statistics')
+            if 'state' in native:
+                sections.append('state')
+            sections.append('operations')
+            native['property_sections'] = sections
         for name in PROFILE.admin_tools:
             add('service-operation', [], name)
         for metric in _metric_records():

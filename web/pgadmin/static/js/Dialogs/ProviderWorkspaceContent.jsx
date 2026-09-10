@@ -547,21 +547,32 @@ function providerNative(resource) {
 function sectionPayload(section, resource, descriptor) {
   const native = providerNative(resource);
   if (section === 'properties') {
+    const {property_sections: _sections, ...providerProperties} = native;
     return {
       name: resource?.display_name, kind: resource?.resource_kind,
       display_path: resource?.display_path,
       authority_path: resource?.authority_path,
       generation: resource?.generation,
-      provider_properties: native,
+      provider_properties: providerProperties,
     };
   }
-  if (section === 'definition') return native.definition ?? native;
-  if (section === 'dependencies') {
-    return native.dependencies ?? native.dependents ?? [];
+  if (section === 'definition') {
+    return native.definition ?? native.metadata_source ?? native;
   }
+  if (section === 'ddl') return native.ddl ?? null;
+  if (section === 'dependencies') {
+    return native.dependencies ?? [];
+  }
+  if (section === 'dependents') return native.dependents ?? [];
+  if (section === 'privileges') return native.privileges ?? [];
   if (section === 'security') {
     return native.security ?? native.privileges ?? native.grants ?? [];
   }
+  if (section === 'constraints') return native.constraints ?? [];
+  if (section === 'indexes') return native.indexes ?? [];
+  if (section === 'triggers') return native.triggers ?? [];
+  if (section === 'columns') return native.columns ?? [];
+  if (section === 'parameters') return native.parameters ?? [];
   if (section === 'statistics') {
     return native.statistics ?? native.stats ?? native.metrics ?? {};
   }
@@ -585,6 +596,24 @@ function sectionPayload(section, resource, descriptor) {
 }
 
 const DEFAULT_INSPECTOR_SECTIONS = ['properties'];
+const INSPECTOR_SECTION_TITLES = {
+  properties: gettext('Summary'),
+  definition: gettext('Native definition/source'),
+  ddl: gettext('Creation statement (DDL)'),
+  dependencies: gettext('Depends on'),
+  dependents: gettext('Depended on by'),
+  privileges: gettext('Privileges and grants'),
+  security: gettext('Security'),
+  constraints: gettext('Constraints'),
+  indexes: gettext('Indexes'),
+  triggers: gettext('Triggers'),
+  columns: gettext('Columns'),
+  parameters: gettext('Parameters'),
+  statistics: gettext('Statistics'),
+  state: gettext('State'),
+  data: gettext('Data'),
+  operations: gettext('Operations'),
+};
 
 function NativePropertyValue({value, depth=0}) {
   if (value === null || value === undefined) {
@@ -637,8 +666,12 @@ NativePropertyValue.propTypes = {
 };
 
 function ObjectInspectorSection({resource, descriptor, loading}) {
-  const sections = descriptor?.editor?.sections ||
+  const declaredSections = descriptor?.editor?.sections ||
     DEFAULT_INSPECTOR_SECTIONS;
+  const resourceSections = providerNative(resource).property_sections;
+  const sections = Array.isArray(resourceSections) ?
+    declaredSections.filter((item) => resourceSections.includes(item)) :
+    declaredSections;
   const [section, setSection] = useState(sections[0]);
   useEffect(() => {
     if (!sections.includes(section)) setSection(sections[0]);
@@ -654,7 +687,7 @@ function ObjectInspectorSection({resource, descriptor, loading}) {
       label={gettext('Object properties task')}
       onChange={(event) => setSection(event.target.value)}>
       {sections.map((item) => <MenuItem key={item} value={item}>
-        {item.replaceAll('-', ' ')}
+        {INSPECTOR_SECTION_TITLES[item] || item.replaceAll('-', ' ')}
       </MenuItem>)}
     </TextField>
     <Box role="tabpanel" aria-label={`${section} ${gettext('object section')}`}

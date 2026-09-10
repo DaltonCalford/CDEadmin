@@ -1,14 +1,22 @@
 .. _deployment:
 
 *******************
-`Deployment`:index:
+Deployment
 *******************
 
-Pre-compiled and configured installation packages for pgAdmin 4 are available
-for a number of desktop environments; we recommend using an installer whenever
-possible.  If you are interested in learning more about the project, or if a
-pgAdmin installer is not available for your environment, the pages listed below
-will provide detailed information about creating a custom deployment.
+CDEadmin supports source/development execution, a packaged desktop runtime,
+production WSGI/web-server hosting and containers. Independent CDEadmin
+packages, signing keys and update feeds are required; pgAdmin package IDs,
+repositories, keys and update services must not be reused.
+
+The desktop runtime bundles the Python application and an embedded browser
+engine. Packaged users therefore do not need a separate Python or browser
+installation. Server deployments may use CDEadmin's own application server for
+development or place the WSGI application behind Apache or another supported
+production server.
+
+Current builds are development builds and are not release-approved. See
+:doc:`implementation_status` and :doc:`project_governance`.
 
 .. toctree::
    :maxdepth: 2

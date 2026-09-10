@@ -50,6 +50,17 @@ source_suffix = '.rst'
 # The master toctree document.
 master_doc = 'index'
 
+# Every retained upstream page is rendered inside the CDEadmin documentation
+# set. This banner prevents historical pgAdmin or PostgreSQL-provider material
+# from being mistaken for the global CDEadmin product contract.
+rst_prolog = r'''
+.. note::
+
+   This page is published as part of **ScratchRobin CDE Admin**. References to
+   pgAdmin describe retained upstream history, compatibility interfaces, or the
+   PostgreSQL provider; they do not define CDEadmin's global product identity.
+'''
+
 # General information about the project.
 project = config.APP_NAME
 copyright = config.APP_COPYRIGHT.replace('Copyright', '').strip(' ')
@@ -208,8 +219,8 @@ htmlhelp_basename = 'cdeadmin'
 # (source start file, target name, title, author, documentclass
 # [howto/manual]).
 latex_documents = [
-    ('index', 'cdeadmin.tex', 'CDEadmin Documentation',
-     'The pgAdmin Development Team', 'manual'),
+    ('index', 'cdeadmin.tex', 'ScratchRobin CDE Admin Documentation',
+     'CDEadmin contributors; based on pgAdmin 4', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -255,6 +266,6 @@ latex_elements = {
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'cdeadmin', 'CDEadmin Documentation',
-     ['The pgAdmin Development Team'], 1)
+    ('index', 'cdeadmin', 'ScratchRobin CDE Admin Documentation',
+     ['CDEadmin contributors; based on pgAdmin 4'], 1)
 ]

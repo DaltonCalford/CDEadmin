@@ -1,9 +1,9 @@
-********
-CDEadmin
-********
+***********************
+ScratchRobin CDE Admin
+***********************
 
-Welcome to CDEadmin, an independent hard fork of pgAdmin 4 9.17. CDEadmin is
-a provider-driven, multi-engine and multi-model administration environment for
+Welcome to ScratchRobin CDE Admin (CDEadmin), an independent hard fork of pgAdmin 4 9.17.
+CDEadmin is a provider-driven, multi-engine and multi-model administration environment for
 ScratchBird and independently managed database platforms. PostgreSQL remains
 a supported engine, but it is not the global product identity.
 
@@ -18,6 +18,9 @@ upstream attribution.
 
    getting_started
    cdeadmin_hard_fork
+   project_governance
+   cdeadmin_architecture
+   implementation_status
    report_delivery
    external_database
    connecting

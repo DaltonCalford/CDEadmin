@@ -1,32 +1,78 @@
 .. _getting_started:
 
 ************************
-`Getting Started`:index:
+Getting started
 ************************
 
-Pre-compiled and configured installation packages for pgAdmin 4 are available
-for a number of desktop environments; we recommend using an installer
-whenever possible.
+ScratchRobin CDE Admin can run as a browser application, behind a production
+web server, in a container, or through its desktop runtime. A packaged desktop
+build contains its Python application and browser runtime; an end user does not
+need a separate Python or browser installation.
 
-In a *Server Deployment*, the pgAdmin application is deployed behind a webserver
-or with the WSGI interface.
-If you install pgAdmin in server mode, you will be prompted to provide a role
-name and pgAdmin password when you initially connect to pgAdmin.  The first
-role registered with pgAdmin will be an administrative user; the
-administrative role can use the pgAdmin *User Management* dialog to create
-and manage additional pgAdmin user accounts.  When a user authenticates
-with pgAdmin, the pgAdmin tree control displays the server definitions
-associated with that login role.
+Development startup
+===================
 
-In a *Desktop Deployment*, the pgAdmin application is configured to use the
-desktop runtime environment to host the program on a supported platform.
-Typically, users will install a pre-built package to run pgAdmin in desktop
-mode, but a manual desktop deployment can be installed and though it is more
-difficult to setup, it may be useful for developers interested in understanding
-how pgAdmin works.
+From a source checkout, install the Python dependencies and build the web
+assets. Node.js uses the Yarn version pinned by ``web/package.json`` through
+Corepack; a global Yarn installation is not required.
 
-It is also possible to use a *Container Deployment* of pgAdmin, in which Server
-Mode is pre-configured for security.
+.. code-block:: bash
+
+   python3 -m venv venv
+   source venv/bin/activate
+   python3 -m pip install -r requirements.txt
+   make install-node
+   make bundle
+   python3 web/setup.py
+   python3 web/CDEadmin.py
+
+The development server normally listens at ``http://127.0.0.1:5051``. Local
+paths, logging and other overrides belong in ``web/config_local.py``. Do not
+reuse pgAdmin state locations.
+
+First sign-in
+=============
+
+Server mode asks for the first CDEadmin administrator account during setup.
+That account administers CDEadmin users, groups, permissions, connector
+visibility and personal state. Database-engine users and roles remain native
+objects owned by their respective providers.
+
+Connectors
+==========
+
+Connector roots are hidden by default and can be enabled per user from the
+*Connectors* command menu. Enabling a connector displays the engine root; it
+does not create a server or prove that a local engine is running.
+
+The normal hierarchy is:
+
+``Connectors -> engine -> server or instance -> database -> native objects``
+
+Create or edit a server/instance with the exact engine form. Then register or
+create a database target using that engine's database form. Some engines have a
+default database catalog; others, such as Firebird, require an explicit database
+path and can still expose server-level service operations without one.
+
+Reference-engine demonstrations
+===============================
+
+The project includes on-demand fixtures under
+``tools/reference_engine_demos``. Start only the engine being tested because
+the complete distributed portfolio is too large to run simultaneously on a
+normal development workstation.
+
+.. code-block:: bash
+
+   cd tools/reference_engine_demos
+   python3 demo_estate.py list
+   python3 demo_estate.py start firebird
+   python3 demo_estate.py seed firebird
+   python3 demo_estate.py verify firebird
+
+See :doc:`connecting`, :doc:`user_interface`,
+:doc:`cdeadmin_architecture`, and :doc:`implementation_status` before treating
+a connector as release-qualified.
 
 .. toctree::
    :maxdepth: 2
@@ -42,49 +88,3 @@ Mode is pre-configured for security.
    kerberos
    oauth2
    webserver
-
-
-.. note:: Pre-compiled and configured installation packages are available for
-     a number of platforms. These packages should be used by end-users whereever
-     possible - the following information is useful for the maintainers of those
-     packages and users interested in understanding how pgAdmin works.
-
-The pgAdmin 4 client features a highly-customizable display that features
-drag-and-drop panels that you can arrange to make the best use of your desktop
-environment.
-
-The tree control provides an elegant overview of the managed servers, and the
-objects that reside on each server. Right-click on a node within the tree control
-to access context-sensitive menus that provide quick access to management tasks
-for the selected object.
-
-The tabbed browser provide quick access to statistical information about each
-object in the tree control, and pgAdmin tools and utilities (such as the Query
-tool and the debugger). pgAdmin opens additional feature tabs each time you
-access the extended functionality offered by pgAdmin tools; you can open, close,
-and re-arrange feature tabs as needed.
-
-Use the *Preferences* dialog to customize the content and behaviour of the pgAdmin
-display.  To open the *Preferences* dialog, select *Preferences* from the *File* menu.
-
-*Help* buttons in the lower-left corner of each dialog will open the online help
-for the dialog.  You can access additional Postgres help by navigating through
-the *Help* menu, and selecting the name of the resource that you wish to open.
-
-You can search for objects in the database using the :ref:`Search objects <search_objects>`
-
-.. toctree::
-   :maxdepth: 2
-
-   user_interface
-   menu_bar
-   toolbar
-   tabbed_browser
-   tree_control
-   preferences
-   keyboard_shortcuts
-   search_objects
-
-Before using pgAdmin to manage objects that reside on a server, you must define a
-connection to the server; for more information please see *Connecting to a Server*
-in the next section.

@@ -3,10 +3,11 @@ Release Notes
 *************
 
 
-pgAdmin release notes provide information on the features and improvements in
-each release. This page includes release notes for major releases and minor
-(bugfix) releases.  Select your version from the list below to see the release
-notes for it.
+The entries below are the retained historical pgAdmin release notes through the
+9.17 source baseline. They document provenance and inherited PostgreSQL-provider
+behavior; they are not CDEadmin release notes and do not describe the current
+multi-engine implementation. CDEadmin is presently 0.1.0-dev and has no
+production release. See :doc:`implementation_status` for its current status.
 
 .. toctree::
    :maxdepth: 1

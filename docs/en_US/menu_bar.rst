@@ -1,187 +1,63 @@
 .. _menu_bar:
 
 *****************
-`Menu Bar`:index:
+Command menus
 *****************
 
-The CDEadmin menu bar provides drop-down menus for access to options, commands,
-and utilities. Its layout adapts based on your deployment: in Web mode,
-you will see *File*, *Object*, *Tools*, and *Help* menus. In Desktop mode,
-the *CDEadmin* application menu replaces the standard *File* menu.
-Selections may be grayed out which indicates they are
-disabled for the object currently selected in the CDEadmin tree control.
+CDEadmin's top-level menus contain project-wide commands. Engine-specific
+administration is supplied by the selected Object Explorer node and is not
+hard-coded into the global menu structure.
 
-The File Menu
-*************
+File
+====
 
-.. image:: /images/file_menu.png
-    :alt: CDEadmin file menu bar
-    :align: center
+The *File* menu manages CDEadmin projects, workspace files, imports/exports,
+recent work, preferences and application exit where appropriate to the host.
 
-Use the *File* menu available in web mode to access the following options:
+Connectors
+==========
 
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| Option                  | Action                                                                                                  |
-+=========================+=========================================================================================================+
-| *Preferences*           | Open Preferences to customize CDEadmin settings.                                                        |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| *Reset Layout*          | If you have modified the workspace, click to restore the default layout.                                |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
+The *Connectors* menu lists the connector types included in the current build.
+Each item is a per-user checked preference. Checked connectors are visible in
+the Object Explorer; unchecked connectors are hidden. The menu does not create
+arbitrary connector implementations at runtime.
 
+Object
+======
 
-The CDEadmin Menu
-*****************
+The *Object* menu is populated from commands valid for the selected engine,
+endpoint, database or native object. It can include Properties, Refresh,
+Connect, Query, Open Data, Create, Alter or Drop only when the exact provider
+admits them. The same commands appear in the node's context menu.
 
-Use the *CDEadmin* menu available in desktop mode to access the following options:
+Tools
+=====
 
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| Option                  | Action                                                                                                  |
-+=========================+=========================================================================================================+
-| *About CDEadmin*        | Show CDEadmin version, fork status, upstream base, mode, and current user.                              |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| *Preferences/settings*  | Open Preferences to customize CDEadmin settings.                                                        |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| *Reset Layout*          | If you have modified the workspace, click to restore the default layout.                                |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| *View Logs*             | Show the current CDEadmin runtime log.                                                                  |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
-| *Configure runtime*     | Click to open a  window that allows to configure application port, connection timeout to launch the     |
-|                         | application. To know more about runtime menu :ref:`click here <desktop_deployment>`                     |
-+-------------------------+---------------------------------------------------------------------------------------------------------+
+The *Tools* menu opens project-owned facilities such as Data Studio, query
+workspaces, ERD/whiteboard/dataflow diagrams, model conversion, semantic-model
+design, dashboards, reports, data pump, scheduler, comparison and diagnostics.
+Tools that require a connection ask for or inherit a typed provider target.
 
-The Object Menu
-***************
+Window
+======
 
-.. image:: /images/object_menu.png
-    :alt: CDEadmin object menu bar
-    :align: center
+The *Window* menu controls docking, grouping, tear-off windows, monitor
+placement, workspace restoration and layout reset. A torn-off workspace retains
+its command, security and provider context and can be docked again.
 
-The *Object* menu is context-sensitive. Use the *Object* menu to access the
-following options (in alphabetical order):
+Help
+====
 
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| Option                      | Action                                                                                                                   |
-+=============================+==========================================================================================================================+
-| *Register*                  |                                                                                                                          |
-|                             |                                                                                                                          |
-|   1) *Server*               | Click to open the :ref:`Server <server_dialog>` dialog to register a server.                                             |
-|                             |                                                                                                                          |
-|   2) *Deploy Cloud Instance*| Click to open the :ref:`Cloud Deployment <cloud_deployment>` dialog to deploy an cloud instance.                         |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Change Password...*        | Click to open the :ref:`Change Password... <change_password_dialog>` dialog to change your password.                     |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Clear Saved Password*      | If you have saved the database server password, click to clear the saved password.                                       |
-|                             | Enable only when password is already saved.                                                                              |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Clear SSH Tunnel Password* | If you have saved the ssh tunnel password, click to clear the saved password.                                            |
-|                             | Enable only when password is already saved.                                                                              |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Connect Server*            | Click to open the :ref:`Connect to Server <connect_to_server>` dialog to establish a connection with a server.           |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Copy Server...*            | Click to copy the currently selected server.                                                                             |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Create*                    | Click *Create* to access a context menu that provides context-sensitive selections.                                      |
-|                             | Your selection opens a *Create* dialog for creating a new object.                                                        |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Drop*                      | Click to drop the currently selected object from the server.                                                             |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Drop (Cascade)*            | Click to drop the currently selected object and all dependent objects from the server.                                   |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Drop (Force)*              | Click to drop the currently selected database with force option.                                                         |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Disconnect from server*    | Click to disconnect from the currently selected server.                                                                  |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Properties...*             | Click to review or modify the currently selected object's properties.                                                    |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Refresh*                   | Click to refresh the currently selected object.                                                                          |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Remove Server*             | Click to remove the currently selected server.                                                                           |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Scripts*                   | Click to open the :ref:`Query tool <query_tool>` to edit or view the selected script from the flyout menu.               |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Trigger(s)*                | Click to *Disable* or *Enable* trigger(s) for the currently selected table. Options are displayed on the flyout menu.    |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *Truncate*                  | Click to remove all rows from a table/foreign tables (*Truncate*), to remove all rows from a table/foreign tables and    |
-|                             | its child tables (*Truncate Cascade*) or to remove all rows from a table/foreign tables and automatically restart        |
-|                             | sequences owned by columns (*Truncate Restart Identity*). Options are displayed on the flyout menu.                      |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *View Data*                 | Click to access a context menu that provides several options for viewing data (see below).                               |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *ERD For Database*          | Click to open the ERD tool with automatically generated diagram for the database selected.                               |
-|                             | This option is available only when a database is selected. Options are displayed on the flyout menu.                     |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
-| *ERD For Table*             | Click to open the ERD tool with automatically generated diagram for the table selected.                                  |
-|                             | This option is available only when a table is selected. Options are displayed on the flyout menu.                        |
-+-----------------------------+--------------------------------------------------------------------------------------------------------------------------+
+The *Help* menu opens local documentation, command search, keyboard help,
+diagnostics, provider/driver version information, project status and *About
+ScratchRobin CDE Admin*. The About view states that CDEadmin is an independent
+hard fork based on pgAdmin 4 9.17 and retains the upstream copyright and
+PostgreSQL Licence attribution.
 
-The Tools Menu
-**************
+Command contract
+================
 
-.. image:: /images/tool_menu.png
-    :alt: CDEadmin tools menu bar
-    :align: center
-
-Use the *Tools* menu to access the following options (in alphabetical order):
-
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| Option                       | Action                                                                                                                                    |
-+==============================+===========================================================================================================================================+
-| *ERD Tool*                   | Click to open the :ref:`ERD Tool <erd_tool>` and start designing your database.                                                           |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Grant Wizard...*            | Click to access the :ref:`Grant Wizard <grant_wizard>` tool.                                                                              |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *PSQL Tool*                  | Click to open the :ref:`PSQL Tool <psql_tool>` and start PSQL in the current database context.                                            |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Query tool*                 | Click to open the :ref:`Query tool <query_tool>` for the currently selected object.                                                       |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Schema Diff*                | Click to open the :ref:`Schema Diff <schema_diff_feature>` and start comparing two database or two schema.                                |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Backup Globals...*          | Click to open the :ref:`Backup Globals... <backup_globals_dialog>` dialog to backup cluster objects.                                      |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Backup Server...*           | Click to open the :ref:`Backup Server... <backup_server_dialog>` dialog to backup a server.                                               |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Backup...*                  | Click to open the :ref:`Backup... <backup_dialog>` dialog to backup database objects.                                                     |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Restore...*                 | Click to access the :ref:`Restore <restore_dialog>` dialog to restore database files from a backup.                                       |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Export Data Using Query...* | Click to open the :ref:`Export Data Using Query... <export_data_using_query>` dialog to export data from a table using query.             |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Import/Export Data...*      | Click to open the :ref:`Import/Export data... <import_export_data>` dialog to import or export data from a table.                         |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Maintenance...*             | Click to open the :ref:`Maintenance... <maintenance_dialog>` dialog to VACUUM, ANALYZE, REINDEX, or CLUSTER.                              |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Search Objects...*          | Click to open the :ref:`Search Objects... <search_objects>` and start searching any kind of objects in a database.                        |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *AI Reports*                 | Click to access a submenu with AI-powered analysis options (requires :ref:`AI configuration <ai_tools>`):                                 |
-|                              |                                                                                                                                           |
-|                              | - *Security Report* - Generate an AI-powered security analysis for the selected server, database, or schema.                              |
-|                              | - *Performance Report* - Generate an AI-powered performance analysis for the selected server or database.                                 |
-|                              | - *Design Report* - Generate an AI-powered design review for the selected database or schema.                                             |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Add named restore point*    | Click to open the :ref:`Add named restore point... <add_restore_point_dialog>` dialog to take a point-in-time snapshot of the current     |
-|                              | server state.                                                                                                                             |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Pause replay of WAL*        | Click to pause the replay of the WAL log.                                                                                                 |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Resume replay of WAL*       | Click to resume the replay of the WAL log.                                                                                                |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Reload Configuration...*    | Click to update configuration files without restarting the server.                                                                        |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-| *Storage Manager*            | Click to open the :ref:`Storage Manager <storage_manager>` to upload, delete, or download the backup files.                               |
-+------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------+
-
-The Help Menu
-*************
-
-Use the *Help* menu to access:
-
-* *Quick Search*, which searches commands and local help articles;
-* *Online Help*, which opens the CDEadmin documentation;
-* *Upstream pgAdmin Project*, an explicit attribution link to the project from
-  which CDEadmin was forked; and
-* *CDEadmin Hard-fork Status*, which describes the fork and its major
-  divergences.
-
-The *About CDEadmin* command opens a product-information window containing the
-CDEadmin version and hard-fork status, the pgAdmin 4 upstream base, a summary
-of multi-engine and multi-model changes, and the retained licence attribution.
+Every menu entry is a command-registry projection with a stable command ID,
+icon, label, security permission, visibility predicate, enablement predicate,
+shortcut/macro binding and audit behavior. Menus can be redesigned without
+changing command authority.

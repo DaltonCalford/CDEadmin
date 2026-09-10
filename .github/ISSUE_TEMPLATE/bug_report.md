@@ -1,13 +1,15 @@
 ---
 name: Bug report
-about: Create a report to help us improve pgAdmin
+about: Report a defect in ScratchRobin CDE Admin
 title: ''
 labels: Bug
 assignees: ''
 
 ---
 
-**_Please note that security bugs or issues should be reported to security@pgadmin.org._**
+**Do not report CDEadmin security issues to the pgAdmin project.** CDEadmin's
+private security contact is not yet assigned; follow `SECURITY.md` and do not
+publish an undisclosed vulnerability in a public issue.
 
 **Describe the bug**
 
@@ -34,10 +36,19 @@ If applicable, add screenshots to help explain your problem.
 
 **Desktop (please complete the following information):**
  - OS: [e.g. Windows 10, OSX monterey]
- - pgAdmin version: [e.g. 6.15]
+ - CDEadmin version/commit: [e.g. 0.1.0-dev / full commit ID]
+ - Engine and exact server version: [e.g. Firebird 5.0.4]
+ - Provider/driver version:
  - Mode: [e.g Desktop or Server]
  - Browser (if running in server mode): [e.g. chrome, safari]
  - Package type: [e.g. RPM, DEB, Python, Container, etc.]
+
+**Provider context**
+
+- Connector, endpoint and database target (redact all secrets):
+- Selected object and command:
+- Does the same action succeed with the engine's native client?
+- Relevant provider/live-gate evidence, if available:
 
 **Additional context**
 

@@ -1,6 +1,7 @@
-CDEadmin hard-fork notice and upstream attribution
-==================================================
+ScratchRobin CDE Admin hard-fork notice and upstream attribution
+================================================================
 
+ScratchRobin CDE Admin is the formal product name.
 CDEadmin is an independent hard fork of pgAdmin 4, based on pgAdmin 4 9.17.
 CDEadmin is a separate multi-engine, multi-model database administration product and is not pgAdmin 4. It is not affiliated with or endorsed by the pgAdmin Development Team.
 
@@ -35,3 +36,8 @@ retain all rights in their names and marks.
 CDEadmin signing identities and update channels are independent and remain
 unassigned. A CDEadmin release is not yet approved until product, legal,
 security, and release-engineering controls are completed.
+
+The project does not track an upstream Git remote or represent its diverged
+source as merge-compatible with pgAdmin. Retained history and references exist
+solely for attribution, licence compliance, provenance, and deliberately
+maintained compatibility interfaces.

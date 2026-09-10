@@ -2,7 +2,8 @@
 CDEadmin hard-fork status
 ***************************
 
-CDEadmin is an independent hard fork of pgAdmin 4, based on pgAdmin 4 9.17.
+CDEadmin, formally **ScratchRobin CDE Admin**, is an independent hard fork of
+pgAdmin 4, based on pgAdmin 4 9.17.
 It is not pgAdmin 4 and is not affiliated with or endorsed by the pgAdmin
 Development Team.
 
@@ -61,3 +62,11 @@ The hard-fork product identity is established. Independent signing identities
 and update endpoints are not yet assigned, so distribution remains blocked on
 the product, legal, security and release-engineering gates recorded by the
 CDEadmin product-identity contract.
+
+Repository independence
+=======================
+
+CDEadmin has its own origin and does not track or merge from an upstream
+remote. The retained Git history exists for provenance. If GitHub displays the
+repository as part of the pgAdmin fork network, a repository administrator can
+use GitHub's *Leave fork network* operation; see :doc:`project_governance`.

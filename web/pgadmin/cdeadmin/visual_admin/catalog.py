@@ -39,6 +39,11 @@ GENERIC_OPERATION_PROFILES = frozenset({
     'read_only', 'namespace', 'definition', 'data_container', 'data_item',
     'security', 'topology', 'operational', 'mysql_database',
 })
+PROPERTY_SECTIONS = frozenset({
+    'properties', 'definition', 'ddl', 'dependencies', 'dependents',
+    'privileges', 'security', 'constraints', 'indexes', 'triggers',
+    'columns', 'parameters', 'statistics', 'state', 'data', 'operations',
+})
 
 
 class VisualAdminCatalogError(RuntimeError):
@@ -194,6 +199,28 @@ def _validate_document(document: Mapping[str, Any]) -> dict[str, Any]:
             resource['title'] = _required_string(
                 resource.get('title'), f'{engine_id}.{kind}.title'
             )
+            editor = resource.get('editor')
+            if editor is not None:
+                if not isinstance(editor, Mapping):
+                    raise VisualAdminCatalogError(
+                        f'{engine_id}.{kind}.editor must be an object'
+                    )
+                sections = editor.get('sections')
+                if not isinstance(sections, list) or not sections or any(
+                    not isinstance(section, str) or
+                    section not in PROPERTY_SECTIONS
+                    for section in sections
+                ):
+                    raise VisualAdminCatalogError(
+                        f'{engine_id}.{kind}.editor.sections is invalid'
+                    )
+                if len(sections) != len(set(sections)) or not {
+                    'properties', 'operations'
+                }.issubset(sections):
+                    raise VisualAdminCatalogError(
+                        f'{engine_id}.{kind}.editor.sections must be unique '
+                        'and include properties and operations'
+                    )
             operation_forms = resource.pop('operation_forms', {})
             if not isinstance(operation_forms, Mapping) or any(
                 not isinstance(operation_id, str) or

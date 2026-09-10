@@ -1,8 +1,10 @@
-# CDEadmin
+# ScratchRobin CDE Admin
 
-CDEadmin is an independent hard fork of pgAdmin 4 9.17. It is being developed
-as a multi-engine, multi-model administration and development environment for
-ScratchBird and for independently operated database engines.
+**ScratchRobin CDE Admin** is the project's formal name. The product is called
+**ScratchRobin**, **SR**, or **CDEadmin** where a shorter name is appropriate.
+It is an independent hard fork of pgAdmin 4 9.17 and is being developed as a
+multi-engine, multi-model administration and development environment for
+ScratchBird and independently operated database engines.
 
 CDEadmin is not pgAdmin 4 and is not affiliated with or endorsed by the
 pgAdmin Development Team. The upstream copyright, PostgreSQL Licence, source
@@ -28,6 +30,35 @@ diverge materially from upstream pgAdmin 4:
   audit records are first-class product concepts.
 - CDEadmin uses separate state, package, cookie, desktop-store, update, and
   signing namespaces so it can coexist with pgAdmin 4.
+
+The repository is independently developed and does not merge from, track, or
+submit changes to pgAdmin. Its retained Git history records provenance and is
+not an integration promise. GitHub may continue to display a fork relationship
+until a repository administrator uses *Settings -> General -> Danger Zone ->
+Leave fork network*. That hosting metadata has no effect on the local remote or
+build. Detachment is permanent and can discard GitHub-hosted metadata such as
+issues, pull requests, wikis, stars, watchers and comments, so that separate
+hosting action must be backed up and reviewed before it is performed.
+
+## Current development status
+
+CDEadmin is currently version **0.1.0-dev** and is not approved for production
+release. The current implementation checkpoint provides 24 connector roots and
+26 independently activated provider profiles; YugabyteDB YSQL/YCQL and
+OpenSearch native/SQL-PPL have separate protocol profiles.
+
+The provider portfolio covers PostgreSQL, MySQL, MariaDB, Firebird, DuckDB,
+SQLite, MongoDB, Neo4j, Cassandra, Redis, XTDB, ClickHouse, InfluxDB, Milvus,
+OpenSearch, Apache Ignite, CockroachDB, Dolt, FoundationDB, immudb, TiDB, TiKV,
+Vitess, and YugabyteDB. Native ScratchBird is intentionally deferred until the
+reference-engine browser audit is complete.
+
+The structural and live-operation gates are implementation checkpoints, not a
+claim of release readiness. Remaining qualification includes exhaustive
+provider-by-provider browser review, every form and material state, accessibility
+variants, connection/security mode matrices, large-result behavior, and final
+packaging, legal, security, and release-engineering approval. See
+[Implementation status](docs/en_US/implementation_status.rst).
 
 The current implementation contains provider and administration work for
 multiple engine families. Feature availability is governed by provider
@@ -75,6 +106,8 @@ that foundation with:
 
 PostgreSQL support remains a core engine provider, but it does not define the
 global product identity or constrain other providers to PostgreSQL semantics.
+See [Product architecture](docs/en_US/cdeadmin_architecture.rst) for the
+provider, endpoint, object, workspace, command, and verification boundaries.
 
 ## Source tree
 
@@ -164,10 +197,11 @@ python3 -m pip install Sphinx sphinxcontrib-youtube
 make docs
 ```
 
-The output is written to `docs/en_US/_build/html/`. Much of the inherited
-object-level documentation still describes the PostgreSQL provider. Such pages
-are valid engine-specific documentation, but must not present PostgreSQL or
-pgAdmin as CDEadmin’s global product identity.
+The output is written to `docs/en_US/_build/html/`. The documentation landing
+page, product architecture, connector model, interface, deployment, governance,
+and status pages describe CDEadmin. Retained pgAdmin release notes and
+PostgreSQL-object chapters are preserved for provenance and for the PostgreSQL
+provider; they are explicitly labelled and do not define CDEadmin globally.
 
 ## Packaging status
 

@@ -695,7 +695,7 @@ describe('ProviderWorkspaceContent', () => {
       .toBeInTheDocument();
     expect(await screen.findByRole('combobox', {
       name: 'Object properties task',
-    })).toHaveTextContent('properties');
+    })).toHaveTextContent('Summary');
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(screen.getByRole('tabpanel', {name: 'properties object section'}))
       .toHaveTextContent('generation-one');
@@ -795,7 +795,9 @@ describe('ProviderWorkspaceContent', () => {
     }}});
     api.post.mockResolvedValue({data: {data: {
       ...bootstrap.resource_page.items[0], generation: 'generation-one',
-      extensions: {mysql: {native: {character_set: 'utf8mb4'}}},
+      extensions: {mysql: {native: {
+        definition: {character_set: 'utf8mb4'},
+      }}},
     }}});
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" />);

@@ -1,13 +1,16 @@
-pgAdmin 4 Test Framework
-========================
+CDEadmin regression framework
+=============================
 
 This regression framework is designed to execute unit tests for all modules to
-help catch regressions in the code.
+help catch regressions in CDEadmin. It contains inherited PostgreSQL-provider
+tests as well as CDEadmin provider tests. ``pgadmin`` package names,
+``PGADMIN4_SRC`` and selected fixture keys below are retained compatibility
+interfaces from the pgAdmin 4 9.17 baseline.
 
 Assumptions
 -----------
 
-- pgAdmin must have SMTP configured if SERVER_MODE == True.
+- CDEadmin must have SMTP configured if SERVER_MODE == True.
 - There should be a single server group present in the browser.
 - Currently each module will have testcases related to ONLY GET, POST, PUT,
   and DELETE api’s.
@@ -20,11 +23,11 @@ pre-requisite packages installed from $PGADMIN4_SRC/requirements.txt. There
 are some additional dependencies for running the test suite; these can be
 installed with:
 
-(pgadmin4) $ pip install -r $PGADMIN4_SRC/web/regression/requirements.txt
+(cdeadmin) $ pip install -r $PGADMIN4_SRC/web/regression/requirements.txt
 
 While running in Linux environments install:
 
-(pgadmin4) $ sudo apt-get install xsel
+(cdeadmin) $ sudo apt-get install xsel
 
 Otherwise the following error happens:
 "Pyperclip could not find a copy/paste mechanism for your system"

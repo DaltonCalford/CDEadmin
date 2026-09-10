@@ -1,45 +1,80 @@
 .. _user_interface:
 
 ***********************
-`User Interface`:index:
+User interface
 ***********************
 
-CDEadmin is a provider-driven, multi-engine and multi-model administration
-environment. It supports native ScratchBird connections and direct connections
-to independently operated database engines. PostgreSQL remains a fully
-supported engine, but does not define the global product identity.
+CDEadmin uses an engine-neutral application shell around provider-specific
+content. The top-level menu contains project commands; engine, server, database
+and object operations come from the context of the selected explorer node.
 
-Features of CDEadmin include:
+Main regions
+============
 
-* auto-detection and support for objects discovered at run-time
-* a live SQL Query Tool with direct data editing
-* support for administrative queries
-* a syntax-highlighting SQL editor
-* redesigned graphical interfaces
-* powerful management dialogs and tools for common tasks
-* responsive, context-sensitive behavior
-* supportive error messages
-* helpful hints
-* capability-driven forms, actions and workspaces for each engine provider
-* SQL and non-SQL query environments
-* online help and information about using CDEadmin dialogs and tools.
+The interface contains:
 
-When CDEadmin opens, the interface features a menu bar and a window divided into
-two panes: the *Object Explorer* tree control in the left pane, and a tabbed browser in
-the right pane.
+* the ScratchRobin application identity, command toolbar and project menus;
+* a configurable controller rail for the Object Explorer, projects, diagrams,
+  dashboards, scheduler and other tools;
+* a branching Object Explorer with state, engine and object icons;
+* dockable, resizable single-task workspaces; and
+* status, notification and long-running-operation surfaces.
 
-Select an icon from the *Quick Links* panel on the *Dashboard* tab to:
+Commands
+========
 
-* Click the *Add New Server* button to open the
-  :ref:`Register - Server dialog <server_dialog>` to add a new server definition.
-* Click the *Configure CDEadmin* button to open the
-  :ref:`Preferences dialog <preferences>` to customize your CDEadmin client.
+Menus and buttons are views over the command registry. Each command has a
+stable identifier, label, icon, permission requirement, visibility rule and
+enablement rule. This permits keyboard shortcuts, macros, security groups and
+future menu layouts to invoke the same audited command.
 
-The *Getting Started* panel provides:
+Provider context
+================
 
-* *CDEadmin Documentation*, for the local product and provider documentation;
-* *Upstream pgAdmin Project*, retained as an attribution link; and
-* *CDEadmin Hard-fork Status*, describing the fork relationship and major
-  architectural divergences.
+Selecting an engine, endpoint, database or object changes the available
+commands. CDEadmin asks that provider for its exact operations and does not add
+another engine's commands. Firebird backup and validation, Redis TTL operations,
+MongoDB aggregation pipelines and Neo4j graph plans therefore remain distinct
+native experiences.
 
+Forms and workspaces
+====================
 
+Each create, edit, inspect, maintenance or security task opens as one form.
+Forms can be docked, moved, torn off into another window, or grouped as tabs by
+the workspace manager. A provider form is not a large compound page containing
+unrelated tabs from every engine.
+
+Data Studio selects a specialized view for the provider model: relational
+grid, document, graph, key-value, time-series, vector, search or analytical.
+Query workspaces likewise use the provider's supported languages rather than
+assuming SQL.
+
+Properties
+==========
+
+*Properties* is an informational workspace. Depending on the exact object, it
+may contain summary metadata, creation DDL or native definition, dependencies,
+objects that depend on it, privileges, columns, constraints, indexes, triggers,
+parameters and runtime state. Unsupported sections are absent, not empty
+imitations of another engine.
+
+Accessibility and personalization
+=================================
+
+The design system separates widget behavior from appearance. User preferences
+can govern colors, contrast, fonts, text size, spacing, target size, tab size,
+panel dimensions, handedness and interface language. Keyboard navigation,
+visible focus, reduced motion and scalable layouts are required acceptance
+conditions, not theme extras.
+
+.. toctree::
+   :maxdepth: 2
+
+   menu_bar
+   toolbar
+   tabbed_browser
+   tree_control
+   preferences
+   keyboard_shortcuts
+   search_objects
