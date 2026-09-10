@@ -461,6 +461,95 @@ def _preview_values(kind, operation, target, engine_id):
         }
 
     name = _native_name(target)
+    if engine_id == 'firebird':
+        if operation_id == 'create':
+            object_name = f'cdeadmin_ui_{kind.replace("-", "_")}_probe'
+            values = {'name': object_name}
+            if kind == 'table':
+                values['columns'] = json.dumps([
+                    {'name': 'ID', 'type': 'INTEGER', 'primary_key': True},
+                    {'name': 'VALUE_TEXT', 'type': 'VARCHAR(80)'},
+                ])
+            elif kind == 'view':
+                values['query'] = (
+                    'SELECT CUSTOMER_ID, NAME FROM CUSTOMERS'
+                )
+            elif kind == 'index':
+                values.update({
+                    'table': 'CUSTOMERS', 'columns': '["NAME"]',
+                })
+            elif kind == 'column':
+                values.update({
+                    'table': 'CUSTOMERS', 'data_type': 'VARCHAR(80)',
+                })
+            elif kind == 'constraint':
+                values.update({
+                    'table': 'CUSTOMERS',
+                    'properties': json.dumps({
+                        'kind': 'CHECK',
+                        'expression': 'CUSTOMER_ID > 0',
+                    }),
+                })
+            elif kind == 'domain':
+                values['data_type'] = 'VARCHAR(80)'
+            elif kind == 'trigger':
+                values.update({
+                    'table': 'CUSTOMERS', 'timing': 'BEFORE',
+                    'events': '["INSERT"]', 'body': 'BEGIN END',
+                })
+            elif kind == 'procedure':
+                values['body'] = 'BEGIN END'
+            elif kind == 'function':
+                values.update({
+                    'returns': 'INTEGER', 'body': 'BEGIN RETURN 1; END',
+                })
+            elif kind == 'package':
+                values.update({
+                    'header': 'PROCEDURE UI_PROBE;',
+                    'body': 'PROCEDURE UI_PROBE AS BEGIN END',
+                })
+            elif kind == 'exception':
+                values['message'] = 'CDEadmin browser preview exception'
+            elif kind == 'user':
+                values['password'] = 'ui-preview-only'
+            return rendered(values)
+        if operation_id == 'alter':
+            values_by_kind = {
+                'view': {
+                    'query': 'SELECT CUSTOMER_ID, NAME FROM CUSTOMERS',
+                },
+                'domain': {'data_type': 'VARCHAR(120)'},
+                'sequence': {'restart': '2', 'increment': '1'},
+                'trigger': {
+                    'timing': 'BEFORE', 'events': '["INSERT"]',
+                    'body': 'BEGIN END',
+                },
+                'procedure': {'body': 'BEGIN END'},
+                'function': {
+                    'returns': 'INTEGER',
+                    'body': 'BEGIN RETURN 1; END',
+                },
+                'package': {
+                    'header': 'PROCEDURE UI_PROBE;',
+                    'body': 'PROCEDURE UI_PROBE AS BEGIN END',
+                },
+                'exception': {
+                    'message': 'CDEadmin browser replacement exception',
+                },
+                'role': {
+                    'system_privileges': '["USER_MANAGEMENT"]',
+                },
+            }
+            if kind in values_by_kind:
+                return rendered(values_by_kind[kind])
+        if kind == 'privilege' and operation_id in {'grant', 'revoke'}:
+            values = {
+                'principal': 'SYSDBA', 'object_type': 'TABLE',
+                'object_name': 'CUSTOMERS', 'privileges': '["SELECT"]',
+            }
+            if operation_id == 'revoke':
+                values['confirmation'] = str(name)
+            return rendered(values)
     if engine_id == 'mariadb':
         if kind == 'user' and operation_id == 'alter':
             return rendered({

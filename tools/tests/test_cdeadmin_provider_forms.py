@@ -122,6 +122,30 @@ class ProviderFormContractTests(unittest.TestCase):
             [field['field_id'] for field in operation['form']['fields']],
         )
 
+    def test_firebird_database_drop_contract_is_not_generic(self):
+        from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
+
+        contract = registration_profile(
+            'firebird-native'
+        )['form_contract']['database']['forms']['drop']
+        database = next(
+            item for item in catalog_for_engine('firebird')['objects']
+            if item['resource_kind'] == 'database'
+        )
+        operation = next(
+            item for item in database['operations']
+            if item['operation_id'] == 'drop'
+        )
+        self.assertEqual('firebird_database_drop', operation['form_id'])
+        self.assertEqual(
+            ['confirmation'],
+            [field['field_id'] for field in operation['form']['fields']],
+        )
+        self.assertEqual(
+            [field['field_id'] for field in contract['fields']],
+            [field['field_id'] for field in operation['form']['fields']],
+        )
+
     def test_mysql_database_forms_expose_only_native_9_7_options(self):
         from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
 

@@ -5534,6 +5534,156 @@ PropertyGroup.propTypes = {
   value: PropTypes.object,
 };
 
+function selectedProperties(source, fields) {
+  return Object.fromEntries(fields.flatMap(([field, label, convert]) => {
+    const value = source?.[field];
+    if (value === undefined || value === null || value === '') return [];
+    return [[label, convert ? convert(value, source) : value]];
+  }));
+}
+
+function firebirdBoolean(value) {
+  return ['1', 1, true, 'true'].includes(value) ? gettext('Yes') :
+    gettext('No');
+}
+
+function FirebirdDatabaseProperties({endpoint, target, server, database}) {
+  const native = database?.extensions?.firebird?.native || {};
+  const serverNative = server?.extensions?.firebird?.native || {};
+  const targetOptions = target?.configuration || {};
+  const allocatedBytes = Number(native.allocated_pages) *
+    Number(native.page_size);
+  const storage = selectedProperties(native, [
+    ['page_size', gettext('Page size (bytes)')],
+    ['allocated_pages', gettext('Allocated pages')],
+    ['pages_used', gettext('Used pages')],
+    ['pages_free', gettext('Free pages')],
+    ['page_cache_size', gettext('Page cache size (pages)')],
+    ['page_buffers', gettext('Configured page buffers')],
+    ['current_memory', gettext('Current attachment memory (bytes)')],
+    ['max_memory', gettext('Maximum attachment memory (bytes)')],
+    ['cache_hit_ratio', gettext('Cache hit ratio')],
+    ['forced_writes', gettext('Forced writes'), firebirdBoolean],
+    ['reserve_space', gettext('Reserve page space'), firebirdBoolean],
+    ['read_only', gettext('Read only'), firebirdBoolean],
+  ]);
+  if (Number.isFinite(allocatedBytes)) {
+    storage[gettext('Allocated size (bytes)')] = allocatedBytes;
+  }
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1, minHeight: 0}}>
+    <Box component="h2" sx={{mt: 0}}>
+      {gettext('%s — Firebird database properties', target?.display_name ||
+        database?.display_name || gettext('Database'))}
+    </Box>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('These are live Firebird database, attachment, and service-manager observations. Values unavailable from Firebird are omitted rather than inferred.')}
+    </Alert>
+    <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+      <PropertyGroup title={gettext('Firebird database identity')}
+        value={{
+          ...selectedProperties(target, [
+            ['display_name', gettext('Navigator name')],
+            ['database', gettext('Database filename or alias')],
+            ['active', gettext('Active target'), firebirdBoolean],
+          ]),
+          ...selectedProperties(native, [
+            ['database_name', gettext('Resolved database filename')],
+            ['owner', gettext('Owner')],
+            ['guid', gettext('Database GUID')],
+            ['file_id', gettext('Filesystem identity')],
+            ['creation_date', gettext('Creation date')],
+            ['db_class', gettext('Database class')],
+          ]),
+        }} />
+      <PropertyGroup title={gettext('Firebird format and dialect')}
+        value={selectedProperties(native, [
+          ['ods_major', gettext('ODS major')],
+          ['ods_minor', gettext('ODS minor')],
+          ['sql_dialect', gettext('SQL dialect')],
+          ['default_character_set', gettext('Default character set')],
+          ['default_collation', gettext('Default collation')],
+          ['session_time_zone', gettext('Session time zone')],
+          ['provider', gettext('Database provider')],
+        ])} />
+      <PropertyGroup title={gettext('Firebird storage and durability')}
+        value={storage} />
+      <PropertyGroup title={gettext('Firebird maintenance and state')}
+        value={selectedProperties(native, [
+          ['sweep_interval', gettext('Sweep interval')],
+          ['linger_seconds', gettext('Linger time (seconds)')],
+          ['default_sql_security', gettext('Default SQL security')],
+          ['backup_state_name', gettext('Backup state')],
+          ['encryption_state_name', gettext('Encryption state')],
+          ['shutdown_mode_name', gettext('Shutdown mode')],
+          ['replica_mode', gettext('Replica mode')],
+          ['encryption_page', gettext('Encryption progress page')],
+          ['security_database', gettext('Security database')],
+          ['idle_timeout', gettext('Attachment idle timeout')],
+          ['statement_timeout', gettext('Statement timeout')],
+        ])} />
+      <PropertyGroup title={gettext('Firebird MGA transaction state')}
+        value={selectedProperties(native, [
+          ['oit', gettext('Oldest interesting transaction')],
+          ['oat', gettext('Oldest active transaction')],
+          ['ost', gettext('Oldest snapshot transaction')],
+          ['next_transaction', gettext('Next transaction')],
+        ])} />
+      <PropertyGroup title={gettext('Firebird attachment activity')}
+        value={selectedProperties(native, [
+          ['fetches', gettext('Page fetches')],
+          ['reads', gettext('Page reads')],
+          ['writes', gettext('Page writes')],
+          ['marks', gettext('Page marks')],
+          ['next_attachment', gettext('Next attachment ID')],
+          ['next_statement', gettext('Next statement ID')],
+        ])} />
+      <PropertyGroup title={gettext('Firebird connection defaults')}
+        value={selectedProperties(targetOptions, [
+          ['role', gettext('Initial role')],
+          ['charset', gettext('Connection character set')],
+          ['session_time_zone', gettext('Session time zone')],
+          ['no_gc', gettext('Disable cooperative garbage collection'),
+            firebirdBoolean],
+          ['no_db_triggers', gettext('Disable database triggers'),
+            firebirdBoolean],
+          ['dbkey_scope', gettext('DBKEY scope')],
+          ['transaction_isolation', gettext('Transaction isolation')],
+          ['transaction_access', gettext('Transaction access')],
+          ['transaction_lock_timeout', gettext('Lock timeout (seconds)')],
+        ])} />
+      <PropertyGroup title={gettext('Firebird server observations')}
+        value={selectedProperties(serverNative, [
+          ['version', gettext('Server version')],
+          ['engine_version', gettext('Engine compatibility version')],
+          ['server_version', gettext('Server build and protocol')],
+          ['site', gettext('Server site')],
+          ['provider', gettext('Provider')],
+          ['implementation', gettext('Implementation chain')],
+          ['architecture', gettext('Architecture')],
+          ['home_directory', gettext('Firebird home directory')],
+          ['connection_count', gettext('Connection count')],
+        ])} />
+      <PropertyGroup title={gettext('Verified Firebird interface')}
+        value={selectedProperties(endpoint, [
+          ['provider_id', gettext('Provider ID')],
+          ['profile_id', gettext('Profile ID')],
+          ['verified_runtime_family', gettext('Runtime family')],
+          ['verified_runtime_version', gettext('Verified server version')],
+          ['target_adapter_id', gettext('Target adapter ID')],
+          ['target_adapter_version', gettext('Target adapter version')],
+        ])} />
+    </Box>
+  </Box>;
+}
+
+FirebirdDatabaseProperties.propTypes = {
+  endpoint: PropTypes.object,
+  target: PropTypes.object,
+  server: PropTypes.object,
+  database: PropTypes.object,
+};
+
 function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
   targetId}) {
   const target = (databaseTargets?.targets || []).find((item) =>
@@ -5549,6 +5699,10 @@ function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
         ?.database_name === target.database ||
       item.extensions?.[endpoint?.verified_runtime_family]?.native
         ?.path === target.database));
+  if (endpoint?.verified_runtime_family === 'firebird') {
+    return <FirebirdDatabaseProperties endpoint={endpoint} target={target}
+      server={server} database={database} />;
+  }
   return <Box sx={{p: 2, overflow: 'auto', flex: 1, minHeight: 0}}>
     <Box component="h2" sx={{mt: 0}}>
       {gettext('%s properties', target?.display_name ||

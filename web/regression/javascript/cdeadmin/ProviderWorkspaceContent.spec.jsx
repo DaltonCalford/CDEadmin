@@ -185,12 +185,14 @@ describe('ProviderWorkspaceContent', () => {
       ...bootstrap,
       endpoint: {
         ...bootstrap.endpoint,
+        provider_id: 'org.cdeadmin.firebird',
         verified_runtime_family: 'firebird',
         verified_runtime_version: '5.0.4',
       },
       database_targets: {
         targets: [{target_id: 'database-one', display_name: 'example.fdb',
-          database: '/firebird/data/example.fdb', active: true}],
+          database: '/firebird/data/example.fdb', active: true,
+          configuration: {charset: 'UTF8', transaction_isolation: 'SNAPSHOT'}}],
       },
       resource_page: {items: [{
         resource_id: 'server:Firebird', resource_kind: 'server',
@@ -199,17 +201,23 @@ describe('ProviderWorkspaceContent', () => {
       }, {
         resource_id: 'database:example.fdb', resource_kind: 'database',
         display_name: 'example.fdb',
-        extensions: {firebird: {native: {page_size: '8192'}}},
+        extensions: {firebird: {native: {page_size: '8192',
+          ods_major: '13', ods_minor: '1', sql_dialect: '3',
+          default_character_set: 'UTF8', forced_writes: '1'}}},
       }]},
     }}});
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="properties"
       initialContext={{resource_id: 'database-one'}} />);
-    expect(await screen.findByText('example.fdb properties'))
+    expect(await screen.findByText('example.fdb — Firebird database properties'))
       .toBeInTheDocument();
-    expect(screen.getByText('Server observations')).toBeInTheDocument();
+    expect(screen.getByText('Firebird server observations')).toBeInTheDocument();
     expect(screen.getByText('Firebird/linux')).toBeInTheDocument();
-    expect(screen.getByText('Database observations')).toBeInTheDocument();
+    expect(screen.getByText('Firebird format and dialect')).toBeInTheDocument();
+    expect(screen.getByText('Firebird storage and durability')).toBeInTheDocument();
+    expect(screen.getByText('Firebird connection defaults')).toBeInTheDocument();
+    expect(screen.getByText('Database filename or alias')).toBeInTheDocument();
+    expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
     expect(screen.getByText('8192')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });

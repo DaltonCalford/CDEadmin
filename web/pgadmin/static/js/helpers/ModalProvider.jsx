@@ -238,13 +238,25 @@ export function viewportDialogGeometry({
 export function availableDialogViewport({
   windowWidth, windowHeight, containerBounds, applicationTop=0,
 }) {
+  // A disabled-portal MUI dialog is positioned in the dialog container's
+  // coordinate system.  The container can begin below both the application
+  // menu and a workspace toolbar, so using the menu edge alone overstates the
+  // usable height on short windows.  Clamp against the actual container top
+  // as well as its declared bounds.
+  const containerTop = Math.max(0, containerBounds?.top || 0);
+  const contentTop = Math.max(0, applicationTop, containerTop);
   const width = containerBounds ? Math.min(
     containerBounds.width,
     Math.max(1, windowWidth - Math.max(0, containerBounds.left)),
   ) : windowWidth;
+  const windowHeightBelowContent = Math.max(1, windowHeight - contentTop);
+  const containerHeight = containerBounds ? Math.max(
+    1,
+    containerBounds.height - Math.max(0, contentTop - containerTop),
+  ) : windowHeightBelowContent;
   return {
     width,
-    height: Math.max(1, windowHeight - Math.max(0, applicationTop)),
+    height: Math.min(windowHeightBelowContent, containerHeight),
   };
 }
 

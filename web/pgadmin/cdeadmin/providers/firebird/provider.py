@@ -6,6 +6,7 @@ import json
 import os
 import re
 import threading
+from enum import Enum
 from importlib import resources as package_resources
 
 from pgadmin.cdeadmin.sdk import (
@@ -768,15 +769,55 @@ def _resources(connection, request):
             except Exception:
                 return []
 
-        add('server', [], 'Firebird')
-        database_native = {'scope': 'database'}
+        info = connection.info
+
+        def info_value(name):
+            try:
+                value = getattr(info, name)
+            except Exception:
+                return None
+            if value is None:
+                return None
+            if isinstance(value, Enum):
+                return value.name
+            if isinstance(value, (str, int, float, bool)):
+                return value
+            return str(value)
+
+        add('server', [], 'Firebird', {
+            'scope': 'database-attachment',
+            'version': info_value('version'),
+            'engine_version': str(info_value('engine_version')),
+            'server_version': info_value('server_version'),
+            'site': info_value('site'),
+            'provider': info_value('provider'),
+            'implementation': info_value('implementation'),
+        })
+        database_native = {
+            'scope': 'database',
+            **{
+                name: info_value(name) for name in (
+                    'name', 'creation_date', 'ods', 'page_cache_size',
+                    'size_in_pages', 'pages_allocated', 'pages_used',
+                    'pages_free', 'current_memory', 'max_memory',
+                    'cache_hit_ratio', 'oit', 'oat', 'ost',
+                    'next_transaction', 'fetches', 'reads', 'writes',
+                    'marks', 'idle_timeout', 'statement_timeout',
+                    'db_class', 'provider',
+                )
+            },
+        }
         database_rows = optional(
             'SELECT MON$DATABASE_NAME, MON$PAGE_SIZE, MON$ODS_MAJOR, '
             'MON$ODS_MINOR, MON$SQL_DIALECT, '
             'CAST(MON$CREATION_DATE AS VARCHAR(64)), MON$PAGES, '
             'MON$BACKUP_STATE, MON$CRYPT_STATE, MON$OWNER, MON$GUID, '
             'MON$READ_ONLY, MON$FORCED_WRITES, MON$RESERVE_SPACE, '
-            'MON$SWEEP_INTERVAL FROM MON$DATABASE'
+            'MON$SWEEP_INTERVAL, MON$OLDEST_TRANSACTION, '
+            'MON$OLDEST_ACTIVE, MON$OLDEST_SNAPSHOT, '
+            'MON$NEXT_TRANSACTION, MON$PAGE_BUFFERS, MON$SHUTDOWN_MODE, '
+            'MON$CRYPT_PAGE, MON$SEC_DATABASE, MON$FILE_ID, '
+            'MON$NEXT_ATTACHMENT, MON$NEXT_STATEMENT FROM MON$DATABASE'
         )
         if database_rows:
             row = database_rows[0]
@@ -785,23 +826,56 @@ def _resources(connection, request):
                 'sql_dialect', 'creation_date', 'allocated_pages',
                 'backup_state', 'encryption_state', 'owner', 'guid',
                 'read_only', 'forced_writes', 'reserve_space',
-                'sweep_interval',
+                'sweep_interval', 'oldest_transaction', 'oldest_active',
+                'oldest_snapshot', 'next_transaction', 'page_buffers',
+                'shutdown_mode', 'encryption_page', 'security_database',
+                'file_id', 'next_attachment', 'next_statement',
             )
             database_native.update({
                 name: None if value is None else str(value).strip()
                 for name, value in zip(names, row)
             })
-        charset_rows = optional(
-            'SELECT TRIM(RDB$CHARACTER_SET_NAME) FROM RDB$DATABASE'
+        database_catalog_rows = optional(
+            'SELECT TRIM(D.RDB$CHARACTER_SET_NAME), '
+            'TRIM(C.RDB$DEFAULT_COLLATE_NAME), D.RDB$LINGER, '
+            'D.RDB$SQL_SECURITY FROM RDB$DATABASE D '
+            'LEFT JOIN RDB$CHARACTER_SETS C ON '
+            'C.RDB$CHARACTER_SET_NAME = D.RDB$CHARACTER_SET_NAME'
         )
-        if charset_rows:
-            database_native['default_character_set'] = charset_rows[0][0]
+        if database_catalog_rows:
+            charset, collation, linger, sql_security = database_catalog_rows[0]
+            database_native.update({
+                'default_character_set': charset,
+                'default_collation': collation,
+                'linger_seconds': linger,
+                'default_sql_security': (
+                    None if sql_security is None else
+                    'DEFINER' if bool(sql_security) else 'INVOKER'
+                ),
+            })
         timezone_rows = optional(
             "SELECT RDB$GET_CONTEXT('SYSTEM', 'SESSION_TIMEZONE') "
             'FROM RDB$DATABASE'
         )
         if timezone_rows:
             database_native['session_time_zone'] = timezone_rows[0][0]
+        replica_rows = optional(
+            "SELECT RDB$GET_CONTEXT('SYSTEM', 'REPLICA_MODE') "
+            'FROM RDB$DATABASE'
+        )
+        if replica_rows:
+            database_native['replica_mode'] = replica_rows[0][0]
+        database_native['backup_state_name'] = {
+            '0': 'NORMAL', '1': 'STALLED', '2': 'MERGE',
+        }.get(database_native.get('backup_state'))
+        database_native['encryption_state_name'] = {
+            '0': 'NOT_ENCRYPTED', '1': 'ENCRYPTED',
+            '2': 'DECRYPT_IN_PROGRESS', '3': 'ENCRYPT_IN_PROGRESS',
+        }.get(database_native.get('encryption_state'))
+        database_native['shutdown_mode_name'] = {
+            '0': 'ONLINE', '1': 'MULTI_USER_SHUTDOWN',
+            '2': 'SINGLE_USER_SHUTDOWN', '3': 'FULL_SHUTDOWN',
+        }.get(database_native.get('shutdown_mode'))
         database_name = str(
             database_native.get('database_name') or 'current'
         ).rsplit(':', 1)[-1].rsplit('/', 1)[-1]

@@ -149,19 +149,15 @@ def _prepare_tree(driver, wait, options, database_label):
     for label, child in (
         ('Connectors', ENGINE_NAME),
         (ENGINE_NAME, 'localhost'),
-        ('localhost', database_label),
     ):
         expand(wait, label)
         wait_for_tree_item(wait, child)
-    database = wait_for_tree_item(wait, database_label)
-    driver.execute_script('arguments[0].click()', database)
+    server = wait_for_tree_item(wait, 'localhost')
+    driver.execute_script('arguments[0].click()', server)
     driver.execute_script(
         """
         const tree = window.pgAdmin.Browser.tree;
-        let item = tree.selected();
-        while (item && tree.itemData(item)?._type !== 'server') {
-          item = tree.hasParent(item) ? tree.parent(item) : null;
-        }
+        const item = tree.selected();
         const node = window.pgAdmin.Browser.Nodes.server;
         window.__cdeadminSqliteLifecycleVerified = false;
         node.callbacks.verify_cde_endpoint.call(node, {
@@ -180,6 +176,9 @@ def _prepare_tree(driver, wait, options, database_label):
     wait.until(lambda value: value.execute_script(
         'return window.__cdeadminSqliteLifecycleVerified === true'
     ))
+    expand(wait, 'localhost')
+    database = wait_for_tree_item(wait, database_label)
+    driver.execute_script('arguments[0].click()', database)
 
 
 def _tree_context(driver, database_label=None):

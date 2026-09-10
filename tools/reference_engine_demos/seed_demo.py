@@ -397,6 +397,33 @@ def seed_firebird():
                 "SELECT 1 FROM RDB$RELATIONS WHERE RDB$RELATION_NAME=? "
                 "AND RDB$VIEW_BLR IS NOT NULL"
             ),
+            "domain": (
+                "SELECT 1 FROM RDB$FIELDS WHERE RDB$FIELD_NAME=? "
+                "AND COALESCE(RDB$SYSTEM_FLAG, 0)=0"
+            ),
+            "trigger": (
+                "SELECT 1 FROM RDB$TRIGGERS WHERE RDB$TRIGGER_NAME=? "
+                "AND COALESCE(RDB$SYSTEM_FLAG, 0)=0"
+            ),
+            "procedure": (
+                "SELECT 1 FROM RDB$PROCEDURES WHERE RDB$PROCEDURE_NAME=? "
+                "AND RDB$PACKAGE_NAME IS NULL"
+            ),
+            "function": (
+                "SELECT 1 FROM RDB$FUNCTIONS WHERE RDB$FUNCTION_NAME=? "
+                "AND RDB$PACKAGE_NAME IS NULL AND RDB$MODULE_NAME IS NULL"
+            ),
+            "external-function": (
+                "SELECT 1 FROM RDB$FUNCTIONS WHERE RDB$FUNCTION_NAME=? "
+                "AND RDB$MODULE_NAME IS NOT NULL"
+            ),
+            "package": (
+                "SELECT 1 FROM RDB$PACKAGES WHERE RDB$PACKAGE_NAME=?"
+            ),
+            "exception": (
+                "SELECT 1 FROM RDB$EXCEPTIONS WHERE RDB$EXCEPTION_NAME=?"
+            ),
+            "role": "SELECT 1 FROM RDB$ROLES WHERE RDB$ROLE_NAME=?",
         }
         cursor.execute(queries[kind], (name.upper(),))
         return cursor.fetchone() is not None
@@ -434,6 +461,65 @@ def seed_firebird():
                        "JOIN CUSTOMERS c ON c.CUSTOMER_ID=a.CUSTOMER_ID "
                        "WHERE w.STATUS='open'")
         connection.commit()
+    if not exists("domain", "CDEADMIN_STATUS"):
+        cursor.execute(
+            "CREATE DOMAIN CDEADMIN_STATUS AS VARCHAR(20) "
+            "CHECK (VALUE IN ('open', 'closed', 'paused'))"
+        )
+        connection.commit()
+    if not exists("trigger", "BI_WORK_ORDERS"):
+        cursor.execute(
+            "CREATE TRIGGER BI_WORK_ORDERS FOR WORK_ORDERS ACTIVE "
+            "BEFORE INSERT POSITION 0 AS BEGIN "
+            "IF (NEW.CREATED_AT IS NULL) THEN "
+            "NEW.CREATED_AT = CURRENT_TIMESTAMP; END"
+        )
+        connection.commit()
+    if not exists("procedure", "CDEADMIN_WORK_ORDER_COUNT"):
+        cursor.execute(
+            "CREATE PROCEDURE CDEADMIN_WORK_ORDER_COUNT "
+            "RETURNS (ITEM_COUNT INTEGER) AS BEGIN "
+            "SELECT COUNT(*) FROM WORK_ORDERS INTO :ITEM_COUNT; "
+            "SUSPEND; END"
+        )
+        connection.commit()
+    if not exists("function", "CDEADMIN_PRIORITY_LABEL"):
+        cursor.execute(
+            "CREATE FUNCTION CDEADMIN_PRIORITY_LABEL(PRIORITY INTEGER) "
+            "RETURNS VARCHAR(16) AS BEGIN RETURN CASE "
+            "WHEN PRIORITY >= 4 THEN 'urgent' "
+            "WHEN PRIORITY >= 2 THEN 'normal' ELSE 'low' END; END"
+        )
+        connection.commit()
+    if not exists("package", "CDEADMIN_UTIL"):
+        cursor.execute(
+            "CREATE PACKAGE CDEADMIN_UTIL AS BEGIN "
+            "FUNCTION STATUS_LABEL(STATUS_CODE INTEGER) "
+            "RETURNS VARCHAR(16); END"
+        )
+        cursor.execute(
+            "CREATE PACKAGE BODY CDEADMIN_UTIL AS BEGIN "
+            "FUNCTION STATUS_LABEL(STATUS_CODE INTEGER) "
+            "RETURNS VARCHAR(16) AS BEGIN RETURN CASE STATUS_CODE "
+            "WHEN 1 THEN 'active' ELSE 'inactive' END; END END"
+        )
+        connection.commit()
+    if not exists("exception", "CDEADMIN_INVALID_STATE"):
+        cursor.execute(
+            "CREATE EXCEPTION CDEADMIN_INVALID_STATE "
+            "'Invalid CDEadmin demonstration state'"
+        )
+        connection.commit()
+    if not exists("role", "CDEADMIN_OPERATOR"):
+        cursor.execute("CREATE ROLE CDEADMIN_OPERATOR")
+        connection.commit()
+    if not exists("external-function", "CDEADMIN_UDF_ABS"):
+        cursor.execute(
+            "DECLARE EXTERNAL FUNCTION CDEADMIN_UDF_ABS "
+            "DOUBLE PRECISION RETURNS DOUBLE PRECISION BY VALUE "
+            "ENTRY_POINT 'fn_abs' MODULE_NAME 'udflib'"
+        )
+        connection.commit()
     for table in ("WORK_ORDERS", "ASSETS", "CUSTOMERS"):
         cursor.execute(f"DELETE FROM {table}")
     cursor.executemany("INSERT INTO CUSTOMERS VALUES (?,?,?,?)", CUSTOMERS)
@@ -442,10 +528,23 @@ def seed_firebird():
                        "(WORK_ORDER_ID,ASSET_ID,TECHNICIAN,SUMMARY,STATUS,PRIORITY) "
                        "VALUES (?,?,?,?,?,?)", WORK_ORDERS)
     connection.commit()
+    object_counts = {}
+    for kind, name in (
+        ('domain', 'CDEADMIN_STATUS'),
+        ('trigger', 'BI_WORK_ORDERS'),
+        ('procedure', 'CDEADMIN_WORK_ORDER_COUNT'),
+        ('function', 'CDEADMIN_PRIORITY_LABEL'),
+        ('package', 'CDEADMIN_UTIL'),
+        ('exception', 'CDEADMIN_INVALID_STATE'),
+        ('role', 'CDEADMIN_OPERATOR'),
+        ('external-function', 'CDEADMIN_UDF_ABS'),
+    ):
+        object_counts[kind] = int(exists(kind, name))
     cursor.close()
     connection.close()
     return {"database": "/var/lib/firebird/data/cdeadmin_demo.fdb",
-            "customers": 3, "assets": 4, "work_orders": 4}
+            "customers": 3, "assets": 4, "work_orders": 4,
+            "native_object_targets": object_counts}
 
 
 def seed_redis():

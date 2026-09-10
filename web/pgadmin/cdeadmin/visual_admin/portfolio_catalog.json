@@ -304,6 +304,12 @@
         {"field_id": "default_sql_security", "label": "Default SQL security", "control": "select", "required": false, "options": [{"value": "DEFINER", "label": "Definer"}, {"value": "INVOKER", "label": "Invoker"}]}
       ]
     },
+    "firebird_database_drop": {
+      "title": "Drop Firebird database",
+      "fields": [
+        {"field_id": "confirmation", "label": "Type the exact Firebird database filename or alias to confirm", "control": "text", "required": true, "max_length": 4096}
+      ]
+    },
     "sqlite_database_create": {
       "title": "Create SQLite database file",
       "fields": [
@@ -800,7 +806,7 @@
       {"operation_id": "inspect", "title": "Database properties", "mutation_class": "read", "form_id": "inspect", "target_required": true},
       {"operation_id": "create", "title": "Create database", "mutation_class": "admin", "form_id": "firebird_database_create", "target_required": false},
       {"operation_id": "alter", "title": "Alter database properties", "mutation_class": "admin", "form_id": "firebird_database_alter", "target_required": true},
-      {"operation_id": "drop", "title": "Drop database", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true},
+      {"operation_id": "drop", "title": "Drop database", "mutation_class": "destructive", "form_id": "firebird_database_drop", "target_required": true, "confirmation_required": true},
       {"operation_id": "backup_logical", "title": "Logical backup (gbak)", "mutation_class": "admin", "form_id": "firebird_backup_logical", "target_required": true, "required_permissions": ["backup_admin"]},
       {"operation_id": "restore_logical", "title": "Logical restore (gbak)", "mutation_class": "destructive", "form_id": "firebird_restore_logical", "target_required": true, "confirmation_required": true, "required_permissions": ["restore_admin"]},
       {"operation_id": "backup_physical", "title": "Physical backup (nbackup)", "mutation_class": "admin", "form_id": "firebird_backup_physical", "target_required": true, "required_permissions": ["backup_admin"]},

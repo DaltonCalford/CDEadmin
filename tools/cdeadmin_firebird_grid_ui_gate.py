@@ -71,6 +71,12 @@ def arguments():
     parser.add_argument('--manifest-output', type=Path, required=True)
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--height', type=int, default=1000)
+    parser.add_argument(
+        '--theme', choices=('default', 'high-contrast'), default='default',
+    )
+    parser.add_argument(
+        '--font-scale', type=int, choices=(100, 150, 200, 300), default=100,
+    )
     parser.add_argument('--timeout', type=int, default=45)
     parser.add_argument('--browser-binary')
     return parser.parse_args()
@@ -183,7 +189,7 @@ def _write_records(options, evidence):
             'form_id': 'firebird_structured_data_grid',
             'state': state,
             'viewport': viewport,
-            'theme': 'default',
+            'theme': options.theme,
             'locale': 'en-US',
             'controls': evidence['controls'][state],
             'screenshot': value,
@@ -210,8 +216,8 @@ def _write_records(options, evidence):
             'state': state,
             'viewport': viewport,
             'device_scale': '1',
-            'font_scale': '100%',
-            'theme': 'default',
+            'font_scale': f'{options.font_scale}%',
+            'theme': options.theme,
             'locale': 'en-US',
             'screenshot_path': _relative_evidence_path(
                 screenshot_path, manifest

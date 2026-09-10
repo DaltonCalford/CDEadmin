@@ -34,6 +34,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from types import ModuleType
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,10 @@ WEB = ROOT / 'web'
 for path in (ROOT, WEB):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
+if 'pgadmin' not in sys.modules:
+    package = ModuleType('pgadmin')
+    package.__path__ = [str(WEB / 'pgadmin')]
+    sys.modules['pgadmin'] = package
 
 from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
     NORMAL_COMPLETION_ORDER,

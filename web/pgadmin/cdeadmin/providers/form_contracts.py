@@ -217,6 +217,14 @@ _DATABASE_SPECS = {
                 'boolean', default=True,
             ),
         ),
+        'drop_fields': (
+            _field(
+                'confirmation',
+                'Type the exact Firebird database filename or alias to '
+                'confirm',
+                required=True,
+            ),
+        ),
         'connection_fields': (
             _field('role', 'Initial role'),
             _field('charset', 'Connection character set', default='UTF8'),

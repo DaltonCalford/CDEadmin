@@ -86,6 +86,19 @@ describe('viewportDialogGeometry', () => {
     expect(40 + geometry.y + geometry.height).toBeLessThanOrEqual(757);
   });
 
+  it('uses a lower dialog-container edge on a short workspace', () => {
+    const viewport = availableDialogViewport({
+      windowWidth: 1024, windowHeight: 625, applicationTop: 31,
+      containerBounds: {left: 0, top: 51, width: 1024, height: 625},
+    });
+    const geometry = viewportDialogGeometry({
+      viewportWidth: viewport.width, viewportHeight: viewport.height,
+      width: 1100, height: 720, minWidth: 760, minHeight: 480,
+    });
+    expect(viewport).toEqual({width: 1024, height: 574});
+    expect(51 + geometry.y + geometry.height).toBeLessThanOrEqual(625);
+  });
+
   it('retains the requested provider workspace size on a wide viewport', () => {
     expect(viewportDialogGeometry({
       viewportWidth: 1600, viewportHeight: 1000,

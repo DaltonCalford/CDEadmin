@@ -38,6 +38,7 @@ from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
     MANIFEST_FIELDS,
     _relative_evidence_path,
     create_driver,
+    evidence_variant,
     prepare_tree,
     screenshot,
 )
@@ -71,6 +72,12 @@ def arguments():
     parser.add_argument('--manifest-output', type=Path, required=True)
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--height', type=int, default=1000)
+    parser.add_argument(
+        '--theme', choices=('default', 'high-contrast'), default='default',
+    )
+    parser.add_argument(
+        '--font-scale', type=int, choices=(100, 150, 200, 300), default=100,
+    )
     parser.add_argument('--timeout', type=int, default=45)
     parser.add_argument('--browser-binary')
     return parser.parse_args()
@@ -95,7 +102,9 @@ def _visible_text(driver, expected):
 
 def _capture(driver, options, state, screenshots, controls):
     viewport = f'{options.width}x{options.height}'
-    path = options.output_root / f'{state}-{viewport}-default.png'
+    path = options.output_root / (
+        f'{state}-{viewport}-{evidence_variant(options)}.png'
+    )
     screenshots[state] = {
         'path': str(path),
         'sha256': screenshot(driver, path),
@@ -233,7 +242,7 @@ def _write_records(options, evidence):
             'form_id': 'firebird_sql_studio',
             'state': state,
             'viewport': viewport,
-            'theme': 'default',
+            'theme': options.theme,
             'locale': 'en-US',
             'controls': evidence['controls'][state],
             'screenshot': value,
@@ -257,8 +266,8 @@ def _write_records(options, evidence):
             'state': state,
             'viewport': viewport,
             'device_scale': '1',
-            'font_scale': '100%',
-            'theme': 'default',
+            'font_scale': f'{options.font_scale}%',
+            'theme': options.theme,
             'locale': 'en-US',
             'screenshot_path': _relative_evidence_path(
                 screenshot_path, manifest
