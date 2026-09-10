@@ -148,6 +148,60 @@ describe('ProviderWorkspaceContent', () => {
     }));
   });
 
+  it('edits an explicit endpoint and reveals only the typed password', async () => {
+    const post = jest.fn().mockResolvedValue({display_name: 'Firebird lab'});
+    render(<ServerProfileWorkspace registration={{
+      display_name: 'Firebird lab', is_password_saved: true,
+      primary_route: {route_id: 'route-one', configuration: {
+        host: '127.0.0.10', port: 53050, user: 'SYSDBA',
+      }},
+      forms: {forms: {edit: {
+        form_id: 'cdeadmin.firebird-native.server.edit.v1',
+        operation_id: 'edit', title: 'Edit Firebird 5.0 server', fields: [
+          {field_id: 'name', label: 'Connection profile name',
+            control: 'text', required: true},
+          {field_id: 'host', label: 'Server host or address',
+            control: 'text', required: true},
+          {field_id: 'port', label: 'Server port', control: 'number',
+            required: true},
+          {field_id: 'username', label: 'User or principal',
+            control: 'text', required: false},
+          {field_id: 'password', label: 'Password', control: 'password',
+            required: false},
+          {field_id: 'save_password',
+            label: 'Save default connection credentials',
+            control: 'boolean', required: false, default: false},
+        ],
+      }}}}} post={post} setError={jest.fn()} />);
+
+    expect(screen.getByRole('spinbutton', {name: 'Server port'}))
+      .toHaveValue(53050);
+    expect(screen.getByRole('textbox', {name: 'Server host or address'}))
+      .toHaveValue('127.0.0.10');
+    expect(screen.getByRole('textbox', {name: 'User or principal'}))
+      .toHaveValue('SYSDBA');
+    expect(screen.getByRole('checkbox', {
+      name: 'Save default connection credentials',
+    })).toBeChecked();
+    const password = screen.getByLabelText('Password');
+    expect(password).toHaveAttribute('type', 'password');
+    fireEvent.change(password, {target: {value: 'typed-only-secret'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Show password'}));
+    expect(password).toHaveAttribute('type', 'text');
+    fireEvent.click(screen.getByRole('button', {name: 'Hide password'}));
+    expect(password).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Save endpoint profile',
+    }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({
+      action: 'endpoint_profile_update', request: {
+        name: 'Firebird lab', host: '127.0.0.10', port: 53050,
+        username: 'SYSDBA', password: 'typed-only-secret',
+        save_password: true,
+      },
+    }));
+  });
+
   it('requires the exact profile name before removing an endpoint', async () => {
     const post = jest.fn().mockResolvedValue({removed: true});
     const onRemoved = jest.fn();
@@ -220,6 +274,55 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
     expect(screen.getByText('8192')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('renders MariaDB properties as exact provider-specific groups', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      endpoint: {
+        ...bootstrap.endpoint,
+        provider_id: 'org.cdeadmin.mariadb',
+        profile_id: 'mariadb-native',
+        verified_runtime_family: 'mariadb',
+        verified_runtime_version: '12.2.2',
+      },
+      database_targets: {
+        targets: [{target_id: 'database-one', display_name: 'cdeadmin_demo',
+          database: 'cdeadmin_demo', active: true,
+          configuration: {charset: 'utf8mb4',
+            collation: 'utf8mb4_general_ci'}}],
+      },
+      resource_page: {items: [{
+        resource_id: 'server:MariaDB', resource_kind: 'server',
+        display_name: 'MariaDB',
+        extensions: {mariadb: {native: {version: '12.2.2-MariaDB',
+          hostname: 'mariadb-qa', server_id: 1,
+          default_storage_engine: 'InnoDB', tx_isolation: 'REPEATABLE-READ',
+          log_bin: 1, binlog_format: 'MIXED', wsrep_on: 0}}},
+      }, {
+        resource_id: 'database:cdeadmin_demo', resource_kind: 'database',
+        display_name: 'cdeadmin_demo',
+        extensions: {mariadb: {native: {
+          default_character_set: 'utf8mb4',
+          default_collation: 'utf8mb4_general_ci', schema_comment: 'QA'}}},
+      }]},
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="properties"
+      initialContext={{resource_id: 'database-one'}} />);
+    expect(await screen.findByText(
+      'cdeadmin_demo — MariaDB database properties')).toBeInTheDocument();
+    expect(screen.getByText('MariaDB database defaults')).toBeInTheDocument();
+    expect(screen.getByText('MariaDB server identity')).toBeInTheDocument();
+    expect(screen.getByText('MariaDB server configuration')).toBeInTheDocument();
+    expect(screen.getByText('MariaDB session and transaction state'))
+      .toBeInTheDocument();
+    expect(screen.getByText('MariaDB replication and binary logging'))
+      .toBeInTheDocument();
+    expect(screen.getByText('REPEATABLE-READ')).toBeInTheDocument();
+    expect(screen.getByText('MIXED')).toBeInTheDocument();
+    expect(screen.getAllByText('Yes').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\{"/)).not.toBeInTheDocument();
   });
 
   it('shows exact dialect and metrics blockers without engine fallbacks', async () => {

@@ -459,6 +459,64 @@ class RelationalInventoryTests(unittest.TestCase):
             absent['native']['observation_error'],
         )
 
+    def test_mariadb_properties_preserve_exact_native_observations(self):
+        class Cursor:
+            source = ''
+
+            def execute(self, source):
+                self.source = source
+
+            def fetchall(self):
+                if self.source.startswith('SELECT VERSION(), @@hostname'):
+                    return [(
+                        '12.2.2-MariaDB', 'mariadb-host', 3306, 41,
+                        'mariadb.org binary distribution', 'x86_64',
+                        'debian-linux-gnu', 0, 'InnoDB', 'REPEATABLE-READ',
+                        'root@localhost', 'root@localhost',
+                        'STRICT_TRANS_TABLES', 'utf8mb4',
+                        'utf8mb4_uca1400_ai_ci', 1, 'MIXED', 0, 0, 151,
+                    )]
+                if 'information_schema.SCHEMATA' in self.source:
+                    return [(
+                        'app', 'utf8mb4', 'utf8mb4_general_ci',
+                        'MariaDB application database',
+                    )]
+                if 'information_schema.TABLES' in self.source:
+                    return [('app', 'widgets', 'BASE TABLE')]
+                return []
+
+            @staticmethod
+            def close():
+                return None
+
+        class Connection:
+            @staticmethod
+            def cursor():
+                return Cursor()
+
+        resources = mysql_resources(Connection(), {
+            'route': {'database': 'app'},
+            'capability_generation': 'generation-one',
+        }, MARIADB_PROFILE)
+        database = next(
+            item for item in resources
+            if item['resource_kind'] == 'database'
+        )
+        self.assertEqual({
+            'default_character_set': 'utf8mb4',
+            'default_collation': 'utf8mb4_general_ci',
+            'schema_comment': 'MariaDB application database',
+        }, database['native'])
+        server = next(
+            item for item in resources if item['resource_kind'] == 'server'
+        )
+        self.assertEqual(41, server['native']['server_id'])
+        self.assertEqual('REPEATABLE-READ', server['native']['tx_isolation'])
+        self.assertEqual('MIXED', server['native']['binlog_format'])
+        self.assertEqual(1, server['native']['log_bin'])
+        self.assertEqual(0, server['native']['wsrep_on'])
+        self.assertEqual(151, server['native']['max_connections'])
+
     def test_mariadb_binary_log_events_use_exact_bounded_show_command(self):
         class Cursor:
             source = ''

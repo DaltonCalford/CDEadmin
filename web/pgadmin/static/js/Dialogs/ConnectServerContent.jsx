@@ -30,7 +30,11 @@ export default function ConnectServerContent({closeModal, data, onOK, setHeight,
     save_tunnel_password: false,
     password: '',
     save_password: false,
+    connect_as: '',
+    use_alternate_user: false,
   });
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [tunnelPasswordVisible, setTunnelPasswordVisible] = useState(false);
 
   const onTextChange = (e, id) => {
     let val = e;
@@ -73,8 +77,14 @@ export default function ConnectServerContent({closeModal, data, onOK, setHeight,
             </span>
           </Box>
           <Box marginTop='12px'>
-            <InputText inputRef={firstEleRef} type="password" value={formData['tunnel_password']} controlProps={{maxLength:null, autoComplete:'new-password'}}
+            <InputText inputRef={firstEleRef}
+              type={tunnelPasswordVisible ? 'text' : 'password'} value={formData['tunnel_password']} controlProps={{maxLength:null, autoComplete:'new-password'}}
               onChange={(e)=>onTextChange(e, 'tunnel_password')} onKeyDown={(e)=>onKeyDown(e)} />
+            <DefaultButton data-test="toggle-tunnel-password-visibility"
+              onClick={() => setTunnelPasswordVisible(!tunnelPasswordVisible)}>
+              {tunnelPasswordVisible ? gettext('Hide password') :
+                gettext('Show password')}
+            </DefaultButton>
           </Box>
           <Box marginTop='12px' marginBottom='12px' visibility={hideSavePassword ? 'hidden' : 'unset'}>
             <InputCheckbox controlProps={{label: gettext('Save Password')}} value={formData['save_tunnel_password']}
@@ -82,10 +92,28 @@ export default function ConnectServerContent({closeModal, data, onOK, setHeight,
           </Box>
         </>}
         {data.prompt_password && <>
+          {data.allow_user_override && <Box marginBottom='12px'>
+            <InputCheckbox controlProps={{label: gettext('Connect as a different user')}}
+              value={formData.use_alternate_user} onChange={(event) => {
+                const checked = event.target.checked;
+                setFormData((previous) => ({...previous,
+                  use_alternate_user: checked,
+                  connect_as: checked ? previous.connect_as : '',
+                  save_password: checked ? false : previous.save_password,
+                }));
+              }} />
+            {formData.use_alternate_user && <Box marginTop='12px'>
+              <Box marginBottom='4px'>{gettext('Alternate user or principal')}</Box>
+              <InputText value={formData.connect_as}
+                controlProps={{maxLength: 255, autoComplete: 'username'}}
+                onChange={(event) => onTextChange(event, 'connect_as')}
+                onKeyDown={(event) => onKeyDown(event)} />
+            </Box>}
+          </Box>}
           <Box>
             <span style={{fontWeight: 'bold'}}>
-              {data.username ?
-                gettext('Please enter the password for the user \'%s\' to connect the server - "%s"', data.username, data.server_label)
+              {(formData.use_alternate_user ? formData.connect_as : data.username) ?
+                gettext('Please enter the password for the user \'%s\' to connect the server - "%s"', formData.use_alternate_user ? formData.connect_as : data.username, data.server_label)
                 : gettext('Please enter the password for the user to connect the server - "%s"', data.server_label)
               }
             </span>
@@ -96,12 +124,18 @@ export default function ConnectServerContent({closeModal, data, onOK, setHeight,
                 /* Set only if no tunnel password asked */
                 firstEleRef.current = ele;
               }
-            }} type="password" value={formData['password']} controlProps={{maxLength:null}}
+            }} type={passwordVisible ? 'text' : 'password'} value={formData['password']} controlProps={{maxLength:null, autoComplete: 'current-password'}}
             onChange={(e)=>onTextChange(e, 'password')} onKeyDown={(e)=>onKeyDown(e)}/>
+            <DefaultButton data-test="toggle-password-visibility"
+              onClick={() => setPasswordVisible(!passwordVisible)}>
+              {passwordVisible ? gettext('Hide password') :
+                gettext('Show password')}
+            </DefaultButton>
           </Box>
           <Box marginTop='12px' visibility={hideSavePassword ? 'hidden' : 'unset'}>
             <InputCheckbox controlProps={{label: gettext('Save Password')}} value={formData['save_password']}
-              onChange={(e)=>onTextChange(e.target.checked, 'save_password')} disabled={!data.allow_save_password} />
+              onChange={(e)=>onTextChange(e.target.checked, 'save_password')}
+              disabled={!data.allow_save_password || formData.use_alternate_user} />
           </Box>
         </>}
         <FormFooterMessage type={MESSAGE_TYPE.ERROR} message={_.escape(data.errmsg)} closable={false} style={{
@@ -122,7 +156,10 @@ export default function ConnectServerContent({closeModal, data, onOK, setHeight,
             }
             if(data.prompt_password) {
               postFormData.append('password', formData.password);
-              formData.save_password &&
+              if(formData.use_alternate_user && formData.connect_as.trim()) {
+                postFormData.append('connect_as', formData.connect_as.trim());
+              }
+              formData.save_password && !formData.use_alternate_user &&
                 postFormData.append('save_password', formData.save_password);
             }
             onOK?.(postFormData);

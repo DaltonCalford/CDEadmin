@@ -14,8 +14,10 @@ import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
 import {
   Alert, Box, Button, Checkbox, CircularProgress, FormControlLabel,
-  MenuItem, Tab, Tabs, TextField,
+  IconButton, InputAdornment, MenuItem, Tab, Tabs, TextField,
 } from '@mui/material';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import getApiInstance from '../api_instance';
 import BaseChart from '../chartjs';
 import { ModalContent, ModalFooter } from '../components/ModalContent';
@@ -449,8 +451,33 @@ function fieldVisible(field, draft) {
   return false;
 }
 
+function PasswordAdminField({field, value, onChange}) {
+  const [visible, setVisible] = useState(false);
+  return <TextField fullWidth label={field.label} value={value}
+    required={field.required} type={visible ? 'text' : 'password'}
+    helperText={field.help || ''} onChange={(event) =>
+      onChange(event.target.value)}
+    InputProps={{endAdornment: <InputAdornment position="end">
+      <IconButton edge="end" onClick={() => setVisible(!visible)}
+        aria-label={visible ? gettext('Hide password') :
+          gettext('Show password')}>
+        {visible ? <VisibilityOffRoundedIcon /> : <VisibilityRoundedIcon />}
+      </IconButton>
+    </InputAdornment>}} />;
+}
+
+PasswordAdminField.propTypes = {
+  field: PropTypes.object.isRequired,
+  value: PropTypes.any,
+  onChange: PropTypes.func.isRequired,
+};
+
 function VisualAdminField({field, value, onChange}) {
   const admittedValue = value ?? initialFieldValue(field);
+  if (field.control === 'password') {
+    return <PasswordAdminField field={field} value={admittedValue}
+      onChange={onChange} />;
+  }
   if (field.control === 'boolean') {
     return <FormControlLabel control={<Checkbox checked={Boolean(admittedValue)}
       onChange={(event) => onChange(event.target.checked)} />}
@@ -494,8 +521,7 @@ function VisualAdminField({field, value, onChange}) {
   return <TextField fullWidth label={field.label} value={admittedValue}
     required={field.required} multiline={multiline}
     minRows={multiline ? 3 : undefined} maxRows={multiline ? 12 : undefined}
-    type={field.control === 'number' ? 'number' :
-      field.control === 'password' ? 'password' : 'text'}
+    type={field.control === 'number' ? 'number' : 'text'}
     inputProps={field.control === 'number' ? {
       min: field.minimum, max: field.maximum,
     } : undefined}
@@ -5079,6 +5105,8 @@ function serverFormDraft(registration, form) {
       value = registration?.display_name;
     } else if(field.field_id === 'username') {
       value = configuration.user;
+    } else if(field.field_id === 'save_password') {
+      value = Boolean(registration?.is_password_saved);
     } else {
       value = configuration[field.route_key || field.field_id];
     }
@@ -5684,6 +5712,96 @@ FirebirdDatabaseProperties.propTypes = {
   database: PropTypes.object,
 };
 
+function MariaDBBoolean(value) {
+  return ['1', 1, true, 'true', 'ON'].includes(value) ? gettext('Yes') :
+    gettext('No');
+}
+
+function MariaDBDatabaseProperties({endpoint, target, server, database}) {
+  const native = database?.extensions?.mariadb?.native || {};
+  const serverNative = server?.extensions?.mariadb?.native || {};
+  const targetOptions = target?.configuration || {};
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1, minHeight: 0}}>
+    <Box component="h2" sx={{mt: 0}}>
+      {gettext('%s — MariaDB database properties', target?.display_name ||
+        database?.display_name || gettext('Database'))}
+    </Box>
+    <Alert severity="info" sx={{mb: 2}}>
+      {gettext('These are live MariaDB 12.2 database, server, session, and replication observations. Values unavailable from MariaDB are omitted rather than inferred.')}
+    </Alert>
+    <Box sx={{display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+      <PropertyGroup title={gettext('MariaDB database identity')}
+        value={selectedProperties(target, [
+          ['display_name', gettext('Navigator name')],
+          ['database', gettext('Database name')],
+          ['active', gettext('Active target'), MariaDBBoolean],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB database defaults')}
+        value={selectedProperties(native, [
+          ['default_character_set', gettext('Default character set')],
+          ['default_collation', gettext('Default collation')],
+          ['schema_comment', gettext('Database comment')],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB server identity')}
+        value={selectedProperties(serverNative, [
+          ['version', gettext('Server version')],
+          ['hostname', gettext('Server hostname')],
+          ['port', gettext('Server port')],
+          ['server_id', gettext('Replication server ID')],
+          ['version_comment', gettext('Distribution')],
+          ['version_compile_machine', gettext('Build architecture')],
+          ['version_compile_os', gettext('Build operating system')],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB server configuration')}
+        value={selectedProperties(serverNative, [
+          ['lower_case_table_names', gettext('Lower-case table-name mode')],
+          ['default_storage_engine', gettext('Default storage engine')],
+          ['character_set_server', gettext('Server character set')],
+          ['collation_server', gettext('Server collation')],
+          ['max_connections', gettext('Maximum connections')],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB session and transaction state')}
+        value={selectedProperties(serverNative, [
+          ['tx_isolation', gettext('Transaction isolation')],
+          ['sql_mode', gettext('Session SQL mode')],
+          ['current_user', gettext('Authenticated account')],
+          ['session_user', gettext('Client account')],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB replication and binary logging')}
+        value={selectedProperties(serverNative, [
+          ['log_bin', gettext('Binary logging enabled'), MariaDBBoolean],
+          ['binlog_format', gettext('Binary log format')],
+          ['gtid_strict_mode', gettext('GTID strict mode'), MariaDBBoolean],
+          ['wsrep_on', gettext('Galera replication enabled'), MariaDBBoolean],
+        ])} />
+      <PropertyGroup title={gettext('MariaDB connection defaults')}
+        value={selectedProperties(targetOptions, [
+          ['charset', gettext('Connection character set')],
+          ['collation', gettext('Connection collation')],
+          ['sql_mode', gettext('Initial SQL mode')],
+          ['read_only', gettext('Read only'), MariaDBBoolean],
+        ])} />
+      <PropertyGroup title={gettext('Verified MariaDB interface')}
+        value={selectedProperties(endpoint, [
+          ['provider_id', gettext('Provider ID')],
+          ['profile_id', gettext('Profile ID')],
+          ['verified_runtime_family', gettext('Runtime family')],
+          ['verified_runtime_version', gettext('Verified server version')],
+          ['target_adapter_id', gettext('Target adapter ID')],
+          ['target_adapter_version', gettext('Target adapter version')],
+        ])} />
+    </Box>
+  </Box>;
+}
+
+MariaDBDatabaseProperties.propTypes = {
+  endpoint: PropTypes.object,
+  target: PropTypes.object,
+  server: PropTypes.object,
+  database: PropTypes.object,
+};
+
 function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
   targetId}) {
   const target = (databaseTargets?.targets || []).find((item) =>
@@ -5701,6 +5819,10 @@ function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
         ?.path === target.database));
   if (endpoint?.verified_runtime_family === 'firebird') {
     return <FirebirdDatabaseProperties endpoint={endpoint} target={target}
+      server={server} database={database} />;
+  }
+  if (endpoint?.verified_runtime_family === 'mariadb') {
+    return <MariaDBDatabaseProperties endpoint={endpoint} target={target}
       server={server} database={database} />;
   }
   return <Box sx={{p: 2, overflow: 'auto', flex: 1, minHeight: 0}}>

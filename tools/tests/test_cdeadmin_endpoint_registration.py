@@ -267,6 +267,39 @@ class RegistrationProfileTests(unittest.TestCase):
             '/srv/firebird/databases', route['database_create_root']
         )
 
+    def test_network_server_form_owns_endpoint_and_default_credentials(self):
+        profile = registration_profile('firebird-native')
+        fields = {
+            field['field_id']: field
+            for field in profile['form_contract']['server']['forms'][
+                'edit'
+            ]['fields']
+        }
+        self.assertEqual('Server host or address', fields['host']['label'])
+        self.assertEqual('number', fields['port']['control'])
+        self.assertEqual('User or principal', fields['username']['label'])
+        self.assertEqual('password', fields['password']['control'])
+        self.assertEqual(
+            'boolean', fields['save_password']['control']
+        )
+        self.assertFalse(fields['save_password']['default'])
+
+        service = EndpointService(SimpleNamespace(), SimpleNamespace(
+            secrets=SimpleNamespace(register_resolver=lambda *_args: None)
+        ))
+        first = service._validated_route(profile, {
+            'host': '127.0.0.10', 'port': 3050, 'user': 'SYSDBA',
+            'cde_route_database_create_root': '/srv/firebird/databases',
+        })
+        second = service._validated_route(profile, {
+            'host': 'mymachine.mynetwork', 'port': 53050,
+            'user': 'database_operator',
+            'cde_route_database_create_root': '/srv/firebird/databases',
+        })
+        self.assertEqual('127.0.0.10', first['host'])
+        self.assertEqual('mymachine.mynetwork', second['host'])
+        self.assertEqual(53050, second['port'])
+
     def test_mysql_admits_server_scope_and_multiple_database_targets(self):
         profile = registration_profile('mysql-native')
         self.assertEqual('optional', profile['database_targeting']['mode'])
@@ -893,6 +926,72 @@ class EndpointVerificationTests(unittest.TestCase):
         self.assertEqual('endpoint-sqlite', result['endpoint_id'])
         self.assertEqual('SQLite workstation', result['display_name'])
 
+    def test_firebird_endpoint_edit_encrypts_only_saved_default_secret(self):
+        endpoint = SimpleNamespace(
+            id='endpoint-firebird', provider_version='1.0',
+            profile_id='firebird-native', routes=[SimpleNamespace(
+                id='route-firebird', priority=0, route_kind='network',
+                configuration=json.dumps({
+                    'host': '127.0.0.1', 'port': 3050,
+                    'user': 'SYSDBA',
+                    'database_create_root': '/srv/firebird/databases',
+                    'trusted_auth': False,
+                }),
+            )],
+            runtime_identity=SimpleNamespace(
+                verification_state='verified',
+                verified_runtime_family='firebird',
+                verified_runtime_version='5.0.4',
+                verification_evidence_reference='evidence-firebird',
+                verified_at='now',
+            ),
+        )
+        server = SimpleNamespace(
+            name='Firebird local', password=None, save_password=0,
+            endpoint_profile=endpoint,
+        )
+
+        class Session:
+            @staticmethod
+            def commit():
+                return None
+
+        model_module = ModuleType('pgadmin.model')
+        model_module.db = SimpleNamespace(session=Session())
+        config_module = ModuleType('config')
+        config_module.ALLOW_SAVE_PASSWORD = True
+        crypto_module = ModuleType('pgadmin.utils.crypto')
+        crypto_module.encrypt = lambda value, key: f'{key}:{value}'
+        master_module = ModuleType('pgadmin.utils.master_password')
+        master_module.get_crypt_key = lambda: (True, 'master-key')
+        service = EndpointService(SimpleNamespace(), SimpleNamespace(
+            secrets=SimpleNamespace(register_resolver=lambda *_args: None)
+        ))
+        with patch.dict(sys.modules, {
+            'config': config_module,
+            'pgadmin.model': model_module,
+            'pgadmin.utils.crypto': crypto_module,
+            'pgadmin.utils.master_password': master_module,
+        }):
+            result = service.update_endpoint_profile(server, {
+                'name': 'Firebird lab', 'host': '127.0.0.10',
+                'port': 53050, 'username': 'database_operator',
+                'database_create_root': '/srv/firebird/databases',
+                'password': 'default-secret-canary',
+                'save_password': True,
+            })
+
+        route = json.loads(endpoint.routes[0].configuration)
+        self.assertEqual('127.0.0.10', route['host'])
+        self.assertEqual(53050, route['port'])
+        self.assertEqual('database_operator', route['user'])
+        self.assertNotIn('default-secret-canary', json.dumps(route))
+        self.assertEqual(['database_password'], route['credential_kinds'])
+        self.assertTrue(server.save_password)
+        self.assertIn('CDEADMIN-CREDENTIAL-BUNDLE-V1:', server.password)
+        self.assertIn('default-secret-canary', server.password)
+        self.assertEqual('Firebird lab', result['display_name'])
+
     def test_verification_fails_over_before_session_establishment(self):
         endpoint_id = str(uuid.uuid4())
         runtime = SimpleNamespace(
@@ -1162,6 +1261,78 @@ class EndpointVerificationTests(unittest.TestCase):
         )
         service.forget_server_credentials(server)
         self.assertEqual({}, service.resolver._session)
+
+    def test_alternate_verification_principal_is_session_scoped(self):
+        endpoint_id = str(uuid.uuid4())
+        runtime = SimpleNamespace(
+            declared_runtime_family='example',
+            verification_state='unverified',
+        )
+        route = SimpleNamespace(
+            id=str(uuid.uuid4()), priority=0,
+            configuration=json.dumps({
+                'host': 'endpoint.example.test', 'port': 1234,
+                'user': 'default_user',
+            }),
+        )
+        endpoint = SimpleNamespace(
+            id=endpoint_id, endpoint_mode='legacy_native',
+            experience_family='example',
+            provider_id='org.example.provider', provider_version='1.0.0',
+            profile_id='example-native', profile_version='2.0.0',
+            target_adapter_id='example-client',
+            target_adapter_version='3.0.0',
+            pool_namespace=str(uuid.uuid4()),
+            session_namespace=str(uuid.uuid4()),
+            cache_namespace=str(uuid.uuid4()),
+            diagnostic_namespace=str(uuid.uuid4()),
+            runtime_identity=runtime, secret_references=[], routes=[route],
+        )
+        server = SimpleNamespace(
+            id=10, user_id=7, endpoint_profile=endpoint
+        )
+        observed = []
+
+        class Provider:
+            def discover_endpoint(self, request):
+                observed.append(request['route']['user'])
+                return {'verified_runtime': {
+                    'engine_id': 'example', 'version': '2.0.0',
+                    'evidence_reference': 'evidence:example',
+                }}
+
+        service = EndpointService(
+            SimpleNamespace(resolve=lambda _context: SimpleNamespace(
+                instance=Provider()
+            )),
+            SimpleNamespace(secrets=SimpleNamespace(
+                register_resolver=lambda *_args: None,
+            )),
+        )
+        profile = {'route_kind': 'network', 'requires_secret': False}
+        with patch(
+            'pgadmin.cdeadmin.endpoints.service.registration_profile',
+            return_value=profile,
+        ), patch.object(service, '_record_verification'):
+            result = service.verify_server(
+                server, connect_as=' alternate_user '
+            )
+            workspace_route, _reference = service._route_and_reference(
+                server, endpoint, profile
+            )
+
+        self.assertEqual(['alternate_user'], observed)
+        self.assertEqual('alternate_user', result['connected_as'])
+        self.assertFalse(result['uses_default_user'])
+        self.assertEqual('alternate_user', workspace_route['user'])
+        self.assertEqual('default_user', json.loads(
+            route.configuration
+        )['user'])
+        service.forget_server_credentials(server)
+        default_route, _reference = service._route_and_reference(
+            server, endpoint, profile
+        )
+        self.assertEqual('default_user', default_route['user'])
 
 
 if __name__ == '__main__':

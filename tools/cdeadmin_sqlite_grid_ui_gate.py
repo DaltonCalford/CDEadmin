@@ -315,6 +315,9 @@ def run(options):
         )))
         capture('insert-staged')
         _button(wait, 'Commit changes').click()
+        wait.until(expected.invisibility_of_element_located((
+            By.CSS_SELECTOR, '[aria-label="Staged provider grid changes"]',
+        )))
         wait.until(lambda value: _has_input_value(
             value, 'customer_id value', str(MARKER)
         ))
@@ -324,7 +327,8 @@ def run(options):
         if committed_row != (
                 MARKER, marker_name, 'Toronto', 'QA'):
             raise RuntimeError(
-                f'{options.engine} native observer did not see commit'
+                f'{options.engine} native observer did not see commit; '
+                f'observed {committed_row!r}'
             )
         capture('insert-committed')
         if options.engine == 'DuckDB':
@@ -351,6 +355,9 @@ def run(options):
         )))
         capture('delete-staged')
         _button(wait, 'Commit changes').click()
+        wait.until(expected.invisibility_of_element_located((
+            By.CSS_SELECTOR, '[aria-label="Staged provider grid changes"]',
+        )))
         wait.until(lambda value: not _has_input_value(
             value, 'customer_id value', str(MARKER)
         ))

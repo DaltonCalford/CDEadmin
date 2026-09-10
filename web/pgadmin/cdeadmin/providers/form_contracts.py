@@ -652,6 +652,16 @@ def provider_form_contract(profile):
         **copy.deepcopy(field),
         'control': 'password',
     } for field in profile.get('secret_fields', []))
+    if profile.get('secret_fields'):
+        declared_fields.append(_field(
+            'save_password', 'Save default connection credentials',
+            'boolean', default=False,
+            help=(
+                'Store the credentials for the default user in CDEadmin. '
+                'Credentials entered while connecting as another user are '
+                'never stored as the default credentials.'
+            ),
+        ))
     positions = {
         field['field_id']: index for index, field in enumerate(server_fields)
     }

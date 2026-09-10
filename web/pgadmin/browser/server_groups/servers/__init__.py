@@ -2397,10 +2397,17 @@ class ServerNode(PGChildNodeView):
             json.loads(request.data) if request.data else {}
         )
         password = data.get('password') or None
+        connect_as = data.get('connect_as') or None
+        if connect_as and data.get('save_password'):
+            return bad_request(gettext(
+                'Credentials used to connect as another user are session '
+                'only. Edit the connection profile to change and save the '
+                'default user credentials.'
+            ))
         try:
             verification = endpoint_service_for_app(
                 current_app
-            ).verify_server(server, password)
+            ).verify_server(server, password, connect_as=connect_as)
         except EndpointRegistrationError as exc:
             return make_json_response(
                 status=401, success=0, errormsg=str(exc)

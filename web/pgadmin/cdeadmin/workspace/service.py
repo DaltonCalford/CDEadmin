@@ -140,6 +140,9 @@ class ProviderWorkspaceService:
             },
             'endpoint_registration': {
                 'display_name': endpoint_display_name,
+                'is_password_saved': bool(
+                    getattr(server, 'save_password', False)
+                ),
                 'forms': route_catalog['server_forms'],
                 'primary_route': (
                     route_catalog['routes'][0]

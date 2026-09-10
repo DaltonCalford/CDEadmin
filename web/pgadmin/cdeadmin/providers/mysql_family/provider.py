@@ -1630,16 +1630,23 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             )
         else:
             server_observation = optional(
-                'SELECT VERSION(), @@hostname, @@port, @@version_comment, '
+                'SELECT VERSION(), @@hostname, @@port, @@server_id, '
+                '@@version_comment, '
                 '@@version_compile_machine, @@version_compile_os, '
                 '@@lower_case_table_names, @@default_storage_engine, '
-                'CURRENT_USER(), USER()'
+                '@@tx_isolation, CURRENT_USER(), USER(), @@sql_mode, '
+                '@@character_set_server, @@collation_server, @@log_bin, '
+                '@@binlog_format, @@gtid_strict_mode, @@wsrep_on, '
+                '@@max_connections'
             )
             server_names = (
-                'version', 'hostname', 'port', 'version_comment',
+                'version', 'hostname', 'port', 'server_id', 'version_comment',
                 'version_compile_machine', 'version_compile_os',
                 'lower_case_table_names', 'default_storage_engine',
-                'current_user', 'session_user',
+                'tx_isolation', 'current_user', 'session_user', 'sql_mode',
+                'character_set_server', 'collation_server', 'log_bin',
+                'binlog_format', 'gtid_strict_mode', 'wsrep_on',
+                'max_connections',
             )
         add('server', [], profile.engine_name, (
             dict(zip(server_names, server_observation[0]))
@@ -1653,7 +1660,8 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             'FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME'
             if profile is MYSQL_PROFILE else
             'SELECT SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME, '
-            'DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA '
+            'DEFAULT_COLLATION_NAME, SCHEMA_COMMENT '
+            'FROM information_schema.SCHEMATA '
             'ORDER BY SCHEMA_NAME'
         )
         for row in optional(schema_source):
@@ -1663,6 +1671,8 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             }
             if profile is MYSQL_PROFILE:
                 native['default_encryption'] = row[3]
+            else:
+                native['schema_comment'] = row[3]
             add('database', [], row[0], native)
         cursor.execute(
             'SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE '

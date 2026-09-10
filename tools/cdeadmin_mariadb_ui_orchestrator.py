@@ -54,7 +54,7 @@ def arguments(argv=None):
     parser.add_argument(
         '--gate-kind', choices=(
             'object', 'lifecycle', 'maintenance', 'backup-restore',
-            'data-grid', 'data-studio',
+            'data-grid', 'data-studio', 'properties',
         ),
         default='maintenance',
     )
@@ -344,6 +344,7 @@ def _browser_gate_complete(result):
     if result.get('schema') in {
         'cdeadmin.provider-object-form-gate.v1',
         'cdeadmin.mariadb-database-lifecycle-ui-gate.v1',
+        'cdeadmin.mariadb-properties-ui-gate.v1',
     }:
         return result.get('complete') is True
     return result.get('passed') is True
@@ -351,6 +352,25 @@ def _browser_gate_complete(result):
 
 def _gate_command(options, web_port, database, runtime_port,
                   tool_workspace):
+    if options.gate_kind == 'properties':
+        command = [
+            sys.executable,
+            str(ROOT / 'tools/cdeadmin_mariadb_properties_ui_gate.py'),
+            '--url', f'http://127.0.0.1:{web_port}',
+            '--database', DATABASE, '--host', '127.0.0.1',
+            '--port', str(runtime_port), '--user', 'root',
+            '--endpoint-password-env',
+            'CDEADMIN_MARIADB_UI_GATE_PASSWORD',
+            '--output-root', str(options.evidence_root),
+            '--summary-output', str(options.summary_output),
+            '--width', str(options.width), '--height', str(options.height),
+            '--theme', options.theme,
+            '--font-scale', str(options.font_scale),
+            '--timeout', str(options.timeout),
+        ]
+        if options.browser_binary:
+            command.extend(['--browser-binary', options.browser_binary])
+        return command
     if options.gate_kind == 'data-grid':
         command = [
             sys.executable,

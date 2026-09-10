@@ -207,17 +207,20 @@ class EndpointService:
         self.security_service = security_service
         self.route_health = route_health or RouteHealthRegistry()
         self.resolver = ProtectedColumnResolver()
+        self._principal_overrides = {}
+        self._principal_lock = threading.RLock()
         self.security_service.secrets.register_resolver(
             RESOLVER_ID, self.resolver
         )
 
-    def verify_server(self, server, password=None):
+    def verify_server(self, server, password=None, connect_as=None):
         endpoint = getattr(server, 'endpoint_profile', None)
         if endpoint is None or endpoint.provider_version is None:
             raise EndpointRegistrationError(
                 'server is not a provider-managed endpoint'
             )
         profile = registration_profile(endpoint.profile_id)
+        connect_as = self._validated_principal_override(connect_as)
         embedded = profile['route_kind'] == 'embedded_file'
         context = self._context(
             endpoint,
@@ -238,7 +241,8 @@ class EndpointService:
             raise EndpointRegistrationError(str(exc)) from exc
         for route_model in candidates:
             route, reference = self._route_and_reference(
-                server, endpoint, profile, route_model=route_model
+                server, endpoint, profile, route_model=route_model,
+                principal_override=connect_as,
             )
             transient = self._transient_credentials(
                 endpoint, route, reference, password
@@ -276,6 +280,14 @@ class EndpointService:
             verified.get('version'),
             verified.get('evidence_reference'),
         )
+        with self._principal_lock:
+            default_user = self._route_configuration(selected_route).get(
+                'user'
+            )
+            if connect_as and connect_as != default_user:
+                self._principal_overrides[endpoint.id] = connect_as
+            else:
+                self._principal_overrides.pop(endpoint.id, None)
         return {
             'endpoint_id': endpoint.id,
             'profile_id': endpoint.profile_id,
@@ -285,7 +297,28 @@ class EndpointService:
             'verified_runtime_version': verified.get('version'),
             'evidence_reference': verified.get('evidence_reference'),
             'selected_route_id': selected_route.id,
+            'connected_as': connect_as or route.get('user'),
+            'uses_default_user': not connect_as or (
+                connect_as == default_user
+            ),
         }
+
+    @staticmethod
+    def _validated_principal_override(value):
+        if value in (None, ''):
+            return None
+        if not isinstance(value, str):
+            raise EndpointRegistrationError(
+                'alternate connection user must be text'
+            )
+        value = value.strip()
+        if not value or len(value) > 255 or any(
+            character in value for character in ('\x00', '\r', '\n')
+        ):
+            raise EndpointRegistrationError(
+                'alternate connection user is invalid'
+            )
+        return value
 
     def _remember_credentials(self, endpoint, route, primary, values):
         if primary is None or not values:
@@ -311,6 +344,8 @@ class EndpointService:
         endpoint = getattr(server, 'endpoint_profile', None)
         if endpoint is None:
             return
+        with self._principal_lock:
+            self._principal_overrides.pop(endpoint.id, None)
         for model in endpoint.secret_references:
             self.resolver.forget(model.secret_reference)
 
@@ -767,6 +802,9 @@ class EndpointService:
         endpoint, profile = self._managed_endpoint(server)
         values = self._server_form_values(profile, 'edit', data)
         name = values.pop('name')
+        save_password = values.pop(
+            'save_password', bool(getattr(server, 'save_password', False))
+        )
         route = min(
             endpoint.routes,
             key=lambda item: (item.priority, item.id),
@@ -786,26 +824,80 @@ class EndpointService:
                     ('user', 'username'),
                 ) if source in values
             })
-        secret_ids = {
-            field['field_id'] for field in profile.get('secret_fields', [])
+        secret_fields = {
+            field['field_id']: field
+            for field in profile.get('secret_fields', [])
         }
         supplied_secrets = {
             key: values.pop(key) for key in tuple(values)
-            if key in secret_ids and values[key] not in (None, '')
+            if key in secret_fields and values[key] not in (None, '')
         }
-        if supplied_secrets:
-            raise EndpointRegistrationError(
-                'endpoint credentials must be changed through the '
-                'provider verification command'
-            )
         for field in profile.get('connection_fields', []):
             field_id = field['field_id']
             if field_id in values:
                 route_input[f'cde_route_{field_id}'] = values[field_id]
-        route.configuration = self._encoded_route(
-            self._validated_route(profile, route_input, existing)
+        route_configuration = self._validated_route(
+            profile, route_input, existing
         )
+        credential_values = {
+            secret_fields[field_id]['secret_kind']: value
+            for field_id, value in supplied_secrets.items()
+        }
+        if credential_values:
+            active_kinds = {
+                field['secret_kind']
+                for field in active_secret_fields(profile, route_configuration)
+            }
+            unavailable = sorted(set(credential_values) - active_kinds)
+            if unavailable:
+                raise EndpointRegistrationError(
+                    'endpoint credentials are unavailable for the selected '
+                    'authentication method: ' + ', '.join(unavailable)
+                )
+            route_configuration['credential_kinds'] = sorted(
+                credential_values
+            )
+        route.configuration = self._encoded_route(route_configuration)
         server.name = name
+        if profile.get('secret_fields'):
+            if save_password:
+                import config
+                from pgadmin.utils.crypto import encrypt
+                from pgadmin.utils.master_password import get_crypt_key
+
+                if not config.ALLOW_SAVE_PASSWORD:
+                    raise EndpointRegistrationError(
+                        'saving endpoint credentials is disabled'
+                    )
+                if credential_values:
+                    key_present, key = get_crypt_key()
+                    if not key_present:
+                        raise EndpointRegistrationError(
+                            'the master password must be unlocked before '
+                            'credentials can be saved'
+                        )
+                    server.password = encrypt(
+                        encode_credential_bundle(credential_values), key
+                    )
+                elif not getattr(server, 'password', None):
+                    raise EndpointRegistrationError(
+                        'default connection credentials must be entered '
+                        'before they can be saved'
+                    )
+                server.save_password = 1
+            else:
+                server.password = None
+                server.save_password = 0
+                self.forget_server_credentials(server)
+                if credential_values:
+                    _route, reference = self._route_and_reference(
+                        server, endpoint, profile, route_model=route
+                    )
+                    self._remember_credentials(
+                        endpoint, _route, reference, credential_values
+                    )
+        with self._principal_lock:
+            self._principal_overrides.pop(endpoint.id, None)
         self.route_health.clear(endpoint.id, route.id)
         self._stale(endpoint)
         db.session.commit()
@@ -1316,7 +1408,7 @@ class EndpointService:
     def _route_and_reference(
         self, server, endpoint, profile=True, requires_secret=None,
         route_model=None, database_override=Ellipsis,
-        database_options=None,
+        database_options=None, principal_override=Ellipsis,
     ):
         if requires_secret is not None:
             profile = requires_secret
@@ -1329,6 +1421,12 @@ class EndpointService:
                 'endpoint route or credential reference is unavailable'
             )
         route = json.loads(route_model.configuration)
+        if principal_override is Ellipsis:
+            endpoint_id = getattr(endpoint, 'id', None)
+            with self._principal_lock:
+                principal_override = self._principal_overrides.get(endpoint_id)
+        if principal_override:
+            route['user'] = principal_override
         if database_override is not Ellipsis:
             if database_override is None:
                 route.pop('database', None)

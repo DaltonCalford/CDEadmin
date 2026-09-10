@@ -80,12 +80,14 @@ export function showEndpointVerification(
   const endpointUrl = nodeObj.generate_url(
     itemNodeData, 'verify_endpoint', nodeData, true
   );
+  const profile = endpointProfiles.get(nodeData.cde_profile_id);
   const prompt = {
     prompt_password: true,
     prompt_tunnel_password: false,
     username: nodeData.username,
     server_label: nodeData.label || nodeData._label,
     allow_save_password: current_user.allow_save_password,
+    allow_user_override: profile?.route_kind === 'network',
     errmsg: null,
   };
 
@@ -104,7 +106,6 @@ export function showEndpointVerification(
       />
     ), {id: 'id-verify-endpoint'}
   );
-  const profile = endpointProfiles.get(nodeData.cde_profile_id);
   if (profile?.requires_secret === false) {
     // Passwordless and conditionally-authenticated providers must first be
     // verified without fabricating a database password. If the retained
