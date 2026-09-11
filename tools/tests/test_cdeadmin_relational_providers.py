@@ -37,6 +37,7 @@ from pgadmin.cdeadmin.security import SecretLease  # noqa: E402
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     PROFILE as DUCKDB,
     _initialize_connection as initialize_duckdb_connection,
+    _resources as duckdb_resources,
     _route_arguments as duckdb_route_arguments,
     _version as duckdb_version,
 )
@@ -139,6 +140,92 @@ def sqlite_client(profile):
 
 
 class RelationalInventoryTests(unittest.TestCase):
+
+    def test_duckdb_properties_use_exact_catalog_surfaces(self):
+        try:
+            import duckdb
+        except ImportError:
+            self.skipTest('DuckDB driver is not installed')
+        connection = duckdb.connect(':memory:')
+        try:
+            connection.execute(
+                'CREATE TABLE parent(id INTEGER PRIMARY KEY, label VARCHAR)'
+            )
+            connection.execute(
+                'CREATE TABLE child(id INTEGER, parent_id INTEGER '
+                'REFERENCES parent(id))'
+            )
+            connection.execute(
+                'CREATE INDEX child_parent ON child(parent_id)'
+            )
+            connection.execute(
+                'CREATE VIEW shown AS SELECT * FROM child'
+            )
+            connection.execute('CREATE SEQUENCE sample_sequence START 4')
+            resources = duckdb_resources(connection, {})
+        finally:
+            connection.close()
+        child = next(
+            item for item in resources
+            if item['resource_kind'] == 'table' and
+            item['display_name'] == 'child'
+        )
+        self.assertIn('CREATE TABLE', child['native']['ddl'])
+        self.assertEqual(2, len(child['native']['columns']))
+        self.assertEqual(1, len(child['native']['indexes']))
+        self.assertTrue(any(
+            item['constraint_type'] == 'FOREIGN KEY'
+            for item in child['native']['constraints']
+        ))
+        self.assertEqual(
+            'parent',
+            child['native']['dependencies'][0]['referenced_table'],
+        )
+        view = next(
+            item for item in resources
+            if item['resource_kind'] == 'view' and
+            item['display_name'] == 'shown'
+        )
+        self.assertIn('CREATE VIEW', view['native']['ddl'])
+        self.assertEqual(2, len(view['native']['columns']))
+
+    def test_sqlite_properties_are_native_and_do_not_invent_security(self):
+        connection = sqlite3.connect(':memory:')
+        try:
+            connection.executescript(
+                'CREATE TABLE parent(id INTEGER PRIMARY KEY);'
+                'CREATE TABLE child('
+                ' id INTEGER, parent_id INTEGER REFERENCES parent(id)'
+                ');'
+                'CREATE INDEX child_parent ON child(parent_id);'
+                'CREATE TRIGGER child_ai AFTER INSERT ON child '
+                'BEGIN UPDATE child SET id=id WHERE rowid=NEW.rowid; END;'
+                'CREATE VIEW shown AS SELECT * FROM child;'
+            )
+            resources = sqlite_resources(connection, {})
+        finally:
+            connection.close()
+        child = next(
+            item for item in resources
+            if item['resource_kind'] == 'table' and
+            item['display_name'] == 'child'
+        )
+        self.assertIn('CREATE TABLE', child['native']['ddl'])
+        self.assertEqual(2, len(child['native']['columns']))
+        self.assertEqual(1, len(child['native']['indexes']))
+        self.assertEqual(1, len(child['native']['triggers']))
+        self.assertEqual(
+            'parent',
+            child['native']['dependencies'][0]['referenced_table'],
+        )
+        self.assertNotIn('privileges', child['native'])
+        self.assertNotIn('security', child['native'])
+        view = next(
+            item for item in resources
+            if item['resource_kind'] == 'view' and
+            item['display_name'] == 'shown'
+        )
+        self.assertEqual(2, len(view['native']['columns']))
 
     def test_duckdb_attachment_initializer_is_contained_and_idempotent(self):
         try:
@@ -292,6 +379,9 @@ class RelationalInventoryTests(unittest.TestCase):
         )
         self.assertEqual('auth_example', plugin['display_name'])
         self.assertEqual('auth_example.so', plugin['native']['library'])
+        self.assertEqual(
+            'auth_example.so', plugin['native']['definition']['library']
+        )
         self.assertEqual('generation-one', plugin['generation'])
 
     def test_mysql_materialized_view_discovery_uses_show_create(self):
@@ -388,13 +478,15 @@ class RelationalInventoryTests(unittest.TestCase):
         self.assertEqual(
             ['app'], [item['display_name'] for item in databases]
         )
+        expected_database = {
+            'default_character_set': 'utf8mb4',
+            'default_collation': 'utf8mb4_0900_ai_ci',
+            'default_encryption': 'NO',
+        }
+        for key, value in expected_database.items():
+            self.assertEqual(value, databases[0]['native'][key])
         self.assertEqual(
-            {
-                'default_character_set': 'utf8mb4',
-                'default_collation': 'utf8mb4_0900_ai_ci',
-                'default_encryption': 'NO',
-            },
-            databases[0]['native'],
+            expected_database, databases[0]['native']['definition']
         )
         self.assertEqual(
             ['widgets'],
@@ -502,11 +594,14 @@ class RelationalInventoryTests(unittest.TestCase):
             item for item in resources
             if item['resource_kind'] == 'database'
         )
-        self.assertEqual({
+        expected_database = {
             'default_character_set': 'utf8mb4',
             'default_collation': 'utf8mb4_general_ci',
             'schema_comment': 'MariaDB application database',
-        }, database['native'])
+        }
+        for key, value in expected_database.items():
+            self.assertEqual(value, database['native'][key])
+        self.assertEqual(expected_database, database['native']['definition'])
         server = next(
             item for item in resources if item['resource_kind'] == 'server'
         )

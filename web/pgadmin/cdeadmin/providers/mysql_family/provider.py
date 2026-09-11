@@ -1685,11 +1685,19 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             schema_name = str(schema_name)
             add('database', [], schema_name)
             object_type = str(object_type).upper()
+            escaped_schema = schema_name.replace('`', '``')
+            escaped_name = str(object_name).replace('`', '``')
+            create_source = ''
             if object_type == 'SEQUENCE' and profile is MARIADB_PROFILE:
                 kind = 'sequence'
+                definition = optional(
+                    f'SHOW CREATE SEQUENCE `{escaped_schema}`.'
+                    f'`{escaped_name}`'
+                )
+                create_source = (
+                    str(definition[0][1]) if definition else ''
+                )
             elif object_type == 'VIEW' and profile is MYSQL_PROFILE:
-                escaped_schema = schema_name.replace('`', '``')
-                escaped_name = str(object_name).replace('`', '``')
                 definition = optional(
                     f'SHOW CREATE VIEW `{escaped_schema}`.`{escaped_name}`'
                 )
@@ -1703,9 +1711,18 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                 )
             else:
                 kind = 'view' if 'VIEW' in object_type else 'table'
-            add(kind, [schema_name], object_name, {
-                'table_type': object_type,
-            })
+                show_kind = 'VIEW' if kind == 'view' else 'TABLE'
+                definition = optional(
+                    f'SHOW CREATE {show_kind} `{escaped_schema}`.'
+                    f'`{escaped_name}`'
+                )
+                create_source = (
+                    str(definition[0][1]) if definition else ''
+                )
+            native = {'table_type': object_type}
+            if create_source:
+                native['ddl'] = create_source
+            add(kind, [schema_name], object_name, native)
         queries = (
             ('column', 'SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, '
              'COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT '
@@ -1779,7 +1796,9 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                 'ORDER BY 1, 2'
             ):
                 roles.add((str(user), str(host)))
-                add('role', [], f'{user}@{host}')
+                add('role', [], f'{user}@{host}', {
+                    'user': str(user), 'host': str(host),
+                })
             accounts = optional(
                 'SELECT User, Host, account_locked FROM mysql.user '
                 'ORDER BY 1, 2'
@@ -1840,7 +1859,9 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             'SELECT GRANTEE, PRIVILEGE_TYPE FROM information_schema.'
             'USER_PRIVILEGES ORDER BY 1, 2'
         ):
-            add('privilege', [grantee], privilege)
+            add('privilege', [grantee], privilege, {
+                'grantee': str(grantee), 'privilege': str(privilege),
+            })
         tablespace_source = (
             'SELECT DISTINCT TABLESPACE_NAME, ENGINE FROM '
             'information_schema.FILES WHERE TABLESPACE_NAME IS NOT NULL '
@@ -2058,6 +2079,40 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                     'metric_absent_from_exact_runtime'
                 ),
             })
+        definition_kinds = {
+            'database', 'table', 'view', 'materialized-view', 'column',
+            'index', 'constraint', 'trigger', 'partition', 'procedure',
+            'function', 'event', 'sequence', 'package', 'tablespace',
+            'plugin', 'resource-group', 'server-link', 'system-variable',
+            'log-configuration', 'tls-configuration',
+        }
+        state_kinds = {
+            'server', 'replication-channel', 'session', 'lock', 'lock-wait',
+            'binary-log-status',
+        }
+        data_kinds = {
+            'binary-log', 'binary-log-event', 'general-log-entry',
+            'slow-query',
+        }
+        security_kinds = {'user', 'role', 'privilege'}
+        for resource in resources.values():
+            native = resource.setdefault('native', {})
+            snapshot = copy.deepcopy(native)
+            kind = resource['resource_kind']
+            if kind in definition_kinds:
+                native['definition'] = snapshot
+            elif kind in state_kinds:
+                native['state'] = snapshot
+            elif kind in data_kinds:
+                native['data'] = snapshot
+            elif kind == 'table-storage':
+                native['statistics'] = snapshot
+            elif kind == 'metric':
+                native['statistics'] = snapshot
+            elif kind in security_kinds:
+                native['security'] = snapshot
+                if kind == 'privilege':
+                    native['privileges'] = [snapshot]
         if selected_database is None:
             return list(resources.values())
         database_scoped = {

@@ -482,11 +482,48 @@ def verify(binary, server_log):
             descriptor = provider.visual_admin_descriptor()
             if len(descriptor['objects']) != 26:
                 raise RuntimeError('MongoDB administration catalog incomplete')
+            initial_resources = provider.list_resources(request)
             database_target = next(
-                item for item in provider.list_resources(request)
+                item for item in initial_resources
                 if item['resource_kind'] == 'database' and
                 item['display_name'] == runtime.database
             )
+            for kind in (
+                    'deployment', 'replica-set', 'current-operation',
+                    'server-log'):
+                target_resource = next(
+                    item for item in initial_resources
+                    if item['resource_kind'] == kind
+                )
+                _apply(provider, {
+                    'resource_kind': kind, 'operation_id': 'inspect',
+                    'target_resource': target_resource, 'draft': {},
+                    '_provider_route': route,
+                })
+            for kind in ('profiling', 'statistics'):
+                target_resource = next(
+                    item for item in initial_resources
+                    if item['resource_kind'] == kind and
+                    runtime.database in item['display_path']
+                )
+                _apply(provider, {
+                    'resource_kind': kind, 'operation_id': 'inspect',
+                    'target_resource': target_resource, 'draft': {},
+                    '_provider_route': route,
+                })
+                if kind == 'profiling':
+                    for level in (1, 0):
+                        _apply(provider, {
+                            'resource_kind': 'profiling',
+                            'operation_id': 'execute',
+                            'target_resource': target_resource,
+                            'draft': {
+                                'action': 'set',
+                                'arguments': {'level': level},
+                                'confirmation': 'set-profiler',
+                            },
+                            '_provider_route': route,
+                        })
             collection_name = 'visual_' + secrets.token_hex(4)
             base = {
                 'resource_kind': 'collection', 'operation_id': 'create',
@@ -801,6 +838,12 @@ def verify(binary, server_log):
                     'backup', 'restore', 'import', 'export', 'shell',
                 }
             }
+            for kind, target_resource in tool_targets.items():
+                _apply(provider, {
+                    'resource_kind': kind, 'operation_id': 'inspect',
+                    'target_resource': target_resource, 'draft': {},
+                    '_provider_route': route,
+                })
             export_path = 'qualification.jsonl'
             _apply(provider, {
                 'resource_kind': 'export', 'operation_id': 'execute',
@@ -987,6 +1030,7 @@ def verify(binary, server_log):
     }
     if categories['admin'] == 'passed':
         operations = {
+            'backup': ['execute', 'inspect'],
             'database': ['drop', 'inspect'],
             'collection': [
                 'alter', 'create', 'delete', 'drop', 'insert', 'inspect',
@@ -997,6 +1041,15 @@ def verify(binary, server_log):
             'index': ['alter', 'create', 'drop', 'inspect'],
             'view': ['alter', 'create', 'drop', 'inspect'],
             'aggregation-pipeline': ['execute', 'inspect'],
+            'current-operation': ['inspect'],
+            'deployment': ['inspect'],
+            'export': ['execute', 'inspect'],
+            'import': ['execute', 'inspect'],
+            'profiling': ['execute', 'inspect'],
+            'restore': ['execute', 'inspect'],
+            'server-log': ['inspect'],
+            'shell': ['execute', 'inspect'],
+            'statistics': ['inspect'],
             'user': [
                 'alter', 'create', 'drop', 'grant', 'inspect', 'revoke',
             ],

@@ -731,9 +731,14 @@ class IgniteBackend:
                     reason=(
                         'Primary-key membership is exposed by SYS metadata.'),
                     obligations={'constraint': ['inspect']}),
-                'roles_and_grants': na(
-                    'Ignite authentication has users but no role or grant '
-                    'object model.'),
+                'roles_and_grants': declaration(
+                    'supported', 'user',
+                    reason=(
+                        'Ignite authentication users are administrable; '
+                        'Ignite 2.17 does not have role or grant objects.'
+                    ),
+                    obligations={'user': [
+                        'inspect', 'create', 'alter', 'drop']}),
                 'extensions_and_plugins': na(
                     'Server libraries are deployment configuration, not '
                     'runtime SQL plugin objects.'),
@@ -795,14 +800,26 @@ class IgniteBackend:
                     obligations={'replica': ['inspect']}),
                 'sentinel_or_cluster_state': declaration(
                     'supported', 'cluster', 'node', 'baseline-topology',
-                    reason='Cluster state, topology and baseline controls are '
-                    'native Ignite administration.', obligations={
+                    'cache', 'cache-template', 'data-region', 'snapshot',
+                    reason=(
+                        'Cluster state, topology, baseline, cache '
+                        'maintenance, configuration metadata and snapshots '
+                        'are native Ignite administration.'
+                    ), obligations={
                         'cluster': ['inspect', 'set_state'],
                         'node': ['inspect'],
                         'baseline-topology': [
                             'inspect', 'add_nodes', 'remove_nodes',
                             'set_nodes', 'set_version',
                             'configure_auto_adjust'],
+                        'cache': [
+                            'inspect', 'create', 'drop', 'clear',
+                            'idle_verify', 'rebuild_indexes',
+                            'reset_lost_partitions', 'validate_indexes'],
+                        'cache-template': ['inspect'],
+                        'data-region': ['inspect'],
+                        'snapshot': [
+                            'inspect', 'create', 'check', 'restore'],
                     }),
             },
         }
@@ -820,7 +837,7 @@ class IgniteBackend:
                       'drop'},
             'cache-template': {'inspect'}, 'data-region': {'inspect'},
             'replica': {'inspect'},
-            'ttl': {'inspect', 'create', 'alter', 'drop'},
+            'ttl': {'create', 'alter', 'drop'},
             'compute-task': {'inspect'}, 'service': {'inspect'},
             'user': {'inspect', 'create', 'alter', 'drop'},
             'snapshot': {'inspect'},
@@ -1054,7 +1071,7 @@ class IgniteBackend:
             'data-region': {'inspect'}, 'replica': {'inspect'},
             'cache': {'inspect', 'create', 'insert', 'update', 'delete',
                       'drop'},
-            'ttl': {'inspect', 'create', 'alter', 'drop'},
+            'ttl': {'create', 'alter', 'drop'},
             'compute-task': {'inspect'}, 'service': {'inspect'},
             'user': {'inspect', 'create', 'alter', 'drop'},
             'snapshot': {'inspect'},
@@ -1239,6 +1256,9 @@ class IgniteBackend:
             if not isinstance(route, Mapping) or not route:
                 raise NativeDistributedError(
                     'Ignite administration requires a trusted route')
+            route = IgniteBackend._route({
+                '_provider_route': copy.deepcopy(dict(route)),
+            })
             checked = CONTROL_CATALOG.validate(request)
             if checked['errors']:
                 raise NativeDistributedError(

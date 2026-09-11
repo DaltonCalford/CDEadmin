@@ -1,4 +1,13 @@
 services:
+  backup_volume_init:
+    command:
+    - sh
+    - -c
+    - chown -R 999:999 /vt/vtdataroot/backups
+    image: vitess/lite:v23.0.3
+    user: "0"
+    volumes:
+    - vitess_backups:/vt/vtdataroot/backups
   consul1:
     command: agent -server -bootstrap-expect 3 -ui -disable-host-node-id -client 0.0.0.0
     hostname: consul1
@@ -114,6 +123,7 @@ services:
       --service-map ''grpc-vtctl,grpc-vtctld'' --backup-storage-implementation file --file-backup-storage-root
       /vt/vtdataroot/backups --logtostderr=true --port 8080 --grpc-port 15999 '
     depends_on:
+    - backup_volume_init
     - consul1
     - consul2
     - consul3
@@ -123,6 +133,7 @@ services:
     - "15999"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vtgate:
     command:
     - sh
@@ -198,6 +209,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vttablet102:
     command:
     - sh
@@ -235,6 +247,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vttablet201:
     command:
     - sh
@@ -272,6 +285,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vttablet202:
     command:
     - sh
@@ -309,6 +323,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vttablet301:
     command:
     - sh
@@ -346,6 +361,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
   vttablet302:
     command:
     - sh
@@ -383,3 +399,7 @@ services:
     - "3306"
     volumes:
     - .:/script
+    - vitess_backups:/vt/vtdataroot/backups
+
+volumes:
+  vitess_backups:

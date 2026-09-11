@@ -1,0 +1,49 @@
+<clickhouse>
+    <keeper_server>
+        <tcp_port>9181</tcp_port>
+        <server_id>1</server_id>
+        <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <heart_beat_interval_ms>1000</heart_beat_interval_ms>
+            <election_timeout_lower_bound_ms>2000</election_timeout_lower_bound_ms>
+            <election_timeout_upper_bound_ms>4000</election_timeout_upper_bound_ms>
+            <force_sync>false</force_sync>
+        </coordination_settings>
+        <raft_configuration>
+            <server>
+                <id>1</id>
+                <hostname>127.0.0.1</hostname>
+                <port>9234</port>
+            </server>
+        </raft_configuration>
+    </keeper_server>
+
+    <zookeeper>
+        <node index="1">
+            <host>127.0.0.1</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+
+    <remote_servers>
+        <cdeadmin_demo_cluster>
+            <shard>
+                <replica>
+                    <host>127.0.0.1</host>
+                    <port>9000</port>
+                    <user>cdeadmin_demo</user>
+                    <password>CDEadminDemo-2026!</password>
+                </replica>
+            </shard>
+        </cdeadmin_demo_cluster>
+    </remote_servers>
+
+    <macros>
+        <cluster>cdeadmin_demo_cluster</cluster>
+        <shard>01</shard>
+        <replica>01</replica>
+    </macros>
+</clickhouse>

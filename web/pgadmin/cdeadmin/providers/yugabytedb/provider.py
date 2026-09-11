@@ -98,9 +98,12 @@ _YSQL_DIALECT = replace(
     _BASE_ADMINISTRATION.dialect,
     supported=_YSQL_SUPPORTED,
     concept_resource_kinds={
-        'servers': ('universe',),
+        'servers': (
+            'universe', 'cluster', 'master', 'node',
+            'placement-policy', 'tablet',
+        ),
         'replication_objects': ('changefeed', 'xcluster-replication'),
-        'jobs_and_events': ('schedule',),
+        'jobs_and_events': ('schedule', 'snapshot'),
     },
 )
 
@@ -521,7 +524,6 @@ def _extras(cursor, _request, generation):
             'cloud': str(cloud), 'region': str(region), 'zone': str(zone),
         }
         values.append(resource('tserver', [], name, generation, native))
-        values.append(resource('node', [], name, generation, native))
         if region:
             values.append(resource('region', [], region, generation))
         if zone:

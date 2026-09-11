@@ -222,13 +222,19 @@ class OpenSearchSQLPPLClient:
     def _query(self, route, source, language=None, parameters=None):
         source = required_text(source, 'SQL/PPL query', 2 * 1024 * 1024)
         language = self._language(language, route['query_language'])
-        if parameters is not None and not isinstance(parameters, Mapping):
-            raise OpenSearchSQLPPLClientError('parameters must be an object')
+        if parameters is not None and not isinstance(
+                parameters, (Mapping, list)):
+            raise OpenSearchSQLPPLClientError(
+                'parameters must be an object or an array'
+            )
         body = {'query': source, 'fetch_size': route['fetch_size']}
         if route.get('data_source'):
             body['datasource'] = route['data_source']
         if parameters:
-            body['parameters'] = copy.deepcopy(dict(parameters))
+            body['parameters'] = copy.deepcopy(
+                dict(parameters) if isinstance(parameters, Mapping)
+                else parameters
+            )
         endpoint = '/_plugins/_sql' if language == 'sql' else '/_plugins/_ppl'
         document = self._request(
             route, endpoint, method='POST', query={'format': 'jdbc'},
@@ -293,13 +299,19 @@ class OpenSearchSQLPPLClient:
         ).encode('utf-8')).hexdigest()[:24]
 
     def _resource(self, kind, name, native):
+        native = copy.deepcopy(native)
+        if kind in {
+            'catalog', 'query', 'prepared-query', 'language-settings',
+            'data-source',
+        }:
+            native['definition'] = copy.deepcopy(native)
         return {
             'resource_id': f'opensearch_sql_ppl:{kind}:{name}',
             'resource_kind': kind, 'display_name': str(name),
             'authority_path': ['opensearch_sql_ppl', kind, str(name)],
             'display_path': [kind, str(name)],
             'generation': self._generation(native),
-            'native': copy.deepcopy(native),
+            'native': native,
         }
 
     def list_resources(self, request):
@@ -326,8 +338,11 @@ class OpenSearchSQLPPLClient:
             if exc.status not in {400, 403, 404}:
                 raise
             document = None
-        values = (document.get('datasources', document.get('dataSources', []))
-                  if isinstance(document, Mapping) else [])
+        values = (
+            document if isinstance(document, list) else
+            document.get('datasources', document.get('dataSources', []))
+            if isinstance(document, Mapping) else []
+        )
         for item in values if isinstance(values, list) else []:
             native = item if isinstance(item, Mapping) else {'name': item}
             name = native.get('name') or native.get('dataSourceName')
@@ -530,8 +545,34 @@ class OpenSearchSQLPPLClient:
             )
         draft, target = payload.get('draft', {}), payload.get('target', {})
         if operation == 'inspect':
-            response = self._request(route, '/_cat/plugins',
-                                     query={'format': 'json'})
+            if kind == 'catalog':
+                path = '/_plugins/_query/_datasources'
+                query = None
+            elif kind == 'data-source':
+                name = target.get('name') or target.get('dataSourceName')
+                path = (
+                    '/_plugins/_query/_datasources/' +
+                    urllib.parse.quote(_name(name), safe='')
+                )
+                query = None
+            elif kind in {'query', 'prepared-query'}:
+                language = str(
+                    target.get('language') or draft.get('language') or 'sql'
+                ).casefold()
+                if language not in {'sql', 'ppl'}:
+                    raise OpenSearchSQLPPLClientError(
+                        'query language is invalid'
+                    )
+                path = f'/_plugins/_{language}/stats'
+                query = None
+            elif kind == 'language-settings':
+                path = '/_cluster/settings'
+                query = {'include_defaults': 'true', 'flat_settings': 'true'}
+            else:
+                raise OpenSearchSQLPPLClientError(
+                    'inspection is unavailable'
+                )
+            response = self._request(route, path, query=query)
             native = response.json()
         elif kind in {'query', 'prepared-query'} and operation == 'execute':
             result = self._query(route, draft['source'], draft['language'],
@@ -560,7 +601,7 @@ class OpenSearchSQLPPLClient:
             native = response.json()
         elif kind == 'language-settings' and operation == 'alter':
             response = self._request(
-                route, '/_cluster/settings', method='PUT',
+                route, '/_plugins/_query/settings', method='PUT',
                 json_body=_mapping(draft['definition'], 'settings'),
                 mutating=True,
             )

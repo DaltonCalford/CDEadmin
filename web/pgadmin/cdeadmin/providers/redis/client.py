@@ -940,6 +940,34 @@ class RedisClient:
 
     @classmethod
     def _resource(cls, kind, name, native, parent=None, generation=None):
+        native = copy.deepcopy(native)
+        if kind in cls.DATA_KINDS:
+            native['state'] = {
+                key: copy.deepcopy(native[key])
+                for key in ('data_type', 'ttl_ms', 'encoding', 'memory_bytes')
+                if key in native
+            }
+            if 'value' in native:
+                native['data'] = copy.deepcopy(native['value'])
+        elif kind in {'key', 'ttl'}:
+            native['state'] = {
+                key: copy.deepcopy(native[key])
+                for key in ('data_type', 'ttl_ms') if key in native
+            }
+        elif kind == 'database' and 'statistics' in native:
+            native['statistics'] = copy.deepcopy(native['statistics'])
+        elif kind in {
+            'deployment', 'node', 'replica', 'sentinel', 'cluster-slot',
+            'consumer-group', 'consumer', 'persistence', 'client',
+            'latency', 'transaction', 'pipeline',
+        }:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {'configuration', 'module', 'function-library'}:
+            native['definition'] = copy.deepcopy(native)
+        elif kind in {'slow-log', 'pubsub-channel'}:
+            native['data'] = copy.deepcopy(native.get('value', native))
+        elif kind == 'acl-user':
+            native['security'] = copy.deepcopy(native)
         label = name if isinstance(name, str) else str(cls._json_value(name))
         identity = json.dumps(
             [kind, cls._json_value(native)], sort_keys=True, default=str
@@ -1306,6 +1334,7 @@ class RedisClient:
             return result
         commands = {
             'deployment': ('INFO',), 'node': ('INFO', 'server'),
+            'database': ('DBSIZE',),
             'replica': ('INFO', 'replication'),
             'persistence': ('INFO', 'persistence'),
             'configuration': ('CONFIG', 'GET', '*'),
@@ -1315,6 +1344,9 @@ class RedisClient:
             'module': ('MODULE', 'LIST'),
             'pubsub-channel': ('PUBSUB', 'CHANNELS'),
             'function-library': ('FUNCTION', 'LIST'),
+            'script': (
+                'SCRIPT', 'EXISTS', native.get('sha', native.get('name'))
+            ),
             'acl-user': ('ACL', 'GETUSER', native.get('username', 'default')),
             'cluster-slot': ('CLUSTER', 'SLOTS'),
         }
@@ -1443,8 +1475,38 @@ class RedisClient:
                 'sentinel', 'cluster-slot'
             ),
         }}
+        mutation_classes = {
+            'inspect': 'read',
+            'create': 'write', 'alter': 'write', 'rename': 'write',
+            'insert': 'write', 'update': 'write',
+            'grant': 'admin', 'revoke': 'admin', 'execute': 'admin',
+            'delete': 'destructive', 'drop': 'destructive',
+        }
         for resource in catalog.get('objects', []):
             kind = resource['resource_kind']
+            admitted = self.ADMIN_OPERATIONS.get(kind, frozenset())
+            existing = {
+                operation['operation_id']: operation
+                for operation in resource.get('operations', [])
+                if operation['operation_id'] in admitted
+            }
+            for operation_id in sorted(admitted.difference(existing)):
+                existing[operation_id] = {
+                    'operation_id': operation_id,
+                    'title': operation_id.replace('-', ' ').title(),
+                    'mutation_class': mutation_classes[operation_id],
+                    'form_id': operation_id,
+                    'target_required': operation_id not in {
+                        'create', 'insert',
+                    },
+                    'confirmation_required': operation_id in {
+                        'delete', 'drop',
+                    },
+                }
+            resource['operations'] = [
+                existing[operation_id]
+                for operation_id in sorted(existing)
+            ]
             for operation in resource.get('operations', []):
                 form = self._admin_form(kind, operation['operation_id'])
                 if form is not None:
@@ -1840,6 +1902,51 @@ class RedisClient:
             )
         if operation == 'inspect':
             return {'commands': []}
+        if kind in self.TOOL_KINDS:
+            action = _text(
+                draft.get('action'), 'Redis tool action'
+            ).lower()
+            arguments = _mapping(
+                draft.get('arguments', {}), 'tool arguments'
+            )
+            route = self._route({
+                'route': payload.get('_provider_route')
+            })
+            if kind == 'shell' and action == 'command':
+                commands = self._command_arrays([
+                    arguments.get('command')
+                ])
+                return {'commands': [
+                    (b'redis-cli', *commands[0])
+                ]}
+            if kind in {'backup', 'export'} and action == 'rdb':
+                path = self._workspace_path(
+                    route['tool_workspace'], arguments.get('file'),
+                    'RDB output',
+                )
+                return {'commands': [
+                    (b'redis-cli', b'--rdb', str(path).encode('utf-8'))
+                ]}
+            if kind in {'restore', 'import'} and action == 'pipe':
+                path = self._workspace_path(
+                    route['tool_workspace'], arguments.get('file'),
+                    'pipe input',
+                )
+                return {'commands': [
+                    (b'redis-cli', b'--pipe', str(path).encode('utf-8'))
+                ]}
+            if kind == 'backup' and action in {
+                    'check-rdb', 'check-aof'}:
+                path = self._workspace_path(
+                    route['tool_workspace'], arguments.get('file'),
+                    'check input',
+                )
+                return {'commands': [(
+                    action.encode('ascii'), str(path).encode('utf-8')
+                )]}
+            raise RedisClientError(
+                f'Redis {kind} tool action is not admitted'
+            )
         if kind in self.DATA_KINDS:
             identity = None
             if operation in {'update', 'delete'}:
@@ -2758,7 +2865,7 @@ class RedisClient:
 
     def _tool_arguments(self, route):
         arguments = ['-h', route['host'], '-p', str(route['port']),
-                     '-n', str(route['database']), '--resp3']
+                     '-n', str(route['database']), '-3']
         if route.get('username'):
             arguments.extend(('--user', route['username']))
         if route['tls_mode'] != 'disabled':
@@ -2775,6 +2882,14 @@ class RedisClient:
     def _apply_tool(self, payload, route):
         kind = payload['resource_kind']
         draft = payload.get('draft', {})
+        if payload['operation_id'] == 'inspect':
+            return {
+                'available_executables': self._tool_runner.available(),
+                'provider_owned': True,
+                'driver_observation_only': True,
+                'automatic_retry_performed': False,
+                'common_finality_inference': False,
+            }
         action = _text(draft.get('action'), 'Redis tool action').lower()
         arguments = _mapping(draft.get('arguments', {}), 'tool arguments')
         if kind == 'shell':
@@ -2815,22 +2930,33 @@ class RedisClient:
                 'redis-check-rdb' if action == 'check-rdb'
                 else 'redis-check-aof'
             )
-            return self._tool_runner.run(
+            result = self._tool_runner.run(
                 self._tool_grant(executable, route), [str(source)]
             )
+            return self._require_tool_success(result)
         raise RedisClientError(f'Redis {kind} tool action is not admitted')
+
+    @staticmethod
+    def _require_tool_success(result):
+        if result.get('return_code') != 0:
+            raise RedisClientError(
+                f'Redis {result.get("executable_id", "tool")} failed '
+                f'with exit status {result.get("return_code")}'
+            )
+        return result
 
     def _run_redis_cli(self, route, arguments, input_bytes=b''):
         reference = route.get('credential_reference_id')
 
         def run(password=None):
             environment = {'REDISCLI_AUTH': password} if password else None
-            return self._tool_runner.run(
+            result = self._tool_runner.run(
                 self._tool_grant('redis-cli', route), arguments,
                 input_bytes=input_bytes,
                 secret_environment=environment,
                 redact_values=(password,) if password else (),
             )
+            return self._require_tool_success(result)
 
         if reference is None:
             return run()

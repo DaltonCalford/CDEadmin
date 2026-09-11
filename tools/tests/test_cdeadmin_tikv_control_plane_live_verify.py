@@ -49,7 +49,7 @@ class TiKVControlPlaneLiveVerifierTests(unittest.TestCase):
         self.assertIn('create', replication['placement-rule'])
         cluster = concepts['sentinel_or_cluster_state']['operations']
         self.assertIn('transfer_leader', cluster['region'])
-        self.assertNotIn('keyspace', cluster)
+        self.assertIn('create', cluster['keyspace'])
         self.assertNotIn('config.replica-schedule-limit', cluster['cluster'])
 
 

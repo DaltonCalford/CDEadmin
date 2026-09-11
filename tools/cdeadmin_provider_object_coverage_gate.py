@@ -33,7 +33,7 @@ if 'pgadmin' not in sys.modules:
 
 from pgadmin.cdeadmin.providers import BUILTIN_PACKAGES  # noqa: E402
 from pgadmin.cdeadmin.providers.postgresql.preserved_surface import (  # noqa: E402
-    SURFACE_ID, concept_declarations,
+    SURFACE_ID, adapt_catalog, concept_declarations,
 )
 from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
     catalog_for_engine, enrich_engine_experience,
@@ -84,7 +84,7 @@ def _context(identity):
 
 def _postgresql_descriptor():
     """Bind PostgreSQL to its audited, preserved native administration UI."""
-    descriptor = copy.deepcopy(catalog_for_engine('postgresql'))
+    descriptor = adapt_catalog(catalog_for_engine('postgresql'))
     operation_count = sum(
         len(resource['operations']) for resource in descriptor['objects']
     )

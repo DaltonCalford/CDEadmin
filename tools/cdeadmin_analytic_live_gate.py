@@ -147,6 +147,10 @@ def _route(args, reference, password):
         route['operation_timeout'] = 120
         route['consistency_level'] = 'Strong'
         route['auth_kind'] = 'basic' if password is not None else 'none'
+        # The CDEadmin principal authorizes access to separately stored
+        # administrative secret references.  It is required even when the
+        # disposable Milvus endpoint itself permits anonymous connections.
+        route['principal_reference'] = 'cdeadmin-analytic-live-gate'
     else:
         route['statement_timeout'] = 120
         route['auth_kind'] = args.auth_kind or auth_kind
@@ -194,11 +198,14 @@ def _target(engine, kind, **native):
 def _influxdb(client, route, run_id, destructive, acquire):
     evidence = {}
     required_operations = {
+        'cluster': {'inspect'}, 'node': {'inspect'},
+        'database': {'inspect', 'create', 'alter', 'drop'},
         'table': {'inspect', 'create', 'insert', 'drop'},
-        'tag': {'inspect'}, 'field': {'inspect'},
+        'column': {'inspect'}, 'tag': {'inspect'}, 'field': {'inspect'},
         'retention-policy': {'inspect', 'alter'},
         'last-cache': {'inspect', 'create', 'drop'},
         'distinct-cache': {'inspect', 'create', 'drop'},
+        'token': {'inspect', 'drop'}, 'compaction': {'inspect'},
         'processing-engine': {'inspect', 'execute'},
         'trigger': {'inspect', 'execute'},
         'plugin': {'inspect', 'execute'},
@@ -233,9 +240,34 @@ def _influxdb(client, route, run_id, destructive, acquire):
     created_last_cache = False
     created_distinct_cache = False
     created_trigger = False
+    token_name = f'cdeadmin_token_{run_id}'
+    created_token = False
     try:
-        _admin(client, route, 'database', 'create', {'name': database})
+        admin(
+            'cluster', 'inspect', {},
+            _target('influxdb', 'cluster', name=route['host']),
+        )
+        node = next((
+            item for item in resources
+            if item.get('resource_kind') == 'node'
+        ), None)
+        if node is None:
+            raise RuntimeError('InfluxDB node was not discovered')
+        admin(
+            'node', 'inspect', {},
+            _target('influxdb', 'node', **node['native']),
+        )
+        admin('database', 'create', {'name': database})
         created_database = True
+        database_target = _target(
+            'influxdb', 'database', name=database, database=database,
+        )
+        admin('database', 'inspect', {}, database_target)
+        admin(
+            'database', 'alter', {
+                'name': database, 'retention_period': '14d',
+            }, database_target,
+        )
         changed = dict(route, database=database)
         session = client.open_session({'route': changed})
         try:
@@ -274,6 +306,7 @@ def _influxdb(client, route, run_id, destructive, acquire):
         )
         admin('tag', 'inspect', {}, tag_target)
         admin('field', 'inspect', {}, field_target)
+        admin('column', 'inspect', {}, field_target)
         retention_target = _target(
             'influxdb', 'retention-policy', database=database,
             name='retention',
@@ -454,8 +487,39 @@ def _influxdb(client, route, run_id, destructive, acquire):
             }
         finally:
             provider.close()
+
+        admin(
+            'compaction', 'inspect', {},
+            _target(
+                'influxdb', 'compaction', name='compaction',
+                database=database,
+            ),
+        )
+        client._request(  # noqa: SLF001 - disposable fixture precondition
+            client._route({'route': route}),  # noqa: SLF001
+            '/api/v3/configure/token/named_admin', method='POST',
+            json_body={'token_name': token_name, 'expiry_secs': 3600},
+            mutating=True,
+        ).json()
+        created_token = True
+        token_target = _target(
+            'influxdb', 'token', name=token_name,
+        )
+        admin('token', 'inspect', {}, token_target)
+        admin(
+            'token', 'drop', {'acknowledge_drop': True}, token_target,
+        )
+        created_token = False
     finally:
         changed = dict(route, database=database)
+        if created_token:
+            try:
+                admin(
+                    'token', 'drop', {'acknowledge_drop': True},
+                    _target('influxdb', 'token', name=token_name),
+                )
+            except Exception:
+                pass
         if created_trigger:
             admin('trigger', 'execute', {
                 'action': 'delete', 'database': database,
@@ -486,9 +550,8 @@ def _influxdb(client, route, run_id, destructive, acquire):
                 _target('influxdb', 'table', db=database, name=table),
             )
         if created_database:
-            _admin(
-                client, route, 'database', 'drop',
-                {
+            admin(
+                'database', 'drop', {
                     'acknowledge_drop': True, 'hard_delete_mode': 'now',
                 },
                 _target('influxdb', 'database', name=database),
@@ -659,6 +722,11 @@ def _opensearch(client, sql_client, route, run_id, destructive):
 def _milvus(client, route, run_id, destructive):
     evidence = {}
     required_operations = {
+        'alias': {'inspect', 'create', 'alter', 'drop'},
+        'cluster': {'inspect'},
+        'compaction': {'inspect', 'execute'},
+        'credential': {'inspect', 'alter'},
+        'database': {'inspect', 'create', 'alter', 'drop'},
         'collection': {
             'inspect', 'create', 'alter', 'rename', 'insert', 'update',
             'delete', 'drop',
@@ -670,6 +738,11 @@ def _milvus(client, route, run_id, destructive):
         },
         'load-state': {'inspect', 'execute'},
         'resource-group': {'inspect', 'create', 'alter', 'drop'},
+        'privilege': {'inspect', 'grant', 'revoke'},
+        'role': {'inspect', 'create', 'grant', 'revoke', 'drop'},
+        'user': {
+            'inspect', 'create', 'alter', 'grant', 'revoke', 'drop',
+        },
     }
     observed = {kind: set() for kind in required_operations}
 
@@ -695,7 +768,13 @@ def _milvus(client, route, run_id, destructive):
     partition = f'partition_{run_id}'
     index = f'index_{run_id}'
     alias = f'alias_{run_id}'
+    alias_collection = f'alias_target_{run_id}'
     resource_group = f'group_{run_id}'
+    database = f'database_{run_id}'
+    role = f'role_{run_id}'
+    user = f'user_{run_id}'
+    password_one = f'milvus-admin-one-{run_id}'
+    password_two = f'milvus-admin-two-{run_id}'
     collection_target = _target(
         'milvus', 'collection', name=collection, database=route['database']
     )
@@ -718,12 +797,70 @@ def _milvus(client, route, run_id, destructive):
     group_target = _target(
         'milvus', 'resource-group', name=resource_group,
     )
+    database_target = _target('milvus', 'database', name=database)
+    role_target = _target('milvus', 'role', name=role, role_name=role)
+    user_target = _target('milvus', 'user', name=user, user_name=user)
+    credential_target = _target(
+        'milvus', 'credential', name=user, user_name=user,
+    )
+    privilege_target = _target(
+        'milvus', 'privilege', name='Collection:*:Search', role_name=role,
+        object_type='Collection', object_name='*', privilege='Search',
+    )
     collection_created = False
     partition_created = False
     index_created = False
     alias_created = False
+    alias_collection_created = False
     group_created = False
+    database_created = False
+    role_created = False
+    user_created = False
     try:
+        cluster_target = next(
+            item for item in client.list_resources({'route': route})
+            if item['resource_kind'] == 'cluster'
+        )
+        admin('cluster', 'inspect', {}, cluster_target)
+        admin('database', 'create', {
+            'name': database, 'max_collections': 100,
+        })
+        database_created = True
+        admin('database', 'inspect', {}, database_target)
+        admin('database', 'alter', {
+            'max_collections': 101,
+        }, database_target)
+
+        admin('role', 'create', {'name': role})
+        role_created = True
+        admin('role', 'inspect', {}, role_target)
+        admin('user', 'create', {
+            'name': user, 'password_reference': password_one,
+        })
+        user_created = True
+        admin('user', 'inspect', {}, user_target)
+        admin('credential', 'inspect', {}, credential_target)
+        admin('user', 'alter', {
+            'current_password_reference': password_one,
+            'new_password_reference': password_two,
+        }, user_target)
+        admin('credential', 'alter', {
+            'current_password_reference': password_two,
+            'new_password_reference': password_one,
+        }, credential_target)
+        for operation in ('grant', 'revoke'):
+            admin('user', operation, {
+                'user_name': user, 'role_name': role,
+            }, user_target)
+            admin('role', operation, {
+                'role_name': role, 'object_type': 'Collection',
+                'object_name': '*', 'privilege': 'Query',
+            }, role_target)
+            admin('privilege', operation, {
+                'role_name': role, 'object_type': 'Collection',
+                'object_name': '*', 'privilege': 'Search',
+            }, privilege_target)
+        admin('privilege', 'inspect', {}, privilege_target)
         admin('resource-group', 'create', {'name': resource_group})
         group_created = True
         admin('resource-group', 'inspect', {}, group_target)
@@ -754,6 +891,11 @@ def _milvus(client, route, run_id, destructive):
             },
         })
         collection_created = True
+        admin('collection', 'create', {
+            'name': alias_collection,
+            'dimension': 4, 'metric_type': 'COSINE',
+        })
+        alias_collection_created = True
         admin('collection', 'inspect', {}, collection_target)
         admin('collection', 'alter', {
             'ttl_seconds': 3600,
@@ -790,11 +932,17 @@ def _milvus(client, route, run_id, destructive):
         admin('vector-index', 'alter', {
             'mmap_mode': 'enabled',
         }, index_target)
-        _admin(client, route, 'alias', 'create', {
+        admin('alias', 'create', {
             'collection_name': collection, 'name': alias,
         })
         alias_created = True
-        _admin(client, route, 'alias', 'inspect', {}, alias_target)
+        admin('alias', 'inspect', {}, alias_target)
+        admin('alias', 'alter', {
+            'collection_name': alias_collection, 'name': alias,
+        }, alias_target)
+        admin('alias', 'alter', {
+            'collection_name': collection, 'name': alias,
+        }, alias_target)
 
         discovered = client.list_resources({'route': route})
         discovered_kinds = {
@@ -873,14 +1021,37 @@ def _milvus(client, route, run_id, destructive):
             'collection_name': collection, 'partition_name': partition,
             'ids': [2], 'acknowledge_delete': True,
         }, partition_target)
+        compaction_result = admin('compaction', 'execute', {
+            'collection_name': collection, 'compaction_kind': 'merge',
+            'acknowledge_operation': True,
+        }, _target(
+            'milvus', 'compaction', collection_name=collection,
+            database=route['database'],
+        ))
+        compaction_native = compaction_result['result'][
+            'native_response'
+        ]
+        job_id = (
+            compaction_native.get('compaction_id')
+            if isinstance(compaction_native, dict) else compaction_native
+        )
+        admin('compaction', 'inspect', {}, _target(
+            'milvus', 'compaction', collection_name=collection,
+            database=route['database'], job_id=job_id,
+        ))
         admin('load-state', 'execute', {
             'action': 'release', 'acknowledge_operation': True,
         }, load_target)
-        _admin(
-            client, route, 'alias', 'drop',
+        admin(
+            'alias', 'drop',
             {'acknowledge_drop': True}, alias_target,
         )
         alias_created = False
+        admin('collection', 'drop', {'acknowledge_drop': True}, _target(
+            'milvus', 'collection', name=alias_collection,
+            database=route['database'],
+        ))
+        alias_collection_created = False
         admin(
             'vector-index', 'drop', {'acknowledge_drop': True}, index_target,
         )
@@ -914,8 +1085,25 @@ def _milvus(client, route, run_id, destructive):
             'resource-group', 'drop', {'acknowledge_drop': True}, group_target,
         )
         group_created = False
+        admin('user', 'drop', {'acknowledge_drop': True}, user_target)
+        user_created = False
+        admin('role', 'drop', {'acknowledge_drop': True}, role_target)
+        role_created = False
+        admin(
+            'database', 'drop', {'acknowledge_drop': True}, database_target,
+        )
+        database_created = False
         evidence['mutation_vector_round_trip'] = True
     finally:
+        if user_created:
+            admin('user', 'drop', {'acknowledge_drop': True}, user_target)
+        if role_created:
+            admin('role', 'drop', {'acknowledge_drop': True}, role_target)
+        if database_created:
+            admin(
+                'database', 'drop', {'acknowledge_drop': True},
+                database_target,
+            )
         if collection_created:
             if alias_created:
                 _admin(
@@ -941,6 +1129,13 @@ def _milvus(client, route, run_id, destructive):
                 'collection', 'drop', {'acknowledge_drop': True},
                 collection_target,
             )
+        if alias_collection_created:
+            admin('collection', 'drop', {
+                'acknowledge_drop': True,
+            }, _target(
+                'milvus', 'collection', name=alias_collection,
+                database=route['database'],
+            ))
         if group_created:
             admin('resource-group', 'alter', {
                 'requested_nodes': 0, 'limit_nodes': 0,
@@ -1002,9 +1197,14 @@ def verify(args):
     reference = f'{args.engine}-live-credential'
 
     def acquire(selected, _principal, _purpose, _kind):
-        if selected != reference or password is None:
-            raise RuntimeError('qualification secret is unavailable')
-        return _Lease(password)
+        if selected == reference and password is not None:
+            return _Lease(password)
+        # Milvus visual RBAC tests use reference IDs as opaque selectors.
+        # Their values are generated per run and never enter evidence.
+        if args.engine == 'milvus' and selected.startswith(
+                'milvus-admin-'):
+            return _Lease('CDEadmin-' + selected[-12:] + '-A7!')
+        raise RuntimeError('qualification secret is unavailable')
 
     route = _route(args, reference, password)
     run_id = uuid.uuid4().hex[:12]

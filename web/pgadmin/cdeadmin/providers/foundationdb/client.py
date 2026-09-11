@@ -1,5 +1,6 @@
 """FoundationDB API 730 client boundary."""
 
+import base64
 import copy
 import importlib
 import json
@@ -113,6 +114,16 @@ CONTROL_OPERATIONS = (
         ), impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
+        'configuration', 'set_tenant_mode', 'Set tenant mode',
+        'destructive', 'topology_admin', (
+            _choice('tenant_mode', 'Tenant mode', (
+                ('disabled', 'Disabled'),
+                ('optional_experimental', 'Optional experimental'),
+                ('required_experimental', 'Required experimental'),
+            ), required=True),
+        ), impact_scope='cluster', long_running=True
+    ),
+    ControlPlaneOperation(
         'backup', 'start', 'Start continuous backup', 'admin',
         'backup_admin', (
             cp_field('destination_url', 'Approved backup container URL',
@@ -133,12 +144,14 @@ CONTROL_OPERATIONS = (
         post_state_required=False
     ),
     ControlPlaneOperation(
-        'backup', 'pause', 'Pause continuous backup', 'admin',
-        'backup_admin', impact_scope='cluster', long_running=True
+        'backup', 'pause', 'Pause all backup agents', 'admin',
+        'backup_admin', target_required=False, impact_scope='cluster',
+        long_running=True, post_state_required=False
     ),
     ControlPlaneOperation(
-        'backup', 'resume', 'Resume continuous backup', 'admin',
-        'backup_admin', impact_scope='cluster', long_running=True
+        'backup', 'resume', 'Resume all backup agents', 'admin',
+        'backup_admin', target_required=False, impact_scope='cluster',
+        long_running=True, post_state_required=False
     ),
     ControlPlaneOperation(
         'backup', 'discontinue', 'Discontinue continuous backup',
@@ -154,7 +167,8 @@ CONTROL_OPERATIONS = (
         'backup_admin', (
             cp_field('destination_url', 'Approved backup container URL',
                      'text', True, max_length=4096, sensitive=True),
-        ), impact_scope='cluster', long_running=True
+        ), target_required=False, impact_scope='cluster', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'restore', 'start', 'Start database restore', 'destructive',
@@ -165,6 +179,10 @@ CONTROL_OPERATIONS = (
                      max_length=255, pattern=r'[A-Za-z0-9_.:-]+'),
             cp_field('wait_for_done', 'Wait for completion', 'boolean',
                      False, default=False),
+            cp_field('add_prefix', 'Add UTF-8 key prefix', 'text', False,
+                     max_length=1024),
+            cp_field('remove_prefix', 'Remove UTF-8 key prefix', 'text',
+                     False, max_length=1024),
         ), target_required=False, impact_scope='cluster', long_running=True,
         cancellable=True
     ),
@@ -188,7 +206,6 @@ ADMIN_OPERATIONS = {
     'subspace': {'inspect'},
     'key-range': {'inspect', 'insert', 'update', 'delete'},
     'key': {'inspect', 'insert', 'update', 'delete'},
-    'transaction': {'inspect'}, 'watch': {'inspect'},
     'backup': {'inspect'}, 'restore': {'inspect'},
 }
 for _control_operation in CONTROL_OPERATIONS:
@@ -218,6 +235,8 @@ class FoundationDBBackend:
         self._databases = []
         self._database_routes = {}
         self._row_identities = KeyIdentityStore()
+        self._known_backup_urls = {}
+        self._known_restore_tags = set()
         self.secret_acquirer = secret_acquirer
 
     @staticmethod
@@ -317,11 +336,17 @@ class FoundationDBBackend:
     def _trusted_file(value, label, executable=False):
         if not isinstance(value, str) or not value:
             raise NativeDistributedError(f'FoundationDB {label} is required')
-        path = Path(value).expanduser().resolve()
-        if not path.is_file() or (executable and not os.access(path, os.X_OK)):
+        invoked_path = Path(value).expanduser().absolute()
+        resolved_path = invoked_path.resolve()
+        if not resolved_path.is_file() or (
+                executable and not os.access(resolved_path, os.X_OK)):
             raise NativeDistributedError(
                 f'FoundationDB {label} is unavailable')
-        return str(path)
+        # FoundationDB ships fdbrestore as a symlink to the fdbbackup
+        # multi-call binary. The executable selects its grammar from argv[0],
+        # so retain the validated invocation name rather than returning the
+        # resolved target path.
+        return str(invoked_path)
 
     def _run_cli(self, route, command, timeout=30):
         executable = self._trusted_file(
@@ -404,6 +429,120 @@ class FoundationDBBackend:
         self._database_routes[id(database)] = route
         return database
 
+    def _directory_resources(self, database, generation):
+        """Walk the native directory layer without inventing SQL schemas."""
+        values = []
+        pending = [()]
+        visited = set()
+        while pending and len(visited) < 10000:
+            parent = pending.pop()
+            try:
+                children = self.fdb.directory.list(database, parent)
+            except Exception:
+                continue
+            for child in children:
+                path = (*parent, child)
+                if path in visited:
+                    continue
+                visited.add(path)
+                native = {'path': list(path)}
+                try:
+                    subspace = self.fdb.directory.open(database, path)
+                    prefix = bytes(subspace.key())
+                    native['prefix_base64'] = base64.b64encode(
+                        prefix
+                    ).decode('ascii')
+                    layer = bytes(subspace.get_layer())
+                    native['layer_base64'] = base64.b64encode(
+                        layer
+                    ).decode('ascii')
+                    try:
+                        native['layer'] = layer.decode('utf-8')
+                    except UnicodeDecodeError:
+                        native['layer'] = None
+                except Exception:
+                    pass
+                values.append(resource(
+                    'directory', list(parent), child, generation, native,
+                ))
+                # A DirectorySubspace has both directory-layer metadata and
+                # an actual byte-prefix subspace. Expose both native concepts.
+                values.append(resource(
+                    'subspace', list(path), 'data', generation, native,
+                ))
+                pending.append(path)
+        return values
+
+    def _tenant_resources(self, route, generation):
+        values = []
+        listing = self._run_cli(route, 'tenant list', timeout=15)['stdout']
+        for line in listing.splitlines():
+            match = re.fullmatch(r'\s*\d+\.\s+(.+?)\s*', line)
+            if match is None:
+                continue
+            name = match.group(1)
+            try:
+                token = self._safe_token(name, 'tenant name')
+                result = self._run_cli(
+                    route, f'tenant get {token} JSON', timeout=15,
+                )
+                document = json.loads(result['stdout'])
+                native = document.get('tenant', {})
+                if not isinstance(native, Mapping):
+                    native = {'name': name}
+            except (NativeDistributedError, TypeError, ValueError):
+                native = {'name': name}
+            values.append(resource('tenant', [], name, generation, native))
+        return values
+
+    def _backup_resources(self, route, generation):
+        values = []
+        if not route.get('fdbbackup_path'):
+            return values
+        result = self._run_backup_tool(
+            route, 'fdbbackup', [
+                'tags', '-C', '__cluster_file__',
+            ], timeout=30,
+        )
+        for line in result['stdout'].splitlines():
+            tag = line.strip()
+            if not tag or re.fullmatch(r'[A-Za-z0-9_.:-]+', tag) is None:
+                continue
+            status = self._run_backup_tool(
+                route, 'fdbbackup', [
+                    'status', '-C', '__cluster_file__', '-t', tag, '--json',
+                ], timeout=30,
+            )
+            try:
+                native = json.loads(status['stdout'])
+            except (TypeError, ValueError):
+                native = {'status_text': status['stdout']}
+            destination = native.get('DestinationURL')
+            if isinstance(destination, str) and destination:
+                self._known_backup_urls[tag] = destination
+            values.append(resource('backup', [], tag, generation, native))
+        return values
+
+    def _restore_resources(self, route, generation):
+        values = []
+        if not route.get('fdbrestore_path'):
+            return values
+        # Restore tags are retained when CDEadmin starts or observes them.
+        # fdbrestore 7.3 has no tag-list action, so do not fabricate tags from
+        # the untagged human status output.
+        for tag in sorted(self._known_restore_tags):
+            status = self._run_backup_tool(
+                route, 'fdbrestore', [
+                    'status', '--dest-cluster-file', '__cluster_file__',
+                    '-t', tag,
+                ], timeout=30,
+            )
+            values.append(resource(
+                'restore', [], tag, generation,
+                {'status_text': status['stdout']},
+            ))
+        return values
+
     def list_resources(self, request):
         database = self.open_session(request)
         generation = str(request.get('capability_generation') or 'current')
@@ -414,12 +553,17 @@ class FoundationDBBackend:
                 'maximum_page_size': 500,
             },
         ))
+        values.extend(self._directory_resources(database, generation))
+        route = self._route(request)
         try:
-            for name in self.fdb.directory.list(database):
-                values.append(resource('directory', [], name, generation))
+            values.extend(self._tenant_resources(route, generation))
         except Exception:
             pass
-        route = self._route(request)
+        try:
+            values.extend(self._backup_resources(route, generation))
+            values.extend(self._restore_resources(route, generation))
+        except Exception:
+            pass
         try:
             status = json.loads(self._run_cli(
                 route, 'status json', timeout=15
@@ -627,6 +771,17 @@ class FoundationDBBackend:
                     'message': str(exc),
                 }]}
             return {'errors': []}
+        if request.get('resource_kind') == 'directory' and request.get(
+                'operation_id') in {'create', 'drop'}:
+            draft = request.get('draft') or {}
+            errors = []
+            if request['operation_id'] == 'create' and not isinstance(
+                    draft.get('name'), str):
+                errors.append({
+                    'field_id': 'name', 'code': 'type',
+                    'message': 'Directory path segment must be text.',
+                })
+            return {'errors': errors}
         return validate_key_value_request(request, {'key', 'key-range'})
 
     @staticmethod
@@ -667,6 +822,15 @@ class FoundationDBBackend:
                 response = self._run_backup_tool(
                     route, compiled['tool'], compiled['arguments']
                 )
+                draft = payload.get('draft') or {}
+                if payload['resource_kind'] == 'backup' and operation == (
+                        'start'):
+                    self._known_backup_urls[draft['tag_name']] = draft[
+                        'destination_url'
+                    ]
+                elif payload['resource_kind'] == 'restore' and operation == (
+                        'start'):
+                    self._known_restore_tags.add(draft['tag_name'])
             else:
                 response = self._run_cli(route, compiled['command'])
             return {
@@ -679,12 +843,32 @@ class FoundationDBBackend:
         if payload['resource_kind'] == 'directory' and operation in {
                 'create', 'drop'}:
             database = self.open_session({'route': payload['_provider_route']})
-            name = (payload.get('draft', {}).get('name') or
-                    payload.get('target_resource', {}).get('display_name'))
             if operation == 'create':
-                self.fdb.directory.create(database, (name,))
+                name = self._safe_token(
+                    (payload.get('draft') or {}).get('name'),
+                    'directory path segment', r'[^\x00-\x1f/\\]+', 255,
+                )
+                target = payload.get('target_resource')
+                native = self._target_native(payload)
+                parent = native.get('path') if isinstance(
+                    native.get('path'), list
+                ) and isinstance(target, Mapping) and target.get(
+                    'resource_kind') == 'directory' else []
+                path = tuple([*parent, name])
+                self.fdb.directory.create(database, path)
             else:
-                self.fdb.directory.remove(database, (name,))
+                native = self._target_native(payload)
+                path = native.get('path')
+                if not isinstance(path, list) or not path:
+                    target = payload.get('target_resource') or {}
+                    path = [target.get('display_name')]
+                path = tuple(
+                    self._safe_token(
+                        item, 'directory path segment',
+                        r'[^\x00-\x1f/\\]+', 255,
+                    ) for item in path
+                )
+                self.fdb.directory.remove(database, path)
             return {'accepted': True, 'native_operation': operation}
         if payload['resource_kind'] in {'key', 'key-range'} and operation in {
                 'insert', 'update', 'delete'}:
@@ -971,9 +1155,27 @@ class FoundationDBBackend:
                 raise NativeDistributedError(
                     'FoundationDB data distribution state is invalid')
             command = f'datadistribution {state}'
+        elif kind == 'configuration' and operation == 'set_tenant_mode':
+            tenant_mode = draft.get('tenant_mode')
+            if tenant_mode not in {
+                    'disabled', 'optional_experimental',
+                    'required_experimental'}:
+                raise NativeDistributedError(
+                    'FoundationDB tenant mode is invalid')
+            command = f'configure tenant_mode={tenant_mode}'
         elif kind == 'backup':
-            tag = FoundationDBBackend._backup_tag(request)
-            arguments = [operation, '-C', '__cluster_file__', '-t', tag]
+            if operation in {'pause', 'resume'}:
+                arguments = [operation, '-C', '__cluster_file__']
+            elif operation == 'delete':
+                arguments = [
+                    operation, '-d', FoundationDBBackend._backup_url(
+                        request, 'destination_url'),
+                ]
+            else:
+                tag = FoundationDBBackend._backup_tag(request)
+                arguments = [
+                    operation, '-C', '__cluster_file__', '-t', tag,
+                ]
             if operation == 'start':
                 arguments.extend([
                     '-d', FoundationDBBackend._backup_url(
@@ -988,11 +1190,6 @@ class FoundationDBBackend:
                     arguments.extend(['-s', str(interval)])
                 if not draft.get('stop_when_restorable', True):
                     arguments.append('--no-stop-when-done')
-            elif operation == 'delete':
-                arguments.extend([
-                    '-d', FoundationDBBackend._backup_url(
-                        request, 'destination_url'),
-                ])
             return FoundationDBBackend._tool_plan(
                 request, 'fdbbackup', arguments)
         elif kind == 'restore':
@@ -1008,6 +1205,18 @@ class FoundationDBBackend:
                 ])
                 if draft.get('wait_for_done'):
                     arguments.append('--waitfordone')
+                for field_id, option in (
+                        ('add_prefix', '--add-prefix'),
+                        ('remove_prefix', '--remove-prefix')):
+                    value = draft.get(field_id)
+                    if value is not None:
+                        if not isinstance(value, str) or not value or len(
+                                value.encode('utf-8')) > 1024 or any(
+                                    character in value
+                                    for character in '\x00\r\n'):
+                            raise NativeDistributedError(
+                                f'FoundationDB {field_id} is invalid')
+                        arguments.extend([option, value])
             return FoundationDBBackend._tool_plan(
                 request, 'fdbrestore', arguments)
         if command is None:
@@ -1106,12 +1315,20 @@ class FoundationDBBackend:
         route = self._route(payload)
         if plan['resource_kind'] in {'backup', 'restore'}:
             kind = plan['resource_kind']
-            tag = self._backup_tag(payload)
-            arguments = [
-                'status',
-                '-C' if kind == 'backup' else '--dest-cluster-file',
-                '__cluster_file__', '-t', tag,
-            ]
+            if kind == 'backup' and plan['operation_id'] in {
+                    'pause', 'resume'}:
+                arguments = [
+                    'status', '-C', '__cluster_file__', '--json',
+                ]
+            else:
+                tag = self._backup_tag(payload)
+                arguments = [
+                    'status',
+                    '-C' if kind == 'backup' else '--dest-cluster-file',
+                    '__cluster_file__', '-t', tag,
+                ]
+                if kind == 'backup':
+                    arguments.append('--json')
             response = self._run_backup_tool(
                 route, 'fdbbackup' if kind == 'backup' else 'fdbrestore',
                 arguments, timeout=30,
@@ -1186,6 +1403,10 @@ class FoundationDBBackend:
                     draft.get('redundancy') and
                     configuration.get('storage_engine') ==
                     draft.get('storage_engine')
+                )
+            elif plan['operation_id'] == 'set_tenant_mode':
+                confirmed = configuration.get('tenant_mode') == draft.get(
+                    'tenant_mode'
                 )
         return {
             'confirmed': confirmed,
@@ -1267,3 +1488,5 @@ class FoundationDBBackend:
         self._databases.clear()
         self._database_routes.clear()
         self._row_identities.clear()
+        self._known_backup_urls.clear()
+        self._known_restore_tags.clear()

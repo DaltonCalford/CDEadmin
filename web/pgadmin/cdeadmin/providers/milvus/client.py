@@ -176,6 +176,7 @@ class MilvusClientAdapter:
             getattr(module, 'MilvusClient', None) if module else None
         )
         self._sessions = []
+        self._compaction_jobs = {}
         self._lock = threading.RLock()
 
     @staticmethod
@@ -515,13 +516,36 @@ class MilvusClientAdapter:
 
     def _resource(self, kind, name, native, path=None):
         path = path or [kind, name]
+        native = self._json_value(native)
+        if kind in {'cluster', 'resource-group', 'load-state', 'compaction'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {'database', 'field', 'vector-index', 'alias'}:
+            native['definition'] = copy.deepcopy(native)
+        elif kind == 'collection':
+            native['definition'] = {
+                key: copy.deepcopy(native[key])
+                for key in (
+                    'description', 'fields', 'enable_dynamic_field',
+                    'consistency_level', 'properties', 'num_shards',
+                ) if key in native
+            }
+            if 'statistics' in native:
+                native['statistics'] = copy.deepcopy(native['statistics'])
+        elif kind == 'partition' and 'statistics' in native:
+            native['statistics'] = copy.deepcopy(native['statistics'])
+        elif kind in {'user', 'role', 'credential'}:
+            native['security'] = copy.deepcopy(native)
+            if kind == 'role' and 'privileges' in native:
+                native['privileges'] = copy.deepcopy(native['privileges'])
+        elif kind == 'privilege':
+            native['privileges'] = [copy.deepcopy(native)]
         return {
             'resource_id': 'milvus:' + ':'.join(map(str, path)),
             'resource_kind': kind, 'display_name': str(name),
             'authority_path': ['milvus', *map(str, path)],
             'display_path': list(map(str, path)),
             'generation': self._generation(native),
-            'native': self._json_value(native),
+            'native': native,
         }
 
     @staticmethod
@@ -715,9 +739,17 @@ class MilvusClientAdapter:
                             'role_name': name, **privilege,
                         }, ['role', name, 'privilege', ordinal]
                     ))
-            resources.append(self._resource(
-                'compaction', 'compaction', {'engine_owned': True}
-            ))
+            with self._lock:
+                compaction_jobs = copy.deepcopy(self._compaction_jobs)
+            for job_id, job in compaction_jobs.items():
+                resources.append(self._resource(
+                    'compaction', str(job_id), {
+                        **job, 'job_id': job_id,
+                    }, [
+                        'database', job['database'], 'collection',
+                        job['collection_name'], 'compaction', job_id,
+                    ]
+                ))
             return resources
         finally:
             close = getattr(client, 'close', None)
@@ -1915,13 +1947,32 @@ class MilvusClientAdapter:
             return client.release_collection(collection_name=collection)
         if kind == 'compaction' and operation == 'execute':
             compaction_kind = draft.get('compaction_kind', 'merge')
-            return client.compact(
-                collection_name=_name(
-                    draft['collection_name'], 'collection'
-                ),
+            collection = _name(draft['collection_name'], 'collection')
+            result = client.compact(
+                collection_name=collection,
                 is_clustering=compaction_kind == 'clustering',
                 is_l0=compaction_kind == 'level-zero',
             )
+            native = self._json_value(result)
+            job_id = (
+                native.get('compaction_id')
+                if isinstance(native, Mapping) else native
+            )
+            if job_id is None:
+                raise MilvusClientError(
+                    'Milvus compaction did not return a job ID'
+                )
+            job_id = _integer(
+                job_id, 'compaction job ID', -1, -1, 2**63 - 1
+            )
+            if job_id >= 0:
+                with self._lock:
+                    self._compaction_jobs[job_id] = {
+                        'database': database,
+                        'collection_name': collection,
+                        'compaction_kind': compaction_kind,
+                    }
+            return result
         if kind in {'user', 'credential'} and operation in {'create', 'alter'}:
             user = _name(name, 'user')
             if operation == 'create':
@@ -2072,8 +2123,15 @@ class MilvusClientAdapter:
                     'job_id_required_for_state': True,
                 }
             job_id = _integer(
-                job_id, 'compaction job ID', 0, 0, 2**63 - 1
+                job_id, 'compaction job ID', -1, -1, 2**63 - 1
             )
+            if job_id == -1:
+                return {
+                    'collection_name': collection,
+                    'job_id': -1,
+                    'state': 'not-scheduled',
+                    'native_no_plan_sentinel': True,
+                }
             return {
                 'job_id': job_id,
                 'state': self._invoke(
@@ -2401,5 +2459,6 @@ class MilvusClientAdapter:
     def close(self):
         with self._lock:
             sessions, self._sessions = self._sessions, []
+            self._compaction_jobs = {}
         for session in sessions:
             session.close()

@@ -2031,6 +2031,18 @@ class ImmudbDBAPIClient(PsycopgPoolDBAPIClient):
                     {'transaction_id': transaction},
                 )
                 values[item['resource_id']] = item
+                item = resource(
+                    'proof', [database, name],
+                    f'transaction {transaction}', generation, {
+                        'database': database,
+                        'key_base64': entry.get('key'),
+                        'transaction_id': transaction,
+                        'prove_since_transaction_id': 0,
+                        'proof_material_loaded': False,
+                        'cryptographic_verification_performed': False,
+                    },
+                )
+                values[item['resource_id']] = item
             expiration = (entry.get('metadata') or {}).get('expiration')
             if isinstance(expiration, Mapping):
                 item = resource(
@@ -2121,6 +2133,52 @@ class ImmudbDBAPIClient(PsycopgPoolDBAPIClient):
                 '/authorization/session/close', {},
             )
         return list(values.values())
+
+    def inspect_resource(self, request):
+        """Lazily fetch exact native proof material for proof resources."""
+        item = super().inspect_resource(request)
+        if item.get('resource_kind') != 'proof':
+            return item
+        native = item.get('native')
+        if not isinstance(native, Mapping):
+            raise RelationalClientError(
+                'immudb proof target has no native identity'
+            )
+        key = native.get('key_base64')
+        transaction = native.get('transaction_id')
+        if not isinstance(key, str) or not key or transaction is None:
+            raise RelationalClientError(
+                'immudb proof target identity is incomplete'
+            )
+        route = self._route(request)
+        proof = self.rest_admin(
+            route, 'POST', '/db/verifiable/get', {
+                'keyRequest': {
+                    'key': key,
+                    'atTx': str(transaction),
+                    'sinceTx': '0',
+                    'noWait': False,
+                    'atRevision': '0',
+                },
+                'proveSinceTx': str(
+                    native.get('prove_since_transaction_id', 0)
+                ),
+            },
+            database=native.get('database'),
+        )['document']
+        if not isinstance(proof.get('entry'), Mapping) or not isinstance(
+                proof.get('verifiableTx'), Mapping):
+            raise RelationalClientError(
+                'immudb verifiable get returned incomplete proof material'
+            )
+        item = copy.deepcopy(item)
+        item['native'] = {
+            **copy.deepcopy(dict(native)),
+            'proof_material_loaded': True,
+            'cryptographic_verification_performed': False,
+            'proof_material': copy.deepcopy(dict(proof)),
+        }
+        return item
 
     def runtime_identity(self, request, handle=None):
         temporary = handle is None

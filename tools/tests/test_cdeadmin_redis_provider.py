@@ -463,12 +463,29 @@ class RedisProviderTestCase(unittest.TestCase):
             if item['resource_kind'] == 'consumer-group'
         )
         self.assertEqual('workers', group['display_name'])
+        self.assertEqual(
+            'workers', group['native']['state']['group']
+        )
         channel = next(
             item for item in resources
             if item['resource_kind'] == 'pubsub-channel' and
             item['display_name'] == 'events'
         )
         self.assertEqual('events', channel['native']['channel'])
+        self.assertEqual('events', channel['native']['data']['channel'])
+        database = next(
+            item for item in resources
+            if item['resource_kind'] == 'database'
+        )
+        self.assertIn('statistics', database['native'])
+        module = next(
+            item for item in resources
+            if item['resource_kind'] == 'module'
+        )
+        self.assertEqual(
+            module['native']['name'],
+            module['native']['definition']['name'],
+        )
 
     def test_pubsub_workspace_uses_typed_channel_and_message_fields(self):
         compiled = self.client._compile_admin({

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Execute the exact yb-admin bundled with the CDEadmin YugabyteDB demo.
+exec docker exec cdeadmin-demo-yugabytedb /home/yugabyte/bin/yb-admin "$@"

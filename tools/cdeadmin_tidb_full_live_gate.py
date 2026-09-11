@@ -575,6 +575,20 @@ def _control_evidence(root, toolchain, ports):
     apply('placement-policy', 'alter', {
         'followers': 1, 'schedule': 'even',
     }, policy_target)
+    resources = provider.list_resources({'route': route})
+    discovered_policy = next((
+        item for item in resources
+        if item['resource_kind'] == 'placement-policy' and
+        item['display_name'] == policy
+    ), None)
+    if discovered_policy is None:
+        failures['placement-policy.inspect'] = 'CreatedResourceMissing'
+    else:
+        provider.inspect_resource({
+            'route': route,
+            'resource_id': discovered_policy['resource_id'],
+        })
+        record('placement-policy', 'inspect')
     apply('database', 'configure_placement', {
         'policy_name': policy,
     }, database_target)
@@ -597,6 +611,20 @@ def _control_evidence(root, toolchain, ports):
     apply('database', 'set_tiflash_replica', {
         'replica_count': 1, 'location_labels': [],
     }, database_target, timeout=300)
+    resources = provider.list_resources({'route': route})
+    discovered_tiflash = next((
+        item for item in resources
+        if item['resource_kind'] == 'tiflash-replica' and
+        item.get('display_path', [])[:2] == [database, table]
+    ), None)
+    if discovered_tiflash is None:
+        failures['tiflash-replica.inspect'] = 'CreatedResourceMissing'
+    else:
+        provider.inspect_resource({
+            'route': route,
+            'resource_id': discovered_tiflash['resource_id'],
+        })
+        record('tiflash-replica', 'inspect')
 
     created = apply('changefeed', 'create', {
         'changefeed_id': changefeed, 'sink_uri': 'blackhole://',
@@ -669,6 +697,29 @@ def _control_evidence(root, toolchain, ports):
     ddl_thread.join(timeout=120)
 
     apply('cluster', 'backup_full', {'storage_uri': full_uri}, cluster, 300)
+    route['br_backup_artifacts'] = [{
+        'artifact_id': 'full-qualification',
+        'scope': 'full',
+        'storage_uri': full_uri,
+    }]
+    resources = provider.list_resources({'route': route})
+    backup = next((
+        item for item in resources
+        if item['resource_kind'] == 'backup' and
+        item['display_name'] == 'full-qualification'
+    ), None)
+    if backup is None:
+        failures['backup.inspect'] = 'RegisteredBackupMissing'
+    else:
+        inspected_backup = provider.inspect_resource({
+            'route': route, 'resource_id': backup['resource_id'],
+        })
+        if inspected_backup.get('extensions', {}).get(
+                'tidb', {}).get('native', {}).get(
+                    'backup_metadata_valid') is not True:
+            failures['backup.inspect'] = 'BackupMetadataValidationMissing'
+        else:
+            record('backup', 'inspect')
     # BR's snapshot metadata can select a timestamp fractionally ahead of the
     # command return. Establish a later TSO boundary before generating the
     # log-only mutation used to prove point-in-time recovery.

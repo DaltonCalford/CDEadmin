@@ -161,6 +161,61 @@ def apply_live_evidence(catalog, evidence, artifact=None):
             token = evidence_token + f'#{family_id}/{concept_id}'
             if token not in tokens:
                 tokens.append(token)
+
+    # A provider may prove one native operation in a later, independently
+    # scoped run after the original concept projection was emitted.  Project
+    # those directly proven operations onto every matching current concept
+    # obligation.  The intersection prevents an artifact from expanding the
+    # provider catalog or claiming an operation the declaration does not own.
+    directly_proven = copy.deepcopy(
+        evidence.get('passed_resource_operations', {})
+    )
+    for family_evidence in concepts.values():
+        for result in family_evidence.values():
+            if not isinstance(result, Mapping) or result.get(
+                    'status') != 'passed':
+                continue
+            for kind, operations in result.get('operations', {}).items():
+                directly_proven.setdefault(kind, []).extend(operations)
+    if directly_proven:
+        if not isinstance(directly_proven, Mapping):
+            raise LiveEvidenceError(
+                'passed resource operations must be an object'
+            )
+        validated = {
+            kind: set(_strings(
+                operations, f'passed_resource_operations.{kind}'
+            ))
+            for kind, operations in directly_proven.items()
+            if isinstance(kind, str) and kind
+        }
+        for family_id, family_declarations in declarations.items():
+            if not isinstance(family_declarations, Mapping):
+                continue
+            for concept_id, declaration in family_declarations.items():
+                if not isinstance(declaration, dict):
+                    continue
+                obligations = declaration.get(
+                    'operation_obligations', {}
+                )
+                admitted = {
+                    kind: sorted(validated.get(kind, set()).intersection(
+                        operation_ids
+                    ))
+                    for kind, operation_ids in obligations.items()
+                    if validated.get(kind, set()).intersection(operation_ids)
+                }
+                if not admitted:
+                    continue
+                current = declaration.setdefault('live_operations', {})
+                for kind, operations in admitted.items():
+                    current[kind] = sorted(set(
+                        current.get(kind, [])
+                    ).union(operations))
+                token = evidence_token + f'#{family_id}/{concept_id}'
+                tokens = declaration.setdefault('evidence', [])
+                if token not in tokens:
+                    tokens.append(token)
     return value
 
 

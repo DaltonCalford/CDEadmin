@@ -37,11 +37,19 @@ from pgadmin.cdeadmin.resources.models import (
     ResourceCommandContribution,
     ResourceInspectorContribution,
 )
+from pgadmin.cdeadmin.resources.properties import (
+    normalize_resource_properties,
+)
 from pgadmin.cdeadmin.visual_admin import (
     ProviderVisualAdministration,
     enrich_engine_experience,
 )
-from .preserved_surface import concept_declarations
+from .native_admin import (
+    PostgreSQLNativeAdminError, compile_native_admin,
+)
+from .preserved_surface import (
+    SURFACE_ID, adapt_catalog, concept_declarations, preserved_operations,
+)
 
 
 PROVIDER_ID = 'org.pgadmin.postgresql'
@@ -65,6 +73,7 @@ TOOL_DISPOSITIONS = {
 POSTGRESQL_CONCEPT_DECLARATIONS = {
     'relational': concept_declarations(),
 }
+POSTGRESQL_ADMIN_OPERATIONS = preserved_operations()
 
 
 class PostgreSQLProviderError(RuntimeError):
@@ -97,6 +106,12 @@ def _required_int(value: Mapping[str, Any], name: str) -> int:
     if isinstance(item, bool) or not isinstance(item, int):
         raise PostgreSQLProviderError(f'postgresql.{name} must be an integer')
     return item
+
+
+def _required_text(value, label):
+    if not isinstance(value, str) or not value.strip() or '\x00' in value:
+        raise PostgreSQLProviderError(f'{label} must not be empty')
+    return value.strip()
 
 
 @dataclass
@@ -213,8 +228,93 @@ class PostgreSQLProvider:
         self._completion_adapters: dict[str, object] = {}
         self._closed = False
         self._visual_admin = ProviderVisualAdministration(
-            context, permissions, 'postgresql', PROFILE_VERSION
+            context, permissions, 'postgresql', PROFILE_VERSION,
+            client=self, operation_gate=self.supports_admin_operation,
         )
+
+    @staticmethod
+    def supports_admin_operation(resource_kind, operation_id):
+        return operation_id in POSTGRESQL_ADMIN_OPERATIONS.get(
+            resource_kind, frozenset()
+        )
+
+    @staticmethod
+    def visual_admin_catalog(catalog):
+        """Expose only operations routed to the preserved PostgreSQL UI."""
+        return adapt_catalog(catalog)
+
+    @staticmethod
+    def _native_admin_route(request):
+        route = request.get('_provider_route') or {}
+        if not isinstance(route, Mapping):
+            raise PostgreSQLProviderError(
+                'PostgreSQL provider route is invalid'
+            )
+        return {
+            'server_id': _required_int(route, 'server_id'),
+            'database_id': _required_int(route, 'database_id'),
+        }
+
+    @classmethod
+    def _compile_native_admin(cls, request):
+        try:
+            return compile_native_admin(request)
+        except PostgreSQLNativeAdminError as exc:
+            raise PostgreSQLProviderError(str(exc)) from exc
+
+    def plan_admin_operation(self, request):
+        compiled = self._compile_native_admin(request)
+        payload = {
+            'resource_kind': request['resource_kind'],
+            'operation_id': request['operation_id'],
+            'target_resource': copy.deepcopy(request.get('target_resource')),
+            'draft': copy.deepcopy(request.get('draft') or {}),
+            'route': self._native_admin_route(request),
+            'statement': compiled['statement'],
+            'read_only': compiled['read_only'],
+        }
+        return {
+            'command_preview': {
+                'language': 'postgresql-sql',
+                'statement': compiled['statement'],
+                'provider_owned': True,
+            },
+            'provider_payload': payload,
+            'warnings': [],
+            'receipt': {
+                'provider_owned': True,
+                'automatic_mutation_retry': False,
+                'common_transaction_finality_inference': False,
+            },
+        }
+
+    def apply_admin_operation(self, request):
+        payload = request.get('provider_payload') or {}
+        if not isinstance(payload, Mapping):
+            raise PostgreSQLProviderError('provider plan is invalid')
+        route = payload.get('route') or {}
+        manager = self._driver.connection_manager(
+            _required_int(route, 'server_id')
+        )
+        if manager is None:
+            raise PostgreSQLProviderError('PostgreSQL server is unavailable')
+        connection = manager.connection(
+            did=_required_int(route, 'database_id')
+        )
+        statement = _required_text(payload.get('statement'), 'statement')
+        if payload.get('read_only'):
+            status, result = connection.execute_dict(statement)
+        else:
+            status, result = connection.execute_void(statement)
+        if not status:
+            raise PostgreSQLProviderError(str(result))
+        return {
+            'provider_owned': True,
+            'native_outcome': 'observed',
+            'result': copy.deepcopy(result),
+            'automatic_retry_performed': False,
+            'common_finality_inference': False,
+        }
 
     def visual_admin_descriptor(self):
         """Describe PostgreSQL objects for the common administration UI."""
@@ -628,6 +728,9 @@ class PostgreSQLProvider:
             'catalog_kind': catalog_kind,
             'object_id': object_id,
             'legacy_metadata': dict(row),
+            'native': normalize_resource_properties({
+                'catalog_metadata': dict(row),
+            }),
         })
         return {
             'identity': self._identity(),

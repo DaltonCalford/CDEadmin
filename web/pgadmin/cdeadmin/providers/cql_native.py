@@ -1044,6 +1044,22 @@ class CassandraClient:
 
     @staticmethod
     def _resource(kind, name, native, parent=None):
+        native = copy.deepcopy(native)
+        if kind in {
+            'keyspace', 'table', 'view', 'materialized-view', 'column',
+            'index', 'trigger', 'type', 'function', 'aggregate',
+        }:
+            native['definition'] = copy.deepcopy(native)
+        elif kind in {
+            'cluster', 'node', 'datacenter', 'replication', 'session',
+            'tracing-session',
+        }:
+            native['state'] = copy.deepcopy(native)
+        elif kind == 'role':
+            native['security'] = copy.deepcopy(native)
+        elif kind == 'permission':
+            native['security'] = copy.deepcopy(native)
+            native['privileges'] = [copy.deepcopy(native)]
         identity = ':'.join(str(native.get(key, '')) for key in (
             'keyspace_name', 'table_name', 'column_name', 'index_name',
             'view_name', 'trigger_name', 'type_name', 'function_name',
@@ -1065,7 +1081,7 @@ class CassandraClient:
             'display_path': path,
             'authority_path': path,
             'generation': generation,
-            'native': copy.deepcopy(native),
+            'native': native,
         }
 
     def list_resources(self, request):

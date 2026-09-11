@@ -281,7 +281,12 @@ def verify(args):
         baseline = next(
             item for item in resources
             if item['resource_kind'] == 'baseline-topology')
-        original_state = cluster.get('native', {}).get('state', 'ACTIVE')
+        observed_state = cluster.get('native', {}).get('state')
+        original_state = (
+            observed_state if isinstance(observed_state, str) and
+            observed_state in {'ACTIVE', 'ACTIVE_READ_ONLY', 'INACTIVE'}
+            else 'ACTIVE'
+        )
         for target in (cluster, node, schema, replica, baseline):
             run(target['resource_kind'], 'inspect', target=target)
 

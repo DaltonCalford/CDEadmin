@@ -303,6 +303,19 @@ class ClickHouseProviderTestCase(unittest.TestCase):
             if item['resource_kind'] == 'partition'
         )
         self.assertEqual('all', partition['display_name'])
+        self.assertIn('rows', partition['native']['statistics'])
+        table = next(
+            item for item in resources
+            if item['resource_kind'] == 'table'
+        )
+        self.assertIn('engine', table['native']['definition'])
+        user = next(
+            item for item in resources
+            if item['resource_kind'] == 'user'
+        )
+        self.assertEqual(user['native']['name'], user['native']['security'][
+            'name'
+        ])
         security = self.client.describe_security({'route': route()})
         self.assertFalse(security['native']['passwords_exposed'])
 
@@ -318,6 +331,13 @@ class ClickHouseProviderTestCase(unittest.TestCase):
             for item in objects.values()
             for operation in item['operations']
         ))
+        for kind in (
+            'dictionary', 'projection', 'data-skipping-index',
+        ):
+            self.assertIn('execute', {
+                operation['operation_id']
+                for operation in objects[kind]['operations']
+            })
 
     def test_columnar_and_semantic_concepts_are_fully_declared(self):
         catalog = self.client.visual_admin_catalog(
@@ -463,6 +483,77 @@ class ClickHouseProviderTestCase(unittest.TestCase):
                 bad['provider_payload'],
                 self.client._route({'route': route()}),
             )
+
+    def test_replicated_table_form_compiles_keeper_identity(self):
+        request = {
+            'resource_kind': 'table', 'operation_id': 'create',
+            '_provider_route': route(),
+            'draft': {
+                'database': 'qualification', 'name': 'replicated_events',
+                'columns': [{'name': 'id', 'type': 'UInt64'}],
+                'engine': 'ReplicatedMergeTree', 'order_by': 'id',
+                'replication_path': (
+                    '/clickhouse/cdeadmin/qualification/replicated_events'
+                ),
+                'replica_name': 'replica_01',
+            },
+        }
+        plan = self.client.plan_admin_operation(request)
+        source, _parameters, _rows = self.client._compile_admin(
+            plan['provider_payload'], self.client._route({'route': route()})
+        )
+        self.assertIn(
+            "ENGINE = ReplicatedMergeTree('/clickhouse/cdeadmin/"
+            "qualification/replicated_events', 'replica_01')",
+            source,
+        )
+
+    def test_inspection_and_row_policy_sql_are_object_specific(self):
+        targets = {
+            'server': target('server', name='127.0.0.1'),
+            'cluster': target(
+                'cluster', name='default', cluster='default'
+            ),
+            'replica': target('replica'),
+            'database': target(
+                'database', name='qualification', table=None
+            ),
+            'column': target('column', name='id'),
+            'function': target('function', name='plus_one'),
+            'user': target('user', name='reader'),
+            'role': target('role', name='analyst'),
+            'quota': target('quota', name='bounded'),
+            'settings-profile': target(
+                'settings-profile', name='interactive'
+            ),
+            'row-policy': target('row-policy', name='visible_widgets'),
+        }
+        normalized_route = self.client._route({'route': route()})
+        for kind, resource in targets.items():
+            plan = self.client.plan_admin_operation({
+                'resource_kind': kind, 'operation_id': 'inspect',
+                '_provider_route': route(), 'target_resource': resource,
+                'draft': {},
+            })
+            source, _parameters, _rows = self.client._compile_admin(
+                plan['provider_payload'], normalized_route
+            )
+            self.assertNotEqual('SELECT 1 AS inspected', source, kind)
+
+        rename = self.client.plan_admin_operation({
+            'resource_kind': 'row-policy', 'operation_id': 'rename',
+            '_provider_route': route(),
+            'target_resource': targets['row-policy'],
+            'draft': {'new_name': 'visible_widgets_renamed'},
+        })
+        source, _parameters, _rows = self.client._compile_admin(
+            rename['provider_payload'], normalized_route
+        )
+        self.assertEqual(
+            'ALTER ROW POLICY `visible_widgets` ON '
+            '`qualification`.`widgets` RENAME TO '
+            '`visible_widgets_renamed`', source,
+        )
 
     def test_materialized_view_without_destination_has_provider_storage(self):
         request = {

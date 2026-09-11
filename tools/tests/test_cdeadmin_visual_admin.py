@@ -755,6 +755,79 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
         ))
         self.assertFalse(final['automatic_mutation_retry'])
 
+    def test_operation_followups_preserve_native_session_binding(self):
+        class SessionAdapter(NativeAdapter):
+            def __init__(self):
+                super().__init__()
+                self.handles = []
+
+            @staticmethod
+            def visual_admin_catalog(catalog):
+                value = NativeAdapter.visual_admin_catalog(catalog)
+                database = next(
+                    item for item in value['objects']
+                    if item['resource_kind'] == 'database'
+                )
+                create = next(
+                    item for item in database['operations']
+                    if item['operation_id'] == 'create'
+                )
+                create.update({
+                    'control_plane': True, 'cancellable': True,
+                    'post_state_required': True,
+                })
+                return value
+
+            def _capture(self, request):
+                self.handles.append(request.get('_provider_session_handle'))
+
+            def inspect_admin_operation(self, request):
+                self._capture(request)
+                return {'provider_observation_only': True}
+
+            def cancel_admin_operation(self, request):
+                self._capture(request)
+                return {'cancel_request_accepted': True}
+
+            def validate_admin_post_state(self, request):
+                self._capture(request)
+                return {'confirmed': True}
+
+        adapter = SessionAdapter()
+        provider = ProviderVisualAdministration(
+            context(), Permissions(), 'mysql', '9.7.0', adapter
+        )
+        plan = provider.plan({
+            'resource_kind': 'database', 'operation_id': 'create',
+            'draft': {'name': 'session_bound', 'options': {}},
+            'session_id': 'native-session',
+        })
+        execution = {
+            'session_id': 'native-session',
+            'session_handle': object(),
+        }
+        applied = provider.apply({
+            'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'],
+            'session_id': 'native-session',
+        }, execution)
+        operation_id = applied['control_operation']['operation_id']
+        followup = {
+            'operation_id': operation_id,
+            'session_id': 'native-session',
+        }
+        provider.refresh_operation(followup, execution)
+        provider.cancel_operation(followup, execution)
+        provider.validate_operation_post_state(followup, execution)
+        self.assertEqual(
+            [execution['session_handle']] * 3, adapter.handles
+        )
+        with self.assertRaises(VisualAdminAccessError):
+            provider.refresh_operation({
+                'operation_id': operation_id,
+                'session_id': 'different-session',
+            }, execution)
+
     def test_lost_provider_response_is_recorded_and_never_retried(self):
         class FailedAdapter(NativeAdapter):
             def __init__(self):

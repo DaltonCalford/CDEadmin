@@ -1293,6 +1293,46 @@ class TiDBDBAPIClient(RelationalDBAPIClient):
     _TICDC_SECRET_KIND = 'tidb_ticdc_password'
 
     @staticmethod
+    def _registered_backup_artifacts(route):
+        configured = route.get('br_backup_artifacts', [])
+        if configured is None:
+            return []
+        if not isinstance(configured, list) or len(configured) > 256:
+            raise RelationalClientError(
+                'TiDB registered backup artifact catalog is invalid'
+            )
+        artifacts = []
+        for value in configured:
+            if not isinstance(value, dict):
+                raise RelationalClientError(
+                    'TiDB registered backup artifact is invalid'
+                )
+            artifact_id = value.get('artifact_id')
+            if not isinstance(artifact_id, str) or re.fullmatch(
+                    r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',
+                    artifact_id) is None:
+                raise RelationalClientError(
+                    'TiDB backup artifact ID is invalid'
+                )
+            scope = value.get('scope')
+            if scope not in {'full', 'database', 'table', 'log'}:
+                raise RelationalClientError(
+                    'TiDB backup artifact scope is invalid'
+                )
+            storage_uri = _allowlisted_br_uri({
+                'draft': {'storage_uri': value.get('storage_uri')},
+                '_provider_route': route,
+            })
+            artifacts.append({
+                'artifact_id': artifact_id,
+                'scope': scope,
+                'storage_uri': storage_uri,
+                'database': value.get('database'),
+                'table': value.get('table'),
+            })
+        return artifacts
+
+    @staticmethod
     def _request_routes(request):
         routes = []
         for key in ('route', '_provider_route'):
@@ -1346,9 +1386,69 @@ class TiDBDBAPIClient(RelationalDBAPIClient):
         with lease:
             return lease.use(invoke)
 
+    def _list_resources(self, request):
+        resources = super().list_resources(request)
+        route = self._route(request)
+        generation = str(
+            request.get('capability_generation') or PROFILE.exact_version
+        )
+        for artifact in self._registered_backup_artifacts(route):
+            display_path = [artifact['scope']]
+            if artifact.get('database'):
+                display_path.append(str(artifact['database']))
+            if artifact.get('table'):
+                display_path.append(str(artifact['table']))
+            resources.append(resource(
+                'backup', display_path, artifact['artifact_id'], generation,
+                {
+                    'artifact_id': artifact['artifact_id'],
+                    'scope': artifact['scope'],
+                    'database': artifact.get('database'),
+                    'table': artifact.get('table'),
+                    'storage_scheme': urlsplit(
+                        artifact['storage_uri']
+                    ).scheme.lower(),
+                    'registered_external_artifact': True,
+                    'storage_uri_persisted_in_resource': False,
+                },
+            ))
+        return resources
+
     def list_resources(self, request):
-        return self._with_ticdc_credentials(
-            request, super().list_resources)
+        return self._with_ticdc_credentials(request, self._list_resources)
+
+    def _inspect_resource(self, request):
+        item = super().inspect_resource(request)
+        if item.get('resource_kind') != 'backup':
+            return item
+        native = item.get('native') or {}
+        artifact_id = native.get('artifact_id')
+        route = self._route(request)
+        artifact = next((
+            value for value in self._registered_backup_artifacts(route)
+            if value['artifact_id'] == artifact_id
+        ), None)
+        if artifact is None:
+            raise RelationalClientError(
+                'TiDB registered backup artifact is unavailable'
+            )
+        observation = _run_br(
+            route, [
+                'debug', 'backupmeta', 'validate',
+                '--storage=' + artifact['storage_uri'],
+                '--redact-info-log=true',
+            ], timeout=300,
+        )
+        item = copy.deepcopy(item)
+        item['native'] = {
+            **copy.deepcopy(dict(native)),
+            'backup_metadata_valid': observation.get('exit_code') == 0,
+            'provider_response_observed': True,
+        }
+        return item
+
+    def inspect_resource(self, request):
+        return self._with_ticdc_credentials(request, self._inspect_resource)
 
     def apply_admin_operation(self, request):
         return self._with_ticdc_credentials(

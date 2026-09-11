@@ -589,6 +589,34 @@ class ClickHouseClient:
 
     def _resource(self, kind, name, native, path=None):
         path = path or [kind, name]
+        native = self._json_value(native)
+        if kind in {'server', 'cluster', 'replica'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {
+            'database', 'column', 'projection', 'data-skipping-index',
+            'dictionary', 'function',
+        }:
+            native['definition'] = copy.deepcopy(native)
+        elif kind in {'table', 'view', 'materialized-view'}:
+            if native.get('create_table_query'):
+                native['ddl'] = native['create_table_query']
+            native['definition'] = {
+                key: copy.deepcopy(native[key])
+                for key in (
+                    'engine', 'partition_key', 'sorting_key', 'primary_key',
+                    'comment',
+                ) if key in native
+            }
+        elif kind == 'partition':
+            native['statistics'] = {
+                key: copy.deepcopy(native[key])
+                for key in ('rows', 'bytes_on_disk', 'part_count')
+                if key in native
+            }
+        elif kind in {
+            'user', 'role', 'quota', 'settings-profile', 'row-policy',
+        }:
+            native['security'] = copy.deepcopy(native)
         return {
             'resource_id': (
                 'clickhouse:' + ':'.join(str(item) for item in path)
@@ -597,7 +625,7 @@ class ClickHouseClient:
             'authority_path': ['clickhouse', *[str(item) for item in path]],
             'display_path': [str(item) for item in path],
             'generation': self._generation(native),
-            'native': self._json_value(native),
+            'native': native,
         }
 
     def _rows(self, route, source, parameters=None):
@@ -868,6 +896,8 @@ class ClickHouseClient:
                        'label': 'ReplacingMergeTree'},
                       {'value': 'AggregatingMergeTree',
                        'label': 'AggregatingMergeTree'},
+                      {'value': 'ReplicatedMergeTree',
+                       'label': 'ReplicatedMergeTree'},
                       {'value': 'Memory', 'label': 'Memory'},
                       {'value': 'Log', 'label': 'Log'},
                   ]),
@@ -876,6 +906,8 @@ class ClickHouseClient:
                 f('partition_by', 'Partition expression', 'code'),
                 f('primary_key', 'Primary-key expression', 'code'),
                 f('ttl', 'TTL expression', 'code'),
+                f('replication_path', 'Keeper replication path'),
+                f('replica_name', 'Replica name'),
             ])
         if kind == 'table' and operation == 'alter':
             return self._form('clickhouse-table-alter', 'Alter table', [
@@ -1032,6 +1064,12 @@ class ClickHouseClient:
             fields = []
             if operation == 'create':
                 fields.append(f('name', 'Name', required=True))
+                if kind == 'row-policy':
+                    fields.extend([
+                        f('database', 'Database', required=True,
+                          default='default'),
+                        f('table', 'Table', required=True),
+                    ])
             if kind == 'user' and operation in {'create', 'alter'}:
                 fields.append(f(
                     'password_reference', 'Password secret reference',
@@ -1109,6 +1147,16 @@ class ClickHouseClient:
                 raise ClickHouseClientError('drop must be acknowledged')
             if kind == 'table' and operation == 'create':
                 self._validate_columns(draft.get('columns'))
+                if draft.get('engine') == 'ReplicatedMergeTree':
+                    path = _text(
+                        draft.get('replication_path'), 'replication path',
+                        1024,
+                    )
+                    if not path.startswith('/'):
+                        raise ClickHouseClientError(
+                            'replication path must be absolute'
+                        )
+                    _text(draft.get('replica_name'), 'replica name', 255)
             if kind == 'table' and operation == 'alter':
                 action = draft.get('action')
                 if action in {'modify-ttl', 'modify-order-by'}:
@@ -1329,10 +1377,71 @@ class ClickHouseClient:
                     f'{_sql_string(target.get("partition_id") or name)} '
                     'GROUP BY database, table, partition_id'
                 ),
+                'server': (
+                    'SELECT hostName() AS host_name, version() AS version, '
+                    'uptime() AS uptime_seconds, timezone() AS timezone, '
+                    'currentDatabase() AS current_database'
+                ),
+                'database': (
+                    'SELECT name, engine, data_path, metadata_path, uuid, '
+                    'comment FROM system.databases WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'column': (
+                    'SELECT database, table, name, type, position, '
+                    'default_kind, default_expression, comment, '
+                    'compression_codec, is_in_partition_key, '
+                    'is_in_sorting_key, '
+                    'is_in_primary_key FROM system.columns WHERE database = '
+                    f'{_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table"))} AND name = '
+                    f'{_sql_string(name)}'
+                ),
+                'function': (
+                    'SELECT name, is_aggregate, case_insensitive, alias_to, '
+                    'create_query, origin FROM system.functions WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'cluster': (
+                    'SELECT cluster, shard_num, shard_weight, replica_num, '
+                    'host_name, host_address, port, is_local, user, '
+                    'default_database '
+                    'FROM system.clusters WHERE cluster = '
+                    f'{_sql_string(target.get("cluster") or name)}'
+                ),
+                'replica': (
+                    'SELECT * FROM system.replicas WHERE database = '
+                    f'{_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table") or name)}'
+                ),
+                'user': (
+                    'SELECT * FROM system.users WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'role': (
+                    'SELECT * FROM system.roles WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'quota': (
+                    'SELECT * FROM system.quotas WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'settings-profile': (
+                    'SELECT * FROM system.settings_profiles WHERE name = '
+                    f'{_sql_string(name)}'
+                ),
+                'row-policy': (
+                    'SELECT * FROM system.row_policies WHERE name = '
+                    f'{_sql_string(name)} AND database = '
+                    f'{_sql_string(database)} AND table = '
+                    f'{_sql_string(target.get("table"))}'
+                ),
             }
             if kind in inspection:
                 return inspection[kind], None, None
-            return 'SELECT 1 AS inspected', None, None
+            raise ClickHouseClientError(
+                'ClickHouse resource inspection is unavailable'
+            )
         if kind == 'database':
             if operation == 'create':
                 engine = draft.get('engine', 'Atomic')
@@ -1378,13 +1487,31 @@ class ClickHouseClient:
                 engine = draft.get('engine', 'MergeTree')
                 allowed = {
                     'MergeTree', 'ReplacingMergeTree',
-                    'AggregatingMergeTree', 'Memory', 'Log',
+                    'AggregatingMergeTree', 'ReplicatedMergeTree',
+                    'Memory', 'Log',
                 }
                 if engine not in allowed:
                     raise ClickHouseClientError('table engine is invalid')
+                engine_expression = f'{engine}()'
+                if engine == 'ReplicatedMergeTree':
+                    path = _text(
+                        draft.get('replication_path'), 'replication path',
+                        1024,
+                    )
+                    if not path.startswith('/'):
+                        raise ClickHouseClientError(
+                            'replication path must be absolute'
+                        )
+                    replica = _text(
+                        draft.get('replica_name'), 'replica name', 255
+                    )
+                    engine_expression = (
+                        'ReplicatedMergeTree('
+                        f'{_sql_string(path)}, {_sql_string(replica)})'
+                    )
                 source = '{}{}{}'.format(
                     f'CREATE TABLE {_qualified(database, name)} (',
-                    ', '.join(columns), f') ENGINE = {engine}()',
+                    ', '.join(columns), f') ENGINE = {engine_expression}',
                 )
                 if engine not in {'Memory', 'Log'}:
                     if draft.get('partition_by'):
@@ -1712,6 +1839,36 @@ class ClickHouseClient:
             'settings-profile': 'SETTINGS PROFILE',
             'row-policy': 'ROW POLICY',
         }[kind]
+        if kind == 'row-policy':
+            database = target.get('database') or draft.get('database')
+            table = target.get('table') or draft.get('table')
+            if not database or not table:
+                raise ClickHouseClientError(
+                    'row policy requires its database and table identity'
+                )
+            identity = (
+                f'{_quote_identifier(name)} ON '
+                f'{_qualified(database, table)}'
+            )
+            if operation == 'create':
+                definition = draft.get('definition')
+                suffix = (
+                    ' ' + _text(definition, 'definition', 16384)
+                    if definition else ''
+                )
+                return f'CREATE ROW POLICY {identity}{suffix}', None, None
+            if operation == 'alter':
+                return (
+                    f'ALTER ROW POLICY {identity} '
+                    f'{self._definition(draft)}', None, None,
+                )
+            if operation == 'rename':
+                return (
+                    f'ALTER ROW POLICY {identity} RENAME TO '
+                    f'{_quote_identifier(draft["new_name"])}', None, None,
+                )
+            if operation == 'drop':
+                return f'DROP ROW POLICY {identity}', None, None
         if kind == 'user' and operation in {'create', 'alter'}:
             password = self._admin_password(draft['password_reference'], route)
             verb = 'CREATE' if operation == 'create' else 'ALTER'

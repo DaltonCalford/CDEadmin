@@ -1051,6 +1051,34 @@ class MongoDBClient:
     def _resource(self, kind, path, name, generation, native=None,
                   virtual=False):
         path = [str(item) for item in path]
+        native = self._extended_json(native or {})
+        if kind in {'collection', 'view'} and 'options' in native:
+            native['definition'] = copy.deepcopy(native['options'])
+        elif kind == 'validator' and 'validator' in native:
+            native['definition'] = copy.deepcopy(native['validator'])
+        elif kind == 'index' and 'index' in native:
+            native['definition'] = copy.deepcopy(native['index'])
+        elif kind == 'document' and 'document' in native:
+            native['data'] = copy.deepcopy(native['document'])
+        elif kind == 'statistics' and 'stats' in native:
+            native['statistics'] = copy.deepcopy(native['stats'])
+        elif kind == 'profiling' and 'profile' in native:
+            native['state'] = copy.deepcopy(native['profile'])
+        elif kind == 'user' and 'roles' in native:
+            native['security'] = {'roles': copy.deepcopy(native['roles'])}
+        elif kind == 'role':
+            native['security'] = {
+                'inherited_roles': copy.deepcopy(native.get('roles', [])),
+            }
+            if 'privileges' in native:
+                native['privileges'] = copy.deepcopy(native['privileges'])
+        elif kind == 'privilege' and 'privilege' in native:
+            native['privileges'] = [copy.deepcopy(native['privilege'])]
+        elif kind in {
+            'deployment', 'replica-set', 'shard', 'router', 'zone',
+            'balancer',
+        }:
+            native['state'] = copy.deepcopy(native)
         identifier = ':'.join([
             'mongodb', kind,
             *(self._part(item) for item in path),
@@ -1064,7 +1092,7 @@ class MongoDBClient:
             'authority_path': ['mongodb', kind, *path, str(name)],
             'generation': generation,
             'is_virtual': virtual,
-            'native': self._extended_json(native or {}),
+            'native': native,
         }
 
     def list_resources(self, request):
@@ -1169,9 +1197,10 @@ class MongoDBClient:
                         'type': info.get('type'),
                         'options': info.get('options', {}),
                     }
-                    resources.append(self._resource(
+                    collection_resource = self._resource(
                         kind, [database_name], name, generation, native,
-                    ))
+                    )
+                    resources.append(collection_resource)
                     collection_count += 1
                     if kind == 'collection':
                         resources.append(self._resource(
@@ -1189,19 +1218,29 @@ class MongoDBClient:
                         try:
                             indexes = list(database[name].list_indexes())
                         except Exception:
+                            indexes = None
+                        if indexes is not None:
+                            collection_resource['native']['indexes'] = []
+                        else:
                             indexes = ()
                         for index in indexes:
                             if index_count >= MAX_INDEXES:
                                 break
                             index_value = dict(index)
                             index_name = str(index_value.pop('name'))
-                            resources.append(self._resource(
+                            index_resource = self._resource(
                                 'index', [database_name, name], index_name,
                                 generation, {
                                     **native, 'index': index_value,
                                     'index_name': index_name,
                                 },
-                            ))
+                            )
+                            resources.append(index_resource)
+                            collection_resource['native']['indexes'].append({
+                                'resource_id': index_resource['resource_id'],
+                                'name': index_name,
+                                'definition': copy.deepcopy(index_value),
+                            })
                             index_count += 1
                         if set_name or is_router:
                             resources.append(self._resource(
@@ -2309,6 +2348,62 @@ class MongoDBClient:
                 zone_name = arguments.get('zone', zone.get('tag'))
                 if operation == 'drop':
                     zone_name = None
+                if operation == 'alter':
+                    old_namespace = _identifier(
+                        zone.get('ns'), 'existing zone namespace'
+                    )
+                    old_minimum = _mapping(
+                        zone.get('min'), 'existing zone minimum'
+                    )
+                    old_maximum = _mapping(
+                        zone.get('max'), 'existing zone maximum'
+                    )
+                    old_name = _identifier(
+                        zone.get('tag'), 'existing zone'
+                    )
+                    remove = {
+                        'updateZoneKeyRange': old_namespace,
+                        'min': old_minimum, 'max': old_maximum,
+                        'zone': None,
+                    }
+                    replacement = {
+                        'updateZoneKeyRange': _identifier(
+                            namespace, 'zone namespace'
+                        ),
+                        'min': _mapping(minimum, 'zone minimum'),
+                        'max': _mapping(maximum, 'zone maximum'),
+                        'zone': _identifier(zone_name, 'zone'),
+                    }
+                    try:
+                        removed = client.admin.command(remove)
+                        replaced = client.admin.command(replacement)
+                    except Exception as exc:
+                        try:
+                            client.admin.command({
+                                'updateZoneKeyRange': old_namespace,
+                                'min': old_minimum, 'max': old_maximum,
+                                'zone': old_name,
+                            })
+                        except Exception:
+                            pass
+                        raise MongoDBClientError(
+                            'MongoDB zone replacement failed and the '
+                            'provider attempted to restore the original '
+                            f'mapping ({type(exc).__name__})'
+                        ) from None
+                    return {
+                        'acknowledged': bool(
+                            removed.get('ok', 0) and replaced.get('ok', 0)
+                        ),
+                        'operation': operation,
+                        'observation': self._extended_json({
+                            'removed': removed, 'replacement': replaced,
+                        }),
+                        'driver_observation_only': True,
+                        'transaction_finality_interpreted_by_common_code': (
+                            False
+                        ),
+                    }
                 command = {
                     'updateZoneKeyRange': _identifier(
                         namespace, 'zone namespace'

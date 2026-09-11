@@ -16,6 +16,9 @@ export CDEADMIN_CASSANDRA_NODETOOL_BINARY="$CDEADMIN_DEMO_ROOT/runtime/cassandra
 export CDEADMIN_CASSANDRA_SSTABLELOADER_BINARY="$CDEADMIN_DEMO_ROOT/runtime/cassandra/bin/sstableloader"
 export CDEADMIN_CASSANDRA_AUTH_PROVIDER_JAR="$CDEADMIN_DEMO_ROOT/runtime/cassandra-triggers/cdeadmin-trigger.jar"
 export CDEADMIN_YUGABYTEDB_YCQLSH_BINARY="$CDEADMIN_DEMO_ROOT/runtime/yugabytedb/bin/ycqlsh"
+export CDEADMIN_NEO4J_ADMIN_BINARY="$CDEADMIN_DEMO_ROOT/config/neo4j/bin/neo4j-admin"
+export CDEADMIN_NEO4J_CYPHER_SHELL_BINARY="$CDEADMIN_DEMO_ROOT/config/neo4j/bin/cypher-shell"
+export CDEADMIN_MILVUS_PASSWORD="CDEadminDemo-2026!"
 if [ -n "${LD_LIBRARY_PATH:-}" ]; then
     LD_LIBRARY_PATH="$CDEADMIN_DEMO_ROOT/runtime/mysql/lib64:$CDEADMIN_DEMO_ROOT/runtime/sqlite-3.53.0/lib:$CDEADMIN_DEMO_ROOT/runtime/foundationdb/lib:$LD_LIBRARY_PATH"
 else

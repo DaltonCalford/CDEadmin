@@ -153,6 +153,7 @@ def verify(args):
     transaction_first = f'{prefix}/transaction/first'
     transaction_second = f'{prefix}/transaction/second'
     visual_key = f'{prefix}/visual'
+    raw_visual_key = f'{prefix}/raw-visual'
     ttl_key = f'{prefix}/ttl'
     evidence = {
         'schema': 'cdeadmin.tikv-native-live-verification.v1',
@@ -168,6 +169,7 @@ def verify(args):
     }
     session_id = None
     visual_key_created = False
+    raw_visual_key_created = False
     ttl_key_created = False
     failures = []
 
@@ -288,6 +290,57 @@ def verify(args):
         }
         visual_key_created = False
 
+        raw_key = next(
+            item for item in provider.list_resources({'route': route})
+            if item['resource_kind'] == 'raw-key'
+        )
+        evidence['steps']['raw_visual_inspect'] = {
+            'status': 'passed',
+            **apply_visual(provider, route, raw_key, 'inspect', {}),
+        }
+        evidence['steps']['raw_visual_insert'] = {
+            'status': 'passed',
+            **apply_visual(provider, route, raw_key, 'insert', {
+                'key': raw_visual_key, 'value': 'raw-visual-one',
+            }),
+        }
+        raw_visual_key_created = True
+        raw_page = provider.read_visual_admin_rows({
+            '_provider_route': route, 'target_resource': raw_key,
+            'start_key': raw_visual_key,
+            'end_key': raw_visual_key + '\x00', 'limit': 20,
+        })
+        raw_row = next(
+            item for item in raw_page['rows']
+            if item['values']['key'] == raw_visual_key
+        )
+        evidence['steps']['raw_visual_update'] = {
+            'status': 'passed',
+            **apply_visual(provider, route, raw_key, 'update', {
+                'selector': {'identity_token': raw_row['identity_token']},
+                'value': 'raw-visual-two',
+            }),
+        }
+        raw_page = provider.read_visual_admin_rows({
+            '_provider_route': route, 'target_resource': raw_key,
+            'start_key': raw_visual_key,
+            'end_key': raw_visual_key + '\x00', 'limit': 20,
+        })
+        raw_row = next(
+            item for item in raw_page['rows']
+            if item['values']['key'] == raw_visual_key
+        )
+        if raw_row['values']['value'] != 'raw-visual-two':
+            failures.append('raw_visual_update: value mismatch')
+        evidence['steps']['raw_visual_delete'] = {
+            'status': 'passed',
+            **apply_visual(provider, route, raw_key, 'delete', {
+                'selector': {'identity_token': raw_row['identity_token']},
+                'confirmation': raw_visual_key,
+            }),
+        }
+        raw_visual_key_created = False
+
         if route['enable_ttl']:
             ttl = next(
                 item for item in provider.list_resources({'route': route})
@@ -339,6 +392,10 @@ def verify(args):
                 step('cleanup_visual', {
                     'operation': 'delete', 'key': visual_key,
                 })
+            if raw_visual_key_created:
+                step('cleanup_raw_visual', {
+                    'operation': 'delete', 'key': raw_visual_key,
+                })
             if ttl_key_created:
                 step('cleanup_ttl', {
                     'operation': 'delete', 'key': ttl_key,
@@ -364,9 +421,12 @@ def object_evidence(evidence):
     if not evidence.get('passed'):
         raise RuntimeError('failed TiKV verification cannot become evidence')
     operations = {
-        'key_browsing': {'key-range': ['inspect']},
+        'key_browsing': {
+            'key-range': ['inspect'], 'raw-key': ['inspect'],
+        },
         'data_type_editing': {
             'key-range': ['delete', 'insert', 'update'],
+            'raw-key': ['delete', 'insert', 'update'],
         },
     }
     if 'ttl_inspect' in evidence.get('steps', {}):

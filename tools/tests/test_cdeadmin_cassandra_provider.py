@@ -445,6 +445,16 @@ class CassandraProviderTests(unittest.TestCase):
         table = next(item for item in resources
                      if item['resource_kind'] == 'table')
         self.assertEqual(['tenant', 'id'], table['native']['primary_key'])
+        self.assertEqual(
+            table['native']['primary_key'],
+            table['native']['definition']['primary_key'],
+        )
+        cluster = next(item for item in resources
+                       if item['resource_kind'] == 'cluster')
+        self.assertIn('state', cluster['native'])
+        permission = next(item for item in resources
+                          if item['resource_kind'] == 'permission')
+        self.assertEqual(1, len(permission['native']['privileges']))
 
     def test_structured_schema_and_security_plans_never_accept_raw_cql(self):
         adapter, _factory = client()

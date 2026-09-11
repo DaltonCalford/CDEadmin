@@ -595,7 +595,6 @@ function sectionPayload(section, resource, descriptor) {
   return {};
 }
 
-const DEFAULT_INSPECTOR_SECTIONS = ['properties'];
 const INSPECTOR_SECTION_TITLES = {
   properties: gettext('Summary'),
   definition: gettext('Native definition/source'),
@@ -614,6 +613,43 @@ const INSPECTOR_SECTION_TITLES = {
   data: gettext('Data'),
   operations: gettext('Operations'),
 };
+
+const INFERRED_PROPERTY_KEYS = {
+  definition: ['definition', 'metadata_source'],
+  ddl: ['ddl'],
+  dependencies: ['dependencies'],
+  dependents: ['dependents'],
+  privileges: ['privileges'],
+  security: ['security', 'grants', 'acls'],
+  constraints: ['constraints'],
+  indexes: ['indexes'],
+  triggers: ['triggers'],
+  columns: ['columns'],
+  parameters: ['parameters'],
+  statistics: ['statistics', 'stats', 'metrics'],
+  state: ['state'],
+  data: ['data'],
+};
+
+export function inspectorSections(resource, descriptor) {
+  const native = providerNative(resource);
+  if (Array.isArray(native.property_sections)) {
+    return native.property_sections.filter((section, index, values) =>
+      Object.hasOwn(INSPECTOR_SECTION_TITLES, section) &&
+      values.indexOf(section) === index
+    );
+  }
+  const sections = ['properties'];
+  Object.entries(INFERRED_PROPERTY_KEYS).forEach(([section, keys]) => {
+    if (keys.some((key) => Object.hasOwn(native, key))) sections.push(section);
+  });
+  if (descriptor?.editor?.sections?.includes('data') &&
+      descriptor?.editor?.data_presentation && !sections.includes('data')) {
+    sections.push('data');
+  }
+  sections.push('operations');
+  return sections;
+}
 
 function NativePropertyValue({value, depth=0}) {
   if (value === null || value === undefined) {
@@ -666,12 +702,7 @@ NativePropertyValue.propTypes = {
 };
 
 function ObjectInspectorSection({resource, descriptor, loading}) {
-  const declaredSections = descriptor?.editor?.sections ||
-    DEFAULT_INSPECTOR_SECTIONS;
-  const resourceSections = providerNative(resource).property_sections;
-  const sections = Array.isArray(resourceSections) ?
-    declaredSections.filter((item) => resourceSections.includes(item)) :
-    declaredSections;
+  const sections = inspectorSections(resource, descriptor);
   const [section, setSection] = useState(sections[0]);
   useEffect(() => {
     if (!sections.includes(section)) setSection(sections[0]);

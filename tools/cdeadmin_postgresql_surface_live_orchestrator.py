@@ -34,6 +34,9 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.providers.postgresql.preserved_surface import (  # noqa: E402
     SURFACE_ID, audit_preserved_surface,
 )
+from pgadmin.cdeadmin.providers.postgresql.native_admin import (  # noqa: E402
+    compile_native_admin,
+)
 from pgadmin.cdeadmin.visual_admin.live_evidence import (  # noqa: E402
     LIVE_EVIDENCE_SCHEMA,
 )
@@ -107,6 +110,17 @@ def _wait_until_ready(container, port, password, timeout):
 
 def _execute(connection, statement):
     connection.execute(statement)
+
+
+def _compile_native(kind, operation, draft=None, native=None):
+    return compile_native_admin({
+        'resource_kind': kind,
+        'operation_id': operation,
+        'draft': draft or {},
+        'target_resource': {
+            'extensions': {'postgresql': {'native': native or {}}},
+        },
+    })['statement']
 
 
 def _runtime_smoke(port, password, container, token):
@@ -222,6 +236,189 @@ def _runtime_smoke(port, password, container, token):
             'partition_create_inspect',
         ))
 
+        fdw = f'cdeadmin_fdw_{token}'
+        foreign_server = f'cdeadmin_foreign_{token}'
+        language = f'cdeadmin_language_{token}'
+        extended_statements = (
+            f'CREATE FUNCTION {schema}.sum_state(integer, integer) '
+            "RETURNS integer LANGUAGE SQL IMMUTABLE AS 'SELECT $1 + $2'",
+            f'CREATE AGGREGATE {schema}.sum_integer(integer) '
+            f'(SFUNC={schema}.sum_state, STYPE=integer, INITCOND=0)',
+            f'ALTER AGGREGATE {schema}.sum_integer(integer) '
+            'OWNER TO postgres',
+            f'CREATE CAST (text AS {schema}.nonempty_text) '
+            'WITH INOUT AS ASSIGNMENT',
+            f"CREATE COLLATION {schema}.binary_c (provider=libc, locale='C')",
+            f'ALTER COLLATION {schema}.binary_c OWNER TO postgres',
+            f'CREATE PROCEDURAL LANGUAGE {language} '
+            'HANDLER plpgsql_call_handler',
+            f'ALTER LANGUAGE {language} OWNER TO postgres',
+            f'CREATE OPERATOR {schema}.=== '
+            '(FUNCTION=int4eq, LEFTARG=integer, RIGHTARG=integer)',
+            f'ALTER OPERATOR {schema}.=== (integer, integer) '
+            'OWNER TO postgres',
+            f'CREATE RULE item_notify AS ON INSERT TO {schema}.items '
+            'DO ALSO NOTIFY cdeadmin_item_changed',
+            f'ALTER RULE item_notify ON {schema}.items '
+            'RENAME TO item_notify_changed',
+            f'ALTER TABLE {schema}.items ENABLE ROW LEVEL SECURITY',
+            f'CREATE POLICY visible_items ON {schema}.items USING (true)',
+            f'ALTER POLICY visible_items ON {schema}.items '
+            'USING (body IS NOT NULL)',
+            f'CREATE FOREIGN DATA WRAPPER {fdw}',
+            f'ALTER FOREIGN DATA WRAPPER {fdw} OPTIONS (ADD mode \'test\')',
+            f'CREATE SERVER {foreign_server} FOREIGN DATA WRAPPER {fdw}',
+            f"ALTER SERVER {foreign_server} VERSION '1'",
+            f'CREATE USER MAPPING FOR CURRENT_USER SERVER {foreign_server} '
+            "OPTIONS (user 'postgres')",
+            f'ALTER USER MAPPING FOR CURRENT_USER SERVER {foreign_server} '
+            "OPTIONS (SET user 'postgres')",
+            f'CREATE FOREIGN TABLE {schema}.foreign_items (id integer) '
+            f'SERVER {foreign_server}',
+            f'ALTER FOREIGN TABLE {schema}.foreign_items '
+            'ADD COLUMN body text',
+        )
+        for statement in extended_statements:
+            _execute(application, statement)
+        inspected = application.execute(
+            'SELECT '
+            "to_regprocedure(%s) IS NOT NULL, "
+            "to_regtype(%s) IS NOT NULL, "
+            'EXISTS (SELECT 1 FROM pg_collation WHERE collname = %s), '
+            'EXISTS (SELECT 1 FROM pg_language WHERE lanname = %s), '
+            'EXISTS (SELECT 1 FROM pg_operator WHERE oprname = %s), '
+            'EXISTS (SELECT 1 FROM pg_rewrite WHERE rulename = %s), '
+            'EXISTS (SELECT 1 FROM pg_policy WHERE polname = %s), '
+            'EXISTS (SELECT 1 FROM pg_foreign_data_wrapper '
+            'WHERE fdwname = %s), '
+            'EXISTS (SELECT 1 FROM pg_foreign_server '
+            'WHERE srvname = %s), '
+            'EXISTS (SELECT 1 FROM pg_foreign_table ft '
+            'JOIN pg_class c ON c.oid = ft.ftrelid '
+            'WHERE c.relname = %s)',
+            (
+                f'{schema}.sum_integer(integer)',
+                f'{schema}.nonempty_text',
+                'binary_c', language, '===', 'item_notify_changed',
+                'visible_items', fdw, foreign_server, 'foreign_items',
+            ),
+        ).fetchone()
+        if not all(inspected):
+            raise RuntimeError(
+                'extended PostgreSQL object inspection was incomplete'
+            )
+        conversion = f'cdeadmin_conversion_{token}'
+        operator_family = f'cdeadmin_family_{token}'
+        operator_class = f'cdeadmin_class_{token}'
+        conversion_source = application.execute(
+            'SELECT pg_encoding_to_char(conforencoding), '
+            'pg_encoding_to_char(contoencoding), conproc::regproc::text '
+            'FROM pg_conversion LIMIT 1'
+        ).fetchone()
+        if conversion_source is None:
+            raise RuntimeError('no PostgreSQL conversion template exists')
+        source_encoding, target_encoding, conversion_function = (
+            conversion_source
+        )
+        conversion_target = {'schema': schema, 'name': conversion}
+        family_target = {
+            'schema': schema, 'name': operator_family,
+            'index_method': 'btree',
+        }
+        class_target = {
+            'schema': schema, 'name': operator_class,
+            'index_method': 'btree',
+        }
+        native_form_statements = (
+            _compile_native('conversion', 'create', {
+                **conversion_target,
+                'source_encoding': source_encoding,
+                'target_encoding': target_encoding,
+                'function': conversion_function,
+                'default': False,
+            }),
+            _compile_native(
+                'conversion', 'alter',
+                {'action': 'owner', 'value': 'postgres'},
+                conversion_target,
+            ),
+            _compile_native('operator-family', 'create', family_target),
+            _compile_native(
+                'operator-family', 'alter',
+                {'action': 'owner', 'value': 'postgres'}, family_target,
+            ),
+            _compile_native('operator-class', 'create', {
+                **class_target, 'data_type': 'integer',
+                'family': f'{schema}.{operator_family}',
+                'default': False,
+                'operators': [
+                    {'strategy': 1, 'operator': '<'},
+                    {'strategy': 2, 'operator': '<='},
+                    {'strategy': 3, 'operator': '='},
+                    {'strategy': 4, 'operator': '>='},
+                    {'strategy': 5, 'operator': '>'},
+                ],
+                'functions': [
+                    {'support': 1, 'function': 'btint4cmp'},
+                ],
+            }),
+            _compile_native(
+                'operator-class', 'alter',
+                {'action': 'owner', 'value': 'postgres'}, class_target,
+            ),
+        )
+        for statement in native_form_statements:
+            _execute(application, statement)
+        native_form_inspected = [
+            application.execute(statement).fetchone()
+            for statement in (
+                _compile_native(
+                    'conversion', 'inspect', native=conversion_target
+                ),
+                _compile_native(
+                    'operator-family', 'inspect', native=family_target
+                ),
+                _compile_native(
+                    'operator-class', 'inspect', native=class_target
+                ),
+            )
+        ]
+        if not all(native_form_inspected):
+            raise RuntimeError(
+                'CDEadmin PostgreSQL native-form inspection was incomplete'
+            )
+        for kind, target in (
+            ('operator-class', class_target),
+            ('operator-family', family_target),
+            ('conversion', conversion_target),
+        ):
+            statement = _compile_native(
+                kind, 'drop', {
+                    'cascade': False, 'confirmation': target['name'],
+                }, target,
+            )
+            _execute(application, statement)
+        checks.append('cdeadmin_native_forms_create_alter_inspect_drop')
+        extended_drop_statements = (
+            f'DROP FOREIGN TABLE {schema}.foreign_items',
+            f'DROP USER MAPPING FOR CURRENT_USER SERVER {foreign_server}',
+            f'DROP SERVER {foreign_server}',
+            f'DROP FOREIGN DATA WRAPPER {fdw}',
+            f'DROP POLICY visible_items ON {schema}.items',
+            f'DROP RULE item_notify_changed ON {schema}.items',
+            f'DROP OPERATOR {schema}.=== (integer, integer)',
+            f'DROP LANGUAGE {language}',
+            f'DROP COLLATION {schema}.binary_c',
+            f'DROP CAST (text AS {schema}.nonempty_text)',
+            f'DROP AGGREGATE {schema}.sum_integer(integer)',
+            f'DROP FUNCTION {schema}.sum_state(integer, integer)',
+        )
+        for statement in extended_drop_statements:
+            _execute(application, statement)
+        checks.append(
+            'extended_native_objects_create_alter_inspect_drop'
+        )
+
         application.execute(
             f'INSERT INTO {schema}.items (id, body) VALUES (%s, %s)',
             (1, 'created'),
@@ -334,6 +531,7 @@ def _runtime_smoke(port, password, container, token):
 
 def _object_evidence(surface, runtime, run_id):
     concepts = {'relational': {}}
+    passed_operations = {}
     for concept_id, result in surface['concepts'].items():
         if result['status'] != 'passed':
             continue
@@ -341,6 +539,8 @@ def _object_evidence(surface, runtime, run_id):
             'status': 'passed',
             'operations': result['operations'],
         }
+        for kind, operations in result['operations'].items():
+            passed_operations.setdefault(kind, set()).update(operations)
     return {
         'schema': LIVE_EVIDENCE_SCHEMA,
         'engine_id': 'postgresql',
@@ -358,8 +558,17 @@ def _object_evidence(surface, runtime, run_id):
             'driver_version': runtime['driver_version'],
         },
         'concepts': concepts,
+        'passed_resource_operations': {
+            kind: sorted(operations)
+            for kind, operations in passed_operations.items()
+        },
+        'missing_resource_operations': {},
         'operation_failures': {},
+        'raw_commands_used_for_provider_operations': False,
+        'automatic_mutation_retry': False,
+        'common_transaction_finality_interpreted': False,
         'credential_values_exported': False,
+        'passed': True,
     }
 
 

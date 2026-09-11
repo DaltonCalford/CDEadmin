@@ -583,6 +583,28 @@ class MongoDBProviderTests(unittest.TestCase):
         self.assertEqual(
             'qualification', collection['native']['database']
         )
+        self.assertEqual(
+            {'validator': {'name': {'$type': 'string'}}},
+            collection['native']['definition'],
+        )
+        self.assertEqual(1, len(collection['native']['indexes']))
+        self.assertEqual(
+            {'_id': 1},
+            collection['native']['indexes'][0]['definition']['key'],
+        )
+        validator = next(
+            item for item in resources
+            if item['resource_kind'] == 'validator'
+        )
+        self.assertEqual(
+            {'name': {'$type': 'string'}},
+            validator['native']['definition'],
+        )
+        deployment = next(
+            item for item in resources
+            if item['resource_kind'] == 'deployment'
+        )
+        self.assertIn('hello', deployment['native']['state'])
 
     def test_visual_catalog_and_plan_are_provider_owned_and_redacted(self):
         value = client()

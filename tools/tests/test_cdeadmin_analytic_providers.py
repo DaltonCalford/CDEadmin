@@ -350,6 +350,13 @@ class FakeMilvusClient:
     def insert(self, **arguments):
         return self._record('insert', **arguments)
 
+    def compact(self, **arguments):
+        self._record('compact', **arguments)
+        return 91
+
+    def get_compaction_state(self, job_id):
+        return {'job_id': job_id, 'state': 'Completed'}
+
 
 class FakeMilvusSchema:
     def __init__(self, **arguments):
@@ -434,11 +441,27 @@ class AnalyticProviderTests(unittest.TestCase):
         result = client.describe_result(token)
         self.assertEqual('time_series', result['result_kind'])
         self.assertEqual(0.5, result['payload']['points'][0]['usage'])
-        kinds = {item['resource_kind'] for item in client.list_resources({
+        resources = client.list_resources({
             'route': influx_route()
-        })}
+        })
+        kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({'cluster', 'node', 'database', 'table', 'column',
                          'tag'}.issubset(kinds))
+        table_resource = next(
+            item for item in resources
+            if item['resource_kind'] == 'table'
+        )
+        self.assertEqual(
+            3, table_resource['native']['statistics']['column_count']
+        )
+        tag = next(
+            item for item in resources
+            if item['resource_kind'] == 'tag'
+        )
+        self.assertEqual(
+            'Dictionary(Int32, Utf8)',
+            tag['native']['definition']['data_type'],
+        )
         catalog = client.visual_admin_catalog(catalog_for_engine('influxdb'))
         table = next(item for item in catalog['objects']
                      if item['resource_kind'] == 'table')
@@ -756,11 +779,32 @@ class AnalyticProviderTests(unittest.TestCase):
         result = client.describe_result(token)
         self.assertEqual('search', result['result_kind'])
         self.assertEqual('1', result['payload']['hits'][0]['_id'])
-        kinds = {item['resource_kind'] for item in client.list_resources({
+        resources = client.list_resources({
             'route': open_route()
-        })}
+        })
+        kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({'cluster', 'node', 'index',
                         'mapping', 'field'} <= kinds)
+        cluster = next(
+            item for item in resources
+            if item['resource_kind'] == 'cluster'
+        )
+        self.assertEqual('green', cluster['native']['state']['health'][
+            'status'
+        ])
+        index = next(
+            item for item in resources
+            if item['resource_kind'] == 'index'
+        )
+        self.assertEqual('green', index['native']['statistics']['health'])
+        mapping = next(
+            item for item in resources
+            if item['resource_kind'] == 'mapping'
+        )
+        self.assertEqual(
+            'text',
+            mapping['native']['definition']['properties']['title']['type'],
+        )
         plan = client.plan_admin_operation({
             'resource_kind': 'document', 'operation_id': 'insert',
             'draft': {'index': 'documents', 'document_id': 'two',
@@ -850,6 +894,47 @@ class AnalyticProviderTests(unittest.TestCase):
         with self.assertRaisesRegex(OpenSearchClientError, 'JSON object'):
             client.execute(session, {'source': 'not-json'})
 
+    def test_opensearch_exact_document_and_static_analysis_paths(self):
+        class AnalysisHTTP(AnalyticHTTPFactory):
+            def __call__(self, request, timeout, context):
+                path = urllib.parse.urlsplit(request.full_url).path
+                if path == '/_cat/indices/documents':
+                    super().__call__(request, timeout, context)
+                    return Response([{'status': 'open'}])
+                return super().__call__(request, timeout, context)
+
+        http = AnalysisHTTP()
+        client = OpenSearchClient(urlopen=http)
+        inspect = client.plan_admin_operation({
+            'resource_kind': 'document', 'operation_id': 'inspect',
+            'target_resource': {'native': {
+                'index': 'documents', '_id': 'document-one',
+            }}, '_provider_route': open_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': inspect['provider_payload'],
+        })
+        self.assertEqual('/documents/_doc/document-one',
+                         http.requests[-1]['path'])
+
+        analyzer = client.plan_admin_operation({
+            'resource_kind': 'analyzer', 'operation_id': 'create',
+            'draft': {
+                'index': 'documents', 'name': 'folded',
+                'definition': {
+                    'type': 'custom', 'tokenizer': 'standard',
+                    'filter': ['lowercase'],
+                },
+            }, '_provider_route': open_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': analyzer['provider_payload'],
+        })
+        self.assertEqual([
+            '/_cat/indices/documents', '/documents/_close',
+            '/documents/_settings', '/documents/_open',
+        ], [item['path'] for item in http.requests[-4:]])
+
     def test_sql_ppl_requires_plugin_identity_and_normalizes_rows(self):
         http = AnalyticHTTPFactory()
         client = OpenSearchSQLPPLClient(urlopen=http)
@@ -887,6 +972,51 @@ class AnalyticProviderTests(unittest.TestCase):
                 'route': open_route()
             })
 
+    def test_sql_ppl_uses_exact_admin_and_prepared_query_endpoints(self):
+        http = AnalyticHTTPFactory()
+        client = OpenSearchSQLPPLClient(urlopen=http)
+        target = {'native': {
+            'name': 'qualification', 'dataSourceName': 'qualification',
+        }}
+        inspect = client.plan_admin_operation({
+            'resource_kind': 'data-source', 'operation_id': 'inspect',
+            'target_resource': target, '_provider_route': open_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': inspect['provider_payload'],
+        })
+        self.assertEqual(
+            '/_plugins/_query/_datasources/qualification',
+            http.requests[-1]['path'],
+        )
+
+        settings = client.plan_admin_operation({
+            'resource_kind': 'language-settings', 'operation_id': 'alter',
+            'draft': {'definition': {'transient': {
+                'plugins.sql.cursor.keep_alive': '1m',
+            }}}, '_provider_route': open_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': settings['provider_payload'],
+        })
+        self.assertEqual('/_plugins/_query/settings',
+                         http.requests[-1]['path'])
+
+        prepared = client.plan_admin_operation({
+            'resource_kind': 'prepared-query', 'operation_id': 'execute',
+            'draft': {
+                'language': 'sql', 'source': 'SELECT ? AS answer',
+                'parameters': [{'type': 'integer', 'value': 42}],
+            }, '_provider_route': open_route(),
+        })
+        client.apply_admin_operation({
+            'provider_payload': prepared['provider_payload'],
+        })
+        self.assertEqual(
+            [{'type': 'integer', 'value': 42}],
+            http.requests[-1]['body']['parameters'],
+        )
+
     def test_milvus_optional_dependency_identity_search_and_admin(self):
         created = []
 
@@ -913,12 +1043,29 @@ class AnalyticProviderTests(unittest.TestCase):
         result = client.describe_result(token)
         self.assertEqual('vector', result['result_kind'])
         self.assertEqual(0.1, result['payload']['matches'][0]['distance'])
-        kinds = {item['resource_kind'] for item in client.list_resources({
+        resources = client.list_resources({
             'route': {'host': '127.0.0.1', 'port': 19530}
-        })}
+        })
+        kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({'cluster', 'database', 'collection', 'field',
                          'partition', 'vector-index', 'load-state', 'alias',
                          'credential', 'privilege'} <= kinds)
+        collection = next(
+            item for item in resources
+            if item['resource_kind'] == 'collection'
+        )
+        self.assertIn('fields', collection['native']['definition'])
+        self.assertIn('statistics', collection['native'])
+        vector_index = next(
+            item for item in resources
+            if item['resource_kind'] == 'vector-index'
+        )
+        self.assertIn('definition', vector_index['native'])
+        load_state = next(
+            item for item in resources
+            if item['resource_kind'] == 'load-state'
+        )
+        self.assertIn('state', load_state['native'])
         page = client.read_admin_rows({
             '_provider_route': {'host': '127.0.0.1', 'port': 19530},
             'target_resource': {'native': {'collection_name': 'vectors'}},
@@ -952,6 +1099,37 @@ class AnalyticProviderTests(unittest.TestCase):
         })
         self.assertEqual('create_collection',
                          applied['native_response']['operation'])
+        compact = client.plan_admin_operation({
+            'resource_kind': 'compaction', 'operation_id': 'execute',
+            'draft': {
+                'collection_name': 'vectors', 'compaction_kind': 'merge',
+                'acknowledge_operation': True,
+            },
+            '_provider_route': {'host': '127.0.0.1', 'port': 19530},
+        })
+        compacted = client.apply_admin_operation({
+            'provider_payload': compact['provider_payload']
+        })
+        self.assertEqual(91, compacted['native_response'])
+        resources = client.list_resources({
+            'route': {'host': '127.0.0.1', 'port': 19530}
+        })
+        job = next(
+            item for item in resources
+            if item['resource_kind'] == 'compaction'
+        )
+        self.assertEqual(91, job['native']['job_id'])
+        inspect = client.plan_admin_operation({
+            'resource_kind': 'compaction', 'operation_id': 'inspect',
+            'draft': {}, 'target_resource': job,
+            '_provider_route': {'host': '127.0.0.1', 'port': 19530},
+        })
+        state = client.apply_admin_operation({
+            'provider_payload': inspect['provider_payload']
+        })
+        self.assertEqual(
+            'Completed', state['native_response']['state']['state']
+        )
         advanced = client.plan_admin_operation({
             'resource_kind': 'collection', 'operation_id': 'create',
             'draft': {

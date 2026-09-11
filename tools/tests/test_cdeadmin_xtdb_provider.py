@@ -348,6 +348,20 @@ class XTDBClientContractTests(unittest.TestCase):
             'transaction-log',
             'user',
         }.issubset(kinds))
+        document = next(
+            item for item in resources
+            if item['resource_kind'] == 'document'
+        )
+        self.assertEqual(
+            document['native']['table'], document['native']['data']['table']
+        )
+        user = next(
+            item for item in resources
+            if item['resource_kind'] == 'user'
+        )
+        self.assertEqual(
+            user['native']['username'], user['native']['security']['username']
+        )
         security = self.client.describe_security({'route': route()})
         self.assertFalse(security['native']['passwords_exposed'])
         self.assertNotIn('passwd', str(security).lower())

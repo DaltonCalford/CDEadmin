@@ -15,6 +15,7 @@ import json
 import sys
 import unittest
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
@@ -47,6 +48,7 @@ from pgadmin.cdeadmin.core import (  # noqa: E402
 )
 from pgadmin.cdeadmin.providers.postgresql.provider import (  # noqa: E402
     LEGACY_DRIVER_TYPE,
+    POSTGRESQL_ADMIN_OPERATIONS,
     PostgreSQLCatalogSource,
     PostgreSQLProvider,
     PostgreSQLProviderError,
@@ -151,6 +153,14 @@ class FakeConnection:
     def cancel_transaction(self, connection_id, database_id):
         self.cancelled.append((connection_id, database_id))
         return True, 'cancelled'
+
+    def execute_void(self, source):
+        self.executions.append((source, None, {'mode': 'void'}))
+        return True, 'executed'
+
+    def execute_dict(self, source):
+        self.executions.append((source, None, {'mode': 'dict'}))
+        return True, {'rows': [{'name': 'qualified'}]}
 
 
 class FakeManager:
@@ -547,6 +557,110 @@ class PostgreSQLProviderContractTests(unittest.TestCase):
         self.provider.open_session({'route': {'server_id': 7}})
         self.assertFalse(hasattr(fixture, '_sessions'))
         self.assertNotIn(fixture, self.provider._sessions.values())
+
+    def test_native_advanced_catalog_forms_are_structured_and_exact(self):
+        descriptor = self.provider.visual_admin_descriptor()
+        resources = {
+            item['resource_kind']: item for item in descriptor['objects']
+        }
+        for kind in ('conversion', 'operator-class', 'operator-family'):
+            self.assertEqual(
+                {'create', 'alter', 'drop', 'inspect'},
+                set(POSTGRESQL_ADMIN_OPERATIONS[kind]),
+            )
+            operations = {
+                item['operation_id']: item
+                for item in resources[kind]['operations']
+            }
+            self.assertEqual(
+                set(POSTGRESQL_ADMIN_OPERATIONS[kind]), set(operations)
+            )
+            self.assertTrue(all(
+                item['form']['form_id'].startswith(f'postgresql-{kind}-')
+                for item in operations.values()
+            ))
+
+    def test_native_advanced_compiler_uses_structured_fields(self):
+        route = {'server_id': 7, 'database_id': 10}
+        family = self.provider.plan_admin_operation({
+            'resource_kind': 'operator-family',
+            'operation_id': 'create',
+            'draft': {
+                'schema': 'public', 'name': 'qualified_family',
+                'index_method': 'btree',
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            'CREATE OPERATOR FAMILY "public"."qualified_family" '
+            'USING btree',
+            family['command_preview']['statement'],
+        )
+        conversion = self.provider.plan_admin_operation({
+            'resource_kind': 'conversion',
+            'operation_id': 'create',
+            'draft': {
+                'schema': 'public', 'name': 'qualified_conversion',
+                'source_encoding': 'LATIN1', 'target_encoding': 'UTF8',
+                'function': 'pg_catalog.latin1_to_utf8',
+                'default': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertIn(
+            "FOR 'LATIN1' TO 'UTF8' FROM pg_catalog.latin1_to_utf8",
+            conversion['command_preview']['statement'],
+        )
+
+    def test_native_advanced_compiler_rejects_source_fragments(self):
+        with self.assertRaisesRegex(
+            PostgreSQLProviderError, 'catalog reference'
+        ):
+            self.provider.plan_admin_operation({
+                'resource_kind': 'operator-family',
+                'operation_id': 'create',
+                'draft': {
+                    'schema': 'public', 'name': 'unsafe',
+                    'index_method': 'btree; DROP DATABASE postgres',
+                },
+                '_provider_route': {'server_id': 7, 'database_id': 10},
+            })
+
+    def test_native_advanced_form_plans_and_executes_through_provider(self):
+        permissions = FakePermissions({
+            'network', 'data_read', 'data_write', 'administer', 'execute',
+        })
+        provider = PostgreSQLProvider(
+            replace(
+                endpoint('native-form'), runtime_verification_state='verified'
+            ),
+            permissions, self.driver, self.catalog,
+        )
+        request = {
+            'resource_kind': 'operator-family',
+            'operation_id': 'create',
+            'draft': {
+                'schema': 'public', 'name': 'qualified_family',
+                'index_method': 'btree',
+            },
+            '_provider_route': {'server_id': 7, 'database_id': 10},
+        }
+        validation = provider.validate_visual_admin(request)
+        plan = provider.plan_visual_admin(request)
+        result = provider.apply_visual_admin({
+            'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'],
+            'confirmed': True,
+        })
+        self.assertTrue(validation['valid'])
+        self.assertEqual('ready', plan['state'])
+        self.assertEqual(
+            'observed', result['provider_result']['native_outcome']
+        )
+        self.assertIn(
+            'CREATE OPERATOR FAMILY',
+            self.driver.manager._connection.executions[-1][0],
+        )
 
 
 class PostgreSQLCatalogOwnershipTests(unittest.TestCase):

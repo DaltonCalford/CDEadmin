@@ -432,6 +432,40 @@ class RelationalAdministration:
                 })
         if (
             self.dialect.engine_id == 'firebird' and
+            resource_kind == 'database' and operation_id == 'drop'
+        ):
+            route = request.get('_provider_route', {})
+            expected = route.get('database') if isinstance(
+                route, Mapping
+            ) else None
+            if set(draft).difference({'confirmation'}):
+                errors.append({
+                    'field_id': None,
+                    'code': 'unknown_firebird_database_drop_option',
+                    'message': (
+                        'A Firebird database drop option is unknown.'
+                    ),
+                })
+            if not isinstance(expected, str) or not expected:
+                errors.append({
+                    'field_id': None,
+                    'code': 'firebird_database_target_required',
+                    'message': (
+                        'Firebird database deletion requires a retained '
+                        'database route.'
+                    ),
+                })
+            elif draft.get('confirmation') != expected:
+                errors.append({
+                    'field_id': 'confirmation',
+                    'code': 'firebird_database_confirmation_mismatch',
+                    'message': (
+                        'Firebird database deletion confirmation must '
+                        'exactly match the database filename or alias.'
+                    ),
+                })
+        if (
+            self.dialect.engine_id == 'firebird' and
             resource_kind == 'database' and
             operation_id in _FIREBIRD_SERVICE_OPERATIONS
         ):

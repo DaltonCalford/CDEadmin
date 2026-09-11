@@ -12,6 +12,7 @@ import ProviderWorkspaceContent, {
   DatabaseTargetWorkspace,
   ResultControls,
   ServerProfileWorkspace,
+  inspectorSections,
   semanticCrossFilter,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
@@ -117,6 +118,32 @@ describe('ProviderWorkspaceContent', () => {
     api = {get: jest.fn(), post: jest.fn()};
     getApiInstance.mockReturnValue(api);
     api.get.mockResolvedValue({data: {data: bootstrap}});
+  });
+
+  it('shows only provider-evidenced property sections', () => {
+    const resource = {extensions: {mongodb: {native: {
+      definition: {validator: {$jsonSchema: {bsonType: 'object'}}},
+      indexes: [],
+    }}}};
+    expect(inspectorSections(resource, {editor: {
+      sections: ['properties', 'definition', 'dependencies', 'security',
+        'data', 'operations'],
+      data_presentation: null,
+    }})).toEqual([
+      'properties', 'definition', 'indexes', 'operations',
+    ]);
+  });
+
+  it('preserves exact provider-declared empty property sections', () => {
+    const resource = {extensions: {firebird: {native: {
+      property_sections: [
+        'properties', 'dependencies', 'dependents', 'operations',
+      ],
+      dependencies: [], dependents: [],
+    }}}};
+    expect(inspectorSections(resource, {})).toEqual([
+      'properties', 'dependencies', 'dependents', 'operations',
+    ]);
   });
 
   it('renders and submits an exact provider-owned endpoint form', async () => {

@@ -43,7 +43,7 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
             result['native_graphical_operation_count'],
             result['graphical_operation_count'],
         )
-        self.assertEqual(1982, result['graphical_operation_count'])
+        self.assertEqual(1934, result['graphical_operation_count'])
         self.assertEqual(0, result['activation_permission_failure_count'])
         self.assertEqual(0, result['provider_identity_failure_count'])
         self.assertEqual(0, result['shared_semantics_failure_count'])
@@ -137,6 +137,21 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
         self.assertEqual(
             {'relational'}, families('yugabytedb-native')
         )
+
+    def test_mysql_family_metrics_are_graphically_reachable(self):
+        for profile_id in ('mysql-native', 'mariadb-native'):
+            objects = {
+                item['resource_kind']: item
+                for item in self.catalogs[profile_id]['descriptor']['objects']
+            }
+            self.assertIn('metric', objects)
+            self.assertEqual(
+                ['inspect'],
+                [
+                    operation['operation_id']
+                    for operation in objects['metric']['operations']
+                ],
+            )
 
 
 if __name__ == '__main__':

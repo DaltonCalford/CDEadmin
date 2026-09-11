@@ -74,6 +74,7 @@ def parser():
     value.add_argument('--password-environment', required=True)
     value.add_argument('--allow-mutation', action='store_true')
     value.add_argument('--output', type=Path, required=True)
+    value.add_argument('--object-evidence', type=Path)
     return value
 
 
@@ -167,6 +168,11 @@ def verify(args):
         identity = client.runtime_identity({'route': route})
         if identity.get('version') != PROFILE.exact_version:
             raise RuntimeError('Ignite exact runtime identity changed')
+        resources = client.list_resources({'route': route})
+        for kind in ('user', 'cache-template', 'data-region'):
+            target = next(
+                item for item in resources if item['resource_kind'] == kind)
+            run(kind, 'inspect', target=target)
         run('user', 'create', {
             'name': username, 'password_reference': 'user-one',
         })
@@ -183,6 +189,7 @@ def verify(args):
             'name': cache_name, 'backups_number': 1,
         })
         cache_present = True
+        run('cache', 'inspect', target=cache)
         run('cache', 'insert', {
             'key': 'snapshot-key', 'value': 'snapshot-value',
         }, cache)
@@ -198,6 +205,12 @@ def verify(args):
         run('snapshot', 'create', {
             'name': snapshot_name, 'synchronous': True,
         })
+        snapshot = next(
+            item for item in client.list_resources({'route': route})
+            if item['resource_kind'] == 'snapshot' and
+            item['display_name'] == snapshot_name
+        )
+        run('snapshot', 'inspect', target=snapshot)
         run('snapshot', 'check', {}, snapshot, post_state=False)
         run('cache', 'drop', {'confirmation': cache_name}, cache)
         cache_present = False
@@ -261,7 +274,84 @@ def verify(args):
     args.output.write_text(
         json.dumps(evidence, indent=2, sort_keys=True) + '\n',
         encoding='utf-8')
+    object_path = getattr(args, 'object_evidence', None)
+    if object_path is not None:
+        object_path.parent.mkdir(parents=True, exist_ok=True)
+        object_path.write_text(
+            json.dumps(object_evidence(evidence), indent=2,
+                       sort_keys=True) + '\n',
+            encoding='utf-8')
     return evidence
+
+
+def object_evidence(evidence):
+    """Project exact extended operations into the strict object gate."""
+    concept_status = (
+        'passed' if evidence.get('status') == 'passed' else 'failed'
+    )
+    completed = {
+        (item.get('resource_kind'), item.get('operation_id'))
+        for item in evidence.get('operations', []) + evidence.get(
+            'cleanup', [])
+        if item.get('accepted') is True and item.get(
+            'post_state_confirmed', True) is True
+    }
+
+    def operation_map(kinds, allowed=None):
+        result = {}
+        for kind in kinds:
+            operations = {
+                operation for resource_kind, operation in completed
+                if resource_kind == kind and (
+                    allowed is None or operation in allowed.get(kind, set()))
+            }
+            if operations:
+                result[kind] = sorted(operations)
+        return result
+
+    return {
+        'schema': 'cdeadmin.provider-object-live-evidence.v1',
+        'engine_id': 'apache_ignite',
+        'exact_profile': PROFILE.exact_version,
+        'run_id': f'ignite-extended-{uuid.uuid4()}',
+        'concepts': {
+            'relational': {
+                'roles_and_grants': {
+                    'status': concept_status,
+                    'operations': operation_map(('user',)),
+                },
+            },
+            'key_value': {
+                'key_browsing': {
+                    'status': concept_status,
+                    'operations': operation_map(
+                        ('cache',), {'cache': {'inspect'}}),
+                },
+                'data_type_editing': {
+                    'status': concept_status,
+                    'operations': operation_map(
+                        ('cache',), {'cache': {
+                            'insert', 'update', 'delete'}}),
+                },
+                'sentinel_or_cluster_state': {
+                    'status': concept_status,
+                    'operations': operation_map((
+                        'cache', 'cache-template', 'data-region', 'snapshot',
+                    ), {
+                        'cache': {
+                            'inspect', 'create', 'drop', 'clear',
+                            'idle_verify', 'rebuild_indexes',
+                            'reset_lost_partitions', 'validate_indexes',
+                        },
+                        'cache-template': {'inspect'},
+                        'data-region': {'inspect'},
+                        'snapshot': {
+                            'inspect', 'create', 'check', 'restore'},
+                    }),
+                },
+            },
+        },
+    }
 
 
 def main():

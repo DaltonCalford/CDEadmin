@@ -25,6 +25,9 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from pgadmin.cdeadmin.visual_admin import ProviderVisualAdministration
+from pgadmin.cdeadmin.resources.properties import (
+    normalize_resource_properties,
+)
 
 
 PROVIDER_VERSION = '0.1.0'
@@ -399,15 +402,24 @@ class ActualEnginePilotProvider:
 
     def refresh_visual_admin_operation(self, request):
         """Ask the provider for a fresh operation observation."""
-        return self._visual_admin.refresh_operation(request)
+        payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        return self._visual_admin.refresh_operation(
+            payload, execution_context)
 
     def cancel_visual_admin_operation(self, request):
         """Dispatch one provider-owned cancellation request."""
-        return self._visual_admin.cancel_operation(request)
+        payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        return self._visual_admin.cancel_operation(
+            payload, execution_context)
 
     def validate_visual_admin_post_state(self, request):
         """Ask the provider to independently validate post-state."""
-        return self._visual_admin.validate_operation_post_state(request)
+        payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        return self._visual_admin.validate_operation_post_state(
+            payload, execution_context)
 
     def semantic_model_descriptor(self):
         """Describe provider-owned semantic compilation availability."""
@@ -691,13 +703,21 @@ class ActualEnginePilotProvider:
             'capability_ids': list(native.get('capability_ids') or []),
             'extensions': self._extension({
                 'provider_owned': True,
-                'native': native.get('native', {}),
+                'native': normalize_resource_properties(
+                    native.get('native', {})
+                ),
             }),
         }
 
     def list_resources(self, request):
         self._require('data_read', 'resource')
         payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        if execution_context is not None:
+            payload = dict(payload)
+            payload['_provider_session_handle'] = execution_context[
+                'session_handle'
+            ]
         resources = self.client.list_resources(payload)
         if not isinstance(resources, (list, tuple)):
             raise PilotProviderError('client resource result must be an array')
@@ -709,6 +729,12 @@ class ActualEnginePilotProvider:
     def inspect_resource(self, request):
         self._require('data_read', 'resource')
         payload = _mapping(request)
+        execution_context = self._visual_admin_session_context(payload)
+        if execution_context is not None:
+            payload = dict(payload)
+            payload['_provider_session_handle'] = execution_context[
+                'session_handle'
+            ]
         return self._resource(
             self.client.inspect_resource(payload),
             payload.get('parent_resource_id'),

@@ -313,13 +313,37 @@ class InfluxDBClient:
 
     def _resource(self, kind, name, native, path=None):
         path = path or [kind, name]
+        native = copy.deepcopy(native)
+        if kind in {'cluster', 'node', 'load-state', 'compaction'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {
+            'processing-engine', 'database', 'retention-policy', 'column',
+            'tag', 'field', 'trigger', 'plugin',
+        }:
+            native['definition'] = copy.deepcopy(native)
+        elif kind == 'table':
+            native['definition'] = {
+                key: copy.deepcopy(native[key])
+                for key in ('series_key_columns',) if key in native
+            }
+            native['statistics'] = {
+                key: copy.deepcopy(native[key])
+                for key in (
+                    'column_count', 'last_cache_count',
+                    'distinct_cache_count',
+                ) if key in native
+            }
+        elif kind in {'last-cache', 'distinct-cache'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind == 'token':
+            native['security'] = copy.deepcopy(native)
         return {
             'resource_id': 'influxdb:' + ':'.join(map(str, path)),
             'resource_kind': kind, 'display_name': str(name),
             'authority_path': ['influxdb', *map(str, path)],
             'display_path': list(map(str, path)),
             'generation': self._generation(native),
-            'native': copy.deepcopy(native),
+            'native': native,
         }
 
     def _query_rows(self, route, source, database=None):
@@ -1070,7 +1094,8 @@ class InfluxDBClient:
         )
         name = (
             target.get('name') or target.get('table_name') or
-            target.get('column_name') or target.get('trigger_name') or
+            target.get('column_name') or target.get('node_id') or
+            target.get('trigger_name') or
             target.get('plugin_name')
         )
         if kind == 'cluster':

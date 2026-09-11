@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+workspace=$(pwd -P)
+arguments=()
+for argument in "$@"; do
+    if [[ "$argument" == *"$workspace"* ]]; then
+        argument=${argument/"$workspace"/\/cdeadmin-tools}
+    fi
+    arguments+=("$argument")
+done
+
+exec /usr/bin/docker exec --user neo4j cdeadmin-demo-neo4j \
+    /var/lib/neo4j/bin/neo4j-admin "${arguments[@]}"

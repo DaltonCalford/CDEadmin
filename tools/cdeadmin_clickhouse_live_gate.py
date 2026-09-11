@@ -53,6 +53,10 @@ CATEGORIES = (
     'object_operations', 'transaction_boundary', 'cleanup',
 )
 OBJECT_OPERATIONS = {
+    'server': {'inspect', 'execute'},
+    'cluster': {'inspect', 'execute'},
+    'replica': {'inspect', 'execute'},
+    'database': {'inspect', 'create', 'alter', 'rename', 'drop'},
     'table': {
         'inspect', 'create', 'alter', 'rename', 'insert', 'update', 'delete',
         'drop',
@@ -65,6 +69,19 @@ OBJECT_OPERATIONS = {
         'inspect', 'create', 'alter', 'execute', 'drop',
     },
     'partition': {'inspect', 'execute'},
+    'column': {'inspect', 'create', 'alter', 'rename', 'drop'},
+    'function': {'inspect', 'create', 'alter', 'drop'},
+    'user': {
+        'inspect', 'create', 'alter', 'rename', 'grant', 'revoke', 'drop',
+    },
+    'role': {
+        'inspect', 'create', 'alter', 'rename', 'grant', 'revoke', 'drop',
+    },
+    'quota': {'inspect', 'create', 'alter', 'rename', 'drop'},
+    'settings-profile': {
+        'inspect', 'create', 'alter', 'rename', 'drop',
+    },
+    'row-policy': {'inspect', 'create', 'alter', 'rename', 'drop'},
 }
 
 
@@ -170,12 +187,15 @@ def verify(args):
     password = os.environ.get(args.password_environment)
     secret_reference = 'clickhouse-live-connection'
     new_user_reference = 'clickhouse-live-created-user'
+    changed_user_reference = 'clickhouse-live-changed-user'
 
     def acquire(reference, _principal, _purpose, _kind):
         if reference == secret_reference and password is not None:
             return _Lease(password)
         if reference == new_user_reference:
             return _Lease('temporary-clickhouse-live-gate-password')
+        if reference == changed_user_reference:
+            return _Lease('changed-clickhouse-live-gate-password')
         raise ClickHouseClientError('qualification secret is unavailable')
 
     run_id = uuid.uuid4().hex[:12]
@@ -185,6 +205,11 @@ def verify(args):
     quota = f'cdeadmin_quota_{run_id}'
     profile = f'cdeadmin_profile_{run_id}'
     policy = f'cdeadmin_policy_{run_id}'
+    renamed_user = f'{username}_renamed'
+    renamed_role = f'{role}_renamed'
+    renamed_quota = f'{quota}_renamed'
+    renamed_profile = f'{profile}_renamed'
+    renamed_policy = f'{policy}_renamed'
     function = f'cdeadmin_fn_{run_id}'
     dictionary = f'cdeadmin_dictionary_{run_id}'
     semantic_view = f'cdeadmin_semantic_{run_id}'
@@ -293,10 +318,27 @@ def verify(args):
                 failures.append(f'{name}: destructive runtime not admitted')
         else:
             def database_table_ddl():
-                _admin(client, route, 'database', 'create', {
+                database_target = _target(
+                    'database', database=database, name=database,
+                )
+                admin('database', 'create', {
                     'name': database, 'engine': 'Atomic',
                     'comment': 'CDEadmin exact-profile qualification',
                 })
+                admin('database', 'inspect', {}, database_target)
+                admin('database', 'alter', {
+                    'comment': 'CDEadmin exact-profile qualification altered',
+                }, database_target)
+                admin('database', 'rename', {
+                    'new_name': database + '_renamed',
+                }, database_target)
+                renamed_target = _target(
+                    'database', database=database + '_renamed',
+                    name=database + '_renamed',
+                )
+                admin('database', 'rename', {
+                    'new_name': database,
+                }, renamed_target)
                 admin('table', 'create', {
                     'database': database, 'name': 'events',
                     'columns': [
@@ -574,7 +616,7 @@ def verify(args):
                     'select': f'SELECT category, sum(value) AS total FROM '
                     f'`{database}`.`events` GROUP BY category',
                 })
-                _admin(client, route, 'function', 'create', {
+                admin('function', 'create', {
                     'name': function, 'lambda': '(x) -> x + 1',
                 })
                 value = _execute(
@@ -592,30 +634,30 @@ def verify(args):
             )
 
             def access_control():
-                _admin(client, route, 'role', 'create', {'name': role})
-                _admin(client, route, 'user', 'create', {
+                admin('role', 'create', {'name': role})
+                admin('user', 'create', {
                     'name': username,
                     'password_reference': new_user_reference,
                 })
-                _admin(client, route, 'role', 'grant', {
+                admin('role', 'grant', {
                     'privileges': 'SELECT',
                     'scope': f'`{database}`.*',
                 }, _target('role', name=role))
                 _execute(client, session, f'GRANT `{role}` TO `{username}`')
-                _admin(client, route, 'settings-profile', 'create', {
+                admin('settings-profile', 'create', {
                     'name': profile,
                     'definition': 'SETTINGS max_threads = 2 TO '
                     f'`{role}`',
                 })
-                _admin(client, route, 'quota', 'create', {
+                admin('quota', 'create', {
                     'name': quota,
                     'definition': 'FOR INTERVAL 1 hour MAX queries = 1000 '
                     f'TO `{role}`',
                 })
-                _admin(client, route, 'row-policy', 'create', {
+                admin('row-policy', 'create', {
                     'name': policy,
-                    'definition': f'ON `{database}`.`events` USING 1 TO '
-                    f'`{role}`',
+                    'database': database, 'table': 'events',
+                    'definition': f'USING 1 TO `{role}`',
                 })
                 security = client.describe_security({'route': route})
                 names = {item['name'] for item in security['native']['users']}
@@ -644,6 +686,54 @@ def verify(args):
             _record(evidence, 'resource_discovery', resources, failures)
 
             def object_operations():
+                server_target = _target(
+                    'server', name=args.host, host=args.host,
+                )
+                admin('server', 'inspect', {}, server_target)
+                admin('server', 'execute', {
+                    'action': 'reload-config',
+                    'acknowledge_operation': True,
+                }, server_target)
+                cluster_resources = [
+                    item for item in client.list_resources({'route': route})
+                    if item['resource_kind'] == 'cluster'
+                ]
+                if not cluster_resources:
+                    raise RuntimeError('ClickHouse cluster is unavailable')
+                cluster_name = cluster_resources[0]['native']['cluster']
+                cluster_target = _target(
+                    'cluster', name=cluster_name, cluster=cluster_name,
+                )
+                admin('cluster', 'inspect', {}, cluster_target)
+                admin('cluster', 'execute', {
+                    'action': 'flush-logs',
+                    'acknowledge_operation': True,
+                }, cluster_target)
+
+                replica_table = 'replicated_events'
+                replica_table_target = _target(
+                    'table', database=database, table=replica_table,
+                    name=replica_table,
+                )
+                admin('table', 'create', {
+                    'database': database, 'name': replica_table,
+                    'columns': [{'name': 'id', 'type': 'UInt64'}],
+                    'engine': 'ReplicatedMergeTree', 'order_by': 'id',
+                    'replication_path': (
+                        f'/clickhouse/cdeadmin/{run_id}/{replica_table}'
+                    ),
+                    'replica_name': 'replica_01',
+                })
+                replica_target = _target(
+                    'replica', database=database, table=replica_table,
+                    name=replica_table,
+                )
+                admin('replica', 'inspect', {}, replica_target)
+                admin('replica', 'execute', {
+                    'action': 'sync-replica',
+                    'acknowledge_operation': True,
+                }, replica_target)
+
                 lifecycle = 'lifecycle_objects'
                 lifecycle_target = _target(
                     'table', database=database, table=lifecycle,
@@ -663,6 +753,27 @@ def verify(args):
                     'setting_name': 'min_bytes_for_wide_part',
                     'setting_value': '0',
                 }, lifecycle_target)
+                column_target = _target(
+                    'column', database=database, table=lifecycle,
+                    name='lifecycle_value',
+                )
+                admin('column', 'create', {
+                    'name': 'lifecycle_value', 'type': 'UInt64',
+                    'default_expression': '0',
+                }, column_target)
+                admin('column', 'inspect', {}, column_target)
+                admin('column', 'alter', {
+                    'type': 'Int64',
+                }, column_target)
+                admin('column', 'rename', {
+                    'new_name': 'lifecycle_value_renamed',
+                }, column_target)
+                admin('column', 'drop', {
+                    'acknowledge_drop': True,
+                }, _target(
+                    'column', database=database, table=lifecycle,
+                    name='lifecycle_value_renamed',
+                ))
                 admin('table', 'rename', {
                     'new_name': lifecycle + '_renamed',
                 }, lifecycle_target)
@@ -806,6 +917,105 @@ def verify(args):
                     'acknowledge_operation': True,
                 }, partition_target)
 
+                function_target = _target('function', name=function)
+                admin('function', 'inspect', {}, function_target)
+                admin('function', 'alter', {
+                    'lambda': '(x) -> x + 2',
+                }, function_target)
+
+                user_target = _target('user', name=username)
+                admin('user', 'inspect', {}, user_target)
+                admin('user', 'alter', {
+                    'password_reference': changed_user_reference,
+                }, user_target)
+                admin('user', 'grant', {
+                    'privileges': 'SELECT',
+                    'scope': f'`{database}`.*',
+                }, user_target)
+                admin('user', 'revoke', {
+                    'privileges': 'SELECT',
+                    'scope': f'`{database}`.*',
+                }, user_target)
+                admin('user', 'rename', {
+                    'new_name': renamed_user,
+                }, user_target)
+                renamed_user_target = _target('user', name=renamed_user)
+                admin('user', 'rename', {
+                    'new_name': username,
+                }, renamed_user_target)
+
+                role_target = _target('role', name=role)
+                admin('role', 'inspect', {}, role_target)
+                admin('role', 'alter', {
+                    'definition': 'SETTINGS max_threads = 3',
+                }, role_target)
+                admin('role', 'grant', {
+                    'privileges': 'INSERT',
+                    'scope': f'`{database}`.*',
+                }, role_target)
+                admin('role', 'revoke', {
+                    'privileges': 'INSERT',
+                    'scope': f'`{database}`.*',
+                }, role_target)
+                admin('role', 'rename', {
+                    'new_name': renamed_role,
+                }, role_target)
+                renamed_role_target = _target('role', name=renamed_role)
+                admin('role', 'rename', {
+                    'new_name': role,
+                }, renamed_role_target)
+
+                quota_target = _target('quota', name=quota)
+                admin('quota', 'inspect', {}, quota_target)
+                admin('quota', 'alter', {
+                    'definition': 'FOR INTERVAL 1 hour MAX queries = 2000 '
+                    f'TO `{role}`',
+                }, quota_target)
+                admin('quota', 'rename', {
+                    'new_name': renamed_quota,
+                }, quota_target)
+                renamed_quota_target = _target(
+                    'quota', name=renamed_quota,
+                )
+                admin('quota', 'rename', {
+                    'new_name': quota,
+                }, renamed_quota_target)
+
+                profile_target = _target('settings-profile', name=profile)
+                admin('settings-profile', 'inspect', {}, profile_target)
+                admin('settings-profile', 'alter', {
+                    'definition': 'SETTINGS max_threads = 4 TO '
+                    f'`{role}`',
+                }, profile_target)
+                admin('settings-profile', 'rename', {
+                    'new_name': renamed_profile,
+                }, profile_target)
+                renamed_profile_target = _target(
+                    'settings-profile', name=renamed_profile,
+                )
+                admin('settings-profile', 'rename', {
+                    'new_name': profile,
+                }, renamed_profile_target)
+
+                policy_target = _target(
+                    'row-policy', name=policy, database=database,
+                    table='events',
+                )
+                admin('row-policy', 'inspect', {}, policy_target)
+                admin('row-policy', 'alter', {
+                    'definition': f'USING id > 0 TO `{role}`',
+                }, policy_target)
+                admin('row-policy', 'rename', {
+                    'new_name': renamed_policy,
+                }, policy_target)
+                renamed_policy_target = _target(
+                    'row-policy', name=renamed_policy, database=database,
+                    table='events',
+                )
+                admin('row-policy', 'rename', {
+                    'new_name': policy,
+                }, renamed_policy_target)
+
                 admin('projection', 'drop', {
                     'acknowledge_drop': True,
                 }, projection_target)
@@ -824,6 +1034,32 @@ def verify(args):
                 admin('table', 'drop', {
                     'acknowledge_drop': True,
                 }, lifecycle_target)
+                admin('table', 'drop', {
+                    'acknowledge_drop': True,
+                }, replica_table_target)
+                admin('row-policy', 'drop', {
+                    'acknowledge_drop': True,
+                }, policy_target)
+                admin('quota', 'drop', {
+                    'acknowledge_drop': True,
+                }, quota_target)
+                admin('settings-profile', 'drop', {
+                    'acknowledge_drop': True,
+                }, profile_target)
+                admin('user', 'drop', {
+                    'acknowledge_drop': True,
+                }, user_target)
+                admin('role', 'drop', {
+                    'acknowledge_drop': True,
+                }, role_target)
+                admin('function', 'drop', {
+                    'acknowledge_drop': True,
+                }, function_target)
+                admin('database', 'drop', {
+                    'acknowledge_drop': True,
+                }, _target(
+                    'database', database=database, name=database,
+                ))
                 missing_operations = {
                     kind: sorted(required.difference(
                         observed_operations[kind]

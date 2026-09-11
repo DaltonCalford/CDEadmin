@@ -363,6 +363,26 @@ class _IgniteClient:
 
 class DistributedProviderTests(unittest.TestCase):
 
+    def test_distributed_resource_properties_follow_native_object_kind(self):
+        table = resource(
+            'table', ['app'], 'widgets', 'generation-one',
+            {'table_type': 'BASE TABLE'},
+        )
+        self.assertEqual(
+            {'table_type': 'BASE TABLE'}, table['native']['definition']
+        )
+        node = resource(
+            'node', [], 'one', 'generation-one', {'status': 'live'}
+        )
+        self.assertEqual('live', node['native']['state']['status'])
+        privilege = resource(
+            'privilege', ['operator'], 'SELECT', 'generation-one',
+            {'grantee': 'operator', 'privilege': 'SELECT'},
+        )
+        self.assertEqual(
+            'SELECT', privilege['native']['privileges'][0]['privilege']
+        )
+
     def test_cockroach_relational_object_contract_is_structurally_complete(
             self):
         catalog = enrich_engine_experience(COCKROACH_ADMIN.catalog(
@@ -385,7 +405,7 @@ class DistributedProviderTests(unittest.TestCase):
             concepts['extensions_and_plugins']['declared_status'],
         )
         self.assertEqual(
-            ['cluster'],
+            ['cluster', 'locality', 'node'],
             concepts['servers']['catalog_resource_kinds'],
         )
         self.assertEqual(
@@ -556,7 +576,7 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual(
             {'inspect', 'create', 'drop'}, operations['column'])
         self.assertEqual(
-            {'inspect', 'create', 'alter', 'drop'}, operations['ttl'])
+            {'create', 'alter', 'drop'}, operations['ttl'])
         self.assertNotIn('rename', operations['table'])
         self.assertNotIn('execute', operations['node'])
         for kind in ('table', 'view', 'column', 'index', 'ttl', 'user'):
@@ -703,6 +723,18 @@ class DistributedProviderTests(unittest.TestCase):
     )
     def test_yugabytedb_control_catalog_parses_native_objects(self, run):
         values = {
+            'get_load_balancer_state': (
+                'Master UUID RPC Host/Port State Role Load Balancer State\n'
+                f'{"f" * 32} master.internal:7100 ALIVE LEADER ENABLED\n'
+            ),
+            'list_all_masters': (
+                f'{"f" * 32} master.internal:7100 ALIVE LEADER '
+                'master.internal:7100\n'
+            ),
+            'list_all_tablet_servers': (
+                f'{"9" * 32} node.internal:9100 0.1s ALIVE 0 0 10 '
+                '1MB 1MB 1 1MB node.internal:9100\n'
+            ),
             'list_snapshot_schedules': json.dumps({'schedules': [{
                 'id': 'a' * 32, 'options': {'interval': '60 min'},
             }]}),
@@ -714,12 +746,20 @@ class DistributedProviderTests(unittest.TestCase):
                 'id': 'c' * 32, 'state': 'COMPLETE',
             }]}),
             'get_universe_config': json.dumps({
-                'replicationInfo': {'liveReplicas': {}},
+                'replicationInfo': {'liveReplicas': {
+                    'placementUuid':
+                    'YzQ3OTA1N2UtOTA2NS00ZTg4LTkzOWUtMTNjMmFiNzMzZGM5',
+                }},
             }),
             'list_tables': (
                 'ysql.application.orders [ysql_schema=public] '
                 '[' + 'd' * 32 + '] ' + 'e' * 32 + ' table\n'
             ),
+            'list_tablets': json.dumps({'tablets': [{
+                'id': '8' * 32,
+                'leader': {'uuid': '9' * 32},
+                'followers': [],
+            }]}),
         }
 
         def response(_route, arguments, timeout=120):
@@ -745,6 +785,9 @@ class DistributedProviderTests(unittest.TestCase):
             ('snapshot', 'c' * 32),
             ('placement-policy', 'live-placement'),
             ('table', 'orders'),
+            ('tablet', '8' * 32),
+            ('master', 'f' * 32),
+            ('node', 'node.internal:9100'),
         }.issubset(observed))
         table = next(
             item for item in resources
@@ -752,6 +795,14 @@ class DistributedProviderTests(unittest.TestCase):
         )
         self.assertEqual('d' * 32, table['native']['table_id'])
         self.assertEqual(['public', 'orders'], table['display_path'])
+        placement = next(
+            item for item in resources
+            if item['resource_kind'] == 'placement-policy'
+        )
+        self.assertEqual(
+            'c479057e-9065-4e88-939e-13c2ab733dc9',
+            placement['native']['liveReplicas']['placementUuid'],
+        )
 
     def test_yugabytedb_xcluster_plan_is_provider_constructed(self):
         plan = YUGABYTEDB_ADMIN.plan({
@@ -1162,25 +1213,45 @@ class DistributedProviderTests(unittest.TestCase):
 
     @patch('pgadmin.cdeadmin.providers.vitess.control_plane._run')
     def test_vitess_native_workflow_resources_are_navigable(self, run):
-        run.return_value = {'stdout': json.dumps({'workflows': [{
-            'name': 'sales_rollup', 'workflow_type': 'Materialize',
-            'shard_streams': {'-': {'streams': [{
-                'id': 7, 'state': 'Running',
-            }]}},
-        }]})}
+        def response(_route, arguments, timeout=30):
+            documents = {
+                'GetRoutingRules': {'rules': []},
+                'FindAllShardsInKeyspace': {
+                    'shards': {'-': {'name': '-'}},
+                },
+                'GetBackups': {'backups': [{
+                    'name': '2026-09-10.010203.test-0000000102',
+                    'keyspace': 'analytics', 'shard': '-',
+                }]},
+                'GetWorkflows': {'workflows': [{
+                    'name': 'sales_rollup',
+                    'workflow_type': 'Materialize',
+                    'shard_streams': {'-': {'streams': [{
+                        'id': 7, 'state': 'Running',
+                    }]}},
+                }]},
+            }
+            return {'stdout': json.dumps(documents[arguments[0]])}
+
+        run.side_effect = response
         resources = vitess_control_resources(
             {'vtctldclient_path': '/trusted/client',
              'vtctld_server': '127.0.0.1:15999'},
             'generation-one', {'analytics'},
         )
         self.assertEqual({
-            'workflow', 'materialize', 'vreplication-stream',
+            'backup', 'routing-rule', 'workflow', 'materialize',
+            'vreplication-stream',
         }, {item['resource_kind'] for item in resources})
-        run.assert_called_once_with(
-            {'vtctldclient_path': '/trusted/client',
-             'vtctld_server': '127.0.0.1:15999'},
-            ['GetWorkflows', '--show-all', 'analytics'], timeout=30,
+        backup = next(
+            item for item in resources
+            if item['resource_kind'] == 'backup'
         )
+        self.assertEqual(
+            ['analytics', '-', '2026-09-10.010203.test-0000000102'],
+            backup['display_path'],
+        )
+        self.assertEqual(4, run.call_count)
 
     def test_vitess_routing_rules_are_structured_and_fail_closed(self):
         rules = {
@@ -1564,8 +1635,8 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertEqual('CALL DOLT_REBASE(%s, %s, %s, %s, %s)',
                          rebase['source'])
         self.assertEqual(
-            ('main', '--interactive', '--empty', 'keep',
-             '--skip-verification'),
+            ('--interactive', '--empty', 'keep', '--skip-verification',
+             'main'),
             rebase['parameters'],
         )
         continued = compile_dolt_control({
@@ -1702,6 +1773,21 @@ class DistributedProviderTests(unittest.TestCase):
                     'fdbcli_path': sys.executable,
                     'cluster_file': __file__,
                 }, 'tenant create safe; kill all')
+
+    def test_foundationdb_preserves_multicall_tool_symlink_name(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'fdbbackup'
+            target.write_text('#!/bin/sh\n', encoding='utf-8')
+            target.chmod(0o700)
+            restore = root / 'fdbrestore'
+            restore.symlink_to(target.name)
+            self.assertEqual(
+                str(restore.absolute()),
+                FoundationDBBackend._trusted_file(
+                    str(restore), 'fdbrestore executable', executable=True,
+                ),
+            )
 
     def test_foundationdb_process_control_reads_sdk_wrapped_native_data(self):
         command = FoundationDBBackend._control_command({
@@ -1914,6 +2000,55 @@ class DistributedProviderTests(unittest.TestCase):
         self.assertIn(
             '--pd=127.0.0.1:2379,127.0.0.2:2379', command)
         self.assertFalse(response['automatic_mutation_retry'])
+
+    def test_tidb_registered_backup_is_discovered_and_validated(self):
+        config = RelationalClientConfig(
+            profile=TIDB, module_name='fake', version_query='SELECT 1',
+            connect_arguments=mysql_route,
+            metadata_reader=lambda _connection, _request: [],
+        )
+        client = TiDBDBAPIClient(
+            config, module=_ConnectorModule(_Connection())
+        )
+        route = {
+            'host': '127.0.0.1', 'port': 4000, 'user': 'root',
+            'br_path': '/bin/true',
+            'br_pd_addresses': '127.0.0.1:2379',
+            'br_storage_allowlist': ['local:///approved/'],
+            'br_backup_artifacts': [{
+                'artifact_id': 'nightly-full', 'scope': 'full',
+                'storage_uri': 'local:///approved/nightly-full',
+            }],
+        }
+        resources = client.list_resources({'route': route})
+        backup = next(
+            item for item in resources
+            if item['resource_kind'] == 'backup'
+        )
+        self.assertEqual('nightly-full', backup['display_name'])
+        self.assertNotIn('storage_uri', backup['native'])
+        version = SimpleNamespace(
+            returncode=0, stdout='Release Version: v8.5.6\n', stderr=''
+        )
+        result = SimpleNamespace(returncode=0, stdout='valid', stderr='')
+        with patch(
+            'pgadmin.cdeadmin.providers.tidb.provider.subprocess.run',
+            side_effect=[version, result],
+        ) as runner:
+            inspected = client.inspect_resource({
+                'route': route, 'resource_id': backup['resource_id'],
+            })
+        self.assertTrue(inspected['native']['backup_metadata_valid'])
+        self.assertIn(
+            '--storage=local:///approved/nightly-full',
+            runner.call_args.args[0],
+        )
+
+        route['br_backup_artifacts'][0]['storage_uri'] = (
+            'local:///outside/nightly-full'
+        )
+        with self.assertRaisesRegex(RelationalClientError, 'allowlist'):
+            client.list_resources({'route': route})
 
     def test_tidb_br_restore_has_exact_provider_cancellation(self):
         plan = TIDB_ADMIN.plan({
@@ -3015,6 +3150,17 @@ class DistributedProviderTests(unittest.TestCase):
                     'revision': '2', 'expired': False,
                     'metadata': {'expiration': {'expiresAt': '2000000000'}},
                 }]})
+            if path.endswith('/api/db/verifiable/get'):
+                return _Response({
+                    'entry': {'tx': '7', 'key': 'YWxwaGE='},
+                    'verifiableTx': {
+                        'tx': {'header': {'id': '7'}},
+                        'dualProof': {'targetTxHeader': {'id': '7'}},
+                    },
+                    'inclusionProof': {
+                        'leaf': 0, 'width': 1, 'terms': [],
+                    },
+                })
             if path.endswith('/api/v2/authorization/session/open'):
                 return _Response({'sessionID': 'document-session'})
             if path.endswith('/api/v2/collections'):
@@ -3045,7 +3191,7 @@ class DistributedProviderTests(unittest.TestCase):
         }})
         kinds = {item['resource_kind'] for item in resources}
         self.assertTrue({
-            'key', 'ttl', 'revision', 'transaction', 'collection',
+            'key', 'ttl', 'revision', 'proof', 'transaction', 'collection',
             'collection-index', 'document', 'user', 'permission', 'replica',
         }.issubset(kinds))
         key = next(
@@ -3065,12 +3211,39 @@ class DistributedProviderTests(unittest.TestCase):
             {'database:readwrite', 'sql:SELECT'},
             {item['display_name'] for item in permissions},
         )
+        proof = next(
+            item for item in resources if item['resource_kind'] == 'proof'
+        )
+        inspected_proof = client.inspect_resource({
+            'route': {
+                'host': '127.0.0.1', 'web_host': '127.0.0.1',
+                'web_port': 8080, 'user': 'immudb',
+                'database': 'defaultdb',
+                'credential_reference_id': 'credential',
+                'principal_reference': 'principal',
+            },
+            'resource_id': proof['resource_id'],
+        })
+        self.assertTrue(inspected_proof['native']['proof_material_loaded'])
+        self.assertFalse(
+            inspected_proof['native'][
+                'cryptographic_verification_performed'
+            ]
+        )
+        self.assertEqual(
+            '7', inspected_proof['native']['proof_material'][
+                'verifiableTx']['tx']['header']['id']
+        )
         document_calls = [
             item for item in calls if '/api/v2/' in item[0]
         ]
+        authenticated_document_calls = [
+            item for item in document_calls
+            if not item[0].endswith('/authorization/session/open')
+        ]
         self.assertTrue(all(
             item[2].get('Grpc-metadata-sessionid') == 'document-session'
-            for item in document_calls[1:]
+            for item in authenticated_document_calls
         ))
 
     def test_immudb_document_cleanup_failure_never_replays_mutation(self):
@@ -3566,7 +3739,7 @@ class DistributedProviderTests(unittest.TestCase):
         )
         self.assertNotIn('secret-canary', source['preview_source'])
         self.assertFalse(VITESS_ADMIN.supports('user', 'create'))
-        self.assertTrue(VITESS_ADMIN.supports('user', 'inspect'))
+        self.assertFalse(VITESS_ADMIN.supports('user', 'inspect'))
 
     def test_tidb_relational_admin_compiles_native_object_syntax(self):
         route = {'host': '127.0.0.1', 'port': 4000}

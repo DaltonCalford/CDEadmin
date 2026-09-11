@@ -386,7 +386,12 @@ OPERATIONS = (
         'restore_admin', (
             cp_field('backup_timestamp', 'Backup timestamp', 'text', False,
                      max_length=128, pattern=r'[0-9TZ:.-]+'),
-        ), impact_scope='shard', long_running=True
+        ), impact_scope='shard', long_running=True,
+        post_state_required=False
+    ),
+    ControlPlaneOperation(
+        'backup', 'drop', 'Delete stored backup', 'destructive',
+        'backup_admin', impact_scope='shard', long_running=True
     ),
 )
 
@@ -832,6 +837,15 @@ def compile_action(request):
             arguments.extend(['--backup-timestamp', timestamp])
         if operation in {'backup', 'restore'}:
             arguments.append(tablet)
+    elif kind == 'backup' and operation == 'drop':
+        path = _target(request)
+        if len(path) < 3:
+            raise RelationalClientError(
+                'Vitess backup keyspace and shard are unavailable')
+        arguments = [
+            'RemoveBackup', f'{path[-3]}/{path[-2]}',
+            _safe_name(path[-1], 'backup'),
+        ]
     if not arguments:
         raise RelationalClientError(
             'Vitess control-plane operation is unavailable')
@@ -1018,7 +1032,10 @@ def _run(route, arguments, timeout=None):
         raise RelationalClientError(
             'Vitess control response exceeds size limit')
     if result.returncode != 0:
-        raise RelationalClientError('Vitess control request was rejected')
+        detail = ' '.join(output.strip().split())[:1024]
+        raise RelationalClientError(
+            'Vitess control request was rejected' + (
+                f': {detail}' if detail else ''))
     return {
         'exit_code': result.returncode,
         'stdout': result.stdout or '',
@@ -1057,9 +1074,15 @@ def inspect_action(_client, request):
     if kind == 'keyspace':
         inspect_arguments = ['GetKeyspaces']
     elif kind == 'shard':
-        keyspace, shard = _shard_target({
-            'target_resource': plan.get('target_resource')
-        })
+        if plan['operation_id'] == 'create':
+            draft = plan.get('draft') or {}
+            keyspace = _safe_name(draft.get('keyspace'), 'keyspace')
+            shard = _safe_name(
+                draft.get('shard'), 'shard', r'[0-9A-Fa-f-]+')
+        else:
+            keyspace, shard = _shard_target({
+                'target_resource': plan.get('target_resource')
+            })
         inspect_arguments = (
             ['FindAllShardsInKeyspace', keyspace]
             if plan['operation_id'] == 'drop'
@@ -1103,16 +1126,34 @@ def inspect_action(_client, request):
             'OnlineDDL', 'show', '--json', keyspace, migration,
         ]
     elif kind == 'tablet':
-        tablet = _target({
+        tablet_path = _target({
             'target_resource': plan.get('target_resource')
-        })[-1]
-        inspect_arguments = (
-            ['GetTablets', '--format', 'json', '--tablet-alias', tablet]
-            if plan['operation_id'] == 'drop'
-            else ['GetTablet', tablet]
-        )
+        })
+        tablet = tablet_path[-1]
+        if plan['operation_id'] == 'drop':
+            inspect_arguments = [
+                'GetTablets', '--format', 'json',
+                '--tablet-alias', tablet,
+            ]
+        elif plan['operation_id'] == 'backup' and len(tablet_path) >= 3:
+            inspect_arguments = [
+                'GetBackups', '--json',
+                f'{tablet_path[-3]}/{tablet_path[-2]}',
+            ]
+        else:
+            inspect_arguments = ['GetTablet', tablet]
     elif kind == 'vschema':
         inspect_arguments = ['GetSrvVSchemas']
+    elif kind == 'backup':
+        path = _target({
+            'target_resource': plan.get('target_resource')
+        })
+        if len(path) < 3:
+            raise RelationalClientError(
+                'Vitess backup keyspace and shard are unavailable')
+        inspect_arguments = [
+            'GetBackups', '--json', f'{path[-3]}/{path[-2]}',
+        ]
     else:
         inspect_arguments = arguments
     return {
@@ -1157,13 +1198,18 @@ def post_validate_action(client, request):
     elif kind == 'shard':
         if operation == 'create':
             expected = draft.get('shard')
+        elif operation in {'planned_reparent', 'emergency_reparent'}:
+            expected = draft.get('new_primary')
+            present = expected in _primary_aliases(document)
         elif operation == 'set_primary_serving':
             expected = str(draft.get('is_serving')).upper()
             present = expected in _document_values_for_key(
                 document, 'is_primary_serving')
         else:
             expected = path[-1].split('/', 1)[-1]
-        if operation != 'set_primary_serving':
+        if operation not in {
+                'planned_reparent', 'emergency_reparent',
+                'set_primary_serving'}:
             present = _document_contains_named_resource(document, expected)
     elif kind in {'workflow', 'materialize'}:
         if operation.startswith('create_') or operation == 'create':
@@ -1186,13 +1232,35 @@ def post_validate_action(client, request):
         ))
     elif kind == 'tablet' and operation == 'drop':
         expected = path[-1]
-        present = _document_contains_tablet(document)
+        present = (
+            False if text.strip() == 'null'
+            else _document_contains_tablet(document)
+        )
+    elif kind == 'tablet' and operation == 'backup':
+        expected = path[-1]
+        backups = document.get('backups') if isinstance(
+            document, dict
+        ) else None
+        present = bool(backups) if isinstance(backups, list) else None
+    elif kind == 'vschema' and operation == 'rebuild':
+        expected = path[-1]
+        present = _document_contains_named_resource(document, expected)
+    elif kind == 'backup' and operation == 'drop':
+        expected = path[-1]
+        backups = document.get('backups') if isinstance(
+            document, dict
+        ) else None
+        present = any(
+            isinstance(item, dict) and item.get('name') == expected
+            for item in backups
+        ) if isinstance(backups, list) else None
     confirmed = bool(
         expected and present is not None and (
             (operation in {'drop', 'complete'} and not present) or
             (operation in {'create', 'create_move_tables',
                            'create_reshard', 'apply', 'change_type',
-                           'set_primary_serving'} and
+                           'set_primary_serving', 'planned_reparent',
+                           'emergency_reparent', 'backup', 'rebuild'} and
              present)
         )
     )
@@ -1222,7 +1290,66 @@ def catalog_resources(route, generation, keyspaces):
             'vtctldclient_path') or not route.get('vtctld_server'):
         return []
     resources = []
+    try:
+        response = _run(route, ['GetRoutingRules'], timeout=30)
+        document = json.loads(response.get('stdout') or 'null')
+        resources.append({
+            'resource_id': 'routing-rule:global-routing-rules',
+            'resource_kind': 'routing-rule',
+            'display_name': 'global-routing-rules',
+            'display_path': ['global-routing-rules'],
+            'authority_path': ['routing-rule', 'global-routing-rules'],
+            'generation': generation,
+            'native': copy.deepcopy(document),
+        })
+    except (RelationalClientError, TypeError, ValueError):
+        pass
     for keyspace in sorted(set(keyspaces or ())):
+        try:
+            response = _run(
+                route, ['FindAllShardsInKeyspace', keyspace], timeout=30,
+            )
+            shard_document = json.loads(response.get('stdout') or 'null')
+            shards = shard_document.get('shards') if isinstance(
+                shard_document, dict
+            ) else None
+        except (RelationalClientError, TypeError, ValueError):
+            shards = None
+        for shard in sorted(shards if isinstance(shards, dict) else ()):
+            try:
+                response = _run(
+                    route, [
+                        'GetBackups', '--json', f'{keyspace}/{shard}',
+                    ], timeout=30,
+                )
+                backup_document = json.loads(
+                    response.get('stdout') or 'null')
+                backups = backup_document.get('backups') if isinstance(
+                    backup_document, dict
+                ) else None
+            except (RelationalClientError, TypeError, ValueError):
+                backups = None
+            for backup in backups if isinstance(backups, list) else ():
+                if not isinstance(backup, dict):
+                    continue
+                name = backup.get('name')
+                try:
+                    name = _safe_name(name, 'backup')
+                except RelationalClientError:
+                    continue
+                resources.append({
+                    'resource_id': (
+                        f'backup:{keyspace}:{shard}:{name}'
+                    ),
+                    'resource_kind': 'backup',
+                    'display_name': name,
+                    'display_path': [keyspace, shard, name],
+                    'authority_path': [
+                        keyspace, shard, 'backup', name,
+                    ],
+                    'generation': generation,
+                    'native': copy.deepcopy(backup),
+                })
         try:
             response = _run(
                 route, ['GetWorkflows', '--show-all', keyspace], timeout=30,
@@ -1326,6 +1453,31 @@ def _document_values_for_key(document, expected_key):
 
     visit(document)
     return values
+
+
+def _primary_aliases(document):
+    """Extract exact Vitess tablet aliases from primary_alias objects."""
+    aliases = set()
+
+    def visit(value):
+        if isinstance(value, dict):
+            primary = value.get('primary_alias')
+            if isinstance(primary, dict):
+                cell = primary.get('cell')
+                uid = primary.get('uid')
+                if isinstance(cell, str) and isinstance(uid, (int, str)):
+                    try:
+                        aliases.add(f'{cell}-{int(uid):010d}')
+                    except (TypeError, ValueError):
+                        pass
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, list):
+            for item in value:
+                visit(item)
+
+    visit(document)
+    return aliases
 
 
 def _document_contains_tablet(document):

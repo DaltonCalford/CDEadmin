@@ -492,6 +492,73 @@ class TiKVBackend:
             'automatic_mutation_retry_by_cdeadmin': False,
         }
 
+    def _status_payload(self, route, address, path):
+        parsed = urllib.parse.urlsplit('//' + str(address))
+        try:
+            port = parsed.port
+        except ValueError as exc:
+            raise NativeDistributedError(
+                'TiKV status address is invalid') from exc
+        if not parsed.hostname or port is None:
+            raise NativeDistributedError('TiKV status address is invalid')
+        url = (
+            f'{route["pd_http_scheme"]}://{parsed.hostname}:{port}{path}'
+        )
+        request = urllib.request.Request(
+            url, headers={'Accept': 'application/json, text/plain'},
+            method='GET',
+        )
+        try:
+            with self.opener(
+                request, timeout=10, context=self._http_context(route)
+            ) as response:
+                payload = response.read(self.MAX_HTTP_BYTES + 1)
+        except Exception as exc:
+            raise NativeDistributedError(
+                'TiKV status endpoint request failed') from exc
+        if len(payload) > self.MAX_HTTP_BYTES:
+            raise NativeDistributedError(
+                'TiKV status endpoint response exceeds size limit')
+        return payload
+
+    def _status_document(self, route, address, path):
+        try:
+            value = json.loads(self._status_payload(
+                route, address, path
+            ))
+        except (TypeError, ValueError) as exc:
+            raise NativeDistributedError(
+                'TiKV status endpoint returned invalid JSON') from exc
+        if not isinstance(value, dict):
+            raise NativeDistributedError(
+                'TiKV status endpoint JSON is invalid')
+        return value
+
+    def _status_metrics(self, route, address):
+        try:
+            text = self._status_payload(
+                route, address, '/metrics'
+            ).decode('utf-8')
+        except UnicodeDecodeError as exc:
+            raise NativeDistributedError(
+                'TiKV metrics response is invalid') from exc
+        admitted = (
+            'tikv_backup_', 'tikv_log_backup_', 'tikv_import_',
+            'tikv_coprocessor_', 'tikv_concurrency_manager_',
+            'tikv_pessimistic_lock_', 'tikv_resolved_ts_',
+            'tikv_scheduler_txn_',
+        )
+        rows = []
+        for line in text.splitlines():
+            if not line or line.startswith('#'):
+                continue
+            name = line.split('{', 1)[0].split(' ', 1)[0]
+            if name.startswith(admitted):
+                rows.append(line[:4096])
+            if len(rows) >= 2000:
+                break
+        return rows
+
     def runtime_identity(self, request, _handle=None):
         route = self._route(request)
         stores = self._pd(route, '/pd/api/v1/stores').get('stores', [])
@@ -532,19 +599,77 @@ class TiKVBackend:
             },
         ))
         values.append(resource(
+            'raw-key', [], 'raw-key-browser', generation, {
+                'maximum_page_size': self.MAX_RECORDS,
+                'native_api': 'RawKV',
+            },
+        ))
+        values.append(resource(
             'ttl', [], 'key-expiration-browser', generation, {
                 'ttl_enabled': route['enable_ttl'],
                 'api_version': route['api_version'],
             },
         ))
-        for row in self._pd(
-                route, '/pd/api/v1/stores').get('stores', [])[:1000]:
+        store_rows = self._pd(
+            route, '/pd/api/v1/stores'
+        ).get('stores', [])[:1000]
+        for row in store_rows:
             if not isinstance(row, dict):
                 continue
             store = row.get('store', {})
             if isinstance(store, dict) and store.get('id') is not None:
                 values.append(resource(
                     'store', [], store['id'], generation, store))
+        observable_store = next((
+            row.get('store') for row in store_rows
+            if isinstance(row, dict) and isinstance(row.get('store'), dict)
+            and row['store'].get('state_name') == 'Up'
+            and row['store'].get('status_address')
+        ), None)
+        if observable_store is not None:
+            address = observable_store['status_address']
+            config = self._status_document(route, address, '/config')
+            metrics = self._status_metrics(route, address)
+
+            def matching(*prefixes):
+                return [
+                    line for line in metrics
+                    if line.split('{', 1)[0].split(' ', 1)[0].startswith(
+                        prefixes
+                    )
+                ]
+
+            operational = {
+                'backup': {
+                    'metrics': matching(
+                        'tikv_backup_', 'tikv_log_backup_'),
+                },
+                'restore': {'metrics': matching('tikv_import_')},
+                'import-job': {'metrics': matching('tikv_import_')},
+                'coprocessor': {
+                    'configuration': copy.deepcopy(
+                        config.get('coprocessor', {})
+                    ),
+                    'metrics': matching('tikv_coprocessor_'),
+                },
+                'lock': {'metrics': matching(
+                    'tikv_concurrency_manager_',
+                    'tikv_pessimistic_lock_', 'tikv_resolved_ts_',
+                )},
+                'transaction': {
+                    'configured_mode': route['transaction_mode'],
+                    'isolation': 'snapshot-isolation',
+                    'metrics': matching('tikv_scheduler_txn_'),
+                },
+            }
+            for kind, native in operational.items():
+                values.append(resource(
+                    kind, [], f'{kind}-runtime', generation, {
+                        'store_id': observable_store.get('id'),
+                        'status_address': address,
+                        **native,
+                    },
+                ))
         regions = self._pd(route, '/pd/api/v1/regions').get('regions', [])
         for row in regions[:2000]:
             if len(values) >= self.MAX_RECORDS - 256:
@@ -856,7 +981,10 @@ class TiKVBackend:
                     'Bounded native RawKV scans expose ordered byte keys and '
                     'provider-issued row identities.'
                 ),
-                operation_obligations={'key-range': ['inspect']},
+                operation_obligations={
+                    'key-range': ['inspect'],
+                    'raw-key': ['inspect'],
+                },
             ),
             'data_type_editing': declaration(
                 'key-range', 'raw-key',
@@ -866,6 +994,7 @@ class TiKVBackend:
                 ),
                 operation_obligations={
                     'key-range': ['insert', 'update', 'delete'],
+                    'raw-key': ['insert', 'update', 'delete'],
                 },
             ),
             'ttl_inspection': declaration(
@@ -901,10 +1030,13 @@ class TiKVBackend:
             ),
             'sentinel_or_cluster_state': declaration(
                 'cluster', 'store', 'region', 'peer', 'scheduler',
-                'configuration',
+                'placement-rule', 'configuration', 'keyspace', 'backup',
+                'restore',
+                'import-job', 'coprocessor', 'lock', 'transaction',
                 reason=(
-                    'PD cluster, store, Region, peer, scheduler and storage '
-                    'configuration surfaces replace Redis Sentinel semantics.'
+                    'PD topology and keyspace state combine with exact TiKV '
+                    'status-endpoint backup, importer, coprocessor, lock and '
+                    'transaction observations.'
                 ),
             ),
         }}

@@ -713,6 +713,13 @@
       {"operation_id": "rename", "title": "Rename", "mutation_class": "write", "form_id": "rename", "target_required": true},
       {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
     ],
+    "clickhouse_columnar_definition": [
+      {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
+      {"operation_id": "create", "title": "Create", "mutation_class": "write", "form_id": "create", "target_required": false},
+      {"operation_id": "alter", "title": "Alter", "mutation_class": "write", "form_id": "alter", "target_required": true},
+      {"operation_id": "execute", "title": "Run operation", "mutation_class": "admin", "form_id": "execute", "target_required": true, "confirmation_required": true},
+      {"operation_id": "drop", "title": "Drop", "mutation_class": "destructive", "form_id": "drop", "target_required": true, "confirmation_required": true}
+    ],
     "data_container": [
       {"operation_id": "inspect", "title": "Inspect", "mutation_class": "read", "form_id": "inspect", "target_required": true},
       {"operation_id": "create", "title": "Create", "mutation_class": "write", "form_id": "create", "target_required": false},
@@ -847,7 +854,7 @@
         {"resource_kind": "cache-template", "title": "Cache template", "operation_profile": "read_only"},
         {"resource_kind": "data-region", "title": "Data region", "operation_profile": "read_only"},
         {"resource_kind": "replica", "title": "Partition replica", "operation_profile": "read_only"},
-        {"resource_kind": "ttl", "title": "Cache entry expiration policy", "operation_profile": "definition", "exclude_operations": ["rename"]},
+        {"resource_kind": "ttl", "title": "Cache entry expiration policy", "operation_profile": "definition", "exclude_operations": ["inspect", "rename"]},
         {"resource_kind": "compute-task", "title": "Compute task", "operation_profile": "read_only"},
         {"resource_kind": "service", "title": "Service", "operation_profile": "read_only"},
         {"resource_kind": "user", "title": "User", "operation_profile": "security", "exclude_operations": ["rename", "grant", "revoke"]},
@@ -894,10 +901,10 @@
         {"resource_kind": "column", "title": "Column", "operation_profile": "definition"},
         {"resource_kind": "view", "title": "View", "operation_profile": "data_container"},
         {"resource_kind": "materialized-view", "title": "Materialized view", "operation_profile": "data_container"},
-        {"resource_kind": "dictionary", "title": "Dictionary", "operation_profile": "data_container"},
+        {"resource_kind": "dictionary", "title": "Dictionary", "operation_profile": "clickhouse_columnar_definition"},
         {"resource_kind": "function", "title": "Function", "operation_profile": "definition"},
-        {"resource_kind": "projection", "title": "Projection", "operation_profile": "definition"},
-        {"resource_kind": "data-skipping-index", "title": "Data-skipping index", "operation_profile": "definition"},
+        {"resource_kind": "projection", "title": "Projection", "operation_profile": "clickhouse_columnar_definition"},
+        {"resource_kind": "data-skipping-index", "title": "Data-skipping index", "operation_profile": "clickhouse_columnar_definition"},
         {"resource_kind": "partition", "title": "Partition", "operation_profile": "operational"},
         {"resource_kind": "user", "title": "User", "operation_profile": "security"},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security"},
@@ -1108,6 +1115,7 @@
         {"resource_kind": "log-configuration", "title": "Log configuration", "operation_profile": "read_only"},
         {"resource_kind": "general-log-entry", "title": "General log entry", "operation_profile": "read_only"},
         {"resource_kind": "slow-query", "title": "Slow query", "operation_profile": "read_only"},
+        {"resource_kind": "metric", "title": "Metric", "operation_profile": "read_only"},
         {"resource_kind": "tls-configuration", "title": "TLS configuration", "operation_profile": "read_only"}
       ]
     },
@@ -1183,7 +1191,8 @@
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security"},
         {"resource_kind": "plugin", "title": "Server plugin", "operation_profile": "definition"},
         {"resource_kind": "replication-channel", "title": "Replication channel", "operation_profile": "topology"},
-        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"}
+        {"resource_kind": "resource-group", "title": "Resource group", "operation_profile": "topology"},
+        {"resource_kind": "metric", "title": "Metric", "operation_profile": "read_only"}
       ]
     },
     {

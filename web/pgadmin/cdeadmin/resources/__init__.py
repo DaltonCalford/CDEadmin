@@ -28,6 +28,12 @@ from .models import (
     ResourceRef,
     StaleResourceGenerationError,
 )
+from .properties import (
+    PROPERTY_SECTION_KEYS,
+    PROPERTY_SECTION_ORDER,
+    ResourcePropertiesError,
+    normalize_resource_properties,
+)
 
 
 APP_EXTENSION_KEY = 'cdeadmin_resource_explorer'
@@ -68,8 +74,12 @@ __all__ = (
     'ResourceGraphError',
     'ResourceInspectorContribution',
     'ResourcePage',
+    'ResourcePropertiesError',
     'ResourceRef',
     'StaleResourceGenerationError',
+    'PROPERTY_SECTION_KEYS',
+    'PROPERTY_SECTION_ORDER',
     'init_app',
+    'normalize_resource_properties',
     'service_for_app',
 )

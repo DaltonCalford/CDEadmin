@@ -510,7 +510,7 @@ def _compile_control_plane(request):
     elif kind == 'rebase':
         procedure = 'DOLT_REBASE'
         if operation == 'start':
-            arguments = [draft['upstream']]
+            arguments = []
             if draft.get('interactive'):
                 arguments.append('--interactive')
             empty = draft.get('empty_commits', 'drop')
@@ -520,6 +520,10 @@ def _compile_control_plane(request):
             arguments.extend(['--empty', empty])
             if draft.get('skip_verification'):
                 arguments.append('--skip-verification')
+            # Dolt's native parser accepts one positional upstream revision.
+            # Keep provider-owned flags ahead of it so the generated call has
+            # the same unambiguous shape as the exact 1.86.6 CLI/API surface.
+            arguments.append(draft['upstream'])
         elif operation == 'continue':
             arguments = ['--continue']
         elif operation == 'abort':
@@ -612,8 +616,10 @@ def _operation_parts(request):
     return plan, payload['route']
 
 
-def _query_once(client, route, source, parameters=()):
-    connection = client._connect({'route': route})
+def _query_once(client, route, source, parameters=(), connection=None):
+    owns_connection = connection is None
+    if owns_connection:
+        connection = client._connect({'route': route})
     cursor = None
     try:
         cursor = connection.cursor()
@@ -628,18 +634,21 @@ def _query_once(client, route, source, parameters=()):
     finally:
         if cursor is not None:
             client._safe_close(cursor)
-        client._forget_and_close(connection)
+        if owns_connection:
+            client._forget_and_close(connection)
 
 
-def _mutate_once(client, route, statement):
-    connection = client._connect({'route': route})
+def _mutate_once(client, route, statement, connection=None):
+    owns_connection = connection is None
+    if owns_connection:
+        connection = client._connect({'route': route})
     cursor = None
     commit_requested = False
     try:
         cursor = connection.cursor()
         cursor.execute(statement['source'], statement['parameters'])
         commit = getattr(connection, 'commit', None)
-        if callable(commit):
+        if owns_connection and callable(commit):
             commit_requested = True
             commit()
         return {
@@ -661,7 +670,8 @@ def _mutate_once(client, route, statement):
     finally:
         if cursor is not None:
             client._safe_close(cursor)
-        client._forget_and_close(connection)
+        if owns_connection:
+            client._forget_and_close(connection)
 
 
 def _logical_name(plan):
@@ -680,70 +690,76 @@ def _inspect_control_plane(client, request):
     kind = plan['resource_kind']
     operation = plan['operation_id']
     name = _logical_name(plan)
+
+    def query(source, parameters=()):
+        return _query_once(
+            client, route, source, parameters,
+            connection=request.get('_provider_session_handle'),
+        )
+
     if kind == 'branch':
         if operation == 'set_default':
-            return _query_once(
-                client, route,
+            return query(
                 'SELECT @@GLOBAL.' + _default_branch_variable({
                     '_provider_route': route,
                 }),
             )
-        return _query_once(
-            client, route,
+        return query(
             'SELECT name, hash, latest_committer, latest_commit_date '
             'FROM dolt_branches WHERE name = %s', (name,),
         )
     if kind == 'tag':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT tag_name, tag_hash, tagger, date FROM dolt_tags '
             'WHERE tag_name = %s', (name,),
         )
     if kind == 'remote':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT name, url, fetch_specs FROM dolt_remotes WHERE name = %s',
             (name,),
         )
     if kind == 'backup':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT name, url, params FROM dolt_backups WHERE name = %s',
             (name,),
         )
+    if kind == 'commit':
+        return query(
+            'SELECT commit_hash, committer, date, message FROM dolt_log '
+            'ORDER BY date DESC LIMIT 1',
+        )
     if kind == 'database' and operation == 'restore_backup':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT schema_name FROM information_schema.schemata '
             'WHERE schema_name = %s',
             (plan.get('draft', {}).get('new_database_name'),),
         )
     if kind == 'conflict':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT `table`, num_conflicts FROM dolt_conflicts '
             'WHERE `table` = %s', (name,),
         )
     if kind == 'working-set':
         if operation == 'commit':
-            return _query_once(
-                client, route,
+            return query(
                 'SELECT commit_hash, message, date FROM dolt_log '
                 'ORDER BY date DESC LIMIT 1',
             )
-        return _query_once(
-            client, route,
+        return query(
             'SELECT table_name, staged, status FROM dolt_status '
             'ORDER BY table_name',
         )
+    if kind == 'merge':
+        return query(
+            'SELECT is_merging, source, target, unmerged_tables '
+            'FROM dolt_merge_status',
+        )
     if kind == 'rebase':
-        return _query_once(
-            client, route,
+        return query(
             'SELECT rebase_order, action, commit_hash, commit_message '
             'FROM dolt_rebase ORDER BY rebase_order',
         )
-    return _query_once(
-        client, route,
+    return query(
         'SELECT active_branch(), table_name, staged, status '
         'FROM dolt_status ORDER BY table_name',
     )
@@ -766,7 +782,10 @@ def _cancel_control_plane(client, request):
     else:
         raise RelationalClientError(
             'Dolt operation is not declared cancellable')
-    return _mutate_once(client, route, statement)
+    return _mutate_once(
+        client, route, statement,
+        connection=request.get('_provider_session_handle'),
+    )
 
 
 def _post_validate_control_plane(client, request):
@@ -799,6 +818,13 @@ def _post_validate_control_plane(client, request):
                 staged.get(name, False) == (operation == 'stage_tables')
                 for name in names
             )
+    elif kind == 'merge':
+        if operation == 'start':
+            confirmed = bool(rows) and bool(rows[0][0])
+        elif operation == 'abort':
+            confirmed = bool(rows) and not bool(rows[0][0])
+    elif kind == 'commit' and operation in {'cherry_pick', 'revert'}:
+        confirmed = bool(rows)
     elif kind == 'database' and operation == 'restore_backup':
         confirmed = bool(rows)
     return {
@@ -946,13 +972,58 @@ def _extras(cursor, _request, generation):
         values.append(resource('conflict', [], table_name, generation, {
             'count': int(conflicts),
         }))
+    working_status = [
+        {
+            'table_name': str(table_name), 'staged': bool(staged),
+            'status': str(status),
+        }
+        for table_name, staged, status in optional_rows(
+            cursor,
+            'SELECT table_name, staged, status FROM dolt_status '
+            'ORDER BY table_name',
+        )
+    ]
     values.append(resource(
-        'working-set', [], 'current', generation,
-        {'provider_virtual_control_target': True},
+        'working-set', [], 'current', generation, {
+            'provider_virtual_control_target': True,
+            'status': working_status,
+        },
     ))
+    merge_status = [
+        {
+            'is_merging': bool(is_merging), 'source': str(source or ''),
+            'target': str(target or ''),
+            'unmerged_tables': str(unmerged_tables or ''),
+        }
+        for is_merging, source, target, unmerged_tables in optional_rows(
+            cursor,
+            'SELECT is_merging, source, target, unmerged_tables '
+            'FROM dolt_merge_status',
+        )
+    ]
     values.append(resource(
-        'rebase', [], 'current', generation,
-        {'provider_virtual_control_target': True},
+        'merge', [], 'current', generation, {
+            'provider_virtual_control_target': True,
+            'status': merge_status,
+        },
+    ))
+    rebase_plan = [
+        {
+            'order': int(order), 'action': str(action),
+            'commit_hash': str(commit_hash),
+            'commit_message': str(commit_message),
+        }
+        for order, action, commit_hash, commit_message in optional_rows(
+            cursor,
+            'SELECT rebase_order, action, commit_hash, commit_message '
+            'FROM dolt_rebase ORDER BY rebase_order',
+        )
+    ]
+    values.append(resource(
+        'rebase', [], 'current', generation, {
+            'provider_virtual_control_target': True,
+            'plan': rebase_plan,
+        },
     ))
     return values
 

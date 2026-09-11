@@ -38,6 +38,14 @@ for worker in 0 1 2 3; do
   pids+=("$!")
 done
 
+# The exact FoundationDB backup agent is part of the disposable reference
+# topology. Backup containers are mounted at the same absolute host/container
+# path so the provider CLI and agent observe identical file:// URLs.
+/usr/bin/backup_agent \
+  --cluster-file "${cluster_file}" \
+  --memory 256MiB &
+pids+=("$!")
+
 # A terminated worker invalidates the process-control fixture. Stop the
 # remaining workers so Docker reports the estate as unhealthy instead of
 # leaving a deceptively partial cluster running.

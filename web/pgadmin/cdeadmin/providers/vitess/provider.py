@@ -43,7 +43,7 @@ PROFILE = PilotProfile(
         'vttablet', 'vschema', 'database', 'table', 'view', 'column', 'index',
         'constraint', 'partition', 'sequence', 'vindex', 'routing-rule',
         'workflow', 'vreplication-stream', 'replica', 'materialize',
-        'online-ddl', 'backup', 'user',
+        'online-ddl', 'backup',
     ),
     ('mysql-client', 'vtctldclient', 'vtadmin', 'backup-restore'),
     semantic_sql_dialect={
@@ -74,7 +74,7 @@ _BASE_ADMINISTRATION = sql_administration('vitess', 'mysql', (
     'cell', 'keyspace', 'shard', 'tablet', 'vtgate', 'vttablet',
     'vschema', 'routing-rule', 'workflow',
     'vreplication-stream', 'materialize', 'online-ddl', 'backup',
-), provider_read_only=('user', 'role', 'privilege', 'view'))
+), provider_read_only=('role', 'privilege', 'view'))
 
 
 def _version(row):
@@ -450,7 +450,7 @@ class VitessAdministration(RelationalAdministration):
 
 
 _VITESS_SUPPORTED = dict(_BASE_ADMINISTRATION.dialect.supported)
-for _kind in ('database', 'schema', 'role', 'privilege'):
+for _kind in ('database', 'schema', 'user', 'role', 'privilege'):
     _VITESS_SUPPORTED.pop(_kind, None)
 _VITESS_SUPPORTED['table'] = frozenset({
     'inspect', 'create', 'alter', 'drop', 'insert', 'update', 'delete',

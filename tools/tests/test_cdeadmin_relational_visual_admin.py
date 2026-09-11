@@ -334,8 +334,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'operation_id': 'drop',
             'target_resource': target,
             'draft': {
-                'cascade': False,
-                'confirmation': 'drop-inventory-database',
+                'confirmation': '/srv/firebird/inventory.fdb',
             },
             '_provider_route': route,
         })
@@ -364,6 +363,43 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertEqual(
             '/srv/firebird/inventory.fdb',
             result['driver_observation']['database'],
+        )
+
+    def test_firebird_database_drop_requires_exact_routed_database(self):
+        route = {
+            'host': 'firebird.example', 'port': 3050,
+            'database': '/srv/firebird/inventory.fdb',
+        }
+        valid = FIREBIRD_ADMINISTRATION.validate({
+            'resource_kind': 'database',
+            'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'database',
+                'display_name': 'inventory.fdb',
+            },
+            'draft': {'confirmation': '/srv/firebird/inventory.fdb'},
+            '_provider_route': route,
+        })
+        self.assertEqual([], valid['errors'])
+
+        invalid = FIREBIRD_ADMINISTRATION.validate({
+            'resource_kind': 'database',
+            'operation_id': 'drop',
+            'target_resource': {
+                'resource_kind': 'database',
+                'display_name': 'inventory.fdb',
+            },
+            'draft': {
+                'confirmation': 'inventory.fdb', 'cascade': False,
+            },
+            '_provider_route': route,
+        })
+        self.assertEqual(
+            {
+                'firebird_database_confirmation_mismatch',
+                'unknown_firebird_database_drop_option',
+            },
+            {item['code'] for item in invalid['errors']},
         )
 
     def test_firebird_logical_backup_plan_uses_service_runner_not_sql(self):

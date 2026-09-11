@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+workspace=$(pwd -P)
+arguments=()
+for argument in "$@"; do
+    if [[ "$argument" == *"$workspace"* ]]; then
+        argument=${argument/"$workspace"/\/cdeadmin-tools}
+    fi
+    argument=${argument/127.0.0.1:57687/127.0.0.1:7687}
+    argument=${argument/localhost:57687/127.0.0.1:7687}
+    arguments+=("$argument")
+done
+
+exec /usr/bin/docker exec --user neo4j -e NEO4J_PASSWORD \
+    cdeadmin-demo-neo4j /var/lib/neo4j/bin/cypher-shell \
+    "${arguments[@]}"

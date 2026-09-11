@@ -778,6 +778,19 @@ class XTDBClient:
 
     @classmethod
     def _resource(cls, kind, name, native, parent=None):
+        native = copy.deepcopy(native)
+        if kind in {'cluster', 'node', 'transaction', 'health'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {'database', 'schema', 'table', 'column'}:
+            native['definition'] = copy.deepcopy(native)
+        elif kind in {'document', 'entity', 'transaction-log'}:
+            native['data'] = copy.deepcopy(native)
+        elif kind in {'valid-time', 'system-time'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind == 'user':
+            native['security'] = copy.deepcopy(native)
+        elif kind == 'metric':
+            native['statistics'] = copy.deepcopy(native)
         path = ['xtdb', kind, str(name)]
         if parent:
             path.insert(2, str(parent))
@@ -785,7 +798,7 @@ class XTDBClient:
             'resource_id': ':'.join(path), 'resource_kind': kind,
             'display_name': str(name), 'authority_path': path,
             'display_path': path[1:], 'generation': cls._generation(native),
-            'native': copy.deepcopy(native),
+            'native': native,
         }
 
     def _query_rows(self, session, source, parameters=()):

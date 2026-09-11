@@ -833,7 +833,10 @@ class RelationalDBAPIClient:
                 return copy.deepcopy(rows)
             finally:
                 self._forget_and_close(connection)
-        connection = self._connect(request)
+        connection = request.get('_provider_session_handle')
+        owns_connection = connection is None
+        if owns_connection:
+            connection = self._connect(request)
         try:
             rows = self.config.metadata_reader(connection, request)
             if not isinstance(rows, list):
@@ -842,7 +845,8 @@ class RelationalDBAPIClient:
                 )
             return copy.deepcopy(rows)
         finally:
-            self._forget_and_close(connection)
+            if owns_connection:
+                self._forget_and_close(connection)
 
     def inspect_resource(self, request):
         resource_id = request.get('resource_id')

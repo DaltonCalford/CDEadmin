@@ -442,6 +442,24 @@ def verify(mongod, mongos, log_root):
                 item for item in resources
                 if item['resource_kind'] == 'balancer'
             )
+            current_operation = next(
+                item for item in resources
+                if item['resource_kind'] == 'current-operation'
+            )
+            for target in (
+                    deployment, router, balancer, current_operation):
+                _apply(
+                    provider, route, target['resource_kind'], 'inspect',
+                    target, {},
+                )
+            _apply(
+                provider, route, 'current-operation', 'execute',
+                current_operation, {
+                    'action': 'kill',
+                    'arguments': {'operation_id': 2147483647},
+                    'confirmation': 'kill-nonexistent-operation',
+                },
+            )
             shard_two = next(
                 item for item in resources
                 if item['resource_kind'] == 'shard' and
@@ -501,6 +519,36 @@ def verify(mongod, mongos, log_root):
             ]
             if not zones:
                 raise RuntimeError('zone range was not discovered')
+            zone = zones[0]
+            _apply(provider, route, 'zone', 'inspect', zone, {})
+            _apply(provider, route, 'zone', 'create', None, {
+                'options': {
+                    'action': 'assign_shard', 'shard': 'cde-shard-one',
+                    'zone': 'cde-zone-two',
+                }
+            })
+            _apply(provider, route, 'zone', 'alter', zone, {
+                'changes': {
+                    'namespace': f'{runtime.database}.events',
+                    'min': {'tenant': -1000}, 'max': {'tenant': 0},
+                    'zone': 'cde-zone-two',
+                }
+            })
+            zone = next(
+                item for item in provider.list_resources(request)
+                if item['resource_kind'] == 'zone' and
+                item['display_name'].endswith(':cde-zone-two')
+            )
+            _apply(provider, route, 'zone', 'drop', zone, {
+                'confirmation': 'remove-zone-range',
+            })
+            for zone_name in ('cde-zone-one', 'cde-zone-two'):
+                _apply(provider, route, 'zone', 'create', None, {
+                    'options': {
+                        'action': 'remove_shard',
+                        'shard': 'cde-shard-one', 'zone': zone_name,
+                    }
+                })
             _apply(provider, route, 'balancer', 'execute', balancer, {
                 'action': 'stop', 'arguments': {},
                 'confirmation': 'stop-balancer',
@@ -550,8 +598,7 @@ def verify(mongod, mongos, log_root):
             config['version'] += 1
             config = direct_provider.client._extended_json(config)
             _apply(direct_provider, direct_route, 'replica-set', 'alter',
-                   target, {'changes': {'config': config},
-                            'definition': '', 'online': True})
+                   target, {'changes': {'config': config}})
             _apply(direct_provider, direct_route, 'replica-set', 'execute',
                    target, {
                        'action': 'step_down',
@@ -569,6 +616,29 @@ def verify(mongod, mongos, log_root):
         category('replica_set_admin', replica_admin)
 
         def streams():
+            stream_target = next(
+                item for item in provider.list_resources(request)
+                if item['resource_kind'] == 'change-stream' and
+                item['authority_path'][-2] == 'events'
+            )
+            _apply(
+                provider, route, 'change-stream', 'inspect',
+                stream_target, {},
+            )
+            visual_stream = _apply(
+                provider, route, 'change-stream', 'execute',
+                stream_target, {
+                    'action': 'open', 'arguments': {
+                        'batch_size': 10, 'max_await_time_ms': 100,
+                    },
+                    'confirmation': 'open-change-stream',
+                },
+            )['provider_result']
+            if visual_stream.get('query_template', {}).get(
+                    'operation') != 'watch':
+                raise RuntimeError(
+                    'visual change-stream action did not bind native watch'
+                )
             session = provider.open_session({'route': route})
             source = {
                 'operation': 'watch', 'database': runtime.database,
@@ -698,13 +768,19 @@ def verify(mongod, mongos, log_root):
         })
     if categories['topology_mutation'] == 'passed':
         topology_operations.update({
+            'balancer': ['execute', 'inspect'],
+            'current-operation': ['execute', 'inspect'],
+            'deployment': ['execute', 'inspect'],
             'shard': ['execute', 'inspect'],
             'router': ['execute', 'inspect'],
+            'zone': ['alter', 'create', 'drop', 'inspect'],
         })
     if categories['replica_set_admin'] == 'passed':
         topology_operations['replica-set'] = [
             'alter', 'execute', 'inspect',
         ]
+    if categories['change_stream_resume'] == 'passed':
+        topology_operations['change-stream'] = ['execute', 'inspect']
     object_evidence = {
         'schema': 'cdeadmin.provider-object-live-evidence.v1',
         'engine_id': 'mongodb', 'exact_profile': '8.2.6',
@@ -714,9 +790,14 @@ def verify(mongod, mongos, log_root):
         'operation_failures': {}, 'concepts': {},
     }
     if topology_operations:
+        declared_topology = {
+            kind: topology_operations[kind]
+            for kind in ('replica-set', 'shard', 'router')
+            if kind in topology_operations
+        }
         object_evidence['concepts'] = {'document': {
             'replica_sets_and_sharding': {
-                'status': 'passed', 'operations': topology_operations,
+                'status': 'passed', 'operations': declared_topology,
             },
         }}
     return {

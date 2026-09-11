@@ -578,9 +578,11 @@ class ProviderVisualAdministration:
                 )
             return copy.deepcopy(stored.public)
 
-    def refresh_operation(self, request):
+    def refresh_operation(self, request, execution_context=None):
         """Ask the provider for a new observation without inferring state."""
-        stored = self._stored_operation(request)
+        payload = _mapping(
+            request, 'visual administration operation request')
+        stored = self._stored_operation(payload)
         callback = self._callback('inspect_admin_operation')
         if callback is None:
             with self._lock:
@@ -591,10 +593,11 @@ class ProviderVisualAdministration:
                     stored.public, 'provider_observation_unavailable'
                 )
                 return copy.deepcopy(stored.public)
+        callback_request = self._operation_callback_request(
+            stored, payload, execution_context)
         try:
-            observed = _mapping(callback(self._private_operation_request(
-                stored
-            )), 'provider operation observation')
+            observed = _mapping(
+                callback(callback_request), 'provider operation observation')
         except Exception as exc:
             with self._lock:
                 stored.public['unknown_outcome'] = True
@@ -619,9 +622,13 @@ class ProviderVisualAdministration:
             )
             return copy.deepcopy(stored.public)
 
-    def cancel_operation(self, request):
+    def cancel_operation(self, request, execution_context=None):
         """Dispatch cancellation once; a response is not operation finality."""
-        stored = self._stored_operation(request)
+        payload = _mapping(
+            request, 'visual administration operation request')
+        stored = self._stored_operation(payload)
+        callback_request = self._operation_callback_request(
+            stored, payload, execution_context)
         with self._lock:
             if not stored.public['cancellable']:
                 raise VisualAdminAccessError(
@@ -646,9 +653,8 @@ class ProviderVisualAdministration:
                 )
                 return copy.deepcopy(stored.public)
         try:
-            response = _mapping(callback(self._private_operation_request(
-                stored
-            )), 'provider cancellation response')
+            response = _mapping(
+                callback(callback_request), 'provider cancellation response')
         except Exception as exc:
             with self._lock:
                 stored.public['unknown_outcome'] = True
@@ -673,10 +679,14 @@ class ProviderVisualAdministration:
             )
             return copy.deepcopy(stored.public)
 
-    def validate_operation_post_state(self, request):
+    def validate_operation_post_state(self, request, execution_context=None):
         """Record an independent provider post-state observation."""
-        stored = self._stored_operation(request)
+        payload = _mapping(
+            request, 'visual administration operation request')
+        stored = self._stored_operation(payload)
         callback = self._callback('validate_admin_post_state')
+        callback_request = self._operation_callback_request(
+            stored, payload, execution_context)
         if callback is None:
             observed = {
                 'confirmed': False,
@@ -684,9 +694,9 @@ class ProviderVisualAdministration:
             }
         else:
             try:
-                observed = _mapping(callback(
-                    self._private_operation_request(stored)
-                ), 'provider post-state observation')
+                observed = _mapping(
+                    callback(callback_request),
+                    'provider post-state observation')
             except Exception as exc:
                 with self._lock:
                     stored.public['stage'] = (
@@ -740,6 +750,28 @@ class ProviderVisualAdministration:
             'provider_payload': copy.deepcopy(stored.provider_payload),
             'provider_result': copy.deepcopy(stored.provider_result),
         }
+
+    @classmethod
+    def _operation_callback_request(
+            cls, stored, payload, execution_context=None):
+        """Bind follow-up observations to the mutation's native session."""
+        request = cls._private_operation_request(stored)
+        expected_session_id = stored.plan.get('session_id')
+        supplied_session_id = payload.get('session_id')
+        if expected_session_id != supplied_session_id:
+            raise VisualAdminAccessError(
+                'visual administration session binding changed')
+        if expected_session_id is None:
+            return request
+        execution_context = execution_context or {}
+        if execution_context.get('session_id') != expected_session_id or (
+                execution_context.get('session_handle') is None):
+            raise VisualAdminAccessError(
+                'visual administration provider session is unavailable')
+        request['_provider_session_handle'] = execution_context[
+            'session_handle'
+        ]
+        return request
 
     @staticmethod
     def _record_admin_event(operation, event_kind, detail=None):

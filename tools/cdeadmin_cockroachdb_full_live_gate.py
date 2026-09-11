@@ -324,6 +324,14 @@ def verify(host, port, cockroach_path):
             raise RuntimeError(
                 'CockroachDB range qualification requires five exact nodes')
         apply('node', 'inspect', target=nodes[0])
+        localities = [
+            item for item in resources
+            if item['resource_kind'] == 'locality'
+        ]
+        if not localities:
+            raise RuntimeError(
+                'CockroachDB exact cluster exposed no locality resource')
+        apply('locality', 'inspect', target=localities[0])
 
         apply('materialized-view', 'create', {
             'name': materialized,
@@ -609,7 +617,11 @@ def verify(host, port, cockroach_path):
         client.close()
 
     concepts = {
-        'servers': {'cluster': {'restore_database'}},
+        'servers': {
+            'cluster': {'restore_database'},
+            'locality': {'inspect'},
+            'node': {'decommission', 'inspect', 'recommission'},
+        },
         'databases': {'database': {
             'configure_zone', 'reset_zone', 'set_primary_region',
             'add_region', 'drop_region', 'set_secondary_region',

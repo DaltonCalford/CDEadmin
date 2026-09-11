@@ -127,6 +127,7 @@ def _object_evidence(run_id, operations=None):
         'system-time': ['inspect'],
         'transaction': ['inspect'],
         'transaction-log': ['inspect'],
+        'health': ['execute', 'inspect'],
         'user': ['alter', 'create', 'inspect'],
     }
     passed = operations == expected
@@ -606,6 +607,12 @@ def main():
                     resources = provider.list_resources(request)
                     for kind in ('cluster', 'node', 'database', 'schema'):
                         record(kind, 'inspect', find(resources, kind))
+                    health_target = find(resources, 'health')
+                    record('health', 'inspect', health_target)
+                    record('health', 'execute', health_target, {
+                        'action': 'finish-block',
+                        'acknowledge_operation': True,
+                    })
 
                     visual_table = f'cdeadmin_visual_{suffix}'
                     record('table', 'create', None, {

@@ -38,7 +38,7 @@ CASSANDRA_TOOL_AUTH_SOURCE = (
 )
 CASSANDRA_TRIGGER_RUNTIME = RUNTIME / "cassandra-triggers"
 CASSANDRA_TRIGGER_JAR = CASSANDRA_TRIGGER_RUNTIME / "cdeadmin-trigger.jar"
-FOUNDATIONDB_CONFIGURATION = "four-process-safe-control-plane-v2"
+FOUNDATIONDB_CONFIGURATION = "four-process-backup-control-plane-v3"
 FOUNDATIONDB_ENTRYPOINT = ROOT / "config/foundationdb/entrypoint.sh"
 IGNITE_CONFIGURATION = "authenticated-two-node-object-control-v4"
 IGNITE_CONFIG = ROOT / "config/ignite-config.xml"
@@ -132,12 +132,17 @@ CONTAINERS = {
     },
     "clickhouse": {
         "image": "clickhouse/clickhouse-server:25.12.10.7",
+        "configuration": "keeper-replicated-merge-tree-v1",
         "ports": ((58123, 8123), (59001, 9000)),
         "env": {"CLICKHOUSE_DB": "cdeadmin_demo",
                 "CLICKHOUSE_USER": "cdeadmin_demo",
                 "CLICKHOUSE_PASSWORD": PASSWORD,
                 "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT": "1"},
-        "volumes": (("cdeadmin-demo-clickhouse", "/var/lib/clickhouse"),),
+        "volumes": (
+            ("cdeadmin-demo-clickhouse", "/var/lib/clickhouse"),
+            (str(ROOT / "config/clickhouse/cdeadmin-demo.xml"),
+             "/etc/clickhouse-server/config.d/cdeadmin-demo.xml"),
+        ),
     },
     "cockroachdb": {
         "image": "cockroachdb/cockroach:v26.1.3",
@@ -169,6 +174,7 @@ CONTAINERS = {
     },
     "neo4j": {
         "image": "neo4j:2026.04.0-enterprise",
+        "configuration": "native-admin-tools-v1",
         "ports": ((57474, 7474), (57687, 7687)),
         "env": {"NEO4J_AUTH": f"neo4j/{PASSWORD}",
                 "NEO4J_ACCEPT_LICENSE_AGREEMENT": "yes",
@@ -177,7 +183,9 @@ CONTAINERS = {
                 "NEO4J_server_memory_heap_max__size": "512m",
                 "NEO4J_server_memory_pagecache_size": "256m"},
         "volumes": (("cdeadmin-demo-neo4j-data", "/data"),
-                    ("cdeadmin-demo-neo4j-logs", "/logs")),
+                    ("cdeadmin-demo-neo4j-logs", "/logs"),
+                    (str(RUNTIME / "tool_workspaces/neo4j"),
+                     "/cdeadmin-tools")),
     },
     "opensearch": {
         "image": "opensearchproject/opensearch:3.6.0",
@@ -368,6 +376,13 @@ READY_PORTS = {
 
 def start_standard(engine):
     actual = ALIASES.get(engine, engine)
+    if actual == "neo4j":
+        workspace = RUNTIME / "tool_workspaces/neo4j"
+        workspace.mkdir(parents=True, exist_ok=True)
+        # The exact Neo4j CLI runs as the image's unprivileged ``neo4j``
+        # account. This disposable demo bind mount must therefore be writable
+        # from both the host test runner and that container account.
+        workspace.chmod(0o777)
     create_standard_container(actual)
     name = container_name(actual)
     if not docker_running(name):
@@ -829,7 +844,10 @@ def start_milvus():
             ((59530, 19530), (59091, 9091)),
             (("cdeadmin-demo-milvus", "/var/lib/milvus"),),
             {"ETCD_ENDPOINTS": "cdeadmin-demo-milvus-etcd:2379",
-             "MINIO_ADDRESS": "cdeadmin-demo-milvus-minio:9000"},
+             "MINIO_ADDRESS": "cdeadmin-demo-milvus-minio:9000",
+             "COMMON_SECURITY_AUTHORIZATIONENABLED": "true",
+             "COMMON_SECURITY_DEFAULTROOTPASSWORD":
+             "CDEadminDemo-2026!"},
             ("milvus", "run", "standalone"),
         ),
     )
@@ -880,6 +898,8 @@ def stop_vitess():
 def start_foundationdb():
     name = "cdeadmin-demo-foundationdb"
     cluster = RUNTIME / "fdb.cluster"
+    backup_root = RUNTIME / "foundationdb/backups"
+    backup_root.mkdir(parents=True, exist_ok=True)
     expected_cluster = (
         "cdeadmin_demo:0123456789abcdef0123456789abcdef@"
         "127.0.0.1:54500\n"
@@ -918,6 +938,7 @@ def start_foundationdb():
             "-p", "127.0.0.1:54502:54502",
             "-p", "127.0.0.1:54503:54503",
             "-v", "cdeadmin-demo-foundationdb:/var/fdb/data",
+            "-v", f"{backup_root}:{backup_root}",
             "-v", f"{cluster}:/var/fdb/fdb.cluster:ro", "--entrypoint",
             "/bin/bash", "-v", f"{FOUNDATIONDB_ENTRYPOINT}:"
             "/usr/local/bin/cdeadmin-foundationdb-entrypoint:ro",

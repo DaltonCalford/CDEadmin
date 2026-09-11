@@ -491,6 +491,25 @@ class Neo4jProviderTests(unittest.TestCase):
                 for item in databases[0]['native']['clusterMembers']
             ],
         )
+        self.assertEqual(
+            databases[0]['native']['clusterMembers'],
+            databases[0]['native']['state']['clusterMembers'],
+        )
+        node = next(
+            item for item in resources
+            if item['resource_kind'] == 'node'
+        )
+        self.assertEqual(
+            node['native']['properties'], node['native']['data']
+        )
+        self.assertIn('labels', node['native']['definition'])
+        index = next(
+            item for item in resources
+            if item['resource_kind'] == 'index'
+        )
+        self.assertEqual(
+            index['native']['name'], index['native']['definition']['name']
+        )
 
     def test_graph_page_and_node_create_use_parameters(self):
         adapter, connector = client()
@@ -588,6 +607,41 @@ class Neo4jProviderTests(unittest.TestCase):
             'GRANT READ {`name`} ON GRAPH `neo4j` NODES `Person` '
             'TO `analyst`', statement,
         )
+        statement, _parameters = adapter._security_command(
+            'privilege', 'grant', {
+                'principal': 'analyst',
+                'privileges': {
+                    'action': 'match', 'scope': 'graph', 'graph': 'neo4j',
+                    'resource': {'kind': 'elements', 'names': ['*']},
+                },
+            }, {'name': 'match-all'}, route(),
+        )
+        self.assertEqual(
+            'GRANT MATCH {*} ON GRAPH `neo4j` ELEMENTS * TO `analyst`',
+            statement,
+        )
+
+    def test_native_inspection_uses_exact_yield_fields_and_identity(self):
+        adapter, _connector = client()
+        statement, parameters = adapter._inspect_command(
+            'dbms', {'name': 'Neo4j DBMS'}
+        )
+        self.assertNotIn('YIELD *', statement)
+        self.assertEqual({}, parameters)
+        statement, parameters = adapter._inspect_command(
+            'relationship-type', {
+                'relationshipType': 'PURCHASED',
+            },
+        )
+        self.assertIn('YIELD relationshipType', statement)
+        self.assertEqual({'name': 'PURCHASED'}, parameters)
+        statement, parameters = adapter._inspect_command(
+            'transaction', {'transactionId': 'neo4j-transaction-1'}
+        )
+        self.assertIn('transactionId = $transaction_id', statement)
+        self.assertEqual({
+            'transaction_id': 'neo4j-transaction-1',
+        }, parameters)
 
     def test_enterprise_database_forms_compile_typed_native_commands(self):
         adapter, _connector = client()

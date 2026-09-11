@@ -50,6 +50,7 @@ class XTDBObjectExperienceGateTests(unittest.TestCase):
         'system-time': ['inspect'],
         'transaction': ['inspect'],
         'transaction-log': ['inspect'],
+        'health': ['execute', 'inspect'],
         'user': ['alter', 'create', 'inspect'],
     }
 

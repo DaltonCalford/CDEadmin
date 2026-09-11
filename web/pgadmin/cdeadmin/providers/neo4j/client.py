@@ -19,6 +19,7 @@ import copy
 import hashlib
 import importlib
 import json
+import os
 from dataclasses import dataclass, field
 from contextlib import ExitStack
 from datetime import date, datetime, time, timedelta
@@ -716,13 +717,18 @@ class Neo4jClient:
         self._drivers: list[object] = []
         self._sessions: list[_Neo4jSession] = []
         self._results: list[_Neo4jResult] = []
+        admin_binary = os.environ.get(
+            'CDEADMIN_NEO4J_ADMIN_BINARY', 'neo4j-admin'
+        )
         self._tool_runner = ProviderToolRunner({
-            'cypher-shell': 'cypher-shell',
-            'neo4j-admin-backup': 'neo4j-admin',
-            'neo4j-admin-restore': 'neo4j-admin',
-            'neo4j-admin-import': 'neo4j-admin',
-            'neo4j-admin-dump': 'neo4j-admin',
-            'neo4j-admin-check': 'neo4j-admin',
+            'cypher-shell': os.environ.get(
+                'CDEADMIN_NEO4J_CYPHER_SHELL_BINARY', 'cypher-shell'
+            ),
+            'neo4j-admin-backup': admin_binary,
+            'neo4j-admin-restore': admin_binary,
+            'neo4j-admin-import': admin_binary,
+            'neo4j-admin-dump': admin_binary,
+            'neo4j-admin-check': admin_binary,
         })
 
     @classmethod
@@ -1346,6 +1352,30 @@ class Neo4jClient:
 
     @staticmethod
     def _resource(kind, name, native, parent=None):
+        native = copy.deepcopy(native)
+        if kind in {'database', 'composite-database', 'server'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind in {
+            'alias', 'index', 'constraint', 'procedure', 'function',
+        }:
+            native['definition'] = copy.deepcopy(native)
+        elif kind in {'node', 'relationship'}:
+            native['data'] = copy.deepcopy(native.get('properties', {}))
+            native['definition'] = {
+                key: copy.deepcopy(native[key])
+                for key in (
+                    'element_id', 'labels', 'type',
+                    'start_node_element_id', 'end_node_element_id',
+                ) if key in native
+            }
+        elif kind in {'transaction', 'query', 'graph-projection'}:
+            native['state'] = copy.deepcopy(native)
+        elif kind == 'user':
+            native['security'] = copy.deepcopy(native)
+        elif kind == 'role':
+            native['security'] = copy.deepcopy(native)
+        elif kind == 'privilege':
+            native['privileges'] = [copy.deepcopy(native)]
         identity = str(native.get('element_id') or native.get('name') or name)
         encoded = quote(identity, safe='')
         generation = hashlib.sha256(
@@ -2172,7 +2202,7 @@ class Neo4jClient:
             cli = ['database', 'import', action, database]
             if nodes:
                 _root, node_path = self._workspace_path(
-                    workspace, nodes, 'nodes path'
+                    str(workspace), nodes, 'nodes path'
                 )
                 if not node_path.exists():
                     raise Neo4jClientError(
@@ -2181,7 +2211,7 @@ class Neo4jClient:
                 cli.append(f'--nodes={node_path}')
             if relationships:
                 _root, rel_path = self._workspace_path(
-                    workspace, relationships, 'relationships path'
+                    str(workspace), relationships, 'relationships path'
                 )
                 if not rel_path.exists():
                     raise Neo4jClientError(
@@ -2249,25 +2279,79 @@ class Neo4jClient:
                 'SHOW DATABASES YIELD * WHERE name = $database RETURN *',
                 {'database': name},
             )
-        statements = {
-            'dbms': 'CALL dbms.components() YIELD * RETURN *',
-            'alias': 'SHOW ALIASES FOR DATABASES YIELD * RETURN *',
-            'label': 'CALL db.labels() YIELD label RETURN label',
-            'relationship-type': (
-                'CALL db.relationshipTypes() YIELD * RETURN *'
+        if kind == 'dbms':
+            return (
+                'CALL dbms.components() '
+                'YIELD name, versions, edition '
+                'RETURN name, versions, edition',
+                {},
+            )
+        selectors = {
+            'alias': (
+                'SHOW ALIASES FOR DATABASES YIELD * '
+                'WHERE name = $name RETURN *',
+                native.get('name'),
             ),
-            'property': 'CALL db.propertyKeys() YIELD * RETURN *',
-            'index': 'SHOW INDEXES YIELD * RETURN *',
-            'constraint': 'SHOW CONSTRAINTS YIELD * RETURN *',
-            'procedure': 'SHOW PROCEDURES YIELD * RETURN *',
-            'function': 'SHOW FUNCTIONS YIELD * RETURN *',
-            'setting': 'SHOW SETTINGS YIELD * RETURN *',
-            'transaction': 'SHOW TRANSACTIONS YIELD * RETURN *',
-            'query': 'SHOW TRANSACTIONS YIELD * RETURN *',
+            'label': (
+                'CALL db.labels() YIELD label '
+                'WHERE label = $name RETURN label',
+                native.get('label') or native.get('name'),
+            ),
+            'relationship-type': (
+                'CALL db.relationshipTypes() YIELD relationshipType '
+                'WHERE relationshipType = $name RETURN relationshipType',
+                native.get('relationshipType') or native.get('name'),
+            ),
+            'property': (
+                'CALL db.propertyKeys() YIELD propertyKey '
+                'WHERE propertyKey = $name RETURN propertyKey',
+                native.get('propertyKey') or native.get('name'),
+            ),
+            'index': (
+                'SHOW INDEXES YIELD * WHERE name = $name RETURN *',
+                native.get('name'),
+            ),
+            'constraint': (
+                'SHOW CONSTRAINTS YIELD * WHERE name = $name RETURN *',
+                native.get('name'),
+            ),
+            'procedure': (
+                'SHOW PROCEDURES YIELD * WHERE name = $name RETURN *',
+                native.get('name'),
+            ),
+            'function': (
+                'SHOW FUNCTIONS YIELD * WHERE name = $name RETURN *',
+                native.get('name'),
+            ),
+            'setting': (
+                'SHOW SETTINGS YIELD * WHERE name = $name RETURN *',
+                native.get('name'),
+            ),
+            'user': (
+                'SHOW USERS YIELD * WHERE user = $name RETURN *',
+                native.get('user') or native.get('name'),
+            ),
+            'role': (
+                'SHOW ROLES YIELD * WHERE role = $name RETURN *',
+                native.get('role') or native.get('name'),
+            ),
+        }
+        if kind in selectors:
+            statement, name = selectors[kind]
+            return statement, {'name': _identifier(
+                name, f'{kind} name'
+            )}
+        statements = {
+            'transaction': (
+                'SHOW TRANSACTIONS YIELD * '
+                'WHERE transactionId = $transaction_id RETURN *'
+            ),
+            'query': (
+                'SHOW TRANSACTIONS YIELD * '
+                'WHERE transactionId = $transaction_id RETURN *'
+            ),
             'query-plan': 'EXPLAIN RETURN 1 AS cdeadmin_plan_probe',
             'graph-projection': 'CALL gds.graph.list($graph_name)',
-            'user': 'SHOW USERS YIELD * RETURN *',
-            'role': 'SHOW ROLES YIELD * RETURN *',
             'privilege': 'SHOW PRIVILEGES YIELD * RETURN *',
             'graph': (
                 'MATCH (n) OPTIONAL MATCH (n)-[r]->() '
@@ -2281,6 +2365,10 @@ class Neo4jClient:
         if kind not in statements:
             raise Neo4jClientError('Neo4j inspect operation is unavailable')
         parameters = {'id': native.get('element_id')}
+        if kind in {'transaction', 'query'}:
+            parameters = {'transaction_id': _identifier(
+                native.get('transactionId'), 'transaction ID'
+            )}
         if kind == 'graph-projection':
             parameters = {'graph_name': _identifier(
                 native.get('graphName') or native.get('name'),
@@ -3156,7 +3244,9 @@ class Neo4jClient:
                 raise Neo4jClientError('privilege action is unavailable')
             if action in {'READ', 'MATCH', 'SET PROPERTY', 'REMOVE PROPERTY'}:
                 properties = privileges.get('properties')
-                if properties is not None:
+                if properties is None:
+                    action += ' {*}'
+                else:
                     if not isinstance(properties, list) or not properties:
                         raise Neo4jClientError(
                             'privilege properties must be a non-empty array'
@@ -3262,7 +3352,9 @@ class Neo4jClient:
             )
             return f'{mode.upper()} {source}', parameters
         if kind == 'dbms' and action == 'clear-query-caches':
-            return 'CALL db.clearQueryCaches() YIELD * RETURN *', {}
+            return (
+                'CALL db.clearQueryCaches() YIELD value RETURN value', {}
+            )
         if kind == 'server':
             server_id = _identifier(
                 native.get('serverId') or native.get('name'), 'server ID'

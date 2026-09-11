@@ -1,4 +1,4 @@
-memory-usage-limit = "768MB"
+memory-usage-limit = "384MB"
 
 [storage]
 api-version = 2
@@ -6,4 +6,4 @@ enable-ttl = true
 reserve-space = "0MB"
 
 [storage.block-cache]
-capacity = "256MB"
+capacity = "128MB"

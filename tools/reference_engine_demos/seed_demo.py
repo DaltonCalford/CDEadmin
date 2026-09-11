@@ -768,14 +768,18 @@ def seed_milvus():
     from pymilvus import MilvusClient
 
     root = retry(
-        lambda: MilvusClient(uri="http://127.0.0.1:59530", timeout=10),
+        lambda: MilvusClient(
+            uri="http://127.0.0.1:59530", token="root:CDEadminDemo-2026!",
+            timeout=10,
+        ),
         timeout=300,
     )
     retry(root.list_databases, timeout=300)
     if "cdeadmin_demo" not in root.list_databases():
         root.create_database("cdeadmin_demo")
     client = MilvusClient(
-        uri="http://127.0.0.1:59530", db_name="cdeadmin_demo", timeout=20,
+        uri="http://127.0.0.1:59530", token="root:CDEadminDemo-2026!",
+        db_name="cdeadmin_demo", timeout=20,
     )
     collection = "work_order_vectors"
     if not client.has_collection(collection):

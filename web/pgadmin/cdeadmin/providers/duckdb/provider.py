@@ -168,6 +168,7 @@ def _resources(connection, request):
             }
             if native:
                 resources[resource_id]['native'] = native
+            return resources[resource_id]
 
         cursor.execute(
             'SELECT database_name, database_size, block_size, total_blocks, '
@@ -218,55 +219,247 @@ def _resources(connection, request):
                 native['file_bytes'] = os.path.getsize(path)
             add(kind, [], database, native)
         cursor.execute(
-            'SELECT s.database_name, s.schema_name FROM duckdb_schemas() s '
+            'SELECT s.database_name, s.schema_name, s.oid, s.comment, '
+            's.tags, s.sql FROM duckdb_schemas() s '
             'JOIN duckdb_databases() d USING (database_name) '
             'WHERE NOT d.internal ORDER BY 1, 2'
         )
-        for database, schema in cursor.fetchall():
-            add('schema', [database], schema)
-        queries = (
-            ('table', 'SELECT database_name, schema_name, table_name, '
-             'estimated_size FROM duckdb_tables() WHERE NOT internal '
-             'ORDER BY 1, 2, 3'),
-            ('view', 'SELECT database_name, schema_name, view_name, sql '
-             'FROM duckdb_views() WHERE NOT internal ORDER BY 1, 2, 3'),
-            ('column', 'SELECT database_name, schema_name, table_name, '
-             'column_name, data_type FROM duckdb_columns() '
-             'WHERE NOT internal ORDER BY 1, 2, 3, column_index'),
-            ('index', 'SELECT database_name, schema_name, table_name, '
-             'index_name, sql FROM duckdb_indexes() ORDER BY 1, 2, 3, 4'),
-            ('constraint', 'SELECT database_name, schema_name, table_name, '
-             'constraint_name, constraint_type FROM duckdb_constraints() '
-             'ORDER BY 1, 2, 3, constraint_index'),
-            ('sequence', 'SELECT database_name, schema_name, sequence_name, '
-             'sql FROM duckdb_sequences() ORDER BY 1, 2, 3'),
-            ('type', 'SELECT database_name, schema_name, type_name, '
-             'logical_type FROM duckdb_types() WHERE NOT internal '
-             'ORDER BY 1, 2, 3'),
+        for database, schema, oid, comment, tags, sql in cursor.fetchall():
+            native = {
+                'catalog_metadata': {
+                    'oid': oid, 'comment': comment, 'tags': tags,
+                },
+            }
+            if sql:
+                native['ddl'] = sql
+            add('schema', [database], schema, native)
+
+        cursor.execute(
+            'SELECT database_name, schema_name, table_name, table_oid, '
+            'comment, tags, temporary, has_primary_key, estimated_size, '
+            'column_count, index_count, check_constraint_count, sql '
+            'FROM duckdb_tables() WHERE NOT internal ORDER BY 1, 2, 3'
         )
-        for kind, source in queries:
-            cursor.execute(source)
-            for row in cursor.fetchall():
-                database, schema, *values = row
-                if kind in {'column', 'index', 'constraint'}:
-                    parent, name, detail = values
-                    path = [database, schema, parent]
-                else:
-                    name, detail = values
-                    path = [database, schema]
-                add(kind, path, name, {'definition': detail})
+        for row in cursor.fetchall():
+            (
+                database, schema, name, oid, comment, tags, temporary,
+                primary_key, estimated_size, column_count, index_count,
+                check_count, sql,
+            ) = row
+            add('table', [database, schema], name, {
+                'catalog_metadata': {
+                    'oid': oid, 'comment': comment, 'tags': tags,
+                    'temporary': bool(temporary),
+                    'has_primary_key': bool(primary_key),
+                },
+                'statistics': {
+                    'estimated_rows': estimated_size,
+                    'column_count': column_count,
+                    'index_count': index_count,
+                    'check_constraint_count': check_count,
+                },
+                'ddl': sql,
+                'columns': [],
+                'constraints': [],
+                'indexes': [],
+            })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, view_name, view_oid, '
+            'comment, tags, temporary, column_count, sql, is_bound '
+            'FROM duckdb_views() WHERE NOT internal ORDER BY 1, 2, 3'
+        )
+        for row in cursor.fetchall():
+            (
+                database, schema, name, oid, comment, tags, temporary,
+                column_count, sql, is_bound,
+            ) = row
+            add('view', [database, schema], name, {
+                'catalog_metadata': {
+                    'oid': oid, 'comment': comment, 'tags': tags,
+                    'temporary': bool(temporary),
+                },
+                'state': {'bound': bool(is_bound)},
+                'statistics': {'column_count': column_count},
+                'ddl': sql,
+                'columns': [],
+            })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, table_name, column_name, '
+            'column_index, comment, column_default, is_nullable, data_type, '
+            'data_type_id, character_maximum_length, numeric_precision, '
+            'numeric_precision_radix, numeric_scale '
+            'FROM duckdb_columns() WHERE NOT internal '
+            'ORDER BY 1, 2, 3, column_index'
+        )
+        for row in cursor.fetchall():
+            database, schema, parent, name, *values = row
+            native = {
+                'catalog_metadata': dict(zip((
+                    'ordinal_position', 'comment', 'default', 'nullable',
+                    'data_type', 'data_type_id',
+                    'character_maximum_length', 'numeric_precision',
+                    'numeric_precision_radix', 'numeric_scale',
+                ), values)),
+            }
+            column = add('column', [database, schema, parent], name, native)
+            parent_id = ':'.join([
+                'table', str(database), str(schema), str(parent),
+            ])
+            if parent_id not in resources:
+                parent_id = ':'.join([
+                    'view', str(database), str(schema), str(parent),
+                ])
+            if parent_id in resources:
+                resources[parent_id]['native']['columns'].append({
+                    'resource_id': column['resource_id'],
+                    'name': str(name),
+                    **native['catalog_metadata'],
+                })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, table_name, index_name, '
+            'index_oid, comment, tags, is_unique, is_primary, expressions, '
+            'sql FROM duckdb_indexes() ORDER BY 1, 2, 3, 4'
+        )
+        for row in cursor.fetchall():
+            database, schema, parent, name, *values = row
+            oid, comment, tags, unique, primary, expressions, sql = values
+            native = {
+                'catalog_metadata': {
+                    'oid': oid, 'comment': comment, 'tags': tags,
+                    'unique': bool(unique), 'primary': bool(primary),
+                    'expressions': expressions,
+                },
+                'ddl': sql,
+            }
+            index = add('index', [database, schema, parent], name, native)
+            parent_id = ':'.join([
+                'table', str(database), str(schema), str(parent),
+            ])
+            if parent_id in resources:
+                resources[parent_id]['native']['indexes'].append({
+                    'resource_id': index['resource_id'],
+                    'name': str(name),
+                    **native['catalog_metadata'],
+                    'ddl': sql,
+                })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, table_name, '
+            'constraint_name, constraint_index, constraint_type, '
+            'constraint_text, expression, constraint_column_indexes, '
+            'constraint_column_names, referenced_table, '
+            'referenced_column_names FROM duckdb_constraints() '
+            'ORDER BY 1, 2, 3, constraint_index'
+        )
+        for row in cursor.fetchall():
+            database, schema, parent, name, *values = row
+            native = {
+                'catalog_metadata': dict(zip((
+                    'constraint_index', 'constraint_type',
+                    'constraint_text', 'expression', 'column_indexes',
+                    'column_names', 'referenced_table',
+                    'referenced_column_names',
+                ), values)),
+            }
+            if values[6]:
+                native['dependencies'] = [{
+                    'relationship': 'foreign-key',
+                    'referenced_table': values[6],
+                    'referenced_columns': values[7],
+                }]
+            constraint = add(
+                'constraint', [database, schema, parent], name, native
+            )
+            parent_id = ':'.join([
+                'table', str(database), str(schema), str(parent),
+            ])
+            if parent_id in resources:
+                summary = {
+                    'resource_id': constraint['resource_id'],
+                    'name': str(name),
+                    **native['catalog_metadata'],
+                }
+                resources[parent_id]['native']['constraints'].append(summary)
+                if values[6]:
+                    resources[parent_id]['native'].setdefault(
+                        'dependencies', []
+                    ).append({
+                        'relationship': 'foreign-key',
+                        'constraint_name': str(name),
+                        'referenced_table': values[6],
+                        'referenced_columns': values[7],
+                    })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, sequence_name, sequence_oid, '
+            'comment, tags, temporary, start_value, min_value, max_value, '
+            'increment_by, cycle, last_value, sql '
+            'FROM duckdb_sequences() ORDER BY 1, 2, 3'
+        )
+        for row in cursor.fetchall():
+            database, schema, name, *values = row
+            sql = values[-1]
+            add('sequence', [database, schema], name, {
+                'catalog_metadata': dict(zip((
+                    'oid', 'comment', 'tags', 'temporary', 'start_value',
+                    'min_value', 'max_value', 'increment_by', 'cycle',
+                    'last_value',
+                ), values[:-1])),
+                'state': {'last_value': values[-2]},
+                'ddl': sql,
+            })
+
+        cursor.execute(
+            'SELECT database_name, schema_name, type_name, type_oid, '
+            'type_size, logical_type, type_category, comment, tags, labels '
+            'FROM duckdb_types() WHERE NOT internal ORDER BY 1, 2, 3'
+        )
+        for row in cursor.fetchall():
+            database, schema, name, *values = row
+            add('type', [database, schema], name, {
+                'catalog_metadata': dict(zip((
+                    'oid', 'size_bytes', 'logical_type', 'category',
+                    'comment', 'tags', 'labels',
+                ), values)),
+            })
         cursor.execute(
             'SELECT database_name, schema_name, function_name, '
-            'function_type, macro_definition, internal '
+            'function_type, alias_of, description, comment, tags, '
+            'return_type, parameters, parameter_types, varargs, '
+            'macro_definition, has_side_effects, internal, function_oid, '
+            'examples, stability, categories '
             'FROM duckdb_functions() ORDER BY 1, 2, 3'
         )
-        for database, schema, name, function_type, definition, internal in (
-            cursor.fetchall()
-        ):
+        for row in cursor.fetchall():
+            database, schema, name, function_type, *values = row
             kind = 'macro' if 'macro' in str(function_type) else 'function'
+            (
+                alias_of, description, comment, tags, return_type,
+                parameters, parameter_types, varargs, definition,
+                has_side_effects, internal, oid, examples, stability,
+                categories,
+            ) = values
             add(kind, [database, schema], name, {
-                'function_type': function_type, 'definition': definition,
-                'internal': bool(internal),
+                'catalog_metadata': {
+                    'function_type': function_type,
+                    'alias_of': alias_of, 'description': description,
+                    'comment': comment, 'tags': tags,
+                    'return_type': return_type, 'varargs': varargs,
+                    'has_side_effects': bool(has_side_effects),
+                    'internal': bool(internal), 'oid': oid,
+                    'examples': examples, 'stability': stability,
+                    'categories': categories,
+                },
+                'parameters': [
+                    {'name': parameter, 'data_type': parameter_type}
+                    for parameter, parameter_type in zip(
+                        parameters or [], parameter_types or []
+                    )
+                ],
+                **({'definition': definition} if definition else {}),
             })
         cursor.execute(
             'SELECT extension_name, loaded, installed, extension_version '

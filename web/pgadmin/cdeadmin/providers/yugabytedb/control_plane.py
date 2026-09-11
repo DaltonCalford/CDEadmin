@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
 import copy
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import time
 
 from pgadmin.cdeadmin.sdk import RelationalClientError
 from pgadmin.cdeadmin.visual_admin import (
@@ -19,6 +21,7 @@ from pgadmin.cdeadmin.visual_admin import (
 _ID_PATTERN = r'[A-Za-z0-9_.:@+-]+'
 _UUID_PATTERN = r'[A-Fa-f0-9-]+'
 _HOST_PORT_PATTERN = r'[A-Za-z0-9_.-]+:[0-9]{1,5}'
+_PLACEMENT_UUID_PATTERN = r'[A-Za-z0-9_+/=-]+'
 
 
 def _choice(field_id, label, values, **options):
@@ -38,7 +41,7 @@ OPERATIONS = (
             cp_field('replication_factor', 'Replication factor', 'number',
                      True, minimum=1, maximum=64),
             cp_field('placement_uuid', 'Placement UUID', 'text', False,
-                     max_length=256, pattern=_ID_PATTERN),
+                     max_length=256, pattern=_PLACEMENT_UUID_PATTERN),
         ), target_required=False, impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
@@ -105,7 +108,8 @@ OPERATIONS = (
     ),
     ControlPlaneOperation(
         'tablet', 'split', 'Split tablet', 'admin', 'topology_admin',
-        impact_scope='resource', long_running=True
+        impact_scope='resource', long_running=True,
+        post_state_required=False
     ),
     ControlPlaneOperation(
         'snapshot', 'create_database', 'Create database snapshot', 'admin',
@@ -392,7 +396,8 @@ def compile_action(request):
             ])
             if draft.get('placement_uuid'):
                 arguments.append(_safe(
-                    draft['placement_uuid'], 'placement UUID'))
+                    draft['placement_uuid'], 'placement UUID',
+                    _PLACEMENT_UUID_PATTERN))
     elif kind == 'node':
         command = (
             'change_leader_blacklist'
@@ -671,6 +676,31 @@ def _json_document(text):
         return None
 
 
+def _protobuf_bytes_text(value):
+    """Decode protobuf-JSON ``bytes`` fields into their native text value."""
+    if not isinstance(value, str) or not value:
+        return value
+    try:
+        decoded = base64.b64decode(value, validate=True).decode('utf-8')
+    except (ValueError, UnicodeDecodeError):
+        return value
+    return decoded if decoded and '\x00' not in decoded else value
+
+
+def _placement_document(document):
+    """Return placement metadata with its protobuf bytes UUID normalized."""
+    result = copy.deepcopy(document)
+    replication = result.get('replicationInfo') if isinstance(
+        result, dict
+    ) else None
+    live = replication.get('liveReplicas') if isinstance(
+        replication, dict
+    ) else None
+    if isinstance(live, dict) and 'placementUuid' in live:
+        live['placementUuid'] = _protobuf_bytes_text(live['placementUuid'])
+    return result
+
+
 def _result_stdout(request):
     result = request.get('provider_result') or {}
     response = result.get('provider_response') if isinstance(
@@ -737,10 +767,13 @@ def catalog_resources(route, generation):
         return []
     resources = []
     probes = (
+        ('cluster', ['get_load_balancer_state']),
+        ('master', ['list_all_masters']),
+        ('node', ['list_all_tablet_servers']),
         ('schedule', ['list_snapshot_schedules']),
         ('changefeed', ['list_change_data_streams']),
         ('xcluster-replication', ['list_universe_replications']),
-        ('snapshot', ['list_snapshots', 'JSON', 'SHOW_DETAILS']),
+        ('snapshot', ['list_snapshots', 'JSON']),
         ('placement-policy', ['get_universe_config']),
         ('table', [
             'list_tables', 'include_db_type', 'include_table_id',
@@ -754,7 +787,36 @@ def catalog_resources(route, generation):
             continue
         text = response.get('stdout', '')
         document = _json_document(text)
-        if kind == 'schedule':
+        if kind == 'cluster':
+            resources.append(_resource(
+                kind, 'YugabyteDB cluster', generation, {'raw': text},
+            ))
+        elif kind == 'master':
+            pattern = re.compile(
+                r'^([A-Fa-f0-9-]+)\s+(\S+:\d+)\s+(\S+)\s+(\S+)'
+                r'(?:\s+(\S+:\d+))?\s*$',
+                re.MULTILINE,
+            )
+            for identifier, endpoint, state, role, broadcast in (
+                    pattern.findall(text)):
+                resources.append(_resource(kind, identifier, generation, {
+                    'rpc_endpoint': endpoint,
+                    'state': state,
+                    'role': role,
+                    'broadcast_endpoint': broadcast or endpoint,
+                }))
+        elif kind == 'node':
+            pattern = re.compile(
+                r'^([A-Fa-f0-9-]+)\s+(\S+:\d+)\s+\S+\s+(\S+)\s+',
+                re.MULTILINE,
+            )
+            for identifier, endpoint, state in pattern.findall(text):
+                resources.append(_resource(kind, endpoint, generation, {
+                    'uuid': identifier,
+                    'rpc_endpoint': endpoint,
+                    'state': state,
+                }))
+        elif kind == 'schedule':
             for row in _schedule_rows(document):
                 if isinstance(row, dict) and isinstance(row.get('id'), str):
                     resources.append(_resource(
@@ -794,7 +856,36 @@ def catalog_resources(route, generation):
                         'table_id': table_id, 'database': db_name,
                         'schema': schema,
                     }, path=[schema]))
+                try:
+                    tablet_response = _run(route, [
+                        'list_tablets', f'tableid.{table_id}', '0', 'JSON',
+                        'include_followers',
+                    ], timeout=30)
+                except RelationalClientError:
+                    continue
+                tablet_document = _json_document(
+                    tablet_response.get('stdout', ''))
+                tablet_rows = tablet_document.get(
+                    'tablets') if isinstance(tablet_document, dict) else None
+                for tablet in (
+                        tablet_rows if isinstance(tablet_rows, list) else []):
+                    if not isinstance(tablet, dict):
+                        continue
+                    identifier = tablet.get('id')
+                    if not isinstance(identifier, str) or re.fullmatch(
+                            _UUID_PATTERN, identifier) is None:
+                        continue
+                    resources.append(_resource(
+                        'tablet', identifier, generation, {
+                            **tablet,
+                            'database': db_name,
+                            'schema': schema,
+                            'table': table,
+                            'table_id': table_id,
+                        }, path=[schema, table],
+                    ))
         elif isinstance(document, dict):
+            document = _placement_document(document)
             resources.append(_resource(
                 kind, 'live-placement', generation,
                 document.get('replicationInfo') or document,
@@ -837,7 +928,7 @@ def inspect_action(_client, request):
             'target_resource': plan.get('target_resource')
         }, _UUID_PATTERN)]
     elif kind == 'snapshot':
-        arguments = ['list_snapshots', 'JSON', 'SHOW_DETAILS']
+        arguments = ['list_snapshots', 'JSON']
     elif kind == 'schedule':
         arguments = ['list_snapshot_schedules']
         if operation not in {'create', 'drop'}:
@@ -902,7 +993,7 @@ def cancel_action(_client, request):
         _route(request), ['abort_snapshot_restore', restoration_id])
 
 
-def post_validate_action(client, request):
+def _post_validate_action_once(client, request):
     observation = inspect_action(client, request)
     text = observation['provider_observation'].get('stdout', '')
     document = _json_document(text)
@@ -914,7 +1005,84 @@ def post_validate_action(client, request):
     path = target.get('display_path') or [target.get('display_name')]
     expected = path[-1] if path and isinstance(path[-1], str) else None
     present = None
-    if kind == 'schedule':
+    if kind == 'cluster' and operation == 'set_load_balancer':
+        expected_state = 'ENABLED' if draft.get('enabled') else 'DISABLED'
+        states = re.findall(
+            r'(?m)^\S+\s+\S+:\d+\s+\S+\s+\S+\s+(ENABLED|DISABLED)\s*$',
+            text,
+        )
+        present = bool(states) and all(
+            state == expected_state for state in states)
+        expected = expected_state
+    elif kind == 'node':
+        host, separator, port = str(expected or '').rpartition(':')
+        blacklist_name = (
+            'leaderBlacklist' if 'leader' in operation else
+            'serverBlacklist'
+        )
+        blacklist = document.get(blacklist_name, {}) if isinstance(
+            document, dict) else {}
+        hosts = blacklist.get('hosts', []) if isinstance(
+            blacklist, dict) else []
+        listed = any(
+            isinstance(item, dict) and item.get('host') == host and
+            str(item.get('port')) == port
+            for item in hosts
+        ) if separator else False
+        present = not listed if operation.startswith('remove_') else listed
+    elif kind == 'placement-policy':
+        replication = document.get('replicationInfo', {}) if isinstance(
+            document, dict) else {}
+        live = replication.get('liveReplicas') if isinstance(
+            replication, dict) else None
+        if operation == 'clear':
+            present = not isinstance(live, dict)
+        else:
+            expected = 'live-placement'
+            present = isinstance(live, dict) and live.get(
+                'numReplicas') == draft.get('replication_factor')
+    elif kind == 'master' and operation == 'leader_stepdown':
+        destination = draft.get('destination_uuid')
+        if destination:
+            present = re.search(
+                rf'(?m)^{re.escape(destination)}\s+\S+:\d+\s+ALIVE\s+'
+                r'LEADER(?:\s|$)',
+                text,
+            ) is not None
+            expected = destination
+        else:
+            present = bool(expected) and re.search(
+                rf'(?m)^{re.escape(expected)}\s+\S+:\d+\s+ALIVE\s+'
+                r'LEADER(?:\s|$)',
+                text,
+            ) is None
+    elif kind == 'tablet' and operation == 'leader_stepdown':
+        destination = draft.get('destination_uuid')
+        if destination:
+            present = re.search(
+                rf'(?m)^{re.escape(destination)}\s+\S+:\d+\s+LEADER'
+                r'(?:\s|$)',
+                text,
+            ) is not None
+            expected = destination
+        else:
+            present = ' LEADER' in text
+    elif kind == 'snapshot':
+        rows = document.get('snapshots') if isinstance(
+            document, dict) else document
+        identifiers = {
+            item.get('id') or item.get('snapshot_id')
+            for item in rows if isinstance(rows, list) and
+            isinstance(item, dict)
+        }
+        if operation == 'create_database':
+            expected = _created_identifier(
+                request, (),
+                r'(?im)^Started snapshot creation:\s*'
+                r'([A-Fa-f0-9-]{16,})\s*$',
+            )
+        present = expected in identifiers
+    elif kind == 'schedule':
         if operation == 'create':
             expected = _created_identifier(
                 request, ('schedule_id', 'scheduleId'),
@@ -979,3 +1147,18 @@ def post_validate_action(client, request):
         'observation': observation,
         'provider_finality_authority': True,
     }
+
+
+def post_validate_action(client, request):
+    """Poll provider state after one mutation without replaying it."""
+    plan = request.get('plan') or {}
+    asynchronous = plan.get('resource_kind') in {
+        'cluster', 'master', 'node', 'placement-policy', 'snapshot',
+        'tablet',
+    }
+    deadline = time.monotonic() + (15 if asynchronous else 0)
+    while True:
+        observation = _post_validate_action_once(client, request)
+        if observation['confirmed'] or time.monotonic() >= deadline:
+            return observation
+        time.sleep(0.25)

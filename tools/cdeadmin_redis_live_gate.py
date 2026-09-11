@@ -21,6 +21,7 @@ import argparse
 import copy
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -57,12 +58,7 @@ CATEGORIES = (
     'bitmaps', 'hyperloglog', 'vector_sets', 'transactions', 'acl',
     'fault', 'tooling', 'visual_objects', 'cleanup',
 )
-OBJECT_RESOURCE_KINDS = (
-    'key', 'string', 'hash', 'list', 'set', 'sorted-set', 'geospatial',
-    'bitmap', 'hyperloglog', 'vector-set', 'ttl', 'stream',
-    'pubsub-channel', 'consumer-group', 'consumer', 'module', 'acl-user',
-    'replica', 'sentinel', 'cluster-slot',
-)
+OBJECT_RESOURCE_KINDS = tuple(RedisClient.ADMIN_OPERATIONS)
 FULL_OBJECT_OPERATIONS = {
     kind: sorted(RedisClient.ADMIN_OPERATIONS[kind])
     for kind in OBJECT_RESOURCE_KINDS
@@ -155,6 +151,14 @@ def parser():
         help='write strict provider-object operation evidence separately',
     )
     value.add_argument(
+        '--supplement-object-evidence', type=Path, action='append',
+        default=[],
+        help=(
+            'merge operations proven by another exact-profile topology '
+            'scope into the final strict operation artifact'
+        ),
+    )
+    value.add_argument(
         '--require-acl-admin', action='store_true',
         help='Fail unless temporary ACL user create/inspect/delete succeeds.',
     )
@@ -179,9 +183,18 @@ def _record(categories, name, callback, details, failures):
 
 
 def _apply(provider, request):
+    validation = provider.validate_visual_admin(request)
+    if not validation['valid']:
+        raise RuntimeError(
+            'Redis visual administration draft is invalid: ' +
+            json.dumps(validation['errors'], sort_keys=True)
+        )
     plan = provider.plan_visual_admin(request)
     if plan['state'] != 'ready':
-        raise RuntimeError('Redis visual administration plan is not ready')
+        raise RuntimeError(
+            'Redis visual administration plan is not ready: ' +
+            json.dumps(plan.get('validation_errors', []), sort_keys=True)
+        )
     result = provider.apply_visual_admin({
         'plan_id': plan['plan_id'],
         'plan_digest': plan['plan_digest'],
@@ -255,18 +268,19 @@ def _visual_objects(
     def remember(kind, operation):
         passed.setdefault(kind, set()).add(operation)
 
-    def apply(kind, operation, item, draft=None):
+    def apply(kind, operation, item, draft=None, operation_route=None):
+        selected_route = operation_route or route
         try:
             if operation == 'inspect':
                 inspection = copy.deepcopy(item)
-                inspection['route'] = copy.deepcopy(route)
+                inspection['route'] = copy.deepcopy(selected_route)
                 provider.inspect_resource(inspection)
             result = _apply(provider, {
                 'resource_kind': kind,
                 'operation_id': operation,
                 'target_resource': item,
                 'draft': draft or {},
-                '_provider_route': route,
+                '_provider_route': selected_route,
             })
             remember(kind, operation)
             return result
@@ -514,6 +528,203 @@ def _visual_objects(
 
     replica = target('replica', 'replication', role='primary')
     apply('replica', 'inspect', replica)
+
+    deployment = target('deployment', 'Redis deployment')
+    apply('deployment', 'inspect', deployment)
+    apply('deployment', 'execute', deployment, {
+        'action': 'save', 'arguments': {},
+    })
+
+    node = target(
+        'node', f'{route["host"]}:{route["port"]}',
+        host=route['host'], port=route['port'], role='primary',
+    )
+    apply('node', 'inspect', node)
+    apply('node', 'alter', node, {
+        'changes': {'role': 'primary'},
+    })
+    apply('node', 'execute', node, {
+        'action': 'ping', 'arguments': {},
+    })
+
+    database_route = copy.deepcopy(route)
+    database_route['database'] = 15
+    database_session = provider.client.open_session({
+        'route': database_route,
+    })
+    try:
+        database_session.client.set(prefix + 'database-probe', 'present')
+    finally:
+        database_session.close()
+    database = target('database', 'db15', database=15)
+    apply(
+        'database', 'inspect', database, operation_route=database_route
+    )
+    apply('database', 'drop', database, {
+        'confirmation': 'db15',
+    }, operation_route=database_route)
+
+    function_name = (
+        'cdeadmin_' + prefix.rsplit(':', 2)[-2].strip('{}')
+    )
+    function_code = (
+        f'#!lua name={function_name}\n'
+        f"redis.register_function('{function_name}_get', "
+        "function(keys,args) return 'qualified' end)"
+    )
+    function_library = target(
+        'function-library', function_name, library=function_name
+    )
+    apply('function-library', 'create', function_library, {
+        'code': function_code, 'replace': False,
+    })
+    apply('function-library', 'inspect', function_library)
+    apply('function-library', 'alter', function_library, {
+        'code': function_code, 'replace': True,
+    })
+    apply('function-library', 'drop', function_library, {
+        'confirmation': function_name,
+    })
+
+    script_result = apply('script', 'create', target(
+        'script', 'Lua script cache', sha='pending'
+    ), {
+        'definition': 'return ARGV[1]',
+    })
+    script_sha = script_result['provider_result']['observations'][0]
+    script = target('script', script_sha, sha=script_sha)
+    apply('script', 'inspect', script)
+    apply('script', 'execute', script, {
+        'action': 'flush', 'arguments': {}, 'confirmation': 'flush',
+    })
+    script_result = apply('script', 'create', script, {
+        'definition': 'return ARGV[1]',
+    })
+    script_sha = script_result['provider_result']['observations'][0]
+    script = target('script', script_sha, sha=script_sha)
+    apply('script', 'drop', script, {'confirmation': 'flush'})
+
+    transaction = target(
+        'transaction', 'MULTI/EXEC', transactional=True
+    )
+    apply('transaction', 'inspect', transaction)
+    apply('transaction', 'execute', transaction, {
+        'commands': [
+            ['SET', prefix + 'transaction', 'qualified'],
+            ['GET', prefix + 'transaction'],
+        ],
+        'watch_keys': [], 'confirmation': 'execute',
+    })
+    pipeline = target('pipeline', 'Pipeline', transactional=False)
+    apply('pipeline', 'inspect', pipeline)
+    apply('pipeline', 'execute', pipeline, {
+        'commands': [
+            ['SET', prefix + 'pipeline', 'qualified'],
+            ['GET', prefix + 'pipeline'],
+        ],
+        'watch_keys': [], 'confirmation': 'execute',
+    })
+
+    persistence = target('persistence', 'Persistence')
+    apply('persistence', 'inspect', persistence)
+    apply('persistence', 'alter', persistence, {
+        'changes': {'appendfsync': 'everysec'},
+    })
+    apply('persistence', 'execute', persistence, {
+        'action': 'save', 'arguments': {},
+    })
+    configuration = target('configuration', 'Configuration')
+    apply('configuration', 'inspect', configuration)
+    apply('configuration', 'alter', configuration, {
+        'changes': {'maxmemory-policy': 'noeviction'},
+    })
+    apply('configuration', 'execute', configuration, {
+        'action': 'reset-statistics', 'arguments': {},
+    })
+    client_resource = target('client', 'Current client')
+    apply('client', 'inspect', client_resource)
+    apply('client', 'alter', client_resource, {
+        'changes': {'name': 'cdeadmin-live-qualification'},
+    })
+    apply('client', 'execute', client_resource, {
+        'action': 'unpause', 'arguments': {},
+    })
+    slow_log = target('slow-log', 'Slow log')
+    apply('slow-log', 'inspect', slow_log)
+    apply('slow-log', 'execute', slow_log, {
+        'action': 'reset', 'arguments': {},
+    })
+    latency = target('latency', 'Latency')
+    apply('latency', 'inspect', latency)
+    apply('latency', 'execute', latency, {
+        'action': 'reset', 'arguments': {},
+    })
+
+    tool_root = (
+        Path(route['tool_workspace']) /
+        ('redis-' + prefix.rsplit(':', 2)[-2])
+    )
+    tool_root.mkdir(parents=True, exist_ok=False)
+    try:
+        tools = {
+            kind: target(kind, f'Redis {kind}', workspace=True)
+            for kind in ('backup', 'restore', 'import', 'export', 'shell')
+        }
+        for kind, item in tools.items():
+            apply(kind, 'inspect', item)
+        apply('shell', 'execute', tools['shell'], {
+            'action': 'command',
+            'arguments': {'command': ['PING']},
+            'confirmation': 'execute',
+        })
+        backup_file = tool_root / 'backup.rdb'
+        apply('backup', 'execute', tools['backup'], {
+            'action': 'rdb',
+            'arguments': {'file': str(backup_file)},
+        })
+        if not backup_file.is_file():
+            raise RuntimeError('Redis backup RDB was not created')
+        export_file = tool_root / 'export.rdb'
+        apply('export', 'execute', tools['export'], {
+            'action': 'rdb',
+            'arguments': {'file': str(export_file)},
+        })
+        if not export_file.is_file():
+            raise RuntimeError('Redis export RDB was not created')
+
+        def resp_command(*parts):
+            encoded = [str(part).encode('utf-8') for part in parts]
+            return (
+                f'*{len(encoded)}\r\n'.encode('ascii') + b''.join(
+                    f'${len(part)}\r\n'.encode('ascii') + part + b'\r\n'
+                    for part in encoded
+                )
+            )
+
+        restore_key = prefix + 'restore-pipe'
+        restore_file = tool_root / 'restore.resp'
+        restore_file.write_bytes(resp_command(
+            'SET', restore_key, 'restored'
+        ))
+        apply('restore', 'execute', tools['restore'], {
+            'action': 'pipe',
+            'arguments': {'file': str(restore_file)},
+        })
+        if native.get(restore_key) != b'restored':
+            raise RuntimeError('Redis restore pipe readback differed')
+        import_key = prefix + 'import-pipe'
+        import_file = tool_root / 'import.resp'
+        import_file.write_bytes(resp_command(
+            'SET', import_key, 'imported'
+        ))
+        apply('import', 'execute', tools['import'], {
+            'action': 'pipe',
+            'arguments': {'file': str(import_file)},
+        })
+        if native.get(import_key) != b'imported':
+            raise RuntimeError('Redis import pipe readback differed')
+    finally:
+        shutil.rmtree(tool_root, ignore_errors=True)
 
     return passed, failures
 
@@ -892,9 +1103,71 @@ def _report(
     }
 
 
+def _merge_topology_evidence(report, evidence_paths):
+    """Merge independently proven exact-profile Redis topology scopes."""
+    if not evidence_paths or not report['passed']:
+        return report
+    merged = {
+        kind: set(operations)
+        for kind, operations in report['object_evidence'][
+            'passed_resource_operations'
+        ].items()
+    }
+    supplements = []
+    for path in evidence_paths:
+        path = path.resolve()
+        evidence = json.loads(path.read_text(encoding='utf-8'))
+        if evidence.get('schema') != (
+            'cdeadmin.provider-object-live-evidence.v1'
+        ):
+            raise RuntimeError(f'{path}: unsupported evidence schema')
+        if evidence.get('engine_id') != 'redis':
+            raise RuntimeError(f'{path}: evidence is not for Redis')
+        if evidence.get('exact_profile') != REFERENCE_SERVER:
+            raise RuntimeError(f'{path}: exact Redis profile differs')
+        if evidence.get('raw_commands_used_for_provider_operations'):
+            raise RuntimeError(
+                f'{path}: provider operations used raw commands'
+            )
+        live_path = path.with_name(path.name.replace(
+            '_object.json', '_live.json'
+        ))
+        live = json.loads(live_path.read_text(encoding='utf-8'))
+        if not live.get('passed'):
+            raise RuntimeError(
+                f'{live_path}: companion live gate did not pass'
+            )
+        if live.get('reference_server') != REFERENCE_SERVER:
+            raise RuntimeError(f'{live_path}: exact Redis profile differs')
+        proven = evidence.get('passed_resource_operations', {})
+        for kind, operations in proven.items():
+            allowed = set(FULL_OBJECT_OPERATIONS.get(kind, ()))
+            unexpected = set(operations).difference(allowed)
+            if not allowed or unexpected:
+                raise RuntimeError(
+                    f'{path}: unexpected {kind} operations '
+                    f'{sorted(unexpected or set(operations))}'
+                )
+            merged.setdefault(kind, set()).update(operations)
+        supplements.append({
+            'path': str(path),
+            'qualification_scope': evidence.get('qualification_scope'),
+            'operation_count': sum(len(value) for value in proven.values()),
+        })
+    report['object_evidence'] = _object_evidence(
+        report['object_evidence']['run_id'], merged, {}, 'combined'
+    )
+    report['object_evidence']['supplemental_exact_profile_evidence'] = (
+        supplements
+    )
+    return report
+
+
 def main():
     args = parser().parse_args()
-    report = verify(args)
+    report = _merge_topology_evidence(
+        verify(args), args.supplement_object_evidence
+    )
     output = json.dumps(report, indent=2, sort_keys=True) + '\n'
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

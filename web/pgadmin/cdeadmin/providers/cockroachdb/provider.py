@@ -84,7 +84,10 @@ _COCKROACH_DIALECT = replace(
         'domains', 'extensions_and_plugins',
     }),
     concept_resource_kinds={
-        'servers': ('cluster',),
+        # CockroachDB exposes cluster, node, and locality as separate native
+        # topology resources.  All three belong to the server/topology
+        # concept and must carry independent exact live evidence.
+        'servers': ('cluster', 'node', 'locality'),
         'tablespaces_and_filespaces': ('zone-config',),
     },
 )

@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from pathlib import Path
 
@@ -114,7 +115,42 @@ PRESERVED_SURFACE_CONCEPTS = {
     ),
     'types': _entry(
         f'{_SCHEMAS}/types',
-        {'type': ('create', 'alter', 'drop', 'inspect')},
+        {
+            'type': ('create', 'alter', 'drop', 'inspect'),
+            'aggregate': ('create', 'alter', 'drop', 'inspect'),
+            'cast': ('create', 'drop', 'inspect'),
+            'collation': ('create', 'alter', 'drop', 'inspect'),
+            'conversion': ('create', 'alter', 'drop', 'inspect'),
+            'language': ('create', 'alter', 'drop', 'inspect'),
+            'operator': ('create', 'alter', 'drop', 'inspect'),
+            'operator-class': ('create', 'alter', 'drop', 'inspect'),
+            'operator-family': ('create', 'alter', 'drop', 'inspect'),
+        },
+        extra_roots=(
+            f'{_SCHEMAS}/aggregates',
+            f'{_DATABASES}/casts',
+            f'{_SCHEMAS}/collations',
+            f'{_DATABASES}/languages',
+            f'{_SCHEMAS}/operators',
+        ),
+        markers={
+            'aggregate_form': (
+                f'{_SCHEMAS}/aggregates/static/js/aggregate.ui.js'
+            ),
+            'cast_form': f'{_DATABASES}/casts/static/js/cast.ui.js',
+            'collation_form': (
+                f'{_SCHEMAS}/collations/static/js/collation.ui.js'
+            ),
+            'language_form': (
+                f'{_DATABASES}/languages/static/js/language.ui.js'
+            ),
+            'operator_form': (
+                f'{_SCHEMAS}/operators/static/js/operator.ui.js'
+            ),
+            'cdeadmin_native_type_forms': (
+                'web/pgadmin/cdeadmin/providers/postgresql/provider.py'
+            ),
+        },
     ),
     'sequences': _entry(
         f'{_SCHEMAS}/sequences',
@@ -142,8 +178,11 @@ PRESERVED_SURFACE_CONCEPTS = {
         {
             'trigger': ('create', 'alter', 'drop', 'inspect'),
             'event-trigger': ('create', 'alter', 'drop', 'inspect'),
+            'rule': ('create', 'alter', 'drop', 'inspect'),
         },
-        extra_roots=(f'{_DATABASES}/event_triggers',),
+        extra_roots=(
+            f'{_DATABASES}/event_triggers', f'{_TABLES}/rules',
+        ),
         sql_root=_TABLES,
         markers={
             'table_trigger_form': (
@@ -153,6 +192,7 @@ PRESERVED_SURFACE_CONCEPTS = {
                 f'{_DATABASES}/event_triggers/static/js/'
                 'event_trigger.ui.js'
             ),
+            'rule_form': f'{_TABLES}/rules/static/js/rule.ui.js',
         },
     ),
     'indexes': _entry(
@@ -198,16 +238,55 @@ PRESERVED_SURFACE_CONCEPTS = {
         {
             'role': ('create', 'alter', 'drop', 'inspect'),
             'privilege': ('grant', 'revoke', 'inspect'),
+            'row-policy': ('create', 'alter', 'drop', 'inspect'),
         },
+        extra_roots=(f'{_TABLES}/row_security_policies',),
         markers={
             'privilege_macro': (
                 f'{_SERVERS}/templates/macros/privilege.macros'
+            ),
+            'row_policy_form': (
+                f'{_TABLES}/row_security_policies/static/js/'
+                'row_security_policy.ui.js'
             ),
         },
     ),
     'extensions_and_plugins': _entry(
         f'{_DATABASES}/extensions',
-        {'extension': ('create', 'alter', 'drop', 'inspect')},
+        {
+            'extension': ('create', 'alter', 'drop', 'inspect'),
+            'foreign-data-wrapper': (
+                'create', 'alter', 'drop', 'inspect',
+            ),
+            'foreign-server': ('create', 'alter', 'drop', 'inspect'),
+            'user-mapping': ('create', 'alter', 'drop', 'inspect'),
+            'foreign-table': ('create', 'alter', 'drop', 'inspect'),
+        },
+        extra_roots=(
+            f'{_DATABASES}/foreign_data_wrappers',
+            f'{_DATABASES}/foreign_data_wrappers/foreign_servers',
+            f'{_DATABASES}/foreign_data_wrappers/foreign_servers/'
+            'user_mappings',
+            f'{_SCHEMAS}/foreign_tables',
+        ),
+        markers={
+            'fdw_form': (
+                f'{_DATABASES}/foreign_data_wrappers/static/js/'
+                'foreign_data_wrapper.ui.js'
+            ),
+            'foreign_server_form': (
+                f'{_DATABASES}/foreign_data_wrappers/foreign_servers/'
+                'static/js/foreign_server.ui.js'
+            ),
+            'user_mapping_form': (
+                f'{_DATABASES}/foreign_data_wrappers/foreign_servers/'
+                'user_mappings/static/js/user_mapping.ui.js'
+            ),
+            'foreign_table_form': (
+                f'{_SCHEMAS}/foreign_tables/static/js/'
+                'foreign_table.ui.js'
+            ),
+        },
     ),
     'partitions': _entry(
         f'{_TABLES}/partitions',
@@ -300,6 +379,151 @@ def concept_declarations():
     }
 
 
+def preserved_operations():
+    """Return the exact object-operation map owned by the legacy surface."""
+    result = {}
+    for definition in PRESERVED_SURFACE_CONCEPTS.values():
+        for kind, operations in definition['operation_obligations'].items():
+            result.setdefault(kind, set()).update(operations)
+    return {
+        kind: frozenset(operations)
+        for kind, operations in result.items()
+    }
+
+
+def adapt_catalog(catalog):
+    """Bind the common catalog to exact preserved-surface operations."""
+    admitted_operations = preserved_operations()
+    result = copy.deepcopy(catalog)
+    resources = {
+        resource['resource_kind']: resource
+        for resource in result.get('objects', [])
+    }
+    titles = {'job': 'pgAgent job', 'schedule': 'pgAgent schedule'}
+    mutation_classes = {
+        'inspect': 'read',
+        'create': 'admin', 'alter': 'admin',
+        'insert': 'write', 'update': 'write',
+        'grant': 'admin', 'revoke': 'admin',
+        'delete': 'destructive', 'drop': 'destructive',
+        'refresh': 'admin',
+    }
+    native_form_kinds = {
+        'conversion', 'operator-class', 'operator-family',
+    }
+
+    def native_form(kind, operation_id, title):
+        def field(
+            field_id, label, control='text', required=False, **extra
+        ):
+            return {
+                'field_id': field_id, 'label': label, 'control': control,
+                'required': required, **extra,
+            }
+
+        if operation_id == 'inspect':
+            fields = []
+        elif operation_id == 'create':
+            fields = [
+                field('schema', 'Schema', required=True),
+                field('name', 'Name', required=True),
+            ]
+            if kind == 'conversion':
+                fields.extend((
+                    field('source_encoding', 'Source encoding', required=True),
+                    field('target_encoding', 'Target encoding', required=True),
+                    field('function', 'Conversion function',
+                          required=True, catalog_kind='function'),
+                    field('default', 'Default conversion', 'boolean'),
+                ))
+            else:
+                fields.append(field(
+                    'index_method', 'Index access method',
+                    required=True, catalog_kind='access-method',
+                ))
+                if kind == 'operator-class':
+                    fields.extend((
+                        field('data_type', 'Indexed data type',
+                              required=True, catalog_kind='type'),
+                        field('family', 'Operator family',
+                              catalog_kind='operator-family'),
+                        field('default', 'Default operator class', 'boolean'),
+                        field('storage_type', 'Storage data type',
+                              catalog_kind='type'),
+                        field('operators', 'Strategy operators', 'json', True),
+                        field('functions', 'Support functions', 'json', True),
+                    ))
+        elif operation_id == 'alter':
+            fields = [
+                field('action', 'Alter action', 'select', True, options=[
+                    {'value': 'owner', 'label': 'Change owner'},
+                    {'value': 'rename', 'label': 'Rename'},
+                    {'value': 'schema', 'label': 'Move to schema'},
+                ]),
+                field('value', 'New owner, name, or schema', required=True),
+            ]
+        else:
+            fields = [
+                field('cascade', 'Drop dependent objects', 'boolean'),
+                field('confirmation', 'Type object name to confirm',
+                      required=True),
+            ]
+        return {
+            'form_id': f'postgresql-{kind}-{operation_id}',
+            'title': f'{operation_id.title()} {title}',
+            'fields': fields,
+        }
+    for kind, admitted in admitted_operations.items():
+        resource = resources.get(kind)
+        if resource is None:
+            resource = {
+                'resource_kind': kind,
+                'title': titles.get(kind, kind.replace('-', ' ').title()),
+                'operations': [],
+            }
+            result.setdefault('objects', []).append(resource)
+            resources[kind] = resource
+        existing = {
+            operation['operation_id']: operation
+            for operation in resource.get('operations', [])
+            if operation['operation_id'] in admitted
+        }
+        for operation_id in admitted:
+            operation = existing.get(operation_id, {
+                'operation_id': operation_id,
+                'title': operation_id.replace('-', ' ').title(),
+                'mutation_class': mutation_classes[operation_id],
+                'form_id': 'postgresql-preserved-route',
+                'target_required': operation_id != 'create',
+                'confirmation_required': operation_id in {
+                    'delete', 'drop',
+                },
+            })
+            if kind in native_form_kinds:
+                operation['form'] = native_form(
+                    kind, operation_id, resource['title']
+                )
+                operation['execution_route'] = 'provider-native'
+            else:
+                operation['form'] = {
+                    'form_id': 'postgresql-preserved-route',
+                    'title': f'{operation_id.title()} {resource["title"]}',
+                    'fields': [],
+                    'external_surface': SURFACE_ID,
+                }
+                operation['execution_route'] = 'legacy-preserved'
+            existing[operation_id] = operation
+        resource['operations'] = [
+            existing[operation_id]
+            for operation_id in sorted(admitted)
+        ]
+    result['objects'] = [
+        resource for resource in result.get('objects', [])
+        if resource['resource_kind'] in admitted_operations
+    ]
+    return result
+
+
 def _matched_files(root, patterns):
     files = set()
     for pattern in patterns:
@@ -356,5 +580,6 @@ def audit_preserved_surface(root):
 
 __all__ = (
     'PRESERVED_SURFACE_CONCEPTS', 'SURFACE_ID', 'SURFACE_SCHEMA',
-    'audit_preserved_surface', 'concept_declarations',
+    'adapt_catalog', 'audit_preserved_surface', 'concept_declarations',
+    'preserved_operations',
 )

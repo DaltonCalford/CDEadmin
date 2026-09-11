@@ -108,7 +108,10 @@ def _apply(provider, route, kind, operation, draft, target,
         raise RuntimeError('TiKV mutation retry boundary was not retained')
     evidence = {
         'operation': f'{kind}.{operation}',
-        'operation_id': result['control_operation']['operation_id'],
+        'operation_id': (
+            result.get('control_operation', {}).get('operation_id') or
+            result.get('operation_id')
+        ),
         'provider_constructed': bool(
             plan.get('command_preview', {}).get('provider_constructed')
         ),
@@ -1090,6 +1093,20 @@ def verify(args):
         resource_kinds = sorted({
             item['resource_kind'] for item in resources
         })
+        for kind in (
+            'backup', 'cluster', 'configuration', 'coprocessor',
+            'import-job', 'keyspace', 'lock', 'peer', 'placement-rule',
+            'region', 'restore', 'scheduler', 'store', 'transaction',
+        ):
+            targets = [
+                item for item in resources
+                if item['resource_kind'] == kind
+            ]
+            if targets:
+                operations.append(_apply(
+                    provider, route, kind, 'inspect', {}, targets[0],
+                    post_state=False,
+                ))
         store = _target(resources, 'store')
         scheduler = _target(
             resources, 'scheduler', 'balance-leader-scheduler'
@@ -1186,8 +1203,9 @@ def object_evidence(evidence):
     kinds = set(evidence.get('resource_kinds', []))
     inspected = {
         kind: ['inspect'] for kind in (
-            'cluster', 'store', 'region', 'peer', 'scheduler',
-            'configuration',
+            'backup', 'cluster', 'configuration', 'coprocessor',
+            'import-job', 'keyspace', 'lock', 'peer', 'placement-rule',
+            'region', 'restore', 'scheduler', 'store', 'transaction',
         ) if kind in kinds
     }
     cluster_operations = dict(inspected)
@@ -1205,6 +1223,10 @@ def object_evidence(evidence):
         'store': {
             'bring_up', 'delete_label', 'evict_leaders', 'mark_offline',
             'set_labels', 'set_limit', 'set_weights',
+        },
+        'keyspace': {
+            'archive', 'create', 'disable', 'enable', 'tombstone',
+            'update_config',
         },
     }
     for kind, allowed in cluster_allowed.items():
@@ -1237,7 +1259,17 @@ def object_evidence(evidence):
                 'status': 'passed', 'operations': replication,
             },
             'sentinel_or_cluster_state': {
-                'status': 'passed', 'operations': cluster_operations,
+                'status': 'passed', 'operations': {
+                    **cluster_operations,
+                    **{
+                        kind: inspected[kind]
+                        for kind in (
+                            'backup', 'coprocessor', 'import-job',
+                            'keyspace', 'lock', 'restore', 'transaction',
+                        ) if kind in inspected and kind not in
+                        cluster_operations
+                    },
+                },
             },
         }},
     }

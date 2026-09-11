@@ -17,6 +17,7 @@ the same path as the corresponding reference engine.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from typing import Any, Callable, Mapping
 
@@ -44,7 +45,36 @@ def resource(kind, path, name, generation, native=None):
         'generation': generation,
     }
     if native:
-        item['native'] = dict(native)
+        value = copy.deepcopy(dict(native))
+        evidence = copy.deepcopy(value)
+        if kind in {
+            'database', 'schema', 'table', 'view', 'materialized-view',
+            'column', 'index', 'constraint', 'trigger', 'sequence', 'type',
+            'procedure', 'function', 'partition', 'region', 'zone',
+            'placement-policy', 'resource-group', 'keyspace',
+            'cache-template', 'cache', 'data-region', 'sql-schema',
+            'configuration', 'directory',
+            'collection', 'collection-index', 'key-range',
+        } and 'definition' not in value:
+            value['definition'] = evidence
+        elif kind in {
+            'cluster', 'node', 'server', 'replica', 'range', 'tablet',
+            'shard', 'topology', 'session', 'transaction', 'lock',
+            'changefeed', 'replication-channel', 'job', 'operation',
+            'baseline-topology', 'coordinator', 'process', 'store', 'peer',
+            'scheduler', 'service', 'compute-task', 'ttl',
+        }:
+            value['state'] = evidence
+        elif kind in {'role', 'user'}:
+            value['security'] = evidence
+        elif kind == 'privilege':
+            value['security'] = evidence
+            value['privileges'] = [copy.deepcopy(evidence)]
+        elif kind in {'metric', 'statistics', 'table-storage'}:
+            value['statistics'] = evidence
+        elif kind in {'key', 'revision', 'document'}:
+            value['data'] = evidence
+        item['native'] = value
     return item
 
 

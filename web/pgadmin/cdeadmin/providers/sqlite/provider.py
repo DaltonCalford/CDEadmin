@@ -152,6 +152,7 @@ def _resources(connection, request):
             }
             if native:
                 resources[resource_id]['native'] = native
+            return resources[resource_id]
 
         def pragma_value(schema_name, pragma_name):
             cursor.execute(
@@ -226,7 +227,7 @@ def _resources(connection, request):
                 "WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
             )
             schema_rows = cursor.fetchall()
-            table_names = []
+            relation_names = []
             for native_kind, name, table_name, source in schema_rows:
                 native_kind = str(native_kind)
                 name = str(name)
@@ -245,13 +246,24 @@ def _resources(connection, request):
                     'fts-table',
                 }:
                     continue
-                add(kind, [schema_name], name, {
-                    'table_name': str(table_name),
-                    'definition': source_value,
-                })
-                if native_kind == 'table':
-                    table_names.append(name)
-            for table_name in table_names:
+                native = {
+                    'catalog_metadata': {
+                        'schema_object_type': native_kind,
+                        'table_name': str(table_name),
+                    },
+                    'ddl': source_value,
+                }
+                if kind in {'table', 'virtual-table', 'fts-table'}:
+                    native.update({
+                        'columns': [], 'constraints': [], 'indexes': [],
+                        'triggers': [],
+                    })
+                elif kind == 'view':
+                    native.update({'columns': [], 'triggers': []})
+                resource = add(kind, [schema_name], name, native)
+                if native_kind in {'table', 'view'}:
+                    relation_names.append((name, resource['resource_id']))
+            for table_name, relation_id in relation_names:
                 cursor.execute(
                     f'PRAGMA {quote(schema_name)}.table_xinfo('
                     f'{quote(table_name)})'
@@ -261,23 +273,47 @@ def _resources(connection, request):
                 for _cid, name, data_type, not_null, default, pk, hidden in (
                     columns
                 ):
-                    add('column', [schema_name, table_name], name, {
+                    native = {'catalog_metadata': {
+                        'ordinal_position': int(_cid),
                         'data_type': str(data_type or ''),
                         'nullable': not bool(not_null),
                         'default': default,
                         'primary_key_position': int(pk or 0),
                         'hidden': int(hidden or 0),
+                    }}
+                    column = add(
+                        'column', [schema_name, table_name], name, native
+                    )
+                    resources[relation_id]['native']['columns'].append({
+                        'resource_id': column['resource_id'],
+                        'name': str(name),
+                        **native['catalog_metadata'],
                     })
                     if int(pk or 0):
                         primary.append((int(pk), str(name)))
                 if primary:
-                    add('constraint', [schema_name, table_name],
+                    constraint = add(
+                        'constraint', [schema_name, table_name],
                         f'pk_{table_name}', {
-                            'constraint_type': 'PRIMARY KEY',
-                            'columns': [
-                                name for _position, name in sorted(primary)
-                            ],
+                            'catalog_metadata': {
+                                'constraint_type': 'PRIMARY KEY',
+                                'columns': [
+                                    name for _position, name in sorted(
+                                        primary
+                                    )
+                                ],
+                            },
+                        })
+                    resources[relation_id]['native'][
+                        'constraints'
+                    ].append({
+                        'resource_id': constraint['resource_id'],
+                        'name': f'pk_{table_name}',
+                        **constraint['native']['catalog_metadata'],
                     })
+                # Views expose columns but do not admit table-only PRAGMAs.
+                if resources[relation_id]['resource_kind'] == 'view':
+                    continue
                 cursor.execute(
                     f'PRAGMA {quote(schema_name)}.foreign_key_list('
                     f'{quote(table_name)})'
@@ -286,15 +322,69 @@ def _resources(connection, request):
                 for row in cursor.fetchall():
                     foreign_keys.setdefault(int(row[0]), []).append(row)
                 for foreign_id, rows in foreign_keys.items():
-                    add('constraint', [schema_name, table_name],
-                        f'fk_{table_name}_{foreign_id}', {
-                            'constraint_type': 'FOREIGN KEY',
-                            'columns': [str(row[3]) for row in rows],
-                            'referenced_table': str(rows[0][2]),
-                            'referenced_columns': [
-                                str(row[4]) for row in rows
-                            ],
+                    constraint_name = f'fk_{table_name}_{foreign_id}'
+                    dependency = {
+                        'relationship': 'foreign-key',
+                        'referenced_table': str(rows[0][2]),
+                        'referenced_columns': [str(row[4]) for row in rows],
+                    }
+                    constraint = add(
+                        'constraint', [schema_name, table_name],
+                        constraint_name, {
+                            'catalog_metadata': {
+                                'constraint_type': 'FOREIGN KEY',
+                                'columns': [str(row[3]) for row in rows],
+                                'referenced_table': str(rows[0][2]),
+                                'referenced_columns': [
+                                    str(row[4]) for row in rows
+                                ],
+                                'on_update': str(rows[0][5]),
+                                'on_delete': str(rows[0][6]),
+                                'match': str(rows[0][7]),
+                            },
+                            'dependencies': [dependency],
+                        })
+                    resources[relation_id]['native'][
+                        'constraints'
+                    ].append({
+                        'resource_id': constraint['resource_id'],
+                        'name': constraint_name,
+                        **constraint['native']['catalog_metadata'],
                     })
+                    resources[relation_id]['native'].setdefault(
+                        'dependencies', []
+                    ).append({
+                        **dependency, 'constraint_name': constraint_name,
+                    })
+
+                cursor.execute(
+                    f'PRAGMA {quote(schema_name)}.index_list('
+                    f'{quote(table_name)})'
+                )
+                for index_row in cursor.fetchall():
+                    index_name = str(index_row[1])
+                    index_id = ':'.join(['index', schema_name, index_name])
+                    index = resources.get(index_id)
+                    if index is not None:
+                        resources[relation_id]['native']['indexes'].append({
+                            'resource_id': index_id,
+                            'name': index_name,
+                            'unique': bool(index_row[2]),
+                            'origin': str(index_row[3]),
+                            'partial': bool(index_row[4]),
+                            'ddl': index['native'].get('ddl'),
+                        })
+                for item in resources.values():
+                    if (
+                        item['resource_kind'] == 'trigger' and
+                        item['native']['catalog_metadata']['table_name'] ==
+                        table_name
+                    ):
+                        resources[relation_id]['native']['triggers'].append({
+                            'resource_id': item['resource_id'],
+                            'name': item['display_name'],
+                            'ddl': item['native'].get('ddl'),
+                        })
         for name in (
             'application_id', 'auto_vacuum', 'cache_size', 'foreign_keys',
             'journal_mode', 'page_size', 'query_only', 'synchronous',

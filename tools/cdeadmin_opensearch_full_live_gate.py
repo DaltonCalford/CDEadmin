@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import sys
 import time
 import uuid
@@ -40,7 +41,7 @@ from pgadmin.cdeadmin.providers.opensearch_sql_ppl.client import (  # noqa: E402
 
 
 REFERENCE_PROFILE = '3.6.0'
-FULL_OPERATIONS = {
+SEARCH_OPERATIONS = {
     'index': {
         'alter', 'create', 'delete', 'drop', 'insert', 'inspect', 'update',
     },
@@ -71,16 +72,38 @@ CONCEPT_BINDINGS = {
 }
 
 
-def _route(options):
-    return {
+class _SecretLease:
+    def __init__(self, value):
+        self.value = bytearray(value.encode('utf-8'))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        for index in range(len(self.value)):
+            self.value[index] = 0
+
+    def use(self, callback):
+        return callback(memoryview(self.value))
+
+
+def _route(options, *, security=False):
+    route = {
         'route_id': f'opensearch-full-{uuid.uuid4().hex[:12]}',
         'host': options.host,
-        'port': options.port,
-        'tls_mode': 'disable',
-        'auth_kind': 'none',
+        'port': options.security_port if security else options.port,
+        'tls_mode': 'require' if security else 'disable',
+        'auth_kind': 'basic' if security else 'none',
         'connect_timeout': 30,
         'statement_timeout': 180,
     }
+    if security:
+        route.update({
+            'username': options.security_username,
+            'credential_reference_id': 'opensearch-security-password',
+            'principal_reference': 'cdeadmin-opensearch-live-gate',
+        })
+    return route
 
 
 def _target(kind, **native):
@@ -115,13 +138,14 @@ def _admin(client, route, kind, operation, draft=None, target=None):
 
 def _object_evidence(
     engine_id, exact_profile, run_id, operations, failures, details,
+    expected_operations,
 ):
     passed = {
         kind: sorted(values) for kind, values in operations.items() if values
     }
     missing = {
         kind: sorted(expected.difference(operations.get(kind, set())))
-        for kind, expected in FULL_OPERATIONS.items()
+        for kind, expected in expected_operations.items()
         if expected.difference(operations.get(kind, set()))
     }
     concepts = {}
@@ -130,7 +154,7 @@ def _object_evidence(
             kind: passed[kind] for kind in kinds if kind in passed
         }
         if observed and all(
-            FULL_OPERATIONS[kind].issubset(operations.get(kind, set()))
+            SEARCH_OPERATIONS[kind].issubset(operations.get(kind, set()))
             for kind in kinds
         ):
             concepts[concept] = {
@@ -168,17 +192,41 @@ def verify(options):
         'pipeline': prefix + '-pipeline',
         'repository': prefix + '-repository',
         'snapshot': prefix + '-snapshot',
+        'data_stream': prefix + '-stream',
+        'data_stream_template': prefix + '-stream-template',
+        'script': prefix + '-script',
+        'policy': prefix + '-policy',
+        'user': prefix + '-user',
+        'role': prefix + '-role',
+        'role_mapping': prefix + '-role-mapping',
+        'tenant': prefix + '-tenant',
+        'data_source': prefix.replace('-', '_') + '_source',
     }
     engine_id = options.engine
     exact_profile = (
         '3.6.0-sql-ppl'
         if engine_id == 'opensearch_sql_ppl' else REFERENCE_PROFILE
     )
-    client = (
-        OpenSearchSQLPPLClient()
-        if engine_id == 'opensearch_sql_ppl' else OpenSearchClient()
+    security_password = (
+        os.environ.get(options.security_password_environment)
+        if options.security_password_environment else None
     )
-    operations = {kind: set() for kind in FULL_OPERATIONS}
+
+    def acquire_secret(reference, _principal, _purpose, _kind):
+        if reference != 'opensearch-security-password' or (
+                security_password is None):
+            raise RuntimeError('OpenSearch security secret is unavailable')
+        return _SecretLease(security_password)
+
+    client = (
+        OpenSearchSQLPPLClient(acquire_secret)
+        if engine_id == 'opensearch_sql_ppl'
+        else OpenSearchClient(acquire_secret)
+    )
+    expected_operations = {
+        kind: set(values) for kind, values in client.ADMIN_OPERATIONS.items()
+    }
+    operations = {kind: set() for kind in expected_operations}
     failures = {}
     details = {'started_at': time.time(), 'names': names}
     created_indices = set()
@@ -187,12 +235,21 @@ def verify(options):
     alias_created = False
     repository_created = False
     snapshot_created = False
+    stream_created = False
+    script_created = False
+    policy_created = False
+    security_created = set()
+    data_source_created = False
 
-    def perform(kind, operation, draft=None, target=None, verify_result=None):
+    def perform(
+        kind, operation, draft=None, target=None, verify_result=None,
+        route_override=None,
+    ):
         key = f'{kind}.{operation}'
         try:
             result = _admin(
-                client, route, kind, operation, draft=draft, target=target
+                client, route_override or route, kind, operation,
+                draft=draft, target=target
             )
             if verify_result is not None:
                 verify_result(result['native_response'])
@@ -224,6 +281,32 @@ def verify(options):
                 'exact OpenSearch 3.6.0 identity was not proven'
             )
         details['runtime_identity'] = identity
+
+        if engine_id == 'opensearch':
+            discovered = client.list_resources({'route': route})
+            cluster_resource = next(
+                item for item in discovered
+                if item['resource_kind'] == 'cluster'
+            )
+            node_resource = next(
+                item for item in discovered
+                if item['resource_kind'] == 'node'
+            )
+            perform('cluster', 'inspect', target=_target(
+                'cluster', **cluster_resource['native']
+            ))
+            perform('cluster', 'alter', {
+                'definition': {'transient': {
+                    'cluster.routing.allocation.enable': 'all',
+                }},
+            }, _target('cluster', name='cluster'))
+            perform('cluster', 'execute', {
+                'action': 'reroute', 'definition': {'commands': []},
+                'acknowledge_operation': True,
+            }, _target('cluster', name='cluster'))
+            perform('node', 'inspect', target=_target(
+                'node', **node_resource['native']
+            ))
 
         if perform('index', 'create', {
             'name': names['source'],
@@ -263,6 +346,25 @@ def verify(options):
             'acknowledge_delete': True,
         }, source_target)
 
+        if engine_id == 'opensearch':
+            document_target = _target(
+                'document', name='document-one', index=names['source'],
+                _id='document-one',
+            )
+            perform('document', 'insert', {
+                'index': names['source'], 'document_id': 'document-one',
+                'document': {'title': 'document', 'value': 11},
+            }, document_target)
+            perform('document', 'inspect', target=document_target)
+            perform('document', 'update', {
+                'index': names['source'], 'document_id': 'document-one',
+                'document': {'title': 'document altered', 'value': 12},
+            }, document_target)
+            perform('document', 'delete', {
+                'index': names['source'], 'document_id': 'document-one',
+                'acknowledge_delete': True,
+            }, document_target)
+
         mapping_target = _target(
             'mapping', name=names['source'], index=names['source']
         )
@@ -277,6 +379,58 @@ def verify(options):
                 'altered_field': {'type': 'date'},
             }, 'dynamic_templates': [],
         }, mapping_target)
+
+        if engine_id == 'opensearch':
+            field_target = _target(
+                'field', name='provider_field', index=names['source']
+            )
+            perform('field', 'create', {
+                'index': names['source'], 'name': 'provider_field',
+                'field_type': 'keyword', 'indexed': True, 'stored': False,
+                'advanced_definition': {'ignore_above': 128},
+            }, field_target)
+            perform('field', 'inspect', target=field_target)
+            perform('field', 'alter', {
+                'index': names['source'], 'name': 'provider_field',
+                'field_type': 'keyword', 'indexed': True, 'stored': False,
+                'advanced_definition': {
+                    'ignore_above': 128, 'meta': {'revision': '2'},
+                },
+            }, field_target)
+
+            analysis_definitions = {
+                'analyzer': (
+                    {'type': 'custom', 'tokenizer': 'standard',
+                     'filter': ['lowercase']},
+                    {'type': 'custom', 'tokenizer': 'standard',
+                     'filter': ['lowercase', 'asciifolding']},
+                ),
+                'normalizer': (
+                    {'type': 'custom', 'filter': ['lowercase']},
+                    {'type': 'custom',
+                     'filter': ['lowercase', 'asciifolding']},
+                ),
+                'tokenizer': (
+                    {'type': 'edge_ngram', 'min_gram': 2, 'max_gram': 10,
+                     'token_chars': ['letter', 'digit']},
+                    {'type': 'edge_ngram', 'min_gram': 2, 'max_gram': 12,
+                     'token_chars': ['letter', 'digit']},
+                ),
+            }
+            for kind, (created, altered) in analysis_definitions.items():
+                object_name = f'cdeadmin_{kind}'
+                target = _target(
+                    kind, name=object_name, index=names['source']
+                )
+                perform(kind, 'create', {
+                    'index': names['source'], 'name': object_name,
+                    'definition': created,
+                }, target)
+                perform(kind, 'inspect', target=target)
+                perform(kind, 'alter', {
+                    'index': names['source'], 'name': object_name,
+                    'definition': altered,
+                }, target)
 
         settings_target = _target(
             'settings', name=names['source'], index=names['source']
@@ -335,6 +489,32 @@ def verify(options):
             'metadata': {'revision': 2},
         }, template_target)
 
+        if engine_id == 'opensearch':
+            stream_template_target = _target(
+                'index-template', name=names['data_stream_template']
+            )
+            if perform('index-template', 'create', {
+                'name': names['data_stream_template'],
+                'index_patterns': [names['data_stream'] + '*'],
+                'priority': 200, 'composed_of': [], 'version': 1,
+                'data_stream': True, 'settings': {},
+                'mappings': {'properties': {
+                    '@timestamp': {'type': 'date'},
+                }}, 'aliases': {},
+                'metadata': {'owner': 'cdeadmin-live-gate'},
+            }, stream_template_target):
+                created_templates.add((
+                    'index-template', names['data_stream_template']
+                ))
+            stream_target = _target(
+                'data-stream', name=names['data_stream']
+            )
+            if perform('data-stream', 'create', {
+                'name': names['data_stream'], 'definition': {},
+            }, stream_target):
+                stream_created = True
+            perform('data-stream', 'inspect', target=stream_target)
+
         pipeline_target = _target('ingest-pipeline', name=names['pipeline'])
         if perform('ingest-pipeline', 'create', {
             'name': names['pipeline'], 'description': 'live gate',
@@ -369,6 +549,49 @@ def verify(options):
             'processors': [], 'on_failure': [],
         }, pipeline_target)
 
+        if engine_id == 'opensearch':
+            script_target = _target('script', name=names['script'])
+            if perform('script', 'create', {
+                'name': names['script'], 'definition': {'script': {
+                    'lang': 'painless', 'source': 'return params.value;',
+                }},
+            }, script_target):
+                script_created = True
+            perform('script', 'inspect', target=script_target)
+            perform('script', 'alter', {
+                'definition': {'script': {
+                    'lang': 'painless',
+                    'source': 'return params.value + 1;',
+                }},
+            }, script_target)
+
+            policy_target = _target('policy', name=names['policy'])
+            policy_definition = {'policy': {
+                'description': 'CDEadmin live qualification',
+                'default_state': 'active',
+                'states': [{
+                    'name': 'active', 'actions': [], 'transitions': [],
+                }],
+            }}
+            if perform('policy', 'create', {
+                'name': names['policy'], 'definition': policy_definition,
+            }, policy_target):
+                policy_created = True
+            policy_inspection = perform(
+                'policy', 'inspect', target=policy_target
+            )
+            altered_policy = copy.deepcopy(policy_definition)
+            altered_policy['policy']['description'] = (
+                'CDEadmin live qualification altered'
+            )
+            perform('policy', 'alter', {
+                'definition': altered_policy,
+                'if_seq_no': policy_inspection[
+                    'native_response']['_seq_no'],
+                'if_primary_term': policy_inspection[
+                    'native_response']['_primary_term'],
+            }, policy_target)
+
         resources = client.list_resources({'route': route})
         shard = next((
             item for item in resources
@@ -401,13 +624,19 @@ def verify(options):
         repository_target = _target(
             'repository', name=names['repository']
         )
-        if _admin(client, route, 'repository', 'execute', {
+        if perform('repository', 'execute', {
             'action': 'register', 'name': names['repository'],
             'repository_type': 'fs', 'location': options.snapshot_path,
             'compress': True, 'settings': {},
             'acknowledge_operation': True,
-        }):
+        }, repository_target):
             repository_created = True
+        perform('repository', 'inspect', target=repository_target)
+        perform('repository', 'execute', {
+            'action': 'verify', 'name': names['repository'],
+            'repository_type': 'fs', 'settings': {},
+            'acknowledge_operation': True,
+        }, repository_target)
         snapshot_target = _target(
             'snapshot', name=names['snapshot'],
             repository=names['repository'],
@@ -431,9 +660,150 @@ def verify(options):
         }, snapshot_target)
         if restored:
             created_indices.add(names['restored'])
+
+        if engine_id == 'opensearch_sql_ppl':
+            perform('catalog', 'inspect', target=_target(
+                'catalog', name='OpenSearch'
+            ))
+            data_source_target = _target(
+                'data-source', name=names['data_source'],
+                dataSourceName=names['data_source'],
+            )
+            data_source_definition = {
+                'name': names['data_source'], 'connector': 'OPENSEARCH',
+                'description': 'CDEadmin qualification',
+                'allowedRoles': [], 'properties': {},
+            }
+            if perform('data-source', 'create', {
+                'name': names['data_source'],
+                'definition': data_source_definition,
+            }, data_source_target):
+                data_source_created = True
+            perform('data-source', 'inspect', target=data_source_target)
+            altered_source = copy.deepcopy(data_source_definition)
+            altered_source['description'] = 'CDEadmin qualification altered'
+            perform('data-source', 'alter', {
+                'definition': altered_source,
+            }, data_source_target)
+            query_target = _target('query', name='SQL', language='sql')
+            perform('query', 'inspect', target=query_target)
+            perform('query', 'execute', {
+                'language': 'sql', 'source': 'SELECT 1 AS answer',
+                'parameters': {},
+            }, query_target)
+            prepared_target = _target(
+                'prepared-query', name='SQL prepared query', language='sql'
+            )
+            perform('prepared-query', 'inspect', target=prepared_target)
+            perform('prepared-query', 'execute', {
+                'language': 'sql', 'source': 'SELECT ? AS answer',
+                'parameters': [{'type': 'integer', 'value': 42}],
+            }, prepared_target)
+            settings_target = _target(
+                'language-settings', name='SQL/PPL settings'
+            )
+            perform('language-settings', 'inspect', target=settings_target)
+            perform('language-settings', 'alter', {
+                'definition': {'transient': {
+                    'plugins.sql.cursor.keep_alive': '1m',
+                }},
+            }, settings_target)
+
+        if engine_id == 'opensearch':
+            if security_password is None:
+                failures['security.setup'] = (
+                    'security operations require '
+                    '--security-password-environment'
+                )
+            else:
+                security_route = _route(options, security=True)
+                security_client = OpenSearchClient(acquire_secret)
+                try:
+                    security_identity = security_client.runtime_identity({
+                        'route': security_route,
+                    })
+                    if security_identity.get('version') != REFERENCE_PROFILE:
+                        raise RuntimeError(
+                            'secured OpenSearch runtime is not exact 3.6.0'
+                        )
+                finally:
+                    security_client.close()
+                security_definitions = {
+                    'user': {
+                        'password': 'N7!bQ4@tR9#xW2$k',
+                        'backend_roles': [], 'attributes': {},
+                    },
+                    'role': {
+                        'cluster_permissions': ['cluster_composite_ops_ro'],
+                        'index_permissions': [{
+                            'index_patterns': ['*'],
+                            'allowed_actions': ['read'],
+                        }], 'tenant_permissions': [],
+                    },
+                    'role-mapping': {
+                        'backend_roles': [], 'hosts': [],
+                        'users': [names['user']],
+                    },
+                    'tenant': {'description': 'CDEadmin qualification'},
+                }
+                security_names = {
+                    'user': names['user'], 'role': names['role'],
+                    'role-mapping': names['role'],
+                    'tenant': names['tenant'],
+                }
+                for kind in ('user', 'role', 'role-mapping', 'tenant'):
+                    target = _target(kind, name=security_names[kind])
+                    if perform(
+                        kind, 'create', {
+                            'name': security_names[kind],
+                            'definition': security_definitions[kind],
+                        }, target, route_override=security_route,
+                    ):
+                        security_created.add(kind)
+                    perform(
+                        kind, 'inspect', target=target,
+                        route_override=security_route,
+                    )
+                    altered = copy.deepcopy(security_definitions[kind])
+                    if kind == 'tenant':
+                        altered['description'] += ' altered'
+                    perform(
+                        kind, 'alter', {'definition': altered}, target,
+                        route_override=security_route,
+                    )
     except Exception as exc:
         failures['gate.setup'] = f'{type(exc).__name__}: {exc}'
     finally:
+        if data_source_created:
+            perform('data-source', 'drop', {
+                'acknowledge_drop': True,
+            }, _target(
+                'data-source', name=names['data_source'],
+                dataSourceName=names['data_source'],
+            ))
+        if engine_id == 'opensearch' and security_password is not None:
+            security_route = _route(options, security=True)
+            security_names = {
+                'user': names['user'], 'role': names['role'],
+                'role-mapping': names['role'],
+                'tenant': names['tenant'],
+            }
+            for kind in ('role-mapping', 'role', 'user', 'tenant'):
+                if kind in security_created:
+                    perform(
+                        kind, 'drop', {'acknowledge_drop': True},
+                        _target(kind, name=security_names[kind]),
+                        route_override=security_route,
+                    )
+        if policy_created:
+            perform('policy', 'drop', {'acknowledge_drop': True},
+                    _target('policy', name=names['policy']))
+        if script_created:
+            perform('script', 'drop', {'acknowledge_drop': True},
+                    _target('script', name=names['script']))
+        if stream_created:
+            perform('data-stream', 'drop', {'acknowledge_drop': True},
+                    _target('data-stream', name=names['data_stream']))
         if alias_created:
             perform('alias', 'drop', {'acknowledge_drop': True},
                     _target('alias', name=names['alias'],
@@ -473,7 +843,8 @@ def verify(options):
         client.close()
     details['finished_at'] = time.time()
     return _object_evidence(
-        engine_id, exact_profile, run_id, operations, failures, details
+        engine_id, exact_profile, run_id, operations, failures, details,
+        expected_operations,
     )
 
 
@@ -486,6 +857,9 @@ def main(argv=None):
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=9200)
     parser.add_argument('--snapshot-path', default='/mnt/snapshots')
+    parser.add_argument('--security-port', type=int, default=9201)
+    parser.add_argument('--security-username', default='admin')
+    parser.add_argument('--security-password-environment')
     parser.add_argument('--output', type=Path)
     options = parser.parse_args(argv)
     result = verify(options)

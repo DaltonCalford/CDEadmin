@@ -55,6 +55,9 @@ def parser():
     value = argparse.ArgumentParser(description=__doc__)
     value.add_argument('--cluster-file', type=Path, required=True)
     value.add_argument('--fdbcli-path', type=Path, required=True)
+    value.add_argument('--fdbbackup-path', type=Path)
+    value.add_argument('--fdbrestore-path', type=Path)
+    value.add_argument('--backup-root', type=Path)
     value.add_argument('--allow-mutation', action='store_true')
     value.add_argument('--output', type=Path, required=True)
     value.add_argument('--object-evidence', type=Path)
@@ -145,14 +148,30 @@ def _wait_process(provider, route, address, predicate, timeout=15):
     )
 
 
+def _wait_backup(provider, route, tag, predicate, timeout=120):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        resources = provider.list_resources({'route': route})
+        backup = _resource(
+            resources, 'backup',
+            lambda item: item['display_name'] == tag,
+        )
+        if predicate(_native(backup)):
+            return backup
+        time.sleep(0.5)
+    raise RuntimeError(f'FoundationDB backup did not converge for {tag}')
+
+
 def _object_evidence(provider, operations, failures, run_id):
     descriptor = provider.visual_admin_descriptor()
-    obligations = {}
-    for family in descriptor['concept_coverage']['families']:
-        for concept in family['concepts']:
-            for kind, operation_ids in concept.get(
-                    'operation_obligations', {}).items():
-                obligations.setdefault(kind, set()).update(operation_ids)
+    admitted = {
+        item['resource_kind']: {
+            operation['operation_id']
+            for operation in item.get('operations', [])
+            if operation.get('native_supported') is not False
+        }
+        for item in descriptor.get('objects', [])
+    }
     passed = {}
     for result in operations:
         operation = result.get('operation')
@@ -160,7 +179,7 @@ def _object_evidence(provider, operations, failures, run_id):
                 operation, str) or '.' not in operation:
             continue
         kind, operation_id = operation.split('.', 1)
-        if operation_id in obligations.get(kind, set()):
+        if operation_id in admitted.get(kind, set()):
             passed.setdefault(kind, set()).add(operation_id)
 
     concepts = {}
@@ -230,6 +249,22 @@ def verify(args):
         'cluster_file': str(args.cluster_file.resolve()),
         'fdbcli_path': str(args.fdbcli_path.resolve()),
     }
+    if args.fdbbackup_path:
+        route['fdbbackup_path'] = str(args.fdbbackup_path.absolute())
+    if args.fdbrestore_path:
+        route['fdbrestore_path'] = str(args.fdbrestore_path.absolute())
+    backup_enabled = all((
+        args.fdbbackup_path, args.fdbrestore_path, args.backup_root,
+    ))
+    if any((args.fdbbackup_path, args.fdbrestore_path, args.backup_root)) and (
+            not backup_enabled):
+        raise RuntimeError(
+            'backup qualification requires both tools and --backup-root'
+        )
+    backup_root = args.backup_root.resolve() if backup_enabled else None
+    if backup_root:
+        backup_root.mkdir(parents=True, exist_ok=True)
+        route['backup_container_allowlist'] = [backup_root.as_uri() + '/']
     suffix = uuid.uuid4().hex
     directory_name = f'cdeadmin-gate-{suffix[:12]}'
     key = f'cdeadmin/qualification/{suffix}'
@@ -247,6 +282,17 @@ def verify(args):
     cleanup = []
     failures = []
     directory_created = False
+    tenant_created = False
+    tenant_mode_changed = False
+    tenant_name = f'cdeadmin_tenant_{suffix[:12]}'
+    tenant = {
+        'resource_id': f'tenant:{tenant_name}',
+        'resource_kind': 'tenant',
+        'display_name': tenant_name,
+        'display_path': [tenant_name],
+        'authority_path': ['tenant', tenant_name],
+        'generation': 'live-mutation-gate',
+    }
     key_created = False
     visual_key_created = False
     object_key_created = False
@@ -255,6 +301,9 @@ def verify(args):
     process_class_changed = False
     data_distribution_disabled = False
     maintenance_enabled = False
+    active_backup_targets = []
+    backup_directories = []
+    restored_prefixes = []
     control_process = None
     control_address = None
     configuration = None
@@ -277,6 +326,21 @@ def verify(args):
         }
         if directory_name not in names:
             raise RuntimeError('created FoundationDB directory was not listed')
+        resources = provider.list_resources({'route': route})
+        created_directory = _resource(
+            resources, 'directory',
+            lambda item: item['display_name'] == directory_name,
+        )
+        operations.append(_apply(
+            provider, route, 'directory', 'inspect', {}, created_directory,
+        ))
+        subspace = _resource(
+            resources, 'subspace',
+            lambda item: _native(item).get('path') == [directory_name],
+        )
+        operations.append(_apply(
+            provider, route, 'subspace', 'inspect', {}, subspace,
+        ))
 
         session = provider.open_session({'route': route})
         session_id = session['session_id']
@@ -451,6 +515,150 @@ def verify(args):
             ))
 
         operations.append(_apply(
+            provider, route, 'configuration', 'set_tenant_mode', {
+                'tenant_mode': 'optional_experimental',
+            }, configuration,
+        ))
+        tenant_mode_changed = True
+        operations.append(_apply(
+            provider, route, 'tenant', 'create', {'name': tenant_name},
+        ))
+        tenant_created = True
+        tenant = _resource(
+            provider.list_resources({'route': route}), 'tenant',
+            lambda item: item['display_name'] == tenant_name,
+        )
+        operations.append(_apply(
+            provider, route, 'tenant', 'inspect', {}, tenant,
+        ))
+        operations.append(_apply(
+            provider, route, 'tenant', 'drop', {}, tenant,
+        ))
+        tenant_created = False
+        operations.append(_apply(
+            provider, route, 'configuration', 'set_tenant_mode', {
+                'tenant_mode': 'disabled',
+            }, configuration,
+        ))
+        tenant_mode_changed = False
+
+        if backup_enabled:
+            backup_specs = (
+                ('complete', True), ('continuous', False), ('abort', False),
+            )
+            backups = {}
+            for purpose, stop_when_restorable in backup_specs:
+                tag = f'cdeadmin_{purpose}_{suffix[:12]}'
+                destination = backup_root / tag
+                destination.mkdir(parents=True, exist_ok=False)
+                backup_directories.append(destination)
+                operations.append(_apply(
+                    provider, route, 'backup', 'start', {
+                        'destination_url': destination.as_uri(),
+                        'tag_name': tag,
+                        'snapshot_interval_seconds': 1,
+                        'stop_when_restorable': stop_when_restorable,
+                    },
+                ))
+                backup = _wait_backup(
+                    provider, route, tag,
+                    lambda native: native.get('Status', {}).get('Name') in {
+                        'Running', 'Completed',
+                    },
+                )
+                backups[purpose] = backup
+                active_backup_targets.append(backup)
+
+            operations.append(_apply(
+                provider, route, 'backup', 'pause', {},
+            ))
+            operations.append(_apply(
+                provider, route, 'backup', 'resume', {},
+            ))
+
+            complete_backup = _wait_backup(
+                provider, route, backups['complete']['display_name'],
+                lambda native: native.get('Restorable') is True,
+            )
+            complete_url = _native(complete_backup).get('DestinationURL')
+            if not isinstance(complete_url, str) or not complete_url:
+                raise RuntimeError(
+                    'FoundationDB completed backup URL was not observed'
+                )
+            operations.append(_apply(
+                provider, route, 'backup', 'inspect', {}, complete_backup,
+            ))
+            operations.append(_apply(
+                provider, route, 'backup', 'status', {}, complete_backup,
+            ))
+
+            operations.append(_apply(
+                provider, route, 'backup', 'discontinue', {},
+                backups['continuous'],
+            ))
+            active_backup_targets.remove(backups['continuous'])
+            operations.append(_apply(
+                provider, route, 'backup', 'abort', {}, backups['abort'],
+            ))
+            active_backup_targets.remove(backups['abort'])
+
+            restore_tag = f'cdeadmin_restore_{suffix[:12]}'
+            restore_prefix = f'cdeadmin-restore/{suffix}/'
+            operations.append(_apply(
+                provider, route, 'restore', 'start', {
+                    'source_url': complete_url,
+                    'tag_name': restore_tag,
+                    'wait_for_done': True,
+                    'add_prefix': restore_prefix,
+                },
+            ))
+            restored_prefixes.append(restore_prefix.encode('utf-8'))
+            restore = _resource(
+                provider.list_resources({'route': route}), 'restore',
+                lambda item: item['display_name'] == restore_tag,
+            )
+            operations.append(_apply(
+                provider, route, 'restore', 'inspect', {}, restore,
+            ))
+            operations.append(_apply(
+                provider, route, 'restore', 'status', {}, restore,
+            ))
+
+            abort_restore_tag = f'cdeadmin_restore_abort_{suffix[:12]}'
+            abort_prefix = f'cdeadmin-restore-abort/{suffix}/'
+            operations.append(_apply(
+                provider, route, 'restore', 'start', {
+                    'source_url': complete_url,
+                    'tag_name': abort_restore_tag,
+                    'wait_for_done': False,
+                    'add_prefix': abort_prefix,
+                },
+            ))
+            restored_prefixes.append(abort_prefix.encode('utf-8'))
+            abort_restore = _resource(
+                provider.list_resources({'route': route}), 'restore',
+                lambda item: item['display_name'] == abort_restore_tag,
+            )
+            operations.append(_apply(
+                provider, route, 'restore', 'abort', {}, abort_restore,
+            ))
+
+            for backup in backups.values():
+                observed = _wait_backup(
+                    provider, route, backup['display_name'],
+                    lambda native: isinstance(
+                        native.get('DestinationURL'), str
+                    ) and bool(native['DestinationURL']),
+                )
+                url = _native(observed)['DestinationURL']
+                operations.append(_apply(
+                    provider, route, 'backup', 'delete', {
+                        'destination_url': url,
+                    },
+                ))
+            active_backup_targets.clear()
+
+        operations.append(_apply(
             provider, route, 'configuration', 'configure', {
                 'redundancy': 'single', 'storage_engine': 'ssd',
             }, configuration,
@@ -530,6 +738,57 @@ def verify(args):
             'operation': detail,
         })
     finally:
+        for backup in active_backup_targets:
+            try:
+                cleanup.append(_apply(
+                    provider, route, 'backup', 'abort', {}, backup,
+                ))
+            except Exception as exc:
+                failures.append({
+                    'error_type': type(exc).__name__,
+                    'message': 'backup abort cleanup failed',
+                })
+        if restored_prefixes:
+            try:
+                backend = provider.client.backend
+                database = backend.open_session({'route': route})
+                for prefix in restored_prefixes:
+                    transaction = backend._transaction(database)
+                    transaction.clear_range(prefix, prefix + b'\xff')
+                    transaction.commit().wait()
+                cleanup.append({
+                    'operation': 'restore-prefix.clear',
+                    'accepted': True,
+                    'provider_transaction_authority': True,
+                })
+            except Exception as exc:
+                failures.append({
+                    'error_type': type(exc).__name__,
+                    'message': 'restore prefix cleanup failed',
+                })
+        if tenant_created:
+            try:
+                cleanup.append(_apply(
+                    provider, route, 'tenant', 'drop', {}, tenant,
+                ))
+                tenant_created = False
+            except Exception as exc:
+                failures.append({
+                    'error_type': type(exc).__name__,
+                    'message': 'tenant cleanup failed',
+                })
+        if tenant_mode_changed and configuration is not None:
+            try:
+                cleanup.append(_apply(
+                    provider, route, 'configuration', 'set_tenant_mode', {
+                        'tenant_mode': 'disabled',
+                    }, configuration,
+                ))
+            except Exception as exc:
+                failures.append({
+                    'error_type': type(exc).__name__,
+                    'message': 'tenant mode cleanup failed',
+                })
         if process_excluded and control_process is not None:
             try:
                 cleanup.append(_apply(
@@ -656,7 +915,7 @@ def verify(args):
     )
     if args.object_evidence:
         object_evidence = _object_evidence(
-            provider, operations, failures, run_id,
+            provider, [*operations, *cleanup], failures, run_id,
         )
         args.object_evidence.parent.mkdir(parents=True, exist_ok=True)
         args.object_evidence.write_text(

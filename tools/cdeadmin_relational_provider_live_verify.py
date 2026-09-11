@@ -317,21 +317,27 @@ def _target(resources, kind, name):
 
 def _apply_editor(
         provider, route, kind, operation, draft, target=None,
-        task_evidence=None):
-    plan = provider.plan_visual_admin({
+        task_evidence=None, session_id=None):
+    request = {
         'resource_kind': kind,
         'operation_id': operation,
         'target_resource': target,
         'draft': draft,
         '_provider_route': route,
-    })
+    }
+    if session_id is not None:
+        request['session_id'] = session_id
+    plan = provider.plan_visual_admin(request)
     if plan.get('state') != 'ready':
         raise RuntimeError('visual editor plan was not ready')
-    result = provider.apply_visual_admin({
+    apply_request = {
         'plan_id': plan['plan_id'],
         'plan_digest': plan['plan_digest'],
         'confirmed': True,
-    })
+    }
+    if session_id is not None:
+        apply_request['session_id'] = session_id
+    result = provider.apply_visual_admin(apply_request)
     if not result.get('provider_result', {}).get('accepted'):
         raise RuntimeError('visual editor operation was not accepted')
     if task_evidence is not None and plan['command_preview'].get(
@@ -1162,6 +1168,163 @@ def _relational_editor_evidence(provider, request, engine):
                 )
 
         if engine == 'mariadb':
+            def inspect_observed(kind, label, attempts=40):
+                resource = None
+                for _attempt_number in range(attempts):
+                    resource = next((
+                        item for item in provider.list_resources(request)
+                        if item.get('resource_kind') == kind
+                    ), None)
+                    if resource is not None:
+                        break
+                    time.sleep(0.05)
+                if resource is None:
+                    failures[label] = 'ObservedResourceMissing'
+                    return None
+                try:
+                    observed = provider.inspect_resource({
+                        **request, 'resource_id': resource['resource_id'],
+                    })
+                    if observed.get('resource_kind') != kind:
+                        raise RuntimeError(
+                            'inspected resource kind changed'
+                        )
+                    record(kind, 'inspect')
+                    return resource
+                except Exception as exc:
+                    failures[label] = f'{type(exc).__name__}: {exc}'
+                    return None
+
+            settings_connection = None
+            settings_cursor = None
+            previous_logging = None
+            try:
+                settings_connection = provider.client._connect({
+                    'route': route
+                })
+                settings_cursor = settings_connection.cursor()
+                settings_cursor.execute(
+                    'SELECT @@GLOBAL.log_output, @@GLOBAL.general_log, '
+                    '@@GLOBAL.slow_query_log, @@GLOBAL.long_query_time'
+                )
+                previous_logging = settings_cursor.fetchone()
+                settings_cursor.execute("SET GLOBAL log_output = 'TABLE'")
+                settings_cursor.execute('SET GLOBAL general_log = ON')
+                settings_cursor.execute('SET GLOBAL slow_query_log = ON')
+                settings_cursor.execute('SET GLOBAL long_query_time = 0')
+                settings_cursor.execute(
+                    'SELECT SLEEP(0.02) /* cdeadmin live log inspection */'
+                )
+                settings_cursor.fetchall()
+                inspect_observed(
+                    'general-log-entry', 'general-log-entry.inspect'
+                )
+                inspect_observed('slow-query', 'slow-query.inspect')
+            except Exception as exc:
+                failures['mariadb.log-inspection-fixture'] = (
+                    f'{type(exc).__name__}: {exc}'
+                )
+            finally:
+                if (
+                        settings_cursor is not None and
+                        previous_logging is not None):
+                    log_output, general_log, slow_query_log, long_query = (
+                        previous_logging
+                    )
+                    try:
+                        settings_cursor.execute(
+                            'SET GLOBAL general_log = ' + (
+                                'ON' if general_log else 'OFF'
+                            )
+                        )
+                        settings_cursor.execute(
+                            'SET GLOBAL slow_query_log = ' + (
+                                'ON' if slow_query_log else 'OFF'
+                            )
+                        )
+                        settings_cursor.execute(
+                            'SET GLOBAL long_query_time = ?',
+                            (long_query,),
+                        )
+                        settings_cursor.execute(
+                            'SET GLOBAL log_output = ?', (log_output,)
+                        )
+                    except Exception as exc:
+                        failures['mariadb.log-inspection-restore'] = (
+                            f'{type(exc).__name__}: {exc}'
+                        )
+                if settings_cursor is not None:
+                    provider.client._safe_close(settings_cursor)
+                if settings_connection is not None:
+                    provider.client._forget_and_close(settings_connection)
+
+            lock_owner = None
+            lock_waiter = None
+            owner_cursor = None
+            waiter_cursor = None
+            waiter_started = threading.Event()
+            waiter_finished = threading.Event()
+            waiter_thread = None
+            try:
+                lock_owner = provider.client._connect({'route': route})
+                lock_waiter = provider.client._connect({'route': route})
+                lock_owner.autocommit = False
+                lock_waiter.autocommit = False
+                owner_cursor = lock_owner.cursor()
+                waiter_cursor = lock_waiter.cursor()
+                owner_cursor.execute(
+                    'UPDATE qualification SET value = value WHERE id = 1'
+                )
+                waiter_cursor.execute('SET innodb_lock_wait_timeout = 10')
+
+                def wait_for_row_lock():
+                    try:
+                        waiter_started.set()
+                        waiter_cursor.execute(
+                            'UPDATE qualification SET value = value '
+                            'WHERE id = 1'
+                        )
+                    except Exception:
+                        # Releasing the owner or closing the fixture may abort
+                        # the waiter; either is an expected cleanup outcome.
+                        pass
+                    finally:
+                        waiter_finished.set()
+
+                waiter_thread = threading.Thread(
+                    target=wait_for_row_lock,
+                    name='cdeadmin-mariadb-lock-inspection', daemon=True,
+                )
+                waiter_thread.start()
+                waiter_started.wait(2)
+                inspect_observed('lock', 'lock.inspect')
+                inspect_observed('lock-wait', 'lock-wait.inspect')
+            except Exception as exc:
+                failures['mariadb.lock-inspection-fixture'] = (
+                    f'{type(exc).__name__}: {exc}'
+                )
+            finally:
+                if lock_owner is not None:
+                    try:
+                        lock_owner.rollback()
+                    except Exception:
+                        pass
+                if waiter_thread is not None:
+                    waiter_finished.wait(5)
+                if lock_waiter is not None:
+                    try:
+                        lock_waiter.rollback()
+                    except Exception:
+                        pass
+                if owner_cursor is not None:
+                    provider.client._safe_close(owner_cursor)
+                if waiter_cursor is not None:
+                    provider.client._safe_close(waiter_cursor)
+                if lock_owner is not None:
+                    provider.client._forget_and_close(lock_owner)
+                if lock_waiter is not None:
+                    provider.client._forget_and_close(lock_waiter)
+
             if attempt(
                 'replication-channel.create', 'replication-channel',
                 'create', {
@@ -2414,8 +2577,7 @@ def _relational_editor_evidence(provider, request, engine):
         try:
             _apply_editor(
                 provider, created_route, 'database', 'drop', {
-                    'cascade': False,
-                    'confirmation': 'drop-live-editor-database',
+                    'confirmation': firebird_editor_path,
                 }, target=created_database, task_evidence=task_evidence,
             )
             record('database', 'drop')
@@ -2572,7 +2734,7 @@ def _relational_editor_evidence(provider, request, engine):
 
 
 def _dolt_repository_editor_evidence(provider, request, database):
-    """Exercise reversible Dolt backup/restore and remote editor controls."""
+    """Exercise every Dolt-native repository editor against real state."""
     route = request['route']
     passed = {}
     failures = {}
@@ -2582,6 +2744,15 @@ def _dolt_repository_editor_evidence(provider, request, database):
     restored_database = f'cde_restore_{suffix}'
     backup_url = f'file:///tmp/{backup_name}'
     remote_url = f'file:///var/lib/dolt/{restored_database}'
+    branch_name = f'cde_branch_{suffix}'
+    copied_branch = f'cde_copy_{suffix}'
+    renamed_branch = f'cde_renamed_{suffix}'
+    cherry_branch = f'cde_cherry_{suffix}'
+    rebase_branch = f'cde_rebase_{suffix}'
+    merge_branch = f'cde_merge_{suffix}'
+    tag_name = f'cde_tag_{suffix}'
+    staged_table = f'cde_stage_{suffix}'
+    clean_table = f'cde_clean_{suffix}'
 
     def record(kind, operation):
         passed.setdefault(kind, set()).add(operation)
@@ -2597,16 +2768,79 @@ def _dolt_repository_editor_evidence(provider, request, database):
             'generation': request['capability_generation'],
         }
 
-    def apply(label, kind, operation, draft, resource=None):
+    def apply(
+            label, kind, operation, draft, resource=None, session_id=None):
         try:
-            _apply_editor(
-                provider, route, kind, operation, draft, target=resource
+            result = _apply_editor(
+                provider, route, kind, operation, draft, target=resource,
+                session_id=session_id,
             )
             record(kind, operation)
-            return True
+            return result
         except Exception as exc:
             failures[label] = f'{type(exc).__name__}: {exc}'
             return False
+
+    def fixture(source, parameters=(), fetch=False):
+        """Create isolated preconditions; product actions use visual forms."""
+        connection = provider.client._connect({'route': route})  # noqa: SLF001
+        cursor = None
+        try:
+            cursor = connection.cursor()
+            cursor.execute(source, parameters)
+            rows = list(cursor.fetchall()) if fetch else []
+            commit = getattr(connection, 'commit', None)
+            if callable(commit):
+                commit()
+            return rows
+        finally:
+            if cursor is not None:
+                provider.client._safe_close(cursor)  # noqa: SLF001
+            provider.client._forget_and_close(connection)  # noqa: SLF001
+
+    def discover(
+            kind, name, label, record_inspection=True, session_id=None):
+        try:
+            inspection_request = dict(request)
+            if session_id is not None:
+                inspection_request['session_id'] = session_id
+            resource = _target(
+                provider.list_resources(inspection_request), kind, name)
+            if resource is None:
+                raise RuntimeError(
+                    f'created Dolt {kind} was not discovered')
+            provider.inspect_resource({
+                **inspection_request, 'resource_id': resource['resource_id'],
+            })
+            if record_inspection:
+                record(kind, 'inspect')
+            return resource
+        except Exception as exc:
+            failures[label] = f'{type(exc).__name__}: {exc}'
+            return None
+
+    def set_default(name, label):
+        return apply(
+            label, 'branch', 'set_default', {'persist': False},
+            target('branch', name),
+        )
+
+    def commit(message, label, allow_empty=False):
+        return apply(
+            label, 'working-set', 'commit', {
+                'message': message, 'stage_all': True,
+                'allow_empty': allow_empty,
+            }, target('working-set', 'current'),
+        )
+
+    def head_hash():
+        rows = fixture(
+            'SELECT commit_hash FROM dolt_log ORDER BY date DESC LIMIT 1',
+            fetch=True,
+        )
+        if not rows:
+            raise RuntimeError('Dolt HEAD commit was unavailable')
+        return str(rows[0][0])
 
     working_set = target('working-set', 'current')
     database_target = target('database', database)
@@ -2619,22 +2853,21 @@ def _dolt_repository_editor_evidence(provider, request, database):
     backup_created = False
     restore_created = False
     remote_created = False
+    created_branches = set()
     try:
-        apply(
-            'working-set.baseline', 'working-set', 'commit', {
-                'message': 'CDEadmin object gate baseline',
-                'stage_all': True, 'allow_empty': True,
-            }, working_set,
+        commit(
+            'CDEadmin object gate baseline', 'working-set.baseline',
+            allow_empty=True,
         )
+
         backup_created = apply(
             'backup.create', 'backup', 'create', {
                 'name': backup_name, 'url': backup_url,
             },
         )
         if backup_created:
-            apply(
-                'backup.sync', 'backup', 'sync', {}, backup_target
-            )
+            discover('backup', backup_name, 'backup.inspect')
+            apply('backup.sync', 'backup', 'sync', {}, backup_target)
             restore_created = apply(
                 'database.restore_backup', 'database', 'restore_backup', {
                     'url': backup_url,
@@ -2649,29 +2882,15 @@ def _dolt_repository_editor_evidence(provider, request, database):
                 },
             )
         if remote_created:
-            try:
-                resources = provider.list_resources(request)
-                remote = _target(resources, 'remote', remote_name)
-                if remote is None:
-                    raise RuntimeError(
-                        'created Dolt remote was not discovered'
-                    )
-                provider.inspect_resource({
-                    **request, 'resource_id': remote['resource_id'],
-                })
-                record('remote', 'inspect')
-            except Exception as exc:
-                failures['remote.inspect'] = f'{type(exc).__name__}: {exc}'
+            discover('remote', remote_name, 'remote.inspect')
             if apply(
                 'table.remote-fixture', 'table', 'insert', {
                     'values': {'id': 3, 'value': 9}, 'options': {},
                 }, qualification,
             ):
-                apply(
-                    'working-set.remote-fixture', 'working-set', 'commit', {
-                        'message': 'CDEadmin object gate remote update',
-                        'stage_all': True, 'allow_empty': False,
-                    }, working_set,
+                commit(
+                    'CDEadmin object gate remote update',
+                    'working-set.remote-fixture',
                 )
             apply(
                 'remote.push', 'remote', 'push', {
@@ -2683,7 +2902,229 @@ def _dolt_repository_editor_evidence(provider, request, database):
                 'remote.pull', 'remote', 'pull', {'branch': 'main'},
                 remote_target,
             )
+
+        if apply(
+            'branch.create', 'branch', 'create', {
+                'name': branch_name, 'start_point': 'main',
+            },
+        ):
+            created_branches.add(branch_name)
+            branch = discover('branch', branch_name, 'branch.inspect')
+            if branch is not None and apply(
+                'branch.copy', 'branch', 'copy', {
+                    'new_name': copied_branch, 'force': False,
+                }, branch,
+            ):
+                created_branches.add(copied_branch)
+                copied = target('branch', copied_branch)
+                if apply(
+                    'branch.rename', 'branch', 'rename', {
+                        'new_name': renamed_branch, 'force': False,
+                    }, copied,
+                ):
+                    created_branches.discard(copied_branch)
+                    created_branches.add(renamed_branch)
+            set_default(branch_name, 'branch.set-default')
+            set_default('main', 'branch.restore-default')
+
+        if apply(
+            'tag.create', 'tag', 'create', {
+                'name': tag_name, 'start_point': 'main',
+                'message': 'CDEadmin exact Dolt tag gate',
+            },
+        ):
+            tag = discover('tag', tag_name, 'tag.inspect')
+            if tag is not None:
+                apply('tag.drop', 'tag', 'drop', {}, tag)
+
+        fixture(f'CREATE TABLE `{staged_table}` (id INT PRIMARY KEY)')
+        apply(
+            'working-set.stage-tables', 'working-set', 'stage_tables', {
+                'table_names': [staged_table], 'force_ignored': False,
+            }, working_set,
+        )
+        discover('working-set', 'current', 'working-set.inspect')
+        apply(
+            'working-set.unstage-tables', 'working-set', 'unstage_tables', {
+                'table_names': [staged_table],
+            }, working_set,
+        )
+        apply(
+            'working-set.stage-all', 'working-set', 'stage_all', {},
+            working_set,
+        )
+        commit('CDEadmin staged-table gate', 'working-set.stage-commit')
+
+        fixture(f'CREATE TABLE `{clean_table}` (id INT PRIMARY KEY)')
+        apply(
+            'working-set.clean', 'working-set', 'clean', {
+                'table_names': [clean_table], 'include_ignored': False,
+            }, working_set,
+        )
+
+        fixture(
+            'INSERT INTO qualification (id, value) VALUES (1001, 1001)'
+        )
+        commit('CDEadmin reset base', 'working-set.reset-base')
+        reset_base = head_hash()
+        fixture(
+            'INSERT INTO qualification (id, value) VALUES (1002, 1002)'
+        )
+        commit('CDEadmin reset tip', 'working-set.reset-tip')
+        apply(
+            'working-set.reset-soft', 'working-set', 'reset_soft', {
+                'revision': reset_base,
+            }, working_set,
+        )
+        apply(
+            'working-set.reset-hard', 'working-set', 'reset_hard', {
+                'revision': reset_base,
+            }, working_set,
+        )
+
+        if apply(
+            'branch.cherry-create', 'branch', 'create', {
+                'name': cherry_branch, 'start_point': 'main',
+            },
+        ):
+            created_branches.add(cherry_branch)
+            set_default(cherry_branch, 'branch.cherry-select')
+            fixture(
+                'INSERT INTO qualification (id, value) '
+                'VALUES (2001, 2001)'
+            )
+            commit('CDEadmin cherry source', 'commit.cherry-source')
+            cherry_source = head_hash()
+            discover('commit', cherry_source, 'commit.inspect')
+            set_default('main', 'branch.cherry-main')
+            if apply(
+                'commit.cherry-pick', 'commit', 'cherry_pick', {},
+                target('commit', cherry_source),
+            ):
+                cherry_applied = head_hash()
+                apply(
+                    'commit.revert', 'commit', 'revert', {},
+                    target('commit', cherry_applied),
+                )
+
+        if apply(
+            'branch.rebase-create', 'branch', 'create', {
+                'name': rebase_branch, 'start_point': 'main',
+            },
+        ):
+            created_branches.add(rebase_branch)
+            set_default(rebase_branch, 'branch.rebase-select')
+            fixture(
+                'INSERT INTO qualification (id, value) '
+                'VALUES (3001, 3001)'
+            )
+            commit('CDEadmin rebase source', 'rebase.source-commit')
+            set_default('main', 'branch.rebase-main')
+            fixture(
+                'INSERT INTO qualification (id, value) '
+                'VALUES (3002, 3002)'
+            )
+            commit('CDEadmin rebase upstream', 'rebase.upstream-commit')
+            set_default(rebase_branch, 'branch.rebase-return')
+            rebase_target = target('rebase', 'current')
+            rebase_draft = {
+                'upstream': 'main', 'interactive': True,
+                'empty_commits': 'drop', 'skip_verification': False,
+            }
+            session = provider.open_session(request)
+            session_id = session['session_id']
+            try:
+                if apply(
+                    'rebase.start-abort', 'rebase', 'start', rebase_draft,
+                    rebase_target, session_id,
+                ):
+                    discover(
+                        'rebase', 'current', 'rebase.inspect',
+                        session_id=session_id,
+                    )
+                    apply(
+                        'rebase.abort', 'rebase', 'abort', {}, rebase_target,
+                        session_id,
+                    )
+            finally:
+                provider.close_session({'session_id': session_id})
+            session = provider.open_session(request)
+            session_id = session['session_id']
+            try:
+                if apply(
+                    'rebase.start-continue', 'rebase', 'start', rebase_draft,
+                    rebase_target, session_id,
+                ):
+                    apply(
+                        'rebase.continue', 'rebase', 'continue', {},
+                        rebase_target, session_id,
+                    )
+            finally:
+                provider.close_session({'session_id': session_id})
+            set_default('main', 'branch.rebase-restore-main')
+
+        if apply(
+            'branch.merge-create', 'branch', 'create', {
+                'name': merge_branch, 'start_point': 'main',
+            },
+        ):
+            created_branches.add(merge_branch)
+            set_default(merge_branch, 'branch.merge-select')
+            fixture('UPDATE qualification SET value = 710 WHERE id = 1')
+            commit('CDEadmin merge source', 'merge.source-commit')
+            set_default('main', 'branch.merge-main')
+            fixture('UPDATE qualification SET value = 720 WHERE id = 1')
+            commit('CDEadmin merge target', 'merge.target-commit')
+            merge_target = target('merge', 'current')
+            session = provider.open_session(request)
+            session_id = session['session_id']
+            try:
+                if apply(
+                    'merge.start', 'merge', 'start', {
+                        'revision': merge_branch,
+                        'message': 'CDEadmin conflict gate',
+                        'strategy': 'normal', 'no_commit': False,
+                    }, merge_target, session_id,
+                ):
+                    discover(
+                        'merge', 'current', 'merge.inspect',
+                        session_id=session_id,
+                    )
+                    conflict = discover(
+                        'conflict', 'qualification', 'conflict.inspect',
+                        session_id=session_id,
+                    )
+                    if conflict is not None:
+                        apply(
+                            'conflict.resolve', 'conflict', 'resolve', {
+                                'resolution': 'ours',
+                            }, conflict, session_id,
+                        )
+                    apply(
+                        'merge.abort', 'merge', 'abort', {}, merge_target,
+                        session_id,
+                    )
+            finally:
+                provider.close_session({'session_id': session_id})
     finally:
+        # Restore repository usability before removing all disposable refs.
+        try:
+            fixture("CALL DOLT_REBASE('--abort')")
+        except Exception:
+            pass
+        try:
+            fixture("CALL DOLT_MERGE('--abort')")
+        except Exception:
+            pass
+        try:
+            set_default('main', 'branch.cleanup-default')
+        except Exception:
+            pass
+        for name in sorted(created_branches, reverse=True):
+            apply(
+                f'branch.cleanup.{name}', 'branch', 'drop', {'force': True},
+                target('branch', name),
+            )
         if remote_created:
             apply('remote.drop', 'remote', 'drop', {}, remote_target)
         if backup_created:
@@ -2742,6 +3183,32 @@ def _immudb_multimodel_editor_evidence(provider, request):
                 **request, 'resource_id': key['resource_id'],
             })
             record('key', 'inspect')
+            for kind in ('revision', 'transaction', 'proof'):
+                related = next((
+                    item for item in resources
+                    if item.get('resource_kind') == kind and
+                    (
+                        kind == 'transaction' or
+                        key_name in item.get('display_path', [])
+                    )
+                ), None)
+                if related is None:
+                    failures[f'{kind}.inspect'] = (
+                        'CreatedResourceMissing'
+                    )
+                    continue
+                observed = provider.inspect_resource({
+                    **request, 'resource_id': related['resource_id'],
+                })
+                if kind == 'proof' and observed.get(
+                        'extensions', {}).get('immudb', {}).get(
+                            'native', {}).get(
+                                'proof_material_loaded') is not True:
+                    failures['proof.inspect'] = (
+                        'NativeProofMaterialMissing'
+                    )
+                    continue
+                record(kind, 'inspect')
             apply('key.update', 'key', 'update', {
                 'value': 'second', 'encoding': 'utf8',
                 'expires_at': int(time.time()) + 7200,
@@ -3578,6 +4045,17 @@ class _FirebirdAccount:
             cursor.execute(
                 'INSERT INTO QUALIFICATION VALUES (?, ?, ?)',
                 (1, 42, '2026-01-15')
+            )
+            connection.commit()
+            # External functions are retained Firebird metadata even when
+            # their module is not invoked.  Declare a disposable entry so the
+            # provider's external-function inspector is exercised against the
+            # exact 5.0.4 catalogs instead of being inferred from the ordinary
+            # PSQL function path.
+            cursor.execute(
+                'DECLARE EXTERNAL FUNCTION CDE_LIVE_UDF_ABS '
+                'DOUBLE PRECISION RETURNS DOUBLE PRECISION BY VALUE '
+                "ENTRY_POINT 'fn_abs' MODULE_NAME 'udflib'"
             )
             connection.commit()
             cursor.execute(

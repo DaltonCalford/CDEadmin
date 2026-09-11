@@ -359,13 +359,49 @@ class OpenSearchClient:
 
     def _resource(self, kind, name, native, path=None):
         path = path or [kind, name]
+        native = copy.deepcopy(native)
+        if kind in {
+            'mapping', 'settings', 'field', 'index-template',
+            'component-template', 'ingest-pipeline', 'ingest-processor',
+            'alias', 'repository', 'snapshot', 'data-stream', 'policy',
+        }:
+            if 'definition' not in native:
+                if kind == 'mapping':
+                    native['definition'] = copy.deepcopy(
+                        native.get('mapping', {})
+                    )
+                elif kind == 'settings':
+                    native['definition'] = copy.deepcopy(
+                        native.get('settings', {})
+                    )
+                else:
+                    native['definition'] = copy.deepcopy(native)
+        if kind in {'cluster', 'node', 'shard', 'data-stream', 'snapshot'}:
+            native['state'] = copy.deepcopy(native)
+        if kind == 'index':
+            native['statistics'] = copy.deepcopy(native)
+        elif kind == 'shard':
+            native['statistics'] = {
+                'copies': copy.deepcopy(native.get('copies', [])),
+            }
+        elif kind in {'user', 'role', 'role-mapping', 'tenant'}:
+            definition = copy.deepcopy(native.get('definition', native))
+            native['security'] = definition
+            if kind == 'role' and isinstance(definition, Mapping):
+                native['privileges'] = {
+                    key: copy.deepcopy(definition[key])
+                    for key in (
+                        'cluster_permissions', 'index_permissions',
+                        'tenant_permissions',
+                    ) if key in definition
+                }
         return {
             'resource_id': 'opensearch:' + ':'.join(map(str, path)),
             'resource_kind': kind, 'display_name': str(name),
             'authority_path': ['opensearch', *map(str, path)],
             'display_path': list(map(str, path)),
             'generation': self._generation(native),
-            'native': copy.deepcopy(native),
+            'native': native,
         }
 
     def _optional_json(self, route, path, **options):
@@ -1112,9 +1148,21 @@ class OpenSearchClient:
                     route, path, method='DELETE', mutating=True)
             if kind == 'index' and operation == 'alter':
                 path += '/_settings'
+            query = None
+            if kind == 'policy' and operation == 'alter':
+                query = {
+                    'if_seq_no': bounded_integer(
+                        draft.get('if_seq_no'), 'sequence number',
+                        None, 0, 2**63 - 1,
+                    ),
+                    'if_primary_term': bounded_integer(
+                        draft.get('if_primary_term'), 'primary term',
+                        None, 1, 2**63 - 1,
+                    ),
+                }
             return self._request(
                 route, path, method='PUT', json_body=dict(definition),
-                mutating=True,
+                query=query, mutating=True,
             )
         if kind in {'mapping', 'field', 'analyzer', 'normalizer', 'tokenizer'}:
             index = draft.get('index') or target.get('index')
@@ -1132,9 +1180,8 @@ class OpenSearchClient:
                             _name(
                                 draft.get('name') or name,
                                 kind): body}}}
-                return self._request(
-                    route, f'/{_path_part(index, "index")}/_settings',
-                    method='PUT', json_body=body, mutating=True,
+                return self._alter_analysis_settings(
+                    route, index, body
                 )
             return self._request(
                 route, f'/{_path_part(index, "index")}/_mapping',
@@ -1310,6 +1357,32 @@ class OpenSearchClient:
                 mutating=True,
             )
         raise OpenSearchClientError('administration operation is unavailable')
+
+    def _alter_analysis_settings(self, route, index, definition):
+        """Apply static analysis settings while preserving index open state."""
+        index = _path_part(index, 'index')
+        rows = self._request(
+            route, f'/_cat/indices/{index}',
+            query={'format': 'json', 'h': 'status'},
+        ).json()
+        if not isinstance(rows, list) or len(rows) != 1:
+            raise OpenSearchClientError('index state was not observed')
+        was_open = str(rows[0].get('status', '')).casefold() == 'open'
+        if was_open:
+            self._request(
+                route, f'/{index}/_close', method='POST', mutating=True,
+            )
+        try:
+            response = self._request(
+                route, f'/{index}/_settings', method='PUT',
+                json_body=dict(definition), mutating=True,
+            )
+        finally:
+            if was_open:
+                self._request(
+                    route, f'/{index}/_open', method='POST', mutating=True,
+                )
+        return response
 
     @staticmethod
     def _copy_present(source, target, *fields):
@@ -1522,6 +1595,13 @@ class OpenSearchClient:
             )
         elif kind == 'index':
             path = '/' + _path_part(name, 'index')
+        elif kind == 'document':
+            index = _path_part(target.get('index'), 'index')
+            document_id = urllib.parse.quote(required_text(
+                target.get('_id') or target.get('document_id'),
+                'document ID', 512,
+            ), safe='')
+            path = f'/{index}/_doc/{document_id}'
         elif kind == 'settings':
             path = f'/{_path_part(target.get("index") or name,
                                   "index")}/_settings'
