@@ -119,6 +119,7 @@ function Layouts({browser, platform}) {
             'replication.runtime': platform.replication,
             'tracing.runtime': platform.tracing,
             'migration.runtime': platform.migration,
+            'cdeadmin.api.runtime': platform.apiDesigner,
           },
           commands: platform.modules.commands,
           currentUser,
@@ -161,6 +162,7 @@ function Layouts({browser, platform}) {
       replication: platform.replication,
       tracing: platform.tracing,
       migration: platform.migration,
+      apiDesigner: platform.apiDesigner,
       currentUser,
       openSurface: (surfaceId, input) => ensureSurfaceHost().open(surfaceId, input),
     });
@@ -172,7 +174,7 @@ function Layouts({browser, platform}) {
     };
   }, [ensureSurfaceHost, pgAdmin, platform.cdc, platform.contract, platform.etl,
     platform.lineage, platform.quality,
-    platform.migration, platform.replication, platform.schemaCompare,
+    platform.apiDesigner, platform.migration, platform.replication, platform.schemaCompare,
     platform.tracing]);
   useEffect(() => {
     const open = (event) => ensureSurfaceHost().open(
@@ -253,6 +255,14 @@ function Layouts({browser, platform}) {
     ).catch((error) => pgAdmin.Browser.notifier.error(error.message));
     window.addEventListener('cdeadmin:migration-open', open);
     return () => window.removeEventListener('cdeadmin:migration-open', open);
+  }, [ensureSurfaceHost, pgAdmin]);
+  useEffect(() => {
+    const open = (event) => ensureSurfaceHost().open(`api.${event.detail.surface}`, {
+      toolInstanceId: `api-${event.detail.sessionId}`, restoreRef: event.detail.sessionId,
+      title: 'API Designer',
+    }).catch((error) => pgAdmin.Browser.notifier.error(error.message));
+    window.addEventListener('cdeadmin:api-open', open);
+    return () => window.removeEventListener('cdeadmin:api-open', open);
   }, [ensureSurfaceHost, pgAdmin]);
   useEffect(() => {
     const open = (event) => ensureSurfaceHost().open(

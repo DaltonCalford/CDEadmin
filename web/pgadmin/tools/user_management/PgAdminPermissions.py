@@ -81,6 +81,12 @@ class AllPermissionTypes:
     migration_cutover = 'migration.cutover'
     migration_rollback = 'migration.rollback'
     migration_admin = 'migration.admin'
+    api_view = 'api.view'
+    api_edit = 'api.edit'
+    api_test = 'api.test'
+    api_deploy_prepare = 'api.deploy_prepare'
+    api_invoke_live_write = 'api.invoke_live_write'
+    api_admin = 'api.admin'
 
     @staticmethod
     def list():
@@ -103,6 +109,7 @@ class AllPermissionCategories:
     replication_topology = gettext('Replication Topology')
     distributed_tracing = gettext('Distributed Tracing')
     migration_planning = gettext('Migration Planning')
+    api_designer = gettext('API Designer')
 
 
 class PgAdminPermissions:
@@ -268,6 +275,25 @@ class PgAdminPermissions:
         ):
             self.add_permission(
                 AllPermissionCategories.migration_planning,
+                permission,
+                label,
+            )
+        for permission, label in (
+            (AllPermissionTypes.api_view,
+             gettext("View API definitions and validation evidence")),
+            (AllPermissionTypes.api_edit,
+             gettext("Create and edit API definitions and bindings")),
+            (AllPermissionTypes.api_test,
+             gettext("Run API mock, example and read-only live tests")),
+            (AllPermissionTypes.api_deploy_prepare,
+             gettext("Prepare reviewed API deployment packages")),
+            (AllPermissionTypes.api_invoke_live_write,
+             gettext("Invoke explicitly confirmed live write operations")),
+            (AllPermissionTypes.api_admin,
+             gettext("Administer API provider integrations")),
+        ):
+            self.add_permission(
+                AllPermissionCategories.api_designer,
                 permission,
                 label,
             )

@@ -43,6 +43,7 @@ import {
 import {
   MIGRATION_MODULE_ID, MIGRATION_SERVICE_ID, registerMigrationModule,
 } from '../modules/migration';
+import {API_MODULE_ID, API_SERVICE_ID, registerAPIModule} from '../modules/api';
 
 const CORE_MODULE_ID = 'cdeadmin.core-shell';
 const PROJECTS_MODULE_ID = 'cdeadmin.projects';
@@ -125,6 +126,9 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
   if(!moduleRegistry.has(MIGRATION_MODULE_ID)) registerMigrationModule({
     modules: moduleRegistry, services: serviceRegistry, api,
   });
+  if(!moduleRegistry.has(API_MODULE_ID)) registerAPIModule({
+    modules: moduleRegistry, services: serviceRegistry, api,
+  });
   ensureCoreModules();
   initialization = Promise.all([
     moduleRegistry.activate(CORE_MODULE_ID),
@@ -139,6 +143,7 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
     moduleRegistry.activate(REPLICATION_MODULE_ID),
     moduleRegistry.activate(TRACING_MODULE_ID),
     moduleRegistry.activate(MIGRATION_MODULE_ID),
+    moduleRegistry.activate(API_MODULE_ID),
   ]).then(async () => {
     const services = {};
     for(const [name, id] of Object.entries(PLATFORM_SERVICE_IDS)) {
@@ -156,6 +161,7 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
       replication: await serviceRegistry.resolve(REPLICATION_SERVICE_ID),
       tracing: await serviceRegistry.resolve(TRACING_SERVICE_ID),
       migration: await serviceRegistry.resolve(MIGRATION_SERVICE_ID),
+      apiDesigner: await serviceRegistry.resolve(API_SERVICE_ID),
     });
   }).catch((error) => {
     initialization = null;

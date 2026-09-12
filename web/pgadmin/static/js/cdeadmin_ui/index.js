@@ -150,3 +150,4 @@ export * from './modules/cdc';
 export * from './modules/replication';
 export * from './modules/tracing';
 export * from './modules/migration';
+export * from './modules/api';

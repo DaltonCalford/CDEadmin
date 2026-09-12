@@ -196,6 +196,22 @@ MIGRATION_ROLLBACK_CLASSES = frozenset({
     'fully_automatable', 'partially_automatable', 'manual_runbook',
     'not_available_after_point',
 })
+API_ASSET_TYPE = 'cdeadmin.api.v1'
+API_SCHEMA = 'cdeadmin.api.asset.v1'
+API_PROFILES = frozenset({
+    'openapi_http', 'asyncapi_event', 'graphql_schema', 'rpc_extension',
+})
+API_BINDING_TYPES = frozenset({
+    'saved_query', 'provider_resource_read', 'provider_command',
+    'stored_procedure/function', 'semantic_model', 'pipeline/macro',
+    'custom_backend_handler',
+})
+API_BINDING_MODES = frozenset({
+    'read', 'write', 'read_write', 'invoke', 'publish', 'subscribe',
+})
+API_HTTP_METHODS = frozenset({
+    'GET', 'HEAD', 'OPTIONS', 'TRACE', 'POST', 'PUT', 'PATCH', 'DELETE',
+})
 
 
 class ProjectAssetError(RuntimeError):
@@ -2757,6 +2773,433 @@ def _migration_content(value):
     return value
 
 
+def _api_object(value, label):
+    if not isinstance(value, dict):
+        raise ProjectAssetError(f'{label} must be an object')
+    return value
+
+
+def _api_exact(value, fields, label):
+    unknown = [field for field in value if field not in fields]
+    if unknown:
+        raise ProjectAssetError(
+            f'{label} contains unsupported field {unknown[0]}')
+
+
+def _api_list(value, label, maximum=10000):
+    if not isinstance(value, list) or len(value) > maximum:
+        raise ProjectAssetError(f'{label} must be a bounded list')
+    return value
+
+
+def _api_scalar_map(value, label):
+    _api_object(value, label)
+    for key, item in value.items():
+        _text(key, f'{label} key', 1024)
+        if (not isinstance(item, (str, int, float, bool)) or
+                isinstance(item, float) and not math.isfinite(item)):
+            raise ProjectAssetError(f'{label} values must be scalar')
+    _secret_free(value, label)
+
+
+def _api_unique(value, label, validator):
+    identities = set()
+    for item in _api_list(value, label):
+        validator(item)
+        identity = item.get('id')
+        if identity in identities:
+            raise ProjectAssetError(f'{label} IDs must be unique')
+        identities.add(identity)
+    return identities
+
+
+def _api_extensions(value, label):
+    def validate(item):
+        _api_object(item, f'{label} extension')
+        _api_exact(item, ('id', 'name', 'value'),
+                   f'{label} extension')
+        name = _text(item.get('name'), f'{label} extension name', 1024)
+        if not name.startswith('x-'):
+            raise ProjectAssetError(
+                f'{label} extension names must begin with x-')
+        _text(item.get('id'), f'{label} extension ID', 1024)
+        _secret_free(item.get('value'), f'{label} extension value')
+
+    _api_unique(value, f'{label} extensions', validate)
+
+
+def _api_reference(value, label, schemas=None, optional=False):
+    if value is None and optional:
+        return
+    _api_object(value, label)
+    schema = value.get('schema')
+    allowed = schemas or {
+        'cdeadmin.resource-ref.v1', 'cdeadmin.asset-ref.v1',
+        'cdeadmin.external-ref.v1', 'cdeadmin.credential-ref.v1',
+    }
+    if schema not in allowed:
+        raise ProjectAssetError(f'{label} schema is unsupported')
+    if schema == 'cdeadmin.resource-ref.v1':
+        _text(value.get('canonical'), f'{label} canonical identity', 8192)
+        _text(value.get('providerId') or value.get('provider'),
+              f'{label} provider', 1024)
+    elif schema == 'cdeadmin.asset-ref.v1':
+        _text(value.get('projectId'), f'{label} project ID', 1024)
+        _text(value.get('assetId'), f'{label} asset ID', 1024)
+    else:
+        _text(value.get('id'), f'{label} identity', 8192)
+    if schema == 'cdeadmin.credential-ref.v1':
+        _api_exact(value, (
+            'schema', 'id', 'providerId', 'scope', 'displayName'), label)
+    _secret_free(value, label)
+
+
+def _api_binding(value):
+    _api_object(value, 'API data binding')
+    if value.get('schema') != 'cdeadmin.api-binding.v1':
+        raise ProjectAssetError('API data binding schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'type', 'targetRef', 'mode', 'queryAssetRef',
+        'command', 'inputMap', 'outputMap', 'nativeDetails', 'extensions'),
+        'API data binding')
+    _text(value.get('id'), 'API data binding ID', 1024)
+    if value.get('type') not in API_BINDING_TYPES:
+        raise ProjectAssetError('API binding type is invalid')
+    if value.get('mode') not in API_BINDING_MODES:
+        raise ProjectAssetError('API binding mode is invalid')
+    _api_reference(value.get('targetRef'), 'API binding target')
+    _api_reference(
+        value.get('queryAssetRef'), 'API query asset',
+        {'cdeadmin.asset-ref.v1'}, optional=True)
+    if value.get('command') is not None:
+        _text(value['command'], 'API provider command', 8192)
+    for field in ('inputMap', 'outputMap', 'nativeDetails'):
+        _api_object(value.get(field), f'API binding {field}')
+    _api_extensions(value.get('extensions'), 'API binding')
+
+
+def _api_parameter(value):
+    _api_object(value, 'API parameter')
+    if value.get('schema') != 'cdeadmin.api-parameter.v1':
+        raise ProjectAssetError('API parameter schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'location', 'required', 'description',
+        'schemaRef', 'definition', 'extensions'), 'API parameter')
+    for field in ('id', 'name'):
+        _text(value.get(field), f'API parameter {field}', 1024)
+    if value.get('location') not in {
+            'path', 'query', 'header', 'cookie', 'body',
+            'message_header'}:
+        raise ProjectAssetError('API parameter location is invalid')
+    if not isinstance(value.get('required'), bool):
+        raise ProjectAssetError('API parameter required must be boolean')
+    if value.get('schemaRef') is not None:
+        _text(value['schemaRef'], 'API parameter schema reference', 4096)
+    _api_object(value.get('definition'), 'API parameter definition')
+    _api_extensions(value.get('extensions'), 'API parameter')
+
+
+def _api_response(value):
+    _api_object(value, 'API response')
+    if value.get('schema') != 'cdeadmin.api-response.v1':
+        raise ProjectAssetError('API response schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'status', 'description', 'schemaRef', 'headers',
+        'examples', 'extensions'), 'API response')
+    for field in ('id', 'status'):
+        _text(value.get(field), f'API response {field}', 1024)
+    if value.get('schemaRef') is not None:
+        _text(value['schemaRef'], 'API response schema reference', 4096)
+    _api_object(value.get('headers'), 'API response headers')
+    _api_object(value.get('examples'), 'API response examples')
+    _api_extensions(value.get('extensions'), 'API response')
+
+
+def _api_operation(value):
+    _api_object(value, 'API operation')
+    if value.get('schema') != 'cdeadmin.api-operation.v1':
+        raise ProjectAssetError('API operation schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'method', 'path', 'summary', 'description',
+        'parameters', 'requestSchemaRef', 'responses', 'binding',
+        'securityRequirementIds', 'policyIds', 'tags', 'deprecated',
+        'idempotent', 'callbacks', 'extensions'), 'API operation')
+    for field in ('id', 'name', 'method', 'path'):
+        _text(value.get(field), f'API operation {field}', 8192)
+    method = value.get('method')
+    if method not in API_HTTP_METHODS and not method.startswith('RPC:'):
+        raise ProjectAssetError('API operation method is invalid')
+    if method in API_HTTP_METHODS and not value['path'].startswith('/'):
+        raise ProjectAssetError('HTTP operation path must begin with /')
+    _api_unique(value.get('parameters'), 'API parameters', _api_parameter)
+    _api_unique(value.get('responses'), 'API responses', _api_response)
+    if value.get('requestSchemaRef') is not None:
+        _text(value['requestSchemaRef'],
+              'API request schema reference', 4096)
+    if value.get('binding') is not None:
+        _api_binding(value['binding'])
+    for field in ('securityRequirementIds', 'policyIds', 'tags'):
+        for item in _api_list(value.get(field), f'API operation {field}'):
+            _text(item, f'API operation {field} value', 1024)
+    for field in ('deprecated', 'idempotent'):
+        if not isinstance(value.get(field), bool):
+            raise ProjectAssetError(
+                f'API operation {field} must be boolean')
+    _api_object(value.get('callbacks'), 'API operation callbacks')
+    _api_extensions(value.get('extensions'), 'API operation')
+
+
+def _api_schema(value):
+    _api_object(value, 'API schema')
+    if value.get('schema') != 'cdeadmin.api-schema.v1':
+        raise ProjectAssetError('API schema definition schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'kind', 'definition', 'fields',
+        'physicalBindings', 'description', 'extensions'), 'API schema')
+    for field in ('id', 'name', 'kind'):
+        _text(value.get(field), f'API schema {field}', 1024)
+    _api_object(value.get('definition'), 'API schema definition')
+
+    def validate_field(field):
+        _api_object(field, 'API schema field')
+        _api_exact(field, (
+            'id', 'name', 'definition', 'required', 'description'),
+            'API schema field')
+        for item in ('id', 'name'):
+            _text(field.get(item), f'API schema field {item}', 1024)
+        if not isinstance(field.get('required'), bool):
+            raise ProjectAssetError(
+                'API schema field required must be boolean')
+        _api_object(field.get('definition'),
+                    'API schema field definition')
+
+    _api_unique(value.get('fields'), 'API schema fields', validate_field)
+    for reference in _api_list(
+            value.get('physicalBindings'), 'API schema physical bindings'):
+        _api_reference(reference, 'API schema physical binding')
+    _api_extensions(value.get('extensions'), 'API schema')
+
+
+def _api_message(value):
+    _api_object(value, 'API message')
+    if value.get('schema') != 'cdeadmin.api-message.v1':
+        raise ProjectAssetError('API message schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'payloadSchemaRef', 'headerSchemaRef',
+        'correlationId', 'contentType', 'bindings', 'extensions'),
+        'API message')
+    for field in ('id', 'name', 'contentType'):
+        _text(value.get(field), f'API message {field}', 4096)
+    for field in ('payloadSchemaRef', 'headerSchemaRef', 'correlationId'):
+        if value.get(field) is not None:
+            _text(value[field], f'API message {field}', 4096)
+    _api_object(value.get('bindings'), 'API message bindings')
+    _api_extensions(value.get('extensions'), 'API message')
+
+
+def _api_channel(value):
+    _api_object(value, 'API channel')
+    if value.get('schema') != 'cdeadmin.api-channel.v1':
+        raise ProjectAssetError('API channel schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'address', 'serverIds', 'messageIds',
+        'operations', 'bindings', 'extensions'), 'API channel')
+    for field in ('id', 'name', 'address'):
+        _text(value.get(field), f'API channel {field}', 8192)
+    for field in ('serverIds', 'messageIds'):
+        for item in _api_list(value.get(field), f'API channel {field}'):
+            _text(item, f'API channel {field} value', 1024)
+    _api_object(value.get('operations'), 'API channel operations')
+    _api_object(value.get('bindings'), 'API channel bindings')
+    _api_extensions(value.get('extensions'), 'API channel')
+
+
+def _api_security(value):
+    _api_object(value, 'API security requirement')
+    if value.get('schema') != 'cdeadmin.api-security.v1':
+        raise ProjectAssetError('API security schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'type', 'scheme', 'location',
+        'parameterName', 'flows', 'scopes', 'credentialRef',
+        'description', 'extensions'), 'API security requirement')
+    for field in ('id', 'name', 'type'):
+        _text(value.get(field), f'API security {field}', 1024)
+    for field in ('scheme', 'location', 'parameterName'):
+        if value.get(field) is not None:
+            _text(value[field], f'API security {field}', 1024)
+    _api_object(value.get('flows'), 'API security flows')
+    _api_scalar_map(value.get('scopes'), 'API security scopes')
+    _api_reference(
+        value.get('credentialRef'), 'API security credential',
+        {'cdeadmin.credential-ref.v1'}, optional=True)
+    _api_extensions(value.get('extensions'), 'API security')
+
+
+def _api_server(value):
+    _api_object(value, 'API server')
+    if value.get('schema') != 'cdeadmin.api-server.v1':
+        raise ProjectAssetError('API server schema is invalid')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'environment', 'urlTemplate', 'protocol',
+        'credentialRef', 'variables', 'tlsPolicyRef', 'description',
+        'extensions'), 'API server')
+    for field in ('id', 'name', 'environment', 'urlTemplate', 'protocol'):
+        _text(value.get(field), f'API server {field}', 8192)
+    _api_reference(
+        value.get('credentialRef'), 'API server credential',
+        {'cdeadmin.credential-ref.v1'}, optional=True)
+    _api_reference(
+        value.get('tlsPolicyRef'), 'API server TLS policy',
+        {'cdeadmin.asset-ref.v1'}, optional=True)
+    _api_scalar_map(value.get('variables'), 'API server variables')
+    _api_extensions(value.get('extensions'), 'API server')
+
+
+def _api_simple_entity(value, label, schema, fields):
+    _api_object(value, label)
+    if value.get('schema') != schema:
+        raise ProjectAssetError(f'{label} schema is invalid')
+    _api_exact(value, fields, label)
+    for field in ('id', 'name'):
+        _text(value.get(field), f'{label} {field}', 1024)
+    _api_extensions(value.get('extensions'), label)
+
+
+def _api_content(value):
+    if not isinstance(value, dict) or value.get('schema') != API_SCHEMA:
+        raise ProjectAssetError('API asset schema is invalid')
+    if (value.get('schemaVersion') != 1 or
+            value.get('moduleId') != 'cdeadmin.api'):
+        raise ProjectAssetError('API asset version or module is invalid')
+    _api_exact(value, (
+        'schema', 'schemaVersion', 'moduleId', 'profile',
+        'externalSpecVersion', 'info', 'servers', 'operations', 'channels',
+        'messages', 'schemas', 'security', 'policies', 'tests',
+        'deploymentBindings', 'externalReferences', 'extensions'),
+        'API asset content')
+    if value.get('profile') not in API_PROFILES:
+        raise ProjectAssetError('API profile is invalid')
+    if value.get('externalSpecVersion') is not None:
+        _text(value['externalSpecVersion'],
+              'External API specification version', 64)
+    _api_object(value.get('info'), 'API information')
+    server_ids = _api_unique(value.get('servers'), 'API servers', _api_server)
+    operation_ids = _api_unique(
+        value.get('operations'), 'API operations', _api_operation)
+    channel_ids = _api_unique(
+        value.get('channels'), 'API channels', _api_channel)
+    message_ids = _api_unique(
+        value.get('messages'), 'API messages', _api_message)
+    schema_ids = _api_unique(
+        value.get('schemas'), 'API schemas', _api_schema)
+    security_ids = _api_unique(
+        value.get('security'), 'API security requirements', _api_security)
+
+    def policy(item):
+        _api_simple_entity(item, 'API policy', 'cdeadmin.api-policy.v1', (
+            'schema', 'id', 'name', 'type', 'config', 'extensions'))
+        _text(item.get('type'), 'API policy type', 1024)
+        _api_object(item.get('config'), 'API policy config')
+
+    policy_ids = _api_unique(value.get('policies'), 'API policies', policy)
+
+    def test(item):
+        _api_simple_entity(item, 'API test', 'cdeadmin.api-test.v1', (
+            'schema', 'id', 'name', 'operationId', 'channelId',
+            'environmentId', 'mode', 'parameters', 'headers', 'body',
+            'expected', 'sensitiveHeaderNames', 'extensions'))
+        if item.get('mode') not in {'mock', 'example', 'live'}:
+            raise ProjectAssetError('API test mode is invalid')
+        if item.get('operationId') is not None:
+            _text(item['operationId'], 'API test operation ID', 1024)
+        if item.get('channelId') is not None:
+            _text(item['channelId'], 'API test channel ID', 1024)
+        if item.get('environmentId') is not None:
+            _text(item['environmentId'], 'API test environment ID', 1024)
+        _api_scalar_map(item.get('parameters'), 'API test parameters')
+        _api_scalar_map(item.get('headers'), 'API test headers')
+        _api_object(item.get('body'), 'API test body')
+        _api_object(item.get('expected'), 'API test expectation')
+        for name in _api_list(
+                item.get('sensitiveHeaderNames'),
+                'API sensitive header names'):
+            _text(name, 'API sensitive header name', 1024)
+
+    _api_unique(value.get('tests'), 'API tests', test)
+
+    def deployment(item):
+        _api_simple_entity(
+            item, 'API deployment', 'cdeadmin.api-deployment.v1', (
+                'schema', 'id', 'name', 'environment', 'targetRef',
+                'gatewayProfile', 'credentialRef', 'config', 'extensions'))
+        for field in ('environment', 'gatewayProfile'):
+            _text(item.get(field), f'API deployment {field}', 1024)
+        _api_reference(item.get('targetRef'), 'API deployment target')
+        _api_reference(
+            item.get('credentialRef'), 'API deployment credential',
+            {'cdeadmin.credential-ref.v1'}, optional=True)
+        _api_object(item.get('config'), 'API deployment config')
+
+    _api_unique(
+        value.get('deploymentBindings'), 'API deployments', deployment)
+
+    def external(item):
+        _api_object(item, 'API external reference')
+        _api_exact(item, ('id', 'uri', 'provenance', 'contentDigest'),
+                   'API external reference')
+        _text(item.get('id'), 'API external reference ID', 1024)
+        _text(item.get('uri'), 'API external reference URI', 8192)
+        if item.get('contentDigest') is not None:
+            _text(item['contentDigest'],
+                  'API external reference digest', 256)
+        _api_object(item.get('provenance'),
+                    'API external reference provenance')
+
+    _api_unique(
+        value.get('externalReferences'), 'API external references', external)
+    _api_extensions(value.get('extensions'), 'API asset')
+    for operation in value.get('operations'):
+        if (operation.get('requestSchemaRef') is not None and
+                operation['requestSchemaRef'] not in schema_ids):
+            raise ProjectAssetError(
+                'API operation references an unknown request schema')
+        for response in operation.get('responses'):
+            if (response.get('schemaRef') is not None and
+                    response['schemaRef'] not in schema_ids):
+                raise ProjectAssetError(
+                    'API response references an unknown schema')
+        if any(item not in security_ids for item in
+               operation.get('securityRequirementIds')):
+            raise ProjectAssetError(
+                'API operation references unknown security')
+        if any(item not in policy_ids for item in operation.get('policyIds')):
+            raise ProjectAssetError('API operation references unknown policy')
+    for channel in value.get('channels'):
+        if any(item not in server_ids for item in channel.get('serverIds')):
+            raise ProjectAssetError('API channel references unknown server')
+        if any(item not in message_ids
+               for item in channel.get('messageIds')):
+            raise ProjectAssetError('API channel references unknown message')
+    for message in value.get('messages'):
+        for field in ('payloadSchemaRef', 'headerSchemaRef'):
+            if (message.get(field) is not None and
+                    message[field] not in schema_ids):
+                raise ProjectAssetError(
+                    'API message references unknown schema')
+    for item in value.get('tests'):
+        if (item.get('operationId') is not None and
+                item['operationId'] not in operation_ids):
+            raise ProjectAssetError('API test references unknown operation')
+        if (item.get('channelId') is not None and
+                item['channelId'] not in channel_ids):
+            raise ProjectAssetError('API test references unknown channel')
+        if (item.get('environmentId') is not None and
+                item['environmentId'] not in server_ids):
+            raise ProjectAssetError('API test references unknown server')
+    _secret_free(value, 'API asset content')
+    return value
+
+
 def validate_asset_request(value, project_key, asset_key):
     if not isinstance(value, dict):
         raise ProjectAssetError('asset request must be an object')
@@ -2828,6 +3271,10 @@ def validate_asset_request(value, project_key, asset_key):
             raise ProjectAssetError(
                 'Migration asset schema name is invalid')
         content = _migration_content(content)
+    if asset_type == API_ASSET_TYPE:
+        if schema_name != API_ASSET_TYPE:
+            raise ProjectAssetError('API asset schema name is invalid')
+        content = _api_content(content)
     if not SAFE_ASSET_TYPE.fullmatch(asset_type):
         raise ProjectAssetError('asset type is invalid')
     expected = value.get('expected_version')

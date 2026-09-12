@@ -363,6 +363,9 @@ const BUILTIN_DEFINITIONS = [
   componentDefinition(
     'tool.migration', ICON_CATEGORIES.TOOL, UploadIcon, 'Migration Planning'
   ),
+  componentDefinition(
+    'tool.api', ICON_CATEGORIES.TOOL, LinkIcon, 'API Designer'
+  ),
   ...Object.entries(ACTION_COMPONENTS).map(([name, component])=>componentDefinition(
     `action.${name}`, ICON_CATEGORIES.ACTION, component
   )),
