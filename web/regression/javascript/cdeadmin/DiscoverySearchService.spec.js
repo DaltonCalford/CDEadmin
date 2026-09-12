@@ -44,6 +44,7 @@ function security({hidden=[], aliases=[], metadata=true, signals=true,
   admitSignal: () => signals,
   admitFacet: () => facets,
   admitGraphEdge: () => edges,
+  admitBusinessKnowledge: () => true,
   exposeCanonicalRef: () => canonical};
 }
 

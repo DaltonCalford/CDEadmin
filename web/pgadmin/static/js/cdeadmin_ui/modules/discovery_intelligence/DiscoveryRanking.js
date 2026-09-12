@@ -52,6 +52,10 @@ const FLAG_FIELDS = Object.freeze([
 ]);
 const TIE_FIELDS = Object.freeze(['certification', 'quality', 'freshness',
   'usage']);
+const AUTHORITY_COMPONENTS = Object.freeze(['business', 'trust', 'quality',
+  'freshness', 'usage', 'context', 'lineage', 'documentation']);
+const REQUIRED_AUTHORITY_COMPONENTS = Object.freeze(AUTHORITY_COMPONENTS.filter(
+  (field) => !['business', 'lineage'].includes(field)));
 const EPSILON = 1e-9;
 
 function exactFields(value, fields, label, required=fields) {
@@ -115,9 +119,8 @@ export function validateDiscoveryRankingProfile(input, {requirePublished=false}=
 
 export function validateDiscoveryFeatureEvidence(input) {
   exactFields(input, EVIDENCE_FIELDS, 'Discovery feature evidence');
-  exactFields(input.components, DISCOVERY_RANKING_COMPONENTS.filter((field) =>
-    !['lexical', 'semantic', 'business', 'lineage'].includes(field)),
-  'Discovery authority components');
+  exactFields(input.components, AUTHORITY_COMPONENTS,
+    'Discovery authority components', REQUIRED_AUTHORITY_COMPONENTS);
   exactFields(input.flags, FLAG_FIELDS, 'Discovery adjustment flags');
   exactFields(input.tieBreak, TIE_FIELDS, 'Discovery tie-break evidence');
   if(!Array.isArray(input.explanation)) throw new TypeError(
@@ -127,6 +130,9 @@ export function validateDiscoveryFeatureEvidence(input) {
   for(const [field, value] of Object.entries(input.components)) {
     components[field] = boundedScore(value,
       `Discovery authority component ${field}`, {nullable: true});
+  }
+  for(const field of AUTHORITY_COMPONENTS) if(!Object.hasOwn(components, field)) {
+    components[field] = null;
   }
   const flags = {};
   for(const field of FLAG_FIELDS) {
@@ -185,13 +191,14 @@ export class DiscoveryRankingEngine {
       const components = {
         lexical: sourceScore(candidate.lexical),
         semantic: sourceScore(candidate.semantic),
-        business: sourceScore(candidate.business),
+        business: sourceScore(candidate.business) ?? evidence.components.business,
         trust: evidence.components.trust,
         quality: evidence.components.quality,
         freshness: evidence.components.freshness,
         usage: evidence.components.usage,
         context: evidence.components.context,
-        lineage: sourceScore(candidate.graph) ?? sourceScore(candidate.lineage),
+        lineage: sourceScore(candidate.graph) ?? sourceScore(candidate.lineage) ??
+          evidence.components.lineage,
         documentation: evidence.components.documentation,
       };
       const treated = Object.fromEntries(Object.entries(components).map(

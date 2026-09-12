@@ -4,3 +4,6 @@ export * from './DiscoveryIndexService';
 export * from './DiscoveryRanking';
 export * from './DiscoveryGraphIndex';
 export * from './DiscoverySearchService';
+export * from './DiscoveryKnowledgeContracts';
+export * from './DiscoveryKnowledgeService';
+export * from './DiscoveryTrustServices';
