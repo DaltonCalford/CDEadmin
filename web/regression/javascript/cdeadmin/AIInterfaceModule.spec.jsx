@@ -217,6 +217,68 @@ describe('AI Interface activation', () => {
       activeTaskRef: null, messages: [{role: 'user'}, {role: 'assistant'}]});
   });
 
+  it('owns governed Discovery enrichment and analysis response boundaries', async () => {
+    const discoveryResponder = jest.fn(async ({requestType}) =>
+      requestType === 'enrichment' ? {proposedValue: 'Governed customer.',
+        modelRef: 'model:one', profileRef: 'profile:curation', confidence: 0.9,
+        sourceEvidenceRefs: ['evidence:one']} : {summary: 'Use a count aggregate.'});
+    const host = architecture({discoveryResponder});
+    await host.modules.activate(AI_INTERFACE_MODULE_ID);
+    const runtime = await host.services.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID);
+    const context = {currentUser: {id: 'analyst', permissions: [
+      'ai.use', 'ai.delegate_draft']}};
+    expect(runtime.capabilities().discoveryAssistance).toBe(true);
+    await expect(runtime.requestDiscoveryEnrichment({kind: 'description',
+      targetRef: 'resource:customer', field: 'description',
+      currentValue: 'Customer table', sourceEvidenceRefs: ['evidence:one'],
+      permittedContext: {name: 'CUSTOMER'}}, context)).resolves.toMatchObject({
+      proposedValue: 'Governed customer.', modelRef: 'model:one'});
+    await expect(runtime.requestDiscoveryAnalysis({question: 'Count customers',
+      connectorClass: 'database_provider', dialectId: 'firebird',
+      accessSurfaceRefs: [], entities: [{canonicalRef: 'resource:customer'}],
+      executionAuthorized: false}, context)).resolves.toEqual({
+      summary: 'Use a count aggregate.'});
+    expect(discoveryResponder.mock.calls.map(([input]) => input.requestType))
+      .toEqual(['enrichment', 'analysis_plan']);
+    await expect(runtime.requestDiscoveryAnalysis({question: 'Count customers',
+      connectorClass: 'database_provider', dialectId: 'firebird',
+      accessSurfaceRefs: [], entities: [], executionAuthorized: true}, context))
+      .rejects.toThrow(/cannot claim execution authorization/);
+  });
+
+  it('keeps AI Discovery assistance explicitly unavailable when not configured', async () => {
+    const host = architecture(); await host.modules.activate(AI_INTERFACE_MODULE_ID);
+    const runtime = await host.services.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID);
+    expect(runtime.capabilities().discoveryAssistance).toBe(false);
+    await expect(runtime.requestDiscoveryEnrichment({kind: 'description'}, {
+      currentUser: {id: 'analyst', permissions: ['ai.use',
+        'ai.delegate_draft']}})).rejects.toThrow(/No governed AI Interface/);
+  });
+
+  it('invokes registered Discovery read tools through the AI Interface authority', async () => {
+    const host = architecture(); await host.modules.activate(AI_INTERFACE_MODULE_ID);
+    const runtime = await host.services.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID);
+    runtime.toolCatalog.readTools.register({id: 'discovery.test_read',
+      moduleId: 'cdeadmin.discovery_intelligence',
+      description: 'Read one security-trimmed Discovery record.',
+      requiredPermissions: ['ai.use', 'discovery.use'], maxRows: 1,
+      maxBytes: 4096, inputSchema: {type: 'object', additionalProperties: false},
+      outputSchema: {type: 'object', additionalProperties: false,
+        required: ['rows'], properties: {rows: {type: 'array'}}},
+      accessCheck: (context) => context.discoverySecurity?.allowed === true,
+      execute: async () => ({rows: [{id: 'visible'}]}),
+      classify: () => 'INTERNAL'});
+    await expect(runtime.invokeReadTool({readToolId: 'discovery.test_read',
+      arguments: {}}, {currentUser: {id: 'analyst', permissions:
+      ['ai.delegate_read', 'ai.use', 'discovery.use']},
+    discoverySecurity: {allowed: true}})).resolves.toMatchObject({
+      classification: 'INTERNAL', value: {rows: [{id: 'visible'}]}});
+    expect(() => runtime.invokeReadTool({readToolId: 'discovery.test_read',
+      arguments: {}}, {currentUser: {id: 'analyst', permissions:
+      ['ai.delegate', 'ai.use', 'discovery.use']},
+    discoverySecurity: {allowed: true}})).toThrow(/ai.delegate_read/);
+  });
+
   it('provides explicit preserve-source precursor migration and no legacy module', async () => {
     const host = architecture(); await host.modules.activate(AI_INTERFACE_MODULE_ID);
     const runtime = await host.services.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID);

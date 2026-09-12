@@ -77,9 +77,12 @@ describe('AIToolCatalog', () => {
     await expect(reads.invoke('discovery.sample', {limit: 2}, {
       currentUser: {permissions: ['ai.use']}, scope: 'orders'})).resolves.toEqual(
       expect.objectContaining({classification: 'INTERNAL', rowCount: 2}));
+    await expect(catalog.invokeReadTool('discovery.sample', {limit: 1}, {
+      currentUser: {permissions: ['ai.use']}, scope: 'orders'})).resolves.toEqual(
+      expect.objectContaining({classification: 'INTERNAL', rowCount: 1}));
     await expect(reads.invoke('discovery.sample', {limit: 2}, {
       currentUser: {permissions: ['ai.use']}, scope: 'other'})).rejects.toThrow('access denied');
-    expect(accessCheck).toHaveBeenCalledTimes(3); expect(remove()).toBe(true);
+    expect(accessCheck).toHaveBeenCalledTimes(4); expect(remove()).toBe(true);
   });
 
   it('refuses unbounded, schema-invalid and secret-bearing read-service results', async () => {

@@ -129,4 +129,7 @@ export class AIToolCatalog {
     noRawSecrets(result, `AI command ${commandId} result`); validateWith(command.aiResultSchema, result,
       `AI command ${commandId} result`); return immutable(result);
   }
+  invokeReadTool(readToolId, args, context={}) {
+    return this.readTools.invoke(readToolId, args, context);
+  }
 }

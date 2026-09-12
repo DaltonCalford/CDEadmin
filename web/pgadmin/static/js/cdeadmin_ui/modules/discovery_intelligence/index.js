@@ -18,3 +18,7 @@ export * from './DiscoveryInterfaceContracts';
 export * from './DiscoveryFormRuntime';
 export * from './DiscoveryContractForm';
 export * from './DiscoveryInterfaceWorkspace';
+export * from './DiscoveryServiceAPI';
+export * from './DiscoveryAnalysisService';
+export * from './DiscoveryAIToolBridge';
+export * from './DiscoveryEnrichmentService';

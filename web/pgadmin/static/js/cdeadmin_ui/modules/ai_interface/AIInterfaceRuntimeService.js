@@ -14,6 +14,16 @@ export const AI_SESSION_TURN_TASK = 'cdeadmin.ai-interface.session-turn';
 
 function actor(context, permission) { return aiActor(context, permission); }
 function required(value, label) { return platformValue(value, label, 2048); }
+function referenceArray(value, label, {empty=false}={}) {
+  if(!Array.isArray(value) || (!empty && !value.length)) throw new TypeError(
+    `${label} must be ${empty ? 'an' : 'a non-empty'} array.`
+  );
+  const result = value.map((item) => required(item, `${label} reference`));
+  if(new Set(result).size !== result.length) throw new TypeError(
+    `${label} contains duplicate references.`
+  );
+  return result;
+}
 function exact(input, fields, label) {
   exactLifecycleObject(input, fields, label);
   return input;
@@ -29,7 +39,7 @@ function retention(input) {
 export class AIInterfaceRuntimeService {
   constructor({assets, connectors, plans, planExecution, queries, audit,
     emergency, backgroundRuns, tasks, toolCatalog=null,
-    modelTester=null, sessionResponder=null}={}) {
+    modelTester=null, sessionResponder=null, discoveryResponder=null}={}) {
     const requiredAuthorities = {assets: ['save'], connectors: ['create', 'get'],
       plans: ['create', 'get'], planExecution: ['execute', 'cancel'],
       queries: ['compile', 'review', 'execute'], audit: ['append', 'export'],
@@ -54,11 +64,15 @@ export class AIInterfaceRuntimeService {
     if(sessionResponder !== null && typeof sessionResponder !== 'function') throw new TypeError(
       'AI session response authority must be callable.'
     );
+    if(discoveryResponder !== null && typeof discoveryResponder !== 'function') {
+      throw new TypeError('AI Discovery response authority must be callable.');
+    }
     this.assets = assets; this.connectors = connectors; this.plans = plans;
     this.planExecution = planExecution; this.queries = queries; this.audit = audit;
     this.emergency = emergency; this.backgroundRuns = backgroundRuns;
     this.tasks = tasks; this.toolCatalog = toolCatalog;
     this.modelTester = modelTester; this.sessionResponder = sessionResponder;
+    this.discoveryResponder = discoveryResponder;
     this.sessions = new Map(); this.savedAssets = new Map(); this.sequence = 0;
     this.unregisterTurn = tasks.register(AI_SESSION_TURN_TASK,
       (request, taskContext) => this._runTurn(request, taskContext));
@@ -69,6 +83,7 @@ export class AIInterfaceRuntimeService {
   capabilities() {
     return immutable({modelTesting: this.modelTester !== null,
       sessionTurns: this.sessionResponder !== null,
+      discoveryAssistance: this.discoveryResponder !== null,
       toolCatalog: this.toolCatalog !== null,
       connectorClasses: this.connectors.adapters.list().map((item) =>
         item.connectorClass)});
@@ -263,6 +278,88 @@ export class AIInterfaceRuntimeService {
     return immutable({...result});
   }
 
+  async requestDiscoveryEnrichment(input, context={}) {
+    const currentUser = actor(context, 'ai.use');
+    actor(context, 'ai.delegate_draft');
+    if(!this.discoveryResponder) throw new Error(
+      'No governed AI Interface Discovery responder is configured.'
+    );
+    exact(input, ['kind', 'targetRef', 'field', 'currentValue',
+      'sourceEvidenceRefs', 'permittedContext'],
+    'AI Interface Discovery enrichment request');
+    noRawSecrets(input, 'AI Interface Discovery enrichment request');
+    required(input.kind, 'AI Discovery enrichment kind');
+    required(input.targetRef, 'AI Discovery enrichment target');
+    required(input.field, 'AI Discovery enrichment field');
+    if(!Object.hasOwn(input, 'currentValue')) throw new TypeError(
+      'AI Discovery enrichment current value is required.'
+    );
+    const sourceEvidenceRefs = referenceArray(input.sourceEvidenceRefs,
+      'AI Discovery enrichment evidence');
+    plainObject(input.permittedContext,
+      'AI Discovery permitted enrichment context');
+    const request = immutable({...input, sourceEvidenceRefs});
+    const result = await this.discoveryResponder({requestType: 'enrichment',
+      request}, context);
+    plainObject(result, 'AI Interface Discovery enrichment response');
+    noRawSecrets(result, 'AI Interface Discovery enrichment response');
+    exact(result, ['proposedValue', 'modelRef', 'profileRef', 'confidence',
+      'sourceEvidenceRefs'], 'AI Interface Discovery enrichment response');
+    if(!Object.hasOwn(result, 'proposedValue')) throw new TypeError(
+      'AI Discovery enrichment response requires a proposed value.'
+    );
+    required(result.modelRef, 'AI Discovery enrichment model reference');
+    required(result.profileRef, 'AI Discovery enrichment profile reference');
+    referenceArray(result.sourceEvidenceRefs,
+      'AI Discovery enrichment response evidence');
+    if(result.confidence !== undefined && result.confidence !== null &&
+        (!Number.isFinite(result.confidence) || result.confidence < 0 ||
+          result.confidence > 1)) throw new TypeError(
+      'AI Discovery enrichment confidence must be between 0 and 1.'
+    );
+    this.audit.append({eventType: 'ai.discovery.enrichment_suggested',
+      initiator: currentUser.id, resourceRefs: [input.targetRef],
+      backendResult: {modelRef: result.modelRef,
+        profileRef: result.profileRef, kind: input.kind},
+      diagnostics: [{message: 'Suggestion requires explicit Discovery curation.'}]});
+    return immutable({...result});
+  }
+
+  async requestDiscoveryAnalysis(input, context={}) {
+    const currentUser = actor(context, 'ai.use');
+    actor(context, 'ai.delegate_draft');
+    if(!this.discoveryResponder) throw new Error(
+      'No governed AI Interface Discovery responder is configured.'
+    );
+    exact(input, ['question', 'connectorClass', 'dialectId',
+      'accessSurfaceRefs', 'entities', 'executionAuthorized'],
+    'AI Interface Discovery analysis request');
+    noRawSecrets(input, 'AI Interface Discovery analysis request');
+    if(input.executionAuthorized !== false) throw new TypeError(
+      'Discovery analysis assistance cannot claim execution authorization.'
+    );
+    required(input.question, 'AI Discovery analysis question');
+    required(input.connectorClass, 'AI Discovery analysis connector class');
+    referenceArray(input.accessSurfaceRefs,
+      'AI Discovery analysis access surfaces', {empty: true});
+    if(!Array.isArray(input.entities) || !input.entities.length) throw new TypeError(
+      'AI Discovery analysis requires visible entities.'
+    );
+    for(const entity of input.entities) plainObject(entity,
+      'AI Discovery analysis entity');
+    const result = await this.discoveryResponder({requestType: 'analysis_plan',
+      request: immutable({...input})}, context);
+    plainObject(result, 'AI Interface Discovery analysis response');
+    noRawSecrets(result, 'AI Interface Discovery analysis response');
+    this.audit.append({eventType: 'ai.discovery.analysis_drafted',
+      initiator: currentUser.id,
+      resourceRefs: input.entities.map((entity) => entity.canonicalRef)
+        .filter(Boolean), backendResult: {connectorClass: input.connectorClass,
+        dialectId: input.dialectId}, diagnostics: [{message:
+        'Draft requires query or BI validation before execution.'}]});
+    return immutable({...result});
+  }
+
   toolProposal(input, context={}) {
     actor(context, 'ai.delegate_draft');
     exact(input, ['commandId', 'arguments'], 'AI CDEadmin command proposal');
@@ -285,6 +382,17 @@ export class AIInterfaceRuntimeService {
     if(!this.toolCatalog) throw new Error('AI Tool Catalog is unavailable.');
     return this.toolCatalog.invokeCommand(input.commandId, input.arguments,
       input.decision, context);
+  }
+
+  invokeReadTool(input, context={}) {
+    actor(context, 'ai.delegate_read');
+    exact(input, ['readToolId', 'arguments'],
+      'AI CDEadmin read-tool invocation');
+    if(!this.toolCatalog || typeof this.toolCatalog.invokeReadTool !== 'function') {
+      throw new Error('AI Tool Catalog read-service authority is unavailable.');
+    }
+    return this.toolCatalog.invokeReadTool(required(input.readToolId,
+      'AI read-tool ID'), input.arguments ?? {}, context);
   }
 
   async invokeMCP(input, context={}) {

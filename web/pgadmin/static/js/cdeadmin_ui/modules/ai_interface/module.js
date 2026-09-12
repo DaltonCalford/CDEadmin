@@ -342,7 +342,8 @@ function createRuntime({resolved, commands, options}) {
     planExecution, queries, audit, emergency, backgroundRuns,
     tasks: resolved[PLATFORM_SERVICE_IDS.TASKS], toolCatalog,
     modelTester: options.modelTester ?? null,
-    sessionResponder: options.sessionResponder ?? null});
+    sessionResponder: options.sessionResponder ?? null,
+    discoveryResponder: options.discoveryResponder ?? null});
   runtime.authorization = authorization; runtime.approvals = approvals;
   runtime.resultHandles = resultHandles;
   runtime.migration = new AICompatibilityMigrationService({assets, audit});
