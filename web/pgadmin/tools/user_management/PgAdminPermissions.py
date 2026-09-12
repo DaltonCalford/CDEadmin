@@ -93,6 +93,12 @@ class AllPermissionTypes:
     ml_vector_build = 'ml_vector.build'
     ml_vector_use_external_model = 'ml_vector.use_external_model'
     ml_vector_admin = 'ml_vector.admin'
+    ai_use = 'ai.use'
+    ai_use_sensitive_metadata = 'ai.use_sensitive_metadata'
+    ai_use_sensitive_data = 'ai.use_sensitive_data'
+    ai_propose = 'ai.propose'
+    ai_execute_approved = 'ai.execute_approved'
+    ai_admin = 'ai.admin'
 
     @staticmethod
     def list():
@@ -117,6 +123,7 @@ class AllPermissionCategories:
     migration_planning = gettext('Migration Planning')
     api_designer = gettext('API Designer')
     ml_vector_tooling = gettext('ML / Vector Tooling')
+    ai_database_assistant = gettext('AI Database Assistant')
 
 
 class PgAdminPermissions:
@@ -320,6 +327,26 @@ class PgAdminPermissions:
         ):
             self.add_permission(
                 AllPermissionCategories.ml_vector_tooling,
+                permission,
+                label,
+            )
+        for permission, label in (
+            (AllPermissionTypes.ai_use,
+             gettext("Use the governed AI Database Assistant")),
+            (AllPermissionTypes.ai_use_sensitive_metadata,
+             gettext("Use policy-approved sensitive metadata as AI context")),
+            (AllPermissionTypes.ai_use_sensitive_data,
+             gettext(
+                 "Use policy-approved row or document content as AI context")),
+            (AllPermissionTypes.ai_propose,
+             gettext("Create and save AI-proposed plans and assets")),
+            (AllPermissionTypes.ai_execute_approved,
+             gettext("Approve and execute revision-bound AI action plans")),
+            (AllPermissionTypes.ai_admin,
+             gettext("Administer AI model and provider integrations")),
+        ):
+            self.add_permission(
+                AllPermissionCategories.ai_database_assistant,
                 permission,
                 label,
             )

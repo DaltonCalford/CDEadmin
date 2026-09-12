@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.ai",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.ai.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "assistant_dock",
+      "title": "Assistant Dock",
+      "description": "Conversation plus explicit context chips."
+    },
+    {
+      "id": "evidence_viewer",
+      "title": "Evidence Viewer",
+      "description": "Cited metadata/docs/diagnostics behind claims."
+    },
+    {
+      "id": "plan_review",
+      "title": "Plan Review",
+      "description": "Structured proposed commands/asset edits before execution."
+    },
+    {
+      "id": "diff_review",
+      "title": "Diff Review",
+      "description": "SQL, DDN, contract, schema or project-asset changes."
+    },
+    {
+      "id": "ai_settings",
+      "title": "AI Settings",
+      "description": "Model profile, data-sharing policy and allowed capabilities."
+    },
+    {
+      "id": "ai_audit",
+      "title": "AI Audit",
+      "description": "Tool invocations, approvals and resulting tasks."
+    }
+  ],
+  "commands": [
+    {
+      "id": "ai.session.new",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.context.add",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.context.remove",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.ask",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.plan.create",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.plan.validate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.action.approve",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.action.reject",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.plan.execute",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ai.output.save_as_asset",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "ai.request",
+    "ai.plan.validation",
+    "ai.plan.execution"
+  ],
+  "events": [
+    "ai.plan.created",
+    "ai.action.approved",
+    "ai.action.rejected",
+    "ai.plan.executed"
+  ],
+  "primaryPlate": "svg/04_ai_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

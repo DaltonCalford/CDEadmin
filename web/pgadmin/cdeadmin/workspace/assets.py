@@ -218,6 +218,20 @@ ML_VECTOR_METRICS = frozenset({
     'cosine', 'inner_product', 'euclidean_l2', 'manhattan_l1',
     'hamming', 'jaccard', 'provider_custom',
 })
+AI_ASSET_TYPE = 'cdeadmin.ai.v1'
+AI_SCHEMA = 'cdeadmin.ai.asset.v1'
+AI_MODES = frozenset({
+    'ask', 'explain', 'draft', 'plan', 'review',
+    'execute_with_confirmation',
+})
+AI_ACTION_TYPES = frozenset({
+    'proposed_command', 'proposed_task', 'draft_asset_change',
+})
+AI_REFERENCE_SCHEMAS = frozenset({
+    'cdeadmin.resource-ref.v1', 'cdeadmin.asset-ref.v1',
+    'cdeadmin.external-ref.v1', 'cdeadmin.credential-ref.v1',
+    'cdeadmin.result-ref.v1', 'cdeadmin.diagnostic-ref.v1',
+})
 
 
 class ProjectAssetError(RuntimeError):
@@ -3502,6 +3516,205 @@ def _ml_content(value):
     return value
 
 
+def _ai_strings(value, label):
+    result = set()
+    for item in _api_list(value, label):
+        result.add(_text(item, f'{label} value', 8192))
+    return result
+
+
+def _ai_reference(value, label, schemas=None, optional=False):
+    _api_reference(
+        value, label, schemas or AI_REFERENCE_SCHEMAS, optional=optional,
+    )
+
+
+def _ai_context(value):
+    _api_object(value, 'AI context scope')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'reference', 'type', 'environment',
+        'sensitivity', 'exposure', 'timeRange', 'description',
+        'nativeDetails',
+    ), 'AI context scope')
+    if value.get('schema') != 'cdeadmin.ai-context-scope.v1':
+        raise ProjectAssetError('AI context scope schema is invalid')
+    for field in ('id', 'name', 'type'):
+        _text(value.get(field), f'AI context scope {field}', 8192)
+    if value.get('environment') is not None:
+        _text(value['environment'], 'AI context environment', 1024)
+    if value.get('sensitivity') not in {
+            'public', 'internal', 'sensitive', 'restricted'}:
+        raise ProjectAssetError('AI context sensitivity is invalid')
+    if value.get('exposure') not in {'metadata_only', 'content'}:
+        raise ProjectAssetError('AI context exposure is invalid')
+    if not isinstance(value.get('description'), str):
+        raise ProjectAssetError('AI context description must be text')
+    _ai_reference(value.get('reference'), 'AI context reference')
+    _api_object(value.get('timeRange'), 'AI context time range')
+    _api_object(value.get('nativeDetails'), 'AI context native details')
+
+
+def _ai_action(value):
+    _api_object(value, 'AI proposed action')
+    _api_exact(value, (
+        'schema', 'id', 'type', 'commandId', 'taskType',
+        'assetChangeRef', 'targetRef', 'arguments', 'rationale', 'effects',
+        'permissions', 'rollbackNote', 'dependencies', 'validation',
+        'evidenceRefs', 'diff', 'extensions',
+    ), 'AI proposed action')
+    if value.get('schema') != 'cdeadmin.ai-proposed-action.v1':
+        raise ProjectAssetError('AI proposed action schema is invalid')
+    _text(value.get('id'), 'AI proposed action ID', 1024)
+    action_type = value.get('type')
+    if action_type not in AI_ACTION_TYPES:
+        raise ProjectAssetError('AI proposed action type is invalid')
+    if action_type == 'proposed_command':
+        _text(value.get('commandId'), 'AI proposed command ID', 1024)
+    elif value.get('commandId') is not None:
+        raise ProjectAssetError(
+            'Only proposed commands may define a command ID')
+    if action_type == 'proposed_task':
+        _text(value.get('taskType'), 'AI proposed task type', 1024)
+    elif value.get('taskType') is not None:
+        raise ProjectAssetError(
+            'Only proposed tasks may define a task type')
+    if action_type == 'draft_asset_change':
+        _ai_reference(
+            value.get('assetChangeRef'), 'AI asset change reference',
+            {'cdeadmin.asset-ref.v1'},
+        )
+    elif value.get('assetChangeRef') is not None:
+        raise ProjectAssetError(
+            'Only draft asset changes may define an asset change reference')
+    _ai_reference(value.get('targetRef'), 'AI action target')
+    for field in ('arguments', 'validation', 'diff'):
+        _api_object(value.get(field), f'AI action {field}')
+    if not isinstance(value['validation'].get('valid'), bool):
+        raise ProjectAssetError(
+            'AI action validation must declare a boolean valid state')
+    for field in ('rationale', 'rollbackNote'):
+        if not isinstance(value.get(field), str):
+            raise ProjectAssetError(f'AI action {field} must be text')
+    for field in ('effects', 'permissions', 'dependencies'):
+        _ai_strings(value.get(field), f'AI action {field}')
+    for reference in _api_list(value.get('evidenceRefs'),
+                               'AI action evidence references'):
+        _ai_reference(reference, 'AI action evidence reference')
+    _api_extensions(value.get('extensions'), 'AI proposed action')
+
+
+def _ai_plan(value, context_ids):
+    _api_object(value, 'AI action plan')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'revision', 'targetRevision',
+        'contextScopeIds', 'actions', 'validation', 'rollbackNotes',
+        'evidenceRefs', 'description', 'extensions',
+    ), 'AI action plan')
+    if value.get('schema') != 'cdeadmin.ai-action-plan.v1':
+        raise ProjectAssetError('AI action plan schema is invalid')
+    for field in ('id', 'name', 'targetRevision'):
+        _text(value.get(field), f'AI action plan {field}', 8192)
+    revision = value.get('revision')
+    if (isinstance(revision, bool) or not isinstance(revision, int) or
+            revision < 1):
+        raise ProjectAssetError('AI action plan revision is invalid')
+    scope_ids = _ai_strings(
+        value.get('contextScopeIds'), 'AI plan context scope IDs')
+    if not scope_ids.issubset(context_ids):
+        raise ProjectAssetError(
+            'AI action plan references an unknown context scope')
+    action_ids = _api_unique(value.get('actions'), 'AI actions', _ai_action)
+    for action in value.get('actions'):
+        dependencies = set(action.get('dependencies'))
+        if not dependencies.issubset(action_ids):
+            raise ProjectAssetError(
+                'AI action references an unknown dependency')
+    _api_object(value.get('validation'), 'AI action plan validation')
+    for reference in _api_list(value.get('evidenceRefs'),
+                               'AI plan evidence references'):
+        _ai_reference(reference, 'AI plan evidence reference')
+    for field in ('rollbackNotes', 'description'):
+        if not isinstance(value.get(field), str):
+            raise ProjectAssetError(f'AI action plan {field} must be text')
+    _api_extensions(value.get('extensions'), 'AI action plan')
+
+
+def _ai_content(value):
+    if not isinstance(value, dict) or value.get('schema') != AI_SCHEMA:
+        raise ProjectAssetError('AI Assistant asset schema is invalid')
+    if (value.get('schemaVersion') != 1 or
+            value.get('moduleId') != 'cdeadmin.ai'):
+        raise ProjectAssetError(
+            'AI Assistant asset version or module is invalid')
+    _api_exact(value, (
+        'schema', 'schemaVersion', 'moduleId', 'name', 'description',
+        'sessionPolicy', 'savedContextRefs', 'savedPlans',
+        'modelProfileRef', 'conversationPersistencePolicy', 'extensions',
+    ), 'AI Assistant asset content')
+    for field in ('name', 'description'):
+        if not isinstance(value.get(field), str):
+            raise ProjectAssetError(f'AI Assistant {field} must be text')
+    context_ids = _api_unique(
+        value.get('savedContextRefs'), 'AI context scopes', _ai_context)
+    policy = _api_object(value.get('sessionPolicy'), 'AI session policy')
+    _api_exact(policy, (
+        'id', 'allowedModes', 'defaultMode', 'allowedReadToolIds',
+        'allowedProposalCommandIds', 'maximumPlanSteps', 'requireEvidence',
+        'nativeDetails',
+    ), 'AI session policy')
+    _text(policy.get('id'), 'AI session policy ID', 1024)
+    modes = _ai_strings(policy.get('allowedModes'), 'AI allowed modes')
+    if (not modes or not modes.issubset(AI_MODES) or
+            policy.get('defaultMode') not in modes):
+        raise ProjectAssetError('AI session modes are invalid')
+    for field in ('allowedReadToolIds', 'allowedProposalCommandIds'):
+        _ai_strings(policy.get(field), f'AI session {field}')
+    maximum = policy.get('maximumPlanSteps')
+    if (isinstance(maximum, bool) or not isinstance(maximum, int) or
+            not 1 <= maximum <= 1000):
+        raise ProjectAssetError('AI maximum plan steps is invalid')
+    if not isinstance(policy.get('requireEvidence'), bool):
+        raise ProjectAssetError('AI evidence policy must be boolean')
+    _api_object(policy.get('nativeDetails'),
+                'AI session policy native details')
+    for plan in _api_list(value.get('savedPlans'), 'AI saved plans'):
+        _ai_plan(plan, context_ids)
+    plan_ids = [plan.get('id') for plan in value.get('savedPlans')]
+    if len(plan_ids) != len(set(plan_ids)):
+        raise ProjectAssetError('AI saved plan IDs must be unique')
+    _ai_reference(
+        value.get('modelProfileRef'), 'AI model profile reference',
+        {'cdeadmin.asset-ref.v1'}, optional=True,
+    )
+    persistence = _api_object(
+        value.get('conversationPersistencePolicy'),
+        'AI conversation persistence policy',
+    )
+    _api_exact(persistence, (
+        'persistMessages', 'storePrompts', 'storeResponses',
+        'retentionDays', 'nativeDetails',
+    ), 'AI conversation persistence policy')
+    for field in ('persistMessages', 'storePrompts', 'storeResponses'):
+        if not isinstance(persistence.get(field), bool):
+            raise ProjectAssetError(
+                f'AI conversation persistence {field} must be boolean')
+    retention = persistence.get('retentionDays')
+    if retention is not None and (
+            isinstance(retention, bool) or not isinstance(retention, int) or
+            not 1 <= retention <= 36500):
+        raise ProjectAssetError('AI conversation retention is invalid')
+    if (persistence.get('persistMessages') and
+            not persistence.get('storePrompts') and
+            not persistence.get('storeResponses')):
+        raise ProjectAssetError(
+            'AI persistence cannot exclude prompts and responses')
+    _api_object(persistence.get('nativeDetails'),
+                'AI persistence native details')
+    _api_extensions(value.get('extensions'), 'AI Assistant asset')
+    _secret_free(value, 'AI Assistant asset content')
+    return value
+
+
 def validate_asset_request(value, project_key, asset_key):
     if not isinstance(value, dict):
         raise ProjectAssetError('asset request must be an object')
@@ -3581,6 +3794,11 @@ def validate_asset_request(value, project_key, asset_key):
         if schema_name != ML_VECTOR_ASSET_TYPE:
             raise ProjectAssetError('ML / Vector asset schema name is invalid')
         content = _ml_content(content)
+    if asset_type == AI_ASSET_TYPE:
+        if schema_name != AI_ASSET_TYPE:
+            raise ProjectAssetError(
+                'AI Assistant asset schema name is invalid')
+        content = _ai_content(content)
     if not SAFE_ASSET_TYPE.fullmatch(asset_type):
         raise ProjectAssetError('asset type is invalid')
     expected = value.get('expected_version')

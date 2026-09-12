@@ -152,3 +152,9 @@ export * from './modules/tracing';
 export * from './modules/migration';
 export * from './modules/api';
 export * from './modules/ml_vector';
+export {
+  AI_ASSET_SCHEMA, AI_ASSET_TYPE, AI_EVIDENCE_CLASSES, AI_MODES, AI_MODULE_ID,
+  AI_OUTPUT_TYPES, AI_SERVICE_ID, AI_STATES, AIAdapterRegistry, AIService,
+  AIWorkspace, AINavigator, aiAssetRequest, aiInspector, aiModuleDefinition,
+  createAIContent, registerAIModule, serializeAIContent,
+} from './modules/ai';

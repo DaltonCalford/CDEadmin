@@ -369,6 +369,9 @@ const BUILTIN_DEFINITIONS = [
   componentDefinition(
     'tool.ml-vector', ICON_CATEGORIES.TOOL, SearchIcon, 'ML / Vector Tooling'
   ),
+  componentDefinition(
+    'tool.ai', ICON_CATEGORIES.TOOL, CommandLineIcon, 'AI Database Assistant'
+  ),
   ...Object.entries(ACTION_COMPONENTS).map(([name, component])=>componentDefinition(
     `action.${name}`, ICON_CATEGORIES.ACTION, component
   )),

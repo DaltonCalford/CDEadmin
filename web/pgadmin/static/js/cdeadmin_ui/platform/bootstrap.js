@@ -47,6 +47,7 @@ import {API_MODULE_ID, API_SERVICE_ID, registerAPIModule} from '../modules/api';
 import {
   ML_VECTOR_MODULE_ID, ML_VECTOR_SERVICE_ID, registerMLVectorModule,
 } from '../modules/ml_vector';
+import {AI_MODULE_ID, AI_SERVICE_ID, registerAIModule} from '../modules/ai';
 
 const CORE_MODULE_ID = 'cdeadmin.core-shell';
 const PROJECTS_MODULE_ID = 'cdeadmin.projects';
@@ -135,6 +136,12 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
   if(!moduleRegistry.has(ML_VECTOR_MODULE_ID)) registerMLVectorModule({
     modules: moduleRegistry, services: serviceRegistry, api,
   });
+  if(!moduleRegistry.has(AI_MODULE_ID)) registerAIModule({
+    modules: moduleRegistry, services: serviceRegistry, api,
+    adapters: serviceOptions?.aiAdapters,
+    modelProfileResolver: serviceOptions?.aiModelProfileResolver,
+    contextReader: serviceOptions?.aiContextReader,
+  });
   ensureCoreModules();
   initialization = Promise.all([
     moduleRegistry.activate(CORE_MODULE_ID),
@@ -151,6 +158,7 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
     moduleRegistry.activate(MIGRATION_MODULE_ID),
     moduleRegistry.activate(API_MODULE_ID),
     moduleRegistry.activate(ML_VECTOR_MODULE_ID),
+    moduleRegistry.activate(AI_MODULE_ID),
   ]).then(async () => {
     const services = {};
     for(const [name, id] of Object.entries(PLATFORM_SERVICE_IDS)) {
@@ -170,6 +178,7 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
       migration: await serviceRegistry.resolve(MIGRATION_SERVICE_ID),
       apiDesigner: await serviceRegistry.resolve(API_SERVICE_ID),
       mlVector: await serviceRegistry.resolve(ML_VECTOR_SERVICE_ID),
+      ai: await serviceRegistry.resolve(AI_SERVICE_ID),
     });
   }).catch((error) => {
     initialization = null;

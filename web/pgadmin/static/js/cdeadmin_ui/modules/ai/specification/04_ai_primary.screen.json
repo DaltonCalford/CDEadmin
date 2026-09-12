@@ -1,0 +1,103 @@
+{
+  "screen_id": "cdeadmin.ai.primary",
+  "module": "cdeadmin.ai",
+  "purpose": "Provide a governed AI assistant that can explain, search, draft and propose database/data-platform work using CDEadmin metadata and commands while keeping consequential execution reviewable and authorization-bound.",
+  "primary_surface_type": "editor",
+  "entry_commands": [
+    "ai.session.new"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef"
+    ],
+    "assets": [
+      "cdeadmin.ai.v1"
+    ],
+    "tasks": [
+      "ai.request",
+      "ai.plan.validation",
+      "ai.plan.execution"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "ai.session.new",
+    "ai.context.add",
+    "ai.context.remove",
+    "ai.ask",
+    "ai.plan.create"
+  ],
+  "navigation_model": "AI ASSISTANT tree/list; selection drives center and Inspector.",
+  "inspector_sections": [
+    "Selected proposal",
+    "Effects",
+    "Permissions",
+    "Evidence",
+    "Validation",
+    "Approval"
+  ],
+  "toolbox_items": [],
+  "bottom_drawer_pages": [
+    "Plan",
+    "Problems",
+    "Tool Activity",
+    "Tasks"
+  ],
+  "status_bar_contributions": [
+    "ai state",
+    "active task",
+    "project dirty/saved",
+    "active resource/environment when applicable"
+  ],
+  "components": [
+    "Toolbar",
+    "Tabs",
+    "TextArea",
+    "Inspector",
+    "BottomDrawer",
+    "TaskList",
+    "StatusBar",
+    "ResourcePicker",
+    "AssetPicker"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Render selected asset/resource and enabled capability-driven commands.",
+    "loading": "Keep shell visible; show Skeleton/Progress in work area; disable commands requiring loaded state.",
+    "empty": "Show module-specific empty state with one primary create/select action; no decorative cards.",
+    "error": "Show persistent Problems entry plus inline error summary and retry/recovery action.",
+    "permission": "Show permission-denied state without implying provider unsupported; commands disabled with reason.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale where permitted; live mutations disabled until refreshed."
+  },
+  "keyboard": "Tab/Shift+Tab move among regions; arrow keys operate tree/grid; Enter opens/activates; context-menu key/Shift+F10 opens actions; module adds no unregistered global shortcuts.",
+  "pointer": "Single click selects; double click opens default surface only where registered; drag/drop only for documented semantic targets; resize through standard splitters.",
+  "persistence": "Project asset uses optimistic revision; window/layout state is device-local; save is distinct from Git commit and provider deploy/execute.",
+  "multi_window": "Surface may detach through WorkspaceHost if ToolRegistry capability permits; no module-specific popout implementation.",
+  "accessibility": "All critical visualization information has tree/table/text alternative; visible focus; non-drag alternative; supports Low Vision, Motor Assistance, Reduced Motion and High Contrast.",
+  "svg_references": [
+    "svg/04_ai_workspace.svg"
+  ],
+  "functional_regression": [
+    "Existing provider/session behavior remains functional.",
+    "Command invocation uses CommandRegistry and repeats permission checks.",
+    "Background work uses TaskService and remains visible after surface close.",
+    "No secrets are serialized in asset/layout/tool descriptors.",
+    "Unsupported and unknown capability states remain distinct."
+  ],
+  "spec_gaps": []
+}
