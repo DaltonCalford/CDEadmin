@@ -36,7 +36,7 @@ import config
 #
 ##########################################################################
 
-SCHEMA_VERSION = 57
+SCHEMA_VERSION = 58
 
 ##########################################################################
 #
@@ -54,6 +54,7 @@ USER_ID = 'user.id'
 SERVER_ID = 'server.id'
 ENDPOINT_ID = 'cde_endpoint.id'
 WORKSPACE_ID = 'cde_workspace.id'
+PROJECT_ID = 'cde_project.id'
 CASCADE_STR = "all, delete-orphan"
 
 
@@ -734,6 +735,166 @@ class CDEWorkspaceMoveToken(db.Model, UserScopedMixin):
         'CDEWorkspace', back_populates='move_tokens'
     )
     tool = db.relationship('CDEToolInstance', back_populates='move_tokens')
+
+
+class CDEProject(db.Model, UserScopedMixin):
+    """Owner-scoped container for authored CDEadmin assets."""
+    __tablename__ = 'cde_project'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'project_key', name='uq_cde_project_key'
+        ),
+        db.UniqueConstraint(
+            'user_id', 'name', name='uq_cde_project_owner_name'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    project_key = db.Column(db.String(256), nullable=False)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text(), nullable=False, default='')
+    classification_reference = db.Column(db.String(256), nullable=True)
+    permission_reference = db.Column(db.String(256), nullable=True)
+    source_control_eligible = db.Column(
+        db.Boolean(), nullable=False, default=True
+    )
+    revision = db.Column(db.Integer(), nullable=False, default=0)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    assets = db.relationship(
+        'CDEProjectAsset', back_populates='project', cascade=CASCADE_STR
+    )
+    members = db.relationship(
+        'CDEProjectMember', back_populates='project', cascade=CASCADE_STR
+    )
+
+
+class CDEProjectMember(db.Model):
+    """User or role access grant for one authored project."""
+    __tablename__ = 'cde_project_member'
+    __table_args__ = (
+        db.CheckConstraint(
+            "principal_type IN ('user', 'role')",
+            name='ck_cde_project_member_principal_type'
+        ),
+        db.CheckConstraint(
+            "access_level IN ('viewer', 'editor', 'manager')",
+            name='ck_cde_project_member_access_level'
+        ),
+        db.UniqueConstraint(
+            'project_id', 'principal_type', 'principal_id',
+            name='uq_cde_project_member_principal'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    project_id = db.Column(
+        db.String(36), db.ForeignKey(PROJECT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    principal_type = db.Column(db.String(16), nullable=False)
+    principal_id = db.Column(db.Integer(), nullable=False)
+    access_level = db.Column(db.String(16), nullable=False)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    project = db.relationship('CDEProject', back_populates='members')
+
+
+class CDEProjectAsset(db.Model, UserScopedMixin):
+    """Current authoritative content and metadata for a project asset."""
+    __tablename__ = 'cde_project_asset'
+    __table_args__ = (
+        db.CheckConstraint(
+            "validation_state IN ('unknown', 'valid', 'warning', 'invalid')",
+            name='ck_cde_project_asset_validation_state'
+        ),
+        db.UniqueConstraint(
+            'project_id', 'asset_key', name='uq_cde_project_asset_key'
+        ),
+        db.UniqueConstraint(
+            'project_id', 'path', name='uq_cde_project_asset_path'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    project_id = db.Column(
+        db.String(36), db.ForeignKey(PROJECT_ID, ondelete='CASCADE'),
+        nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    asset_key = db.Column(db.String(256), nullable=False)
+    asset_type = db.Column(db.String(64), nullable=False)
+    name = db.Column(db.String(256), nullable=False)
+    path = db.Column(db.String(1024), nullable=False)
+    schema_name = db.Column(db.String(128), nullable=False)
+    schema_version = db.Column(db.Integer(), nullable=False, default=1)
+    version = db.Column(db.Integer(), nullable=False, default=0)
+    content = db.Column(db.Text(), nullable=False)
+    asset_metadata = db.Column(db.Text(), nullable=False, default='{}')
+    dependency_references = db.Column(db.Text(), nullable=False, default='[]')
+    resource_bindings = db.Column(db.Text(), nullable=False, default='[]')
+    permission_reference = db.Column(db.String(256), nullable=True)
+    classification_reference = db.Column(db.String(256), nullable=True)
+    source_control_eligible = db.Column(
+        db.Boolean(), nullable=False, default=True
+    )
+    editor_capable = db.Column(db.Boolean(), nullable=False, default=True)
+    viewer_capable = db.Column(db.Boolean(), nullable=False, default=True)
+    validation_state = db.Column(
+        db.String(16), nullable=False, default='unknown'
+    )
+    validation_details = db.Column(db.Text(), nullable=False, default='[]')
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    updated_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now(),
+        onupdate=db.func.now()
+    )
+    project = db.relationship('CDEProject', back_populates='assets')
+    revisions = db.relationship(
+        'CDEProjectAssetRevision', back_populates='asset',
+        cascade=CASCADE_STR
+    )
+
+
+class CDEProjectAssetRevision(db.Model, UserScopedMixin):
+    """Immutable saved revision of an authored project asset."""
+    __tablename__ = 'cde_project_asset_revision'
+    __table_args__ = (
+        db.UniqueConstraint(
+            'asset_id', 'version', name='uq_cde_project_asset_revision'
+        ),
+    )
+    id = db.Column(db.String(36), primary_key=True)
+    asset_id = db.Column(
+        db.String(36), db.ForeignKey('cde_project_asset.id',
+                                     ondelete='CASCADE'), nullable=False
+    )
+    user_id = db.Column(
+        db.Integer, db.ForeignKey(USER_ID, ondelete='CASCADE'), nullable=False
+    )
+    version = db.Column(db.Integer(), nullable=False)
+    schema_name = db.Column(db.String(128), nullable=False)
+    schema_version = db.Column(db.Integer(), nullable=False)
+    content = db.Column(db.Text(), nullable=False)
+    asset_metadata = db.Column(db.Text(), nullable=False)
+    dependency_references = db.Column(db.Text(), nullable=False)
+    resource_bindings = db.Column(db.Text(), nullable=False)
+    validation_state = db.Column(db.String(16), nullable=False)
+    validation_details = db.Column(db.Text(), nullable=False)
+    created_at = db.Column(
+        db.DateTime(), nullable=False, server_default=db.func.now()
+    )
+    asset = db.relationship('CDEProjectAsset', back_populates='revisions')
 
 
 class Database(db.Model):

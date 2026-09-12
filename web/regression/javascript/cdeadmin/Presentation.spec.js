@@ -73,6 +73,16 @@ describe('CDEadmin presentation profiles', () => {
     expect(value.fontFamily).toBe('Atkinson Hyperlegible');
   });
 
+  it('recognizes the inherited named dark theme used by the application', () => {
+    const value = resolvePresentation({
+      accessibility_profile: 'cdeadmin_standard',
+    }, {...baseTheme, name: 'dark'});
+
+    expect(value.colors.canvas).toBe('#04054F');
+    expect(value.colors.navigation).toBe('#02196E');
+    expect(value.colors.text).toBe('#EDF2FB');
+  });
+
   it('uses system reduced-motion state when requested', () => {
     const value = resolvePresentation({
       accessibility_profile: 'system_adaptive',
@@ -150,17 +160,17 @@ describe('CDEadmin presentation profiles', () => {
 
     expect(variables['--cde-font-scale']).toBe('115%');
     expect(variables['--cde-target-size']).toBe('48px');
-    expect(variables['--cde-scrollbar-size']).toBe('24px');
+    expect(variables['--cde-scrollbar-size']).toBe('18px');
     expect(variables['--cde-resize-handle-size']).toBe('12');
     expect(variables['--cde-tree-indent']).toBe('29px');
     expect(variables['--cde-tree-expander-size']).toBe('26px');
     expect(variables['--cde-tree-guide-width']).toBe('1px');
-    expect(variables['--cde-tree-guide-color']).toBe('#BAC1CD');
+    expect(variables['--cde-tree-guide-color']).toBe('#66ADD3');
     expect(variables['--cde-grid-header-height']).toBe('52px');
     expect(variables['--cde-grid-cell-padding']).toBe('12px');
     expect(variables['--cde-motion-normal']).toBe('0.01ms');
-    expect(variables['--cde-layer-dialog']).toBe(3001);
-    expect(variables['--cde-color-text']).toBe('#222222');
+    expect(variables['--cde-layer-dialog']).toBe(2100);
+    expect(variables['--cde-color-text']).toBe('#03045E');
   });
 
   it('bounds user-configurable branching-tree geometry', () => {

@@ -91,8 +91,9 @@ function isActionable(options) {
 }
 
 export function registerMenuCommand(options, surface=null) {
-  if(!isActionable(options)) return null;
   const id = legacyCommandId(options);
+  if(commandRegistry.has(id)) return id;
+  if(!isActionable(options)) return null;
   commandRegistry.ensure({
     id,
     version: options.commandVersion ?? 1,
@@ -153,6 +154,7 @@ function commandCustomizations() {
 export function commandContext(item=null, itemData=undefined, shortcut=null) {
   const selected = item ?? pgAdmin.Browser.tree?.selected();
   return {
+    ...(pgAdmin.Browser.CDEadminCommandContext?.() ?? {}),
     currentUser,
     item: selected,
     itemData: itemData ?? pgAdmin.Browser.tree?.itemData(selected),

@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.lineage",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.lineage.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "lineage_explorer",
+      "title": "Lineage Explorer",
+      "description": "Primary graph/tree/table exploration of upstream/downstream dependencies."
+    },
+    {
+      "id": "field_lineage",
+      "title": "Field Lineage",
+      "description": "Column/property-level transformations and provenance."
+    },
+    {
+      "id": "impact_analysis",
+      "title": "Impact Analysis",
+      "description": "Before-change traversal with risk and dependent assets."
+    },
+    {
+      "id": "timeline_snapshot_compare",
+      "title": "Timeline / Snapshot Compare",
+      "description": "Lineage changes over time."
+    },
+    {
+      "id": "evidence_inspector",
+      "title": "Evidence Inspector",
+      "description": "Why an edge exists; source, confidence and timestamps."
+    },
+    {
+      "id": "ingestion_status",
+      "title": "Ingestion Status",
+      "description": "Provider/OpenLineage/parser/trace source health."
+    }
+  ],
+  "commands": [
+    {
+      "id": "lineage.graph.refresh",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.node.trace_upstream",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.node.trace_downstream",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.impact.run",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.edge.curate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.edge.suppress_inference",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.snapshot.create",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.snapshot.compare",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.import.openlineage",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.export.openlineage",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "lineage.view.open_ddn",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "lineage.discovery.scan",
+    "lineage.parsing.extract",
+    "lineage.reconcile",
+    "lineage.impact.compute",
+    "lineage.import"
+  ],
+  "events": [
+    "lineage.edge.created",
+    "lineage.edge.changed",
+    "lineage.edge.expired",
+    "lineage.snapshot.created",
+    "lineage.scan.completed"
+  ],
+  "primaryPlate": "svg/01_lineage_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

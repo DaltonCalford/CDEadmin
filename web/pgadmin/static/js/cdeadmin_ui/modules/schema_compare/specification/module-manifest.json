@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.schema_compare",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": ["cdeadmin.schema_compare.v1"],
+  "surfaces": [
+    {"id": "compare_setup", "title": "Compare Setup", "description": "Choose live/project/DDN/contract endpoints and scope."},
+    {"id": "diff_tree", "title": "Diff Tree", "description": "Hierarchical object differences."},
+    {"id": "object_diff", "title": "Object Diff", "description": "Properties, native metadata and source side-by-side."},
+    {"id": "mapping_review", "title": "Mapping Review", "description": "Rename/equivalence/type mapping decisions."},
+    {"id": "change_plan", "title": "Change Plan", "description": "Dependency-ordered operations with risk."},
+    {"id": "apply_export_review", "title": "Apply/Export Review", "description": "Provider-native output and validation."}
+  ],
+  "commands": [
+    {"id": "schema_compare.session.create", "requiresCommandRegistry": true},
+    {"id": "schema_compare.run", "requiresCommandRegistry": true},
+    {"id": "schema_compare.rename.accept", "requiresCommandRegistry": true},
+    {"id": "schema_compare.mapping.set", "requiresCommandRegistry": true},
+    {"id": "schema_compare.plan.generate", "requiresCommandRegistry": true},
+    {"id": "schema_compare.plan.validate", "requiresCommandRegistry": true},
+    {"id": "schema_compare.plan.export", "requiresCommandRegistry": true},
+    {"id": "schema_compare.plan.apply", "requiresCommandRegistry": true}
+  ],
+  "taskTypes": [
+    "schema_compare.scan", "schema_compare.diff",
+    "schema_compare.plan.validation", "schema_compare.plan.apply"
+  ],
+  "events": [
+    "schema_compare.completed", "schema_compare.mapping.changed",
+    "schema_compare.plan.created", "schema_compare.apply.completed"
+  ],
+  "primaryPlate": "svg/08_schema_compare_workspace.svg",
+  "ui": {"leftDefaultPx": 288, "inspectorDefaultPx": 340, "bottomDefaultPx": 240, "toolbarStandardPx": 34, "statusStandardPx": 24, "baseGridPx": 4},
+  "rules": {"secretsInAssets": false, "directProviderMutationFromDragDrop": false, "providerSupportMayBeInferred": false, "specGapOnUndefinedChoice": true}
+}

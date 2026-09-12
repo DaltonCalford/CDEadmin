@@ -82,13 +82,19 @@ export function createCommandDescriptor(input={}) {
     defaultEnabled: input.defaultEnabled !== false,
     defaultVisible: input.defaultVisible !== false,
     macroCallable: input.macroCallable !== false,
+    aiEligible: input.aiEligible === true,
+    auditCategory: String(input.auditCategory ?? 'user_action'),
+    createsTask: String(input.createsTask ?? ''),
     requiresConfirmation: Boolean(input.requiresConfirmation),
+    confirmationIntent: String(input.confirmationIntent ?? (
+      input.requiresConfirmation ? 'explicit' : 'none')),
     intent: String(input.intent ?? 'default'),
     surfaces: stringArray(input.surfaces),
-    enabledWhen: input.enabledWhen,
-    visibleWhen: input.visibleWhen,
+    enabledWhen: input.enabledWhen ?? (() => true),
+    visibleWhen: input.visibleWhen ?? (() => true),
     checkedWhen: input.checkedWhen,
-    validateArguments: input.validateArguments,
+    validateArguments: input.validateArguments ?? (() => true),
+    disabledReason: input.disabledReason ?? 'command_disabled',
     execute: input.execute,
   };
   return Object.freeze(descriptor);
@@ -157,8 +163,11 @@ export class CommandRegistry {
     const enabled = visible && command.defaultEnabled &&
       customization.enabled !== false &&
       predicate(command.enabledWhen, context, true);
+    const explicitReason = typeof command.disabledReason === 'function' ?
+      command.disabledReason(context) : command.disabledReason;
     const disabledReason = !permitted ? 'permission_denied' :
-      (!visible ? 'command_hidden' : (!enabled ? 'command_disabled' : ''));
+      (!visible ? 'command_hidden' : (!enabled ?
+        String(explicitReason || 'command_disabled') : ''));
     return Object.freeze({
       ...command,
       label: String(customization.label ?? command.label),

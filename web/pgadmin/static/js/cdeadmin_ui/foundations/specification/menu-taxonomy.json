@@ -1,0 +1,149 @@
+{
+  "top_level_order": [
+    "File",
+    "Edit",
+    "View",
+    "Navigate",
+    "Run",
+    "Data",
+    "Project",
+    "Tools",
+    "Window",
+    "Help"
+  ],
+  "rules": {
+    "row_height_standard": 28,
+    "row_height_compact": 26,
+    "min_width": 220,
+    "max_width": 420,
+    "viewport_margin": 8,
+    "icon_column": 24,
+    "shortcut_column_min": 80,
+    "submenu_column": 20,
+    "separator_height": 9,
+    "module_rule": "Modules add commands to approved insertion groups. New top-level menus require architecture review.",
+    "context_rule": "Right-click selects an unselected target before opening its menu; existing multi-selection is preserved when right-clicking within it."
+  },
+  "menus": {
+    "File": [
+      "New",
+      "Open\u2026",
+      "Open Recent",
+      "Save",
+      "Save All",
+      "Close",
+      "Close All",
+      "Import\u2026",
+      "Export\u2026",
+      "Print/Publish\u2026",
+      "Exit (desktop only)"
+    ],
+    "Edit": [
+      "Undo",
+      "Redo",
+      "Cut",
+      "Copy",
+      "Paste",
+      "Delete",
+      "Select All",
+      "Find",
+      "Replace",
+      "Preferences\u2026"
+    ],
+    "View": [
+      "Command Palette",
+      "Data Explorer",
+      "Project Explorer",
+      "Inspector",
+      "Bottom Drawer",
+      "Toolbars",
+      "Appearance",
+      "Zoom",
+      "Reset Layout",
+      "Full Screen"
+    ],
+    "Navigate": [
+      "Back",
+      "Forward",
+      "Go to Resource\u2026",
+      "Go to Asset\u2026",
+      "Go to Definition",
+      "Go to Source",
+      "Next Problem",
+      "Previous Problem"
+    ],
+    "Run": [
+      "Execute/Run",
+      "Cancel",
+      "Run Selected",
+      "Explain",
+      "Explain Analyze",
+      "Validate",
+      "Dry Run",
+      "Run in Background"
+    ],
+    "Data": [
+      "Connect",
+      "Disconnect",
+      "Refresh Metadata",
+      "New Query",
+      "Browse Data",
+      "Edit Data",
+      "Compare Schema",
+      "Migration",
+      "Import/Export",
+      "Backup/Restore",
+      "Security",
+      "Monitoring"
+    ],
+    "Project": [
+      "New Project",
+      "Open Project",
+      "Project Properties",
+      "New Asset",
+      "Add Existing Asset",
+      "Source Control",
+      "Commit",
+      "Branch",
+      "Build/Validate",
+      "Publish/Deploy"
+    ],
+    "Tools": [
+      "DDN",
+      "ETL",
+      "CDC",
+      "Lineage",
+      "Data Quality",
+      "Contracts",
+      "API Designer",
+      "Analytics/Cubes",
+      "Dashboards",
+      "Forms",
+      "Automation",
+      "Tracing",
+      "Vector/ML",
+      "AI Assistant",
+      "Extensions/Modules"
+    ],
+    "Window": [
+      "New Window",
+      "Detach Active Surface",
+      "Move to Window",
+      "Next Tab",
+      "Previous Tab",
+      "Close Tab",
+      "Reopen Closed Surface",
+      "Layouts",
+      "Presentation Mode"
+    ],
+    "Help": [
+      "Documentation",
+      "Keyboard Shortcuts",
+      "Release Notes",
+      "Report Problem",
+      "Diagnostics",
+      "Credits & Licenses",
+      "About CDEadmin"
+    ]
+  }
+}

@@ -41,3 +41,12 @@ The project does not track an upstream Git remote or represent its diverged
 source as merge-compatible with pgAdmin. Retained history and references exist
 solely for attribution, licence compliance, provenance, and deliberately
 maintained compatibility interfaces.
+
+DDN library notice
+==================
+
+CDEadmin includes the independently reusable DDN runtime/viewer
+0.5.0-draft.2 and DDN Designer 0.1.0-preview.1 distributions under
+`web/pgadmin/static/vendor/ddn`. The distributions identify themselves as
+MIT licensed. Their SPDX notices, public declarations, exact-file manifest,
+and a copy of the MIT licence are retained with the vendored resources.

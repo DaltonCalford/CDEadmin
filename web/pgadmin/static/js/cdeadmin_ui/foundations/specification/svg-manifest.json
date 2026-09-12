@@ -1,0 +1,188 @@
+{
+  "schema": "cdeadmin-svg-reference@1",
+  "normative": true,
+  "plates": [
+    {
+      "order": 1,
+      "file": "svg/01_application_shell_dark.svg",
+      "description": "Default dark desktop shell with exact header, rail, navigator, workspace, inspector, bottom drawer and status geometry.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 2,
+      "file": "svg/02_application_shell_light.svg",
+      "description": "Same shell geometry in ScratchBird Light/whiteprint semantic tokens.",
+      "theme": "light",
+      "size": "1600x1000"
+    },
+    {
+      "order": 3,
+      "file": "svg/03_menu_and_context_menu.svg",
+      "description": "Top-menu order, popup/context menu rows, icon and shortcut columns, separators and danger state.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 4,
+      "file": "svg/04_toolbar_and_buttons.svg",
+      "description": "Toolbar grouping, primary/neutral/destructive buttons, focus, disabled, icon buttons and split button.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 5,
+      "file": "svg/05_form_controls_and_states.svg",
+      "description": "Text fields and choice controls with default/focus/error/read-only and validation behavior.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 6,
+      "file": "svg/06_font_selector.svg",
+      "description": "Approved-font picker with search, preview, product/generic/document-safe sections and fallback rules.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 7,
+      "file": "svg/07_colour_selector.svg",
+      "description": "Theme and data-visualization palettes, custom hex entry, preview and reset/contrast rules.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 8,
+      "file": "svg/08_dialogs_about_confirm.svg",
+      "description": "About dialog and destructive confirmation geometry/action ordering.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 9,
+      "file": "svg/09_tree_explorer.svg",
+      "description": "Object tree row heights, indentation, guide lines, selection, badges and row actions.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 10,
+      "file": "svg/10_tabs_docking_splitters.svg",
+      "description": "Tab sizes, dirty/close behavior, splitters and docking target overlay.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 11,
+      "file": "svg/11_drag_drop_states.svg",
+      "description": "Rest, dragging, valid and invalid drop targets with explicit labels and reasons.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 12,
+      "file": "svg/12_data_grid.svg",
+      "description": "Dense typed grid including headers, focus cell, NULL/MISSING, editing and virtualization rules.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 13,
+      "file": "svg/13_inspector_toolbox.svg",
+      "description": "Common designer host Toolbox and context Inspector contract.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 14,
+      "file": "svg/14_command_palette_search.svg",
+      "description": "Command palette geometry and grouped command/resource/project results.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 15,
+      "file": "svg/15_notifications_tasks_status.svg",
+      "description": "Toast lifetimes, task drawer, progress and bottom status bar.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 16,
+      "file": "svg/16_preferences_settings.svg",
+      "description": "Preferences navigation, controls, inherited/reset model and Apply/OK behavior.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 17,
+      "file": "svg/17_empty_loading_error.svg",
+      "description": "Canonical empty/loading/error/permission/disconnected/stale recovery states.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 18,
+      "file": "svg/18_multi_monitor_presentation.svg",
+      "description": "Detached windows, multi-monitor layouts and presentation/kiosk mode.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 19,
+      "file": "svg/19_icon_grid_and_placement.svg",
+      "description": "Semantic icon keys, slot sizes and registry placement rules.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 20,
+      "file": "svg/20_wizard_stepper.svg",
+      "description": "Multi-step wizard rail, validation flow and action ordering.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 21,
+      "file": "svg/21_designer_host_pattern.svg",
+      "description": "Module-independent designer host around module-specific semantic engine.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 22,
+      "file": "svg/22_connection_environment_safety.svg",
+      "description": "Production/dev/read-only indicators and per-surface execution-context safety.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 23,
+      "file": "svg/23_standard_styles.svg",
+      "description": "Approved surface hierarchy, border/emphasis styles, badges and helper/link treatment.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 24,
+      "file": "svg/24_secret_pickers_pagination.svg",
+      "description": "Secret/file/date/unit/multi-select/pagination standard controls and policies.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 25,
+      "file": "svg/25_resource_asset_pickers.svg",
+      "description": "Separate live ResourceRef picker and project-owned AssetRef picker.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    },
+    {
+      "order": 26,
+      "file": "svg/26_shortcuts_column_picker.svg",
+      "description": "Keyboard shortcut reference surface and grid column chooser.",
+      "theme": "dark/reference",
+      "size": "1600x1000"
+    }
+  ]
+}

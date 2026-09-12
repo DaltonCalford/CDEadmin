@@ -16,11 +16,13 @@ import {
   TextField as MuiTextField,
 } from '@mui/material';
 
-export function Checkbox({label, checked=false, onChange, ...props}) {
+export function Checkbox({label, checked=false, indeterminate=false, onChange,
+  ...props}) {
   return <FormControlLabel
     label={label}
     control={<MuiCheckbox
       checked={checked}
+      indeterminate={indeterminate}
       onChange={(event) => onChange?.(event.target.checked, event)}
       {...props}
     />}
@@ -30,6 +32,7 @@ export function Checkbox({label, checked=false, onChange, ...props}) {
 Checkbox.propTypes = {
   label: PropTypes.node.isRequired,
   checked: PropTypes.bool,
+  indeterminate: PropTypes.bool,
   onChange: PropTypes.func,
 };
 

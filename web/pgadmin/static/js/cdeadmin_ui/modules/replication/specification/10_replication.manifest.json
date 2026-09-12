@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.replication",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.replication.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "topology_explorer",
+      "title": "Topology Explorer",
+      "description": "Dynamic graph or DDN-backed topology display."
+    },
+    {
+      "id": "participant_inspector",
+      "title": "Participant Inspector",
+      "description": "Role, state, storage, connections, positions."
+    },
+    {
+      "id": "replication_link_inspector",
+      "title": "Replication Link Inspector",
+      "description": "Mechanism, lag, errors, checkpoint."
+    },
+    {
+      "id": "lag_history",
+      "title": "Lag History",
+      "description": "Time series and thresholds."
+    },
+    {
+      "id": "failover_planner",
+      "title": "Failover Planner",
+      "description": "Candidate, preconditions, impact and runbook."
+    },
+    {
+      "id": "events",
+      "title": "Events",
+      "description": "Topology change history."
+    }
+  ],
+  "commands": [
+    {
+      "id": "replication.topology.refresh",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.link.pause",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.link.resume",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.failover.plan",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.failover.validate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.failover.arm",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.failover.execute",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "replication.snapshot.create",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "replication.discovery",
+    "replication.failover.validation",
+    "replication.failover.execution"
+  ],
+  "events": [
+    "replication.role.changed",
+    "replication.link.degraded",
+    "replication.lag.threshold",
+    "replication.failover.completed"
+  ],
+  "primaryPlate": "svg/10_replication_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

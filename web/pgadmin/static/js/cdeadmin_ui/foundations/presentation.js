@@ -7,30 +7,23 @@
 //
 //////////////////////////////////////////////////////////////
 
-const DEFAULT_FONT = [
-  'Roboto',
-  '"Helvetica Neue"',
-  '-apple-system',
-  'BlinkMacSystemFont',
-  '"Segoe UI"',
-  'Arial',
-  'sans-serif',
-].join(',');
+import {ZERO_GREY_TOKENS} from './tokens';
+
+const DEFAULT_FONT = ZERO_GREY_TOKENS.fonts.ui;
 
 const DEFAULT_MONOSPACE_FONT = [
-  '"Source Code Pro"',
+  '"Fira Code"',
   'SFMono-Regular',
   'Menlo',
-  'Monaco',
   'Consolas',
   '"Liberation Mono"',
-  '"Courier New"',
   'monospace',
 ].join(',');
 
 export const PRESENTATION_PROFILE_IDS = Object.freeze({
   CLASSIC: 'classic',
   CDEADMIN_STANDARD: 'cdeadmin_standard',
+  COMFORTABLE: 'comfortable',
   SYSTEM_ADAPTIVE: 'system_adaptive',
   HIGH_CONTRAST_LIGHT: 'high_contrast_light',
   HIGH_CONTRAST_DARK: 'high_contrast_dark',
@@ -66,6 +59,20 @@ export const PRESENTATION_PROFILES = Object.freeze({
     treeRowHeight: 30,
     gridRowHeight: 30,
     focusWidth: 2,
+    focusOffset: 2,
+    reduceMotion: 'system',
+  }),
+  [PRESENTATION_PROFILE_IDS.COMFORTABLE]: Object.freeze({
+    scale: 100,
+    iconScale: 100,
+    lineHeight: 1.5,
+    letterSpacing: 0.01,
+    density: 'comfortable',
+    controlHeight: 36,
+    targetSize: 36,
+    treeRowHeight: 36,
+    gridRowHeight: 36,
+    focusWidth: 3,
     focusOffset: 2,
     reduceMotion: 'system',
   }),
@@ -315,6 +322,75 @@ function baseColors(theme) {
   };
 }
 
+function zeroGreyColors(theme) {
+  const source = ZERO_GREY_TOKENS.theme[
+    theme?.palette?.mode === 'dark' || theme?.name === 'dark' ? 'dark' : 'light'
+  ];
+  return {
+    canvas: source.surface_canvas,
+    panel: source.surface_panel,
+    root: source.surface_root,
+    navigation: source.surface_navigation,
+    workspace: source.surface_workspace,
+    elevated: source.surface_elevated,
+    editor: source.surface_editor,
+    grid: source.surface_grid,
+    text: source.content_primary,
+    secondaryText: source.content_secondary,
+    mutedText: source.content_muted,
+    disabledText: source.content_disabled,
+    primary: source.action_primary,
+    primaryText: source.action_primary_text,
+    hover: source.action_hover,
+    pressed: source.action_pressed,
+    focus: source.focus,
+    subtleBorder: source.border_subtle,
+    border: source.border_default,
+    strongBorder: source.border_strong,
+    selection: source.action_selected,
+    success: source.success,
+    warning: source.warning,
+    error: source.error,
+    info: source.info,
+  };
+}
+
+function zeroGreyProfile(profileId, profile) {
+  const name = {
+    [PRESENTATION_PROFILE_IDS.CDEADMIN_STANDARD]: 'standard',
+    [PRESENTATION_PROFILE_IDS.SYSTEM_ADAPTIVE]: 'standard',
+    [PRESENTATION_PROFILE_IDS.REDUCED_MOTION]: 'standard',
+    [PRESENTATION_PROFILE_IDS.COMFORTABLE]: 'comfortable',
+    [PRESENTATION_PROFILE_IDS.LOW_VISION]: 'low_vision',
+    [PRESENTATION_PROFILE_IDS.MOTOR_ASSISTANCE]: 'motor_assistance',
+    [PRESENTATION_PROFILE_IDS.COMPACT_EXPERT]: 'compact_expert',
+  }[profileId];
+  const exact = name ? ZERO_GREY_TOKENS.profiles[name] : null;
+  return exact ? {
+    ...profile,
+    controlHeight: exact.control_height,
+    targetSize: exact.target_size,
+    treeRowHeight: exact.tree_row,
+    gridRowHeight: exact.grid_row,
+    tabHeight: exact.tab_height,
+    toolbarHeight: exact.toolbar_height,
+    menuRowHeight: exact.menu_row,
+    statusHeight: exact.status_height,
+    scrollbarSize: exact.scrollbar,
+    splitterHitSize: exact.splitter_hit,
+    focusWidth: exact.focus_width,
+    focusOffset: exact.focus_offset,
+  } : {
+    ...profile,
+    tabHeight: profile.controlHeight,
+    toolbarHeight: profile.controlHeight,
+    menuRowHeight: profile.controlHeight,
+    statusHeight: 24,
+    scrollbarSize: 10,
+    splitterHitSize: 6,
+  };
+}
+
 function readCustomColors(preferences) {
   return Object.entries(COLOR_PREFERENCES).reduce((result, [preference, token]) => {
     const value = normalizeHex(preferences?.[preference]);
@@ -405,8 +481,11 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
   const requestedProfile = preferences.accessibility_profile;
   const profileId = PRESENTATION_PROFILES[requestedProfile] ?
     requestedProfile : PRESENTATION_PROFILE_IDS.CLASSIC;
-  const profile = PRESENTATION_PROFILES[profileId];
-  const defaultColorValues = baseColors(theme);
+  const profile = zeroGreyProfile(
+    profileId, PRESENTATION_PROFILES[profileId]
+  );
+  const defaultColorValues = profileId === PRESENTATION_PROFILE_IDS.CLASSIC ?
+    baseColors(theme) : zeroGreyColors(theme);
   const {colors, warnings} = applySafeColors(
     defaultColorValues,
     {...profile.colors, ...readCustomColors(preferences)}
@@ -440,9 +519,9 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
     targetSpacing: boundedOverride(
       preferences, 'accessibility_target_spacing', largeTarget ? 8 : 4),
     scrollbarSize: boundedOverride(
-      preferences, 'accessibility_scrollbar_size', largeTarget ? 24 : 16),
+      preferences, 'accessibility_scrollbar_size', profile.scrollbarSize),
     resizeHandleSize: boundedOverride(
-      preferences, 'accessibility_resize_handle_size', largeTarget ? 12 : 8),
+      preferences, 'accessibility_resize_handle_size', profile.splitterHitSize),
     panelGap: boundedOverride(
       preferences, 'accessibility_panel_gap',
       density === 'compact' ? 4 : largeTarget ? 12 : 8),
@@ -458,6 +537,10 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
       preferences, 'accessibility_tree_guide_width',
       profile.focusWidth >= 4 ? 2 : 1),
     gridRowHeight,
+    tabHeight: profile.tabHeight,
+    toolbarHeight: profile.toolbarHeight,
+    menuRowHeight: profile.menuRowHeight,
+    statusHeight: profile.statusHeight,
     gridHeaderHeight: boundedOverride(
       preferences, 'accessibility_grid_header_height',
       Math.max(gridRowHeight, profile.gridRowHeight + 4)),
@@ -474,10 +557,13 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
       environment.systemReduceMotion
     ),
     fontFamily: preferences.accessibility_ui_font_family?.trim() ||
-      theme?.typography?.fontFamily || DEFAULT_FONT,
+      (profileId === PRESENTATION_PROFILE_IDS.CLASSIC ?
+        theme?.typography?.fontFamily : DEFAULT_FONT) || DEFAULT_FONT,
     monospaceFontFamily:
       preferences.accessibility_monospace_font_family?.trim() ||
-      theme?.typography?.fontFamilySourceCode || DEFAULT_MONOSPACE_FONT,
+      (profileId === PRESENTATION_PROFILE_IDS.CLASSIC ?
+        theme?.typography?.fontFamilySourceCode : DEFAULT_MONOSPACE_FONT) ||
+      DEFAULT_MONOSPACE_FONT,
     colors: Object.freeze(colors),
     warnings: Object.freeze(warnings),
   });
@@ -524,6 +610,10 @@ export function writeAccessibilitySafeMode(storage, enabled) {
 export function presentationThemeOverrides(presentation) {
   const {colors} = presentation;
   return {
+    shape: {
+      borderRadius: presentation.profileId === PRESENTATION_PROFILE_IDS.CLASSIC ?
+        4 : 0,
+    },
     typography: {
       fontFamily: presentation.fontFamily,
       fontFamilySourceCode: presentation.monospaceFontFamily,
@@ -582,6 +672,15 @@ export function presentationThemeOverrides(presentation) {
         bgSelected: colors.selection,
       },
     },
+    cdeadminTokens: Object.freeze({
+      ...colors,
+      geometry: ZERO_GREY_TOKENS.geometry,
+      spacing: ZERO_GREY_TOKENS.spacing,
+      layers: ZERO_GREY_TOKENS.layers,
+      timing: ZERO_GREY_TOKENS.timing_ms,
+      type: ZERO_GREY_TOKENS.type,
+      dataVisualization: ZERO_GREY_TOKENS.data_visualization,
+    }),
     cdeadminPresentation: presentation,
   };
 }
@@ -608,34 +707,55 @@ export function presentationCssVariables(presentation) {
     '--cde-grid-row-height': `${presentation.gridRowHeight}px`,
     '--cde-grid-header-height': `${presentation.gridHeaderHeight}px`,
     '--cde-grid-cell-padding': `${presentation.gridCellPadding}px`,
+    '--cde-tab-height': `${presentation.tabHeight}px`,
+    '--cde-toolbar-height': `${presentation.toolbarHeight}px`,
+    '--cde-menu-row-height': `${presentation.menuRowHeight}px`,
+    '--cde-status-height': `${presentation.statusHeight}px`,
     '--cde-focus-width': `${presentation.focusWidth}px`,
     '--cde-focus-offset': `${presentation.focusOffset}px`,
-    '--cde-radius-control': '4px',
-    '--cde-radius-panel': '4px',
-    '--cde-radius-dialog': '6px',
-    '--cde-elevation-raised': '0 1px 3px rgba(0, 0, 0, 0.24)',
-    '--cde-elevation-overlay': '0 8px 24px rgba(0, 0, 0, 0.32)',
-    '--cde-motion-fast': presentation.reduceMotion ? '0.01ms' : '100ms',
-    '--cde-motion-normal': presentation.reduceMotion ? '0.01ms' : '180ms',
-    '--cde-motion-slow': presentation.reduceMotion ? '0.01ms' : '300ms',
+    '--cde-radius-control': '0px',
+    '--cde-radius-panel': '0px',
+    '--cde-radius-dialog': '0px',
+    '--cde-elevation-raised': 'none',
+    '--cde-elevation-overlay': 'none',
+    '--cde-motion-fast': presentation.reduceMotion ? '0.01ms' : '150ms',
+    '--cde-motion-normal': presentation.reduceMotion ? '0.01ms' : '250ms',
+    '--cde-motion-slow': presentation.reduceMotion ? '0.01ms' : '500ms',
     '--cde-layer-content': 0,
-    '--cde-layer-sticky': 10,
+    '--cde-layer-sticky': 200,
     '--cde-layer-toolbar': 100,
-    '--cde-layer-menu': 1200,
-    '--cde-layer-popover': 1300,
-    '--cde-layer-dialog': 3001,
-    '--cde-layer-toast': 4000,
-    '--cde-layer-drag': 5000,
+    '--cde-layer-menu': 1000,
+    '--cde-layer-context-menu': 1100,
+    '--cde-layer-popover': 1200,
+    '--cde-layer-modal-backdrop': 2000,
+    '--cde-layer-dialog': 2100,
+    '--cde-layer-tooltip': 3000,
+    '--cde-layer-toast': 3000,
+    '--cde-layer-drag': 4000,
     '--cde-color-canvas': colors.canvas,
     '--cde-color-panel': colors.panel,
+    '--cde-color-root': colors.root ?? colors.canvas,
+    '--cde-color-navigation': colors.navigation ?? colors.panel,
+    '--cde-color-workspace': colors.workspace ?? colors.canvas,
+    '--cde-color-elevated': colors.elevated ?? colors.panel,
+    '--cde-color-editor': colors.editor ?? colors.canvas,
+    '--cde-color-grid': colors.grid ?? colors.panel,
     '--cde-color-text': colors.text,
+    '--cde-color-text-secondary': colors.secondaryText ?? colors.primary,
     '--cde-color-text-muted': colors.mutedText,
+    '--cde-color-text-disabled': colors.disabledText ?? colors.mutedText,
     '--cde-color-primary': colors.primary,
+    '--cde-color-primary-text': colors.primaryText ?? '#FFFFFF',
+    '--cde-color-hover': colors.hover ?? colors.selection,
+    '--cde-color-pressed': colors.pressed ?? colors.selection,
     '--cde-color-focus': colors.focus,
+    '--cde-color-border-subtle': colors.subtleBorder ?? colors.border,
     '--cde-color-border': colors.border,
+    '--cde-color-border-strong': colors.strongBorder ?? colors.border,
     '--cde-color-selection': colors.selection,
     '--cde-color-success': colors.success,
     '--cde-color-warning': colors.warning,
     '--cde-color-error': colors.error,
+    '--cde-color-info': colors.info ?? colors.primary,
   };
 }

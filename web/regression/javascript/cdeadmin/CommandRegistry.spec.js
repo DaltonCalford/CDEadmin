@@ -88,4 +88,20 @@ describe('CDEadmin command registry', () => {
       currentUser: {security_groups: ['read-only']},
     }).visible).toBe(false);
   });
+
+  it('normalizes the complete command policy and automation descriptor', () => {
+    const registry = new CommandRegistry();
+    registry.register({id: 'schema_compare.plan.apply', label: 'Apply',
+      iconKey: 'tool.schema-compare', requiresConfirmation: true,
+      confirmationIntent: 'review_then_explicit_confirm', macroCallable: false,
+      aiEligible: false, auditCategory: 'schema_change',
+      createsTask: 'schema_compare.plan.apply', disabledReason: 'Validate first.',
+      enabledWhen: () => false, execute: jest.fn()});
+    expect(registry.resolve('schema_compare.plan.apply')).toEqual(
+      expect.objectContaining({version: 1, iconKey: 'tool.schema-compare',
+        confirmationIntent: 'review_then_explicit_confirm', macroCallable: false,
+        aiEligible: false, auditCategory: 'schema_change',
+        createsTask: 'schema_compare.plan.apply', disabledReason: 'Validate first.'})
+    );
+  });
 });

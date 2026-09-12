@@ -1,0 +1,110 @@
+{
+  "screen_id": "cdeadmin.etl.primary",
+  "module": "cdeadmin.etl",
+  "purpose": "Design, validate, execute and monitor cross-engine batch, streaming and hybrid data pipelines with typed schemas, explicit transformations, checkpoints, error routing and lineage emission.",
+  "primary_surface_type": "designer",
+  "entry_commands": [
+    "etl.pipeline.create"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef"
+    ],
+    "assets": [
+      "cdeadmin.etl.v1"
+    ],
+    "tasks": [
+      "etl.preview",
+      "etl.run",
+      "etl.deploy.validation"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "etl.pipeline.create",
+    "etl.node.add",
+    "etl.edge.connect",
+    "etl.mapping.edit",
+    "etl.pipeline.validate"
+  ],
+  "navigation_model": "ETL TOOLBOX tree/list; selection drives center and Inspector.",
+  "inspector_sections": [
+    "Node configuration",
+    "Ports & schema",
+    "Parameters",
+    "Error policy",
+    "Provider limits"
+  ],
+  "toolbox_items": [
+    "Sources",
+    "Transforms",
+    "Control",
+    "Quality",
+    "Targets",
+    "Saved Components"
+  ],
+  "bottom_drawer_pages": [
+    "Schema",
+    "Preview Data",
+    "Problems",
+    "Tasks",
+    "Run Log"
+  ],
+  "status_bar_contributions": [
+    "etl state",
+    "active task",
+    "project dirty/saved",
+    "active resource/environment when applicable"
+  ],
+  "components": [
+    "Toolbar",
+    "Toolbox",
+    "DesignerSurface",
+    "Inspector",
+    "BottomDrawer",
+    "DataGrid",
+    "ResourcePicker",
+    "SecretPicker",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Render selected asset/resource and enabled capability-driven commands.",
+    "loading": "Keep shell visible; show Skeleton/Progress in work area; disable commands requiring loaded state.",
+    "empty": "Show module-specific empty state with one primary create/select action; no decorative cards.",
+    "error": "Show persistent Problems entry plus inline error summary and retry/recovery action.",
+    "permission": "Show permission-denied state without implying provider unsupported; commands disabled with reason.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale where permitted; live mutations disabled until refreshed."
+  },
+  "keyboard": "Tab/Shift+Tab move among regions; arrow keys operate tree/grid; Enter opens/activates; context-menu key/Shift+F10 opens actions; module adds no unregistered global shortcuts.",
+  "pointer": "Single click selects; double click opens default surface only where registered; drag/drop only for documented semantic targets; resize through standard splitters.",
+  "persistence": "Project asset uses optimistic revision; window/layout state is device-local; save is distinct from Git commit and provider deploy/execute.",
+  "multi_window": "Surface may detach through WorkspaceHost if ToolRegistry capability permits; no module-specific popout implementation.",
+  "accessibility": "All critical visualization information has tree/table/text alternative; visible focus; non-drag alternative; supports Low Vision, Motor Assistance, Reduced Motion and High Contrast.",
+  "svg_references": [
+    "svg/05_etl_workspace.svg"
+  ],
+  "functional_regression": [
+    "Existing provider/session behavior remains functional.",
+    "Command invocation uses CommandRegistry and repeats permission checks.",
+    "Background work uses TaskService and remains visible after surface close.",
+    "No secrets are serialized in asset/layout/tool descriptors.",
+    "Unsupported and unknown capability states remain distinct."
+  ],
+  "spec_gaps": []
+}

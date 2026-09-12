@@ -336,6 +336,30 @@ const BUILTIN_DEFINITIONS = [
   componentDefinition(
     'command.default', ICON_CATEGORIES.ACTION, MenuCircleIcon, 'Command'
   ),
+  componentDefinition(
+    'tool.schema-compare', ICON_CATEGORIES.TOOL, GitCompareIcon, 'Schema Comparison'
+  ),
+  componentDefinition(
+    'tool.lineage', ICON_CATEGORIES.TOOL, LinkIcon, 'Data Lineage'
+  ),
+  componentDefinition(
+    'tool.quality', ICON_CATEGORIES.TOOL, FilterIcon, 'Data Quality'
+  ),
+  componentDefinition(
+    'tool.contract', ICON_CATEGORIES.TOOL, ShieldUserIcon, 'Data Contract Manager'
+  ),
+  componentDefinition(
+    'tool.etl', ICON_CATEGORIES.TOOL, ArrowAllDirectionIcon, 'ETL Designer'
+  ),
+  componentDefinition(
+    'tool.cdc', ICON_CATEGORIES.TOOL, TransactionIcon, 'CDC Designer'
+  ),
+  componentDefinition(
+    'tool.replication', ICON_CATEGORIES.TOOL, RefreshIcon, 'Replication Topology'
+  ),
+  componentDefinition(
+    'tool.tracing', ICON_CATEGORIES.TOOL, SearchIcon, 'Distributed Tracing'
+  ),
   ...Object.entries(ACTION_COMPONENTS).map(([name, component])=>componentDefinition(
     `action.${name}`, ICON_CATEGORIES.ACTION, component
   )),

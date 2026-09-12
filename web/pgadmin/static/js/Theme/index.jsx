@@ -1058,6 +1058,7 @@ export default function Theme({children}) {
     const root = document.documentElement;
     const presentation = themeObj.cdeadminPresentation;
     root.dataset.cdeadminProfile = presentation.profileId;
+    root.dataset.theme = theme;
     root.dataset.cdeadminDensity = presentation.density;
     root.dataset.cdeadminMotion = presentation.reduceMotion ?
       'reduced' : 'full';

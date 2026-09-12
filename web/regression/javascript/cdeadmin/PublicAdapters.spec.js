@@ -49,7 +49,8 @@ describe('CDEadmin public compatibility adapters', () => {
   it('keeps data and editor renderers behind stable exports', () => {
     expect(DataTable).toBe(PgTable);
     expect(Table).toBe(LegacyTable);
-    expect(CodeEditor).toBe(LegacyCodeEditor);
+    expect(CodeEditor).not.toBe(LegacyCodeEditor);
+    expect(CodeEditor).toEqual(expect.any(Function));
     expect(DocumentEditor).toBe(LegacyDocumentEditor);
   });
 

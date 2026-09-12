@@ -7,6 +7,7 @@
 //
 //////////////////////////////////////////////////////////////
 
+import {useRef} from 'react';
 import PropTypes from 'prop-types';
 import CircularProgress from '@mui/material/CircularProgress';
 import {
@@ -15,10 +16,21 @@ import {
   PrimaryButton,
 } from '../../components/Buttons';
 
-export function Button({intent='neutral', loading=false, children, ...props}) {
+export function Button({intent='neutral', loading=false, children, onClick,
+  ...props}) {
+  const lastMouseActivation = useRef(0);
+  const invokeOnce = (event) => {
+    if(event.detail > 0) {
+      const now = Date.now();
+      if(now - lastMouseActivation.current <= 500) return;
+      lastMouseActivation.current = now;
+    }
+    onClick?.(event);
+  };
   if(intent === 'primary') {
     return <PrimaryButton
       {...props}
+      onClick={invokeOnce}
       aria-busy={loading || undefined}
       disabled={loading || props.disabled}
       startIcon={loading ? <CircularProgress size="1em" /> : props.startIcon}
@@ -32,6 +44,7 @@ export function Button({intent='neutral', loading=false, children, ...props}) {
   }[intent] || 'default';
   return <DefaultButton
     {...props}
+    onClick={invokeOnce}
     color={color}
     aria-busy={loading || undefined}
     disabled={loading || props.disabled}
@@ -45,10 +58,14 @@ Button.propTypes = {
   ]),
   loading: PropTypes.bool,
   children: PropTypes.node,
+  onClick: PropTypes.func,
 };
 
 export function IconButton({label, title, ...props}) {
   const accessibleLabel = label || title;
+  if(!accessibleLabel) {
+    throw new TypeError('IconButton requires a label or title.');
+  }
   return <PgIconButton
     aria-label={accessibleLabel}
     title={title || accessibleLabel}

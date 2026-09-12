@@ -1,0 +1,114 @@
+{
+  "schema": "cdeadmin-standard-dialogs@1",
+  "geometry": {
+    "small": 420,
+    "medium": 640,
+    "large": 960,
+    "viewport_margin": 24,
+    "title_height": 44,
+    "footer_height": 52,
+    "content_padding": 20,
+    "radius": 0
+  },
+  "dialogs": {
+    "about": {
+      "width": "medium",
+      "title": "About CDEadmin",
+      "content_order": [
+        "logo72",
+        "product",
+        "descriptor",
+        "version",
+        "build",
+        "company",
+        "host_runtime",
+        "ui_schema",
+        "provider_contract",
+        "copyright_license_summary"
+      ],
+      "footer_left": [
+        "Copy Diagnostics",
+        "Credits & Licenses"
+      ],
+      "footer_right": [
+        "Close"
+      ],
+      "default": "Close"
+    },
+    "unsaved_changes": {
+      "width": "small",
+      "title_template": "Save changes to \u201c{asset}\u201d?",
+      "body": "Your changes have not been saved to the project authority.",
+      "footer_left": [
+        "Don\u2019t Save"
+      ],
+      "footer_right": [
+        "Cancel",
+        "Save"
+      ],
+      "default": "Save",
+      "escape": "Cancel"
+    },
+    "destructive": {
+      "width": "medium",
+      "title_template": "{verb} {object}?",
+      "required": [
+        "target_identity",
+        "environment_if_live",
+        "consequence",
+        "dependencies_if_known",
+        "reversibility_if_known"
+      ],
+      "typed_confirmation": "required for high-impact/irreversible production actions",
+      "footer_right": [
+        "Cancel",
+        "{verb}"
+      ],
+      "default": "Cancel unless command explicitly proves safe default"
+    },
+    "credentials": {
+      "width": "small",
+      "title_template": "Authenticate to {connection}",
+      "required": [
+        "connection_identity",
+        "authentication_method",
+        "credential_fields_from_provider"
+      ],
+      "forbidden": [
+        "persist raw secret in project",
+        "show secret in diagnostics"
+      ],
+      "footer_right": [
+        "Cancel",
+        "Connect"
+      ],
+      "default": "Connect when validation succeeds"
+    },
+    "simple_input": {
+      "width": "small",
+      "required": [
+        "label",
+        "control",
+        "validation"
+      ],
+      "footer_right": [
+        "Cancel",
+        "Apply"
+      ],
+      "default": "Apply"
+    },
+    "wizard": {
+      "width": "760-840",
+      "layout": "left step rail + content + 52px footer",
+      "footer_left": [
+        "Cancel"
+      ],
+      "footer_right": [
+        "Back",
+        "Next/Review/Create"
+      ],
+      "next": "validates current step",
+      "final": "Review consequential effects before execution"
+    }
+  }
+}

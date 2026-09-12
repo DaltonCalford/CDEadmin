@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.cdc",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.cdc.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "cdc_designer",
+      "title": "CDC Designer",
+      "description": "Source \u2192 capture \u2192 transform \u2192 sink flow."
+    },
+    {
+      "id": "source_capture",
+      "title": "Source & Capture",
+      "description": "Mechanism, privileges, position and snapshot policy."
+    },
+    {
+      "id": "event_mapping",
+      "title": "Event Mapping",
+      "description": "Envelope, key, before/after and target schema."
+    },
+    {
+      "id": "schema_evolution",
+      "title": "Schema Evolution",
+      "description": "Detected changes and handling policy."
+    },
+    {
+      "id": "run_monitor",
+      "title": "Run Monitor",
+      "description": "State, lag, throughput, checkpoint and errors."
+    },
+    {
+      "id": "event_inspector",
+      "title": "Event Inspector",
+      "description": "Bounded/redacted sample events."
+    },
+    {
+      "id": "replay",
+      "title": "Replay",
+      "description": "Explicit range and target review."
+    }
+  ],
+  "commands": [
+    {
+      "id": "cdc.definition.create",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.validate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.run.start",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.run.pause",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.run.resume",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.run.stop",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.checkpoint.inspect",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.replay.prepare",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.replay.execute",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "cdc.schema_change.resolve",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "cdc.provision",
+    "cdc.snapshot",
+    "cdc.stream",
+    "cdc.replay",
+    "cdc.schema_validation"
+  ],
+  "events": [
+    "cdc.run.state_changed",
+    "cdc.lag.threshold",
+    "cdc.schema.changed",
+    "cdc.checkpoint.advanced",
+    "cdc.run.failed"
+  ],
+  "primaryPlate": "svg/12_cdc_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

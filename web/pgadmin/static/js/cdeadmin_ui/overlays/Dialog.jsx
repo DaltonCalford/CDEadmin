@@ -16,16 +16,36 @@ import {
   DialogTitle,
 } from '@mui/material';
 
-export function Dialog({open, title, children, actions, onClose, ...props}) {
+const WIDTHS = Object.freeze({small: 420, medium: 640, large: 960});
+
+export function Dialog({open, title, children, actions, onClose, size='small',
+  busy=false, validationError='', defaultAction, onKeyDown, ...props}) {
   const titleId = useId();
   return <MuiDialog
+    {...props}
     open={open}
     onClose={onClose}
     aria-labelledby={titleId}
-    {...props}
+    PaperProps={{'aria-busy': busy || undefined}}
+    onKeyDown={(event) => {
+      if(event.key === 'Enter' && defaultAction && !busy &&
+          !['TEXTAREA'].includes(event.target.tagName) &&
+          !event.target.closest?.('[data-code-editor]')) {
+        event.preventDefault();
+        defaultAction();
+      }
+      onKeyDown?.(event);
+    }}
+    slotProps={{paper: {'aria-busy': busy || undefined,
+      sx: {width: WIDTHS[size], maxWidth: 'calc(100vw - 48px)',
+        maxHeight: 'calc(100vh - 48px)', m: 3, borderRadius: 0,
+        boxShadow: 'none', border: '1px solid', borderColor: 'divider'}}}}
   >
     <DialogTitle id={titleId}>{title}</DialogTitle>
-    <DialogContent>{children}</DialogContent>
+    <DialogContent sx={{p: 2.5}}>
+      {validationError && <div role="alert">{validationError}</div>}
+      {children}
+    </DialogContent>
     {actions && <DialogActions>{actions}</DialogActions>}
   </MuiDialog>;
 }
@@ -36,4 +56,9 @@ Dialog.propTypes = {
   children: PropTypes.node,
   actions: PropTypes.node,
   onClose: PropTypes.func,
+  size: PropTypes.oneOf(['small', 'medium', 'large']),
+  busy: PropTypes.bool,
+  validationError: PropTypes.node,
+  defaultAction: PropTypes.func,
+  onKeyDown: PropTypes.func,
 };

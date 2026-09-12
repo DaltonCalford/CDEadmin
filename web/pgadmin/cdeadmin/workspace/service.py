@@ -1219,8 +1219,10 @@ def init_app(
     report_delivery_service=None, report_scheduler_service=None,
 ):
     from .transfer import init_app as init_transfer_app
+    from .assets import init_app as init_project_assets
 
     init_transfer_app(app)
+    init_project_assets(app)
     existing = app.extensions.get(APP_EXTENSION_KEY)
     if existing is not None:
         return existing

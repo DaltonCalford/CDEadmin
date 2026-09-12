@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-screen-spec.schema.json",
+  "title": "CDEadmin implementation-ready screen specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "screen_id",
+    "module",
+    "purpose",
+    "primary_surface_type",
+    "entry_commands",
+    "bindings",
+    "host_regions",
+    "toolbar_commands",
+    "components",
+    "states",
+    "keyboard",
+    "pointer",
+    "persistence",
+    "multi_window",
+    "svg_references",
+    "functional_regression",
+    "spec_gaps"
+  ],
+  "properties": {
+    "screen_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_surface_type": {
+      "enum": [
+        "resource_explorer",
+        "project_explorer",
+        "editor",
+        "designer",
+        "viewer",
+        "grid_data_browser",
+        "monitoring_observability",
+        "preferences",
+        "wizard",
+        "dialog",
+        "presentation_runtime"
+      ]
+    },
+    "entry_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "properties": {
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "host_regions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "global_header",
+          "activity_rail",
+          "navigator",
+          "workbench",
+          "inspector",
+          "bottom_drawer",
+          "status_bar"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "toolbar_commands": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "navigation_model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "inspector_sections": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "toolbox_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "bottom_drawer_pages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status_bar_contributions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "tokens_profiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "states": {
+      "type": "object",
+      "required": [
+        "default",
+        "loading",
+        "empty",
+        "error",
+        "permission",
+        "disconnected_or_stale"
+      ],
+      "properties": {
+        "default": {
+          "type": "string",
+          "minLength": 1
+        },
+        "loading": {
+          "type": "string",
+          "minLength": 1
+        },
+        "empty": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error": {
+          "type": "string",
+          "minLength": 1
+        },
+        "permission": {
+          "type": "string",
+          "minLength": 1
+        },
+        "disconnected_or_stale": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "keyboard": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pointer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "persistence": {
+      "type": "string",
+      "minLength": 1
+    },
+    "multi_window": {
+      "type": "string",
+      "minLength": 1
+    },
+    "accessibility": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "svg_references": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "functional_regression": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "spec_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

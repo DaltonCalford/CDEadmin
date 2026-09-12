@@ -99,6 +99,7 @@ class MiscModule(PgAdminModule):
             {'label': gettext('Classic compatibility'), 'value': 'classic'},
             {'label': gettext('CDEadmin standard'),
              'value': 'cdeadmin_standard'},
+            {'label': gettext('Comfortable'), 'value': 'comfortable'},
             {'label': gettext('System adaptive'),
              'value': 'system_adaptive'},
             {'label': gettext('High contrast light'),
@@ -113,7 +114,7 @@ class MiscModule(PgAdminModule):
         ]
         self.preference.register(
             'accessibility', 'accessibility_profile',
-            gettext('Accessibility profile'), 'options', 'classic',
+            gettext('Accessibility profile'), 'options', 'cdeadmin_standard',
             category_label=gettext('Accessibility and personalization'),
             options=profile_options,
             control_props={'allowClear': False, 'creatable': False},

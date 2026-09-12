@@ -15,6 +15,8 @@ import {menuStructureRegistry} from
 import {
   executeMenuCommand, resolveMenuCommand,
 } from './CommandMenuAdapter';
+import {commandRegistry} from
+  '../../../static/js/cdeadmin_ui/commands/CommandRegistry';
 import {
   isProviderContextNode, providerContextMenuItems,
   registerProviderMenuCategories,
@@ -59,7 +61,9 @@ export default class MainMenuFactory {
       // Don't add menuItems for hasDynamicMenuItems true as it's menuItems get changed on tree selection.
       if(!_menu.hasDynamicMenuItems) {
         menuObj.clearMenuItems();
-        menuObj.addMenuItems(MainMenuFactory.createMenuItems(pgAdmin.Browser.all_menus_cache[_menu.name]));
+        menuObj.addMenuItems(MainMenuFactory.createMenuItems(
+          MainMenuFactory.menuContributions(_menu.name)
+        ));
       }
     });
 
@@ -67,6 +71,25 @@ export default class MainMenuFactory {
     MainMenuFactory.enableDisableMenus();
 
     window.electronUI?.setMenus(MainMenuFactory.toElectron());
+  }
+
+  static menuContributions(name) {
+    const aliases = name === 'data' ? ['data', 'connectors', 'management'] :
+      [name];
+    const cache = Object.assign({}, ...aliases.map((surface) =>
+      pgAdmin.Browser.all_menus_cache?.[surface] ?? {}
+    ));
+    const registered = commandRegistry.list().filter((command) =>
+      command.surfaces.includes(name)
+    ).reduce((result, command, index) => ({...result, [command.id]: {
+      name: command.id.replaceAll('.', '_'),
+      commandId: command.id,
+      label: command.label,
+      iconKey: command.iconKey,
+      priority: 1000 + index,
+      category: 'common',
+    }}), {});
+    return {...cache, ...registered};
   }
 
   static getSeparator(label, priority) {

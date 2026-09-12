@@ -1,0 +1,331 @@
+{
+  "meta": {
+    "name": "CDEadmin Zero-Grey UI Tokens",
+    "version": "1.0",
+    "date": "2026-09-10",
+    "base_grid_px": 4
+  },
+  "fonts": {
+    "ui": "Fira Code, ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace",
+    "code": "Fira Code, ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace",
+    "policy": "Do not distribute font files. Use Fira Code when available, then the ordered fallback stack."
+  },
+  "type": {
+    "caption": {
+      "size_px": 10,
+      "line_px": 14,
+      "weight": 500,
+      "tracking_em": 0.08,
+      "case": "uppercase"
+    },
+    "small": {
+      "size_px": 11,
+      "line_px": 16,
+      "weight": 400
+    },
+    "body": {
+      "size_px": 12,
+      "line_px": 18,
+      "weight": 400
+    },
+    "control": {
+      "size_px": 12,
+      "line_px": 16,
+      "weight": 500
+    },
+    "section": {
+      "size_px": 12,
+      "line_px": 18,
+      "weight": 600,
+      "tracking_em": 0.06,
+      "case": "uppercase"
+    },
+    "surface_title": {
+      "size_px": 14,
+      "line_px": 20,
+      "weight": 600
+    },
+    "dialog_title": {
+      "size_px": 16,
+      "line_px": 22,
+      "weight": 600
+    },
+    "page_title": {
+      "size_px": 18,
+      "line_px": 26,
+      "weight": 500
+    }
+  },
+  "profiles": {
+    "standard": {
+      "control_height": 32,
+      "target_size": 28,
+      "tree_row": 30,
+      "grid_row": 30,
+      "tab_height": 32,
+      "toolbar_height": 34,
+      "menu_row": 28,
+      "status_height": 24,
+      "focus_width": 2,
+      "focus_offset": 2,
+      "scrollbar": 10,
+      "splitter_hit": 6
+    },
+    "compact_expert": {
+      "control_height": 26,
+      "target_size": 24,
+      "tree_row": 24,
+      "grid_row": 24,
+      "tab_height": 28,
+      "toolbar_height": 30,
+      "menu_row": 26,
+      "status_height": 22,
+      "focus_width": 2,
+      "focus_offset": 1,
+      "scrollbar": 8,
+      "splitter_hit": 6
+    },
+    "comfortable": {
+      "control_height": 36,
+      "target_size": 36,
+      "tree_row": 36,
+      "grid_row": 36,
+      "tab_height": 36,
+      "toolbar_height": 38,
+      "menu_row": 34,
+      "status_height": 26,
+      "focus_width": 3,
+      "focus_offset": 2,
+      "scrollbar": 12,
+      "splitter_hit": 8
+    },
+    "low_vision": {
+      "control_height": 44,
+      "target_size": 44,
+      "tree_row": 44,
+      "grid_row": 44,
+      "tab_height": 44,
+      "toolbar_height": 46,
+      "menu_row": 44,
+      "status_height": 32,
+      "focus_width": 4,
+      "focus_offset": 2,
+      "scrollbar": 18,
+      "splitter_hit": 12
+    },
+    "motor_assistance": {
+      "control_height": 48,
+      "target_size": 48,
+      "tree_row": 48,
+      "grid_row": 48,
+      "tab_height": 48,
+      "toolbar_height": 50,
+      "menu_row": 48,
+      "status_height": 32,
+      "focus_width": 3,
+      "focus_offset": 2,
+      "scrollbar": 18,
+      "splitter_hit": 12
+    }
+  },
+  "geometry": {
+    "header_height": 44,
+    "activity_rail_width": 48,
+    "navigator": {
+      "default": 288,
+      "min": 220,
+      "max": 480
+    },
+    "inspector": {
+      "default": 340,
+      "min": 280,
+      "max": 520
+    },
+    "bottom_drawer": {
+      "default": 240,
+      "min": 120,
+      "max_viewport_ratio": 0.6
+    },
+    "dialog": {
+      "small": 420,
+      "medium": 640,
+      "large": 960,
+      "margin": 24,
+      "title_height": 44,
+      "footer_height": 52,
+      "content_padding": 20
+    },
+    "about_width": 640,
+    "command_palette_width": 720,
+    "command_palette_max_height": 640,
+    "viewport_edge_margin": 8,
+    "popover_gap": 4,
+    "tooltip_gap": 6,
+    "radius_default": 0,
+    "radius_small": 2,
+    "border_default": 1,
+    "border_emphasis": 2,
+    "icon": {
+      "xs": 12,
+      "sm": 16,
+      "md": 18,
+      "lg": 20,
+      "xl": 24
+    }
+  },
+  "spacing": {
+    "0": 0,
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "10": 40,
+    "12": 48
+  },
+  "theme": {
+    "dark": {
+      "brand_primary": "#0077B6",
+      "brand_secondary": "#CAF0F8",
+      "brand_tertiary": "#03045E",
+      "body_text": "#EDF2FB",
+      "near_black": "#0A0908",
+      "surface_root": "#03045E",
+      "surface_canvas": "#04054F",
+      "surface_navigation": "#02196E",
+      "surface_panel": "#02196E",
+      "surface_workspace": "#04054F",
+      "surface_elevated": "#02297A",
+      "surface_editor": "#060A2D",
+      "surface_grid": "#05083A",
+      "content_primary": "#EDF2FB",
+      "content_secondary": "#CAF0F8",
+      "content_muted": "#A2A6C9",
+      "content_disabled": "#72779E",
+      "border_subtle": "#36457D",
+      "border_default": "#57679F",
+      "border_strong": "#8191BE",
+      "action_primary": "#0077B6",
+      "action_primary_text": "#FFFFFF",
+      "action_hover": "#171C6D",
+      "action_selected": "#01438E",
+      "action_pressed": "#005F91",
+      "focus": "#CAF0F8",
+      "success": "#6DFF8B",
+      "warning": "#FFD166",
+      "error": "#FFB4B4",
+      "info": "#90E0EF"
+    },
+    "light": {
+      "brand_primary": "#E8EFFB",
+      "brand_secondary": "#0077B6",
+      "brand_tertiary": "#FFFFFF",
+      "body_text": "#03045E",
+      "near_black": "#0A0908",
+      "surface_root": "#E8EFFB",
+      "surface_canvas": "#EFF4FC",
+      "surface_navigation": "#F7F9FE",
+      "surface_panel": "#FFFFFF",
+      "surface_workspace": "#EFF4FC",
+      "surface_elevated": "#FFFFFF",
+      "surface_editor": "#FFFFFF",
+      "surface_grid": "#FFFFFF",
+      "content_primary": "#03045E",
+      "content_secondary": "#0077B6",
+      "content_muted": "#4A4A8B",
+      "content_disabled": "#7C80A4",
+      "border_subtle": "#B9D9EA",
+      "border_default": "#66ADD3",
+      "border_strong": "#4099C8",
+      "action_primary": "#0077B6",
+      "action_primary_text": "#FFFFFF",
+      "action_hover": "#EBF4F9",
+      "action_selected": "#BED9EF",
+      "action_pressed": "#D3E8F5",
+      "focus": "#0077B6",
+      "success": "#006B2D",
+      "warning": "#8A4B00",
+      "error": "#B00020",
+      "info": "#006A8E"
+    },
+    "high_contrast_dark": {
+      "canvas": "#000000",
+      "panel": "#111111",
+      "text": "#FFFFFF",
+      "muted": "#E0E0E0",
+      "primary": "#FFD740",
+      "focus": "#FFD740",
+      "border": "#FFFFFF",
+      "selection": "#164E78",
+      "success": "#6DFF8B",
+      "warning": "#FFD166",
+      "error": "#FF808F"
+    },
+    "high_contrast_light": {
+      "canvas": "#FFFFFF",
+      "panel": "#FFFFFF",
+      "text": "#000000",
+      "muted": "#333333",
+      "primary": "#003E73",
+      "focus": "#003E73",
+      "border": "#000000",
+      "selection": "#BDE3FF",
+      "success": "#006B2D",
+      "warning": "#8A4B00",
+      "error": "#B00020"
+    }
+  },
+  "data_visualization": {
+    "qualitative_light": [
+      "#0072B2",
+      "#E69F00",
+      "#009E73",
+      "#D55E00",
+      "#CC79A7",
+      "#56B4E9",
+      "#6B5CA5",
+      "#7A7A00",
+      "#8C564B",
+      "#4D8B31"
+    ],
+    "qualitative_dark": [
+      "#56B4E9",
+      "#FFD166",
+      "#6DFFB0",
+      "#FF8A65",
+      "#E5A0D6",
+      "#90E0EF",
+      "#B8A7FF",
+      "#F0E442",
+      "#D7A58B",
+      "#A6D96A"
+    ],
+    "rule": "Use series order exactly as listed. Status colours are not normal chart series colours."
+  },
+  "layers": {
+    "base": 0,
+    "docked_chrome": 100,
+    "sticky_header": 200,
+    "dropdown": 1000,
+    "context_menu": 1100,
+    "popover": 1200,
+    "modal_backdrop": 2000,
+    "modal": 2100,
+    "tooltip": 3000,
+    "drag_ghost": 4000
+  },
+  "timing_ms": {
+    "hover": 150,
+    "theme_change": 250,
+    "tooltip_open": 500,
+    "tooltip_close": 100,
+    "toast_success": 6000,
+    "toast_info": 6000,
+    "toast_warning": 10000,
+    "toast_error": 0,
+    "double_click_max": 500,
+    "drag_start_distance": 8
+  }
+}

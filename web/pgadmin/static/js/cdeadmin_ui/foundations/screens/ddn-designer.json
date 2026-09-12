@@ -1,0 +1,33 @@
+{
+  "screen_id": "ddn.workspace-designer",
+  "module": "cdeadmin.ddn",
+  "purpose": "Edit an authorized DDN workspace through the exact DDN Designer API while the project asset authority owns versioned persistence.",
+  "primary_surface_type": "designer",
+  "entry_commands": ["ddn.designer.open"],
+  "bindings": {"resources": [], "assets": ["ddn-workspace"], "tasks": []},
+  "host_regions": ["workbench", "inspector", "bottom_drawer", "status_bar"],
+  "toolbar_commands": ["ddn.designer.save", "ddn.designer.undo", "ddn.designer.redo", "ddn.designer.create", "ddn.designer.export"],
+  "navigation_model": "The DDN source workspace remains authoritative; rendered scene and SVG remain projections.",
+  "inspector_sections": ["DDN validation", "selection properties"],
+  "toolbox_items": ["diagram", "node", "edge", "group", "note"],
+  "bottom_drawer_pages": ["Problems", "Output"],
+  "status_bar_contributions": ["asset version", "save state", "validation"],
+  "components": ["Toolbar", "Button", "ToolboxItem", "InspectorSection", "ValidationMessage", "StatusBar"],
+  "tokens_profiles": ["standard", "compact_expert", "low_vision"],
+  "states": {
+    "default": "Authorized source state is editable through DDN Designer.",
+    "loading": "Asset identity remains visible during library and source restoration.",
+    "empty": "A valid empty workspace offers the registered DDN creation tools.",
+    "error": "Validation/save conflicts retain unsaved source state and report recovery actions.",
+    "permission": "Viewer access forces read-only behavior and suppresses mutation commands.",
+    "disconnected_or_stale": "Save failure/conflict marks persistence state and blocks accidental close until save or discard."
+  },
+  "keyboard": "DDN public keyboard behavior is preserved; host Save and close policy use registered commands and standard focus handling.",
+  "pointer": "DDN public pointer/drag behavior owns canvas editing; host owns tab docking and window transfer.",
+  "persistence": "Exact source snapshot saves through AssetRef with expected version; rendered SVG and scene geometry are never authoritative.",
+  "multi_window": "Designer is detachable but not duplicable; ownership and optimistic save authority remain stable across windows.",
+  "accessibility": "Host toolbox, validation and status are labelled; library errors flow to shared diagnostics.",
+  "svg_references": ["svg/13_inspector_toolbox.svg", "svg/21_designer_host_pattern.svg"],
+  "functional_regression": ["DDNIntegration.spec.js", "DDNSurfaces.spec.jsx", "DDNModule.spec.jsx", "test_cdeadmin_project_assets.py"],
+  "spec_gaps": []
+}

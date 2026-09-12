@@ -58,12 +58,19 @@ export function Divider(props) {
   return <MuiDivider {...props} />;
 }
 
-export function Link({external=false, ...props}) {
+export function Link({external=false, disabled=false, children, ...props}) {
   return <MuiLink
     {...props}
+    component={disabled ? 'span' : props.component}
+    href={disabled ? undefined : props.href}
+    role={disabled ? 'link' : props.role}
+    aria-disabled={disabled || undefined}
+    tabIndex={disabled ? -1 : props.tabIndex}
     target={external ? '_blank' : props.target}
     rel={external ? 'noopener noreferrer' : props.rel}
-  />;
+    sx={{...props.sx, cursor: disabled ? 'not-allowed' : 'pointer',
+      color: disabled ? 'text.disabled' : undefined}}
+  >{children}</MuiLink>;
 }
 
 Stack.propTypes = {
@@ -85,6 +92,13 @@ ScrollArea.propTypes = {
 
 Link.propTypes = {
   external: PropTypes.bool,
+  disabled: PropTypes.bool,
+  children: PropTypes.node,
+  component: PropTypes.elementType,
+  href: PropTypes.string,
+  role: PropTypes.string,
+  tabIndex: PropTypes.number,
+  sx: PropTypes.object,
   target: PropTypes.string,
   rel: PropTypes.string,
 };

@@ -8,18 +8,22 @@
 //////////////////////////////////////////////////////////////
 
 import {
-  MenuBindingRegistry, MenuStructureRegistry, PROVISIONAL_MENU_STRUCTURE,
+  CDEADMIN_MENU_STRUCTURE, MenuBindingRegistry, MenuStructureRegistry,
 } from 'sources/cdeadmin_ui/commands/MenuStructure';
 
 describe('CDEadmin menu structure and bindings', () => {
-  it('provides a provisional Connectors surface without fixing final layout', () => {
+  it('implements the normative provider-neutral top-level taxonomy', () => {
     const registry = new MenuStructureRegistry();
-    expect(registry.get().map((menu)=>menu.name)).toContain('connectors');
+    expect(registry.get().map((menu)=>menu.name)).toEqual([
+      'file', 'edit', 'view', 'navigate', 'run', 'data', 'project', 'tools',
+      'window', 'help',
+    ]);
+    expect(registry.get().map((menu)=>menu.name)).not.toContain('object');
     expect(registry.surfaces().has('connectors')).toBe(true);
   });
 
   it('can replace the complete visual structure independently of commands', () => {
-    const registry = new MenuStructureRegistry(PROVISIONAL_MENU_STRUCTURE);
+    const registry = new MenuStructureRegistry(CDEADMIN_MENU_STRUCTURE);
     registry.replace([{name: 'workspace', label: 'Workspace'}]);
     expect(registry.get()).toEqual([
       expect.objectContaining({name: 'workspace', label: 'Workspace'}),

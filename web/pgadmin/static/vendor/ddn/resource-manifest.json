@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schema": "cdeadmin.vendored-resource-manifest.v1",
+  "name": "DDN viewer and designer distributions",
+  "license": "MIT",
+  "source": {
+    "kind": "approved-local-release-package",
+    "package": "CDEadmin_Zero_Grey_UI_Reference_Package",
+    "accepted": "2026-09-11"
+  },
+  "components": [
+    {
+      "name": "DDN runtime/viewer",
+      "version": "0.5.0-draft.2",
+      "entry": "0.5.0-draft.2/viewer/ddn.mjs",
+      "global_entry": "0.5.0-draft.2/viewer/ddn.global.js",
+      "declarations": "0.5.0-draft.2/viewer/ddn.d.ts"
+    },
+    {
+      "name": "DDN Designer",
+      "version": "0.1.0-preview.1",
+      "runtime_version": "0.5.0-draft.2",
+      "entry": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.mjs",
+      "standalone_entry": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.all.js",
+      "declarations": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.d.ts"
+    }
+  ],
+  "files": [
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.all.js", "sha256": "3ae9cc76c255623bb63ab01af6a366fd38750252c9fb787beea68ae92dce69ff"},
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.d.mts", "sha256": "8d7bc8fdbe84ced5b51dfca2a3b6175ec407763a30bb0ece0f94c9491aaa552e"},
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.d.ts", "sha256": "8d7bc8fdbe84ced5b51dfca2a3b6175ec407763a30bb0ece0f94c9491aaa552e"},
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.js", "sha256": "953943d6ba20d46ca5b2a025be06aa455b9ebf562ea7419fafb4c20ab6cb3b68"},
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn-designer.mjs", "sha256": "a1b0073aaed6a37b8b5d7ffcc0670dcc0a3e855db721c439265520aebf45d0ec"},
+    {"path": "0.5.0-draft.2/designer-0.1.0-preview.1/ddn.global.js", "sha256": "05ba94e1a9add994e16523f2b0f862b0b5dc3c733e293987aa287f1c6cc1585d"},
+    {"path": "0.5.0-draft.2/viewer/ddn.d.mts", "sha256": "2d9193c103dc92b5bea236dda6aecf635985f075443a9b18d948907d95bd08e6"},
+    {"path": "0.5.0-draft.2/viewer/ddn.d.ts", "sha256": "2d9193c103dc92b5bea236dda6aecf635985f075443a9b18d948907d95bd08e6"},
+    {"path": "0.5.0-draft.2/viewer/ddn.global.js", "sha256": "05ba94e1a9add994e16523f2b0f862b0b5dc3c733e293987aa287f1c6cc1585d"},
+    {"path": "0.5.0-draft.2/viewer/ddn.mjs", "sha256": "6d64c818f2919ce39f468aa4df8ac18dba62056654fe58fe569383c027bb67d7"},
+    {"path": "0.5.0-draft.2/viewer/editor.html", "sha256": "c2fe71e06937fd77c10823f946e1c8d452403d892416a795b1d2cc00bf5b1c93", "development_only": true},
+    {"path": "0.5.0-draft.2/viewer/example.html", "sha256": "c7232c74364bb3c5da6ee69d7b328ffad83d064a89da64d894ee67fa2100d0f1", "development_only": true}
+  ]
+}

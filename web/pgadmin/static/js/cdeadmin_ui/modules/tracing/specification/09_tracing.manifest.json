@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.tracing",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.tracing.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "trace_search",
+      "title": "Trace Search",
+      "description": "Time/service/resource/status filters."
+    },
+    {
+      "id": "trace_waterfall",
+      "title": "Trace Waterfall",
+      "description": "Span timeline with collapse/critical-path aids."
+    },
+    {
+      "id": "span_inspector",
+      "title": "Span Inspector",
+      "description": "Attributes/events/links/resource/correlation."
+    },
+    {
+      "id": "service_resource_map",
+      "title": "Service / Resource Map",
+      "description": "Aggregated dependency graph."
+    },
+    {
+      "id": "query_correlation",
+      "title": "Query Correlation",
+      "description": "Trace \u2194 CDEadmin query/task/provider call."
+    },
+    {
+      "id": "ingestion_sampling",
+      "title": "Ingestion & Sampling",
+      "description": "Sources, drop counts, policy."
+    }
+  ],
+  "commands": [
+    {
+      "id": "trace.search",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.open",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.copy_id",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.resource.open",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.query.open",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.export.otel",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.source.configure",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "trace.sampling.update",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "trace.search.large",
+    "trace.aggregate.service_map",
+    "trace.export"
+  ],
+  "events": [
+    "trace.ingested",
+    "trace.source.degraded",
+    "trace.retention.expired"
+  ],
+  "primaryPlate": "svg/09_tracing_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

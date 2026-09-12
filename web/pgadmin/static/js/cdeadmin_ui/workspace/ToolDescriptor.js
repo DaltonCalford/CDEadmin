@@ -15,6 +15,9 @@ export const TOOL_KINDS = Object.freeze({
   ERD: 'erd',
   SCHEMA_DIFF: 'schema_diff',
   DEBUGGER: 'debugger',
+  DDN_VIEWER: 'diagram.ddn.viewer',
+  DDN_DESIGNER: 'diagram.ddn.designer',
+  PROJECT_EXPLORER: 'project.explorer',
   GENERIC: 'generic_tool',
 });
 

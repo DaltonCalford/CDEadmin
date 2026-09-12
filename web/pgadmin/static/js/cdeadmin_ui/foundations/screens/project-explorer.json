@@ -1,0 +1,33 @@
+{
+  "screen_id": "projects.project-explorer",
+  "module": "cdeadmin.projects",
+  "purpose": "Browse and create permission-scoped projects and open their versioned authored assets independently of live provider resources.",
+  "primary_surface_type": "project_explorer",
+  "entry_commands": ["project.explorer.focus", "project.create"],
+  "bindings": {"resources": [], "assets": ["cdeadmin.project-asset.v1"], "tasks": []},
+  "host_regions": ["activity_rail", "navigator", "workbench", "status_bar"],
+  "toolbar_commands": ["project.create"],
+  "navigation_model": "Projects are level-one tree rows and their authorized authored assets are level-two rows.",
+  "inspector_sections": ["asset identity", "version", "permissions", "validation", "bindings"],
+  "toolbox_items": [],
+  "bottom_drawer_pages": ["Problems"],
+  "status_bar_contributions": ["project access", "asset version", "validation"],
+  "components": ["Toolbar", "Button", "SearchField", "TreeRow", "Dialog", "TextField", "TextArea", "EmptyState"],
+  "tokens_profiles": ["standard", "compact_expert", "low_vision"],
+  "states": {
+    "default": "Authorized projects and loaded assets appear as a keyboard-operable tree.",
+    "loading": "Project and asset loading are exposed without discarding the tree.",
+    "empty": "A create-project action accompanies the explanation.",
+    "error": "List or project errors provide an explicit retry.",
+    "permission": "Only projects/assets returned by the authoritative service are shown; access labels remain visible.",
+    "disconnected_or_stale": "Version conflict and unavailable service errors preserve the last visible identity and provide reload."
+  },
+  "keyboard": "Tree rows use arrows, Enter and Space; create dialog has labelled fields and deterministic default action.",
+  "pointer": "Single-click selects, expander toggles children, double-click opens; commands provide non-pointer equivalents.",
+  "persistence": "Projects and immutable asset revisions use authenticated backend authority with optimistic revision/version checks.",
+  "multi_window": "Opened assets inherit their registered surface detach policy; Project Explorer remains a navigator.",
+  "accessibility": "Tree hierarchy, busy/error state, filter result scope and dialog validation are programmatically labelled.",
+  "svg_references": ["svg/09_tree_explorer.svg", "svg/17_empty_loading_error.svg", "svg/25_resource_asset_pickers.svg"],
+  "functional_regression": ["ProjectExplorer.spec.jsx", "ProjectAssetClient.spec.js", "test_cdeadmin_project_assets.py"],
+  "spec_gaps": []
+}

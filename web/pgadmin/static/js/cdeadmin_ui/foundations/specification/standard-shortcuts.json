@@ -1,0 +1,43 @@
+{
+  "global": {
+    "Command Palette": "Ctrl/Cmd+K",
+    "Preferences": "Ctrl/Cmd+,",
+    "Find": "Ctrl/Cmd+F",
+    "Save": "Ctrl/Cmd+S",
+    "Save All": "Ctrl/Cmd+Shift+S",
+    "Close Surface": "Ctrl/Cmd+W",
+    "Reopen Closed Surface": "Ctrl/Cmd+Shift+T",
+    "Next Surface": "Ctrl+Tab",
+    "Previous Surface": "Ctrl+Shift+Tab",
+    "Full Screen": "F11",
+    "Safe Accessibility Mode": "Ctrl+Shift+0",
+    "Help": "F1",
+    "Refresh": "F5",
+    "Global Resource Search": "Ctrl/Cmd+P"
+  },
+  "editing": {
+    "Undo": "Ctrl/Cmd+Z",
+    "Redo": "Ctrl/Cmd+Shift+Z",
+    "Cut": "Ctrl/Cmd+X",
+    "Copy": "Ctrl/Cmd+C",
+    "Paste": "Ctrl/Cmd+V",
+    "Select All": "Ctrl/Cmd+A"
+  },
+  "execution": {
+    "Execute": "Ctrl/Cmd+Enter; F5 may be owned by an active query editor",
+    "Execute Selected": "Ctrl/Cmd+Shift+Enter",
+    "Cancel": "Esc only when execution owns cancellation and no modal/gesture takes precedence",
+    "Explain": "Ctrl/Cmd+E"
+  },
+  "navigation": {
+    "Back": "Alt+Left",
+    "Forward": "Alt+Right",
+    "Next Problem": "F8",
+    "Previous Problem": "Shift+F8",
+    "Focus Explorer": "Ctrl/Cmd+1",
+    "Focus Workbench": "Ctrl/Cmd+2",
+    "Focus Inspector": "Ctrl/Cmd+3",
+    "Focus Bottom Drawer": "Ctrl/Cmd+4"
+  },
+  "rule": "Shortcut conflicts are resolved by CommandRegistry and active-surface ownership, not ad hoc event handlers."
+}

@@ -104,6 +104,44 @@ that foundation with:
 - distributed control-plane operations, approvals, progress, cancellation,
   redaction, persistence, and audit evidence.
 
+The application shell is governed by the CDEadmin module, service, capability,
+contribution, command, event, diagnostics, and surface registries. Its
+Zero-Grey design system supplies token-driven light/dark and accessibility
+profiles, semantic controls, standard dialogs, persistent layouts, keyboard
+commands, project assets, and detachable/restorable work surfaces. The bundled
+DDN Viewer and DDN Designer are consumed as versioned third-party libraries
+through their documented public APIs; editable DDN source remains the single
+diagram authority and is stored as an authenticated, versioned project asset.
+The first-party Schema Comparison, Data Lineage, Data Quality, Data Contract
+Manager, ETL Designer, CDC Designer, Replication Topology and Distributed
+Tracing modules use those same registries,
+project revisions, provider evidence envelopes, task lifecycle, permission
+checks, accessible workbench surfaces, and explicit unknown/unsupported
+states. ETL adds typed batch/stream ports, native-to-semantic mappings, bounded
+no-write preview, explicit pushdown planning, provider-bound deployment
+validation, checkpoint recovery, error routing and declared/observed lineage.
+CDC adds exact provider capture mechanisms, separate snapshot/stream
+checkpoints, proof-gated delivery guarantees, safe schema evolution, bounded
+and permission-redacted event inspection, lag alerts and independently
+confirmed replay. None of these modules infers behavior from protocol or
+engine-family similarity.
+Replication Topology preserves exact provider-native participant roles,
+states, positions, mechanisms and lag evidence beside its deliberately small
+normalized vocabulary. It provides layout-only topology interaction, bounded
+lag history and alerts, provider-mediated link control, immutable snapshots,
+and a failover workflow that requires quorum, candidate, position and
+data-loss evidence before arming an exact plan revision. A completed failover
+is accepted only after provider rediscovery matches the expected topology.
+Distributed Tracing preserves OpenTelemetry trace/span identity and unknown
+attributes, applies sensitivity policy before persistence, and keeps runtime
+telemetry separate from deterministic project definitions. It provides
+bounded trace search, hierarchical waterfalls, span inspection, observed-time
+service maps, evidenced query/resource correlation, source and sampling
+administration, and provenance-bearing OTLP export. Provider-native tracing is
+enabled only by an exact adapter contract; internal CDEadmin spans remain a
+valid independent source.
+See [UI architecture](web/pgadmin/static/js/cdeadmin_ui/ARCHITECTURE.md).
+
 PostgreSQL support remains a core engine provider, but it does not define the
 global product identity or constrain other providers to PostgreSQL semantics.
 See [Product architecture](docs/en_US/cdeadmin_architecture.rst) for the

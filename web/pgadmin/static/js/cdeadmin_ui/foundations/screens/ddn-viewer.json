@@ -1,0 +1,33 @@
+{
+  "screen_id": "ddn.workspace-viewer",
+  "module": "cdeadmin.ddn",
+  "purpose": "Render an exact versioned DDN project asset read-only with navigation, export and presentation behavior owned by the public DDN viewer API.",
+  "primary_surface_type": "viewer",
+  "entry_commands": ["ddn.viewer.open"],
+  "bindings": {"resources": [], "assets": ["ddn-workspace"], "tasks": []},
+  "host_regions": ["workbench", "inspector", "status_bar"],
+  "toolbar_commands": ["ddn.viewer.fit", "ddn.viewer.export"],
+  "navigation_model": "DDN viewer owns diagram navigation while the host owns the workbench tab and window.",
+  "inspector_sections": ["DDN validation"],
+  "toolbox_items": [],
+  "bottom_drawer_pages": ["Problems"],
+  "status_bar_contributions": ["asset version", "validation", "view mode"],
+  "components": ["Toolbar", "Button", "EmptyState", "ProgressBar", "StatusBar"],
+  "tokens_profiles": ["standard", "compact_expert", "low_vision"],
+  "states": {
+    "default": "The validated DDN snapshot is displayed read-only.",
+    "loading": "The workbench retains asset identity while the DDN library loads.",
+    "empty": "A valid empty DDN workspace remains a navigable empty canvas.",
+    "error": "Library, version or snapshot validation failure is explicit and non-destructive.",
+    "permission": "Viewer access never exposes designer mutation commands.",
+    "disconnected_or_stale": "The saved asset version remains viewable and is marked stale when authority refresh fails."
+  },
+  "keyboard": "DDN public keyboard handling remains inside the library; host tab, export and presentation commands remain reachable.",
+  "pointer": "Pan/zoom/select use DDN public behavior; host detach and commands remain outside the DDN shadow boundary.",
+  "persistence": "Viewer never persists rendered SVG, scene geometry or selection as a second model.",
+  "multi_window": "Viewer is detachable, duplicable and presentation-capable through ToolDescriptor/WorkspaceHost.",
+  "accessibility": "The hosting surface is named; library diagnostics are relayed to shared Problems.",
+  "svg_references": ["svg/18_multi_monitor_presentation.svg", "svg/21_designer_host_pattern.svg"],
+  "functional_regression": ["DDNIntegration.spec.js", "DDNSurfaces.spec.jsx", "DDNModule.spec.jsx"],
+  "spec_gaps": []
+}

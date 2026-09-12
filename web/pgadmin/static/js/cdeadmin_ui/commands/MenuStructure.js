@@ -9,18 +9,31 @@
 
 const MENU_NAME = /^[a-z][a-z0-9_-]*$/;
 
-export const PROVISIONAL_MENU_STRUCTURE = Object.freeze([
+export const CDEADMIN_MENU_STRUCTURE = Object.freeze([
   Object.freeze({label: 'File', name: 'file', id: 'mnu_file', index: 0,
     addSeprator: true, hasDynamicMenuItems: false}),
-  Object.freeze({label: 'Connectors', name: 'connectors', id: 'mnu_connectors',
+  Object.freeze({label: 'Edit', name: 'edit', id: 'mnu_edit',
     index: 1, addSeprator: true, hasDynamicMenuItems: false}),
-  Object.freeze({label: 'Object', name: 'object', id: 'mnu_obj', index: 2,
-    addSeprator: true, hasDynamicMenuItems: true}),
-  Object.freeze({label: 'Tools', name: 'tools', id: 'mnu_tools', index: 3,
+  Object.freeze({label: 'View', name: 'view', id: 'mnu_view', index: 2,
+    addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Navigate', name: 'navigate', id: 'mnu_navigate',
+    index: 3, addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Run', name: 'run', id: 'mnu_run', index: 4,
+    addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Data', name: 'data', id: 'mnu_data', index: 5,
+    addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Project', name: 'project', id: 'mnu_project', index: 6,
+    addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Tools', name: 'tools', id: 'mnu_tools', index: 7,
+    addSeprator: true, hasDynamicMenuItems: false}),
+  Object.freeze({label: 'Window', name: 'window', id: 'mnu_window', index: 8,
     addSeprator: true, hasDynamicMenuItems: false}),
   Object.freeze({label: 'Help', name: 'help', id: 'mnu_help', index: 9,
     addSeprator: false, hasDynamicMenuItems: false}),
 ]);
+
+// Compatibility alias retained until all callers use the final CDEadmin name.
+export const PROVISIONAL_MENU_STRUCTURE = CDEADMIN_MENU_STRUCTURE;
 
 function normalizeMenu(input, index) {
   const name = String(input?.name ?? '').trim();
@@ -36,7 +49,7 @@ function normalizeMenu(input, index) {
 }
 
 export class MenuStructureRegistry {
-  constructor(structure=PROVISIONAL_MENU_STRUCTURE) {
+  constructor(structure=CDEADMIN_MENU_STRUCTURE) {
     this.replace(structure);
   }
 
@@ -61,10 +74,10 @@ export class MenuStructureRegistry {
   }
 
   surfaces() {
-    // edit/management remain accepted compatibility surfaces until the final
-    // CDEadmin menu structure assigns or retires their contributed commands.
+    // Legacy contribution names remain accepted while their presentation is
+    // mapped into the normative CDEadmin menu taxonomy.
     return new Set([
-      'context', 'edit', 'management',
+      'context', 'connectors', 'management', 'object',
       ...this.structure.map((menu)=>menu.name),
     ]);
   }

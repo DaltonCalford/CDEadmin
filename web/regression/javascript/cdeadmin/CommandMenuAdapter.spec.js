@@ -84,4 +84,19 @@ describe('CDEadmin legacy command/menu adapter', () => {
     )).rejects.toMatchObject({code: 'permission_denied'});
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('materializes and executes an already-registered first-party command', async () => {
+    const handler = jest.fn().mockReturnValue('opened');
+    commandRegistry.register({
+      id: 'test.first-party.open', label: 'Open project', execute: handler,
+      surfaces: ['project'],
+    });
+    const option = {name: 'test_first_party_open',
+      commandId: 'test.first-party.open', label: 'Open project'};
+    expect(resolveMenuCommand(option)).toMatchObject({
+      id: 'test.first-party.open', enabled: true,
+    });
+    await expect(executeMenuCommand(option)).resolves.toBe('opened');
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
 });

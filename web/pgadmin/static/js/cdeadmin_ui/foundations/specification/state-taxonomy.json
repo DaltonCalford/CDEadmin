@@ -1,0 +1,45 @@
+{
+  "schema": "cdeadmin-state-taxonomy@1",
+  "interactive": {
+    "default": "Available, not hovered/focused/active.",
+    "hover": "Pointer is over an enabled control; never the sole disclosure of essential action.",
+    "focus-visible": "Keyboard/programmatic focus with visible focus token.",
+    "pressed": "Momentary pointer/key activation state.",
+    "selected": "Persistent current selection within list/tree/tab/grid/canvas.",
+    "checked": "Boolean/radio/toggle asserted state.",
+    "disabled": "Command/control exists but cannot currently execute; reason available when useful.",
+    "readonly": "Value can be inspected/copied but not mutated.",
+    "loading": "Operation/data pending; control prevents duplicate activation where required.",
+    "warning": "Usable but risk/attention state exists.",
+    "error": "Invalid/failed state with text explanation.",
+    "permission-denied": "Capability exists but caller lacks authorization.",
+    "unavailable": "Capability is not provided by current provider/module/context."
+  },
+  "persistence": {
+    "clean": "No unsaved authored changes.",
+    "dirty": "Authoritative editable state differs from last confirmed host save.",
+    "saving": "Host save has started and not yet confirmed.",
+    "saved-newer-edits": "Captured snapshot saved but later edits remain dirty.",
+    "save-failed": "Last save failed; current edits remain dirty.",
+    "external-conflict": "Underlying durable content changed outside current edit snapshot."
+  },
+  "surface": {
+    "empty": "Valid surface with no content.",
+    "loading": "Initial or refresh data pending.",
+    "error": "Load/operation failed.",
+    "permission": "Resource exists/capability known but access denied.",
+    "disconnected": "Live provider context unavailable.",
+    "stale": "Last-known content visible but freshness cannot be guaranteed."
+  },
+  "task": [
+    "queued",
+    "preparing",
+    "running",
+    "paused",
+    "cancelling",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "blocked"
+  ]
+}

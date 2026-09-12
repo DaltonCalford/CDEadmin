@@ -1,0 +1,1216 @@
+{
+  "version": "1.1",
+  "components": {
+    "Button": {
+      "purpose": "Invoke one command.",
+      "geometry": {
+        "height": "profile.control_height",
+        "padding_x": 12,
+        "icon_gap": 6,
+        "min_width_text": 64,
+        "radius": 0,
+        "border": 1
+      },
+      "states": [
+        "default",
+        "hover",
+        "pressed",
+        "focus",
+        "disabled",
+        "loading",
+        "destructive"
+      ],
+      "behavior": {
+        "click": "invoke once",
+        "double_click": "must not invoke twice",
+        "keyboard": "Enter/Space",
+        "loading": "retain width and disable repeat activation"
+      }
+    },
+    "IconButton": {
+      "purpose": "Invoke an icon-only command.",
+      "geometry": {
+        "square": "profile.control_height",
+        "icon": 16,
+        "radius": 0
+      },
+      "states": [
+        "default",
+        "hover",
+        "pressed",
+        "focus",
+        "disabled",
+        "active"
+      ],
+      "behavior": {
+        "tooltip": "required unless persistent adjacent label exists",
+        "accessible_name": "required"
+      }
+    },
+    "SplitButton": {
+      "purpose": "Default command plus alternatives.",
+      "geometry": {
+        "height": "profile.control_height",
+        "chevron_width": 28,
+        "divider": 1
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "main": "invoke default",
+        "chevron": "open alternatives; never invoke main"
+      }
+    },
+    "TextField": {
+      "purpose": "Single line textual value.",
+      "geometry": {
+        "height": "profile.control_height",
+        "padding_x": 8,
+        "label_gap": 4,
+        "radius": 0,
+        "border": 1
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "disabled",
+        "readonly",
+        "invalid",
+        "warning"
+      ],
+      "behavior": {
+        "enter": "submit only when container defines default action",
+        "clear": "optional trailing action",
+        "readonly": "copyable/focusable"
+      }
+    },
+    "TextArea": {
+      "purpose": "Multiline text.",
+      "geometry": {
+        "min_height": 72,
+        "padding": 8,
+        "border": 1,
+        "resize": "vertical unless owning layout fixes size"
+      },
+      "states": [
+        "default",
+        "focus",
+        "disabled",
+        "readonly",
+        "invalid"
+      ],
+      "behavior": {
+        "Tab": "moves focus unless component is a code/editor surface"
+      }
+    },
+    "Select": {
+      "purpose": "Finite single choice.",
+      "geometry": {
+        "height": "profile.control_height",
+        "chevron_width": 28,
+        "popup_max_height": 320
+      },
+      "states": [
+        "default",
+        "focus",
+        "open",
+        "disabled",
+        "invalid"
+      ],
+      "behavior": {
+        "keyboard": "Alt+Down open; arrows move; Enter commit; Esc close; typeahead supported"
+      }
+    },
+    "ComboBox": {
+      "purpose": "Searchable choice, optionally free-entry only when declared.",
+      "geometry": {
+        "height": "profile.control_height",
+        "popup_max_height": 360
+      },
+      "states": [
+        "default",
+        "focus",
+        "open",
+        "disabled",
+        "invalid"
+      ],
+      "behavior": {
+        "typing": "filters options",
+        "free_text": "accepted only with freeEntry=true"
+      }
+    },
+    "Checkbox": {
+      "purpose": "Boolean/tri-state.",
+      "geometry": {
+        "box": 16,
+        "label_gap": 8,
+        "target": "profile.target_size"
+      },
+      "states": [
+        "unchecked",
+        "checked",
+        "mixed",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "Space": "toggle",
+        "label_click": "toggle"
+      }
+    },
+    "Radio": {
+      "purpose": "One value from visible small group.",
+      "geometry": {
+        "circle": 16,
+        "label_gap": 8,
+        "row_min": "profile.target_size"
+      },
+      "states": [
+        "unchecked",
+        "checked",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "arrows": "move/select within group",
+        "Space": "select"
+      }
+    },
+    "ToggleSwitch": {
+      "purpose": "Persistent on/off state.",
+      "geometry": {
+        "width": 36,
+        "height": 18,
+        "thumb": 14
+      },
+      "states": [
+        "off",
+        "on",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "Space": "toggle",
+        "restriction": "never use for one-shot command"
+      }
+    },
+    "NumberField": {
+      "purpose": "Precise numeric input.",
+      "geometry": {
+        "height": "profile.control_height",
+        "stepper_width": 22
+      },
+      "states": [
+        "default",
+        "focus",
+        "invalid",
+        "disabled",
+        "readonly"
+      ],
+      "behavior": {
+        "Up/Down": "increment/decrement by step",
+        "commit": "validate bounds"
+      }
+    },
+    "Slider": {
+      "purpose": "Continuous adjustment.",
+      "geometry": {
+        "track_height": 2,
+        "thumb": 14,
+        "target": "profile.target_size"
+      },
+      "states": [
+        "default",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "arrows": "step",
+        "Home/End": "min/max",
+        "precision": "show numeric value/entry when exact value matters"
+      }
+    },
+    "Menu": {
+      "purpose": "Command list popup.",
+      "geometry": {
+        "row": "profile.menu_row",
+        "min_width": 220,
+        "max_width": 420,
+        "icon_col": 24,
+        "shortcut_col_min": 80,
+        "submenu_col": 20,
+        "viewport_margin": 8
+      },
+      "states": [
+        "open",
+        "item_hover",
+        "item_focus",
+        "item_disabled",
+        "item_checked"
+      ],
+      "behavior": {
+        "keyboard": "Up/Down Home/End Enter/Space Esc Left/Right typeahead",
+        "placement": "flip/clamp to viewport"
+      }
+    },
+    "Toolbar": {
+      "purpose": "Compact contextual command host.",
+      "geometry": {
+        "height": "profile.toolbar_height",
+        "group_gap": 4,
+        "separator_height": 18
+      },
+      "states": [
+        "default"
+      ],
+      "behavior": {
+        "overflow": "one trailing overflow menu; preserve command order"
+      }
+    },
+    "Tab": {
+      "purpose": "Workbench surface identity.",
+      "geometry": {
+        "height": "profile.tab_height",
+        "min_width": 96,
+        "max_width": 240,
+        "close_area": 24,
+        "active_rule": 2
+      },
+      "states": [
+        "inactive",
+        "hover",
+        "active",
+        "focus",
+        "dirty",
+        "attention",
+        "disabled"
+      ],
+      "behavior": {
+        "click": "activate",
+        "middle_click": "close if closable",
+        "drag": "reorder/dock, not duplicate by default"
+      }
+    },
+    "TreeRow": {
+      "purpose": "Hierarchical resource/asset row.",
+      "geometry": {
+        "height": "profile.tree_row",
+        "indent": 16,
+        "expander_slot": 20,
+        "icon_slot": 24,
+        "inline_action": 28
+      },
+      "states": [
+        "default",
+        "hover",
+        "selected",
+        "focused",
+        "disabled",
+        "loading",
+        "warning"
+      ],
+      "behavior": {
+        "single_click": "select",
+        "double_click": "open default surface",
+        "right_click": "select then context menu",
+        "arrows": "navigate hierarchy"
+      }
+    },
+    "DataGrid": {
+      "purpose": "Dense tabular display/editing.",
+      "geometry": {
+        "row": "profile.grid_row",
+        "header": 32,
+        "cell_padding_x": 8,
+        "cell_padding_y": 4,
+        "gridline": 1,
+        "resize_hit": 6
+      },
+      "states": [
+        "loading",
+        "empty",
+        "default",
+        "row_hover",
+        "row_selected",
+        "cell_focus",
+        "cell_edit",
+        "invalid",
+        "readonly"
+      ],
+      "behavior": {
+        "F2": "edit cell",
+        "Esc": "cancel edit",
+        "Ctrl/Cmd+C": "copy selection",
+        "virtualization": "required for large results"
+      }
+    },
+    "InspectorSection": {
+      "purpose": "Context property group.",
+      "geometry": {
+        "header_height": 28,
+        "body_padding": 12,
+        "rule": 1
+      },
+      "states": [
+        "expanded",
+        "collapsed",
+        "disabled"
+      ],
+      "behavior": {
+        "header_click": "toggle unless locked"
+      }
+    },
+    "ToolboxItem": {
+      "purpose": "Insertable designer object.",
+      "geometry": {
+        "row_height": 32,
+        "icon": 18,
+        "drag_handle": 16
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "disabled",
+        "dragging"
+      ],
+      "behavior": {
+        "double_click": "insert default when supported",
+        "drag": "create placement payload"
+      }
+    },
+    "Dialog": {
+      "purpose": "Focused modal task.",
+      "geometry": {
+        "widths": {
+          "small": 420,
+          "medium": 640,
+          "large": 960
+        },
+        "title_height": 44,
+        "content_padding": 20,
+        "footer_height": 52,
+        "viewport_margin": 24,
+        "radius": 0
+      },
+      "states": [
+        "open",
+        "busy",
+        "validation_error"
+      ],
+      "behavior": {
+        "Esc": "cancel unless commit cannot safely cancel",
+        "Enter": "default only when safe",
+        "focus": "trap and restore"
+      }
+    },
+    "Popover": {
+      "purpose": "Anchored nonmodal controls/details.",
+      "geometry": {
+        "min_width": 220,
+        "max_width": 420,
+        "viewport_margin": 8,
+        "gap": 4
+      },
+      "states": [
+        "open"
+      ],
+      "behavior": {
+        "outside_click": "close",
+        "Esc": "close",
+        "focus_return": "invoker"
+      }
+    },
+    "Tooltip": {
+      "purpose": "Short noninteractive explanation.",
+      "geometry": {
+        "max_width": 320,
+        "padding": "4px 8px",
+        "open_delay_ms": 500,
+        "close_delay_ms": 100
+      },
+      "states": [
+        "visible"
+      ],
+      "behavior": {
+        "interactive": "never",
+        "critical_info": "must not exist only in tooltip"
+      }
+    },
+    "Toast": {
+      "purpose": "Transient notification.",
+      "geometry": {
+        "width": 360,
+        "max_stack": 3,
+        "gap": 8,
+        "screen_margin": 12
+      },
+      "states": [
+        "success",
+        "info",
+        "warning",
+        "error",
+        "progress"
+      ],
+      "behavior": {
+        "placement": "top-right below header",
+        "dismiss": "success/info 6s, warning 10s, error persistent; hover pauses"
+      }
+    },
+    "Banner": {
+      "purpose": "Persistent contextual notice.",
+      "geometry": {
+        "min_height": 36,
+        "padding": "8px 12px",
+        "icon": 16
+      },
+      "states": [
+        "info",
+        "warning",
+        "error",
+        "success"
+      ],
+      "behavior": {
+        "placement": "top of affected surface below local toolbar"
+      }
+    },
+    "CommandPalette": {
+      "purpose": "Global federated search/actions.",
+      "geometry": {
+        "width": 720,
+        "max_height": 640,
+        "input_height": 40,
+        "row_height": 36,
+        "top_offset": 72
+      },
+      "states": [
+        "open",
+        "loading",
+        "no_results"
+      ],
+      "behavior": {
+        "shortcut": "Ctrl/Cmd+K",
+        "groups": [
+          "Commands",
+          "Resources",
+          "Project Assets",
+          "Recent",
+          "Settings"
+        ],
+        "Esc": "close",
+        "Enter": "open/invoke"
+      }
+    },
+    "Breadcrumbs": {
+      "purpose": "Current logical hierarchy.",
+      "geometry": {
+        "height": 28,
+        "max_visible": 6,
+        "separator": "/"
+      },
+      "states": [
+        "default",
+        "hover",
+        "current"
+      ],
+      "behavior": {
+        "overflow": "collapse middle segments; preserve first/current"
+      }
+    },
+    "ProgressBar": {
+      "purpose": "Bounded progress.",
+      "geometry": {
+        "height": 4
+      },
+      "states": [
+        "determinate",
+        "indeterminate",
+        "paused",
+        "error"
+      ],
+      "behavior": {
+        "text": "show nearby percentage/status when meaningful"
+      }
+    },
+    "StatusBar": {
+      "purpose": "Active-surface status.",
+      "geometry": {
+        "height": "profile.status_height",
+        "item_padding_x": 8,
+        "separator": 1
+      },
+      "states": [
+        "normal",
+        "warning",
+        "disconnected"
+      ],
+      "behavior": {
+        "clickability": "only when hover affordance indicates detail popover"
+      }
+    },
+    "Splitter": {
+      "purpose": "Resizable panel boundary.",
+      "geometry": {
+        "visible": 1,
+        "hit": "profile.splitter_hit"
+      },
+      "states": [
+        "default",
+        "hover",
+        "dragging",
+        "focus"
+      ],
+      "behavior": {
+        "drag": "live no animation",
+        "keyboard": "arrows 4px, Shift+arrows 16px"
+      }
+    },
+    "DropZone": {
+      "purpose": "Explicit drag/drop target.",
+      "geometry": {
+        "min_height": 64,
+        "border": 2,
+        "inset": 4
+      },
+      "states": [
+        "idle",
+        "drag_valid",
+        "drag_invalid",
+        "dropping"
+      ],
+      "behavior": {
+        "valid": "2px solid accent + subtle fill",
+        "invalid": "2px dashed error + reason + not-allowed cursor",
+        "Esc": "cancel drag"
+      }
+    },
+    "FontPicker": {
+      "purpose": "Shared designer font chooser.",
+      "geometry": {
+        "width": 320,
+        "family_row": 32,
+        "size_width": 72,
+        "preview_height": 64
+      },
+      "states": [
+        "closed",
+        "open",
+        "invalid_font"
+      ],
+      "behavior": {
+        "families": "approved list + generic/system choices",
+        "privacy": "do not enumerate arbitrary installed browser fonts",
+        "preview": "before commit",
+        "Esc": "cancel"
+      }
+    },
+    "ColorPicker": {
+      "purpose": "Shared designer color chooser.",
+      "geometry": {
+        "width": 336,
+        "swatch": 24,
+        "swatch_pitch": 36,
+        "grid_cols": 8,
+        "custom_area_height": 132
+      },
+      "states": [
+        "closed",
+        "open",
+        "invalid_value"
+      ],
+      "behavior": {
+        "sections": [
+          "Theme",
+          "Data Visualization",
+          "Recent",
+          "Custom"
+        ],
+        "canonical": "#RRGGBB; alpha only when allowed",
+        "keyboard": "arrow/Enter/Esc"
+      }
+    },
+    "AboutDialog": {
+      "purpose": "Product/version/diagnostic summary.",
+      "geometry": {
+        "width": 640,
+        "min_height": 420,
+        "logo": 72
+      },
+      "states": [
+        "open"
+      ],
+      "behavior": {
+        "actions": [
+          "Copy Diagnostics",
+          "Credits & Licenses",
+          "Close"
+        ],
+        "secrets": "never include"
+      }
+    },
+    "PreferencesSurface": {
+      "purpose": "Application settings.",
+      "geometry": {
+        "nav_width": 220,
+        "content_max_width": 860,
+        "search_height": 32,
+        "section_gap": 24
+      },
+      "states": [
+        "default",
+        "dirty",
+        "restart_required"
+      ],
+      "behavior": {
+        "visual": "live reversible preview",
+        "functional": "explicit Apply when side effects/backend writes exist"
+      }
+    },
+    "Wizard": {
+      "purpose": "Multi-step consequential configuration.",
+      "geometry": {
+        "content_width_range": [
+          760,
+          840
+        ],
+        "stepper_height": 44,
+        "footer_height": 52
+      },
+      "states": [
+        "active",
+        "complete",
+        "error"
+      ],
+      "behavior": {
+        "buttons": [
+          "Cancel",
+          "Back",
+          "Next"
+        ],
+        "final": "explicit operation verb",
+        "review": "required before irreversible execution"
+      }
+    },
+    "EmptyState": {
+      "purpose": "No content/results/permission.",
+      "geometry": {
+        "max_width": 520,
+        "icon": 32,
+        "padding": 32
+      },
+      "states": [
+        "empty",
+        "filtered_empty",
+        "permission_empty"
+      ],
+      "behavior": {
+        "content": "cause + one primary next/recovery action + optional secondary action"
+      }
+    },
+    "Skeleton": {
+      "purpose": "Loading placeholder.",
+      "geometry": {
+        "line_height": 12,
+        "gap": 8
+      },
+      "states": [
+        "loading"
+      ],
+      "behavior": {
+        "motion": "subtle opacity pulse only when reduced-motion false; no layout shift"
+      }
+    },
+    "EnvironmentIndicator": {
+      "purpose": "Environment safety cue.",
+      "geometry": {
+        "height": 20,
+        "padding_x": 6,
+        "border": 1
+      },
+      "states": [
+        "development",
+        "test",
+        "staging",
+        "production",
+        "unknown"
+      ],
+      "behavior": {
+        "production": "label/border/rule only; never recolor whole app",
+        "unknown": "must remain UNKNOWN"
+      }
+    },
+    "SearchField": {
+      "purpose": "Filter/search within an explicitly named scope.",
+      "geometry": {
+        "height": "profile.control_height",
+        "icon_slot": 24,
+        "clear_slot": 28,
+        "min_width": 160,
+        "radius": 0
+      },
+      "states": [
+        "empty",
+        "typing",
+        "focus",
+        "loading",
+        "no-results",
+        "disabled"
+      ],
+      "behavior": {
+        "placeholder": "must name scope, e.g. Filter objects\u2026",
+        "Escape": "clear query when no higher-priority overlay owns Escape",
+        "Enter": "open selected result only when search contract defines selection"
+      }
+    },
+    "SecretField": {
+      "purpose": "Credential/secret textual input.",
+      "geometry": {
+        "height": "profile.control_height",
+        "padding_x": 8,
+        "reveal_slot": 28,
+        "radius": 0
+      },
+      "states": [
+        "empty",
+        "filled-masked",
+        "revealed",
+        "focus",
+        "invalid",
+        "disabled"
+      ],
+      "behavior": {
+        "default": "masked",
+        "reveal": "press/toggle only when policy permits",
+        "copy": "disabled by default unless provider/policy explicitly allows",
+        "persistence": "raw secret never enters project/layout/macro/diagnostics"
+      }
+    },
+    "MultiSelect": {
+      "purpose": "Select multiple values from a finite searchable set.",
+      "geometry": {
+        "min_height": "profile.control_height",
+        "popup_max_height": 360,
+        "token_height": 22,
+        "radius": 0
+      },
+      "states": [
+        "default",
+        "focus",
+        "open",
+        "disabled",
+        "invalid"
+      ],
+      "behavior": {
+        "search": "filters options",
+        "selection": "explicit check state",
+        "overflow": "summarize count instead of unbounded chip growth",
+        "keyboard": "arrows navigate; Space toggles; Esc closes"
+      }
+    },
+    "SegmentedControl": {
+      "purpose": "Switch among 2\u20135 mutually exclusive peer modes.",
+      "geometry": {
+        "height": "profile.control_height",
+        "segment_min_width": 56,
+        "border": 1,
+        "radius": 0
+      },
+      "states": [
+        "default",
+        "selected",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "keyboard": "arrows move/select within control",
+        "rule": "not for commands; use tabs/buttons if selection changes document/surface"
+      }
+    },
+    "PasswordStrength": {
+      "purpose": "Optional password-policy feedback supplied by authentication provider.",
+      "geometry": {
+        "height": 8,
+        "message_gap": 4
+      },
+      "states": [
+        "unknown",
+        "invalid",
+        "acceptable",
+        "strong"
+      ],
+      "behavior": {
+        "policy": "never invent password rules client-side",
+        "accessibility": "text statement accompanies meter"
+      }
+    },
+    "DateField": {
+      "purpose": "Date input with keyboard entry and optional calendar popover.",
+      "geometry": {
+        "height": "profile.control_height",
+        "popup_width": 296
+      },
+      "states": [
+        "default",
+        "focus",
+        "open",
+        "invalid",
+        "disabled",
+        "readonly"
+      ],
+      "behavior": {
+        "keyboard": "text entry allowed; calendar arrows navigate when open",
+        "format": "display locale; retain canonical date value"
+      }
+    },
+    "TimeField": {
+      "purpose": "Time input with explicit timezone/context when relevant.",
+      "geometry": {
+        "height": "profile.control_height",
+        "suffix_width": 72
+      },
+      "states": [
+        "default",
+        "focus",
+        "invalid",
+        "disabled",
+        "readonly"
+      ],
+      "behavior": {
+        "format": "locale display; seconds optional by field contract",
+        "timezone": "must be explicit when ambiguity affects meaning"
+      }
+    },
+    "DurationField": {
+      "purpose": "Numeric duration plus explicit unit.",
+      "geometry": {
+        "height": "profile.control_height",
+        "unit_width": 84
+      },
+      "states": [
+        "default",
+        "focus",
+        "invalid",
+        "disabled",
+        "readonly"
+      ],
+      "behavior": {
+        "units": "never omit unit",
+        "storage": "module defines canonical duration unit/type"
+      }
+    },
+    "UnitNumberField": {
+      "purpose": "Numeric value plus physical/logical unit.",
+      "geometry": {
+        "height": "profile.control_height",
+        "unit_width": 84
+      },
+      "states": [
+        "default",
+        "focus",
+        "invalid",
+        "disabled",
+        "readonly"
+      ],
+      "behavior": {
+        "number": "finite unless module explicitly permits special values",
+        "unit": "separate selectable/read-only suffix; never hidden in help text"
+      }
+    },
+    "Badge": {
+      "purpose": "Compact non-interactive state metadata.",
+      "geometry": {
+        "height": 22,
+        "padding_x": 8,
+        "border": 1,
+        "radius": 0
+      },
+      "states": [
+        "neutral",
+        "success",
+        "warning",
+        "error",
+        "info"
+      ],
+      "behavior": {
+        "interactive": "false by default",
+        "meaning": "important status includes text, not color only"
+      }
+    },
+    "StatusDot": {
+      "purpose": "Small supplemental status indicator.",
+      "geometry": {
+        "diameter": 8
+      },
+      "states": [
+        "neutral",
+        "success",
+        "warning",
+        "error",
+        "info"
+      ],
+      "behavior": {
+        "label": "must have adjacent text or accessible label; never sole important meaning"
+      }
+    },
+    "Link": {
+      "purpose": "Navigation or external documentation action.",
+      "geometry": {
+        "min_target": "profile.target_size"
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "disabled"
+      ],
+      "behavior": {
+        "internal": "accent; underline on hover/focus",
+        "visited": "do not use browser visited purple inside app commands",
+        "external": "mark when destination leaves product/security context"
+      }
+    },
+    "Pagination": {
+      "purpose": "Navigate discrete provider/client result pages when virtualization/streaming is not used.",
+      "geometry": {
+        "height": "profile.control_height",
+        "button_width": 32,
+        "page_input_width": 64
+      },
+      "states": [
+        "default",
+        "focus",
+        "disabled",
+        "loading"
+      ],
+      "behavior": {
+        "display": "show range and total only when total is authoritative",
+        "keyboard": "buttons keyboard accessible",
+        "rule": "do not fabricate total count"
+      }
+    },
+    "ListRow": {
+      "purpose": "Generic dense selectable list item outside hierarchical tree.",
+      "geometry": {
+        "height": 30,
+        "padding_x": 8,
+        "icon_slot": 24,
+        "trailing_slot": 32
+      },
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "selected",
+        "disabled",
+        "warning",
+        "error"
+      ],
+      "behavior": {
+        "row_actions": "stable trailing area; appear hover/focus/selection",
+        "double_click": "only when explicit default-open exists"
+      }
+    },
+    "CodeEditor": {
+      "purpose": "Source/query/expression editor with diagnostics.",
+      "geometry": {
+        "min_height": 120,
+        "gutter_min": 36
+      },
+      "states": [
+        "default",
+        "focus",
+        "readonly",
+        "loading",
+        "error"
+      ],
+      "behavior": {
+        "Tab": "editor indentation semantics",
+        "diagnostics": "link range to Problems",
+        "persistence": "module/asset contract, not layout state"
+      }
+    },
+    "FormSection": {
+      "purpose": "Group related settings without card-heavy UI.",
+      "geometry": {
+        "header_height": 28,
+        "section_gap": 16,
+        "rule": 1
+      },
+      "states": [
+        "expanded",
+        "collapsed",
+        "disabled"
+      ],
+      "behavior": {
+        "default": "expanded for primary section; collapse optional for long expert forms",
+        "heading": "semantic heading, not decorative container"
+      }
+    },
+    "ValidationMessage": {
+      "purpose": "Associate field/surface validation with precise text.",
+      "geometry": {
+        "min_height": 16,
+        "icon_slot": 16,
+        "gap": 4
+      },
+      "states": [
+        "info",
+        "warning",
+        "error",
+        "success"
+      ],
+      "behavior": {
+        "association": "programmatically tied to field/surface",
+        "rule": "never icon/color only"
+      }
+    },
+    "KeyboardShortcutHint": {
+      "purpose": "Display registered shortcut in menu/help/tooltip.",
+      "geometry": {
+        "min_width": 48,
+        "padding_x": 4
+      },
+      "states": [
+        "default",
+        "disabled"
+      ],
+      "behavior": {
+        "source": "CommandRegistry/shortcut registry only",
+        "platform": "render Ctrl vs Cmd/\u2318 by host convention"
+      }
+    },
+    "ResourcePicker": {
+      "purpose": "Choose one or more live provider resources using ResourceRef identity.",
+      "geometry": {
+        "width": 640,
+        "navigator_width": 240,
+        "result_row": 30
+      },
+      "states": [
+        "default",
+        "loading",
+        "empty",
+        "error",
+        "permission",
+        "disconnected"
+      ],
+      "behavior": {
+        "identity": "show provider/connection/scope",
+        "filter": "capability and kind constraints declared by caller",
+        "rule": "never mix project assets without explicit mixed-picker mode"
+      }
+    },
+    "AssetPicker": {
+      "purpose": "Choose project-owned assets using AssetRef identity.",
+      "geometry": {
+        "width": 640,
+        "navigator_width": 220,
+        "result_row": 30
+      },
+      "states": [
+        "default",
+        "loading",
+        "empty",
+        "error",
+        "permission"
+      ],
+      "behavior": {
+        "identity": "show project/path/type",
+        "filter": "asset type constraints declared by caller",
+        "rule": "never imply selected asset is live database resource"
+      }
+    },
+    "ConnectionSelector": {
+      "purpose": "Select active execution connection/context.",
+      "geometry": {
+        "height": "profile.control_height",
+        "min_width": 180,
+        "max_width": 360
+      },
+      "states": [
+        "connected",
+        "connecting",
+        "disconnected",
+        "readonly",
+        "production",
+        "warning"
+      ],
+      "behavior": {
+        "display": "connection label + provider icon + environment where relevant",
+        "safety": "no hidden fallback for consequential action",
+        "keyboard": "search/typeahead for large list"
+      }
+    },
+    "ColumnPicker": {
+      "purpose": "Choose visible grid/list columns.",
+      "geometry": {
+        "width": 320,
+        "max_height": 420,
+        "row_height": 28
+      },
+      "states": [
+        "default",
+        "searching",
+        "disabled"
+      ],
+      "behavior": {
+        "search": "filter by column label/name",
+        "selection": "checkboxes",
+        "reset": "Restore default columns",
+        "persistence": "presentation only"
+      }
+    },
+    "FilePickerButton": {
+      "purpose": "Invoke host-native file/folder picker.",
+      "geometry": {
+        "height": "profile.control_height"
+      },
+      "states": [
+        "default",
+        "focus",
+        "disabled",
+        "loading"
+      ],
+      "behavior": {
+        "host": "use browser/Electron/native capability; do not emulate OS file manager",
+        "result": "show chosen filename/path according to privacy policy"
+      }
+    },
+    "Drawer": {
+      "purpose": "Docked/collapsible secondary tool region.",
+      "geometry": {
+        "min_height": 120,
+        "default_height": 240,
+        "max_height": "60vh",
+        "splitter_hit": 6
+      },
+      "states": [
+        "collapsed",
+        "expanded",
+        "resizing"
+      ],
+      "behavior": {
+        "tabs": "tool pages use standard tabs",
+        "persistence": "device-local geometry; tool identity via ToolDescriptor"
+      }
+    },
+    "Divider": {
+      "purpose": "Separate semantic groups.",
+      "geometry": {
+        "thickness": 1,
+        "margin_primary": 8
+      },
+      "states": [
+        "default"
+      ],
+      "behavior": {
+        "rule": "do not use decorative separators without grouping meaning"
+      }
+    }
+  }
+}

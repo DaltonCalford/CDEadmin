@@ -1,0 +1,100 @@
+{
+  "screen_id": "cdeadmin.replication.replication_link_inspector",
+  "module": "cdeadmin.replication",
+  "purpose": "Mechanism, lag, errors, checkpoint.",
+  "primary_surface_type": "viewer",
+  "entry_commands": [
+    "replication.topology.refresh"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef"
+    ],
+    "assets": [
+      "cdeadmin.replication.v1"
+    ],
+    "tasks": [
+      "replication.discovery",
+      "replication.failover.validation",
+      "replication.failover.execution"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "replication.topology.refresh",
+    "replication.link.pause",
+    "replication.link.resume",
+    "replication.failover.plan",
+    "replication.failover.validate"
+  ],
+  "navigation_model": "Module navigator remains REPLICATION; opening this surface does not create a private shell.",
+  "inspector_sections": [
+    "Participant/link",
+    "Native role/state",
+    "Position",
+    "Lag",
+    "Provider controls"
+  ],
+  "toolbox_items": [],
+  "bottom_drawer_pages": [
+    "Lag History",
+    "Problems",
+    "Failover Plan",
+    "Tasks"
+  ],
+  "status_bar_contributions": [
+    "Replication Link Inspector state",
+    "active task if any",
+    "project dirty/saved",
+    "resource/environment if live-bound"
+  ],
+  "components": [
+    "Toolbar",
+    "Tree",
+    "GraphSurface",
+    "Inspector",
+    "BottomDrawer",
+    "TaskList",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Render Replication Link Inspector content using the selected asset/resource and current capabilities.",
+    "loading": "Keep shell/selection visible; show bounded loading state; disable actions that require completed data.",
+    "empty": "Explain what is absent and provide only the valid create/select/configure action.",
+    "error": "Show persistent diagnostic and recovery action; do not discard authored state.",
+    "permission": "Show permission denied distinctly from unsupported/unavailable provider capability.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale where policy permits; disable live mutations."
+  },
+  "keyboard": "Use standard region traversal; arrows for tree/grid; Enter activates; Space toggles/selects where conventional; Shift+F10/context-menu key opens semantic actions; no new global shortcut without registry update.",
+  "pointer": "Single click selects; drag/drop only for documented semantic payload/target; splitters use standard hit target; no destructive mutation on drop.",
+  "persistence": "Authored state persists through Project/Asset service with optimistic revision; runtime result references are separate; layout is device-local.",
+  "multi_window": "May detach only through ToolRegistry/WorkspaceHost capability; detached instance uses the same authoritative asset/resource state.",
+  "accessibility": "Critical content has text/tree/table alternative; visible focus; non-drag alternative; profile-compatible.",
+  "svg_references": [
+    "svg/10_replication_workspace.svg"
+  ],
+  "functional_regression": [
+    "Uses existing platform connection/provider services.",
+    "Uses CommandRegistry for actions.",
+    "Uses TaskService for background work.",
+    "Preserves ResourceRef/AssetRef identity.",
+    "Does not serialize raw secrets."
+  ],
+  "spec_gaps": []
+}

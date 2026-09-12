@@ -1,0 +1,20 @@
+/* Specification aid: semantic token reference, not a replacement for reviewed CDEadmin theme code. */
+:root {
+  --sb-brand-primary:#E8EFFB; --sb-brand-secondary:#0077B6; --sb-brand-tertiary:#FFFFFF;
+  --cde-surface-root:#E8EFFB; --cde-surface-canvas:#EFF4FC; --cde-surface-panel:#FFFFFF; --cde-surface-workspace:#EFF4FC; --cde-surface-editor:#FFFFFF;
+  --cde-content-primary:#03045E; --cde-content-secondary:#0077B6; --cde-content-muted:#4A4A8B;
+  --cde-border-subtle:#B9D9EA; --cde-border-default:#66ADD3; --cde-border-strong:#4099C8;
+  --cde-action-primary:#0077B6; --cde-action-hover:#EBF4F9; --cde-action-selected:#BED9EF; --cde-focus:#0077B6;
+  --cde-success:#006B2D; --cde-warning:#8A4B00; --cde-error:#B00020; --cde-info:#006A8E;
+  --cde-font-ui:"Fira Code",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --cde-control-height:32px; --cde-tree-row-height:30px; --cde-grid-row-height:30px; --cde-tab-height:32px; --cde-radius:0px;
+}
+html[data-theme="dark"] {
+  --sb-brand-primary:#0077B6; --sb-brand-secondary:#CAF0F8; --sb-brand-tertiary:#03045E;
+  --cde-surface-root:#03045E; --cde-surface-canvas:#04054F; --cde-surface-panel:#02196E; --cde-surface-workspace:#04054F; --cde-surface-editor:#060A2D;
+  --cde-content-primary:#EDF2FB; --cde-content-secondary:#CAF0F8; --cde-content-muted:#A2A6C9;
+  --cde-border-subtle:#36457D; --cde-border-default:#57679F; --cde-border-strong:#8191BE;
+  --cde-action-primary:#0077B6; --cde-action-hover:#171C6D; --cde-action-selected:#01438E; --cde-focus:#CAF0F8;
+  --cde-success:#6DFF8B; --cde-warning:#FFD166; --cde-error:#FFB4B4; --cde-info:#90E0EF;
+}
+[data-presentation="compact_expert"] {--cde-control-height:26px;--cde-tree-row-height:24px;--cde-grid-row-height:24px;--cde-tab-height:28px;}

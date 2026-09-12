@@ -27,13 +27,29 @@ from .transfer import (
     service_for_app as transfer_service_for_app,
     validate_descriptor,
 )
+from .assets import (
+    APP_EXTENSION_KEY as PROJECT_ASSET_APP_EXTENSION_KEY,
+    ProjectAssetConflict,
+    ProjectAssetError,
+    ProjectAssetForbidden,
+    ProjectAssetNotFound,
+    ProjectAssetRepository,
+    ProjectAssetService,
+)
 
 
 __all__ = (
     'APP_EXTENSION_KEY',
     'TRANSFER_APP_EXTENSION_KEY',
+    'PROJECT_ASSET_APP_EXTENSION_KEY',
     'ProviderWorkspaceError',
     'ProviderWorkspaceService',
+    'ProjectAssetConflict',
+    'ProjectAssetError',
+    'ProjectAssetForbidden',
+    'ProjectAssetNotFound',
+    'ProjectAssetRepository',
+    'ProjectAssetService',
     'WorkspaceTransferConflict',
     'WorkspaceTransferError',
     'WorkspaceTransferExpired',

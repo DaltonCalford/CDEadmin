@@ -256,7 +256,8 @@ export function CustomRow({inTest=false, ...props}) {
     return <div data-test='test-div' tabIndex={-1} onKeyDown={handleKeyDown}></div>;
   }
 
-  const onCellClick = (args) => {
+  const onCellClick = (args, event) => {
+    props.onCellClick?.(args, event);
     gridUtils.onItemClick?.(args.rowIdx);
     props.onRowClick?.(args.row);
   };
@@ -278,6 +279,7 @@ CustomRow.propTypes = {
   row: PropTypes.object,
   selectedCellIdx: PropTypes.number,
   onRowClick: PropTypes.func,
+  onCellClick: PropTypes.func,
   rowIdx: PropTypes.number,
   selectCell: PropTypes.func,
 };

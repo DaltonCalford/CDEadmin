@@ -92,7 +92,7 @@ def load_model():
 class EndpointPersistenceSourceTests(unittest.TestCase):
     def test_model_version_and_tables_are_declared(self):
         source = MODEL_PATH.read_text(encoding='utf-8')
-        self.assertRegex(source, r'SCHEMA_VERSION\s*=\s*57\b')
+        self.assertRegex(source, r'SCHEMA_VERSION\s*=\s*58\b')
         for table in (
             'cde_endpoint',
             'cde_endpoint_runtime_identity',
@@ -136,7 +136,7 @@ class EndpointPersistenceSourceTests(unittest.TestCase):
             if predecessor:
                 predecessors.add(predecessor.group(1))
         self.assertEqual(
-            {'cde_split_route_database_targets_v1'},
+            {'cde_project_assets_v1'},
             revisions - predecessors,
         )
 

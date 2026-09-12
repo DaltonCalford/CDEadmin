@@ -1,2 +1,7 @@
 # Auto detect text files and normalize end of lines to LF (\n)
 * text=auto eol=lf
+
+# Preserve the approved DDN release bytes. Upstream distributions contain a
+# deliberate space-only separator line and are verified by SHA-256 manifest.
+web/pgadmin/static/vendor/ddn/**/*.js whitespace=-blank-at-eol
+web/pgadmin/static/vendor/ddn/**/*.html whitespace=-blank-at-eol

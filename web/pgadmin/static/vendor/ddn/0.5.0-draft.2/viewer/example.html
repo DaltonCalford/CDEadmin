@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DDN public library — minimal embedding</title><style>body{font:16px system-ui;background:#edf2f8;color:#20374e;max-width:1500px;margin:30px auto;padding:0 20px}h1{font-size:28px}p{max-width:1000px}ddn-example{display:block}</style><h1>One JavaScript file. Real DDN source.</h1><p>These two views share a workspace. Change the source in either component; each keeps its own appearance. The full Studio is <a href="editor.html">available here</a>. All processing stays in this page.</p><div id="a"></div><h2>Second appearance of the same definitions</h2><div id="b"></div><script src="ddn.global.js"></script><script>
+const files={'main.ddn':`ddn "0.3"; module "sdk.example";
+data m {
+ object client "Client" {kind:application;}
+ object api "Service" {kind:application;}
+ object db "Database" {kind:table; fields {field record_id;field status;}}
+ relation r1 "Request" @client -> @api {kind:flow;}
+ relation r2 "Store data" @api -> @db {kind:flow;}
+}
+view overview "Shared source / overview" {
+ data:[@m];layout{algorithm:auto;routing:curved;}legend{mode:tokens;placement:right;}
+ publication{size:content;fit:none;}
+}
+view compact "Shared source / compact" {
+ data:[@m];display{fields:none;}style{theme:night;look:handDrawn;}
+ layout{algorithm:auto;routing:curved;}legend{mode:tokens;placement:right;}
+ publication{size:content;fit:none;}
+}
+`};
+const workspace=DDNLive.createWorkspace(files);
+const first=DDNLive.mount(document.querySelector('#a'),{workspace,entry:'main.ddn',view:'overview'});
+const second=DDNLive.mount(document.querySelector('#b'),{workspace,entry:'main.ddn',view:'compact'});
+first.addEventListener('ddn-error',e=>console.warn(e.detail));second.addEventListener('ddn-error',e=>console.warn(e.detail));
+</script></html>

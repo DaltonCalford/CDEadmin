@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://scratchbird.local/schemas/cdeadmin-module-manifest-v1.json",
+  "title": "CDEadmin First-Party Module Manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "moduleId",
+    "specVersion",
+    "committedFirstParty",
+    "assetTypes",
+    "surfaces",
+    "commands",
+    "taskTypes",
+    "events",
+    "primaryPlate",
+    "ui",
+    "rules"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "moduleId": {
+      "type": "string",
+      "pattern": "^cdeadmin\\.[a-z0-9_]+$"
+    },
+    "specVersion": {
+      "type": "string"
+    },
+    "committedFirstParty": {
+      "const": true
+    },
+    "assetTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "surfaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "requiresCommandRegistry": {
+            "const": true
+          }
+        }
+      }
+    },
+    "taskTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "primaryPlate": {
+      "type": "string"
+    },
+    "ui": {
+      "type": "object",
+      "required": [
+        "leftDefaultPx",
+        "inspectorDefaultPx",
+        "bottomDefaultPx",
+        "toolbarStandardPx",
+        "statusStandardPx",
+        "baseGridPx"
+      ]
+    },
+    "rules": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

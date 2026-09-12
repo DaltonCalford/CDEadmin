@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.etl",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.etl.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "pipeline_designer",
+      "title": "Pipeline Designer",
+      "description": "Graph designer with toolbox, schema-aware ports and Inspector."
+    },
+    {
+      "id": "mapping_editor",
+      "title": "Mapping Editor",
+      "description": "Source/target field mapping grid."
+    },
+    {
+      "id": "schema_propagation",
+      "title": "Schema Propagation",
+      "description": "Resolved schemas and incompatibilities through graph."
+    },
+    {
+      "id": "preview",
+      "title": "Preview",
+      "description": "Bounded sample through selected steps."
+    },
+    {
+      "id": "deployment",
+      "title": "Deployment",
+      "description": "Environment/connection/parameter bindings."
+    },
+    {
+      "id": "run_monitor",
+      "title": "Run Monitor",
+      "description": "Step graph, rows/bytes, throughput, errors."
+    },
+    {
+      "id": "schedule",
+      "title": "Schedule",
+      "description": "Trigger and dependency configuration."
+    }
+  ],
+  "commands": [
+    {
+      "id": "etl.pipeline.create",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.node.add",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.edge.connect",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.mapping.edit",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.pipeline.validate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.preview.run",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.pipeline.deploy",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.run.start",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.run.cancel",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "etl.run.resume",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "etl.preview",
+    "etl.run",
+    "etl.deploy.validation"
+  ],
+  "events": [
+    "etl.pipeline.changed",
+    "etl.run.started",
+    "etl.step.failed",
+    "etl.run.completed",
+    "etl.lineage.emitted"
+  ],
+  "primaryPlate": "svg/05_etl_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

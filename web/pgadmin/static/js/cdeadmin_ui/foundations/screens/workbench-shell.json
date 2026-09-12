@@ -1,0 +1,33 @@
+{
+  "screen_id": "core.workbench-shell",
+  "module": "cdeadmin.core-shell",
+  "purpose": "Host navigation, registered workbench surfaces, context inspection, shared output and active-surface status without assuming a database model.",
+  "primary_surface_type": "viewer",
+  "entry_commands": ["view.data-explorer.focus", "project.explorer.focus"],
+  "bindings": {"resources": [], "assets": [], "tasks": []},
+  "host_regions": ["global_header", "activity_rail", "navigator", "workbench", "inspector", "bottom_drawer", "status_bar"],
+  "toolbar_commands": [],
+  "navigation_model": "The selected registered activity owns the navigator; changing it never replaces the active workbench surface.",
+  "inspector_sections": ["registered context inspector contributions"],
+  "toolbox_items": ["registered active-surface toolbox contributions"],
+  "bottom_drawer_pages": ["Problems", "Output", "Tasks", "Logs"],
+  "status_bar_contributions": ["active surface", "connection", "transaction", "task", "save state"],
+  "components": ["Toolbar", "IconButton", "Splitter", "Drawer", "StatusBar", "Tab", "InspectorSection", "ToolboxItem"],
+  "tokens_profiles": ["standard", "comfortable", "compact_expert", "low_vision", "motor_assistance"],
+  "states": {
+    "default": "Registered activities and the active surface are operable.",
+    "loading": "The requested navigator or surface retains its host and exposes restrained progress.",
+    "empty": "The active registered host explains that no contribution is available.",
+    "error": "Platform or surface restoration failure is shown with its recovery path.",
+    "permission": "Unauthorized contributions are omitted and direct invocation remains denied.",
+    "disconnected_or_stale": "Status explicitly names a disconnected session or stale resource binding."
+  },
+  "keyboard": "Activity controls, splitters, tabs, drawer, inspector and surface controls are reachable in document order; splitters use arrows and Shift+arrows.",
+  "pointer": "Splitters resize; registered surface tabs dock/detach through WorkspaceHost; every drag action retains a command/button alternative.",
+  "persistence": "Device-local schema-versioned geometry only; no resource content, query text or credentials.",
+  "multi_window": "ToolDescriptor and WorkspaceHost control detach/restore capabilities per surface.",
+  "accessibility": "All regions have persistent accessible names and profile-controlled geometry.",
+  "svg_references": ["svg/01_application_shell_dark.svg", "svg/02_application_shell_light.svg", "svg/10_tabs_docking_splitters.svg", "svg/15_notifications_tasks_status.svg"],
+  "functional_regression": ["WorkbenchShell.spec.jsx", "SurfaceHost.spec.js", "PlatformRegistries.spec.js"],
+  "spec_gaps": []
+}

@@ -1,0 +1,111 @@
+{
+  "screen_id": "cdeadmin.cdc.primary",
+  "module": "cdeadmin.cdc",
+  "purpose": "Design, validate, run and monitor change-data-capture streams across supported providers with explicit capture mechanisms, snapshot policy, event semantics, schema evolution, checkpointing, delivery and replay behavior.",
+  "primary_surface_type": "designer",
+  "entry_commands": [
+    "cdc.definition.create"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef"
+    ],
+    "assets": [
+      "cdeadmin.cdc.v1"
+    ],
+    "tasks": [
+      "cdc.provision",
+      "cdc.snapshot",
+      "cdc.stream",
+      "cdc.replay",
+      "cdc.schema_validation"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "cdc.definition.create",
+    "cdc.validate",
+    "cdc.run.start",
+    "cdc.run.pause",
+    "cdc.run.resume"
+  ],
+  "navigation_model": "CDC DESIGN tree/list; selection drives center and Inspector.",
+  "inspector_sections": [
+    "Selected stage",
+    "Native mechanism",
+    "Checkpoint",
+    "Delivery",
+    "Evolution policy"
+  ],
+  "toolbox_items": [
+    "Definitions",
+    "Sources",
+    "Streams",
+    "Runs",
+    "Schema Changes",
+    "Replay"
+  ],
+  "bottom_drawer_pages": [
+    "Run Monitor",
+    "Event Samples",
+    "Problems",
+    "Tasks"
+  ],
+  "status_bar_contributions": [
+    "cdc state",
+    "active task",
+    "project dirty/saved",
+    "active resource/environment when applicable"
+  ],
+  "components": [
+    "Toolbar",
+    "Tree",
+    "DesignerSurface",
+    "Inspector",
+    "BottomDrawer",
+    "DataGrid",
+    "ResourcePicker",
+    "SecretPicker",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Render selected asset/resource and enabled capability-driven commands.",
+    "loading": "Keep shell visible; show Skeleton/Progress in work area; disable commands requiring loaded state.",
+    "empty": "Show module-specific empty state with one primary create/select action; no decorative cards.",
+    "error": "Show persistent Problems entry plus inline error summary and retry/recovery action.",
+    "permission": "Show permission-denied state without implying provider unsupported; commands disabled with reason.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale where permitted; live mutations disabled until refreshed."
+  },
+  "keyboard": "Tab/Shift+Tab move among regions; arrow keys operate tree/grid; Enter opens/activates; context-menu key/Shift+F10 opens actions; module adds no unregistered global shortcuts.",
+  "pointer": "Single click selects; double click opens default surface only where registered; drag/drop only for documented semantic targets; resize through standard splitters.",
+  "persistence": "Project asset uses optimistic revision; window/layout state is device-local; save is distinct from Git commit and provider deploy/execute.",
+  "multi_window": "Surface may detach through WorkspaceHost if ToolRegistry capability permits; no module-specific popout implementation.",
+  "accessibility": "All critical visualization information has tree/table/text alternative; visible focus; non-drag alternative; supports Low Vision, Motor Assistance, Reduced Motion and High Contrast.",
+  "svg_references": [
+    "svg/12_cdc_workspace.svg"
+  ],
+  "functional_regression": [
+    "Existing provider/session behavior remains functional.",
+    "Command invocation uses CommandRegistry and repeats permission checks.",
+    "Background work uses TaskService and remains visible after surface close.",
+    "No secrets are serialized in asset/layout/tool descriptors.",
+    "Unsupported and unknown capability states remain distinct."
+  ],
+  "spec_gaps": []
+}
