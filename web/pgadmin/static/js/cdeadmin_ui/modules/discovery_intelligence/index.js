@@ -10,3 +10,7 @@ export * from './DiscoveryTrustServices';
 export * from './DiscoveryEngagementContracts';
 export * from './DiscoveryUsageRecommendations';
 export * from './DiscoverySavedAssetsAnalytics';
+export * from './DiscoveryGovernanceContracts';
+export * from './DiscoveryAccessService';
+export * from './DiscoveryCurationService';
+export * from './DiscoveryIndexAdministration';
