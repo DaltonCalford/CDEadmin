@@ -1,3 +1,6 @@
 export * from './DiscoveryDocument';
 export * from './DiscoveryIndexBackend';
 export * from './DiscoveryIndexService';
+export * from './DiscoveryRanking';
+export * from './DiscoveryGraphIndex';
+export * from './DiscoverySearchService';

@@ -188,21 +188,59 @@ export class InMemoryDiscoveryIndexBackend {
     const admit = requireAdmit(input); const record = this._revision(input.revision);
     const aliasAdmit = typeof input.aliasAdmit === 'function' ? input.aliasAdmit :
       () => false;
-    const queryTokens = [...new Set(tokens(platformValue(input.text,
-      'Discovery lexical query', 8192)))];
+    if(input.matchAll !== undefined && typeof input.matchAll !== 'boolean') {
+      throw new TypeError('Discovery lexical match-all flag must be boolean.');
+    }
+    if(input.includeExact !== undefined && typeof input.includeExact !== 'boolean') {
+      throw new TypeError('Discovery lexical exact-match flag must be boolean.');
+    }
+    if(input.exactProjection !== undefined &&
+        typeof input.exactProjection !== 'function') throw new TypeError(
+      'Discovery lexical exact projection must be a function.'
+    );
+    if(input.textProjection !== undefined &&
+        typeof input.textProjection !== 'function') throw new TypeError(
+      'Discovery lexical text projection must be a function.'
+    );
+    const queryText = input.matchAll === true ? String(input.text ?? '') :
+      platformValue(input.text, 'Discovery lexical query', 8192);
+    const queryTokens = [...new Set(tokens(queryText))];
     const limit = boundedLimit(input.limit);
-    return immutable([...record.documents.values()].filter((document) =>
+    const items = [...record.documents.values()].filter((document) =>
       admit(document) === true).map((document) => {
-      const haystack = tokens([document.name, ...document.qualifiedNames,
-        ...document.authorizedAliases.filter((item) => aliasAdmit(item,
-          document) === true).map((item) => item.visibleQualifiedName),
-        document.searchText].join(' '));
+      const admittedAliases = document.authorizedAliases.filter((item) =>
+        aliasAdmit(item, document) === true);
+      const projected = input.textProjection ? input.textProjection(document,
+        admittedAliases) : [document.name, ...document.qualifiedNames,
+        ...admittedAliases.map((item) => item.visibleQualifiedName),
+        document.searchText];
+      if(!Array.isArray(projected)) throw new TypeError(
+        'Discovery lexical text projection must return an array.'
+      );
+      const haystack = tokens(projected.join(' '));
       const matched = queryTokens.filter((token) => haystack.includes(token));
-      return {document, score: queryTokens.length ? matched.length / queryTokens.length : 0,
+      return {document, score: queryTokens.length ? matched.length / queryTokens.length : 1,
         matchedTokens: matched};
-    }).filter((item) => item.score > 0).sort((left, right) =>
+    });
+    const lexical = items.filter((item) => item.score > 0).sort((left, right) =>
       right.score - left.score || left.document.canonicalRef.localeCompare(
-        right.document.canonicalRef)).slice(0, limit));
+        right.document.canonicalRef)).slice(0, limit);
+    if(input.includeExact !== true || !input.exactProjection || input.matchAll) {
+      return immutable(lexical);
+    }
+    const target = String(queryText).trim().normalize('NFC');
+    const exact = items.filter(({document}) => {
+      const projected = input.exactProjection(document,
+        document.authorizedAliases.filter((item) => aliasAdmit(item, document)));
+      if(!Array.isArray(projected)) throw new TypeError(
+        'Discovery exact projection must return an array.'
+      );
+      return projected.some((value) => String(value).trim().normalize('NFC') === target);
+    }).sort((left, right) => left.document.canonicalRef.localeCompare(
+      right.document.canonicalRef));
+    const byCanonical = new Map([...exact, ...lexical].map((item) =>
+      [item.document.canonicalRef, item]));
+    return immutable([...byCanonical.values()].slice(0, 1000));
   }
 
   async facetSearch(input) {
