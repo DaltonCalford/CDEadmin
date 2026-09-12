@@ -138,6 +138,8 @@ export function createCommandDescriptor(input={}) {
     ),
     aiContextCostHint,
     auditCategory: String(input.auditCategory ?? 'user_action'),
+    authority: String(input.authority ?? 'CommandRegistry'),
+    task: Boolean(input.task),
     createsTask: String(input.createsTask ?? ''),
     requiresConfirmation: Boolean(input.requiresConfirmation),
     confirmationIntent: String(input.confirmationIntent ?? (

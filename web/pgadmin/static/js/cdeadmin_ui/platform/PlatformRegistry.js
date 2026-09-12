@@ -230,6 +230,44 @@ export class ContributionRegistry {
   }
 }
 
+export class PermissionRegistry {
+  constructor() { this.items = new Map(); }
+
+  register(input) {
+    const id = stablePlatformId(input?.id, 'Permission ID');
+    if(this.items.has(id)) throw new PlatformRegistryError(
+      'duplicate', `Permission already registered: ${id}`, id
+    );
+    const descriptor = Object.freeze({
+      id,
+      description: String(input.description ?? '').trim(),
+      moduleId: stablePlatformId(input.moduleId, 'Module ID'),
+    });
+    if(!descriptor.description) throw new TypeError(
+      `Permission ${id} requires a description.`
+    );
+    this.items.set(id, descriptor);
+    return () => this.items.delete(id);
+  }
+
+  has(id) { return this.items.has(stablePlatformId(id, 'Permission ID')); }
+
+  get(id) {
+    id = stablePlatformId(id, 'Permission ID');
+    const descriptor = this.items.get(id);
+    if(!descriptor) throw new PlatformRegistryError(
+      'not_found', `Unknown permission: ${id}`, id
+    );
+    return descriptor;
+  }
+
+  list({moduleId}={}) {
+    return [...this.items.values()].filter((item) =>
+      !moduleId || item.moduleId === moduleId
+    ).sort((left, right) => left.id.localeCompare(right.id));
+  }
+}
+
 export class PlatformEventService {
   constructor({authorize=() => true}={}) {
     this.authorize = authorize;
@@ -370,6 +408,7 @@ export const toolboxRegistry = new ContributionRegistry('toolbox');
 export const statusRegistry = new ContributionRegistry('status');
 export const activityRegistry = new ContributionRegistry('activity');
 export const bottomRegistry = new ContributionRegistry('bottom');
+export const permissionRegistry = new PermissionRegistry();
 export const platformEventService = new PlatformEventService();
 export const diagnosticsService = new DiagnosticsService();
 export const workbenchContextService = new WorkbenchContextService({

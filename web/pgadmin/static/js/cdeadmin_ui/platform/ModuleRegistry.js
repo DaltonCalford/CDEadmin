@@ -10,7 +10,8 @@
 import {commandRegistry} from '../commands/CommandRegistry';
 import {
   activityRegistry, bottomRegistry, capabilityRegistry, inspectorRegistry, serviceRegistry,
-  stablePlatformId, statusRegistry, toolboxRegistry, PlatformRegistryError,
+  stablePlatformId, statusRegistry, toolboxRegistry, permissionRegistry,
+  PlatformRegistryError,
 } from './PlatformRegistry';
 import {surfaceRegistry} from './SurfaceRegistry';
 
@@ -39,6 +40,7 @@ export class ModuleRegistry {
     this.capabilities = registries.capabilities ?? capabilityRegistry;
     this.surfaces = registries.surfaces ?? surfaceRegistry;
     this.commands = registries.commands ?? commandRegistry;
+    this.permissions = registries.permissions ?? permissionRegistry;
     this.inspector = registries.inspector ?? inspectorRegistry;
     this.toolbox = registries.toolbox ?? toolboxRegistry;
     this.status = registries.status ?? statusRegistry;
@@ -117,6 +119,9 @@ export class ModuleRegistry {
         this.capabilities.require(scopeId, record.descriptor.capabilityRequirements);
       }
       const contributions = record.descriptor.contributions;
+      for(const permission of contributions.permissions ?? []) {
+        disposers.push(this.permissions.register({...permission, moduleId: id}));
+      }
       for(const surface of contributions.surfaces ?? []) {
         disposers.push(this.surfaces.register({...surface, moduleId: id}));
       }

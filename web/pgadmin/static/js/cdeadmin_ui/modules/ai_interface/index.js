@@ -18,3 +18,6 @@ export * from './AIInterfaceContracts';
 export * from './AIFormRuntime';
 export * from './AIContractForm';
 export * from './AIInterfaceWorkspace';
+export * from './AIInterfaceRuntimeService';
+export * from './AIFormCommandAdapter';
+export * from './module';
