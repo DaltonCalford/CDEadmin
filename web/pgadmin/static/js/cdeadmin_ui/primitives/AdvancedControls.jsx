@@ -225,7 +225,7 @@ TimeField.propTypes = {timezone: PropTypes.string};
 export function UnitNumberField({label, value='', unit, units=[], onChange,
   onUnitChange, validationMessage, ...props}) {
   const unitControl = units.length ? <MuiTextField select variant="standard"
-    aria-label={`${label || 'Value'} unit`} value={unit}
+    inputProps={{'aria-label': `${label || 'Value'} unit`}} value={unit}
     onChange={(event) => onUnitChange?.(event.target.value)}>
     {units.map((item) => <MenuItem key={item.value ?? item}
       value={item.value ?? item}>{item.label ?? item}</MenuItem>)}

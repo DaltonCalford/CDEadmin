@@ -14,3 +14,7 @@ export * from './DiscoveryGovernanceContracts';
 export * from './DiscoveryAccessService';
 export * from './DiscoveryCurationService';
 export * from './DiscoveryIndexAdministration';
+export * from './DiscoveryInterfaceContracts';
+export * from './DiscoveryFormRuntime';
+export * from './DiscoveryContractForm';
+export * from './DiscoveryInterfaceWorkspace';
