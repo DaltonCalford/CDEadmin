@@ -7,3 +7,6 @@ export * from './DiscoverySearchService';
 export * from './DiscoveryKnowledgeContracts';
 export * from './DiscoveryKnowledgeService';
 export * from './DiscoveryTrustServices';
+export * from './DiscoveryEngagementContracts';
+export * from './DiscoveryUsageRecommendations';
+export * from './DiscoverySavedAssetsAnalytics';
