@@ -12,139 +12,125 @@
     "modelProfileSnapshot",
     "connectorSnapshots",
     "steps",
+    "dependencies",
+    "expectedEffects",
     "risks",
     "requiredApprovals",
     "validationChecks",
+    "rollbackOrRecovery",
+    "estimatedBudgets",
     "status"
   ],
   "properties": {
-    "schemaVersion": {
-      "const": 1
-    },
-    "planId": {
-      "type": "string"
-    },
-    "revision": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "baseContextRevision": {
-      "type": "string"
-    },
-    "agentProfileRef": {
-      "type": "string"
-    },
-    "modelProfileSnapshot": {
-      "type": "object"
-    },
-    "connectorSnapshots": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "steps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "stepId",
-          "kind",
-          "status"
-        ],
-        "properties": {
-          "stepId": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "READ_METADATA",
-              "READ_DATA",
-              "COMPILE_QUERY",
-              "EXECUTE_QUERY",
-              "CREATE_ASSET_DRAFT",
-              "EDIT_ASSET",
-              "INVOKE_COMMAND",
-              "START_TASK",
-              "WAIT_TASK",
-              "VALIDATE",
-              "REQUEST_APPROVAL"
-            ]
-          },
-          "status": {
-            "enum": [
-              "pending",
-              "validated",
-              "approval_required",
-              "running",
-              "succeeded",
-              "failed",
-              "skipped",
-              "cancelled"
-            ]
-          },
-          "commandId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "connectorRef": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "resourceRefs": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "assetRefs": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "arguments": {
-            "type": "object"
-          }
-        },
-        "additionalProperties": false
-      }
-    },
-    "risks": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "requiredApprovals": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "validationChecks": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
+    "schemaVersion": {"const": 1},
+    "planId": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "baseContextRevision": {"type": "string", "minLength": 1},
+    "agentProfileRef": {"type": "string", "minLength": 1},
+    "modelProfileSnapshot": {"type": "object"},
+    "connectorSnapshots": {"type": "array", "items": {"type": "object"}},
+    "steps": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/step"}},
+    "dependencies": {"type": "array", "items": {"$ref": "#/$defs/dependency"}},
+    "expectedEffects": {"type": "array", "items": {"$ref": "#/$defs/expectedEffect"}},
+    "risks": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "requiredApprovals": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "validationChecks": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "rollbackOrRecovery": {"type": "array", "items": {"$ref": "#/$defs/recovery"}},
+    "estimatedBudgets": {"$ref": "#/$defs/estimatedBudgets"},
     "status": {
-      "enum": [
-        "draft",
-        "validating",
-        "invalid",
-        "ready_for_approval",
-        "approved",
-        "running",
-        "succeeded",
-        "failed",
-        "cancelled",
-        "stale"
-      ]
+      "enum": ["draft", "validating", "invalid", "ready_for_approval", "approved",
+        "running", "succeeded", "failed", "cancelled", "stale"]
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "kind", "status", "commandId", "connectorRef",
+        "resourceRefs", "assetRefs", "arguments"],
+      "properties": {
+        "stepId": {"type": "string", "minLength": 1},
+        "kind": {
+          "enum": ["READ_METADATA", "READ_DATA", "COMPILE_QUERY", "EXECUTE_QUERY",
+            "CREATE_ASSET_DRAFT", "EDIT_ASSET", "INVOKE_COMMAND", "START_TASK",
+            "WAIT_TASK", "VALIDATE", "REQUEST_APPROVAL"]
+        },
+        "status": {
+          "enum": ["pending", "validated", "approval_required", "running", "succeeded",
+            "failed", "skipped", "cancelled"]
+        },
+        "commandId": {"type": ["string", "null"]},
+        "connectorRef": {"type": ["string", "null"]},
+        "resourceRefs": {"type": "array", "uniqueItems": true,
+          "items": {"type": "string"}},
+        "assetRefs": {"type": "array", "uniqueItems": true,
+          "items": {"type": "string"}},
+        "arguments": {"type": "object"}
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stepId", "dependsOnStepIds"],
+      "properties": {
+        "stepId": {"type": "string", "minLength": 1},
+        "dependsOnStepIds": {"type": "array", "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "expectedEffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effectId", "stepId", "effectClass", "description", "resourceRefs",
+        "reversible"],
+      "properties": {
+        "effectId": {"type": "string", "minLength": 1},
+        "stepId": {"type": "string", "minLength": 1},
+        "effectClass": {
+          "enum": ["READ_RESULT", "QUERY_ARTIFACT", "PROJECT_DRAFT", "DATABASE_MUTATION",
+            "BACKGROUND_TASK", "CONTROL_ONLY", "EXTERNAL_SIDE_EFFECT"]
+        },
+        "description": {"type": "string", "minLength": 1},
+        "resourceRefs": {"type": "array", "uniqueItems": true,
+          "items": {"type": "string"}},
+        "reversible": {"type": "boolean"}
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recoveryId", "triggerStepId", "recoveryStepId", "mode", "description"],
+      "properties": {
+        "recoveryId": {"type": "string", "minLength": 1},
+        "triggerStepId": {"type": "string", "minLength": 1},
+        "recoveryStepId": {"type": "string", "minLength": 1},
+        "mode": {"enum": ["MANUAL", "AUTOMATIC_ON_FAILURE"]},
+        "description": {"type": "string", "minLength": 1}
+      }
+    },
+    "nullableNonNegativeInteger": {"type": ["integer", "null"], "minimum": 0},
+    "nullableNonNegativeNumber": {"type": ["number", "null"], "minimum": 0},
+    "estimatedBudgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modelInputTokens", "modelOutputTokens", "toolCallsPerTurn",
+        "toolCallsPerPlan", "databaseQueriesPerTurn", "databaseRowsPerQuery",
+        "databaseBytesPerQuery", "parallelTools", "runMinutes", "backgroundTasks",
+        "estimatedCostPerTurn", "estimatedCostPerDay"],
+      "properties": {
+        "modelInputTokens": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "modelOutputTokens": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "toolCallsPerTurn": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "toolCallsPerPlan": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "databaseQueriesPerTurn": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "databaseRowsPerQuery": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "databaseBytesPerQuery": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "parallelTools": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "runMinutes": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "backgroundTasks": {"$ref": "#/$defs/nullableNonNegativeInteger"},
+        "estimatedCostPerTurn": {"$ref": "#/$defs/nullableNonNegativeNumber"},
+        "estimatedCostPerDay": {"$ref": "#/$defs/nullableNonNegativeNumber"}
+      }
     }
   }
 }

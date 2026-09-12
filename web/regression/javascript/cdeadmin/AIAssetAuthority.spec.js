@@ -66,8 +66,15 @@ const fixtures = {
     connectorSnapshots: [{connectorId: 'connector-main', revision: 2}], steps: [{
       stepId: 'step-1', kind: 'READ_METADATA', status: 'validated', commandId: 'metadata.read',
       connectorRef: 'connector-main', resourceRefs: ['resource:orders'], assetRefs: [],
-      arguments: {includeColumns: true}}], risks: ['R0'], requiredApprovals: [],
-    validationChecks: ['connector-ready'], status: 'ready_for_approval'},
+      arguments: {includeColumns: true}}], dependencies: [], expectedEffects: [{effectId:
+      'effect:step-1', stepId: 'step-1', effectClass: 'READ_RESULT',
+    description: 'Return current metadata.', resourceRefs: ['resource:orders'], reversible: false}],
+    risks: ['R0'], requiredApprovals: [], validationChecks: ['connector-ready'],
+    rollbackOrRecovery: [], estimatedBudgets: {modelInputTokens: 100,
+      modelOutputTokens: 100, toolCallsPerTurn: 1, toolCallsPerPlan: 1,
+      databaseQueriesPerTurn: 1, databaseRowsPerQuery: 10, databaseBytesPerQuery: 1000,
+      parallelTools: 1, runMinutes: 1, backgroundTasks: 0, estimatedCostPerTurn: 0.1,
+      estimatedCostPerDay: 0.1}, status: 'ready_for_approval'},
 };
 
 function projectAssets() {
@@ -144,6 +151,28 @@ describe('AI Interface asset contracts', () => {
       steps: [...fixtures.AIPlan.steps, fixtures.AIPlan.steps[0]]})).toThrow('must be unique');
     expect(() => validateAIAsset('AIPlan', {...fixtures.AIPlan,
       steps: [{...fixtures.AIPlan.steps[0], kind: 'RUN_SHELL'}]})).toThrow('step kind is invalid');
+    expect(() => validateAIAsset('AIPlan', {...fixtures.AIPlan,
+      dependencies: [{stepId: 'step-1', dependsOnStepIds: ['missing']}]})).toThrow(
+      'must reference known steps');
+    expect(() => validateAIAsset('AIPlan', {...fixtures.AIPlan,
+      expectedEffects: []})).toThrow('requires an explicit expected effect');
+    const missingEstimate = {...fixtures.AIPlan.estimatedBudgets};
+    delete missingEstimate.toolCallsPerPlan;
+    expect(() => validateAIAsset('AIPlan', {...fixtures.AIPlan,
+      estimatedBudgets: missingEstimate})).toThrow('require explicit toolCallsPerPlan');
+    const secondStep = {...fixtures.AIPlan.steps[0], stepId: 'step-2'};
+    const secondEffect = {...fixtures.AIPlan.expectedEffects[0], effectId: 'effect:step-2',
+      stepId: 'step-2'}; const twoStepPlan = {...fixtures.AIPlan,
+      steps: [...fixtures.AIPlan.steps, secondStep], expectedEffects:
+      [...fixtures.AIPlan.expectedEffects, secondEffect], estimatedBudgets:
+      {...fixtures.AIPlan.estimatedBudgets, toolCallsPerPlan: 2}};
+    expect(() => validateAIAsset('AIPlan', {...twoStepPlan, dependencies: [{stepId: 'step-1',
+      dependsOnStepIds: ['step-2']}, {stepId: 'step-2', dependsOnStepIds: ['step-1']}]}))
+      .toThrow('contain a cycle');
+    expect(() => validateAIAsset('AIPlan', {...twoStepPlan, dependencies: [{stepId: 'step-2',
+      dependsOnStepIds: ['step-1']}], rollbackOrRecovery: [{recoveryId: 'recovery:one',
+      triggerStepId: 'step-1', recoveryStepId: 'step-2', mode: 'MANUAL',
+      description: 'Operator recovery.'}]})).toThrow('triggered only by their recovery mapping');
   });
 });
 

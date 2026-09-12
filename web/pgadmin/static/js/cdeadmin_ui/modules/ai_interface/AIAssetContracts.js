@@ -29,6 +29,21 @@ const STEP_KINDS = ['READ_METADATA', 'READ_DATA', 'COMPILE_QUERY', 'EXECUTE_QUER
   'VALIDATE', 'REQUEST_APPROVAL'];
 const STEP_STATES = ['pending', 'validated', 'approval_required', 'running', 'succeeded',
   'failed', 'skipped', 'cancelled'];
+export const AI_EFFECT_CLASSES = Object.freeze(['READ_RESULT', 'QUERY_ARTIFACT',
+  'PROJECT_DRAFT', 'DATABASE_MUTATION', 'BACKGROUND_TASK', 'CONTROL_ONLY',
+  'EXTERNAL_SIDE_EFFECT']);
+export const AI_RECOVERY_MODES = Object.freeze(['MANUAL', 'AUTOMATIC_ON_FAILURE']);
+export const AI_ESTIMATED_BUDGET_FIELDS = Object.freeze(['modelInputTokens',
+  'modelOutputTokens', 'toolCallsPerTurn', 'toolCallsPerPlan', 'databaseQueriesPerTurn',
+  'databaseRowsPerQuery', 'databaseBytesPerQuery', 'parallelTools', 'runMinutes',
+  'backgroundTasks', 'estimatedCostPerTurn', 'estimatedCostPerDay']);
+const STEP_EFFECT_CLASSES = Object.freeze({READ_METADATA: ['READ_RESULT'],
+  READ_DATA: ['READ_RESULT'], COMPILE_QUERY: ['QUERY_ARTIFACT'],
+  EXECUTE_QUERY: ['READ_RESULT', 'DATABASE_MUTATION', 'EXTERNAL_SIDE_EFFECT'],
+  CREATE_ASSET_DRAFT: ['PROJECT_DRAFT'], EDIT_ASSET: ['PROJECT_DRAFT'],
+  INVOKE_COMMAND: ['READ_RESULT', 'PROJECT_DRAFT', 'DATABASE_MUTATION', 'BACKGROUND_TASK',
+    'CONTROL_ONLY', 'EXTERNAL_SIDE_EFFECT'], START_TASK: ['BACKGROUND_TASK'],
+  WAIT_TASK: ['BACKGROUND_TASK'], VALIDATE: ['CONTROL_ONLY'], REQUEST_APPROVAL: ['CONTROL_ONLY']});
 
 function exact(input, fields, label) { const unknown = Object.keys(input).filter((field) =>
   !fields.includes(field)); if(unknown.length) throw new TypeError(
@@ -210,22 +225,112 @@ function planStep(input) { const fields = ['stepId', 'kind', 'status', 'commandI
     input.connectorRef, 'AI plan connector reference', 256, true), resourceRefs: strings(
     input.resourceRefs ?? [], 'AI plan resource references'), assetRefs: strings(input.assetRefs ?? [],
     'AI plan asset references'), arguments: object(input.arguments ?? {}, 'AI plan arguments')}); }
+function planDependency(input) { const fields = ['stepId', 'dependsOnStepIds'];
+  plainObject(input, 'AI plan dependency'); noRawSecrets(input, 'AI plan dependency');
+  exact(input, fields, 'AI plan dependency'); return immutable({stepId: text(input.stepId,
+    'AI plan dependency step ID', 256), dependsOnStepIds: strings(input.dependsOnStepIds,
+    'AI plan dependency prerequisites')}); }
+function planEffect(input) { const fields = ['effectId', 'stepId', 'effectClass', 'description',
+  'resourceRefs', 'reversible']; plainObject(input, 'AI plan expected effect'); noRawSecrets(input,
+  'AI plan expected effect'); exact(input, fields, 'AI plan expected effect'); return immutable({
+  effectId: text(input.effectId, 'AI plan effect ID', 256), stepId: text(input.stepId,
+    'AI plan effect step ID', 256), effectClass: choice(input.effectClass, AI_EFFECT_CLASSES,
+    'AI plan effect class'), description: text(input.description, 'AI plan effect description',
+    4000), resourceRefs: strings(input.resourceRefs, 'AI plan effect resources'), reversible: bool(
+    input.reversible, 'AI plan effect reversibility')}); }
+function planRecovery(input) { const fields = ['recoveryId', 'triggerStepId', 'recoveryStepId',
+  'mode', 'description']; plainObject(input, 'AI plan recovery'); noRawSecrets(input,
+  'AI plan recovery'); exact(input, fields, 'AI plan recovery'); return immutable({recoveryId: text(
+  input.recoveryId, 'AI plan recovery ID', 256), triggerStepId: text(input.triggerStepId,
+  'AI plan recovery trigger step ID', 256), recoveryStepId: text(input.recoveryStepId,
+  'AI plan recovery step ID', 256), mode: choice(input.mode, AI_RECOVERY_MODES,
+  'AI plan recovery mode'), description: text(input.description, 'AI plan recovery description',
+  4000)}); }
+function estimatedBudgets(input) { plainObject(input, 'AI plan estimated budgets'); noRawSecrets(input,
+  'AI plan estimated budgets'); exact(input, AI_ESTIMATED_BUDGET_FIELDS,
+  'AI plan estimated budgets'); const missing = AI_ESTIMATED_BUDGET_FIELDS.find((field) =>
+  !Object.hasOwn(input, field)); if(missing) throw new TypeError(
+  `AI plan estimated budgets require explicit ${missing}.`); return immutable(Object.fromEntries(
+  AI_ESTIMATED_BUDGET_FIELDS.map((field) => [field, field.startsWith('estimatedCost') ? number(
+    input[field], `AI plan estimated budget ${field}`, {optional: true}) : integer(input[field],
+    `AI plan estimated budget ${field}`, {minimum: 0, optional: true})]))); }
+
+function orderedStepIds(steps, dependencies, excluded=new Set()) {
+  const included = steps.map((step) => step.stepId).filter((stepId) => !excluded.has(stepId));
+  const includedSet = new Set(included); const prerequisites = new Map(included.map((id) => [id,
+    new Set()])); dependencies.forEach((item) => { if(includedSet.has(item.stepId)) item.dependsOnStepIds
+    .filter((id) => includedSet.has(id)).forEach((id) => prerequisites.get(item.stepId).add(id)); });
+  const ordered = []; const remaining = new Set(included);
+  while(remaining.size) { const ready = included.filter((id) => remaining.has(id) &&
+    [...prerequisites.get(id)].every((dependency) => !remaining.has(dependency)));
+  if(!ready.length) throw new TypeError('AI plan dependencies contain a cycle.');
+  ready.forEach((id) => { ordered.push(id); remaining.delete(id); }); }
+  return ordered;
+}
+
+export function orderedAIPlanStepIds(plan, {includeRecovery=false}={}) {
+  const recovery = includeRecovery ? new Set() : new Set(plan.rollbackOrRecovery.map(
+    (item) => item.recoveryStepId)); return immutable(orderedStepIds(plan.steps,
+    plan.dependencies, recovery));
+}
 export function validateAIPlan(input) { const fields = ['schemaVersion', 'planId', 'revision',
   'baseContextRevision', 'agentProfileRef', 'modelProfileSnapshot', 'connectorSnapshots', 'steps',
-  'risks', 'requiredApprovals', 'validationChecks', 'status']; base(input, fields, 'AI plan');
+  'dependencies', 'expectedEffects', 'risks', 'requiredApprovals', 'validationChecks',
+  'rollbackOrRecovery', 'estimatedBudgets', 'status']; base(input, fields, 'AI plan');
 if(!Array.isArray(input.steps)) throw new TypeError('AI plan steps must be an array.');
 const steps = input.steps.map(planStep); if(new Set(steps.map((item) => item.stepId)).size !== steps.length)
-  throw new TypeError('AI plan step IDs must be unique.'); if(!Array.isArray(input.connectorSnapshots))
-  throw new TypeError('AI connector snapshots must be an array.'); return immutable({schemaVersion: 1,
+  throw new TypeError('AI plan step IDs must be unique.'); if(!Array.isArray(input.connectorSnapshots) ||
+    !Array.isArray(input.dependencies) || !Array.isArray(input.expectedEffects) ||
+    !Array.isArray(input.rollbackOrRecovery)) throw new TypeError(
+  'AI plan snapshots, dependencies, effects, and recovery must be arrays.');
+const stepIds = new Set(steps.map((item) => item.stepId)); const dependencies = input.dependencies.map(
+  planDependency); if(new Set(dependencies.map((item) => item.stepId)).size !== dependencies.length)
+  throw new TypeError('AI plan dependency step IDs must be unique.'); dependencies.forEach((item) => {
+  if(!stepIds.has(item.stepId) || item.dependsOnStepIds.some((id) => !stepIds.has(id))) throw new TypeError(
+    'AI plan dependencies must reference known steps.'); if(item.dependsOnStepIds.includes(item.stepId))
+    throw new TypeError('AI plan steps cannot depend on themselves.'); });
+orderedStepIds(steps, dependencies);
+const expectedEffects = input.expectedEffects.map(planEffect); if(new Set(expectedEffects.map(
+  (item) => item.effectId)).size !== expectedEffects.length) throw new TypeError(
+  'AI plan effect IDs must be unique.'); expectedEffects.forEach((effect) => { const step = steps.find(
+  (item) => item.stepId === effect.stepId); if(!step) throw new TypeError(
+  'AI plan effects must reference known steps.'); if(effect.resourceRefs.some((reference) =>
+  !step.resourceRefs.includes(reference))) throw new TypeError(
+  'AI plan effect resources must be declared by their step.'); });
+if(steps.some((step) => !expectedEffects.some((effect) => effect.stepId === step.stepId)))
+  throw new TypeError('Every AI plan step requires an explicit expected effect.');
+const rollbackOrRecovery = input.rollbackOrRecovery.map(planRecovery); if(new Set(rollbackOrRecovery.map(
+  (item) => item.recoveryId)).size !== rollbackOrRecovery.length || new Set(rollbackOrRecovery.map(
+  (item) => item.recoveryStepId)).size !== rollbackOrRecovery.length) throw new TypeError(
+  'AI plan recovery and recovery-step IDs must be unique.'); const recoveryStepIds = new Set(
+  rollbackOrRecovery.map((item) => item.recoveryStepId)); rollbackOrRecovery.forEach((item) => {
+  if(!stepIds.has(item.triggerStepId) || !stepIds.has(item.recoveryStepId) ||
+      item.triggerStepId === item.recoveryStepId) throw new TypeError(
+    'AI plan recovery must reference distinct known trigger and recovery steps.');
+  if(recoveryStepIds.has(item.triggerStepId)) throw new TypeError(
+    'AI plan recovery steps cannot themselves trigger recovery.'); });
+expectedEffects.forEach((effect) => { const step = steps.find((item) => item.stepId === effect.stepId);
+  if(!STEP_EFFECT_CLASSES[step.kind].includes(effect.effectClass)) throw new TypeError(
+    `AI plan effect class ${effect.effectClass} is not valid for ${step.kind}.`);
+  if(effect.reversible && ['DATABASE_MUTATION', 'EXTERNAL_SIDE_EFFECT'].includes(
+    effect.effectClass) && !rollbackOrRecovery.some((item) => item.triggerStepId === step.stepId))
+    throw new TypeError('A reversible AI plan mutation requires an explicit recovery step.'); });
+dependencies.forEach((item) => { if(!recoveryStepIds.has(item.stepId) && item.dependsOnStepIds.some(
+  (id) => recoveryStepIds.has(id))) throw new TypeError(
+  'Normal AI plan steps cannot depend on failure-only recovery steps.');
+if(recoveryStepIds.has(item.stepId) && item.dependsOnStepIds.length) throw new TypeError(
+  'Failure-only AI recovery steps are triggered only by their recovery mapping.'); });
+return immutable({schemaVersion: 1,
   planId: text(input.planId, 'AI plan ID', 256), revision: integer(input.revision, 'AI plan revision'),
   baseContextRevision: text(input.baseContextRevision, 'AI plan base-context revision', 2048),
   agentProfileRef: text(input.agentProfileRef, 'AI plan agent profile reference', 256),
   modelProfileSnapshot: object(input.modelProfileSnapshot, 'AI model profile snapshot'),
   connectorSnapshots: input.connectorSnapshots.map((item) => object(item, 'AI connector snapshot')),
-  steps, risks: strings(input.risks, 'AI plan risks'), requiredApprovals: strings(
+  steps, dependencies, expectedEffects, risks: strings(input.risks, 'AI plan risks'), requiredApprovals: strings(
     input.requiredApprovals, 'AI plan required approvals'), validationChecks: strings(
-    input.validationChecks, 'AI plan validation checks'), status: choice(input.status, PLAN_STATES,
-    'AI plan state')}); }
+    input.validationChecks, 'AI plan validation checks'), rollbackOrRecovery,
+  estimatedBudgets: estimatedBudgets(input.estimatedBudgets), status: choice(input.status,
+    PLAN_STATES, 'AI plan state')}); }
 
 const VALIDATORS = Object.freeze({AIModelProfile: validateAIModelProfile,
   AIConnectorProfile: createAIConnectorProfile, AIAgentProfile: validateAIAgentProfile,

@@ -390,8 +390,8 @@
     },
     {
       "path": "machine/schemas/ai-plan.schema.json",
-      "bytes": 3032,
-      "sha256": "5c2c220b6e2b3c9842f940e1a0af2bacc965a94d7fc00a1d6e9b2c62562061bd"
+      "bytes": 5918,
+      "sha256": "5f6ffe90b07306502af33c9fdbd7e2a58a42eeb16aa83db06f30a7230239b7fd"
     },
     {
       "path": "machine/schemas/data-product.schema.json",

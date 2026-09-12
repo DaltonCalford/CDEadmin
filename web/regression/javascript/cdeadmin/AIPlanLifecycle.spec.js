@@ -24,8 +24,15 @@ const plan = ({id='plan-main', status='draft', risk='R4', approval=true,
     commandId: ['READ_METADATA', 'READ_DATA', 'WAIT_TASK'].includes(kind) ? null : 'provider.change',
     connectorRef: 'connector-main', resourceRefs: ['resource:orders'], assetRefs: [],
     arguments: kind === 'WAIT_TASK' ? {taskRef: 'dependency'} : {value: 1},
-  }], risks: [risk], requiredApprovals: approval ? ['approval:step-1'] : [],
-  validationChecks: ['check:step-1'], status,
+  }], dependencies: [], expectedEffects: [{effectId: 'effect:step-1', stepId: 'step-1',
+    effectClass: risk === 'R1' ? 'READ_RESULT' : 'DATABASE_MUTATION',
+    description: 'Perform the reviewed plan step.', resourceRefs: ['resource:orders'],
+    reversible: false}], risks: [risk], requiredApprovals: approval ? ['approval:step-1'] : [],
+  validationChecks: ['check:step-1', 'check:estimated-budgets'], rollbackOrRecovery: [],
+  estimatedBudgets: {modelInputTokens: 100, modelOutputTokens: 100, toolCallsPerTurn: 1,
+    toolCallsPerPlan: 1, databaseQueriesPerTurn: 1, databaseRowsPerQuery: 10,
+    databaseBytesPerQuery: 1000, parallelTools: 1, runMinutes: 1, backgroundTasks: 0,
+    estimatedCostPerTurn: 0.1, estimatedCostPerDay: 0.1}, status,
 });
 
 const user = (id='human-one', permissions=['ai.use', 'ai.delegate_draft',
@@ -76,8 +83,8 @@ const validation = ({risk='R4', approval=true, retry={kind: 'mutation',
   providerReadIdempotent: false, explicitlyIdempotent: false,
   backendIdempotencyRef: null}, expiresAt='2099-01-01T00:00:00.000Z'}={}) => async (
   step, {plan: currentPlan}) => ({valid: true,
-  checkId: 'check:step-1', reason: '', evidenceRef: 'evidence:validation', riskClass: risk,
-  approvalRequired: approval, approvalBinding: approval ? {requirementId: 'approval:step-1',
+  checkId: `check:${step.stepId}`, reason: '', evidenceRef: 'evidence:validation', riskClass: risk,
+  approvalRequired: approval, approvalBinding: approval ? {requirementId: `approval:${step.stepId}`,
     stepIds: [step.stepId], connectorRef: 'connector-main', principalRef: 'principal:ai',
     resourceRefs: ['resource:orders'], environment: 'development', riskClass: risk} : null,
   preparedOperation: ['WAIT_TASK', 'VALIDATE', 'REQUEST_APPROVAL'].includes(step.kind) ? null : {
@@ -88,7 +95,8 @@ const validation = ({risk='R4', approval=true, retry={kind: 'mutation',
       INVOKE_COMMAND: 'command', START_TASK: 'task'}[step.kind],
     canonicalResourceRefs: step.resourceRefs, accessSurfaceRefs: [],
     normalizedArguments: step.arguments, nativeCompiledArtifact: null, riskClass: risk,
-    estimatedEffects: [], budgets: {}, validation: [{checkId: 'check:step-1', passed: true}],
+    estimatedEffects: currentPlan.expectedEffects.filter((item) => item.stepId === step.stepId),
+    budgets: {}, validation: [{checkId: `check:${step.stepId}`, passed: true}],
     expiresAt}, retry});
 
 function clock() {
@@ -114,6 +122,10 @@ describe('AI lifecycle hashing and approval evidence', () => {
     expect(aiPlanHash(ready)).toBe(aiPlanHash({...ready, status: 'approved',
       steps: ready.steps.map((step) => ({...step, status: 'running'}))}));
     expect(aiPlanHash(ready)).not.toBe(aiPlanHash({...ready, revision: 2}));
+    expect(aiPlanHash(ready)).not.toBe(aiPlanHash({...ready, expectedEffects:
+      ready.expectedEffects.map((effect) => ({...effect, description: 'Changed effect.'}))}));
+    expect(aiPlanHash(ready)).not.toBe(aiPlanHash({...ready, estimatedBudgets:
+      {...ready.estimatedBudgets, toolCallsPerPlan: 2}}));
   });
 
   it('binds R5 typed approval to exact revision, steps, principal, resources and environment', () => {
@@ -367,7 +379,7 @@ describe('precursor AI compatibility migration', () => {
 describe('AI plan lifecycle and TaskService execution', () => {
   it('validates, approves and executes an exact plan through the shared Task service', async () => {
     const services = planServices(); services.plans.create(plan(), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     expect(services.plans.get('plan-main').plan.status).toBe('ready_for_approval');
     const approved = services.plans.approve('plan-main', {requirementId: 'approval:step-1',
       method: 'confirm_each'}, user());
@@ -398,7 +410,7 @@ describe('AI plan lifecycle and TaskService execution', () => {
   it('marks stale context before execution and invalidates revision-bound evidence', async () => {
     let contextRevision = 'context:7'; const services = planServices({contextRevision:
       async () => contextRevision}); services.plans.create(plan(), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     services.plans.approve('plan-main', {requirementId: 'approval:step-1',
       method: 'confirm_each'}, user()); contextRevision = 'context:8';
     await expect(services.plans.executionSnapshot('plan-main', user())).rejects.toThrow(
@@ -409,7 +421,7 @@ describe('AI plan lifecycle and TaskService execution', () => {
   it('refuses a prepared operation that expires between approval and execution', async () => {
     const time = clock(); const services = planServices({time, validateStep: validation({
       expiresAt: '2026-09-12T12:01:00.000Z'})}); services.plans.create(plan(), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     services.plans.approve('plan-main', {requirementId: 'approval:step-1',
       method: 'confirm_each'}, user()); time.advance(61000);
     await expect(services.plans.executionSnapshot('plan-main', user())).rejects.toThrow(
@@ -419,7 +431,7 @@ describe('AI plan lifecycle and TaskService execution', () => {
 
   it('requires an exact next revision and revokes all evidence when content changes', async () => {
     const services = planServices(); services.plans.create(plan(), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     const approved = services.plans.approve('plan-main', {requirementId: 'approval:step-1',
       method: 'confirm_each'}, user()).evidence;
     expect(() => services.plans.revise('plan-main', 2, plan({revision: 3}), user()))
@@ -435,33 +447,39 @@ describe('AI plan lifecycle and TaskService execution', () => {
   it('refuses understated risk/check/approval claims and connector snapshot drift', async () => {
     const services = planServices(); const understated = plan(); understated.risks = ['R1'];
     services.plans.create(understated, user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     expect(services.plans.get('plan-main')).toEqual(expect.objectContaining({
       plan: expect.objectContaining({status: 'invalid'}),
       validations: expect.arrayContaining([expect.objectContaining({valid: false,
         reason: expect.stringContaining('absent from the reviewed plan')})])}));
     const other = plan({id: 'missing-connector'}); other.steps[0].connectorRef = 'not-snapshotted';
     services.plans.create(other, user());
-    await services.plans.validate('missing-connector', {approvalPolicy: approvalPolicy(), ...user()});
-    expect(services.plans.get('missing-connector').validations[0].reason)
+    await services.plans.validate('missing-connector', {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()});
+    expect(services.plans.get('missing-connector').validations.find(
+      (item) => item.stepId === 'step-1').reason)
       .toContain('Connector snapshot is absent');
     const rawSecret = plan({id: 'raw-secret', risk: 'R7', approval: false});
     const forbidden = planServices({validateStep: validation({risk: 'R7', approval: false})});
     forbidden.plans.create(rawSecret, user());
-    await forbidden.plans.validate('raw-secret', {approvalPolicy: approvalPolicy(), ...user()});
-    expect(forbidden.plans.get('raw-secret').validations[0].reason).toContain('R7 raw-secret');
+    await forbidden.plans.validate('raw-secret', {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()});
+    expect(forbidden.plans.get('raw-secret').validations.find(
+      (item) => item.stepId === 'step-1').reason).toContain('R7 raw-secret');
     const validStep = validation(); const tampered = planServices({validateStep: async (...args) => {
       const result = await validStep(...args); return {...result, preparedOperation:
         {...result.preparedOperation, normalizedArguments: {value: 999}}}; }});
     tampered.plans.create(plan({id: 'tampered'}), user());
-    await tampered.plans.validate('tampered', {approvalPolicy: approvalPolicy(), ...user()});
-    expect(tampered.plans.get('tampered').validations[0].reason)
+    await tampered.plans.validate('tampered', {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()});
+    expect(tampered.plans.get('tampered').validations.find(
+      (item) => item.stepId === 'step-1').reason)
       .toContain('does not exactly match');
   });
 
   it('never lets generic TaskService retry a mutation and records typed provider failure', async () => {
     const services = planServices(); services.plans.create(plan(), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     services.plans.approve('plan-main', {requirementId: 'approval:step-1',
       method: 'confirm_each'}, user()); const tasks = new TaskExecutionService(); let calls = 0;
     const executor = new AIPlanExecutionService({plans: services.plans, tasks,
@@ -473,13 +491,29 @@ describe('AI plan lifecycle and TaskService execution', () => {
     expect(services.plans.get('plan-main').plan.status).toBe('failed'); executor.dispose();
   });
 
+  it('counts retry attempts against the runtime tool-call budget', async () => {
+    const limitedBudget = {...budgetPolicy, maxToolCallsPerTurn: 1};
+    const services = planServices({validateStep: validation({risk: 'R1', approval: false,
+      retry: {kind: 'read', providerReadIdempotent: true, explicitlyIdempotent: false,
+        backendIdempotencyRef: null}})}); services.plans.create(plan({risk: 'R1',
+      approval: false, kind: 'READ_DATA'}), user());
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(),
+      budgetPolicy: limitedBudget, ...user()}); let calls = 0;
+    const tasks = new TaskExecutionService(); const executor = new AIPlanExecutionService({
+      plans: services.plans, tasks, executeStep: async () => { calls++;
+        throw new AIExecutionFailure('CONNECTOR_TRANSPORT_FAILURE', 'retryable',
+          {retryable: true}); }}); const run = await executor.execute('plan-main', {}, user());
+    await expect(tasks.wait(run.taskRef)).rejects.toMatchObject({category: 'BUDGET_EXCEEDED'});
+    expect(calls).toBe(1); executor.dispose();
+  });
+
   it('keeps cancel requested visible until cooperative cancellation is confirmed', async () => {
     let release; const hold = new Promise((resolve) => { release = resolve; });
     const services = planServices({validateStep: validation({risk: 'R1', approval: false,
       retry: {kind: 'read', providerReadIdempotent: true, explicitlyIdempotent: false,
         backendIdempotencyRef: null}})}); services.plans.create(plan({risk: 'R1',
       approval: false, kind: 'READ_DATA'}), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     const tasks = new TaskExecutionService(); const cancelStep = jest.fn(async () => true);
     const executor = new AIPlanExecutionService({plans: services.plans, tasks, cancelStep,
       executeStep: async ({signal}) => { await hold; if(signal.aborted) throw new Error('cancelled');
@@ -498,7 +532,7 @@ describe('AI plan lifecycle and TaskService execution', () => {
       retry: {kind: 'read', providerReadIdempotent: true, explicitlyIdempotent: false,
         backendIdempotencyRef: null}})}); services.plans.create(plan({risk: 'R1',
       approval: false, kind: 'READ_DATA'}), user());
-    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), ...user()});
+    await services.plans.validate('plan-main', {approvalPolicy: approvalPolicy(), budgetPolicy, ...user()});
     const tasks = new TaskExecutionService(); const executor = new AIPlanExecutionService({
       plans: services.plans, tasks, executeStep: async () => ({status: 'partial', result: {},
         diagnostics: [{code: 'truncated'}], resourceRefs: [], assetRefs: [], taskRefs: [],
@@ -506,5 +540,98 @@ describe('AI plan lifecycle and TaskService execution', () => {
     const run = await executor.execute('plan-main', {}, user());
     await expect(tasks.wait(run.taskRef)).rejects.toMatchObject({category: 'PARTIAL_RESULT'});
     expect(services.plans.get('plan-main').plan.status).toBe('failed'); executor.dispose();
+  });
+
+  it('executes a dependency DAG in stable topological order rather than display order', async () => {
+    const value = plan({id: 'dependency-plan', risk: 'R1', approval: false,
+      kind: 'READ_DATA'}); const first = {...value.steps[0], stepId: 'step-first'};
+    const second = {...value.steps[0], stepId: 'step-second'};
+    value.steps = [second, first]; value.dependencies = [{stepId: 'step-second',
+      dependsOnStepIds: ['step-first']}]; value.expectedEffects = [{effectId: 'effect:first',
+      stepId: 'step-first', effectClass: 'READ_RESULT', description: 'Read first.',
+      resourceRefs: ['resource:orders'], reversible: false}, {effectId: 'effect:second',
+      stepId: 'step-second', effectClass: 'READ_RESULT', description: 'Read second.',
+      resourceRefs: ['resource:orders'], reversible: false}];
+    value.validationChecks = ['check:step-first', 'check:step-second',
+      'check:estimated-budgets']; value.estimatedBudgets.toolCallsPerPlan = 2;
+    const services = planServices({validateStep: validation({risk: 'R1', approval: false,
+      retry: {kind: 'read', providerReadIdempotent: true, explicitlyIdempotent: false,
+        backendIdempotencyRef: null}})}); services.plans.create(value, user());
+    await services.plans.validate(value.planId, {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()}); const calls = [];
+    const tasks = new TaskExecutionService(); const executor = new AIPlanExecutionService({
+      plans: services.plans, tasks, executeStep: async ({step}) => { calls.push(step.stepId);
+        return {status: 'success', result: {}, diagnostics: [], resourceRefs: [], assetRefs: [],
+          taskRefs: [], nextAllowedActions: [], auditRef: null}; }});
+    const run = await executor.execute(value.planId, {}, user()); await tasks.wait(run.taskRef);
+    expect(calls).toEqual(['step-first', 'step-second']); executor.dispose();
+  });
+
+  it('executes only an approved automatic recovery step after its trigger fails', async () => {
+    const value = plan({id: 'recovery-plan'}); value.steps.push({...value.steps[0],
+      stepId: 'step-recovery', commandId: 'provider.undo', arguments: {value: 0}});
+    value.expectedEffects.push({effectId: 'effect:recovery', stepId: 'step-recovery',
+      effectClass: 'DATABASE_MUTATION', description: 'Undo the failed mutation.',
+      resourceRefs: ['resource:orders'], reversible: false});
+    value.rollbackOrRecovery = [{recoveryId: 'recovery:step-1', triggerStepId: 'step-1',
+      recoveryStepId: 'step-recovery', mode: 'AUTOMATIC_ON_FAILURE',
+      description: 'Run the reviewed compensating mutation.'}];
+    value.requiredApprovals = ['approval:step-1', 'approval:step-recovery'];
+    value.validationChecks = ['check:step-1', 'check:step-recovery',
+      'check:estimated-budgets']; value.estimatedBudgets.toolCallsPerPlan = 2;
+    const services = planServices(); services.plans.create(value, user());
+    await services.plans.validate(value.planId, {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()});
+    services.plans.approve(value.planId, {requirementId: 'approval:step-1',
+      method: 'confirm_each'}, user());
+    services.plans.approve(value.planId, {requirementId: 'approval:step-recovery',
+      method: 'confirm_each'}, user());
+    const calls = []; const tasks = new TaskExecutionService();
+    const executor = new AIPlanExecutionService({plans: services.plans, tasks,
+      executeStep: async ({step}) => { calls.push(step.stepId); if(step.stepId === 'step-1')
+        throw new AIExecutionFailure('PROVIDER_ERROR', 'mutation failed');
+      return {status: 'success', result: {recovered: true}, diagnostics: [], resourceRefs: [],
+        assetRefs: [], taskRefs: [], nextAllowedActions: [], auditRef: null}; }});
+    const run = await executor.execute(value.planId, {}, user());
+    await expect(tasks.wait(run.taskRef)).rejects.toMatchObject({category: 'PROVIDER_ERROR'});
+    expect(calls).toEqual(['step-1', 'step-recovery']);
+    expect(services.plans.get(value.planId).plan.steps).toEqual(expect.arrayContaining([
+      expect.objectContaining({stepId: 'step-1', status: 'failed'}),
+      expect.objectContaining({stepId: 'step-recovery', status: 'succeeded'})]));
+    executor.dispose();
+  });
+
+  it('never executes manual recovery and rejects unknown or excessive budget estimates', async () => {
+    const manual = plan({id: 'manual-recovery'}); manual.steps.push({...manual.steps[0],
+      stepId: 'step-recovery', commandId: 'provider.undo'}); manual.expectedEffects.push({
+      effectId: 'effect:recovery', stepId: 'step-recovery', effectClass: 'DATABASE_MUTATION',
+      description: 'Operator-reviewed recovery.', resourceRefs: ['resource:orders'],
+      reversible: false}); manual.rollbackOrRecovery = [{recoveryId: 'manual:one',
+      triggerStepId: 'step-1', recoveryStepId: 'step-recovery', mode: 'MANUAL',
+      description: 'Require an operator to start recovery.'}]; manual.requiredApprovals =
+      ['approval:step-1', 'approval:step-recovery']; manual.validationChecks = ['check:step-1',
+      'check:step-recovery', 'check:estimated-budgets'];
+    manual.estimatedBudgets.toolCallsPerPlan = 2;
+    const services = planServices(); services.plans.create(manual, user());
+    await services.plans.validate(manual.planId, {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()}); services.plans.approve(manual.planId,
+      {requirementId: 'approval:step-1', method: 'confirm_each'}, user());
+    services.plans.approve(manual.planId, {requirementId: 'approval:step-recovery',
+      method: 'confirm_each'}, user()); const executeStep = jest.fn(async () => {
+      throw new AIExecutionFailure('PROVIDER_ERROR', 'failed'); });
+    const tasks = new TaskExecutionService(); const executor = new AIPlanExecutionService({
+      plans: services.plans, tasks, executeStep}); const run = await executor.execute(
+      manual.planId, {}, user()); await expect(tasks.wait(run.taskRef)).rejects.toThrow('failed');
+    expect(executeStep).toHaveBeenCalledTimes(1); expect(services.plans.get(
+      manual.planId).plan.steps.find((step) => step.stepId === 'step-recovery').status).toBe('skipped');
+    executor.dispose();
+
+    const excessive = plan({id: 'excessive-budget'});
+    excessive.estimatedBudgets.toolCallsPerPlan = null;
+    const invalid = planServices(); invalid.plans.create(excessive, user());
+    await invalid.plans.validate(excessive.planId, {approvalPolicy: approvalPolicy(),
+      budgetPolicy, ...user()}); const lifecycle = invalid.plans.get(excessive.planId);
+    expect(lifecycle.plan.status).toBe('invalid'); expect(lifecycle.budgetAssessment.valid).toBe(false);
+    expect(lifecycle.budgetAssessment.violations[0]).toContain('unknown');
   });
 });

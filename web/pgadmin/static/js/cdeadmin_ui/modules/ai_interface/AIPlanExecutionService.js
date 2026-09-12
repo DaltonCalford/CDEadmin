@@ -8,6 +8,7 @@ import {
   normalizeExecutionFailure,
 } from './AILifecycleContracts';
 import {AIRetryPolicyService} from './AIRetryPolicyService';
+import {orderedAIPlanStepIds} from './AIAssetContracts';
 
 export const AI_PLAN_EXECUTION_TASK = 'cdeadmin.ai.plan.execution.v1';
 const RESULT_STATUSES = Object.freeze(['success', 'partial', 'refused', 'failed',
@@ -99,57 +100,78 @@ export class AIPlanExecutionService {
     const context = taskContext.executionContext ?? {}; const lifecycle = this.plans.get(request.planId);
     if(lifecycle.plan.revision !== request.planRevision || lifecycle.plan.status !== 'running')
       throw new AIExecutionFailure('APPROVAL_STALE', 'AI plan changed before its task began.');
-    const outputs = []; const startedAt = this.now(); let active = null;
+    const outputs = []; const startedAt = this.now(); let active = null; let currentStep = null;
+    let toolCalls = 0; const normalStepIds = orderedAIPlanStepIds(lifecycle.plan);
+    const normalSteps = normalStepIds.map((stepId) => lifecycle.plan.steps.find(
+      (step) => step.stepId === stepId));
+    const budgetLimit = (field) => lifecycle.budgetAssessment?.checks.find(
+      (item) => item.estimateField === field)?.limit ?? null;
     const onAbort = () => { if(active) Promise.resolve(this.cancelStep({plan: lifecycle.plan,
       step: active.step, preparedOperation: active.validation.preparedOperation,
       reason: 'Task cancellation requested.'}, context)).catch(() => false); };
     taskContext.signal.addEventListener('abort', onAbort);
-    try {
-      for(let index = 0; index < lifecycle.plan.steps.length; index++) {
-        const step = lifecycle.plan.steps[index]; const validation = lifecycle.validations.find(
-          (item) => item.stepId === step.stepId);
-        if(!validation?.valid) throw new AIExecutionFailure('POLICY_DENIED',
-          `AI plan step ${step.stepId} has no current successful validation.`);
-        if(taskContext.signal.aborted) throw abortError('AI run was cancelled.');
-        taskContext.phase(`step:${index + 1}/${lifecycle.plan.steps.length}`, step.stepId);
-        if(['REQUEST_APPROVAL', 'VALIDATE'].includes(step.kind)) {
-          this.plans.markStep(request.planId, step.stepId, 'succeeded');
-          outputs.push(immutable({stepId: step.stepId, status: 'success', result: null})); continue;
-        }
-        this.plans.markStep(request.planId, step.stepId, 'running'); active = {step, validation};
-        const retryOptions = {...validation.retry, signal: taskContext.signal,
-          onRetry: (details) => taskContext.warning(`AI step ${step.stepId} retry`, details)};
-        let result;
-        if(step.kind === 'WAIT_TASK') {
-          const taskRef = platformValue(step.arguments.taskRef ?? step.arguments.taskId,
-            'AI wait task reference');
-          try { result = resultEnvelope({status: 'success', result: await this.tasks.wait(taskRef),
-            diagnostics: [], resourceRefs: [], assetRefs: [], taskRefs: [taskRef],
-            nextAllowedActions: [], auditRef: null}); } catch(error) {
-            throw new AIExecutionFailure('TASK_FAILED', error.message, {cause: error});
-          }
-        } else result = await this.retry.run(validation.retry.kind, async ({attempt, signal}) =>
-          resultEnvelope(await this.executeStep({plan: lifecycle.plan, step,
-            preparedOperation: validation.preparedOperation, approvalEvidence:
-            this._approvalEvidence(lifecycle, validation), attempt, signal}, context)), retryOptions);
-        active = null;
-        if(result.status !== 'success') throw failureForResult(result);
-        result.taskRefs.forEach((reference) => taskContext.resultReference({type: 'TaskRef',
-          reference})); result.resourceRefs.forEach((reference) => taskContext.resultReference({
-          type: 'ResourceRef', reference})); result.assetRefs.forEach((reference) =>
-          taskContext.resultReference({type: 'AssetRef', reference}));
+    const executeOne = async (step, phase, progress=null) => {
+      currentStep = step; const validation = lifecycle.validations.find(
+        (item) => item.stepId === step.stepId);
+      if(!validation?.valid) throw new AIExecutionFailure('POLICY_DENIED',
+        `AI plan step ${step.stepId} has no current successful validation.`);
+      if(taskContext.signal.aborted) throw abortError('AI run was cancelled.');
+      const runMinuteLimit = budgetLimit('runMinutes');
+      if(runMinuteLimit !== null && Date.parse(this.now()) - Date.parse(startedAt) >
+          runMinuteLimit * 60000) throw new AIExecutionFailure('BUDGET_EXCEEDED',
+        'AI plan exceeded its maximum run duration.');
+      taskContext.phase(phase, step.stepId);
+      if(['REQUEST_APPROVAL', 'VALIDATE'].includes(step.kind)) {
         this.plans.markStep(request.planId, step.stepId, 'succeeded');
-        outputs.push(immutable({stepId: step.stepId, ...result}));
-        taskContext.progress((index + 1) / lifecycle.plan.steps.length, step.stepId);
-        this.audit?.append({eventType: 'ai.plan.step_executed', initiator:
-          String(taskContext.owner ?? 'system'), runId: request.runId, planId: request.planId,
-        connectorRef: step.connectorRef, commandId: step.commandId,
-        principalRef: validation.approvalBinding?.principalRef ?? null,
-        redactedArguments: step.arguments, resourceRefs: step.resourceRefs,
-        assetRefs: step.assetRefs, approvalRefs: this._approvalEvidence(lifecycle,
-          validation).map((item) => item.approvalId), backendResult: {status: result.status,
-          diagnostics: result.diagnostics}, taskRefs: result.taskRefs});
+        const output = immutable({stepId: step.stepId, status: 'success', result: null});
+        outputs.push(output); currentStep = null; return output;
       }
+      this.plans.markStep(request.planId, step.stepId, 'running'); active = {step, validation};
+      const retryOptions = {...validation.retry, signal: taskContext.signal,
+        onRetry: (details) => taskContext.warning(`AI step ${step.stepId} retry`, details)};
+      let result;
+      if(step.kind === 'WAIT_TASK') {
+        const taskRef = platformValue(step.arguments.taskRef ?? step.arguments.taskId,
+          'AI wait task reference');
+        try { result = resultEnvelope({status: 'success', result: await this.tasks.wait(taskRef),
+          diagnostics: [], resourceRefs: [], assetRefs: [], taskRefs: [taskRef],
+          nextAllowedActions: [], auditRef: null}); } catch(error) {
+          throw new AIExecutionFailure('TASK_FAILED', error.message, {cause: error});
+        }
+      } else result = await this.retry.run(validation.retry.kind, async ({attempt, signal}) => {
+        const limits = [budgetLimit('toolCallsPerTurn'), budgetLimit('toolCallsPerPlan')]
+          .filter((value) => value !== null); const toolLimit = limits.length ? Math.min(...limits) : null;
+        if(toolLimit !== null && toolCalls + 1 > toolLimit) throw new AIExecutionFailure(
+          'BUDGET_EXCEEDED', 'AI plan exceeded its tool-call budget.');
+        toolCalls++;
+        return resultEnvelope(await this.executeStep({plan: lifecycle.plan, step,
+          preparedOperation: validation.preparedOperation, approvalEvidence:
+          this._approvalEvidence(lifecycle, validation), attempt, signal}, context));
+      }, retryOptions);
+      if(result.status !== 'success') throw failureForResult(result);
+      active = null;
+      result.taskRefs.forEach((reference) => taskContext.resultReference({type: 'TaskRef',
+        reference})); result.resourceRefs.forEach((reference) => taskContext.resultReference({
+        type: 'ResourceRef', reference})); result.assetRefs.forEach((reference) =>
+        taskContext.resultReference({type: 'AssetRef', reference}));
+      this.plans.markStep(request.planId, step.stepId, 'succeeded');
+      const output = immutable({stepId: step.stepId, ...result}); outputs.push(output);
+      if(progress !== null) taskContext.progress(progress, step.stepId);
+      this.audit?.append({eventType: 'ai.plan.step_executed', initiator:
+        String(taskContext.owner ?? 'system'), runId: request.runId, planId: request.planId,
+      connectorRef: step.connectorRef, commandId: step.commandId,
+      principalRef: validation.approvalBinding?.principalRef ?? null,
+      redactedArguments: step.arguments, resourceRefs: step.resourceRefs,
+      assetRefs: step.assetRefs, approvalRefs: this._approvalEvidence(lifecycle,
+        validation).map((item) => item.approvalId), backendResult: {status: result.status,
+        diagnostics: result.diagnostics}, taskRefs: result.taskRefs});
+      currentStep = null; return output;
+    };
+    try {
+      for(let index = 0; index < normalSteps.length; index++) await executeOne(normalSteps[index],
+        `step:${index + 1}/${normalSteps.length}`, (index + 1) / normalSteps.length);
+      lifecycle.plan.rollbackOrRecovery.forEach((mapping) => this.plans.markStep(
+        request.planId, mapping.recoveryStepId, 'skipped'));
       this.plans.markTerminal(request.planId, 'succeeded');
       this.audit?.append({eventType: 'ai.plan.execution_finished', initiator:
         String(taskContext.owner ?? 'system'), runId: request.runId, planId: request.planId,
@@ -160,15 +182,47 @@ export class AIPlanExecutionService {
     } catch(error) {
       const cancelled = taskContext.signal.aborted || error?.name === 'AbortError';
       const failure = cancelled ? error : normalizeExecutionFailure(error);
-      if(active) this.plans.markStep(request.planId, active.step.stepId,
+      const failedStep = active?.step ?? currentStep;
+      if(failedStep) this.plans.markStep(request.planId, failedStep.stepId,
         cancelled ? 'cancelled' : 'failed');
+      const completed = new Set(outputs.map((item) => item.stepId));
+      normalSteps.filter((step) => step.stepId !== failedStep?.stepId &&
+        !completed.has(step.stepId)).forEach((step) => this.plans.markStep(
+        request.planId, step.stepId, cancelled ? 'cancelled' : 'skipped'));
+      const recoveryResults = [];
+      if(!cancelled && failedStep) for(const mapping of lifecycle.plan.rollbackOrRecovery.filter(
+        (item) => item.triggerStepId === failedStep.stepId)) {
+        const recoveryStep = lifecycle.plan.steps.find((step) =>
+          step.stepId === mapping.recoveryStepId);
+        if(mapping.mode === 'MANUAL') {
+          this.plans.markStep(request.planId, recoveryStep.stepId, 'skipped');
+          recoveryResults.push({recoveryId: mapping.recoveryId, mode: mapping.mode,
+            status: 'manual_required', stepId: recoveryStep.stepId}); continue;
+        }
+        active = null; currentStep = null;
+        try { await executeOne(recoveryStep, `recovery:${mapping.recoveryId}`);
+          recoveryResults.push({recoveryId: mapping.recoveryId, mode: mapping.mode,
+            status: 'succeeded', stepId: recoveryStep.stepId}); }
+        catch(recoveryError) { const normalized = normalizeExecutionFailure(recoveryError);
+          if(active || currentStep) this.plans.markStep(request.planId, recoveryStep.stepId,
+            'failed'); recoveryResults.push({recoveryId: mapping.recoveryId, mode: mapping.mode,
+            status: 'failed', stepId: recoveryStep.stepId, category: normalized.category,
+            message: normalized.message}); }
+      }
+      lifecycle.plan.rollbackOrRecovery.filter((mapping) => !recoveryResults.some(
+        (item) => item.recoveryId === mapping.recoveryId)).forEach((mapping) =>
+        this.plans.markStep(request.planId, mapping.recoveryStepId,
+          cancelled ? 'cancelled' : 'skipped'));
       this.plans.markTerminal(request.planId, cancelled ? 'cancelled' : 'failed',
         failure.message);
       this.audit?.append({eventType: cancelled ? 'ai.plan.execution_cancelled' :
         'ai.plan.execution_failed', initiator: String(taskContext.owner ?? 'system'),
       runId: request.runId, planId: request.planId, taskRefs: [request.id],
       diagnostics: [{category: cancelled ? 'TASK_FAILED' : failure.category,
-        message: failure.message}], timing: {startedAt, finishedAt: this.now()}});
+        message: failure.message}, ...recoveryResults.map((item) => ({category:
+        item.category ?? 'RECOVERY', message: `${item.recoveryId}: ${item.status}`}))],
+      timing: {startedAt, finishedAt: this.now()}, backendResult: {status: cancelled ?
+        'cancelled' : 'failed', recovery: recoveryResults}});
       throw failure;
     } finally { taskContext.signal.removeEventListener('abort', onAbort); }
   }

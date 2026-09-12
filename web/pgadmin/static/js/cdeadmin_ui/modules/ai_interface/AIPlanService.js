@@ -19,6 +19,32 @@ const OPERATION_KINDS = Object.freeze({READ_METADATA: ['metadata_read'],
   READ_DATA: ['data_read', 'query_read'], COMPILE_QUERY: ['query_compile'],
   EXECUTE_QUERY: ['query_read', 'query_mutation'], CREATE_ASSET_DRAFT: ['project_draft'],
   EDIT_ASSET: ['project_draft'], INVOKE_COMMAND: ['command'], START_TASK: ['task']});
+const BUDGET_POLICY_FIELDS = Object.freeze({modelInputTokens: 'maxModelInputTokens',
+  modelOutputTokens: 'maxModelOutputTokens', toolCallsPerTurn: 'maxToolCallsPerTurn',
+  toolCallsPerPlan: 'maxToolCallsPerPlan', databaseQueriesPerTurn:
+  'maxDatabaseQueriesPerTurn', databaseRowsPerQuery: 'maxDatabaseRowsPerQuery',
+  databaseBytesPerQuery: 'maxDatabaseBytesPerQuery', parallelTools: 'maxParallelTools',
+  runMinutes: 'maxRunMinutes', backgroundTasks: 'maxBackgroundTasks',
+  estimatedCostPerTurn: 'maxEstimatedCostPerTurn', estimatedCostPerDay:
+  'maxEstimatedCostPerDay'});
+
+function budgetAssessment(plan, policy) {
+  const violations = []; const checks = Object.entries(BUDGET_POLICY_FIELDS).map(
+    ([estimateField, policyField]) => { const estimate = plan.estimatedBudgets[estimateField];
+      const limit = policy[policyField]; let valid = true; let reason = '';
+      if(limit !== null && estimate === null) { valid = false; reason =
+        `${estimateField} is unknown while ${policyField} is enforced.`; }
+      else if(limit !== null && estimate > limit) { valid = false; reason =
+        `${estimateField} estimate ${estimate} exceeds ${policyField} ${limit}.`; }
+      if(!valid) violations.push(reason); return immutable({estimateField, policyField,
+        estimate, limit, valid, reason}); });
+  const executableSteps = plan.steps.filter((step) => PREPARED_KINDS.has(step.kind)).length;
+  if(plan.estimatedBudgets.toolCallsPerPlan !== null &&
+      plan.estimatedBudgets.toolCallsPerPlan < executableSteps) violations.push(
+    `toolCallsPerPlan estimate ${plan.estimatedBudgets.toolCallsPerPlan} understates ` +
+    `${executableSteps} executable steps.`);
+  return immutable({valid: violations.length === 0, checks, violations});
+}
 
 function approvalBinding(input, step, riskClass) {
   exactLifecycleObject(input, ['requirementId', 'stepIds', 'connectorRef', 'principalRef',
@@ -88,6 +114,12 @@ function validationResult(input, step, plan, now) {
           stableAIJson([...step.resourceRefs].sort()) || Date.parse(prepared.expiresAt) <
           Date.parse(now)) throw new TypeError(
       'AI prepared operation is stale or does not exactly match its reviewed plan step.');
+    const reviewedEffects = plan.expectedEffects.filter((item) => item.stepId === step.stepId)
+      .sort((left, right) => left.effectId.localeCompare(right.effectId));
+    const computedEffects = [...prepared.estimatedEffects].sort((left, right) =>
+      String(left.effectId).localeCompare(String(right.effectId)));
+    if(stableAIJson(computedEffects) !== stableAIJson(reviewedEffects)) throw new TypeError(
+      'AI prepared effects do not exactly match the reviewed plan effects.');
     if(target && (target.connectorRef !== step.connectorRef ||
         snapshot.principalBinding && target.principalRef !== snapshot.principalBinding))
       throw new TypeError('AI approval binding does not match the prepared connector principal.');
@@ -101,7 +133,8 @@ function validationResult(input, step, plan, now) {
 function planView(record) {
   return immutable({schema: 'cdeadmin.ai-plan-lifecycle.v1', plan: record.plan,
     validations: [...record.validations], approvalCoverage: record.approvalCoverage,
-    taskRef: record.taskRef, error: record.error, createdAt: record.createdAt,
+    budgetAssessment: record.budgetAssessment, taskRef: record.taskRef, error: record.error,
+    createdAt: record.createdAt,
     updatedAt: record.updatedAt});
 }
 
@@ -138,6 +171,7 @@ export class AIPlanService {
       'A new AI plan must be a non-empty draft.');
     if(this.plans.has(plan.planId)) throw new Error(`AI plan already exists: ${plan.planId}`);
     const time = this.now(); const record = {plan, validations: [], approvalPolicy: null,
+      budgetPolicy: null, budgetAssessment: null,
       approvalCoverage: null, taskRef: null, error: null, createdAt: time, updatedAt: time};
     this.plans.set(plan.planId, record); const actor = aiActor(context, 'ai.delegate_draft');
     this.audit?.append({eventType: 'ai.plan.created', initiator: actor.id, planId: plan.planId,
@@ -157,12 +191,13 @@ export class AIPlanService {
     const actor = aiActor(context, 'ai.delegate_draft');
     this.approvals.invalidate({planId, reason: 'Plan content was revised.', initiator: actor.id});
     record.plan = next; record.validations = []; record.approvalPolicy = null;
+    record.budgetPolicy = null; record.budgetAssessment = null;
     record.approvalCoverage = null; record.taskRef = null; record.error = null;
     record.updatedAt = this.now(); this.audit?.append({eventType: 'ai.plan.revised',
       initiator: actor.id, planId, content: {modelProposal: next}}); return this._publish(record);
   }
 
-  async validate(planId, {approvalPolicy, ...context}={}) {
+  async validate(planId, {approvalPolicy, budgetPolicy, ...context}={}) {
     const record = this._record(planId); aiActor(context, 'ai.delegate_draft');
     if(!['draft', 'invalid', 'stale', 'ready_for_approval'].includes(record.plan.status)) throw new Error(
       `AI plan cannot be validated from ${record.plan.status}.`);
@@ -175,7 +210,13 @@ export class AIPlanService {
     }
     const connectorIds = new Set(record.plan.connectorSnapshots.map((item) =>
       String(item.connectorId ?? item.connectorRef ?? item.id ?? '')));
-    const results = [];
+    record.approvalPolicy = validateAIAsset('AIApprovalPolicy', approvalPolicy);
+    record.budgetPolicy = validateAIAsset('AIBudgetPolicy', budgetPolicy);
+    record.budgetAssessment = budgetAssessment(record.plan, record.budgetPolicy);
+    const results = [immutable({stepId: '$budget', valid: record.budgetAssessment.valid,
+      checkId: 'check:estimated-budgets', reason: record.budgetAssessment.violations.join(' '),
+      evidenceRef: null, riskClass: 'R0', approvalRequired: false, approvalBinding: null,
+      preparedOperation: null, retry: retryContract()})];
     for(const step of record.plan.steps) {
       let structuralError = null;
       if(COMMAND_KINDS.has(step.kind) && !step.commandId) structuralError =
@@ -196,7 +237,8 @@ export class AIPlanService {
     }
     const exactSets = (left, right) => stableAIJson([...new Set(left)].sort()) ===
       stableAIJson([...new Set(right)].sort());
-    const computedRisks = results.map((item) => item.riskClass);
+    const computedRisks = results.filter((item) => item.stepId !== '$budget').map(
+      (item) => item.riskClass);
     const computedChecks = results.filter((item) => item.checkId !== 'structure' &&
       item.checkId !== 'validator').map((item) => item.checkId);
     const computedApprovals = results.filter((item) => item.approvalRequired).map((item) =>
@@ -208,8 +250,7 @@ export class AIPlanService {
       reason: 'Reviewed risks, validation checks, or approval requirements are not exact.',
       evidenceRef: null, riskClass: 'R0', approvalRequired: false, approvalBinding: null,
       preparedOperation: null, retry: retryContract()}));
-    record.validations = results; record.approvalPolicy = validateAIAsset(
-      'AIApprovalPolicy', approvalPolicy);
+    record.validations = results;
     const status = results.every((item) => item.valid) ? results.some((item) =>
       item.approvalRequired) ? 'ready_for_approval' : 'approved' : 'invalid';
     record.approvalCoverage = status === 'approved' ? immutable({complete: true,
