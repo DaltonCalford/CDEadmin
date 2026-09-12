@@ -75,6 +75,9 @@ describe('CDEadmin command registry', () => {
     await expect(registry.execute(
       'connector.visibility.firebird.set', {password: 'not-recordable'}
     )).rejects.toBeInstanceOf(CommandError);
+    await expect(registry.execute(
+      'connector.visibility.firebird.set', {visible: true, credentialRef: 'keyring:firebird'}
+    )).resolves.toBe(true);
   });
 
   it('does not expose commands to denied security groups', () => {
@@ -103,5 +106,28 @@ describe('CDEadmin command registry', () => {
         aiEligible: false, auditCategory: 'schema_change',
         createsTask: 'schema_compare.plan.apply', disabledReason: 'Validate first.'})
     );
+  });
+
+  it('keeps AI tools hidden unless complete explicit metadata is declared', () => {
+    const registry = new CommandRegistry();
+    registry.register({id: 'metadata.inspect', aiEligible: true, execute: jest.fn()});
+    expect(registry.get('metadata.inspect')).toEqual(expect.objectContaining({
+      aiEligible: true, aiExposure: 'hidden', aiRiskClass: null,
+      aiArgumentSchema: null, aiResultSchema: null,
+    }));
+    expect(() => registry.register({id: 'metadata.incomplete', description: 'Incomplete tool.',
+      aiExposure: 'read_only', aiRiskClass: 'R0', aiModuleId: 'cdeadmin.discovery_intelligence',
+      execute: jest.fn()}))
+      .toThrow('argument schema is required');
+    registry.register({id: 'metadata.describe', description: 'Describe selected metadata.',
+      aiExposure: 'read_only',
+      aiRiskClass: 'R0', aiModuleId: 'cdeadmin.discovery_intelligence',
+      aiArgumentSchema: {type: 'object', additionalProperties: false},
+      aiResultSchema: {type: 'object'}, aiContextCostHint: 128,
+      execute: jest.fn()});
+    expect(registry.get('metadata.describe')).toEqual(expect.objectContaining({
+      aiExposure: 'read_only', aiRiskClass: 'R0',
+      aiModuleId: 'cdeadmin.discovery_intelligence', aiContextCostHint: 128,
+    }));
   });
 });

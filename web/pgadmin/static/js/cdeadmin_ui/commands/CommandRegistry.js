@@ -12,6 +12,12 @@ const FORBIDDEN_ARGUMENT = /(?:password|passwd|secret|credential|private.?key|ac
 
 export const COMMAND_SCHEMA = 'cdeadmin.command.v1';
 export const MACRO_SCHEMA = 'cdeadmin.command-macro.v1';
+export const AI_COMMAND_EXPOSURES = Object.freeze([
+  'hidden', 'read_only', 'draft_only', 'executable',
+]);
+export const AI_COMMAND_RISKS = Object.freeze([
+  'R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7',
+]);
 
 export class CommandError extends Error {
   constructor(code, message, commandId) {
@@ -47,7 +53,7 @@ function assertSafeValue(value, path='arguments', seen=new WeakSet()) {
     value.forEach((item, index)=>assertSafeValue(item, `${path}[${index}]`, seen));
   } else {
     Object.entries(value).forEach(([key, child])=>{
-      if(FORBIDDEN_ARGUMENT.test(key)) {
+      if(FORBIDDEN_ARGUMENT.test(key) && !['credentialRef', 'credential_ref'].includes(key)) {
         throw new CommandError(
           'sensitive_arguments',
           `Sensitive values are forbidden in command arguments: ${path}.${key}`
@@ -59,6 +65,23 @@ function assertSafeValue(value, path='arguments', seen=new WeakSet()) {
   seen.delete(value);
 }
 
+function frozenSchema(value, label, required=false) {
+  if(value === undefined || value === null) {
+    if(required) throw new TypeError(`${label} is required for AI exposure.`);
+    return null;
+  }
+  if(Array.isArray(value) || typeof value !== 'object') {
+    throw new TypeError(`${label} must be a JSON Schema object.`);
+  }
+  const clone = JSON.parse(JSON.stringify(value));
+  const freeze = (item) => {
+    if(!item || typeof item !== 'object' || Object.isFrozen(item)) return item;
+    Object.values(item).forEach(freeze);
+    return Object.freeze(item);
+  };
+  return freeze(clone);
+}
+
 export function createCommandDescriptor(input={}) {
   const id = String(input.id ?? '').trim();
   if(!COMMAND_ID.test(id)) {
@@ -66,6 +89,27 @@ export function createCommandDescriptor(input={}) {
   }
   if(typeof input.execute !== 'function') {
     throw new TypeError(`Command ${id} requires an executable handler.`);
+  }
+  const aiExposure = String(input.aiExposure ?? 'hidden');
+  if(!AI_COMMAND_EXPOSURES.includes(aiExposure)) {
+    throw new TypeError(`Command ${id} has an invalid AI exposure.`);
+  }
+  const aiExposed = aiExposure !== 'hidden';
+  const aiRiskClass = input.aiRiskClass == null ? null : String(input.aiRiskClass);
+  if((aiExposed && !AI_COMMAND_RISKS.includes(aiRiskClass)) ||
+      (!aiExposed && aiRiskClass !== null && !AI_COMMAND_RISKS.includes(aiRiskClass))) {
+    throw new TypeError(`Command ${id} has an invalid AI risk class.`);
+  }
+  const aiModuleId = String(input.aiModuleId ?? '').trim();
+  if(aiExposed && !COMMAND_ID.test(aiModuleId)) {
+    throw new TypeError(`Command ${id} requires an AI module identity.`);
+  }
+  if(aiExposed && !String(input.description ?? '').trim()) {
+    throw new TypeError(`Command ${id} requires an AI tool description.`);
+  }
+  const aiContextCostHint = input.aiContextCostHint ?? 0;
+  if(!Number.isSafeInteger(aiContextCostHint) || aiContextCostHint < 0) {
+    throw new TypeError(`Command ${id} has an invalid AI context cost hint.`);
   }
   const descriptor = {
     schema: COMMAND_SCHEMA,
@@ -83,6 +127,16 @@ export function createCommandDescriptor(input={}) {
     defaultVisible: input.defaultVisible !== false,
     macroCallable: input.macroCallable !== false,
     aiEligible: input.aiEligible === true,
+    aiExposure,
+    aiRiskClass,
+    aiModuleId,
+    aiArgumentSchema: frozenSchema(
+      input.aiArgumentSchema, `Command ${id} AI argument schema`, aiExposed
+    ),
+    aiResultSchema: frozenSchema(
+      input.aiResultSchema, `Command ${id} AI result schema`, aiExposed
+    ),
+    aiContextCostHint,
     auditCategory: String(input.auditCategory ?? 'user_action'),
     createsTask: String(input.createsTask ?? ''),
     requiresConfirmation: Boolean(input.requiresConfirmation),
