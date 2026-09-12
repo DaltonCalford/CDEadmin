@@ -1,0 +1,105 @@
+{
+  "screen_id": "cdeadmin.ml_vector.deployment_bindings",
+  "module": "cdeadmin.ml_vector",
+  "purpose": "Serving endpoints/resources and status.",
+  "primary_surface_type": "viewer",
+  "entry_commands": [
+    "vector.index.create_plan"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef"
+    ],
+    "assets": [
+      "cdeadmin.ml_vector.v1"
+    ],
+    "tasks": [
+      "vector.index.build",
+      "vector.search.large",
+      "embedding.run",
+      "ml.evaluation.run",
+      "model.import"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "vector.index.create_plan",
+    "vector.index.validate",
+    "vector.search.run",
+    "vector.search.explain",
+    "embedding.pipeline.create"
+  ],
+  "navigation_model": "Module navigator remains ML / VECTOR; opening this surface does not create a private shell.",
+  "inspector_sections": [
+    "Index/model properties",
+    "Provider parameters",
+    "Lineage",
+    "Security",
+    "Evaluation"
+  ],
+  "toolbox_items": [],
+  "bottom_drawer_pages": [
+    "Search Results",
+    "Build Tasks",
+    "Problems",
+    "Metrics"
+  ],
+  "status_bar_contributions": [
+    "Deployment Bindings state",
+    "active task if any",
+    "project dirty/saved",
+    "resource/environment if live-bound"
+  ],
+  "components": [
+    "Toolbar",
+    "Tree",
+    "Tabs",
+    "DataGrid",
+    "FormSection",
+    "Inspector",
+    "BottomDrawer",
+    "ResourcePicker",
+    "SecretPicker",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Render Deployment Bindings content using the selected asset/resource and current capabilities.",
+    "loading": "Keep shell/selection visible; show bounded loading state; disable actions that require completed data.",
+    "empty": "Explain what is absent and provide only the valid create/select/configure action.",
+    "error": "Show persistent diagnostic and recovery action; do not discard authored state.",
+    "permission": "Show permission denied distinctly from unsupported/unavailable provider capability.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale where policy permits; disable live mutations."
+  },
+  "keyboard": "Use standard region traversal; arrows for tree/grid; Enter activates; Space toggles/selects where conventional; Shift+F10/context-menu key opens semantic actions; no new global shortcut without registry update.",
+  "pointer": "Single click selects; drag/drop only for documented semantic payload/target; splitters use standard hit target; no destructive mutation on drop.",
+  "persistence": "Authored state persists through Project/Asset service with optimistic revision; runtime result references are separate; layout is device-local.",
+  "multi_window": "May detach only through ToolRegistry/WorkspaceHost capability; detached instance uses the same authoritative asset/resource state.",
+  "accessibility": "Critical content has text/tree/table alternative; visible focus; non-drag alternative; profile-compatible.",
+  "svg_references": [
+    "svg/11_ml_vector_workspace.svg"
+  ],
+  "functional_regression": [
+    "Uses existing platform connection/provider services.",
+    "Uses CommandRegistry for actions.",
+    "Uses TaskService for background work.",
+    "Preserves ResourceRef/AssetRef identity.",
+    "Does not serialize raw secrets."
+  ],
+  "spec_gaps": []
+}

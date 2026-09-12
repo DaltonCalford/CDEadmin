@@ -151,3 +151,4 @@ export * from './modules/replication';
 export * from './modules/tracing';
 export * from './modules/migration';
 export * from './modules/api';
+export * from './modules/ml_vector';

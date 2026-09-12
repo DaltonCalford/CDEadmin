@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "cdeadmin.ml_vector",
+  "specVersion": "1.0",
+  "committedFirstParty": true,
+  "assetTypes": [
+    "cdeadmin.ml_vector.v1"
+  ],
+  "surfaces": [
+    {
+      "id": "vector_explorer",
+      "title": "Vector Explorer",
+      "description": "Collections/fields/indexes and sample-safe metadata."
+    },
+    {
+      "id": "index_designer",
+      "title": "Index Designer",
+      "description": "Metric, dimensions, algorithm and provider-specific options."
+    },
+    {
+      "id": "vector_search_console",
+      "title": "Vector Search Console",
+      "description": "Query vector/text binding, filters, k, results, explain."
+    },
+    {
+      "id": "embedding_pipeline",
+      "title": "Embedding Pipeline",
+      "description": "Source fields \u2192 model \u2192 target field definition."
+    },
+    {
+      "id": "model_registry",
+      "title": "Model Registry",
+      "description": "Models, versions, aliases/tags, lineage."
+    },
+    {
+      "id": "experiments_evaluation",
+      "title": "Experiments / Evaluation",
+      "description": "Runs, metrics and search benchmarks."
+    },
+    {
+      "id": "deployment_bindings",
+      "title": "Deployment Bindings",
+      "description": "Serving endpoints/resources and status."
+    }
+  ],
+  "commands": [
+    {
+      "id": "vector.index.create_plan",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "vector.index.validate",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "vector.search.run",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "vector.search.explain",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "embedding.pipeline.create",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "embedding.run",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "model.register",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "model.version.tag",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "model.alias.set",
+      "requiresCommandRegistry": true
+    },
+    {
+      "id": "ml.evaluation.run",
+      "requiresCommandRegistry": true
+    }
+  ],
+  "taskTypes": [
+    "vector.index.build",
+    "vector.search.large",
+    "embedding.run",
+    "ml.evaluation.run",
+    "model.import"
+  ],
+  "events": [
+    "vector.index.changed",
+    "embedding.completed",
+    "model.version.registered",
+    "ml.evaluation.completed"
+  ],
+  "primaryPlate": "svg/11_ml_vector_workspace.svg",
+  "ui": {
+    "leftDefaultPx": 288,
+    "inspectorDefaultPx": 340,
+    "bottomDefaultPx": 240,
+    "toolbarStandardPx": 34,
+    "statusStandardPx": 24,
+    "baseGridPx": 4
+  },
+  "rules": {
+    "secretsInAssets": false,
+    "directProviderMutationFromDragDrop": false,
+    "providerSupportMayBeInferred": false,
+    "specGapOnUndefinedChoice": true
+  }
+}

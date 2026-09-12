@@ -212,6 +212,12 @@ API_BINDING_MODES = frozenset({
 API_HTTP_METHODS = frozenset({
     'GET', 'HEAD', 'OPTIONS', 'TRACE', 'POST', 'PUT', 'PATCH', 'DELETE',
 })
+ML_VECTOR_ASSET_TYPE = 'cdeadmin.ml_vector.v1'
+ML_VECTOR_SCHEMA = 'cdeadmin.ml-vector.asset.v1'
+ML_VECTOR_METRICS = frozenset({
+    'cosine', 'inner_product', 'euclidean_l2', 'manhattan_l1',
+    'hamming', 'jaccard', 'provider_custom',
+})
 
 
 class ProjectAssetError(RuntimeError):
@@ -3200,6 +3206,302 @@ def _api_content(value):
     return value
 
 
+def _ml_positive(value, label, maximum=1000000):
+    if (isinstance(value, bool) or not isinstance(value, int) or
+            value < 1 or value > maximum):
+        raise ProjectAssetError(f'{label} must be a positive bounded integer')
+
+
+def _ml_strings(value, label):
+    seen = set()
+    for item in _api_list(value, label):
+        text = _text(item, f'{label} value', 8192)
+        if text in seen:
+            raise ProjectAssetError(f'{label} values must be unique')
+        seen.add(text)
+
+
+def _ml_reference(value, label, schemas=None, optional=False):
+    schemas = schemas or {
+        'cdeadmin.resource-ref.v1', 'cdeadmin.asset-ref.v1',
+        'cdeadmin.external-ref.v1', 'cdeadmin.credential-ref.v1',
+        'cdeadmin.result-ref.v1',
+    }
+    _api_reference(value, label, schemas, optional)
+
+
+def _ml_model_ref(value):
+    _api_object(value, 'Embedding model reference')
+    _api_exact(value, (
+        'schema', 'modelId', 'versionId', 'providerId', 'external',
+        'providerIdentity', 'credentialRef', 'nativeDetails'),
+        'Embedding model reference')
+    if value.get('schema') != 'cdeadmin.embedding-model-ref.v1':
+        raise ProjectAssetError('Embedding model reference schema is invalid')
+    for field in ('modelId', 'versionId', 'providerId'):
+        _text(value.get(field), f'Embedding model {field}', 1024)
+    if not isinstance(value.get('external'), bool):
+        raise ProjectAssetError(
+            'Embedding model external flag must be boolean')
+    if value.get('external'):
+        _text(value.get('providerIdentity'),
+              'External model provider identity', 4096)
+    elif value.get('providerIdentity') is not None:
+        _text(value['providerIdentity'], 'Model provider identity', 4096)
+    _api_reference(value.get('credentialRef'), 'Embedding model credential',
+                   {'cdeadmin.credential-ref.v1'}, optional=True)
+    _api_object(value.get('nativeDetails'), 'Embedding model native details')
+
+
+def _ml_embedding_field(value):
+    _api_object(value, 'Embedding field')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'sourceFields', 'modelRef', 'dimensions',
+        'targetField', 'normalizationTemplate', 'nativeDetails'),
+        'Embedding field')
+    if value.get('schema') != 'cdeadmin.embedding-field.v1':
+        raise ProjectAssetError('Embedding field schema is invalid')
+    for field in ('id', 'name', 'targetField'):
+        _text(value.get(field), f'Embedding field {field}', 1024)
+    _ml_strings(value.get('sourceFields'), 'Embedding source fields')
+    _ml_model_ref(value.get('modelRef'))
+    _ml_positive(value.get('dimensions'), 'Embedding dimensions')
+    if value.get('normalizationTemplate') is not None:
+        _text(value['normalizationTemplate'],
+              'Embedding normalization template', 16384)
+    _api_object(value.get('nativeDetails'), 'Embedding field native details')
+
+
+def _ml_index(value):
+    _api_object(value, 'Vector index')
+    _api_exact(value, (
+        'schema', 'id', 'name', 'fieldId', 'algorithm',
+        'normalizedMetric', 'nativeMetric', 'dimensions', 'providerConfig',
+        'buildMode', 'description', 'extensions'), 'Vector index')
+    if value.get('schema') != 'cdeadmin.vector-index-plan.v1':
+        raise ProjectAssetError('Vector index schema is invalid')
+    for field in ('id', 'name', 'fieldId', 'algorithm', 'buildMode'):
+        _text(value.get(field), f'Vector index {field}', 1024)
+    if value.get('normalizedMetric') not in ML_VECTOR_METRICS:
+        raise ProjectAssetError('Vector index metric is invalid')
+    if value.get('nativeMetric') is not None:
+        _text(value['nativeMetric'], 'Vector native metric', 1024)
+    if (value.get('normalizedMetric') == 'provider_custom' and
+            not value.get('nativeMetric')):
+        raise ProjectAssetError(
+            'Provider-custom metric requires a native metric')
+    _ml_positive(value.get('dimensions'), 'Vector index dimensions')
+    _api_object(value.get('providerConfig'),
+                'Vector index provider configuration')
+    _api_extensions(value.get('extensions'), 'Vector index')
+
+
+def _ml_pipeline(value):
+    _api_simple_entity(value, 'Embedding pipeline',
+                       'cdeadmin.embedding-pipeline.v1', (
+                           'schema', 'id', 'name', 'resourceRef',
+                           'sourceFields', 'normalizationTemplate', 'modelRef',
+                           'outputDimensions', 'targetField', 'batching',
+                           'rateLimitPolicy', 'dataSharingPolicy',
+                           'description', 'extensions'))
+    _api_reference(value.get('resourceRef'), 'Embedding source',
+                   {'cdeadmin.resource-ref.v1'})
+    _ml_strings(value.get('sourceFields'), 'Embedding pipeline fields')
+    if value.get('normalizationTemplate') is not None:
+        _text(value['normalizationTemplate'],
+              'Embedding normalization template', 16384)
+    _ml_model_ref(value.get('modelRef'))
+    _ml_positive(value.get('outputDimensions'),
+                 'Embedding output dimensions')
+    _text(value.get('targetField'), 'Embedding target field', 1024)
+    for field in ('batching', 'rateLimitPolicy', 'dataSharingPolicy'):
+        _api_object(value.get(field), f'Embedding {field}')
+    policy = value.get('dataSharingPolicy')
+    for field in ('containsSensitiveData', 'approvedForSensitiveData'):
+        if not isinstance(policy.get(field), bool):
+            raise ProjectAssetError(
+                'Embedding data-sharing decisions must be explicit booleans')
+    model = value.get('modelRef')
+    if (model.get('external') and policy.get('containsSensitiveData') and
+            not policy.get('approvedForSensitiveData')):
+        raise ProjectAssetError(
+            'External sensitive embedding requires explicit approval')
+
+
+def _ml_model_entry(value):
+    _api_simple_entity(value, 'Model entry', 'cdeadmin.model-entry.v1', (
+        'schema', 'id', 'name', 'description', 'tags', 'aliases',
+        'versionTags', 'versions', 'extensions'))
+    _ml_strings(value.get('tags'), 'Model tags')
+
+    def version(item):
+        _api_object(item, 'Model version')
+        _api_exact(item, (
+            'schema', 'id', 'version', 'artifactRef', 'originatingRunRef',
+            'datasetRefs', 'evaluationRefs', 'deploymentRefs',
+            'contentDigest', 'description', 'nativeDetails'), 'Model version')
+        if item.get('schema') != 'cdeadmin.model-version.v1':
+            raise ProjectAssetError('Model version schema is invalid')
+        for field in ('id', 'version', 'contentDigest'):
+            _text(item.get(field), f'Model version {field}', 1024)
+        _api_reference(item.get('artifactRef'), 'Model artifact', {
+            'cdeadmin.asset-ref.v1', 'cdeadmin.external-ref.v1'})
+        _ml_reference(item.get('originatingRunRef'), 'Originating run',
+                      {'cdeadmin.result-ref.v1'}, optional=True)
+        for field in ('datasetRefs', 'evaluationRefs', 'deploymentRefs'):
+            for reference in _api_list(item.get(field), f'Model {field}'):
+                _ml_reference(reference, f'Model {field} reference')
+        _api_object(item.get('nativeDetails'), 'Model version native details')
+
+    version_ids = _api_unique(value.get('versions'), 'Model versions', version)
+
+    def association(item, label, tags=False):
+        _api_object(item, label)
+        fields = ('id', 'versionId', 'tags') if tags else (
+            'id', 'name', 'versionId')
+        _api_exact(item, fields, label)
+        _text(item.get('id'), f'{label} ID', 1024)
+        version_id = _text(item.get('versionId'),
+                           f'{label} version ID', 1024)
+        if version_id not in version_ids:
+            raise ProjectAssetError(f'{label} references unknown version')
+        if tags:
+            _ml_strings(item.get('tags'), 'Model version tags')
+        else:
+            _text(item.get('name'), 'Model alias name', 1024)
+
+    _api_unique(value.get('versionTags'), 'Model version tag sets',
+                lambda item: association(item, 'Model version tag set', True))
+    _api_unique(value.get('aliases'), 'Model aliases',
+                lambda item: association(item, 'Model alias'))
+    return version_ids
+
+
+def _ml_content(value):
+    if not isinstance(value, dict) or value.get('schema') != ML_VECTOR_SCHEMA:
+        raise ProjectAssetError('ML / Vector asset schema is invalid')
+    if (value.get('schemaVersion') != 1 or
+            value.get('moduleId') != 'cdeadmin.ml_vector'):
+        raise ProjectAssetError(
+            'ML / Vector asset version or module is invalid')
+    _api_exact(value, (
+        'schema', 'schemaVersion', 'moduleId', 'name', 'description',
+        'vectorDesigns', 'embeddingPipelines', 'modelEntries',
+        'experiments', 'evaluationCases', 'deploymentBindings',
+        'extensions'), 'ML / Vector asset content')
+    index_ids = {}
+
+    def design(item):
+        _api_simple_entity(
+            item, 'Vector design', 'cdeadmin.vector-design.v1', (
+                'schema', 'id', 'name', 'resourceRef', 'dimensions', 'fields',
+                'indexes', 'description', 'nativeDetails', 'extensions'))
+        _api_reference(item.get('resourceRef'), 'Vector design resource',
+                       {'cdeadmin.resource-ref.v1'})
+        _ml_positive(item.get('dimensions'), 'Vector design dimensions')
+        field_ids = _api_unique(item.get('fields'), 'Embedding fields',
+                                _ml_embedding_field)
+        indexes = _api_unique(item.get('indexes'), 'Vector indexes', _ml_index)
+        for index in item.get('indexes'):
+            if index.get('fieldId') not in field_ids:
+                raise ProjectAssetError(
+                    'Vector index references unknown embedding field')
+            if index.get('dimensions') != item.get('dimensions'):
+                raise ProjectAssetError(
+                    'Vector index dimensions do not match design')
+        for field in item.get('fields'):
+            if field.get('dimensions') != item.get('dimensions'):
+                raise ProjectAssetError(
+                    'Embedding field dimensions do not match design')
+        index_ids[item.get('id')] = indexes
+        _api_object(item.get('nativeDetails'),
+                    'Vector design native details')
+
+    design_ids = _api_unique(value.get('vectorDesigns'),
+                             'Vector designs', design)
+    _api_unique(value.get('embeddingPipelines'), 'Embedding pipelines',
+                _ml_pipeline)
+    models = {}
+
+    def model(item):
+        models[item.get('id')] = _ml_model_entry(item)
+
+    _api_unique(value.get('modelEntries'), 'Model entries', model)
+
+    def experiment(item):
+        _api_simple_entity(
+            item, 'ML experiment', 'cdeadmin.ml-experiment.v1', (
+                'schema', 'id', 'name', 'inputRefs', 'parameters',
+                'metricDefinitions', 'artifactRefs', 'datasetRevisionRef',
+                'description', 'extensions'))
+        for field in ('inputRefs', 'artifactRefs'):
+            for reference in _api_list(item.get(field), f'Experiment {field}'):
+                _ml_reference(reference, f'Experiment {field} reference')
+        _ml_reference(item.get('datasetRevisionRef'),
+                      'Experiment dataset revision')
+        _api_object(item.get('parameters'), 'Experiment parameters')
+        _api_object(item.get('metricDefinitions'),
+                    'Experiment metric definitions')
+
+    _api_unique(value.get('experiments'), 'ML experiments', experiment)
+
+    def evaluation(item):
+        _api_simple_entity(item, 'Vector evaluation',
+                           'cdeadmin.vector-evaluation-case.v1', (
+                               'schema', 'id', 'name', 'vectorDesignId',
+                               'indexId', 'querySource', 'filters', 'k',
+                               'metrics', 'groundTruthRef',
+                               'datasetRevisionRef', 'expected',
+                               'description', 'extensions'))
+        design_id = _text(item.get('vectorDesignId'),
+                          'Evaluation design ID', 1024)
+        index_id = _text(item.get('indexId'), 'Evaluation index ID', 1024)
+        if design_id not in design_ids or index_id not in index_ids[design_id]:
+            raise ProjectAssetError(
+                'Evaluation references unknown vector index')
+        _ml_positive(item.get('k'), 'Evaluation top k', 10000)
+        _ml_strings(item.get('metrics'), 'Evaluation metrics')
+        if item.get('metrics') and (not item.get('groundTruthRef') or
+                                    not item.get('datasetRevisionRef')):
+            raise ProjectAssetError(
+                'Vector quality metrics require ground truth and revision')
+        for field in ('groundTruthRef', 'datasetRevisionRef'):
+            _ml_reference(item.get(field), f'Evaluation {field}')
+        for field in ('querySource', 'filters', 'expected'):
+            _api_object(item.get(field), f'Evaluation {field}')
+
+    _api_unique(value.get('evaluationCases'), 'Vector evaluations', evaluation)
+
+    def deployment(item):
+        _api_simple_entity(
+            item, 'ML deployment', 'cdeadmin.ml-deployment.v1', (
+                'schema', 'id', 'name', 'environment', 'endpointRef',
+                'modelId', 'modelVersionId', 'vectorDesignId', 'indexId',
+                'credentialRef', 'policy', 'config', 'extensions'))
+        for field in ('environment', 'modelId', 'modelVersionId',
+                      'vectorDesignId', 'indexId'):
+            _text(item.get(field), f'ML deployment {field}', 1024)
+        if (item.get('modelId') not in models or
+                item.get('modelVersionId') not in models[item.get('modelId')]):
+            raise ProjectAssetError(
+                'Deployment references unknown model version')
+        if (item.get('vectorDesignId') not in index_ids or
+                item.get('indexId') not in
+                index_ids[item.get('vectorDesignId')]):
+            raise ProjectAssetError(
+                'Deployment references unknown vector index')
+        _ml_reference(item.get('endpointRef'), 'ML deployment endpoint')
+        _api_reference(item.get('credentialRef'), 'ML deployment credential',
+                       {'cdeadmin.credential-ref.v1'}, optional=True)
+        _api_object(item.get('policy'), 'ML deployment policy')
+        _api_object(item.get('config'), 'ML deployment config')
+
+    _api_unique(value.get('deploymentBindings'), 'ML deployments', deployment)
+    _api_extensions(value.get('extensions'), 'ML / Vector asset')
+    _secret_free(value, 'ML / Vector asset content')
+    return value
+
+
 def validate_asset_request(value, project_key, asset_key):
     if not isinstance(value, dict):
         raise ProjectAssetError('asset request must be an object')
@@ -3275,6 +3577,10 @@ def validate_asset_request(value, project_key, asset_key):
         if schema_name != API_ASSET_TYPE:
             raise ProjectAssetError('API asset schema name is invalid')
         content = _api_content(content)
+    if asset_type == ML_VECTOR_ASSET_TYPE:
+        if schema_name != ML_VECTOR_ASSET_TYPE:
+            raise ProjectAssetError('ML / Vector asset schema name is invalid')
+        content = _ml_content(content)
     if not SAFE_ASSET_TYPE.fullmatch(asset_type):
         raise ProjectAssetError('asset type is invalid')
     expected = value.get('expected_version')

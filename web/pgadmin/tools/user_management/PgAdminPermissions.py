@@ -87,6 +87,12 @@ class AllPermissionTypes:
     api_deploy_prepare = 'api.deploy_prepare'
     api_invoke_live_write = 'api.invoke_live_write'
     api_admin = 'api.admin'
+    ml_vector_view = 'ml_vector.view'
+    ml_vector_search = 'ml_vector.search'
+    ml_vector_edit = 'ml_vector.edit'
+    ml_vector_build = 'ml_vector.build'
+    ml_vector_use_external_model = 'ml_vector.use_external_model'
+    ml_vector_admin = 'ml_vector.admin'
 
     @staticmethod
     def list():
@@ -110,6 +116,7 @@ class AllPermissionCategories:
     distributed_tracing = gettext('Distributed Tracing')
     migration_planning = gettext('Migration Planning')
     api_designer = gettext('API Designer')
+    ml_vector_tooling = gettext('ML / Vector Tooling')
 
 
 class PgAdminPermissions:
@@ -294,6 +301,25 @@ class PgAdminPermissions:
         ):
             self.add_permission(
                 AllPermissionCategories.api_designer,
+                permission,
+                label,
+            )
+        for permission, label in (
+            (AllPermissionTypes.ml_vector_view,
+             gettext("View ML and vector definitions and evidence")),
+            (AllPermissionTypes.ml_vector_search,
+             gettext("Run vector searches and query explanations")),
+            (AllPermissionTypes.ml_vector_edit,
+             gettext("Edit vector, embedding, model and evaluation assets")),
+            (AllPermissionTypes.ml_vector_build,
+             gettext("Build provider-native vector indexes")),
+            (AllPermissionTypes.ml_vector_use_external_model,
+             gettext("Send policy-approved data to external models")),
+            (AllPermissionTypes.ml_vector_admin,
+             gettext("Administer ML and vector provider integrations")),
+        ):
+            self.add_permission(
+                AllPermissionCategories.ml_vector_tooling,
                 permission,
                 label,
             )
