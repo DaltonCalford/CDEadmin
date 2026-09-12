@@ -6,6 +6,8 @@ import {
   CredentialReferenceService, LayoutPersistenceService, ProviderRegistry,
   ResourceIdentityService, noRawSecrets,
 } from 'sources/cdeadmin_ui/platform/PlatformServices';
+import Ajv2020 from 'ajv/dist/2020';
+import accessSurfaceSchema from 'sources/cdeadmin_ui/specifications/ai_discovery_zero_grey/machine/schemas/scratchbird-access-surface-ref.schema.json';
 
 function storage() {
   const values = new Map();
@@ -60,6 +62,116 @@ describe('ResourceIdentityService', () => {
     const identities = new ResourceIdentityService();
     expect(() => identities.create({provider: 'bad provider'})).toThrow();
     expect(() => identities.parse('https://not-a-resource')).toThrow();
+  });
+
+  it('uses one ScratchBird UUID identity across authorized access surfaces', () => {
+    const identities = new ResourceIdentityService({
+      canDiscoverSurface: (surface, authorization) =>
+        authorization.surfaceIds?.includes(surface.surfaceId),
+    });
+    const resource = identities.createScratchBird({
+      instanceId: 'instance-a', canonicalUuid: '0199-example', kind: 'table',
+      nativePath: 'company.sales.customer', revision: '8',
+    });
+    expect(resource.canonical).toBe(
+      'scratchbird://instance-a/uuid/0199-example'
+    );
+    expect(identities.same(resource, identities.parse(resource.canonical))).toBe(true);
+    const surface = (input) => ({
+      schemaVersion: 1, providerId: 'scratchbird', instanceId: 'instance-a',
+      canonicalResourceRef: resource.canonical, catalogProjectionRefs: [],
+      queryCapabilities: ['read'], mutationCapabilities: [],
+      visibilityScope: 'test', evidenceVersion: '1', ...input,
+    });
+    const removeNative = identities.registerAccessSurface(surface({
+      surfaceId: 'sb-native', kind: 'sbsql_native', dialectId: 'sbsql',
+      visibleQualifiedName: 'company.sales.customer',
+      crossSurfaceVisibility: 'engine_authorized',
+    }));
+    identities.registerAccessSurface(surface({
+      surfaceId: 'pg-compat', kind: 'compatibility_parser',
+      dialectId: 'postgresql', parserProfile: 'postgresql-18',
+      workareaSchemaRef: 'emulated/postgresql',
+      visibleQualifiedName: 'public.customer', crossSurfaceVisibility: 'none',
+    }));
+    identities.registerAccessSurface(surface({
+      surfaceId: 'mysql-compat', kind: 'compatibility_parser',
+      dialectId: 'mysql', parserProfile: 'mysql-9',
+      workareaSchemaRef: 'emulated/mysql',
+      visibleQualifiedName: 'sales.customer', crossSurfaceVisibility: 'none',
+    }));
+    expect(identities.accessSurfaces(resource, {
+      surfaceIds: ['pg-compat'],
+    }).map((item) => item.surfaceId)).toEqual(['pg-compat']);
+    expect(identities.authorizedAliases(resource, {
+      surfaceIds: ['pg-compat'],
+    })).toEqual([expect.objectContaining({
+      visibleQualifiedName: 'public.customer',
+      crossSurfaceVisibility: 'none',
+    })]);
+    expect(() => identities.accessSurface('mysql-compat', {
+      surfaceIds: ['pg-compat'],
+    })).toThrow('not discoverable');
+    expect(identities.accessSurface('pg-compat', {
+      surfaceIds: ['pg-compat'],
+    }).dialectId).toBe('postgresql');
+    expect(removeNative()).toBe(true);
+    expect(() => identities.accessSurface('sb-native')).toThrow(
+      'Unknown access surface'
+    );
+  });
+
+  it('validates access surfaces and forbids compatibility cross-root authority', () => {
+    const identities = new ResourceIdentityService();
+    const base = {
+      schemaVersion: 1, surfaceId: 'pg-compat', providerId: 'scratchbird',
+      instanceId: 'instance-a', kind: 'compatibility_parser',
+      dialectId: 'postgresql', parserProfile: 'postgresql-18',
+      workareaSchemaRef: 'emulated/postgresql',
+      visibleQualifiedName: 'public.customer', catalogProjectionRefs: [],
+      canonicalResourceRef: 'scratchbird://instance-a/uuid/0199-example',
+      visibilityScope: 'project-a', queryCapabilities: ['read'],
+      mutationCapabilities: [], crossSurfaceVisibility: 'none',
+      evidenceVersion: '1',
+    };
+    const created = identities.createAccessSurface(base);
+    const validate = new Ajv2020({strict: false}).compile(accessSurfaceSchema);
+    expect(validate(created)).toBe(true);
+    expect(() => identities.createAccessSurface({
+      ...base, crossSurfaceVisibility: 'engine_authorized',
+    })).toThrow('Only ScratchBird native SBsql');
+    expect(() => identities.createAccessSurface({
+      ...base, workareaSchemaRef: null,
+    })).toThrow('require parser profile and sandboxed workarea');
+    expect(() => identities.createAccessSurface({
+      ...base, providerId: 'provider.postgresql',
+    })).toThrow('must be scratchbird');
+    expect(() => identities.createAccessSurface({
+      ...base, canonicalResourceRef: 'cde-resource://external/postgresql',
+    })).toThrow('canonical ScratchBird resource');
+    expect(() => identities.createAccessSurface({...base, guessed: true}))
+      .toThrow('unsupported field guessed');
+    identities.registerAccessSurface(base);
+    expect(() => identities.registerAccessSurface(base)).toThrow(
+      'already registered'
+    );
+  });
+
+  it('never merges an external provider object with a ScratchBird alias by name', () => {
+    const identities = new ResourceIdentityService();
+    const scratchBird = identities.createScratchBird({
+      instanceId: 'instance-a', canonicalUuid: '0199-example', kind: 'table',
+      nativePath: 'company.sales.customer',
+    });
+    const external = identities.create({
+      provider: 'provider.postgresql', connection: 'external:5432',
+      scope: 'public', kind: 'table', nativeIdentity: 'customer',
+    });
+    expect(identities.same(scratchBird, external)).toBe(false);
+    expect(() => identities.create({
+      provider: 'scratchbird', connection: 'instance-a', scope: '/',
+      kind: 'table', nativeIdentity: '0199-example',
+    })).toThrow('durable UUID-backed identity');
   });
 });
 

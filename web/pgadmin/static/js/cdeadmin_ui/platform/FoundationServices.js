@@ -55,16 +55,66 @@ export class ProviderRegistry {
 }
 
 export class ResourceIdentityService {
+  constructor({canDiscoverSurface=() => true}={}) {
+    if(typeof canDiscoverSurface !== 'function') {
+      throw new TypeError('Access-surface authorization must be callable.');
+    }
+    this.canDiscoverSurface = canDiscoverSurface;
+    this.surfaces = new Map();
+    this.surfaceIdsByCanonical = new Map();
+  }
+
   create(input) {
     plainObject(input, 'Resource reference');
+    noRawSecrets(input, 'Resource reference');
+    if(input.provider === 'scratchbird') {
+      throw new TypeError(
+        'ScratchBird resources require a durable UUID-backed identity.'
+      );
+    }
     const value = immutable({schema: 'cdeadmin.resource-ref.v1',
       provider: stablePlatformId(input.provider, 'Resource provider'),
+      providerId: stablePlatformId(input.provider, 'Resource provider'),
       connection: platformValue(input.connection, 'Connection scope'),
       scope: platformValue(input.scope ?? '/', 'Native scope'),
       kind: stablePlatformId(input.kind, 'Resource kind'),
       nativeIdentity: platformValue(input.nativeIdentity, 'Native identity'),
       revision: input.revision === undefined ? null : String(input.revision)});
     return immutable({...value, canonical: this.canonical(value)});
+  }
+
+  createScratchBird(input) {
+    plainObject(input, 'ScratchBird resource reference');
+    noRawSecrets(input, 'ScratchBird resource reference');
+    const allowed = new Set([
+      'instanceId', 'canonicalUuid', 'kind', 'nativePath', 'revision',
+    ]);
+    const unknown = Object.keys(input).filter((field) => !allowed.has(field));
+    if(unknown.length) throw new TypeError(
+      `ScratchBird resource contains unsupported field ${unknown[0]}.`
+    );
+    const instanceId = platformValue(input.instanceId, 'ScratchBird instance ID');
+    const canonicalUuid = platformValue(
+      input.canonicalUuid,
+      'ScratchBird canonical UUID'
+    );
+    const kind = stablePlatformId(input.kind, 'ScratchBird resource kind');
+    const nativePath = platformValue(input.nativePath, 'ScratchBird native path');
+    return immutable({
+      schema: 'cdeadmin.resource-ref.v1',
+      provider: 'scratchbird',
+      providerId: 'scratchbird',
+      connection: instanceId,
+      instanceId,
+      scope: '/',
+      kind,
+      nativeIdentity: canonicalUuid,
+      canonicalUuid,
+      nativePath,
+      revision: input.revision === undefined ? null : String(input.revision),
+      canonical: `scratchbird://${encodeURIComponent(instanceId)}/uuid/${
+        encodeURIComponent(canonicalUuid)}`,
+    });
   }
 
   canonical(reference) {
@@ -76,6 +126,18 @@ export class ResourceIdentityService {
   }
 
   parse(canonical) {
+    const scratchBird = /^scratchbird:\/\/([^/]+)\/uuid\/(.+)$/
+      .exec(String(canonical));
+    if(scratchBird) {
+      const [instanceId, canonicalUuid] = scratchBird.slice(1)
+        .map(decodeURIComponent);
+      return this.createScratchBird({
+        instanceId,
+        canonicalUuid,
+        kind: 'unknown',
+        nativePath: canonicalUuid,
+      });
+    }
     const match = /^cde-resource:\/\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/
       .exec(String(canonical));
     if(!match) throw new TypeError('Canonical resource reference is invalid.');
@@ -87,6 +149,186 @@ export class ResourceIdentityService {
   same(left, right, {includeRevision=false}={}) {
     return left?.canonical === right?.canonical &&
       (!includeRevision || left?.revision === right?.revision);
+  }
+
+  createAccessSurface(input) {
+    plainObject(input, 'ScratchBird access surface');
+    noRawSecrets(input, 'ScratchBird access surface');
+    const fields = new Set([
+      'schemaVersion', 'surfaceId', 'providerId', 'instanceId', 'kind',
+      'dialectId', 'parserProfile', 'workareaSchemaRef',
+      'visibleQualifiedName', 'catalogProjectionRefs',
+      'canonicalResourceRef', 'visibilityScope', 'queryCapabilities',
+      'mutationCapabilities', 'crossSurfaceVisibility', 'evidenceVersion',
+    ]);
+    const unknown = Object.keys(input).filter((field) => !fields.has(field));
+    if(unknown.length) throw new TypeError(
+      `ScratchBird access surface contains unsupported field ${unknown[0]}.`
+    );
+    if(input.schemaVersion !== 1) {
+      throw new TypeError('ScratchBird access-surface schema version is invalid.');
+    }
+    const kind = platformValue(input.kind, 'Access-surface kind');
+    if(!['sbsql_native', 'compatibility_parser', 'mcp',
+      'cdeadmin_provider'].includes(kind)) {
+      throw new TypeError('Access-surface kind is invalid.');
+    }
+    const crossSurfaceVisibility = platformValue(
+      input.crossSurfaceVisibility,
+      'Cross-surface visibility'
+    );
+    if(!['none', 'engine_authorized'].includes(crossSurfaceVisibility)) {
+      throw new TypeError('Cross-surface visibility is invalid.');
+    }
+    if(kind !== 'sbsql_native' && crossSurfaceVisibility !== 'none') {
+      throw new TypeError(
+        'Only ScratchBird native SBsql may declare cross-surface visibility.'
+      );
+    }
+    const optional = (value, label) => value === undefined || value === null ?
+      null : platformValue(value, label);
+    const parserProfile = optional(input.parserProfile, 'Parser profile');
+    const workareaSchemaRef = optional(
+      input.workareaSchemaRef,
+      'Sandboxed workarea'
+    );
+    if(kind === 'compatibility_parser' && (!parserProfile || !workareaSchemaRef)) {
+      throw new TypeError(
+        'Compatibility access surfaces require parser profile and sandboxed workarea.'
+      );
+    }
+    const canonicalResourceRef = platformValue(
+      input.canonicalResourceRef,
+      'Canonical ScratchBird resource'
+    );
+    if(!canonicalResourceRef.startsWith('scratchbird://')) {
+      throw new TypeError(
+        'Access surfaces must resolve to a canonical ScratchBird resource.'
+      );
+    }
+    const canonicalInstance = /^scratchbird:\/\/([^/]+)\/uuid\/(.+)$/
+      .exec(canonicalResourceRef);
+    if(!canonicalInstance || decodeURIComponent(canonicalInstance[1]) !==
+        input.instanceId) {
+      throw new TypeError(
+        'Access surface instance does not match its canonical resource.'
+      );
+    }
+    if(input.providerId !== 'scratchbird') {
+      throw new TypeError(
+        'ScratchBird access-surface provider must be scratchbird.'
+      );
+    }
+    const uniqueStrings = (values, label) => {
+      if(!Array.isArray(values)) throw new TypeError(`${label} must be an array.`);
+      const result = values.map((value) => platformValue(value, label));
+      if(new Set(result).size !== result.length) {
+        throw new TypeError(`${label} contains duplicates.`);
+      }
+      return result;
+    };
+    return immutable({
+      schemaVersion: 1,
+      surfaceId: platformValue(input.surfaceId, 'Access-surface ID'),
+      providerId: 'scratchbird',
+      instanceId: platformValue(input.instanceId, 'ScratchBird instance ID'),
+      kind,
+      dialectId: platformValue(input.dialectId, 'Access-surface dialect'),
+      parserProfile,
+      workareaSchemaRef,
+      visibleQualifiedName: optional(
+        input.visibleQualifiedName,
+        'Visible qualified name'
+      ),
+      catalogProjectionRefs: uniqueStrings(
+        input.catalogProjectionRefs ?? [],
+        'Catalog projection references'
+      ),
+      canonicalResourceRef,
+      visibilityScope: optional(input.visibilityScope, 'Visibility scope'),
+      queryCapabilities: uniqueStrings(
+        input.queryCapabilities,
+        'Query capabilities'
+      ),
+      mutationCapabilities: uniqueStrings(
+        input.mutationCapabilities,
+        'Mutation capabilities'
+      ),
+      crossSurfaceVisibility,
+      evidenceVersion: optional(input.evidenceVersion, 'Evidence version'),
+    });
+  }
+
+  registerAccessSurface(input) {
+    const surface = this.createAccessSurface(input);
+    if(this.surfaces.has(surface.surfaceId)) {
+      throw new PlatformRegistryError(
+        'duplicate',
+        `Access surface already registered: ${surface.surfaceId}`,
+        surface.surfaceId
+      );
+    }
+    this.surfaces.set(surface.surfaceId, surface);
+    const ids = this.surfaceIdsByCanonical.get(surface.canonicalResourceRef) ??
+      new Set();
+    ids.add(surface.surfaceId);
+    this.surfaceIdsByCanonical.set(surface.canonicalResourceRef, ids);
+    return () => this.removeAccessSurface(surface.surfaceId);
+  }
+
+  removeAccessSurface(surfaceId) {
+    const surface = this.surfaces.get(surfaceId);
+    if(!surface) return false;
+    this.surfaces.delete(surfaceId);
+    const ids = this.surfaceIdsByCanonical.get(surface.canonicalResourceRef);
+    ids?.delete(surfaceId);
+    if(ids?.size === 0) this.surfaceIdsByCanonical.delete(
+      surface.canonicalResourceRef
+    );
+    return true;
+  }
+
+  accessSurface(surfaceId, authorization={}) {
+    const surface = this.surfaces.get(platformValue(
+      surfaceId,
+      'Access-surface ID'
+    ));
+    if(!surface) throw new PlatformRegistryError(
+      'not_found',
+      `Unknown access surface: ${surfaceId}`,
+      surfaceId
+    );
+    if(!this.canDiscoverSurface(surface, authorization)) {
+      throw new PlatformRegistryError(
+        'not_found',
+        'Access surface is not discoverable.',
+        surfaceId
+      );
+    }
+    return surface;
+  }
+
+  accessSurfaces(reference, authorization={}) {
+    const canonical = typeof reference === 'string' ? reference :
+      reference?.canonical;
+    if(!canonical) throw new TypeError('Canonical resource reference is required.');
+    const ids = this.surfaceIdsByCanonical.get(canonical) ?? new Set();
+    return immutable([...ids].map((id) => this.surfaces.get(id)).filter((surface) =>
+      this.canDiscoverSurface(surface, authorization)
+    ).sort((left, right) => left.surfaceId.localeCompare(right.surfaceId)));
+  }
+
+  authorizedAliases(reference, authorization={}) {
+    return immutable(this.accessSurfaces(reference, authorization).filter((surface) =>
+      surface.visibleQualifiedName
+    ).map((surface) => immutable({
+      surfaceId: surface.surfaceId,
+      kind: surface.kind,
+      dialectId: surface.dialectId,
+      visibleQualifiedName: surface.visibleQualifiedName,
+      workareaSchemaRef: surface.workareaSchemaRef,
+      crossSurfaceVisibility: surface.crossSurfaceVisibility,
+    })));
   }
 }
 
