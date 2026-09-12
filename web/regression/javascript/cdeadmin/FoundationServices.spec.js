@@ -196,6 +196,8 @@ describe('CredentialReferenceService', () => {
       .rejects.toThrow('resolver unavailable');
     expect(() => noRawSecrets({nested: {accessToken: 'unsafe'}})).toThrow('Raw credential');
     expect(() => noRawSecrets({credentialRef: {scheme: 'keyring'}})).not.toThrow();
+    expect(() => noRawSecrets({maxModelInputTokens: 64000})).not.toThrow();
+    expect(() => noRawSecrets({maxModelInputTokens: 'unsafe'})).toThrow('Raw credential');
   });
 });
 

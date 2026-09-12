@@ -23,6 +23,11 @@ import re
 import uuid
 from datetime import datetime
 
+from pgadmin.cdeadmin.workspace.ai_interface_assets import (
+    AIInterfaceAssetValidationError,
+    validate_ai_interface_asset,
+)
+
 
 APP_EXTENSION_KEY = 'cdeadmin_project_asset_service'
 SAFE_ID = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,255}$')
@@ -285,6 +290,10 @@ def _secret_free(value, path='metadata'):
     elif isinstance(value, dict):
         for key, child in value.items():
             if SECRET_KEY.search(str(key)):
+                if (str(key).lower().endswith('tokens') and
+                        isinstance(child, (int, float)) and
+                        not isinstance(child, bool) and math.isfinite(child)):
+                    continue
                 if key in ('secret', 'isSecret') and isinstance(child, bool):
                     continue
                 raise ProjectAssetError(
@@ -3799,6 +3808,14 @@ def validate_asset_request(value, project_key, asset_key):
             raise ProjectAssetError(
                 'AI Assistant asset schema name is invalid')
         content = _ai_content(content)
+    try:
+        ai_interface_content = validate_ai_interface_asset(
+            asset_type, schema_name, value.get('schema_version', 1), content
+        )
+    except AIInterfaceAssetValidationError as exc:
+        raise ProjectAssetError(str(exc)) from exc
+    if ai_interface_content is not None:
+        content = ai_interface_content
     if not SAFE_ASSET_TYPE.fullmatch(asset_type):
         raise ProjectAssetError('asset type is invalid')
     expected = value.get('expected_version')

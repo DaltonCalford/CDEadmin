@@ -20,7 +20,10 @@ export function plainObject(value, label) {
 export function noRawSecrets(value, path='value') {
   if(!value || typeof value !== 'object') return;
   for(const [key, child] of Object.entries(value)) {
-    if(SECRET_KEY.test(key) && key !== 'credentialRef' && key !== 'credential_ref') {
+    const numericTokenMeasure = /tokens$/i.test(key) && typeof child === 'number' &&
+      Number.isFinite(child);
+    if(SECRET_KEY.test(key) && key !== 'credentialRef' && key !== 'credential_ref' &&
+        !numericTokenMeasure) {
       throw new TypeError(`Raw credential field is forbidden at ${path}.${key}.`);
     }
     noRawSecrets(child, `${path}.${key}`);
