@@ -290,11 +290,13 @@ export function SecretPicker(props) {
 }
 
 export function ConnectionSelector({connections=[], value='', onChange,
-  state='disconnected', environment='unknown', label='Connection'}) {
+  state='disconnected', environment='unknown', label='Connection',
+  disabled=false}) {
   const options = connections.map((item) => ({value: item.id, label:
     `${item.provider ? `${item.provider}: ` : ''}${item.label}`}));
   return <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
     <Select label={label} options={options} value={value} onChange={onChange}
+      disabled={disabled}
       sx={{minWidth: 180, maxWidth: 360}} />
     <Badge status={state === 'connected' ? 'success' :
       ['connecting', 'warning', 'production'].includes(state) ? 'warning' :
@@ -311,6 +313,7 @@ ConnectionSelector.propTypes = {
     'production', 'warning']),
   environment: PropTypes.string,
   label: PropTypes.string,
+  disabled: PropTypes.bool,
 };
 
 export function CommandPalette({open, commands=EMPTY_ITEMS, resources=EMPTY_ITEMS,

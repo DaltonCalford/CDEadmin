@@ -14,3 +14,7 @@ export * from './AIPlanService';
 export * from './AIPlanExecutionService';
 export * from './AIBackgroundRunService';
 export * from './AICompatibilityMigrationService';
+export * from './AIInterfaceContracts';
+export * from './AIFormRuntime';
+export * from './AIContractForm';
+export * from './AIInterfaceWorkspace';
