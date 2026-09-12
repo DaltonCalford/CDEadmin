@@ -167,6 +167,35 @@ TRACING_VIEW_KINDS = frozenset({
     'waterfall', 'service_resource_map', 'trace_table',
     'query_correlation',
 })
+MIGRATION_ASSET_TYPE = 'cdeadmin.migration.v1'
+MIGRATION_SCHEMA = 'cdeadmin.migration.asset.v1'
+MIGRATION_PHASES = frozenset({
+    'discover', 'assess', 'design', 'dry_run', 'provision',
+    'initial_copy', 'incremental_sync', 'validate', 'cutover_ready',
+    'cutover', 'verify', 'complete', 'rollback',
+})
+MIGRATION_STRATEGIES = frozenset({
+    'offline', 'online_with_cdc', 'staged_dual_run',
+    'copy_then_cutover', 'schema_only', 'data_only', 'validation_only',
+})
+MIGRATION_ASSESSMENT_CATEGORIES = frozenset({
+    'supported_exact', 'supported_with_mapping',
+    'supported_with_behavior_change', 'manual_conversion_required',
+    'blocked', 'not_selected', 'unknown',
+})
+MIGRATION_EVIDENCE_SOURCES = frozenset({
+    'mapping_rule', 'provider_adapter', 'executed_test',
+    'manual_decision', 'unknown',
+})
+MIGRATION_VERIFICATION_TYPES = frozenset({
+    'object_counts', 'row_document_counts', 'deterministic_hashes',
+    'sampled_content', 'query_result', 'data_quality_rules',
+    'provider_native',
+})
+MIGRATION_ROLLBACK_CLASSES = frozenset({
+    'fully_automatable', 'partially_automatable', 'manual_runbook',
+    'not_available_after_point',
+})
 
 
 class ProjectAssetError(RuntimeError):
@@ -2272,6 +2301,462 @@ def _tracing_content(value):
     return value
 
 
+def _migration_object(value, label):
+    if not isinstance(value, dict):
+        raise ProjectAssetError(f'{label} must be an object')
+    return value
+
+
+def _migration_exact(value, fields, label):
+    unknown = [field for field in value if field not in fields]
+    if unknown:
+        raise ProjectAssetError(
+            f'{label} contains unsupported field {unknown[0]}')
+
+
+def _migration_reference(value, label, optional=False):
+    if value is None and optional:
+        return
+    _migration_object(value, label)
+    schema = value.get('schema')
+    if schema == 'cdeadmin.resource-ref.v1':
+        _text(value.get('canonical'), f'{label} canonical identity', 8192)
+        _text(value.get('provider') or value.get('providerId'),
+              f'{label} provider', 1024)
+    elif schema == 'cdeadmin.asset-ref.v1':
+        _text(value.get('projectId'), f'{label} project ID', 1024)
+        _text(value.get('assetId'), f'{label} asset ID', 1024)
+    elif schema in (
+            'cdeadmin.external-ref.v1', 'cdeadmin.task-ref.v1',
+            'cdeadmin.result-ref.v1'):
+        _text(value.get('id'), f'{label} identity', 8192)
+    else:
+        raise ProjectAssetError(f'{label} schema is unsupported')
+
+
+def _migration_list(value, label, maximum=10000):
+    if not isinstance(value, list) or len(value) > maximum:
+        raise ProjectAssetError(f'{label} must be a bounded list')
+    return value
+
+
+def _migration_unique(value, label, validator):
+    identities = set()
+    for item in _migration_list(value, label):
+        validator(item)
+        identity = item.get('id')
+        if identity in identities:
+            raise ProjectAssetError(f'{label} IDs must be unique')
+        identities.add(identity)
+    return identities
+
+
+def _migration_dependency_order(items, label):
+    identities = {item['id'] for item in items}
+    incoming = {}
+    outgoing = {identity: [] for identity in identities}
+    positions = {item['id']: index for index, item in enumerate(items)}
+    for item in items:
+        dependencies = item.get('dependencies', [])
+        if item['id'] in dependencies:
+            raise ProjectAssetError(
+                f'{label} {item["id"]} cannot depend on itself')
+        missing = [dependency for dependency in dependencies
+                   if dependency not in identities]
+        if missing:
+            raise ProjectAssetError(
+                f'{label} dependency is unavailable: {missing[0]}')
+        incoming[item['id']] = len(dependencies)
+        for dependency in dependencies:
+            outgoing[dependency].append(item['id'])
+    queue = sorted((identity for identity, count in incoming.items()
+                    if count == 0), key=positions.get)
+    ordered = []
+    while queue:
+        identity = queue.pop(0)
+        ordered.append(identity)
+        for dependent in sorted(outgoing[identity], key=positions.get):
+            incoming[dependent] -= 1
+            if incoming[dependent] == 0:
+                queue.append(dependent)
+                queue.sort(key=positions.get)
+    if len(ordered) != len(items):
+        raise ProjectAssetError(f'{label} contains a dependency cycle')
+    return ordered
+
+
+def _migration_finding(value):
+    _migration_object(value, 'Migration finding')
+    if value.get('schema') != 'cdeadmin.migration-finding.v1':
+        raise ProjectAssetError('Migration finding schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'sourceRef', 'targetRef', 'objectKind', 'category',
+        'evidenceSource', 'evidence', 'message', 'blocker', 'waived',
+        'waiverRef', 'nativeDetails'), 'Migration finding')
+    for field in ('id', 'objectKind', 'message'):
+        _text(value.get(field), f'Migration finding {field}', 16384)
+    _migration_reference(value.get('sourceRef'), 'Migration finding source')
+    _migration_reference(
+        value.get('targetRef'), 'Migration finding target', optional=True)
+    if value.get('category') not in MIGRATION_ASSESSMENT_CATEGORIES:
+        raise ProjectAssetError('Migration finding category is invalid')
+    if value.get('evidenceSource') not in MIGRATION_EVIDENCE_SOURCES:
+        raise ProjectAssetError('Migration finding evidence source is invalid')
+    for field in ('blocker', 'waived'):
+        if not isinstance(value.get(field), bool):
+            raise ProjectAssetError(
+                f'Migration finding {field} must be boolean')
+    if value.get('waiverRef') is not None:
+        _text(value['waiverRef'], 'Migration finding waiver', 4096)
+    for field in ('evidence', 'nativeDetails'):
+        _migration_object(value.get(field), f'Migration finding {field}')
+
+
+def _migration_assessment(value):
+    if value is None:
+        return
+    _migration_object(value, 'Migration assessment')
+    if value.get('schema') != 'cdeadmin.migration-assessment.v1':
+        raise ProjectAssetError('Migration assessment schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'sourceRevision', 'targetRevision', 'findings',
+        'estimates', 'evidence', 'completedAt', 'nativeDetails'),
+        'Migration assessment')
+    for field in (
+            'id', 'sourceRevision', 'targetRevision', 'completedAt'):
+        _text(value.get(field), f'Migration assessment {field}', 4096)
+    _migration_unique(value.get('findings'), 'Migration findings',
+                      _migration_finding)
+    for field in ('estimates', 'evidence', 'nativeDetails'):
+        _migration_object(value.get(field), f'Migration assessment {field}')
+
+
+def _migration_mapping(value):
+    _migration_object(value, 'Migration mapping')
+    if value.get('schema') != 'cdeadmin.migration-mapping.v1':
+        raise ProjectAssetError('Migration mapping schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'sourceRef', 'targetRef', 'mappingKind', 'category',
+        'decision', 'sourceNativeType', 'targetNativeType', 'expression',
+        'lossy', 'lossAcknowledged', 'behaviorChange', 'evidence',
+        'nativeDetails'), 'Migration mapping')
+    for field in ('id', 'mappingKind'):
+        _text(value.get(field), f'Migration mapping {field}', 4096)
+    _migration_reference(value.get('sourceRef'), 'Migration mapping source')
+    _migration_reference(
+        value.get('targetRef'), 'Migration mapping target', optional=True)
+    if value.get('category') not in MIGRATION_ASSESSMENT_CATEGORIES:
+        raise ProjectAssetError('Migration mapping category is invalid')
+    if value.get('decision') not in (
+            'unresolved', 'accepted', 'rejected', 'manual'):
+        raise ProjectAssetError('Migration mapping decision is invalid')
+    for field in ('lossy', 'lossAcknowledged', 'behaviorChange'):
+        if not isinstance(value.get(field), bool):
+            raise ProjectAssetError(
+                f'Migration mapping {field} must be boolean')
+    for field in ('evidence', 'nativeDetails'):
+        _migration_object(value.get(field), f'Migration mapping {field}')
+
+
+def _migration_schema_operation(value):
+    _migration_object(value, 'Migration schema operation')
+    if value.get('schema') != 'cdeadmin.migration-schema-operation.v1':
+        raise ProjectAssetError(
+            'Migration schema operation schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'action', 'sourceRef', 'targetRef', 'dependencies',
+        'preconditions', 'rollback', 'risk', 'nativeDefinition'),
+        'Migration schema operation')
+    for field in ('id', 'action', 'risk'):
+        _text(value.get(field), f'Migration schema operation {field}', 4096)
+    _migration_reference(
+        value.get('sourceRef'), 'Migration schema operation source',
+        optional=True,
+    )
+    _migration_reference(
+        value.get('targetRef'), 'Migration schema operation target')
+    for field in ('dependencies', 'preconditions', 'rollback'):
+        _migration_list(value.get(field),
+                        f'Migration schema operation {field}')
+    for dependency in value.get('dependencies'):
+        _text(dependency, 'Migration schema dependency', 4096)
+    _migration_object(value.get('nativeDefinition'),
+                      'Migration schema native definition')
+
+
+def _migration_schema_plan(value):
+    if value is None:
+        return
+    _migration_object(value, 'Migration schema plan')
+    if value.get('schema') != 'cdeadmin.migration-schema-plan.v1':
+        raise ProjectAssetError('Migration schema plan schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'operations', 'schemaCompareRef',
+        'expectedTargetRevision', 'nativeDetails'), 'Migration schema plan')
+    _text(value.get('id'), 'Migration schema plan ID', 4096)
+    operation_ids = _migration_unique(
+        value.get('operations'), 'Migration schema operations',
+        _migration_schema_operation,
+    )
+    for operation in value.get('operations'):
+        if any(item not in operation_ids
+               for item in operation.get('dependencies')):
+            raise ProjectAssetError(
+                'Migration schema dependency is unavailable')
+    _migration_reference(
+        value.get('schemaCompareRef'), 'Migration Schema Comparison plan',
+        optional=True,
+    )
+    _migration_object(value.get('nativeDetails'),
+                      'Migration schema plan native details')
+
+
+def _migration_copy_unit(value):
+    _migration_object(value, 'Migration copy unit')
+    if value.get('schema') != 'cdeadmin.migration-copy-unit.v1':
+        raise ProjectAssetError('Migration copy unit schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'sourceRef', 'targetRef', 'partition',
+        'orderingKey', 'batchSize', 'parallelism', 'restartPolicy',
+        'transformRef', 'nativeDetails'), 'Migration copy unit')
+    _text(value.get('id'), 'Migration copy unit ID', 4096)
+    _migration_reference(value.get('sourceRef'), 'Migration copy source')
+    _migration_reference(value.get('targetRef'), 'Migration copy target')
+    for field in ('batchSize', 'parallelism'):
+        number = value.get(field)
+        if (isinstance(number, bool) or not isinstance(number, int) or
+                number < 1):
+            raise ProjectAssetError(
+                f'Migration copy {field} must be a positive integer')
+    for field in ('partition', 'nativeDetails'):
+        _migration_object(value.get(field), f'Migration copy {field}')
+    for key in _migration_list(
+            value.get('orderingKey'), 'Migration copy ordering keys'):
+        _text(key, 'Migration copy ordering key', 4096)
+    _text(value.get('restartPolicy'),
+          'Migration copy restart policy', 4096)
+    _migration_reference(
+        value.get('transformRef'), 'Migration copy transform', optional=True)
+
+
+def _migration_data_move(value):
+    _migration_object(value, 'Migration data move plan')
+    if value.get('schema') != 'cdeadmin.migration-data-move-plan.v1':
+        raise ProjectAssetError('Migration data move plan schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'units', 'concurrency', 'consistencyBoundary',
+        'errorPolicy', 'nativeDetails'), 'Migration data move plan')
+    _text(value.get('id'), 'Migration data move plan ID', 4096)
+    _migration_unique(
+        value.get('units'), 'Migration copy units', _migration_copy_unit)
+    concurrency = value.get('concurrency')
+    if (isinstance(concurrency, bool) or not isinstance(concurrency, int) or
+            concurrency < 1):
+        raise ProjectAssetError(
+            'Migration data move concurrency must be positive')
+    for field in ('consistencyBoundary', 'errorPolicy', 'nativeDetails'):
+        _migration_object(value.get(field),
+                          f'Migration data move {field}')
+
+
+def _migration_verification(value):
+    _migration_object(value, 'Migration verification')
+    if value.get('schema') != 'cdeadmin.migration-verification.v1':
+        raise ProjectAssetError('Migration verification schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'type', 'sourceRef', 'targetRef',
+        'canonicalization', 'policy', 'blocking', 'qualityAssetRef',
+        'nativeDetails'), 'Migration verification')
+    _text(value.get('id'), 'Migration verification ID', 4096)
+    if value.get('type') not in MIGRATION_VERIFICATION_TYPES:
+        raise ProjectAssetError('Migration verification type is invalid')
+    if not isinstance(value.get('blocking'), bool):
+        raise ProjectAssetError(
+            'Migration verification blocking must be boolean')
+    _migration_reference(value.get('sourceRef'),
+                         'Migration verification source')
+    _migration_reference(value.get('targetRef'),
+                         'Migration verification target')
+    if (value.get('type') == 'deterministic_hashes' and
+            not isinstance(value.get('canonicalization'), dict)):
+        raise ProjectAssetError(
+            'Migration hash verification requires canonicalization')
+    if value.get('canonicalization') is not None:
+        _migration_object(value['canonicalization'],
+                          'Migration verification canonicalization')
+    _migration_object(value.get('policy'), 'Migration verification policy')
+    _migration_reference(
+        value.get('qualityAssetRef'), 'Migration quality asset',
+        optional=True,
+    )
+    _migration_object(value.get('nativeDetails'),
+                      'Migration verification native details')
+
+
+def _migration_runbook_step(value, label):
+    _migration_object(value, label)
+    if value.get('schema') != 'cdeadmin.migration-runbook-step.v1':
+        raise ProjectAssetError(f'{label} schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'label', 'action', 'dependencies', 'preconditions',
+        'expectedEvidence', 'providerMutation', 'nativeDetails'), label)
+    for field in ('id', 'label', 'action'):
+        _text(value.get(field), f'{label} {field}', 16384)
+    for field in ('dependencies', 'preconditions'):
+        _migration_list(value.get(field), f'{label} {field}')
+    for dependency in value.get('dependencies'):
+        _text(dependency, f'{label} dependency', 4096)
+    if not isinstance(value.get('providerMutation'), bool):
+        raise ProjectAssetError(
+            f'{label} providerMutation must be boolean')
+    for field in ('expectedEvidence', 'nativeDetails'):
+        _migration_object(value.get(field), f'{label} {field}')
+
+
+def _migration_cutover(value):
+    if value is None:
+        return
+    _migration_object(value, 'Migration cutover plan')
+    if value.get('schema') != 'cdeadmin.migration-cutover-plan.v1':
+        raise ProjectAssetError('Migration cutover plan schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'steps', 'cdcLagThreshold', 'armWindowMinutes',
+        'targetEnvironment', 'targetConnection', 'endpointChange',
+        'postChecks', 'nativeDetails'), 'Migration cutover plan')
+    _text(value.get('id'), 'Migration cutover plan ID', 4096)
+    _migration_unique(
+        value.get('steps'), 'Migration cutover steps',
+        lambda item: _migration_runbook_step(
+            item, 'Migration cutover step'),
+    )
+    _migration_dependency_order(
+        value.get('steps'), 'Migration cutover runbook')
+    if not value.get('steps'):
+        raise ProjectAssetError(
+            'Migration cutover plan requires at least one step')
+    arm_window = value.get('armWindowMinutes')
+    if (isinstance(arm_window, bool) or not isinstance(arm_window, int) or
+            not 1 <= arm_window <= 1440):
+        raise ProjectAssetError(
+            'Migration cutover arm window is invalid')
+    lag = value.get('cdcLagThreshold')
+    if (lag is not None and (isinstance(lag, bool) or not isinstance(
+            lag, (int, float)) or not math.isfinite(lag) or lag < 0)):
+        raise ProjectAssetError(
+            'Migration cutover CDC lag threshold is invalid')
+    for field in ('targetEnvironment', 'targetConnection'):
+        _text(value.get(field), f'Migration cutover {field}', 4096)
+    _migration_object(value.get('endpointChange'),
+                      'Migration cutover endpoint change')
+    _migration_list(value.get('postChecks'),
+                    'Migration post-cutover checks')
+    _migration_object(value.get('nativeDetails'),
+                      'Migration cutover native details')
+
+
+def _migration_rollback(value):
+    if value is None:
+        return
+    _migration_object(value, 'Migration rollback plan')
+    if value.get('schema') != 'cdeadmin.migration-rollback-plan.v1':
+        raise ProjectAssetError('Migration rollback plan schema is invalid')
+    _migration_exact(value, (
+        'schema', 'id', 'classification', 'pointOfNoReturn', 'deadline',
+        'conditions', 'steps', 'recoverability', 'nativeDetails'),
+        'Migration rollback plan')
+    _text(value.get('id'), 'Migration rollback plan ID', 4096)
+    if value.get('classification') not in MIGRATION_ROLLBACK_CLASSES:
+        raise ProjectAssetError(
+            'Migration rollback classification is invalid')
+    for field in ('pointOfNoReturn', 'deadline'):
+        if value.get(field) is not None:
+            _text(value[field], f'Migration rollback {field}', 4096)
+    if value.get('deadline') is not None:
+        try:
+            datetime.fromisoformat(value['deadline'].replace('Z', '+00:00'))
+        except ValueError as exc:
+            raise ProjectAssetError(
+                'Migration rollback deadline must be an ISO date-time') \
+                from exc
+    _migration_list(value.get('conditions'),
+                    'Migration rollback conditions')
+    _migration_unique(
+        value.get('steps'), 'Migration rollback steps',
+        lambda item: _migration_runbook_step(
+            item, 'Migration rollback step'),
+    )
+    _migration_dependency_order(
+        value.get('steps'), 'Migration rollback runbook')
+    if not value.get('steps'):
+        raise ProjectAssetError(
+            'Migration rollback plan requires at least one step')
+    for field in ('recoverability', 'nativeDetails'):
+        _migration_object(value.get(field), f'Migration rollback {field}')
+
+
+def _migration_content(value):
+    if (not isinstance(value, dict) or
+            value.get('schema') != MIGRATION_SCHEMA):
+        raise ProjectAssetError('Migration asset schema is invalid')
+    if (value.get('schemaVersion') != 1 or
+            value.get('moduleId') != 'cdeadmin.migration'):
+        raise ProjectAssetError(
+            'Migration asset version or module is invalid')
+    _migration_exact(value, (
+        'schema', 'schemaVersion', 'moduleId', 'name', 'description',
+        'sourceBinding', 'targetBinding', 'strategy', 'phase', 'assessment',
+        'mappingSet', 'schemaPlan', 'dataMovePlan', 'cdcPlanRef',
+        'validationPlan', 'cutoverPlan', 'rollbackPlan', 'waivers',
+        'extensions'), 'Migration asset content')
+    for field in ('name', 'description'):
+        if not isinstance(value.get(field), str):
+            raise ProjectAssetError(
+                f'Migration definition {field} must be text')
+    strategy = value.get('strategy')
+    if (strategy not in MIGRATION_STRATEGIES and
+            not str(strategy).startswith('native:')):
+        raise ProjectAssetError('Migration strategy is invalid')
+    if value.get('phase') not in MIGRATION_PHASES:
+        raise ProjectAssetError('Migration phase is invalid')
+    _migration_reference(
+        value.get('sourceBinding'), 'Migration source', optional=True)
+    _migration_reference(
+        value.get('targetBinding'), 'Migration target', optional=True)
+    if (value.get('phase') != 'discover' and
+            (value.get('sourceBinding') is None or
+             value.get('targetBinding') is None)):
+        raise ProjectAssetError(
+            'Configured migration phases require source and target')
+    _migration_assessment(value.get('assessment'))
+    _migration_unique(
+        value.get('mappingSet'), 'Migration mappings',
+        _migration_mapping,
+    )
+    _migration_schema_plan(value.get('schemaPlan'))
+    _migration_data_move(value.get('dataMovePlan'))
+    _migration_reference(
+        value.get('cdcPlanRef'), 'Migration CDC plan', optional=True)
+    if strategy == 'online_with_cdc' and value.get('cdcPlanRef') is None:
+        raise ProjectAssetError(
+            'Online migration requires a CDC plan reference')
+    _migration_unique(
+        value.get('validationPlan'), 'Migration verifications',
+        _migration_verification,
+    )
+    _migration_cutover(value.get('cutoverPlan'))
+    _migration_rollback(value.get('rollbackPlan'))
+    point = (value.get('rollbackPlan') or {}).get('pointOfNoReturn')
+    if point and point not in {
+            item['id'] for item in
+            (value.get('cutoverPlan') or {}).get('steps', [])}:
+        raise ProjectAssetError(
+            'Migration point of no return must identify a cutover step')
+    _migration_list(value.get('waivers'), 'Migration waivers')
+    _migration_object(value.get('extensions'), 'Migration extensions')
+    _secret_free(value, 'Migration asset content')
+    return value
+
+
 def validate_asset_request(value, project_key, asset_key):
     if not isinstance(value, dict):
         raise ProjectAssetError('asset request must be an object')
@@ -2338,6 +2823,11 @@ def validate_asset_request(value, project_key, asset_key):
             raise ProjectAssetError(
                 'Tracing asset schema name is invalid')
         content = _tracing_content(content)
+    if asset_type == MIGRATION_ASSET_TYPE:
+        if schema_name != MIGRATION_ASSET_TYPE:
+            raise ProjectAssetError(
+                'Migration asset schema name is invalid')
+        content = _migration_content(content)
     if not SAFE_ASSET_TYPE.fullmatch(asset_type):
         raise ProjectAssetError('asset type is invalid')
     expected = value.get('expected_version')

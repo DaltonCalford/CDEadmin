@@ -75,6 +75,12 @@ class AllPermissionTypes:
     trace_configure_source = 'trace.configure_source'
     trace_export = 'trace.export'
     trace_admin = 'trace.admin'
+    migration_view = 'migration.view'
+    migration_edit = 'migration.edit'
+    migration_execute = 'migration.execute'
+    migration_cutover = 'migration.cutover'
+    migration_rollback = 'migration.rollback'
+    migration_admin = 'migration.admin'
 
     @staticmethod
     def list():
@@ -96,6 +102,7 @@ class AllPermissionCategories:
     cdc_designer = gettext('CDC Designer')
     replication_topology = gettext('Replication Topology')
     distributed_tracing = gettext('Distributed Tracing')
+    migration_planning = gettext('Migration Planning')
 
 
 class PgAdminPermissions:
@@ -242,6 +249,25 @@ class PgAdminPermissions:
         ):
             self.add_permission(
                 AllPermissionCategories.distributed_tracing,
+                permission,
+                label,
+            )
+        for permission, label in (
+            (AllPermissionTypes.migration_view,
+             gettext("View migration plans and runtime evidence")),
+            (AllPermissionTypes.migration_edit,
+             gettext("Create and edit migration plans and mappings")),
+            (AllPermissionTypes.migration_execute,
+             gettext("Assess, dry-run, copy and verify migrations")),
+            (AllPermissionTypes.migration_cutover,
+             gettext("Arm and execute migration cutovers")),
+            (AllPermissionTypes.migration_rollback,
+             gettext("Execute reviewed migration rollback plans")),
+            (AllPermissionTypes.migration_admin,
+             gettext("Administer migration provider integrations")),
+        ):
+            self.add_permission(
+                AllPermissionCategories.migration_planning,
                 permission,
                 label,
             )

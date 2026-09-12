@@ -118,6 +118,7 @@ function Layouts({browser, platform}) {
             'cdc.runtime': platform.cdc,
             'replication.runtime': platform.replication,
             'tracing.runtime': platform.tracing,
+            'migration.runtime': platform.migration,
           },
           commands: platform.modules.commands,
           currentUser,
@@ -159,6 +160,7 @@ function Layouts({browser, platform}) {
       cdc: platform.cdc,
       replication: platform.replication,
       tracing: platform.tracing,
+      migration: platform.migration,
       currentUser,
       openSurface: (surfaceId, input) => ensureSurfaceHost().open(surfaceId, input),
     });
@@ -170,7 +172,8 @@ function Layouts({browser, platform}) {
     };
   }, [ensureSurfaceHost, pgAdmin, platform.cdc, platform.contract, platform.etl,
     platform.lineage, platform.quality,
-    platform.replication, platform.schemaCompare, platform.tracing]);
+    platform.migration, platform.replication, platform.schemaCompare,
+    platform.tracing]);
   useEffect(() => {
     const open = (event) => ensureSurfaceHost().open(
       `schema_compare.${event.detail.surface}`, {
@@ -240,6 +243,16 @@ function Layouts({browser, platform}) {
     ).catch((error) => pgAdmin.Browser.notifier.error(error.message));
     window.addEventListener('cdeadmin:tracing-open', open);
     return () => window.removeEventListener('cdeadmin:tracing-open', open);
+  }, [ensureSurfaceHost, pgAdmin]);
+  useEffect(() => {
+    const open = (event) => ensureSurfaceHost().open(
+      `migration.${event.detail.surface}`, {
+        toolInstanceId: `migration-${event.detail.sessionId}`,
+        restoreRef: event.detail.sessionId, title: 'Migration Planning',
+      }
+    ).catch((error) => pgAdmin.Browser.notifier.error(error.message));
+    window.addEventListener('cdeadmin:migration-open', open);
+    return () => window.removeEventListener('cdeadmin:migration-open', open);
   }, [ensureSurfaceHost, pgAdmin]);
   useEffect(() => {
     const open = (event) => ensureSurfaceHost().open(

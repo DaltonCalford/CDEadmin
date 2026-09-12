@@ -360,6 +360,9 @@ const BUILTIN_DEFINITIONS = [
   componentDefinition(
     'tool.tracing', ICON_CATEGORIES.TOOL, SearchIcon, 'Distributed Tracing'
   ),
+  componentDefinition(
+    'tool.migration', ICON_CATEGORIES.TOOL, UploadIcon, 'Migration Planning'
+  ),
   ...Object.entries(ACTION_COMPONENTS).map(([name, component])=>componentDefinition(
     `action.${name}`, ICON_CATEGORIES.ACTION, component
   )),
