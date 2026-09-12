@@ -1,0 +1,45 @@
+{
+  "schema": "cdeadmin-ai-risk-classes@1",
+  "classes": [
+    {
+      "id": "R0",
+      "meaning": "metadata/status read",
+      "default": "auto allowed if scoped"
+    },
+    {
+      "id": "R1",
+      "meaning": "bounded data read/query",
+      "default": "auto allowed if data/egress policy permits"
+    },
+    {
+      "id": "R2",
+      "meaning": "draft generation/local project edit",
+      "default": "diff/review policy; no live mutation"
+    },
+    {
+      "id": "R3",
+      "meaning": "prepare/publish/deploy preparation without live mutation",
+      "default": "explicit review"
+    },
+    {
+      "id": "R4",
+      "meaning": "reversible live database mutation",
+      "default": "explicit approval each plan/run"
+    },
+    {
+      "id": "R5",
+      "meaning": "destructive/security/admin/privilege mutation",
+      "default": "typed confirmation; no standing preapproval by default"
+    },
+    {
+      "id": "R6",
+      "meaning": "production cutover/failover/delete/irreversible or high-impact",
+      "default": "typed and/or dual approval; AI never self-approves"
+    },
+    {
+      "id": "R7",
+      "meaning": "raw secret disclosure/export",
+      "default": "forbidden to AI model"
+    }
+  ]
+}

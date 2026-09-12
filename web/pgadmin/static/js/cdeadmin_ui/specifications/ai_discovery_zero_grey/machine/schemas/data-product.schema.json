@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-data-product.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "productId",
+    "name",
+    "domainRef",
+    "status",
+    "version",
+    "resourceRefs",
+    "assetRefs",
+    "ownerRefs",
+    "certification"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "productId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "domainRef": {
+      "type": "string"
+    },
+    "ownerRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stewardRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "REVIEW",
+        "CERTIFIED",
+        "DEPRECATED",
+        "RETIRED"
+      ]
+    },
+    "version": {
+      "type": "string"
+    },
+    "resourceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assetRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "semanticModelRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metricRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dashboardRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "apiRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "contractRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "qualityRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lineageRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "usageDocs": {
+      "type": "string"
+    },
+    "accessPolicyRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "slaSummary": {
+      "type": "object"
+    },
+    "certification": {
+      "type": "object"
+    },
+    "releaseNotes": {
+      "type": "string"
+    }
+  }
+}

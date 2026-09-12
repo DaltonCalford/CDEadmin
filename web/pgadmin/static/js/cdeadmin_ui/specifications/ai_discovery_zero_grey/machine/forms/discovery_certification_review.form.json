@@ -1,0 +1,170 @@
+{
+  "form_id": "discovery.certification_review",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Certification Review",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Review evidence and bind a certification decision to an exact revision.",
+  "sections": [
+    {
+      "id": "target",
+      "title": "Target",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Asset / product",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Exact revision selected.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "revision",
+          "label": "Revision",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "criteria",
+          "label": "Criteria",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "All criteria have result/evidence.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "decision",
+      "title": "Decision",
+      "fields": [
+        {
+          "id": "decision",
+          "label": "Decision",
+          "component": "Select",
+          "required": true,
+          "default": "CERTIFIED",
+          "validation": "One decision.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "CERTIFIED",
+            "CERTIFIED_WITH_CONDITIONS",
+            "REJECTED"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "conditions",
+          "label": "Conditions",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "Required if conditional.",
+          "help": "",
+          "secret": false,
+          "visibility": "decision == CERTIFIED_WITH_CONDITIONS",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "expires",
+          "label": "Expiration",
+          "component": "DateField",
+          "required": false,
+          "default": null,
+          "validation": "Must be future if set.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "notes",
+          "label": "Review notes",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "submit",
+      "label": "Record Review",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "criteria/decision valid",
+      "command": "discovery.certification.review"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Certification is revision-bound and auditable."
+  ],
+  "spec_gaps": []
+}

@@ -158,3 +158,4 @@ export {
   AIWorkspace, AINavigator, aiAssetRequest, aiInspector, aiModuleDefinition,
   createAIContent, registerAIModule, serializeAIContent,
 } from './modules/ai';
+export * from './specifications/ai_discovery_zero_grey';

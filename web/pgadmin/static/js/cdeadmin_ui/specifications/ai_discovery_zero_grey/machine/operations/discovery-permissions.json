@@ -1,0 +1,57 @@
+{
+  "schema": "cdeadmin-discovery-permissions@1",
+  "permissions": [
+    [
+      "discovery.use",
+      "Use discovery search."
+    ],
+    [
+      "discovery.view_business_metadata",
+      "View permitted terms/products/ownership."
+    ],
+    [
+      "discovery.view_profile_stats",
+      "View permitted profiling statistics."
+    ],
+    [
+      "discovery.view_samples",
+      "View permitted bounded samples."
+    ],
+    [
+      "discovery.request_access",
+      "Submit access requests."
+    ],
+    [
+      "discovery.curate",
+      "Edit glossary/domain/metadata mappings."
+    ],
+    [
+      "discovery.certify",
+      "Review/certify data products/assets."
+    ],
+    [
+      "discovery.manage_products",
+      "Create/edit data products."
+    ],
+    [
+      "discovery.manage_ranking",
+      "Edit/test/publish ranking profiles."
+    ],
+    [
+      "discovery.manage_index",
+      "Configure sources/reconcile/index backend."
+    ],
+    [
+      "discovery.test_visibility",
+      "Run permission-trim diagnostics for allowed principals."
+    ],
+    [
+      "discovery.approve_access",
+      "Approve access request; provider grant still separately authorized."
+    ],
+    [
+      "discovery.admin",
+      "Discovery administration; does not bypass provider data access."
+    ]
+  ]
+}

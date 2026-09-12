@@ -1,0 +1,128 @@
+{
+  "form_id": "discovery.owner_steward",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Assign Owner / Steward",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Assign accountable business/technical roles to discoverable entities.",
+  "sections": [
+    {
+      "id": "roles",
+      "title": "Roles",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Target",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Visible target.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "owners",
+          "label": "Owners",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Known principals/teams.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "stewards",
+          "label": "Stewards",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known principals/teams.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "effective",
+          "label": "Effective date",
+          "component": "DateField",
+          "required": false,
+          "default": null,
+          "validation": "Valid date.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "note",
+          "label": "Reason",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-2000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "save",
+      "label": "Save Assignment",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "at least one owner",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Assignment does not change provider object ownership unless a separate provider command is executed."
+  ],
+  "spec_gaps": []
+}

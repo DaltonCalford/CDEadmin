@@ -1,0 +1,173 @@
+{
+  "form_id": "discovery.advanced_search",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Advanced Discovery Search",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Build explicit structured filters and boolean groups.",
+  "sections": [
+    {
+      "id": "logic",
+      "title": "Conditions",
+      "fields": [
+        {
+          "id": "builder",
+          "label": "Filter builder",
+          "component": "CodeEditor",
+          "required": true,
+          "default": null,
+          "validation": "Structured UI source generated; maximum nesting depth 5.",
+          "help": "Expert text view; normal UI uses rows.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "entity_classes",
+          "label": "Entity classes",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known classes.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "providers",
+          "label": "Providers",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Visible providers.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "domains",
+          "label": "Domains",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Visible domains.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "access",
+          "label": "Access state",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known access dimensions.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "rank",
+      "title": "Ranking",
+      "fields": [
+        {
+          "id": "ranking",
+          "label": "Ranking profile",
+          "component": "Select",
+          "required": true,
+          "default": "Balanced",
+          "validation": "Published profile.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "sort",
+          "label": "Sort override",
+          "component": "Select",
+          "required": true,
+          "default": "relevance",
+          "validation": "One option.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "relevance",
+            "name",
+            "freshness",
+            "quality",
+            "usage",
+            "updated"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "run",
+      "label": "Run",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "filters structurally valid",
+      "command": "discovery.search.run"
+    },
+    {
+      "id": "save",
+      "label": "Save Search",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "valid",
+      "command": "discovery.search.save"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Hidden facet values are excluded before builder options are populated."
+  ],
+  "spec_gaps": []
+}

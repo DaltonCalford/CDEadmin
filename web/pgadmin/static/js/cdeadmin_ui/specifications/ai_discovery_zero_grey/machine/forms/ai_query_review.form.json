@@ -1,0 +1,191 @@
+{
+  "form_id": "ai.query_review",
+  "module": "cdeadmin.ai_interface",
+  "title": "Review AI Query",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Review a compiled query before model or user executes it.",
+  "sections": [
+    {
+      "id": "query",
+      "title": "Query",
+      "fields": [
+        {
+          "id": "connector",
+          "label": "Connector",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Resolved connector.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "dialect",
+          "label": "Dialect / access surface",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Resolved dialect.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "query_text",
+          "label": "Query",
+          "component": "CodeEditor",
+          "required": true,
+          "default": null,
+          "validation": "Read-only unless user chooses Revise.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "resources",
+          "label": "Resolved canonical resources",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Read-only resolution.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "execution",
+      "title": "Execution",
+      "fields": [
+        {
+          "id": "classification",
+          "label": "Read/write classification",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Computed by compiler/policy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "budget",
+          "label": "Budgets",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Resolved limits.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "plan",
+          "label": "Explain / plan",
+          "component": "CodeEditor",
+          "required": false,
+          "default": null,
+          "validation": "Read-only provider plan where available.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "egress",
+          "label": "Result exposure",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Resolved model exposure level.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "reject",
+      "label": "Reject",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "revise",
+      "label": "Revise",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "execute",
+      "label": "Execute",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "policy/approval valid",
+      "command": "ai.query.execute_read"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "ScratchBird cross-surface queries must display `ScratchBird native (SBsql)`."
+  ],
+  "spec_gaps": []
+}

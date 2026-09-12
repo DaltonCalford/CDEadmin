@@ -1,0 +1,50 @@
+{
+  "schema": "cdeadmin-discovery-ranking-defaults@1",
+  "balanced": {
+    "weights": {
+      "lexical": 0.22,
+      "semantic": 0.2,
+      "business": 0.12,
+      "trust": 0.1,
+      "quality": 0.08,
+      "freshness": 0.07,
+      "usage": 0.07,
+      "context": 0.05,
+      "lineage": 0.04,
+      "documentation": 0.05
+    },
+    "boosts": {
+      "exact_visible_qualified_name": 0.12,
+      "exact_business_term": 0.08,
+      "active_certified_data_product": 0.06
+    },
+    "penalties": {
+      "deprecated": -0.3,
+      "retired_archived": -0.45,
+      "critical_quality_failure": -0.2,
+      "freshness_sla_breach": -0.15,
+      "no_owner_steward": -0.03,
+      "unstable_breaking_schema": -0.08
+    },
+    "tie_break": [
+      "exact_visible_name",
+      "certification",
+      "quality",
+      "freshness",
+      "usage",
+      "stable_id"
+    ]
+  },
+  "usage_event_weights": {
+    "successful_query": 1.0,
+    "dashboard_report_view": 0.5,
+    "api_request": 0.25,
+    "etl_cdc_production_use": 1.5,
+    "ml_training_evaluation_use": 1.5,
+    "search_result_selection": 0.25,
+    "favorite_collection_add": 0.5,
+    "ai_context_use": 0.25,
+    "failed_query": 0.05
+  },
+  "popularity_saturation": 1000
+}

@@ -1,0 +1,113 @@
+{
+  "form_id": "ai.connector_test",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Connector Test",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Run and display non-destructive connector validation.",
+  "sections": [
+    {
+      "id": "checks",
+      "title": "Checks",
+      "fields": [
+        {
+          "id": "connector",
+          "label": "Connector",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "checks",
+          "label": "Test checks",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Read-only results.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "principal",
+          "label": "Resolved principal",
+          "component": "TextField",
+          "required": false,
+          "default": null,
+          "validation": "Read-only; if safe to disclose.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "capabilities",
+          "label": "Discovered capabilities",
+          "component": "DataGrid",
+          "required": false,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "close",
+      "label": "Close",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "rerun",
+      "label": "Run Again",
+      "intent": "primary",
+      "default": false,
+      "closes": false,
+      "enabled_when": "connector not revoked",
+      "command": "ai.connector.test"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Default connector test performs no write.",
+    "Test output redacts credential material."
+  ],
+  "spec_gaps": []
+}

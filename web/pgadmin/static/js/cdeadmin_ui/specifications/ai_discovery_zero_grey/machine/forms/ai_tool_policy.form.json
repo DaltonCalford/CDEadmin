@@ -1,0 +1,144 @@
+{
+  "form_id": "ai.tool_policy",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Tool / CDEadmin Capability Policy",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Choose which CDEadmin commands/services the AI can see, draft or execute.",
+  "sections": [
+    {
+      "id": "scope",
+      "title": "Command scope",
+      "fields": [
+        {
+          "id": "modules",
+          "label": "Modules",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Installed module IDs only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "commands",
+          "label": "Command allowlist",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Only ai-exposed commands.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "deny",
+          "label": "Command denylist",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Deny wins over module/allowlist.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "risk",
+      "title": "Risk overrides",
+      "fields": [
+        {
+          "id": "max_auto_risk",
+          "label": "Maximum auto-run risk",
+          "component": "Select",
+          "required": true,
+          "default": "R1",
+          "validation": "R0/R1 only by default; site may restrict.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "R0",
+            "R1"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "allow_project_drafts",
+          "label": "Allow project drafts",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "R2 still records diffs.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "allow_background",
+          "label": "Allow background tasks",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Task caps apply.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "valid command IDs",
+      "command": "ai.tool_policy.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Commands absent from AI exposure remain hidden even if wildcard module selected."
+  ],
+  "spec_gaps": []
+}

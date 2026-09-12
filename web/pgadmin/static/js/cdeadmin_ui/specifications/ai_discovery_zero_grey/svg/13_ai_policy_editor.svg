@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI Policy Editor</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<rect x="0" y="0" width="1440" height="44" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#CAF0F8" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#EDF2FB" text-anchor="start">AI INTERFACE</text>
+<text x="1420" y="28" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="end">PROJECT: CUSTOMER MODERNIZATION   ENV: DEV</text>
+<rect x="0" y="44" width="48" height="798" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="24" y="74" font-family="Fira Code, monospace" font-size="16" font-weight="600" fill="#CAF0F8" text-anchor="middle">⌂</text>
+<text x="24" y="112" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">◫</text>
+<text x="24" y="150" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">⌘</text>
+<rect x="48" y="44" width="288" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">AI</text>
+<line x1="60" y1="76" x2="324" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="44" width="764" height="34" fill="#02297A" stroke="#57679F" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">AI POLICY EDITOR</text>
+<rect x="336" y="78" width="764" height="740" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">INSPECTOR</text>
+<line x1="1112" y1="76" x2="1402" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="628" width="764" height="190" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="350" y="650" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">BOTTOM DRAWER</text>
+<rect x="0" y="818" width="1440" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="start">STATUS  |  Ready  |  Project saved  |  No active task</text>
+<rect x="52" y="86" width="280" height="28" fill="#01438E"/>
+<text x="68" y="104" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#EDF2FB" text-anchor="start">Agent Profiles</text>
+<text x="68" y="134" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Tool Policies</text>
+<text x="68" y="164" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Data Policies</text>
+<text x="68" y="194" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Approval Policies</text>
+<text x="68" y="224" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Budgets</text>
+<text x="68" y="254" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Retention</text>
+<text x="1116" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">EFFECTIVE RISK</text>
+<rect x="1116" y="112" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="132" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">R0–R1 auto</text>
+<text x="1116" y="158" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">MAX CLASS</text>
+<rect x="1116" y="166" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="186" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">INTERNAL</text>
+<text x="1116" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">WRITES</text>
+<rect x="1116" y="220" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">Approval</text>
+<text x="1116" y="266" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">SITE OVERRIDE</text>
+<rect x="1116" y="274" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="294" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">None</text>
+<rect x="596" y="49" width="68" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="630.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Save</text>
+<rect x="670" y="49" width="88" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="714.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Validate</text>
+<rect x="361" y="94" width="180" height="28" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="112" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#A2A6C9" text-anchor="start">Agent profile</text>
+<rect x="361" y="126" width="180" height="28" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="144" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#A2A6C9" text-anchor="start">Tool policy</text>
+<rect x="361" y="158" width="180" height="28" fill="#01438E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="176" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Data egress</text>
+<rect x="361" y="190" width="180" height="28" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="208" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#A2A6C9" text-anchor="start">Approval</text>
+<rect x="361" y="222" width="180" height="28" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#A2A6C9" text-anchor="start">Budgets</text>
+<rect x="361" y="254" width="180" height="28" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="372" y="272" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#A2A6C9" text-anchor="start">Retention</text>
+<text x="571" y="116" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">DATA EXPOSURE / EGRESS POLICY</text>
+<text x="571" y="154" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Default context</text>
+<rect x="746" y="137" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="156" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">METADATA_SUMMARY</text>
+<text x="571" y="196" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Max classification</text>
+<rect x="746" y="179" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="198" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">INTERNAL</text>
+<text x="571" y="238" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Remote samples</text>
+<rect x="746" y="221" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">OFF</text>
+<text x="571" y="280" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Sensitive columns</text>
+<rect x="746" y="263" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="282" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">EXCLUDED</text>
+<text x="571" y="322" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Sample rows</text>
+<rect x="746" y="305" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="324" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">20</text>
+<text x="571" y="364" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">Max text/value</text>
+<rect x="746" y="347" width="260" height="28" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="758" y="366" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">2000 chars</text>
+<text x="571" y="438" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">POLICY EFFECTIVE RESULT</text>
+<rect x="571" y="452" width="435" height="86" fill="#02196E" stroke="#8191BE" stroke-width="1"/>
+<text x="586" y="476" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#6DFF8B" text-anchor="start">Remote model may receive metadata/schema only.</text>
+<text x="586" y="498" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Rows and secrets remain outside model context.</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">AI Policy Editor</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 13 · 1440×900 · STANDARD PROFILE</text>
+</svg>

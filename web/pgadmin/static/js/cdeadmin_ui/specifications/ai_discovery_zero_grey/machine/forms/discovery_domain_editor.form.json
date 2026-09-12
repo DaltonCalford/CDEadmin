@@ -1,0 +1,140 @@
+{
+  "form_id": "discovery.domain_editor",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Business Domain",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Define a business/data domain used for discovery organization and context.",
+  "sections": [
+    {
+      "id": "domain",
+      "title": "Domain",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-160 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "description",
+          "label": "Description",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "parent",
+          "label": "Parent domain",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Cannot create cycle.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "owners",
+          "label": "Owners",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "At least one owner.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "stewards",
+          "label": "Stewards",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known principals/teams.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "component": "Select",
+          "required": true,
+          "default": "active",
+          "validation": "Allowed transition.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "draft",
+            "active",
+            "deprecated",
+            "retired"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Domain",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "valid and acyclic",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Domain hierarchy is business organization, not a database schema hierarchy."
+  ],
+  "spec_gaps": []
+}

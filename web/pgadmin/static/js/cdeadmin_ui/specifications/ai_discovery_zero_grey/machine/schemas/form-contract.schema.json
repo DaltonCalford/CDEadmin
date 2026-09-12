@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-zero-grey-form-contract.schema.json",
+  "title": "CDEadmin Zero-Grey Form Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "form_id",
+    "module",
+    "title",
+    "kind",
+    "size",
+    "purpose",
+    "sections",
+    "actions",
+    "states",
+    "keyboard",
+    "security_notes",
+    "spec_gaps"
+  ],
+  "properties": {
+    "form_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "module": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "enum": [
+        "dialog",
+        "wizard",
+        "inspector_form",
+        "preferences_page",
+        "surface_form",
+        "confirmation",
+        "picker",
+        "review"
+      ]
+    },
+    "size": {
+      "enum": [
+        "small",
+        "medium",
+        "large",
+        "workbench",
+        "760-840"
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "fields"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "help": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "label",
+                "component",
+                "required",
+                "default",
+                "validation",
+                "help",
+                "secret",
+                "visibility",
+                "enabled"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "component": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "default": {},
+                "validation": {
+                  "type": "string"
+                },
+                "help": {
+                  "type": "string"
+                },
+                "secret": {
+                  "type": "boolean"
+                },
+                "visibility": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  }
+                },
+                "placeholder": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "binds_to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "warning": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "intent",
+          "default",
+          "closes",
+          "enabled_when"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "intent": {
+            "enum": [
+              "neutral",
+              "primary",
+              "destructive",
+              "warning",
+              "success"
+            ]
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "closes": {
+            "type": "boolean"
+          },
+          "enabled_when": {
+            "type": "string"
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "keyboard": {
+      "type": "string"
+    },
+    "security_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "spec_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

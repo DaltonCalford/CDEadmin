@@ -1,0 +1,117 @@
+{
+  "schema": "cdeadmin-ai-discovery-svg-manifest@1",
+  "plates": [
+    {
+      "file": "00_scratchbird_canonical_identity.svg",
+      "purpose": "Canonical UUID identity vs compatibility/SBsql/MCP access surfaces."
+    },
+    {
+      "file": "01_sbsql_cross_surface_security.svg",
+      "purpose": "Normative cross-surface authorization decision."
+    },
+    {
+      "file": "10_ai_workbench.svg",
+      "purpose": "AI Workbench"
+    },
+    {
+      "file": "11_ai_connectors.svg",
+      "purpose": "AI Connectors"
+    },
+    {
+      "file": "12_ai_scratchbird_connector.svg",
+      "purpose": "ScratchBird AI Connector"
+    },
+    {
+      "file": "13_ai_policy_editor.svg",
+      "purpose": "AI Policy Editor"
+    },
+    {
+      "file": "14_ai_tool_catalog.svg",
+      "purpose": "AI Tool Catalog"
+    },
+    {
+      "file": "15_ai_plan_review.svg",
+      "purpose": "AI Plan Review"
+    },
+    {
+      "file": "16_ai_query_review.svg",
+      "purpose": "AI Query Review"
+    },
+    {
+      "file": "17_ai_action_approval.svg",
+      "purpose": "AI Action Approval"
+    },
+    {
+      "file": "18_ai_audit_health.svg",
+      "purpose": "AI Audit and Health"
+    },
+    {
+      "file": "20_discovery_search.svg",
+      "purpose": "Discovery Search"
+    },
+    {
+      "file": "21_discovery_advanced_search.svg",
+      "purpose": "Advanced Discovery Search"
+    },
+    {
+      "file": "22_discovery_data360.svg",
+      "purpose": "Data 360"
+    },
+    {
+      "file": "23_discovery_marketplace.svg",
+      "purpose": "Data Marketplace"
+    },
+    {
+      "file": "24_data_product.svg",
+      "purpose": "Data Product"
+    },
+    {
+      "file": "25_glossary.svg",
+      "purpose": "Business Glossary and Metrics"
+    },
+    {
+      "file": "26_access_certification.svg",
+      "purpose": "Access and Certification"
+    },
+    {
+      "file": "27_discovery_usage.svg",
+      "purpose": "Discovery Usage"
+    },
+    {
+      "file": "28_discovery_index_admin.svg",
+      "purpose": "Discovery Index Administration"
+    },
+    {
+      "file": "29_discovery_ranking.svg",
+      "purpose": "Discovery Ranking Tuner"
+    },
+    {
+      "file": "30_discovery_curation.svg",
+      "purpose": "Discovery Curation"
+    },
+    {
+      "file": "31_discovery_analytics.svg",
+      "purpose": "Discovery Search Analytics"
+    },
+    {
+      "file": "33_scratchbird_access_surfaces.svg",
+      "purpose": "ScratchBird Access Surfaces"
+    },
+    {
+      "file": "34_discovery_to_analysis.svg",
+      "purpose": "Discovery to Analysis"
+    },
+    {
+      "file": "02_ai_discovery_architecture.svg",
+      "purpose": "Module/platform/database authority relationship."
+    },
+    {
+      "file": "10_ai_workbench_light.svg",
+      "purpose": "AI Workbench \u2014 Light"
+    },
+    {
+      "file": "20_discovery_search_light.svg",
+      "purpose": "Discovery Search \u2014 Light"
+    }
+  ]
+}

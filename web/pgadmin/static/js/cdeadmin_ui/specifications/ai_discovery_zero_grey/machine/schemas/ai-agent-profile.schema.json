@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-ai-agent-profile.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "name",
+    "enabled",
+    "autonomyMode",
+    "modelProfileRef",
+    "connectorRefs",
+    "toolPolicyRef",
+    "dataPolicyRef",
+    "approvalPolicyRef",
+    "budgetPolicyRef",
+    "retentionPolicyRef"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "profileId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "autonomyMode": {
+      "enum": [
+        "ASK_ONLY",
+        "DRAFT_ONLY",
+        "READ_ONLY_TOOLS",
+        "BOUNDED_EXECUTION"
+      ]
+    },
+    "modelProfileRef": {
+      "type": "string"
+    },
+    "connectorRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "toolPolicyRef": {
+      "type": "string"
+    },
+    "dataPolicyRef": {
+      "type": "string"
+    },
+    "approvalPolicyRef": {
+      "type": "string"
+    },
+    "budgetPolicyRef": {
+      "type": "string"
+    },
+    "retentionPolicyRef": {
+      "type": "string"
+    },
+    "instructionAssetRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,267 @@
+{
+  "form_id": "ai.agent_profile",
+  "module": "cdeadmin.ai_interface",
+  "title": "Agent Profile",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Define the model, connector set, permissions and autonomy boundary for an AI agent.",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Identity",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "description",
+          "label": "Description",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "enabled",
+          "label": "Enabled",
+          "component": "ToggleSwitch",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "autonomy",
+          "label": "Autonomy",
+          "component": "Select",
+          "required": true,
+          "default": "READ_ONLY_TOOLS",
+          "validation": "One mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "ASK_ONLY",
+            "DRAFT_ONLY",
+            "READ_ONLY_TOOLS",
+            "BOUNDED_EXECUTION"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "runtime",
+      "title": "Runtime",
+      "fields": [
+        {
+          "id": "model_profile",
+          "label": "Model profile",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Enabled ModelProfile.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "connectors",
+          "label": "Connectors",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Every connector must be enabled or profile save warns.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "instructions",
+          "label": "Instruction asset",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Project text/prompt asset.",
+          "help": "Cannot override site policy.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "policies",
+      "title": "Policies",
+      "fields": [
+        {
+          "id": "tool_policy",
+          "label": "Tool policy",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Valid ToolPolicy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "data_policy",
+          "label": "Data egress policy",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Valid DataPolicy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "approval_policy",
+          "label": "Approval policy",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Valid ApprovalPolicy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "budget_policy",
+          "label": "Budget policy",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Valid BudgetPolicy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "retention_policy",
+          "label": "Retention policy",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Valid RetentionPolicy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "clone",
+      "label": "Clone",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "profile exists",
+      "command": "ai.agent_profile.clone"
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "all refs valid",
+      "command": "ai.agent_profile.update"
+    },
+    {
+      "id": "disable",
+      "label": "Disable",
+      "intent": "warning",
+      "default": false,
+      "closes": false,
+      "enabled_when": "profile exists",
+      "command": "ai.agent_profile.disable"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "AgentProfile never embeds secrets.",
+    "BOUNDED_EXECUTION cannot weaken R4-R6 approval requirements."
+  ],
+  "spec_gaps": []
+}

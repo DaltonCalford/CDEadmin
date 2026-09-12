@@ -1,0 +1,235 @@
+{
+  "form_id": "ai.approval_policy",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Approval Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Map risk classes to approval and confirmation requirements.",
+  "sections": [
+    {
+      "id": "classes",
+      "title": "Risk classes",
+      "fields": [
+        {
+          "id": "r0",
+          "label": "R0 metadata",
+          "component": "Select",
+          "required": true,
+          "default": "auto",
+          "validation": "Allowed values.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "auto",
+            "review",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r1",
+          "label": "R1 bounded reads",
+          "component": "Select",
+          "required": true,
+          "default": "auto",
+          "validation": "Allowed values.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "auto",
+            "review",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r2",
+          "label": "R2 project drafts",
+          "component": "Select",
+          "required": true,
+          "default": "review_diff",
+          "validation": "Allowed values.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "auto",
+            "review_diff",
+            "review",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r3",
+          "label": "R3 prepare/publish staging",
+          "component": "Select",
+          "required": true,
+          "default": "review",
+          "validation": "Allowed values.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "review",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r4",
+          "label": "R4 reversible live write",
+          "component": "Select",
+          "required": true,
+          "default": "confirm_each",
+          "validation": "Cannot be auto by default.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "confirm_each",
+            "dual_approval",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r5",
+          "label": "R5 admin/destructive",
+          "component": "Select",
+          "required": true,
+          "default": "typed_confirm",
+          "validation": "Cannot be auto.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "typed_confirm",
+            "dual_approval",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r6",
+          "label": "R6 production/high impact",
+          "component": "Select",
+          "required": true,
+          "default": "dual_or_typed",
+          "validation": "Cannot be auto.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "typed_confirm",
+            "dual_approval",
+            "dual_or_typed",
+            "forbid"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "expiry",
+      "title": "Approval lifetime",
+      "fields": [
+        {
+          "id": "r4_minutes",
+          "label": "R4 approval max minutes",
+          "component": "NumberField",
+          "required": true,
+          "default": 15,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r5_minutes",
+          "label": "R5 approval max minutes",
+          "component": "NumberField",
+          "required": true,
+          "default": 5,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "r6_minutes",
+          "label": "R6 approval max minutes",
+          "component": "NumberField",
+          "required": true,
+          "default": 5,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "site minimum strictness preserved",
+      "command": "ai.approval_policy.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "AI cannot approve its own actions.",
+    "Approval is plan-revision/resource/environment bound."
+  ],
+  "spec_gaps": []
+}

@@ -1,0 +1,240 @@
+{
+  "form_id": "ai.mcp_connector",
+  "module": "cdeadmin.ai_interface",
+  "title": "MCP Connector",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Configure an approved MCP server as an external AI tool connector.",
+  "sections": [
+    {
+      "id": "transport",
+      "title": "Transport",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "endpoint",
+          "label": "MCP endpoint / process reference",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Valid configured transport reference.",
+          "help": "No credentials in URL.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "protocol",
+          "label": "Protocol profile",
+          "component": "ComboBox",
+          "required": true,
+          "default": "auto",
+          "validation": "auto or supported version/profile.",
+          "help": "Store negotiated version.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "transport_type",
+          "label": "Transport",
+          "component": "Select",
+          "required": true,
+          "default": "http",
+          "validation": "Supported adapter.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "http",
+            "stdio",
+            "enterprise_adapter"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "auth",
+      "title": "Authorization",
+      "fields": [
+        {
+          "id": "auth_mode",
+          "label": "Auth mode",
+          "component": "Select",
+          "required": true,
+          "default": "auto",
+          "validation": "Supported connector auth mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "auto",
+            "none",
+            "oauth",
+            "bearer_ref",
+            "enterprise"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "Required when auth mode requires.",
+          "help": "",
+          "secret": true,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "tls_verify",
+          "label": "Verify TLS",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must be true for normal remote HTTPS; disabling requires site exception.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "title": "Tool exposure",
+      "fields": [
+        {
+          "id": "allowlist",
+          "label": "Allowed tools",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Resolved only after discovery.",
+          "help": "Empty means none until explicit policy says otherwise.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "denylist",
+          "label": "Denied tools",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Deny wins.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "refresh_ttl",
+          "label": "Tool catalog cache seconds",
+          "component": "NumberField",
+          "required": true,
+          "default": 300,
+          "validation": "0..site max; respect server/profile cache semantics.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "refresh",
+      "label": "Discover / Refresh",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "transport/auth fields valid",
+      "command": "ai.mcp.tools.refresh"
+    },
+    {
+      "id": "test",
+      "label": "Test",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "configuration valid",
+      "command": "ai.connector.test"
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "configuration valid",
+      "command": "ai.connector.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Remote tool schemas/descriptions are untrusted until policy validation.",
+    "Protocol compatibility is explicit; do not assume current MCP server."
+  ],
+  "spec_gaps": []
+}

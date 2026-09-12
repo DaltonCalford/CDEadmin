@@ -1,0 +1,216 @@
+{
+  "form_id": "ai.data_egress_policy",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Data Exposure / Egress Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Control exactly what database/project information may be sent to a model provider.",
+  "sections": [
+    {
+      "id": "levels",
+      "title": "Exposure",
+      "fields": [
+        {
+          "id": "default_level",
+          "label": "Default context level",
+          "component": "Select",
+          "required": true,
+          "default": "METADATA_SUMMARY",
+          "validation": "One exposure level.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "IDENTITY_ONLY",
+            "METADATA_SUMMARY",
+            "SCHEMA",
+            "STATISTICS",
+            "SAFE_SAMPLE",
+            "FULL_ALLOWED_CONTENT"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_classification",
+          "label": "Maximum classification",
+          "component": "Select",
+          "required": true,
+          "default": "INTERNAL",
+          "validation": "One lattice level.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "PUBLIC",
+            "INTERNAL",
+            "CONFIDENTIAL",
+            "RESTRICTED",
+            "REGULATED",
+            "SECRET_REFERENCE_ONLY"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "remote_samples",
+          "label": "Allow samples to remote models",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Default false.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "remote_source",
+          "label": "Allow stored procedure/source text to remote models",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Default false.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "redaction",
+      "title": "Redaction",
+      "fields": [
+        {
+          "id": "sensitive_columns",
+          "label": "Sensitive column behavior",
+          "component": "Select",
+          "required": true,
+          "default": "excluded",
+          "validation": "One option.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "excluded",
+            "masked",
+            "tokenized",
+            "aggregated_only",
+            "allowed"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_sample_rows",
+          "label": "Max sample rows sent to model",
+          "component": "NumberField",
+          "required": true,
+          "default": 20,
+          "validation": "0..site max.",
+          "help": "0 means samples disabled.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_text_chars",
+          "label": "Max text chars per value",
+          "component": "NumberField",
+          "required": true,
+          "default": 2000,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "provider",
+      "title": "Provider conditions",
+      "fields": [
+        {
+          "id": "allowed_model_profiles",
+          "label": "Allowed model profiles",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Subset of configured profiles.",
+          "help": "Empty means policy applies to all profiles where attached.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "require_local_for_restricted",
+          "label": "Require local/self-hosted for restricted",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "policy internally valid",
+      "command": "ai.data_policy.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "SecretField values are never eligible for model egress.",
+    "Database row/column security is enforced before this policy."
+  ],
+  "spec_gaps": []
+}

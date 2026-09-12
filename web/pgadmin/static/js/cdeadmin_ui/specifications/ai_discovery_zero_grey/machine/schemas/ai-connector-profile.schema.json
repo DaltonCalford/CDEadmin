@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-ai-connector-profile.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "connectorId",
+    "name",
+    "connectorClass",
+    "enabled",
+    "principalBinding",
+    "credentialRef",
+    "policyRef",
+    "state"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "connectorId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "connectorClass": {
+      "enum": [
+        "cdeadmin_capability",
+        "database_provider",
+        "scratchbird_sbsql",
+        "scratchbird_compatibility",
+        "scratchbird_mcp",
+        "mcp_generic",
+        "external_service"
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "providerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connectionProfileRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dialectId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workareaSchemaRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mcpEndpointRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mcpProtocolProfile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "principalBinding": {
+      "type": "string"
+    },
+    "credentialRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "policyRef": {
+      "type": "string"
+    },
+    "resourceScopeRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "state": {
+      "enum": [
+        "unconfigured",
+        "disabled",
+        "validating",
+        "ready",
+        "degraded",
+        "reauthorization_required",
+        "permission_failed",
+        "version_incompatible",
+        "unreachable",
+        "revoked",
+        "error"
+      ]
+    },
+    "capabilitySnapshotRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

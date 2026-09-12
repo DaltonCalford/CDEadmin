@@ -1,0 +1,147 @@
+{
+  "form_id": "ai.audit_export",
+  "module": "cdeadmin.ai_interface",
+  "title": "Export AI Audit",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Export redacted audit metadata for a bounded scope.",
+  "sections": [
+    {
+      "id": "scope",
+      "title": "Scope",
+      "fields": [
+        {
+          "id": "from",
+          "label": "From",
+          "component": "DateField",
+          "required": true,
+          "default": null,
+          "validation": "Valid date/time range.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "to",
+          "label": "To",
+          "component": "DateField",
+          "required": true,
+          "default": null,
+          "validation": ">= from.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "profiles",
+          "label": "Agent profiles",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Visible profiles.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "connectors",
+          "label": "Connectors",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Visible connectors.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "include_message_text",
+          "label": "Include conversation/prompt text",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Requires elevated audit permission and policy.",
+          "help": "Default false.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "format",
+          "label": "Format",
+          "component": "Select",
+          "required": true,
+          "default": "json",
+          "validation": "Allowed format.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "json",
+            "csv"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "export",
+      "label": "Export",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "scope valid and export permission",
+      "command": "ai.audit.export"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Secret values remain redacted even when message text is included."
+  ],
+  "spec_gaps": []
+}

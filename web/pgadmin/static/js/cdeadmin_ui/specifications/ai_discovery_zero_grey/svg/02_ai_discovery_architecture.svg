@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI and Discovery architecture</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<text x="40" y="52" font-family="Fira Code, monospace" font-size="18" font-weight="700" fill="#CAF0F8" text-anchor="start">AI INTERFACE + DATA DISCOVERY ARCHITECTURE</text>
+<text x="40" y="78" font-family="Fira Code, monospace" font-size="10" font-weight="500" fill="#A2A6C9" text-anchor="start">AI is an external user; Discovery is a governed index/context layer.</text>
+<rect x="60" y="150" width="300" height="160" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="210.0" y="180" font-family="Fira Code, monospace" font-size="11" font-weight="700" fill="#CAF0F8" text-anchor="middle">EXTERNAL AI MODEL</text>
+<text x="210.0" y="210" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">No database authority</text>
+<text x="210.0" y="232" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Receives policy-approved context</text>
+<text x="210.0" y="254" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Proposes tools/plans</text>
+<rect x="420" y="150" width="300" height="160" fill="#02196E" stroke="#CAF0F8" stroke-width="2"/>
+<text x="570.0" y="180" font-family="Fira Code, monospace" font-size="11" font-weight="700" fill="#CAF0F8" text-anchor="middle">CDEADMIN AI INTERFACE</text>
+<text x="570.0" y="210" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Agent/Profile policy</text>
+<text x="570.0" y="232" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Connector/principal</text>
+<text x="570.0" y="254" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Approval + audit</text>
+<rect x="780" y="150" width="300" height="160" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="930.0" y="180" font-family="Fira Code, monospace" font-size="11" font-weight="700" fill="#CAF0F8" text-anchor="middle">DATA DISCOVERY</text>
+<text x="930.0" y="210" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Canonical search index</text>
+<text x="930.0" y="232" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Business knowledge</text>
+<text x="930.0" y="254" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">Trust + access</text>
+<rect x="420" y="390" width="660" height="170" fill="#02196E" stroke="#CAF0F8" stroke-width="2"/>
+<text x="750.0" y="420" font-family="Fira Code, monospace" font-size="11" font-weight="700" fill="#CAF0F8" text-anchor="middle">CDEADMIN PLATFORM</text>
+<text x="750.0" y="450" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">CommandRegistry · TaskService · Metadata · ResourceIdentity</text>
+<text x="750.0" y="472" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">ProviderRegistry · Security · Project/Asset · RelationshipGraph</text>
+<rect x="420" y="650" width="660" height="110" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="750.0" y="680" font-family="Fira Code, monospace" font-size="11" font-weight="700" fill="#CAF0F8" text-anchor="middle">DATABASES</text>
+<text x="750.0" y="710" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">24 external reference engines + ScratchBird</text>
+<text x="750.0" y="732" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="middle">ScratchBird = one engine; SBsql + sandboxed compatibility surfaces</text>
+<line x1="360" y1="230" x2="420" y2="230" stroke="#CAF0F8" stroke-width="2"/>
+<line x1="720" y1="230" x2="780" y2="230" stroke="#CAF0F8" stroke-width="2"/>
+<line x1="570" y1="310" x2="570" y2="390" stroke="#CAF0F8" stroke-width="2"/>
+<line x1="930" y1="310" x2="930" y2="390" stroke="#CAF0F8" stroke-width="2"/>
+<line x1="750" y1="560" x2="750" y2="650" stroke="#CAF0F8" stroke-width="2"/>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">AI + Discovery architecture</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 02 · 1440×900 · STANDARD PROFILE</text>
+</svg>

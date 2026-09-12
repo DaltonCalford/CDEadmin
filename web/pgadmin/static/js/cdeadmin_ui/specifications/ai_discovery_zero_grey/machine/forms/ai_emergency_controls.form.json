@@ -1,0 +1,144 @@
+{
+  "form_id": "ai.emergency_controls",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Emergency Controls",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Immediately restrict AI access without deleting audit history.",
+  "sections": [
+    {
+      "id": "global",
+      "title": "Global",
+      "fields": [
+        {
+          "id": "module_enabled",
+          "label": "AI module enabled",
+          "component": "ToggleSwitch",
+          "required": true,
+          "default": true,
+          "validation": "Admin only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "writes_enabled",
+          "label": "AI live writes enabled",
+          "component": "ToggleSwitch",
+          "required": true,
+          "default": true,
+          "validation": "Admin only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "standing_approvals",
+          "label": "Standing approvals enabled",
+          "component": "ToggleSwitch",
+          "required": true,
+          "default": true,
+          "validation": "Admin only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "actions",
+      "title": "Emergency actions",
+      "fields": [
+        {
+          "id": "scope",
+          "label": "Affected profiles/connectors",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Empty with global action means all.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "reason",
+          "label": "Administrative reason",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "Required 1-2000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "invalidate",
+      "label": "Invalidate Approvals",
+      "intent": "warning",
+      "default": false,
+      "closes": false,
+      "enabled_when": "reason set",
+      "command": "ai.emergency.invalidate_approvals"
+    },
+    {
+      "id": "disable_writes",
+      "label": "Disable Writes",
+      "intent": "destructive",
+      "default": false,
+      "closes": false,
+      "enabled_when": "reason set",
+      "command": "ai.emergency.disable_writes"
+    },
+    {
+      "id": "disable_all",
+      "label": "Disable AI",
+      "intent": "destructive",
+      "default": false,
+      "closes": false,
+      "enabled_when": "reason set",
+      "command": "ai.emergency.disable_all"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Actions require admin permission and backend audit.",
+    "Emergency disable must not erase active task/audit evidence."
+  ],
+  "spec_gaps": []
+}

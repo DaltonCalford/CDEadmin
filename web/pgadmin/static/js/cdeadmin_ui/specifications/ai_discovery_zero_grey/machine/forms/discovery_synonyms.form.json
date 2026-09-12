@@ -1,0 +1,90 @@
+{
+  "form_id": "discovery.synonyms",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Synonym Dictionary",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Manage governed search synonyms/acronyms without hidden ranking magic.",
+  "sections": [
+    {
+      "id": "dict",
+      "title": "Dictionary",
+      "fields": [
+        {
+          "id": "entries",
+          "label": "Synonym sets",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Each set has canonical term and unique synonyms.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "case",
+          "label": "Case handling",
+          "component": "Select",
+          "required": true,
+          "default": "case_insensitive",
+          "validation": "One mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "case_insensitive",
+            "case_sensitive"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "language",
+          "label": "Language / locale",
+          "component": "TextField",
+          "required": false,
+          "default": "en",
+          "validation": "Known locale where used.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Dictionary",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "no conflicts",
+      "command": "discovery.synonym.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Synonyms are visible/governed metadata and can be audited."
+  ],
+  "spec_gaps": []
+}

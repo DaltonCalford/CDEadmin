@@ -1,0 +1,144 @@
+{
+  "form_id": "ai.plan_review",
+  "module": "cdeadmin.ai_interface",
+  "title": "Review AI Plan",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Review validated steps and required approvals before execution.",
+  "sections": [
+    {
+      "id": "summary",
+      "title": "Plan",
+      "fields": [
+        {
+          "id": "plan",
+          "label": "Plan steps",
+          "component": "CodeEditor",
+          "required": true,
+          "default": null,
+          "validation": "Read-only generated structured plan.",
+          "help": "Read-only.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "environment",
+          "label": "Target environment(s)",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only resolved list.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "risk",
+          "label": "Maximum risk",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only computed risk.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "checks",
+      "title": "Validation",
+      "fields": [
+        {
+          "id": "checks",
+          "label": "Validation checks",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "All required checks have status.",
+          "help": "Read-only.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "approvals",
+          "label": "Required approvals",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Read-only requirements.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "reject",
+      "label": "Reject",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": "ai.plan.reject"
+    },
+    {
+      "id": "approve",
+      "label": "Approve Required Steps",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "validation passes and user has approval permissions",
+      "command": "ai.plan.approve"
+    },
+    {
+      "id": "execute",
+      "label": "Execute",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "all required approvals valid",
+      "command": "ai.plan.execute"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Approval is bound to exact plan revision.",
+    "Read-only display must show connector/principal per live step."
+  ],
+  "spec_gaps": []
+}

@@ -1,0 +1,97 @@
+{
+  "screen_id": "cdeadmin.discovery_intelligence.ranking_tuner",
+  "module": "cdeadmin.discovery_intelligence",
+  "purpose": "Edit exact weights/penalties and compare before/after results.",
+  "primary_surface_type": "editor",
+  "entry_commands": [
+    "discovery.ranking.update"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef",
+      "DiscoveryDocument",
+      "AccessSurfaceRef"
+    ],
+    "assets": [
+      "DataProduct",
+      "BusinessTerm",
+      "MetricDefinition",
+      "SavedSearch"
+    ],
+    "tasks": [
+      "DiscoveryIndexTask",
+      "AccessProvisionTask"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "discovery.ranking.test",
+    "discovery.ranking.publish"
+  ],
+  "navigation_model": "Weights / Boosts / Penalties",
+  "inspector_sections": [
+    "Score explanation",
+    "Test query",
+    "Diff"
+  ],
+  "toolbox_items": [],
+  "bottom_drawer_pages": [
+    "Problems",
+    "Test Results"
+  ],
+  "status_bar_contributions": [
+    "weight sum",
+    "draft/published"
+  ],
+  "components": [
+    "Toolbar",
+    "NumberField",
+    "DataGrid",
+    "InspectorSection",
+    "ValidationMessage",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "motor_assistance",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "Ranking Tuner is ready and shows the selected/active content.",
+    "loading": "Keep shell and current selection visible; use Skeleton/Progress; disable commands requiring completed data.",
+    "empty": "Show a purpose-specific empty state for Ranking Tuner with the single valid create/select/configure action; never blank canvas.",
+    "error": "Show persistent diagnostic in Problems plus inline summary and recovery/retry where safe; authored data is preserved.",
+    "permission": "Show permission denied separately from unavailable/unsupported; expose safe reason and request/escalation action where defined.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale when permitted; disable live mutation until refreshed/reconnected."
+  },
+  "keyboard": "Ctrl/Cmd+1 Explorer; Ctrl/Cmd+2 Workbench; Ctrl/Cmd+3 Inspector; Ctrl/Cmd+4 Bottom Drawer. Tab follows region order. Tree/grid use arrows. Enter opens/activates. Shift+F10/context key opens actions. No unregistered global shortcut.",
+  "pointer": "Single click selects; double click only invokes registered default open. Drag/drop only on documented semantic target. Splitters use standard hit area. No destructive mutation on drop.",
+  "persistence": "Governed discovery metadata/assets are versioned. Search results are live/index-derived and are not copied into project assets. Layout is device-local.",
+  "multi_window": "May detach only through ToolRegistry/WorkspaceHost when the surface capability allows. Detached surfaces share authoritative backend/project state and do not create a private store.",
+  "accessibility": "Critical content has text/tree/table alternative. Visible focus, high contrast, Low Vision, Motor Assistance, Reduced Motion, non-drag alternatives. Streaming/live updates do not steal focus.",
+  "svg_references": [
+    "svg/29_discovery_ranking.svg"
+  ],
+  "functional_regression": [
+    "Uses cdeadmin_ui semantic components rather than provider/module-owned renderer imports.",
+    "Uses CommandRegistry for consequential actions.",
+    "Uses TaskService for continuing background work.",
+    "Preserves ResourceRef/AssetRef identity and provider-native semantics.",
+    "Does not serialize raw secrets in asset, layout, ToolDescriptor, audit export, or AI context.",
+    "Security-hidden entities remain absent from counts/facets/autocomplete/recommendations.",
+    "ScratchBird aliases collapse to canonical UUID identity by default."
+  ],
+  "spec_gaps": []
+}

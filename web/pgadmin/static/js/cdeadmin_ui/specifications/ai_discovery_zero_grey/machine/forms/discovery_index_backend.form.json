@@ -1,0 +1,187 @@
+{
+  "form_id": "discovery.index_backend",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Discovery Index Backend",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Configure lexical/vector/facet index storage without binding DDI to one database engine.",
+  "sections": [
+    {
+      "id": "backend",
+      "title": "Backend",
+      "fields": [
+        {
+          "id": "type",
+          "label": "Backend type",
+          "component": "Select",
+          "required": true,
+          "default": "cdeadmin_managed",
+          "validation": "Supported backend.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "cdeadmin_managed",
+            "scratchbird",
+            "external_search_adapter"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "connection",
+          "label": "Connection / service reference",
+          "component": "ConnectionSelector",
+          "required": false,
+          "default": null,
+          "validation": "Required for non-managed backend.",
+          "help": "",
+          "secret": false,
+          "visibility": "type != cdeadmin_managed",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "When backend requires dedicated auth.",
+          "help": "",
+          "secret": true,
+          "visibility": "type == external_search_adapter",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "index_namespace",
+          "label": "Index namespace",
+          "component": "TextField",
+          "required": true,
+          "default": "cdeadmin_discovery",
+          "validation": "Backend-valid namespace.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "features",
+      "title": "Features",
+      "fields": [
+        {
+          "id": "lexical",
+          "label": "Lexical search",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must be true for supported production configuration.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "vector",
+          "label": "Vector search",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "May be false if semantic disabled.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "facets",
+          "label": "Facets",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must be true.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "graph",
+          "label": "Native graph neighbor search",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Optional; RelationshipGraph fallback exists.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "test",
+      "label": "Test Backend",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "configuration valid",
+      "command": null
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "required features available",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Using ScratchBird as backend does not make AI part of engine.",
+    "Raw database row content is not automatically indexed."
+  ],
+  "spec_gaps": []
+}

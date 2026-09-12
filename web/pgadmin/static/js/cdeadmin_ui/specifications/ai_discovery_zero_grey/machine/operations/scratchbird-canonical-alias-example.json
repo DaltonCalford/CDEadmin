@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "canonicalResource": {
+    "resourceRef": "scratchbird://instance-a/uuid/0199-example",
+    "canonicalUuid": "0199-example",
+    "kind": "table",
+    "nativePath": "company.sales.customer"
+  },
+  "accessSurfaces": [
+    {
+      "surfaceId": "sb-native",
+      "kind": "sbsql_native",
+      "dialectId": "sbsql",
+      "visibleQualifiedName": "company.sales.customer",
+      "crossSurfaceVisibility": "engine_authorized"
+    },
+    {
+      "surfaceId": "pg-compat",
+      "kind": "compatibility_parser",
+      "dialectId": "postgresql",
+      "visibleQualifiedName": "public.customer",
+      "workareaSchemaRef": "emulated/postgresql",
+      "crossSurfaceVisibility": "none"
+    },
+    {
+      "surfaceId": "mysql-compat",
+      "kind": "compatibility_parser",
+      "dialectId": "mysql",
+      "visibleQualifiedName": "sales.customer",
+      "workareaSchemaRef": "emulated/mysql",
+      "crossSurfaceVisibility": "none"
+    }
+  ],
+  "rule": "All access surfaces resolve to the same canonical resource. Visibility is recalculated per principal."
+}

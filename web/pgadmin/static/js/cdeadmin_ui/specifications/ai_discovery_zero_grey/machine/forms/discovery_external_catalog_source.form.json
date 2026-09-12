@@ -1,0 +1,204 @@
+{
+  "form_id": "discovery.external_catalog_source",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "External Catalog / BI Metadata Source",
+  "kind": "wizard",
+  "size": "760-840",
+  "purpose": "Import metadata from an external catalog/BI platform as evidence, not canonical provider identity.",
+  "sections": [
+    {
+      "id": "source",
+      "title": "1 \u2014 Source",
+      "fields": [
+        {
+          "id": "type",
+          "label": "Adapter type",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "Installed adapter.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "endpoint",
+          "label": "Endpoint",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Valid endpoint/reference.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "When required.",
+          "help": "",
+          "secret": true,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "title": "2 \u2014 Scope",
+      "fields": [
+        {
+          "id": "collections",
+          "label": "Collections/workspaces",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Adapter-resolved.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "assets",
+          "label": "Asset classes",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Adapter-supported classes.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "mapping",
+      "title": "3 \u2014 Identity mapping",
+      "fields": [
+        {
+          "id": "mapping_mode",
+          "label": "Mapping mode",
+          "component": "Select",
+          "required": true,
+          "default": "evidence_only",
+          "validation": "One mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "evidence_only",
+            "link_by_stable_external_id",
+            "manual_mapping_required"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "create_business_terms",
+          "label": "Import business terms",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean; imported origin preserved.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "next",
+      "label": "Next",
+      "intent": "primary",
+      "default": false,
+      "closes": false,
+      "enabled_when": "current step valid",
+      "command": null
+    },
+    {
+      "id": "test",
+      "label": "Test",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "source valid",
+      "command": null
+    },
+    {
+      "id": "create",
+      "label": "Create Source",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "all steps valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "External catalog identity does not silently replace ResourceIdentityService identity.",
+    "Imported security metadata is evidence, not authority."
+  ],
+  "spec_gaps": []
+}

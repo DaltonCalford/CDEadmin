@@ -1,0 +1,96 @@
+{
+  "screen_id": "cdeadmin.ai_interface.run_monitor",
+  "module": "cdeadmin.ai_interface",
+  "purpose": "Monitor AI orchestration runs and continuing CDEadmin/database tasks.",
+  "primary_surface_type": "monitoring_observability",
+  "entry_commands": [
+    "ai.run.cancel"
+  ],
+  "bindings": {
+    "resources": [
+      "ResourceRef",
+      "AccessSurfaceRef"
+    ],
+    "assets": [
+      "AgentProfile",
+      "AIPlan"
+    ],
+    "tasks": [
+      "AIRequest",
+      "CDEadminTask"
+    ]
+  },
+  "host_regions": [
+    "global_header",
+    "activity_rail",
+    "navigator",
+    "workbench",
+    "inspector",
+    "bottom_drawer",
+    "status_bar"
+  ],
+  "toolbar_commands": [
+    "ai.run.cancel"
+  ],
+  "navigation_model": "Runs grouped by session/profile/status",
+  "inspector_sections": [
+    "Current step",
+    "Tool/command",
+    "Connector",
+    "Budgets",
+    "Diagnostics"
+  ],
+  "toolbox_items": [],
+  "bottom_drawer_pages": [
+    "Task Log",
+    "Problems",
+    "Audit"
+  ],
+  "status_bar_contributions": [
+    "active runs",
+    "cost/usage"
+  ],
+  "components": [
+    "Toolbar",
+    "DataGrid",
+    "ProgressBar",
+    "InspectorSection",
+    "Pagination",
+    "StatusBar"
+  ],
+  "tokens_profiles": [
+    "scratchbird_dark",
+    "scratchbird_light",
+    "standard",
+    "compact_expert",
+    "low_vision",
+    "motor_assistance",
+    "high_contrast"
+  ],
+  "states": {
+    "default": "AI Runs / Tasks is ready and shows the selected/active content.",
+    "loading": "Keep shell and current selection visible; use Skeleton/Progress; disable commands requiring completed data.",
+    "empty": "Show a purpose-specific empty state for AI Runs / Tasks with the single valid create/select/configure action; never blank canvas.",
+    "error": "Show persistent diagnostic in Problems plus inline summary and recovery/retry where safe; authored data is preserved.",
+    "permission": "Show permission denied separately from unavailable/unsupported; expose safe reason and request/escalation action where defined.",
+    "disconnected_or_stale": "Preserve last safe result as visibly stale when permitted; disable live mutation until refreshed/reconnected."
+  },
+  "keyboard": "Ctrl/Cmd+1 Explorer; Ctrl/Cmd+2 Workbench; Ctrl/Cmd+3 Inspector; Ctrl/Cmd+4 Bottom Drawer. Tab follows region order. Tree/grid use arrows. Enter opens/activates. Shift+F10/context key opens actions. No unregistered global shortcut.",
+  "pointer": "Single click selects; double click only invokes registered default open. Drag/drop only on documented semantic target. Splitters use standard hit area. No destructive mutation on drop.",
+  "persistence": "AI session/policy definitions persist through Project/AI authorities; raw credentials and large tool results do not. Layout is device-local.",
+  "multi_window": "May detach only through ToolRegistry/WorkspaceHost when the surface capability allows. Detached surfaces share authoritative backend/project state and do not create a private store.",
+  "accessibility": "Critical content has text/tree/table alternative. Visible focus, high contrast, Low Vision, Motor Assistance, Reduced Motion, non-drag alternatives. Streaming/live updates do not steal focus.",
+  "svg_references": [
+    "svg/18_ai_audit_health.svg"
+  ],
+  "functional_regression": [
+    "Uses cdeadmin_ui semantic components rather than provider/module-owned renderer imports.",
+    "Uses CommandRegistry for consequential actions.",
+    "Uses TaskService for continuing background work.",
+    "Preserves ResourceRef/AssetRef identity and provider-native semantics.",
+    "Does not serialize raw secrets in asset, layout, ToolDescriptor, audit export, or AI context.",
+    "AI uses a dedicated connector/principal, never the current human database session.",
+    "ScratchBird compatibility access remains sandboxed; cross-surface is SBsql-only when authorized."
+  ],
+  "spec_gaps": []
+}

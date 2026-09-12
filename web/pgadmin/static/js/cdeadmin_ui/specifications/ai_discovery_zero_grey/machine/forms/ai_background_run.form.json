@@ -1,0 +1,128 @@
+{
+  "form_id": "ai.background_run",
+  "module": "cdeadmin.ai_interface",
+  "title": "Start Bounded AI Run",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Start a bounded multi-step AI run without creating an unbounded autonomous agent.",
+  "sections": [
+    {
+      "id": "run",
+      "title": "Run",
+      "fields": [
+        {
+          "id": "agent",
+          "label": "Agent profile",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Enabled profile.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "goal",
+          "label": "Goal",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-8000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "context",
+          "label": "Context",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Permitted refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_minutes",
+          "label": "Maximum run minutes",
+          "component": "NumberField",
+          "required": true,
+          "default": 30,
+          "validation": "<= budget/site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "stop_on_approval",
+          "label": "Stop when approval required",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "Recommended true.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "start",
+      "label": "Start Run",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "profile, budget and context valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "The run cannot exceed AgentProfile policy or create hidden standing approvals."
+  ],
+  "spec_gaps": []
+}

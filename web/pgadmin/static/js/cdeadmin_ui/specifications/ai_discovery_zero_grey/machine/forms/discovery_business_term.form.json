@@ -1,0 +1,217 @@
+{
+  "form_id": "discovery.business_term",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Business Term",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Define a governed term and map it to data/metrics/assets.",
+  "sections": [
+    {
+      "id": "meaning",
+      "title": "Meaning",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Term",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-160 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "definition",
+          "label": "Definition",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-10000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "status",
+          "label": "Status",
+          "component": "Select",
+          "required": true,
+          "default": "DRAFT",
+          "validation": "Allowed transition.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "DRAFT",
+            "REVIEW",
+            "APPROVED",
+            "DEPRECATED",
+            "RETIRED"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "domain",
+          "label": "Domain",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Visible Domain.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "title": "Language",
+      "fields": [
+        {
+          "id": "synonyms",
+          "label": "Synonyms",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Unique normalized terms.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "acronyms",
+          "label": "Acronyms",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Unique normalized acronyms.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "mapping",
+      "title": "Mappings",
+      "fields": [
+        {
+          "id": "resources",
+          "label": "Resources",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Visible refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "assets",
+          "label": "Assets",
+          "component": "AssetPicker",
+          "required": false,
+          "default": [],
+          "validation": "Visible refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "metrics",
+          "label": "Metrics",
+          "component": "AssetPicker",
+          "required": false,
+          "default": [],
+          "validation": "Visible refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "owner",
+          "label": "Owner / steward",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known principals/teams.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "term valid",
+      "command": "discovery.term.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "AI suggestions never become APPROVED automatically."
+  ],
+  "spec_gaps": []
+}

@@ -1,0 +1,74 @@
+{
+  "ai_connector": [
+    "unconfigured",
+    "disabled",
+    "validating",
+    "ready",
+    "degraded",
+    "reauthorization_required",
+    "permission_failed",
+    "version_incompatible",
+    "unreachable",
+    "revoked",
+    "error"
+  ],
+  "ai_plan": [
+    "draft",
+    "validating",
+    "invalid",
+    "ready_for_approval",
+    "approved",
+    "running",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "stale"
+  ],
+  "access_request": [
+    "DRAFT",
+    "SUBMITTED",
+    "AUTO_APPROVED",
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "DENIED",
+    "PROVISIONING",
+    "ACTIVE",
+    "EXPIRED",
+    "REVOKED",
+    "FAILED"
+  ],
+  "certification": [
+    "UNREVIEWED",
+    "IN_REVIEW",
+    "CERTIFIED",
+    "CERTIFIED_WITH_CONDITIONS",
+    "REJECTED",
+    "EXPIRED",
+    "REVOKED"
+  ],
+  "data_product": [
+    "DRAFT",
+    "REVIEW",
+    "CERTIFIED",
+    "DEPRECATED",
+    "RETIRED"
+  ],
+  "index_source": [
+    "DISABLED",
+    "IDLE",
+    "QUEUED",
+    "RUNNING",
+    "DEGRADED",
+    "FAILED",
+    "AUTH_REQUIRED",
+    "PAUSED"
+  ],
+  "index_revision": [
+    "BUILDING",
+    "VALIDATING",
+    "READY",
+    "ACTIVE",
+    "FAILED",
+    "RETIRED"
+  ]
+}

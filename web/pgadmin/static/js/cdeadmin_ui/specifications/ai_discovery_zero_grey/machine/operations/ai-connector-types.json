@@ -1,0 +1,47 @@
+{
+  "schema": "cdeadmin-ai-connector-types@1",
+  "types": [
+    {
+      "id": "cdeadmin_capability",
+      "purpose": "Typed CDEadmin read services and AI-exposed commands",
+      "databasePrincipal": false,
+      "crossSurface": false
+    },
+    {
+      "id": "database_provider",
+      "purpose": "External database through dedicated AI connection profile",
+      "databasePrincipal": true,
+      "crossSurface": "provider-specific"
+    },
+    {
+      "id": "scratchbird_sbsql",
+      "purpose": "ScratchBird native unified SBsql",
+      "databasePrincipal": true,
+      "crossSurface": "engine_authorized"
+    },
+    {
+      "id": "scratchbird_compatibility",
+      "purpose": "One ScratchBird legacy compatibility parser/workarea",
+      "databasePrincipal": true,
+      "crossSurface": false
+    },
+    {
+      "id": "scratchbird_mcp",
+      "purpose": "ScratchBird external MCP AI/control layer",
+      "databasePrincipal": "tool-specific",
+      "crossSurface": "tool-specific"
+    },
+    {
+      "id": "mcp_generic",
+      "purpose": "Approved external MCP server",
+      "databasePrincipal": "remote-specific",
+      "crossSurface": false
+    },
+    {
+      "id": "external_service",
+      "purpose": "Approved REST/GraphQL/custom enterprise service",
+      "databasePrincipal": "service-specific",
+      "crossSurface": false
+    }
+  ]
+}

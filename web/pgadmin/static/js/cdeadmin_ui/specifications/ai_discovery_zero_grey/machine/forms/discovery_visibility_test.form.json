@@ -1,0 +1,104 @@
+{
+  "form_id": "discovery.visibility_test",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Search Visibility Test",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Diagnose security-trimmed search for an authorized test principal.",
+  "sections": [
+    {
+      "id": "test",
+      "title": "Test",
+      "fields": [
+        {
+          "id": "principal",
+          "label": "Principal to test",
+          "component": "ComboBox",
+          "required": true,
+          "default": null,
+          "validation": "Tester may inspect this principal according to admin policy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "query",
+          "label": "Search query",
+          "component": "SearchField",
+          "required": true,
+          "default": "",
+          "validation": "1-1000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "ranking",
+          "label": "Ranking profile",
+          "component": "Select",
+          "required": true,
+          "default": "Balanced",
+          "validation": "Published profile.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "show_filtered_reasons",
+          "label": "Show filtered-reason categories",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "Does not reveal hidden entity names unless tester has audit permission.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "run",
+      "label": "Run Test",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "authorization and fields valid",
+      "command": "discovery.visibility.test"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Tool must not become an admin bypass to reveal hidden assets.",
+    "Counts/reasons must be redacted when tester lacks audit scope."
+  ],
+  "spec_gaps": []
+}

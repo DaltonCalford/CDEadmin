@@ -1,0 +1,281 @@
+{
+  "schema": "cdeadmin-ai-command-catalog@1",
+  "commands": [
+    {
+      "id": "ai.session.new",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.session.archive",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.session.ask",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.session.cancel",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.context.add",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.context.remove",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.context.set_exposure",
+      "risk": "R1",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.plan.create",
+      "risk": "R2",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.plan.validate",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.plan.approve",
+      "risk": "R4",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.plan.reject",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.plan.execute",
+      "risk": "R4",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.create",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.test",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.enable",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.disable",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.revoke",
+      "risk": "R5",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.connector.refresh_capabilities",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.agent_profile.create",
+      "risk": "R2",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.agent_profile.update",
+      "risk": "R2",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.agent_profile.clone",
+      "risk": "R2",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.agent_profile.enable",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.agent_profile.disable",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.model_profile.create",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.model_profile.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.model_profile.test",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.model_profile.disable",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.tool_policy.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.data_policy.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.approval_policy.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.budget_policy.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.retention_policy.update",
+      "risk": "R3",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.query.compile",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.query.explain",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.query.execute_read",
+      "risk": "R1",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.query.execute_mutation",
+      "risk": "R4",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.cdeadmin.command.propose",
+      "risk": "R2",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.cdeadmin.command.execute",
+      "risk": "R4",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.mcp.tools.refresh",
+      "risk": "R0",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.mcp.tool.invoke",
+      "risk": "R1",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.audit.export",
+      "risk": "R1",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.run.cancel",
+      "risk": "R0",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.emergency.disable_writes",
+      "risk": "R5",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.emergency.disable_all",
+      "risk": "R6",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "ai.emergency.invalidate_approvals",
+      "risk": "R5",
+      "task": false,
+      "authority": "CommandRegistry"
+    }
+  ]
+}

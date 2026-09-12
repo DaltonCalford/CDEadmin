@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scratchbird-access-surface-ref.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "surfaceId",
+    "providerId",
+    "instanceId",
+    "kind",
+    "dialectId",
+    "canonicalResourceRef",
+    "crossSurfaceVisibility",
+    "queryCapabilities",
+    "mutationCapabilities"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "surfaceId": {
+      "type": "string"
+    },
+    "providerId": {
+      "const": "scratchbird"
+    },
+    "instanceId": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "sbsql_native",
+        "compatibility_parser",
+        "mcp",
+        "cdeadmin_provider"
+      ]
+    },
+    "dialectId": {
+      "type": "string"
+    },
+    "parserProfile": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "workareaSchemaRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "visibleQualifiedName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "catalogProjectionRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "canonicalResourceRef": {
+      "type": "string"
+    },
+    "visibilityScope": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "queryCapabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mutationCapabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "crossSurfaceVisibility": {
+      "enum": [
+        "none",
+        "engine_authorized"
+      ]
+    },
+    "evidenceVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

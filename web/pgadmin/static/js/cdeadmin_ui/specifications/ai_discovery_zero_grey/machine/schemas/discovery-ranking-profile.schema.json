@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-discovery-ranking-profile.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "name",
+    "weights",
+    "boosts",
+    "penalties",
+    "publishedRevision"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "profileId": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lexical",
+        "semantic",
+        "business",
+        "trust",
+        "quality",
+        "freshness",
+        "usage",
+        "context",
+        "lineage",
+        "documentation"
+      ],
+      "properties": {
+        "lexical": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "semantic": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "business": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "trust": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "quality": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "freshness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "usage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "context": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lineage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "documentation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "boosts": {
+      "type": "object"
+    },
+    "penalties": {
+      "type": "object"
+    },
+    "publishedRevision": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "published",
+        "retired"
+      ]
+    }
+  }
+}

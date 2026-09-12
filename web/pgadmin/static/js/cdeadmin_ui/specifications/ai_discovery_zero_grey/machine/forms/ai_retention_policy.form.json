@@ -1,0 +1,126 @@
+{
+  "form_id": "ai.retention_policy",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Retention Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Control conversation, tool-result and audit retention independently.",
+  "sections": [
+    {
+      "id": "conversation",
+      "title": "Conversation",
+      "fields": [
+        {
+          "id": "retain_messages",
+          "label": "Retain conversation messages",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "days",
+          "label": "Message retention days",
+          "component": "NumberField",
+          "required": false,
+          "default": 30,
+          "validation": "1..site max when retained.",
+          "help": "",
+          "secret": false,
+          "visibility": "retain_messages == true",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "retain_tool_results",
+          "label": "Retain model-visible tool extracts",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Prefer references.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "audit",
+      "title": "Audit",
+      "fields": [
+        {
+          "id": "audit_days",
+          "label": "Audit metadata retention days",
+          "component": "NumberField",
+          "required": true,
+          "default": 365,
+          "validation": "At least site minimum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "retain_prompts_in_audit",
+          "label": "Retain prompt text in audit",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Sensitive.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "meets site retention minimum/maximum",
+      "command": "ai.retention_policy.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Deleting conversation content does not delete mandatory audit metadata.",
+    "Raw secrets never retained."
+  ],
+  "spec_gaps": []
+}

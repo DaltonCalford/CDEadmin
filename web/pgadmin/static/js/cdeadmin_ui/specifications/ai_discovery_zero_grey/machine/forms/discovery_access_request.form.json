@@ -1,0 +1,153 @@
+{
+  "form_id": "discovery.access_request",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Request Data Access",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Request governed access without asking the user to find an administrator.",
+  "sections": [
+    {
+      "id": "request",
+      "title": "Request",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Target",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Discoverable/requestable ref.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "access",
+          "label": "Requested access",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Subset of requestable dimensions.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "DISCOVER_METADATA",
+            "VIEW_SCHEMA",
+            "VIEW_PROFILE_STATS",
+            "VIEW_SAMPLE",
+            "QUERY",
+            "EXPORT",
+            "ADMINISTER"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "environment",
+          "label": "Environment",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "Allowed environments.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "reason",
+          "label": "Business reason",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "duration",
+          "label": "Duration",
+          "component": "DurationField",
+          "required": true,
+          "default": "P30D",
+          "validation": "Within policy maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "project",
+          "label": "Project / use case",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Visible project.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "submit",
+      "label": "Submit Request",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "required fields and policy validation pass",
+      "command": "discovery.access.request.submit"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Never ask for provider password.",
+    "Provider grant is separate provisioning task after approval."
+  ],
+  "spec_gaps": []
+}

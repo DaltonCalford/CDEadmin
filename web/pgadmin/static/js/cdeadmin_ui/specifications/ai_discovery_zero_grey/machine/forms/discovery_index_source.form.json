@@ -1,0 +1,231 @@
+{
+  "form_id": "discovery.index_source",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Discovery Index Source",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Configure metadata/asset/usage ingestion into DiscoveryIndexService.",
+  "sections": [
+    {
+      "id": "source",
+      "title": "Source",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "type",
+          "label": "Source type",
+          "component": "Select",
+          "required": true,
+          "default": "provider_metadata",
+          "validation": "Known source type.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "provider_metadata",
+            "provider_system_catalog",
+            "cdeadmin_project_assets",
+            "query_history",
+            "lineage",
+            "data_quality",
+            "contracts",
+            "dashboards_reports",
+            "semantic_models_cubes",
+            "etl",
+            "cdc",
+            "migration",
+            "api",
+            "ml_vector",
+            "ddn",
+            "git",
+            "external_catalog",
+            "business_glossary",
+            "manual_curation"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "scope",
+          "label": "Scope",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Allowed source scope.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "enabled",
+          "label": "Enabled",
+          "component": "ToggleSwitch",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "update",
+      "title": "Update mode",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Mode",
+          "component": "Select",
+          "required": true,
+          "default": "INCREMENTAL_POLL",
+          "validation": "Supported mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "EVENT_DRIVEN",
+            "INCREMENTAL_POLL",
+            "FULL_RECONCILE",
+            "MANUAL",
+            "IMPORT"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "schedule",
+          "label": "Schedule",
+          "component": "TextField",
+          "required": false,
+          "default": "",
+          "validation": "Validated schedule expression when needed.",
+          "help": "",
+          "secret": false,
+          "visibility": "mode == INCREMENTAL_POLL or mode == FULL_RECONCILE",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "mandatory",
+          "label": "Mandatory for overall health",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "fields": [
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "Only if source requires dedicated credential.",
+          "help": "",
+          "secret": true,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "respect_provider_visibility",
+          "label": "Respect provider visibility",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must remain true for provider sources.",
+          "help": "Cannot be disabled for live provider metadata.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "test",
+      "label": "Test",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "configuration valid",
+      "command": "discovery.index.refresh"
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "configuration valid",
+      "command": "discovery.index.source.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "No source may index raw secrets.",
+    "Provider visibility/security labels are mandatory."
+  ],
+  "spec_gaps": []
+}

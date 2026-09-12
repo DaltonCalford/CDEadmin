@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-discovery-document.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "documentId",
+    "canonicalRef",
+    "entityClass",
+    "nativeKind",
+    "name",
+    "authorizedAliases",
+    "trustSignals",
+    "qualitySignals",
+    "freshnessSignals",
+    "usageSignals",
+    "accessState",
+    "searchText",
+    "updatedAt",
+    "sourceRevision",
+    "indexRevision"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "documentId": {
+      "type": "string"
+    },
+    "canonicalRef": {
+      "type": "string"
+    },
+    "entityClass": {
+      "enum": [
+        "LIVE_RESOURCE",
+        "PROJECT_ASSET",
+        "DATA_PRODUCT",
+        "BUSINESS_TERM",
+        "METRIC",
+        "DIMENSION",
+        "DOMAIN",
+        "GLOSSARY",
+        "API",
+        "DASHBOARD",
+        "REPORT",
+        "SEMANTIC_MODEL",
+        "CUBE",
+        "QUERY",
+        "PIPELINE",
+        "CDC_STREAM",
+        "CONTRACT",
+        "QUALITY_RULESET",
+        "LINEAGE_VIEW",
+        "ML_MODEL",
+        "VECTOR_INDEX",
+        "DDN_WORKSPACE",
+        "PERSON",
+        "TEAM",
+        "POLICY"
+      ]
+    },
+    "nativeKind": {
+      "type": "string"
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "connectionEnvironment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "qualifiedNames": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "authorizedAliases": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "businessTerms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "synonyms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "domainRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ownerRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stewardRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "classification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schemaSummary": {
+      "type": "object"
+    },
+    "nativeMetadataSummary": {
+      "type": "object"
+    },
+    "trustSignals": {
+      "type": "object"
+    },
+    "qualitySignals": {
+      "type": "object"
+    },
+    "freshnessSignals": {
+      "type": "object"
+    },
+    "usageSignals": {
+      "type": "object"
+    },
+    "lineageSignals": {
+      "type": "object"
+    },
+    "contractSignals": {
+      "type": "object"
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "deprecationState": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "accessState": {
+      "type": "object"
+    },
+    "searchText": {
+      "type": "string"
+    },
+    "embeddingRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "facetValues": {
+      "type": "object"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "sourceRevision": {
+      "type": "string"
+    },
+    "indexRevision": {
+      "type": "string"
+    }
+  }
+}

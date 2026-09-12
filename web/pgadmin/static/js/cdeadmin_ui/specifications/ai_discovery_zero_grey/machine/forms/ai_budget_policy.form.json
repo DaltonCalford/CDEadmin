@@ -1,0 +1,206 @@
+{
+  "form_id": "ai.budget_policy",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Budget Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Bound model/tool/database/cost use.",
+  "sections": [
+    {
+      "id": "model",
+      "title": "Model budget",
+      "fields": [
+        {
+          "id": "input_tokens",
+          "label": "Max input tokens / turn",
+          "component": "NumberField",
+          "required": true,
+          "default": 64000,
+          "validation": "Positive or site maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "output_tokens",
+          "label": "Max output tokens / turn",
+          "component": "NumberField",
+          "required": true,
+          "default": 8192,
+          "validation": "Positive or site maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "tool_calls_turn",
+          "label": "Max tool calls / turn",
+          "component": "NumberField",
+          "required": true,
+          "default": 20,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "tool_calls_plan",
+          "label": "Max tool calls / plan",
+          "component": "NumberField",
+          "required": true,
+          "default": 100,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "cost_turn",
+          "label": "Max estimated cost / turn",
+          "component": "UnitNumberField",
+          "required": false,
+          "default": null,
+          "validation": "Non-negative currency amount or unknown/unlimited according to site policy.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "database",
+      "title": "Database budget",
+      "fields": [
+        {
+          "id": "queries",
+          "label": "Max queries / turn",
+          "component": "NumberField",
+          "required": true,
+          "default": 10,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "rows",
+          "label": "Max rows / query",
+          "component": "NumberField",
+          "required": true,
+          "default": 1000,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "bytes",
+          "label": "Max result MiB / query",
+          "component": "NumberField",
+          "required": true,
+          "default": 10,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "parallel",
+          "label": "Max parallel tools",
+          "component": "NumberField",
+          "required": true,
+          "default": 4,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "minutes",
+          "label": "Max run minutes",
+          "component": "NumberField",
+          "required": true,
+          "default": 30,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "all budgets within site limits",
+      "command": "ai.budget_policy.update"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Unknown provider cost is not treated as zero.",
+    "Unlimited must be explicit, not numeric 0."
+  ],
+  "spec_gaps": []
+}

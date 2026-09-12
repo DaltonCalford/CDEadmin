@@ -1,0 +1,117 @@
+{
+  "form_id": "discovery.duplicate_review",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Review Similar / Duplicate Entities",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Record equivalence/replacement relation without merging independent provider identities.",
+  "sections": [
+    {
+      "id": "pair",
+      "title": "Candidate pair",
+      "fields": [
+        {
+          "id": "left",
+          "label": "Left entity",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "right",
+          "label": "Right entity",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "evidence",
+          "label": "Similarity evidence",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "relationship",
+          "label": "Decision",
+          "component": "Select",
+          "required": true,
+          "default": "equivalent_to",
+          "validation": "Allowed relationship.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "equivalent_to",
+            "replacement_for",
+            "related_to",
+            "not_duplicate"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "reject",
+      "label": "Not Duplicate",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": "discovery.duplicate.reject"
+    },
+    {
+      "id": "link",
+      "label": "Record Relationship",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "curation permission",
+      "command": "discovery.duplicate.link_equivalent"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Independent provider identities are never merged into one ResourceRef by this form."
+  ],
+  "spec_gaps": []
+}

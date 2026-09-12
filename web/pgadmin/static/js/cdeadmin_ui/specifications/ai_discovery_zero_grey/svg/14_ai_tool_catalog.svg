@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI Tool Catalog</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<rect x="0" y="0" width="1440" height="44" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#CAF0F8" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#EDF2FB" text-anchor="start">AI INTERFACE</text>
+<text x="1420" y="28" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="end">PROJECT: CUSTOMER MODERNIZATION   ENV: DEV</text>
+<rect x="0" y="44" width="48" height="798" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="24" y="74" font-family="Fira Code, monospace" font-size="16" font-weight="600" fill="#CAF0F8" text-anchor="middle">⌂</text>
+<text x="24" y="112" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">◫</text>
+<text x="24" y="150" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">⌘</text>
+<rect x="48" y="44" width="288" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">AI</text>
+<line x1="60" y1="76" x2="324" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="44" width="764" height="34" fill="#02297A" stroke="#57679F" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">AI TOOL / CAPABILITY CATALOG</text>
+<rect x="336" y="78" width="764" height="740" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">INSPECTOR</text>
+<line x1="1112" y1="76" x2="1402" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="628" width="764" height="190" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="350" y="650" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">BOTTOM DRAWER</text>
+<rect x="0" y="818" width="1440" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="start">STATUS  |  Ready  |  Project saved  |  No active task</text>
+<rect x="52" y="86" width="280" height="28" fill="#01438E"/>
+<text x="68" y="104" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#EDF2FB" text-anchor="start">CDEadmin tools</text>
+<text x="68" y="134" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">MCP tools</text>
+<text x="68" y="164" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Database operations</text>
+<text x="68" y="194" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Hidden by policy</text>
+<text x="68" y="224" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Risk classes</text>
+<text x="1116" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">SELECTED</text>
+<rect x="1116" y="112" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="132" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">migration.cutover.execute</text>
+<text x="1116" y="158" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">RISK</text>
+<rect x="1116" y="166" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="186" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">R6</text>
+<text x="1116" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">PERMISSION</text>
+<rect x="1116" y="220" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">ai.approve_production</text>
+<text x="1116" y="266" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">APPROVAL</text>
+<rect x="1116" y="274" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="294" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">Typed / dual</text>
+<text x="1116" y="320" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">TASK</text>
+<rect x="1116" y="328" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="348" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">Yes</text>
+<rect x="616" y="49" width="72" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="652.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Search</text>
+<rect x="694" y="49" width="80" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="734.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Refresh</text>
+<text x="366" y="110" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">MODULE / TOOL</text>
+<text x="746" y="110" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">RISK</text>
+<text x="831" y="110" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">AI EXPOSURE</text>
+<rect x="356" y="118" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="368" y="138" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">discovery.search.run</text>
+<text x="751" y="138" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">R0</text>
+<text x="836" y="138" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">executable</text>
+<rect x="356" y="156" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="368" y="176" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">schema_compare.run</text>
+<text x="751" y="176" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">R0</text>
+<text x="836" y="176" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">executable</text>
+<rect x="356" y="194" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="368" y="214" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">migration.cutover.execute</text>
+<text x="751" y="214" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#FFD166" text-anchor="start">R6</text>
+<text x="836" y="214" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">executable + approval</text>
+<rect x="356" y="232" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="368" y="252" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">security.show_secret</text>
+<text x="751" y="252" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#FFD166" text-anchor="start">R7</text>
+<text x="836" y="252" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">HIDDEN</text>
+<rect x="356" y="270" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="368" y="290" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">mcp.vector_search</text>
+<text x="751" y="290" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">R1</text>
+<text x="836" y="290" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">connector policy</text>
+<text x="366" y="370" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#FFD166" text-anchor="start">Commands not explicitly AI-exposed are absent. UI component methods are never tools.</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">AI Tool Catalog</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 14 · 1440×900 · STANDARD PROFILE</text>
+</svg>

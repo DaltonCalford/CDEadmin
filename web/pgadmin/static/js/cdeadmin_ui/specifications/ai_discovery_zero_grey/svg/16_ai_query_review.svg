@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI Query Review</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<rect x="0" y="0" width="1440" height="44" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#CAF0F8" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#EDF2FB" text-anchor="start">AI INTERFACE</text>
+<text x="1420" y="28" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="end">PROJECT: CUSTOMER MODERNIZATION   ENV: DEV</text>
+<rect x="0" y="44" width="48" height="798" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="24" y="74" font-family="Fira Code, monospace" font-size="16" font-weight="600" fill="#CAF0F8" text-anchor="middle">⌂</text>
+<text x="24" y="112" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">◫</text>
+<text x="24" y="150" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">⌘</text>
+<rect x="48" y="44" width="288" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">AI</text>
+<line x1="60" y1="76" x2="324" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="44" width="764" height="34" fill="#02297A" stroke="#57679F" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">QUERY REVIEW</text>
+<rect x="336" y="78" width="764" height="740" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">INSPECTOR</text>
+<line x1="1112" y1="76" x2="1402" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="628" width="764" height="190" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="350" y="650" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">BOTTOM DRAWER</text>
+<rect x="0" y="818" width="1440" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="start">STATUS  |  Ready  |  Project saved  |  No active task</text>
+<rect x="52" y="86" width="280" height="28" fill="#01438E"/>
+<text x="68" y="104" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#EDF2FB" text-anchor="start">Draft queries</text>
+<text x="68" y="134" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Compiled artifacts</text>
+<text x="68" y="164" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Recent resources</text>
+<text x="68" y="194" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Policies</text>
+<text x="1116" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">CONNECTOR</text>
+<rect x="1116" y="112" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="132" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">SB Native</text>
+<text x="1116" y="158" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">DIALECT</text>
+<rect x="1116" y="166" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="186" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">SBsql</text>
+<text x="1116" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">RISK</text>
+<rect x="1116" y="220" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">R1 read</text>
+<text x="1116" y="266" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">ROWS</text>
+<rect x="1116" y="274" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="294" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">≤ 1,000</text>
+<text x="1116" y="320" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">EGRESS</text>
+<rect x="1116" y="328" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="348" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">summary only</text>
+<rect x="581" y="49" width="80" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="621.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Explain</text>
+<rect x="667" y="49" width="80" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="707.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Execute</text>
+<rect x="753" y="49" width="72" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="789.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Revise</text>
+<text x="364" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">DIALECT / ACCESS SURFACE</text>
+<rect x="364" y="114" width="708" height="32" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="378" y="135" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">ScratchBird native (SBsql) · Cross-surface query · Engine authorization required</text>
+<text x="364" y="174" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">QUERY</text>
+<rect x="364" y="184" width="708" height="142" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="380" y="210" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#EDF2FB" text-anchor="start">SELECT p.customer_id, m.segment</text>
+<text x="380" y="234" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#EDF2FB" text-anchor="start">FROM emulated.postgresql.public.customer p</text>
+<text x="380" y="258" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#EDF2FB" text-anchor="start">JOIN emulated.mysql.sales.segment m ON m.customer_id = p.customer_id;</text>
+<text x="364" y="358" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">RESOLVED CANONICAL RESOURCES</text>
+<rect x="364" y="370" width="708" height="96" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="378" y="396" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">uuid…customer  ← PostgreSQL alias public.customer</text>
+<text x="378" y="420" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">uuid…segment   ← MySQL alias sales.segment</text>
+<text x="378" y="444" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#6DFF8B" text-anchor="start">One ScratchBird engine / one MGA authority</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">AI Query Review</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 16 · 1440×900 · STANDARD PROFILE</text>
+</svg>

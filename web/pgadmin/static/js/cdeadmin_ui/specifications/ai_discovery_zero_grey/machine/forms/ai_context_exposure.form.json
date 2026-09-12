@@ -1,0 +1,103 @@
+{
+  "form_id": "ai.context_exposure",
+  "module": "cdeadmin.ai_interface",
+  "title": "Add / Change AI Context",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Choose an explicit resource/asset and exposure level.",
+  "sections": [
+    {
+      "id": "item",
+      "title": "Context item",
+      "fields": [
+        {
+          "id": "ref",
+          "label": "Resource or asset",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Principal must discover ref.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "level",
+          "label": "Exposure level",
+          "component": "Select",
+          "required": true,
+          "default": "METADATA_SUMMARY",
+          "validation": "Must be <= policy maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "IDENTITY_ONLY",
+            "METADATA_SUMMARY",
+            "SCHEMA",
+            "STATISTICS",
+            "SAFE_SAMPLE",
+            "FULL_ALLOWED_CONTENT"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "reason",
+          "label": "Reason / intended question",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-2000 chars.",
+          "help": "Optional audit context.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "add",
+      "label": "Add Context",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "policy and access checks pass",
+      "command": "ai.context.add"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "The dialog previews classification and model-policy decision before adding."
+  ],
+  "spec_gaps": []
+}

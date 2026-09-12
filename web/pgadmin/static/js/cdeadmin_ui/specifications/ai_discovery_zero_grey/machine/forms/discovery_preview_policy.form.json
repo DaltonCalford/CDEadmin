@@ -1,0 +1,158 @@
+{
+  "form_id": "discovery.preview_policy",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Preview / Profiling Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Set bounded sample/profile behavior by classification/environment.",
+  "sections": [
+    {
+      "id": "sample",
+      "title": "Sample preview",
+      "fields": [
+        {
+          "id": "default_rows",
+          "label": "Default sample rows",
+          "component": "NumberField",
+          "required": true,
+          "default": 100,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_rows",
+          "label": "Maximum sample rows",
+          "component": "NumberField",
+          "required": true,
+          "default": 1000,
+          "validation": ">= default and <= site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "prod_samples",
+          "label": "Allow production samples",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean; may require extra permission.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "mask_sensitive",
+          "label": "Mask sensitive fields",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must remain true unless explicit policy supports alternate protection.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "profile",
+      "title": "Profiling",
+      "fields": [
+        {
+          "id": "allow_exact_scan",
+          "label": "Allow exact full-scan profiling",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean; Task required for large data.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "prefer_provider_stats",
+          "label": "Prefer provider-reported statistics",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "profile_budget_seconds",
+          "label": "Interactive profile budget seconds",
+          "component": "NumberField",
+          "required": true,
+          "default": 10,
+          "validation": "1..site max.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Preview/profile respects row/column/domain security.",
+    "Statistics show exact/estimated/sampled/provider-reported source."
+  ],
+  "spec_gaps": []
+}

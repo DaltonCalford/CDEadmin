@@ -1,0 +1,305 @@
+{
+  "schema": "cdeadmin-discovery-command-catalog@1",
+  "commands": [
+    {
+      "id": "discovery.search.run",
+      "class": "read",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.search.save",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.search.feedback",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.entity.open",
+      "class": "read",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.entity.show_surfaces",
+      "class": "read",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.related.find",
+      "class": "read",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.create",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.update",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.add_member",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.remove_member",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.request_certification",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.product.status.set",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.term.create",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.term.update",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.term.map",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.term.status.set",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.metric.create",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.metric.update",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.metric.certify",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.certification.review",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.certification.revoke",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.request.create",
+      "class": "project",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.request.submit",
+      "class": "governance",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.request.approve",
+      "class": "governance",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.request.deny",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.provision",
+      "class": "live_mutation",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.access.revoke",
+      "class": "live_mutation",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.index.source.create",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.index.source.update",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.index.refresh",
+      "class": "admin",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.index.reconcile",
+      "class": "admin",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.index.publish_revision",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.ranking.create",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.ranking.update",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.ranking.test",
+      "class": "admin",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.ranking.publish",
+      "class": "admin",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.synonym.update",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.curation.assign",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.curation.resolve",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.enrichment.accept",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.enrichment.reject",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.duplicate.link_equivalent",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.duplicate.reject",
+      "class": "governance",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.visibility.test",
+      "class": "admin",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.analytics.export",
+      "class": "read",
+      "task": true,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.open.query",
+      "class": "navigation",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.open.sbsql",
+      "class": "navigation",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.open.compatibility",
+      "class": "navigation",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.open.bi",
+      "class": "navigation",
+      "task": false,
+      "authority": "CommandRegistry"
+    },
+    {
+      "id": "discovery.ask_ai",
+      "class": "navigation",
+      "task": false,
+      "authority": "CommandRegistry"
+    }
+  ]
+}

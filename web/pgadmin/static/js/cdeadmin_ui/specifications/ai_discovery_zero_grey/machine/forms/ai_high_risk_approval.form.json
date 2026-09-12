@@ -1,0 +1,129 @@
+{
+  "form_id": "ai.high_risk_approval",
+  "module": "cdeadmin.ai_interface",
+  "title": "Confirm High-Risk AI Action",
+  "kind": "confirmation",
+  "size": "medium",
+  "purpose": "Confirm an R5/R6 action without allowing the model to self-authorize.",
+  "sections": [
+    {
+      "id": "target",
+      "title": "Target and consequence",
+      "fields": [
+        {
+          "id": "action",
+          "label": "Action",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only command.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "environment",
+          "label": "Environment",
+          "component": "EnvironmentIndicator",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "principal",
+          "label": "AI database principal",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "consequence",
+          "label": "Consequence",
+          "component": "TextArea",
+          "required": true,
+          "default": null,
+          "validation": "Read-only plain description.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "typed",
+          "label": "Type confirmation phrase",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Must exactly match generated phrase.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "confirm",
+      "label": "Confirm Action",
+      "intent": "destructive",
+      "default": false,
+      "closes": true,
+      "enabled_when": "typed phrase correct and permissions/plan revision current",
+      "command": "ai.plan.approve"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "The model does not choose or see secret confirmation phrase as an instruction channel.",
+    "Default button is Cancel."
+  ],
+  "spec_gaps": []
+}

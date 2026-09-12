@@ -1,0 +1,175 @@
+{
+  "form_id": "ai.cdeadmin_capability_connector",
+  "module": "cdeadmin.ai_interface",
+  "title": "CDEadmin Capability Connector",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Expose selected CDEadmin services/commands to AI without screen automation.",
+  "sections": [
+    {
+      "id": "modules",
+      "title": "Modules",
+      "fields": [
+        {
+          "id": "modules",
+          "label": "Allowed modules",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Installed modules only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "read_services",
+          "label": "Read services",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Only services declaring AI schemas.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "commands",
+          "label": "Commands",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Only commands declaring AI exposure.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "deny",
+          "label": "Explicit deny",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Deny wins.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "execution",
+      "title": "Execution",
+      "fields": [
+        {
+          "id": "draft_only",
+          "label": "Force all mutating commands to draft/propose",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "max_risk",
+          "label": "Maximum exposed risk",
+          "component": "Select",
+          "required": true,
+          "default": "R4",
+          "validation": "Cannot exceed site maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "R0",
+            "R1",
+            "R2",
+            "R3",
+            "R4",
+            "R5",
+            "R6"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "tasks",
+          "label": "Allow TaskService controls",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "refresh",
+      "label": "Refresh Catalog",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "save",
+      "label": "Save Connector",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "all command/service refs valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Commands with no AI exposure declaration remain hidden.",
+    "UI component methods are never tools."
+  ],
+  "spec_gaps": []
+}

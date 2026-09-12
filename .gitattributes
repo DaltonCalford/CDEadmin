@@ -5,3 +5,8 @@
 # deliberate space-only separator line and are verified by SHA-256 manifest.
 web/pgadmin/static/vendor/ddn/**/*.js whitespace=-blank-at-eol
 web/pgadmin/static/vendor/ddn/**/*.html whitespace=-blank-at-eol
+
+# Preserve the signed AI/Discovery specification Markdown bytes. The package
+# uses CommonMark two-space hard line breaks and is verified by SHA-256.
+web/pgadmin/static/js/cdeadmin_ui/specifications/ai_discovery_zero_grey/*.md whitespace=-blank-at-eol
+web/pgadmin/static/js/cdeadmin_ui/specifications/ai_discovery_zero_grey/**/*.md whitespace=-blank-at-eol

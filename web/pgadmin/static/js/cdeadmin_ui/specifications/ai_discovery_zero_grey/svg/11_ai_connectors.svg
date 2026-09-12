@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI Connectors</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<rect x="0" y="0" width="1440" height="44" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#CAF0F8" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#EDF2FB" text-anchor="start">AI INTERFACE</text>
+<text x="1420" y="28" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="end">PROJECT: CUSTOMER MODERNIZATION   ENV: DEV</text>
+<rect x="0" y="44" width="48" height="798" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="24" y="74" font-family="Fira Code, monospace" font-size="16" font-weight="600" fill="#CAF0F8" text-anchor="middle">⌂</text>
+<text x="24" y="112" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">◫</text>
+<text x="24" y="150" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">⌘</text>
+<rect x="48" y="44" width="288" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">AI</text>
+<line x1="60" y1="76" x2="324" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="44" width="764" height="34" fill="#02297A" stroke="#57679F" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">AI CONNECTORS</text>
+<rect x="336" y="78" width="764" height="740" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">INSPECTOR</text>
+<line x1="1112" y1="76" x2="1402" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="628" width="764" height="190" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="350" y="650" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">BOTTOM DRAWER</text>
+<rect x="0" y="818" width="1440" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="start">STATUS  |  Ready  |  Project saved  |  No active task</text>
+<rect x="52" y="86" width="280" height="28" fill="#01438E"/>
+<text x="68" y="104" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#EDF2FB" text-anchor="start">Database connectors</text>
+<text x="68" y="134" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Model providers</text>
+<text x="68" y="164" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">MCP connectors</text>
+<text x="68" y="194" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">CDEadmin tools</text>
+<text x="68" y="224" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Health</text>
+<text x="1116" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">CONNECTOR</text>
+<rect x="1116" y="112" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="132" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">SB Native</text>
+<text x="1116" y="158" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">CLASS</text>
+<rect x="1116" y="166" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="186" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">scratchbird_sbsql</text>
+<text x="1116" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">PRINCIPAL</text>
+<rect x="1116" y="220" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">cdeadmin_ai_finance</text>
+<text x="1116" y="266" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">SURFACE</text>
+<rect x="1116" y="274" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="294" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">ScratchBird native</text>
+<text x="1116" y="320" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">HEALTH</text>
+<rect x="1116" y="328" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="348" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">READY</text>
+<rect x="516" y="49" width="112" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="572.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">+ Connector</text>
+<rect x="634" y="49" width="68" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="668.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Test</text>
+<rect x="708" y="49" width="80" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="748.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Refresh</text>
+<text x="366" y="112" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">NAME</text>
+<text x="556" y="112" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">CLASS</text>
+<text x="726" y="112" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">PRINCIPAL</text>
+<text x="916" y="112" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">STATE</text>
+<rect x="356" y="116" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="366" y="136" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">SB Native</text>
+<text x="556" y="136" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">scratchbird_sbsql</text>
+<text x="726" y="136" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">cdeadmin_ai_finance</text>
+<circle cx="918" cy="132" r="5" fill="#6DFF8B"/>
+<text x="932" y="136" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#6DFF8B" text-anchor="start">READY</text>
+<rect x="356" y="154" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="366" y="174" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Postgres Compat</text>
+<text x="556" y="174" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">scratchbird_compatibility</text>
+<text x="726" y="174" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">cdeadmin_ai_pg</text>
+<circle cx="918" cy="170" r="5" fill="#6DFF8B"/>
+<text x="932" y="174" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#6DFF8B" text-anchor="start">READY</text>
+<rect x="356" y="192" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="366" y="212" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">ScratchBird MCP</text>
+<text x="556" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">scratchbird_mcp</text>
+<text x="726" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">tool-specific</text>
+<circle cx="918" cy="208" r="5" fill="#FFD166"/>
+<text x="932" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#FFD166" text-anchor="start">DEGRADED</text>
+<rect x="356" y="230" width="724" height="32" fill="#02196E" stroke="#36457D" stroke-width="1"/>
+<text x="366" y="250" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">External PG</text>
+<text x="556" y="250" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">database_provider</text>
+<text x="726" y="250" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#A2A6C9" text-anchor="start">ai_ro_user</text>
+<circle cx="918" cy="246" r="5" fill="#FFB4B4"/>
+<text x="932" y="250" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#FFB4B4" text-anchor="start">AUTH REQUIRED</text>
+<text x="366" y="340" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#FFD166" text-anchor="start">AI connectors have their own credential/principal bindings; they do not borrow the human interactive session.</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">AI Connectors</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 11 · 1440×900 · STANDARD PROFILE</text>
+</svg>

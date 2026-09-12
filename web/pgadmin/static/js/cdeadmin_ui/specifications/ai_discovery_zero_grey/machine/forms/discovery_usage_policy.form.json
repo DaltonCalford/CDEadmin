@@ -1,0 +1,184 @@
+{
+  "form_id": "discovery.usage_policy",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Usage / Popularity Privacy Policy",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Control how usage signals contribute to ranking/recommendations without exposing individual behavior.",
+  "sections": [
+    {
+      "id": "windows",
+      "title": "Aggregation",
+      "fields": [
+        {
+          "id": "windows",
+          "label": "Enabled windows",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [
+            "7d",
+            "30d",
+            "90d"
+          ],
+          "validation": "Subset of 24h/7d/30d/90d/all.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "24h",
+            "7d",
+            "30d",
+            "90d",
+            "all"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "min_distinct_users",
+          "label": "Minimum distinct users before team/org usage shown",
+          "component": "NumberField",
+          "required": true,
+          "default": 3,
+          "validation": "1..site max.",
+          "help": "Privacy threshold.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "show_individual_usage",
+          "label": "Show individual user identity in discovery UI",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean; normally false.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "ranking",
+      "title": "Ranking",
+      "fields": [
+        {
+          "id": "use_query",
+          "label": "Query execution",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "use_dashboard",
+          "label": "Dashboard/report views",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "use_api",
+          "label": "API calls",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "use_ai",
+          "label": "AI context/use",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "use_search_click",
+          "label": "Search selections",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Policy",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Usage policy never overrides access visibility.",
+    "Canonical ScratchBird usage aggregates aliases."
+  ],
+  "spec_gaps": []
+}

@@ -1,0 +1,112 @@
+{
+  "form_id": "discovery.certification_request",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Request Certification",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Submit a resource/product/metric for governed certification review.",
+  "sections": [
+    {
+      "id": "request",
+      "title": "Certification request",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Target",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Visible certifiable target.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "criteria_profile",
+          "label": "Criteria profile",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "Approved profile.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "reviewers",
+          "label": "Requested reviewers",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Eligible reviewers.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "notes",
+          "label": "Notes",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "submit",
+      "label": "Submit",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "criteria profile valid",
+      "command": "discovery.product.request_certification"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Submitting does not certify."
+  ],
+  "spec_gaps": []
+}

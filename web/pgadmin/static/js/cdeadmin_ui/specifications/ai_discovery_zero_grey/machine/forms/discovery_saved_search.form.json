@@ -1,0 +1,101 @@
+{
+  "form_id": "discovery.saved_search",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Save Discovery Search",
+  "kind": "dialog",
+  "size": "small",
+  "purpose": "Persist query/filter/ranking settings, not result copies.",
+  "sections": [
+    {
+      "id": "save",
+      "title": "Saved search",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "scope",
+          "label": "Sharing scope",
+          "component": "Select",
+          "required": true,
+          "default": "private",
+          "validation": "Allowed scope.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "private",
+            "project",
+            "team",
+            "organization"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "description",
+          "label": "Description",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-1000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "name and scope valid",
+      "command": "discovery.search.save"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Saved search stores query/filter/profile only; live results re-evaluate security on each run."
+  ],
+  "spec_gaps": []
+}

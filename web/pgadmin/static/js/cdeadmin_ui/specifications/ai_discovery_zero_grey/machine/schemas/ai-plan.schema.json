@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-ai-plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "planId",
+    "revision",
+    "baseContextRevision",
+    "agentProfileRef",
+    "modelProfileSnapshot",
+    "connectorSnapshots",
+    "steps",
+    "risks",
+    "requiredApprovals",
+    "validationChecks",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "planId": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "baseContextRevision": {
+      "type": "string"
+    },
+    "agentProfileRef": {
+      "type": "string"
+    },
+    "modelProfileSnapshot": {
+      "type": "object"
+    },
+    "connectorSnapshots": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "stepId",
+          "kind",
+          "status"
+        ],
+        "properties": {
+          "stepId": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "READ_METADATA",
+              "READ_DATA",
+              "COMPILE_QUERY",
+              "EXECUTE_QUERY",
+              "CREATE_ASSET_DRAFT",
+              "EDIT_ASSET",
+              "INVOKE_COMMAND",
+              "START_TASK",
+              "WAIT_TASK",
+              "VALIDATE",
+              "REQUEST_APPROVAL"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "validated",
+              "approval_required",
+              "running",
+              "succeeded",
+              "failed",
+              "skipped",
+              "cancelled"
+            ]
+          },
+          "commandId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connectorRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resourceRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assetRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "arguments": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requiredApprovals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "validationChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "validating",
+        "invalid",
+        "ready_for_approval",
+        "approved",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "stale"
+      ]
+    }
+  }
+}

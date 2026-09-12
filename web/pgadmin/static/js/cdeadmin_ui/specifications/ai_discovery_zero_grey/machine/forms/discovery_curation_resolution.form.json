@@ -1,0 +1,112 @@
+{
+  "form_id": "discovery.curation_resolution",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Resolve Curation Item",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Resolve a specific discovery curation issue with evidence.",
+  "sections": [
+    {
+      "id": "resolution",
+      "title": "Resolution",
+      "fields": [
+        {
+          "id": "item",
+          "label": "Curation item",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "action",
+          "label": "Resolution action",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "Allowed by item type.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "value",
+          "label": "New/mapped value",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "Validated according to metadata field.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "evidence",
+          "label": "Evidence / note",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "resolve",
+      "label": "Resolve",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "action-specific validation passes",
+      "command": "discovery.curation.resolve"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Resolution does not silently mutate live provider objects unless separate command exists."
+  ],
+  "spec_gaps": []
+}

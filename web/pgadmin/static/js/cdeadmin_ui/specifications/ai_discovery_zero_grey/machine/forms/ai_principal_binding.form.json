@@ -1,0 +1,162 @@
+{
+  "form_id": "ai.principal_binding",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Principal Binding",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Bind an Agent/Connector to a dedicated database/CDEadmin identity without impersonating the user.",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Identity",
+      "fields": [
+        {
+          "id": "binding_name",
+          "label": "Binding name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "principal_type",
+          "label": "Principal type",
+          "component": "Select",
+          "required": true,
+          "default": "service_account",
+          "validation": "Supported type.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "service_account",
+            "workload_identity",
+            "explicit_delegated_identity"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "principal_name",
+          "label": "Database principal / workload identity",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Provider-valid identity label.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "Required for credential-backed types.",
+          "help": "",
+          "secret": true,
+          "visibility": "principal_type != workload_identity",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "delegation",
+      "title": "Delegation",
+      "fields": [
+        {
+          "id": "allow_user_delegation",
+          "label": "Allow CDEadmin users to delegate to this principal",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "Does not grant them underlying database permissions.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "delegator_groups",
+          "label": "Allowed delegator groups",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Known CDEadmin groups.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "delegated_identity_notice",
+          "label": "Delegated identity mode requires provider support",
+          "component": "Banner",
+          "required": false,
+          "default": null,
+          "validation": "Informational.",
+          "help": "",
+          "secret": false,
+          "visibility": "principal_type == explicit_delegated_identity",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Binding",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "identity and delegation policy valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "The AI principal is independently authenticated.",
+    "No invisible RUN AS / impersonation."
+  ],
+  "spec_gaps": []
+}

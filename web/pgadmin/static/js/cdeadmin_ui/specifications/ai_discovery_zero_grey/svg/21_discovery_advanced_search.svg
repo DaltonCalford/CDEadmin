@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>Advanced Discovery Search</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<rect x="0" y="0" width="1440" height="44" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#CAF0F8" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#EDF2FB" text-anchor="start">DATA DISCOVERY &amp; INTELLIGENCE</text>
+<text x="1420" y="28" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="end">PROJECT: CUSTOMER MODERNIZATION   ENV: DEV</text>
+<rect x="0" y="44" width="48" height="798" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="24" y="74" font-family="Fira Code, monospace" font-size="16" font-weight="600" fill="#CAF0F8" text-anchor="middle">⌂</text>
+<text x="24" y="112" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">◫</text>
+<text x="24" y="150" font-family="Fira Code, monospace" font-size="16" font-weight="500" fill="#A2A6C9" text-anchor="middle">⌘</text>
+<rect x="48" y="44" width="288" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">DISCOVERY</text>
+<line x1="60" y1="76" x2="324" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="44" width="764" height="34" fill="#02297A" stroke="#57679F" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="start">ADVANCED SEARCH</text>
+<rect x="336" y="78" width="764" height="740" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">INSPECTOR</text>
+<line x1="1112" y1="76" x2="1402" y2="76" stroke="#36457D" stroke-width="1"/>
+<rect x="336" y="628" width="764" height="190" fill="#060A2D" stroke="#57679F" stroke-width="1"/>
+<text x="350" y="650" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">BOTTOM DRAWER</text>
+<rect x="0" y="818" width="1440" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#A2A6C9" text-anchor="start">STATUS  |  Ready  |  Project saved  |  No active task</text>
+<rect x="52" y="86" width="280" height="28" fill="#01438E"/>
+<text x="68" y="104" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#EDF2FB" text-anchor="start">Saved searches</text>
+<text x="68" y="134" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Recent filters</text>
+<text x="68" y="164" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Entity classes</text>
+<text x="68" y="194" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Providers</text>
+<text x="68" y="224" font-family="Fira Code, monospace" font-size="10" font-weight="400" fill="#A2A6C9" text-anchor="start">Domains</text>
+<text x="1116" y="104" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">QUERY</text>
+<rect x="1116" y="112" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="132" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">4 conditions</text>
+<text x="1116" y="158" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">RANKING</text>
+<rect x="1116" y="166" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="186" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">Business</text>
+<text x="1116" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">SECURITY</text>
+<rect x="1116" y="220" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="240" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">pre-filtered</text>
+<text x="1116" y="266" font-family="Fira Code, monospace" font-size="8" font-weight="600" fill="#A2A6C9" text-anchor="start">ESTIMATED</text>
+<rect x="1116" y="274" width="284" height="30" fill="#04054F" stroke="#36457D" stroke-width="1"/>
+<text x="1126" y="294" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#EDF2FB" text-anchor="start">312 visible candidates</text>
+<rect x="636" y="49" width="68" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="670.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Run</text>
+<rect x="710" y="49" width="112" height="24" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="766.0" y="65" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="middle">Save Search</text>
+<text x="364" y="108" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#CAF0F8" text-anchor="start">FILTER CONDITIONS</text>
+<rect x="364" y="122" width="180" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="376" y="142" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Entity type</text>
+<rect x="552" y="122" width="120" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="564" y="142" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">is any of</text>
+<rect x="680" y="122" width="392" height="30" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="692" y="142" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="start">Data Product, Metric, Live Resource</text>
+<rect x="364" y="164" width="180" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="376" y="184" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Domain</text>
+<rect x="552" y="164" width="120" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="564" y="184" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">equals</text>
+<rect x="680" y="164" width="392" height="30" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="692" y="184" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="start">Finance</text>
+<rect x="364" y="206" width="180" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="376" y="226" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Certification</text>
+<rect x="552" y="206" width="120" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="564" y="226" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">equals</text>
+<rect x="680" y="206" width="392" height="30" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="692" y="226" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="start">Certified</text>
+<rect x="364" y="248" width="180" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="376" y="268" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Freshness</text>
+<rect x="552" y="248" width="120" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="564" y="268" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">within</text>
+<rect x="680" y="248" width="392" height="30" fill="#04054F" stroke="#57679F" stroke-width="1"/>
+<text x="692" y="268" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#EDF2FB" text-anchor="start">24 hours</text>
+<text x="364" y="340" font-family="Fira Code, monospace" font-size="8" font-weight="700" fill="#A2A6C9" text-anchor="start">RANKING PROFILE</text>
+<rect x="364" y="352" width="220" height="30" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="376" y="372" font-family="Fira Code, monospace" font-size="9" font-weight="500" fill="#EDF2FB" text-anchor="start">Business</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">Advanced Discovery Search</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 21 · 1440×900 · STANDARD PROFILE</text>
+</svg>

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cdeadmin-access-request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "requester",
+    "targetRef",
+    "requestedAccess",
+    "environment",
+    "reason",
+    "duration",
+    "status"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "requester": {
+      "type": "string"
+    },
+    "targetRef": {
+      "type": "string"
+    },
+    "requestedAccess": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "DISCOVER_METADATA",
+          "VIEW_SCHEMA",
+          "VIEW_PROFILE_STATS",
+          "VIEW_SAMPLE",
+          "QUERY",
+          "EXPORT",
+          "ADMINISTER"
+        ]
+      }
+    },
+    "environment": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "duration": {
+      "type": "string"
+    },
+    "projectRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "policyResult": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "approvers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "SUBMITTED",
+        "AUTO_APPROVED",
+        "PENDING_APPROVAL",
+        "APPROVED",
+        "DENIED",
+        "PROVISIONING",
+        "ACTIVE",
+        "EXPIRED",
+        "REVOKED",
+        "FAILED"
+      ]
+    },
+    "providerGrantPlanRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

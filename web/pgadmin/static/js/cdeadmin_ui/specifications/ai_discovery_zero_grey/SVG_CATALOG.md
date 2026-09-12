@@ -1,0 +1,30 @@
+# Normative SVG Catalogue
+
+- `00_scratchbird_canonical_identity.svg` — Canonical UUID identity vs compatibility/SBsql/MCP access surfaces.
+- `01_sbsql_cross_surface_security.svg` — Normative cross-surface authorization decision.
+- `10_ai_workbench.svg` — AI Workbench
+- `11_ai_connectors.svg` — AI Connectors
+- `12_ai_scratchbird_connector.svg` — ScratchBird AI Connector
+- `13_ai_policy_editor.svg` — AI Policy Editor
+- `14_ai_tool_catalog.svg` — AI Tool Catalog
+- `15_ai_plan_review.svg` — AI Plan Review
+- `16_ai_query_review.svg` — AI Query Review
+- `17_ai_action_approval.svg` — AI Action Approval
+- `18_ai_audit_health.svg` — AI Audit and Health
+- `20_discovery_search.svg` — Discovery Search
+- `21_discovery_advanced_search.svg` — Advanced Discovery Search
+- `22_discovery_data360.svg` — Data 360
+- `23_discovery_marketplace.svg` — Data Marketplace
+- `24_data_product.svg` — Data Product
+- `25_glossary.svg` — Business Glossary and Metrics
+- `26_access_certification.svg` — Access and Certification
+- `27_discovery_usage.svg` — Discovery Usage
+- `28_discovery_index_admin.svg` — Discovery Index Administration
+- `29_discovery_ranking.svg` — Discovery Ranking Tuner
+- `30_discovery_curation.svg` — Discovery Curation
+- `31_discovery_analytics.svg` — Discovery Search Analytics
+- `33_scratchbird_access_surfaces.svg` — ScratchBird Access Surfaces
+- `34_discovery_to_analysis.svg` — Discovery to Analysis
+- `02_ai_discovery_architecture.svg` — Module/platform/database authority relationship.
+- `10_ai_workbench_light.svg` — AI Workbench — Light
+- `20_discovery_search_light.svg` — Discovery Search — Light

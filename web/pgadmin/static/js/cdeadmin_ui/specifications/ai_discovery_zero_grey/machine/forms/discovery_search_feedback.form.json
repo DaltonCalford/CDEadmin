@@ -1,0 +1,104 @@
+{
+  "form_id": "discovery.search_feedback",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Discovery Search Feedback",
+  "kind": "dialog",
+  "size": "small",
+  "purpose": "Record explicit relevance/metadata feedback without directly mutating ranking or metadata.",
+  "sections": [
+    {
+      "id": "feedback",
+      "title": "Feedback",
+      "fields": [
+        {
+          "id": "result",
+          "label": "Result",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only canonical result.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "type",
+          "label": "Feedback",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "One value.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "Useful",
+            "Not relevant",
+            "Wrong meaning",
+            "Outdated",
+            "Duplicate",
+            "Should be certified",
+            "Missing data"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "note",
+          "label": "Optional note",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "0-2000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "submit",
+      "label": "Submit",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "feedback type selected",
+      "command": "discovery.search.feedback"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Feedback is a signal/curation input, not an immediate hidden score rewrite."
+  ],
+  "spec_gaps": []
+}

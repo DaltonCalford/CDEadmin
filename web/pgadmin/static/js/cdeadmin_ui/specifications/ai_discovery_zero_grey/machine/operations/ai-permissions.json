@@ -1,0 +1,57 @@
+{
+  "schema": "cdeadmin-ai-permissions@1",
+  "permissions": [
+    [
+      "ai.use",
+      "Open AI workbench and use permitted read-only functions."
+    ],
+    [
+      "ai.manage_own_sessions",
+      "Create/archive own AI sessions."
+    ],
+    [
+      "ai.manage_agent_profiles",
+      "Create/edit agent profiles within allowed scope."
+    ],
+    [
+      "ai.manage_connectors",
+      "Create/edit AI connectors; does not grant database credentials."
+    ],
+    [
+      "ai.manage_model_profiles",
+      "Configure model endpoints/refs."
+    ],
+    [
+      "ai.delegate_read",
+      "Permit AI principal to perform R0-R1 actions on user's behalf."
+    ],
+    [
+      "ai.delegate_draft",
+      "Permit R2 draft/project changes."
+    ],
+    [
+      "ai.delegate_write",
+      "Permit proposing/executing approved R4 live writes."
+    ],
+    [
+      "ai.approve_high_risk",
+      "Approve R5 actions."
+    ],
+    [
+      "ai.approve_production",
+      "Approve R6 actions."
+    ],
+    [
+      "ai.view_sensitive_context",
+      "Permit policy-approved sensitive context exposure."
+    ],
+    [
+      "ai.export_audit",
+      "Export redacted AI audit records."
+    ],
+    [
+      "ai.admin",
+      "Global AI policy/emergency controls; no raw-secret disclosure."
+    ]
+  ]
+}

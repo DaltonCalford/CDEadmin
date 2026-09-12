@@ -1,0 +1,120 @@
+{
+  "form_id": "discovery.quick_search",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Discover Data",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Run governed enterprise discovery search.",
+  "sections": [
+    {
+      "id": "query",
+      "title": "Search",
+      "fields": [
+        {
+          "id": "text",
+          "label": "Search",
+          "component": "SearchField",
+          "required": true,
+          "default": "",
+          "validation": "1-1000 chars.",
+          "help": "Supports names, terms and natural language.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "component": "SegmentedControl",
+          "required": true,
+          "default": "QUICK",
+          "validation": "One search mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "QUICK",
+            "KEYWORD",
+            "SEMANTIC",
+            "BUSINESS_TERM",
+            "FIELD",
+            "METRIC"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "scope",
+          "label": "Scope",
+          "component": "MultiSelect",
+          "required": false,
+          "default": [],
+          "validation": "Allowed entity classes/domains/providers only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "ranking",
+          "label": "Ranking profile",
+          "component": "Select",
+          "required": true,
+          "default": "Balanced",
+          "validation": "Published profile only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "search",
+      "label": "Search",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "query non-empty",
+      "command": "discovery.search.run"
+    },
+    {
+      "id": "save",
+      "label": "Save Search",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "query valid",
+      "command": "discovery.search.save"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Search security trimming occurs before result return.",
+    "Autocomplete obeys the same visibility rules."
+  ],
+  "spec_gaps": []
+}

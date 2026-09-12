@@ -1,0 +1,245 @@
+{
+  "form_id": "discovery.metric",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Metric Definition",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Define a business metric separately from any one physical query.",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Metric",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-160 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "description",
+          "label": "Description",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-4000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "owner",
+          "label": "Owner",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "At least one owner.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "domain",
+          "label": "Domain",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Visible domain.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "semantics",
+      "title": "Semantics",
+      "fields": [
+        {
+          "id": "formula",
+          "label": "Business formula",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "Human-readable formula/definition.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "aggregation",
+          "label": "Aggregation",
+          "component": "Select",
+          "required": true,
+          "default": "sum",
+          "validation": "One semantic aggregation.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "sum",
+            "count",
+            "distinct_count",
+            "average",
+            "min",
+            "max",
+            "ratio",
+            "custom"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "grain",
+          "label": "Grain",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Non-empty business grain.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "dimensions",
+          "label": "Dimensions",
+          "component": "AssetPicker",
+          "required": false,
+          "default": [],
+          "validation": "Dimension refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "filters",
+          "label": "Default filters",
+          "component": "TextArea",
+          "required": false,
+          "default": "",
+          "validation": "Structured/validated semantic filter source.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "implementation",
+      "title": "Implementation",
+      "fields": [
+        {
+          "id": "semantic_model",
+          "label": "Semantic model",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Visible semantic model/cube.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "implementations",
+          "label": "Physical implementations",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Visible resources/query assets.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "metric valid",
+      "command": "discovery.metric.update"
+    },
+    {
+      "id": "certify",
+      "label": "Request Certification",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "metric complete",
+      "command": "discovery.metric.certify"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Physical query text is not the metric identity."
+  ],
+  "spec_gaps": []
+}

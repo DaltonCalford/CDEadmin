@@ -1,0 +1,157 @@
+{
+  "form_id": "ai.new_session",
+  "module": "cdeadmin.ai_interface",
+  "title": "New AI Session",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Start a bounded AI session with explicit profile and connectors.",
+  "sections": [
+    {
+      "id": "session",
+      "title": "Session",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Session name",
+          "component": "TextField",
+          "required": false,
+          "default": "",
+          "validation": "0-120 characters.",
+          "help": "Optional display name.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "agent_profile",
+          "label": "Agent profile",
+          "component": "AssetPicker",
+          "required": true,
+          "default": null,
+          "validation": "Must reference enabled AgentProfile.",
+          "help": "Controls model/connectors/policy.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "mode",
+          "label": "Mode",
+          "component": "SegmentedControl",
+          "required": true,
+          "default": "ASK",
+          "validation": "One listed mode.",
+          "help": "ASK/DISCOVER/ANALYZE/DRAFT/PLAN/OPERATE.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "ASK",
+            "DISCOVER",
+            "ANALYZE",
+            "DRAFT",
+            "PLAN",
+            "OPERATE"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "project",
+          "label": "Project context",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Existing project when set.",
+          "help": "Does not grant project permission.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "connectors",
+      "title": "Connectors",
+      "fields": [
+        {
+          "id": "connector_set",
+          "label": "Enabled connectors",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "At least one connector or CDEadmin-only profile.",
+          "help": "Only connectors permitted by the agent profile.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "initial_context",
+          "label": "Initial context",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Every item must be discoverable and permitted.",
+          "help": "Defaults to metadata exposure.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "create",
+      "label": "Create Session",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "agent profile valid and at least one usable capability",
+      "command": "ai.session.new"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "The dialog never asks for raw database/model credentials."
+  ],
+  "spec_gaps": []
+}

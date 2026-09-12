@@ -1,0 +1,134 @@
+{
+  "form_id": "discovery.zero_result_resolution",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Resolve Zero-Result Search",
+  "kind": "dialog",
+  "size": "medium",
+  "purpose": "Convert a repeated no-result query into a governed synonym/term/data-gap action.",
+  "sections": [
+    {
+      "id": "query",
+      "title": "Observed search",
+      "fields": [
+        {
+          "id": "query",
+          "label": "Query",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "frequency",
+          "label": "Frequency",
+          "component": "NumberField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "resolution",
+          "label": "Resolution",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "One action.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "add_synonym",
+            "create_business_term",
+            "map_existing_term",
+            "mark_expected_no_result",
+            "open_data_gap"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "target",
+          "label": "Target term/resource",
+          "component": "AssetPicker",
+          "required": false,
+          "default": null,
+          "validation": "Required for mapping resolutions.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "note",
+          "label": "Note",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "1-2000 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": true,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "resolve",
+      "label": "Resolve",
+      "intent": "primary",
+      "default": false,
+      "closes": true,
+      "enabled_when": "resolution fields valid",
+      "command": "discovery.curation.resolve"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Never resolve by exposing a security-hidden asset name."
+  ],
+  "spec_gaps": []
+}

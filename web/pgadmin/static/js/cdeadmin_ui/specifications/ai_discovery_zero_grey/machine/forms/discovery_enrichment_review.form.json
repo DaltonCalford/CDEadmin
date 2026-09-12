@@ -1,0 +1,144 @@
+{
+  "form_id": "discovery.enrichment_review",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Review Metadata Enrichment Suggestion",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Review AI/imported enrichment before it becomes governed metadata.",
+  "sections": [
+    {
+      "id": "suggestion",
+      "title": "Suggestion",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Target",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "field",
+          "label": "Metadata field",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "current",
+          "label": "Current value",
+          "component": "TextArea",
+          "required": false,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "proposed",
+          "label": "Proposed value",
+          "component": "TextArea",
+          "required": true,
+          "default": null,
+          "validation": "Editable only if policy allows correction.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "evidence",
+          "label": "Evidence",
+          "component": "DataGrid",
+          "required": false,
+          "default": null,
+          "validation": "Read-only evidence refs.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "origin",
+          "label": "Origin / model",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "reject",
+      "label": "Reject",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": "discovery.enrichment.reject"
+    },
+    {
+      "id": "accept",
+      "label": "Accept",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "curation permission and valid value",
+      "command": "discovery.enrichment.accept"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "AI suggestions are never authoritative until accepted."
+  ],
+  "spec_gaps": []
+}

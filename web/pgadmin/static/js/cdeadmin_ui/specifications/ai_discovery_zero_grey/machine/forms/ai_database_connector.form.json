@@ -1,0 +1,363 @@
+{
+  "form_id": "ai.database_connector",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Database Connector",
+  "kind": "wizard",
+  "size": "760-840",
+  "purpose": "Create a dedicated AI-owned database connection profile.",
+  "sections": [
+    {
+      "id": "target",
+      "title": "1 \u2014 Target",
+      "fields": [
+        {
+          "id": "provider",
+          "label": "Provider",
+          "component": "Select",
+          "required": true,
+          "default": null,
+          "validation": "Must be installed/available provider.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "connection",
+          "label": "Base connection profile",
+          "component": "ConnectionSelector",
+          "required": true,
+          "default": null,
+          "validation": "Existing connection endpoint; AI does not inherit its interactive session.",
+          "help": "Endpoint/config may be reused; credentials are separate.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "mode",
+          "label": "Access mode",
+          "component": "Select",
+          "required": true,
+          "default": "database_provider",
+          "validation": "Must be supported by selected provider.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "database_provider",
+            "scratchbird_sbsql",
+            "scratchbird_compatibility",
+            "scratchbird_mcp",
+            "mcp_generic"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "identity",
+      "title": "2 \u2014 AI identity",
+      "fields": [
+        {
+          "id": "principal",
+          "label": "Database principal",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Provider-valid principal label.",
+          "help": "Shown in audit.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": true,
+          "default": null,
+          "validation": "CredentialRef resolvable.",
+          "help": "No raw secret.",
+          "secret": true,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "surface",
+      "title": "3 \u2014 Access surface",
+      "fields": [
+        {
+          "id": "dialect",
+          "label": "Dialect",
+          "component": "Select",
+          "required": false,
+          "default": null,
+          "validation": "Required for ScratchBird compatibility; SBsql fixed for sbsql mode.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "workarea",
+          "label": "Sandbox/workarea",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": null,
+          "validation": "Required for compatibility parser mode.",
+          "help": "Compatibility root only.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "cross_surface",
+          "label": "Cross-surface ScratchBird query",
+          "component": "Checkbox",
+          "required": false,
+          "default": false,
+          "validation": "Enabled only for scratchbird_sbsql and engine-authorized profile.",
+          "help": "Never visible/enabled for compatibility connector.",
+          "secret": false,
+          "visibility": "mode == scratchbird_sbsql",
+          "enabled": "engine capability and admin policy permit",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "title": "4 \u2014 Resource scope",
+      "fields": [
+        {
+          "id": "allowed",
+          "label": "Allowed resources/namespaces",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Subset of principal-visible resources.",
+          "help": "Empty means profile policy default, not automatically all.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "blocked",
+          "label": "Explicitly blocked resources",
+          "component": "ResourcePicker",
+          "required": false,
+          "default": [],
+          "validation": "Must not overlap allowed exact ref without block winning.",
+          "help": "Block always wins.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "query",
+      "title": "5 \u2014 Query policy",
+      "fields": [
+        {
+          "id": "read",
+          "label": "Allow reads",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "write",
+          "label": "Allow writes",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Default false.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "ddl",
+          "label": "Allow DDL",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Default false.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "row_limit",
+          "label": "Max rows",
+          "component": "NumberField",
+          "required": true,
+          "default": 1000,
+          "validation": "1..1000000 site policy bound.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "byte_limit",
+          "label": "Max result MiB",
+          "component": "NumberField",
+          "required": true,
+          "default": 10,
+          "validation": "1..site maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "timeout",
+          "label": "Max statement seconds",
+          "component": "NumberField",
+          "required": true,
+          "default": 30,
+          "validation": "1..site maximum.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "intent": "neutral",
+      "default": false,
+      "closes": true,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "always",
+      "command": null
+    },
+    {
+      "id": "next",
+      "label": "Next",
+      "intent": "primary",
+      "default": false,
+      "closes": false,
+      "enabled_when": "current step valid",
+      "command": null
+    },
+    {
+      "id": "test",
+      "label": "Test Connection",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "steps 1-5 valid",
+      "command": "ai.connector.test"
+    },
+    {
+      "id": "create",
+      "label": "Create",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "all steps valid and test not failed",
+      "command": "ai.connector.create"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "AI credentials are independent of human interactive credentials.",
+    "Compatibility mode cross-surface access is forbidden.",
+    "SBsql cross-surface requires engine grant plus AI policy."
+  ],
+  "spec_gaps": []
+}

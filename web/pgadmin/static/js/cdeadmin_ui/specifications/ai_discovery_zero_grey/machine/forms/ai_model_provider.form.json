@@ -1,0 +1,273 @@
+{
+  "form_id": "ai.model_provider",
+  "module": "cdeadmin.ai_interface",
+  "title": "Model Provider Profile",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Configure a local/self-hosted/remote model provider without database authority.",
+  "sections": [
+    {
+      "id": "identity",
+      "title": "Identity",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "Profile display name.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "runtime",
+          "label": "Runtime class",
+          "component": "Select",
+          "required": true,
+          "default": "remote",
+          "validation": "One value.",
+          "help": "Affects data-egress policy.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "local",
+            "self_hosted",
+            "remote"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "endpoint",
+          "label": "Endpoint / runtime reference",
+          "component": "TextField",
+          "required": false,
+          "default": "",
+          "validation": "HTTPS URL or local runtime reference according to class.",
+          "help": "Never include API keys in URL.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "model",
+          "label": "Model identifier",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "Provider-valid model ID.",
+          "help": "Recorded in audit.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "credential",
+          "label": "Credential reference",
+          "component": "SecretField",
+          "required": false,
+          "default": null,
+          "validation": "Credential reference only.",
+          "help": "Raw secret never serialized.",
+          "secret": true,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "capabilities",
+      "title": "Capabilities",
+      "fields": [
+        {
+          "id": "tool_calling",
+          "label": "Tool calling",
+          "component": "Checkbox",
+          "required": false,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Validated by connector test.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "structured_output",
+          "label": "Structured output",
+          "component": "Checkbox",
+          "required": false,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Validated by connector test.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "streaming",
+          "label": "Streaming",
+          "component": "Checkbox",
+          "required": false,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "context_limit",
+          "label": "Context limit",
+          "component": "NumberField",
+          "required": false,
+          "default": null,
+          "validation": "Positive integer or unknown.",
+          "help": "Unknown is not zero.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Data policy metadata",
+      "fields": [
+        {
+          "id": "classification",
+          "label": "Maximum approved classification",
+          "component": "Select",
+          "required": true,
+          "default": "INTERNAL",
+          "validation": "One lattice level.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "PUBLIC",
+            "INTERNAL",
+            "CONFIDENTIAL",
+            "RESTRICTED",
+            "REGULATED",
+            "SECRET_REFERENCE_ONLY"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "residency",
+          "label": "Data residency",
+          "component": "TextField",
+          "required": false,
+          "default": "unknown",
+          "validation": "Human-readable configured/verified statement.",
+          "help": "Unknown is explicit.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "retention",
+          "label": "Provider retention statement",
+          "component": "TextArea",
+          "required": false,
+          "default": "unknown",
+          "validation": "Text or policy reference.",
+          "help": "Informational; does not replace contracts.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "test",
+      "label": "Test",
+      "intent": "neutral",
+      "default": false,
+      "closes": false,
+      "enabled_when": "required fields valid",
+      "command": "ai.model_profile.test"
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "form valid",
+      "command": "ai.model_profile.update"
+    },
+    {
+      "id": "disable",
+      "label": "Disable",
+      "intent": "warning",
+      "default": false,
+      "closes": false,
+      "enabled_when": "profile exists",
+      "command": "ai.model_profile.disable"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Credential control stores only CredentialRef.",
+    "Remote model data policy must be evaluated before context egress."
+  ],
+  "spec_gaps": []
+}

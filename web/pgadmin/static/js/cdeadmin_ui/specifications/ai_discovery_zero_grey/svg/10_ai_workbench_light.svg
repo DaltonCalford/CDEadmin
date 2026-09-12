@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>AI Workbench — Light</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#E8EFFB"/>
+<rect x="0" y="0" width="1440" height="44" fill="#F7F9FE" stroke="#66ADD3" stroke-width="1"/>
+<text x="16" y="28" font-family="Fira Code, monospace" font-size="14" font-weight="700" fill="#0077B6" text-anchor="start">CDEadmin</text>
+<text x="118" y="28" font-family="Fira Code, monospace" font-size="11" font-weight="600" fill="#03045E" text-anchor="start">AI INTERFACE</text>
+<rect x="0" y="44" width="48" height="798" fill="#F7F9FE" stroke="#66ADD3" stroke-width="1"/>
+<rect x="48" y="44" width="288" height="774" fill="#F7F9FE" stroke="#66ADD3" stroke-width="1"/>
+<text x="62" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#0077B6" text-anchor="start">AI</text>
+<rect x="336" y="44" width="764" height="34" fill="#FFFFFF" stroke="#66ADD3" stroke-width="1"/>
+<text x="348" y="66" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#0077B6" text-anchor="start">AI WORKBENCH</text>
+<rect x="336" y="78" width="764" height="740" fill="#EFF4FC" stroke="#66ADD3" stroke-width="1"/>
+<rect x="1100" y="44" width="316" height="774" fill="#FFFFFF" stroke="#66ADD3" stroke-width="1"/>
+<text x="1114" y="66" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#0077B6" text-anchor="start">INSPECTOR</text>
+<rect x="0" y="818" width="1440" height="24" fill="#F7F9FE" stroke="#66ADD3" stroke-width="1"/>
+<text x="10" y="834" font-family="Fira Code, monospace" font-size="9" font-weight="400" fill="#4A4A8B" text-anchor="start">STATUS  |  Ready</text>
+<rect x="24" y="842" width="1392" height="42" fill="#F7F9FE" stroke="#66ADD3" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#0077B6" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#4A4A8B" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#03045E" text-anchor="start">AI Workbench — Light</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#4A4A8B" text-anchor="start">PLATE 10L · 1440×900 · STANDARD PROFILE</text>
+</svg>

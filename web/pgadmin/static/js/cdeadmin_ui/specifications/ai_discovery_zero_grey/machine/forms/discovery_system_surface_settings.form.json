@@ -1,0 +1,126 @@
+{
+  "form_id": "discovery.system_surface_settings",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "ScratchBird Compatibility/System Surface Discovery Settings",
+  "kind": "surface_form",
+  "size": "large",
+  "purpose": "Control technical visibility of compatibility catalogs without promoting them to business datasets.",
+  "sections": [
+    {
+      "id": "display",
+      "title": "Display",
+      "fields": [
+        {
+          "id": "business_default",
+          "label": "Hide system/catalog projections from business search",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Must remain true unless architecture policy changes.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "technical_filter",
+          "label": "Allow explicit technical/system filter",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "show_aliases_default",
+          "label": "Show access surfaces expanded by default",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Boolean.",
+          "help": "Default collapsed canonical view.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "index",
+      "title": "Indexing",
+      "fields": [
+        {
+          "id": "index_catalog_names",
+          "label": "Index authorized catalog/system names for technical search",
+          "component": "Checkbox",
+          "required": true,
+          "default": true,
+          "validation": "Boolean.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "business_ranking",
+          "label": "Allow catalog/system projections in business ranking",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Must remain false.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Settings",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "rules valid",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Compatibility catalogs do not grant base-object access.",
+    "Business ranking cannot promote system projections."
+  ],
+  "spec_gaps": []
+}

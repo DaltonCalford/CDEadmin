@@ -1,0 +1,182 @@
+{
+  "form_id": "discovery.access_approval",
+  "module": "cdeadmin.discovery_intelligence",
+  "title": "Review Access Request",
+  "kind": "review",
+  "size": "large",
+  "purpose": "Approve or deny a request with provider-grant preview.",
+  "sections": [
+    {
+      "id": "request",
+      "title": "Request",
+      "fields": [
+        {
+          "id": "requester",
+          "label": "Requester",
+          "component": "TextField",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "target",
+          "label": "Target",
+          "component": "ResourcePicker",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "access",
+          "label": "Requested permissions",
+          "component": "MultiSelect",
+          "required": true,
+          "default": [],
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "reason",
+          "label": "Reason",
+          "component": "TextArea",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "policy",
+          "label": "Policy evaluation",
+          "component": "DataGrid",
+          "required": true,
+          "default": null,
+          "validation": "Read-only.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "grant",
+          "label": "Provider grant plan",
+          "component": "CodeEditor",
+          "required": false,
+          "default": null,
+          "validation": "Read-only preview where available.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "readonly",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "decision",
+      "title": "Decision",
+      "fields": [
+        {
+          "id": "expiration",
+          "label": "Expiration override",
+          "component": "DateField",
+          "required": false,
+          "default": null,
+          "validation": "May only shorten unless policy permits.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "note",
+          "label": "Decision note",
+          "component": "TextArea",
+          "required": true,
+          "default": "",
+          "validation": "Required.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "deny",
+      "label": "Deny",
+      "intent": "warning",
+      "default": false,
+      "closes": true,
+      "enabled_when": "note set",
+      "command": "discovery.access.request.deny"
+    },
+    {
+      "id": "approve",
+      "label": "Approve",
+      "intent": "primary",
+      "default": true,
+      "closes": true,
+      "enabled_when": "approver permission and policy pass",
+      "command": "discovery.access.request.approve"
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Approval does not itself create database grant; provisioning task does."
+  ],
+  "spec_gaps": []
+}

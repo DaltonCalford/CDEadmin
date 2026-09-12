@@ -1,0 +1,131 @@
+{
+  "form_id": "ai.instruction_asset",
+  "module": "cdeadmin.ai_interface",
+  "title": "AI Instruction / Prompt Policy Asset",
+  "kind": "surface_form",
+  "size": "workbench",
+  "purpose": "Edit organization/project instructions supplied to a model without overriding hard policy.",
+  "sections": [
+    {
+      "id": "source",
+      "title": "Instruction source",
+      "fields": [
+        {
+          "id": "name",
+          "label": "Name",
+          "component": "TextField",
+          "required": true,
+          "default": "",
+          "validation": "1-120 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "scope",
+          "label": "Scope",
+          "component": "Select",
+          "required": true,
+          "default": "project",
+          "validation": "Allowed scope.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [
+            "user",
+            "project",
+            "team",
+            "organization"
+          ],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "instructions",
+          "label": "Instructions",
+          "component": "CodeEditor",
+          "required": true,
+          "default": "",
+          "validation": "Text/Markdown; size within site limit.",
+          "help": "Cannot grant permissions or expose secrets.",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "title": "Policy",
+      "fields": [
+        {
+          "id": "locked",
+          "label": "Locked by administrator",
+          "component": "Checkbox",
+          "required": true,
+          "default": false,
+          "validation": "Admin-managed.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        },
+        {
+          "id": "version_note",
+          "label": "Version note",
+          "component": "TextField",
+          "required": false,
+          "default": "",
+          "validation": "0-500 chars.",
+          "help": "",
+          "secret": false,
+          "visibility": "always",
+          "enabled": "always",
+          "options": [],
+          "placeholder": null,
+          "binds_to": null,
+          "warning": null
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "save",
+      "label": "Save Instructions",
+      "intent": "primary",
+      "default": true,
+      "closes": false,
+      "enabled_when": "valid source",
+      "command": null
+    }
+  ],
+  "states": [
+    "default",
+    "loading",
+    "invalid",
+    "permission-denied",
+    "error"
+  ],
+  "keyboard": "Tab order follows visual order; Enter invokes default only when no multiline/editor control owns Enter; Esc cancels modal forms; all pickers support keyboard search.",
+  "security_notes": [
+    "Instruction assets are lower authority than site security/tool/data policies.",
+    "Database content cannot rewrite this asset."
+  ],
+  "spec_gaps": []
+}

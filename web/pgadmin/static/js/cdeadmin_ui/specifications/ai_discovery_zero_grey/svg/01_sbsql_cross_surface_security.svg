@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>SBsql cross-surface security decision</title>
+<desc>Normative CDEadmin zero-grey SVG. Dimensions and labels are implementation requirements, not visual inspiration.</desc>
+<rect x="0" y="0" width="1440" height="900" fill="#03045E"/>
+<text x="42" y="50" font-family="Fira Code, monospace" font-size="18" font-weight="700" fill="#CAF0F8" text-anchor="start">SCRATCHBIRD CROSS-SURFACE QUERY SECURITY</text>
+<text x="42" y="76" font-family="Fira Code, monospace" font-size="10" font-weight="500" fill="#A2A6C9" text-anchor="start">The client cannot turn one engine into an unauthorized cross-root gateway.</text>
+<rect x="80" y="160" width="260" height="100" fill="#02196E" stroke="#CAF0F8" stroke-width="1"/>
+<text x="210" y="188" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">REQUEST</text>
+<text x="210" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">References one or more</text>
+<text x="210" y="228" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">ScratchBird objects</text>
+<rect x="420" y="160" width="260" height="100" fill="#02196E" stroke="#CAF0F8" stroke-width="1"/>
+<text x="550" y="188" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">CONNECTOR</text>
+<text x="550" y="212" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">Compatibility parser or SBsql?</text>
+<rect x="80" y="370" width="260" height="100" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="210" y="398" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">COMPATIBILITY</text>
+<text x="210" y="422" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">Sandbox root only → sibling root</text>
+<text x="210" y="438" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">denied</text>
+<rect x="420" y="370" width="260" height="100" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="550" y="398" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">SBSQL</text>
+<text x="550" y="422" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">Validate AI policy + engine</text>
+<text x="550" y="438" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">visibility/grants</text>
+<rect x="760" y="370" width="260" height="100" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="890" y="398" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">ENGINE</text>
+<text x="890" y="422" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">Engine authorizes every object;</text>
+<text x="890" y="438" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">one MGA authority</text>
+<rect x="1080" y="370" width="260" height="100" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="1210" y="398" font-family="Fira Code, monospace" font-size="10" font-weight="700" fill="#CAF0F8" text-anchor="middle">RESULT</text>
+<text x="1210" y="422" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">Return or refuse with explicit</text>
+<text x="1210" y="438" font-family="Fira Code, monospace" font-size="8" font-weight="400" fill="#EDF2FB" text-anchor="middle">diagnostic</text>
+<line x1="340" y1="210" x2="420" y2="210" stroke="#CAF0F8" stroke-width="2"/>
+<line x1="550" y1="260" x2="210" y2="370" stroke="#FFD166" stroke-width="2"/>
+<line x1="550" y1="260" x2="550" y2="370" stroke="#6DFF8B" stroke-width="2"/>
+<line x1="680" y1="420" x2="760" y2="420" stroke="#6DFF8B" stroke-width="2"/>
+<line x1="1020" y1="420" x2="1080" y2="420" stroke="#6DFF8B" stroke-width="2"/>
+<text x="210" y="500" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#FFB4B4" text-anchor="middle">Compatibility parser: CROSS-SURFACE = FORBIDDEN</text>
+<text x="760" y="530" font-family="Fira Code, monospace" font-size="9" font-weight="700" fill="#6DFF8B" text-anchor="middle">SBsql: CROSS-SURFACE = possible only when policy AND engine grants permit</text>
+<text x="720" y="650" font-family="Fira Code, monospace" font-size="10" font-weight="600" fill="#FFD166" text-anchor="middle">CDEadmin/AI MUST NOT emulate forbidden visibility by separately querying hidden workareas and merging results.</text>
+<rect x="24" y="842" width="1392" height="42" fill="#02196E" stroke="#57679F" stroke-width="1"/>
+<text x="38" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#CAF0F8" text-anchor="start">CDEADMIN · SCRATCHBIRD SOFTWARE</text>
+<text x="38" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">ZERO-GREY NORMATIVE INTERFACE PLATE</text>
+<text x="860" y="860" font-family="Fira Code, monospace" font-size="9" font-weight="600" fill="#EDF2FB" text-anchor="start">SBsql cross-surface security</text>
+<text x="860" y="876" font-family="Fira Code, monospace" font-size="8" font-weight="500" fill="#A2A6C9" text-anchor="start">PLATE 01 · 1440×900 · STANDARD PROFILE</text>
+</svg>
