@@ -159,3 +159,4 @@ export {
   createAIContent, registerAIModule, serializeAIContent,
 } from './modules/ai';
 export * from './specifications/ai_discovery_zero_grey';
+export * from './modules/ai_interface';
