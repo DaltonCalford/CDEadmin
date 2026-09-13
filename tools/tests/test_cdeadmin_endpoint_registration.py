@@ -149,7 +149,7 @@ class RegistrationProfileTests(unittest.TestCase):
         )
         self.assertLessEqual(engines, set(labels))
 
-        icon_root = module_path.parent / 'static/img'
+        icon_root = WEB / 'pgadmin/static/assets/cdeadmin/engines'
         icons = {path.stem for path in icon_root.glob('*.svg')}
         self.assertLessEqual(set(labels), icons)
         css_template = (

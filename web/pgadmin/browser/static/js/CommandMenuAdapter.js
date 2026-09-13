@@ -19,6 +19,8 @@ import {
   menuBindingRegistry,
 } from '../../../static/js/cdeadmin_ui/commands/MenuStructure';
 import {inferActionIconKey} from '../../../static/js/cdeadmin_ui/icons/registry';
+import {normalizeCommandCustomizations} from
+  '../../../static/js/cdeadmin_ui/customization/profile';
 
 function safeSegment(value, fallback) {
   const normalized = String(value ?? '').toLowerCase()
@@ -136,19 +138,11 @@ export function registerMenuCommand(options, surface=null) {
   return id;
 }
 
-function commandCustomizations() {
+export function commandCustomizations() {
   const value = usePreferences.getState().getPreferences(
     'browser', 'command_customizations'
   )?.value;
-  if(!value) return {};
-  if(typeof value === 'object') return value;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ?
-      parsed : {};
-  } catch {
-    return {};
-  }
+  return normalizeCommandCustomizations(value);
 }
 
 export function commandContext(item=null, itemData=undefined, shortcut=null) {

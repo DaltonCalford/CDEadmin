@@ -7,7 +7,7 @@
 //
 //////////////////////////////////////////////////////////////
 
-import ScratchRobinIcon from '../../../browser/server_groups/engine_types/static/img/scratchrobincde.svg?svgr';
+import ScratchRobinIcon from '../../../static/assets/cdeadmin/branding/scratchrobincde.svg?svgr';
 
 export default function CDEadminLogo() {
   return (

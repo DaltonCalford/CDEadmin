@@ -20,7 +20,7 @@ import {Icon, inferActionIconKey} from 'sources/cdeadmin_ui/icons';
 
 
 const StyledBox = styled(Box)(({theme}) => ({
-  height: '30px',
+  minHeight: 'var(--cde-menu-row-height, 30px)',
   backgroundColor: theme.palette.primary.main,
   color: theme.palette.primary.contrastText,
   padding: '0 0.5rem',
@@ -68,9 +68,22 @@ const StyledBox = styled(Box)(({theme}) => ({
 export function MenuCommandLabel({menuItem}) {
   const iconKey = menuItem.iconKey || inferActionIconKey(menuItem) ||
     'command.default';
-  return <span style={{display: 'inline-flex', alignItems: 'center', gap: '0.5rem'}}>
-    <Icon iconKey={iconKey} decorative size="1rem" />
+  const presentation = menuItem.presentation ?? {};
+  const style = {
+    display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+    fontFamily: presentation.fontFamily || undefined,
+    fontSize: presentation.fontSize || undefined,
+    fontWeight: presentation.fontWeight || undefined,
+    color: presentation.color || undefined,
+    backgroundColor: presentation.backgroundColor || undefined,
+  };
+  return <span style={style}>
+    {presentation.iconPosition !== 'hidden' &&
+      presentation.iconPosition !== 'after' &&
+      <Icon iconKey={iconKey} decorative size="1rem" />}
     <span>{menuItem.label}</span>
+    {presentation.iconPosition === 'after' &&
+      <Icon iconKey={iconKey} decorative size="1rem" />}
   </span>;
 }
 
@@ -148,9 +161,26 @@ export default function AppMenuBar() {
       </div>
       <div className='AppMenuBar-menus'>
         {pgAdmin.Browser.MainMenus?.map((menu)=>{
+          const presentation = menu.presentation ?? {};
+          const menuStyle = {
+            fontFamily: presentation.fontFamily || undefined,
+            fontSize: presentation.fontSize || undefined,
+            fontWeight: presentation.fontWeight || undefined,
+            color: presentation.color || undefined,
+            backgroundColor: presentation.backgroundColor || undefined,
+          };
           return (
             <PgMenu
-              menuButton={<PrimaryButton key={menu.label} data-label={menu.label}>{menu.label}<KeyboardArrowDownIcon fontSize="small" /></PrimaryButton>}
+              menuButton={<PrimaryButton key={menu.label} data-label={menu.label}
+                data-menu-name={menu.name} style={menuStyle}>
+                {menu.iconKey && presentation.iconPosition !== 'hidden' &&
+                  presentation.iconPosition !== 'after' &&
+                  <Icon iconKey={menu.iconKey} decorative />}
+                {menu.label}
+                {menu.iconKey && presentation.iconPosition === 'after' &&
+                  <Icon iconKey={menu.iconKey} decorative />}
+                <KeyboardArrowDownIcon fontSize="small" />
+              </PrimaryButton>}
               label={menu.label}
               key={menu.name}
             >

@@ -54,7 +54,7 @@ export default function rcdockOverride(theme) {
               },
               '& .dock-tab': {
                 margin: '0 6px',
-                filter: 'brightness(0.85)',
+                filter: 'brightness(var(--cde-inactive-brightness, 0.85))',
                 transform: 'scale(1)',
                 transformOrigin: 'center',
                 transition: 'transform 120ms ease, filter 120ms ease',
@@ -65,7 +65,7 @@ export default function rcdockOverride(theme) {
                 },
                 '&.dock-tab-active': {
                   filter: 'brightness(1)',
-                  transform: 'scale(1.15)',
+                  transform: 'scale(var(--cde-active-tab-scale, 1.15))',
                   zIndex: 2,
                 },
               },

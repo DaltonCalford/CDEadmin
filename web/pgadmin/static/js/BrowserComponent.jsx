@@ -53,6 +53,7 @@ import {
   ActiveStatusHost,
   BottomDrawerHost,
   InspectorHost,
+  InterfaceDesigner,
   requestWorkbenchInspection,
   workbenchContextService,
 } from 'sources/cdeadmin_ui';
@@ -63,6 +64,14 @@ export const processesPanelData = {
 
 export const preferencesPanelData = {
   id: BROWSER_PANELS.PREFERENCES, title: gettext('Preferences'), content: <PreferencesComponent panelId={BROWSER_PANELS.PREFERENCES} />, closable: true, manualClose: true, group: 'playground'
+};
+
+export const interfaceDesignerPanelData = {
+  id: 'cdeadmin-interface-designer', title: gettext('Interface Designer'),
+  tooltip: gettext('Customize appearance, artwork, menus, and commands'),
+  iconKey: 'action.settings',
+  content: <InterfaceDesigner panelId="cdeadmin-interface-designer" />,
+  closable: true, group: 'playground'
 };
 
 export const defaultTabsData = [
@@ -176,8 +185,20 @@ function Layouts({browser, platform}) {
     )();
     return permitted;
   };
-  const workspaceActivities = enabled ? [
+  const openInterfaceDesigner = useCallback(() => {
+    changeWorkspace(WORKSPACES.DEFAULT);
+    pgAdmin.Browser.docker.default_workspace.openTab(
+      interfaceDesignerPanelData, BROWSER_PANELS.MAIN, 'middle', true
+    );
+    return true;
+  }, [changeWorkspace, pgAdmin]);
+  const workspaceActivities = [
     {
+      id: 'activity.interface-designer', label: gettext('Interface Designer'),
+      iconKey: 'action.settings', priority: 9, navigationVisible: false,
+      onSelect: openInterfaceDesigner,
+    },
+    ...(enabled ? [{
       id: 'activity.workspace.query', label: gettext('Query Tool'),
       iconKey: 'tool.query', priority: 11, navigationVisible: false,
       disabled: !hasOpenTabs(WORKSPACES.QUERY_TOOL),
@@ -197,7 +218,7 @@ function Layouts({browser, platform}) {
       disabled: !hasOpenTabs(WORKSPACES.SCHEMA_DIFF_TOOL),
       onSelect: () => selectWorkspace(WORKSPACES.SCHEMA_DIFF_TOOL,
         AllPermissionTypes.TOOLS_SCHEMA_DIFF),
-    },
+    }] : []),
     {
       id: 'activity.preferences', label: gettext('Preferences'),
       iconKey: 'action.settings', priority: 1000, navigationVisible: false,
@@ -208,7 +229,7 @@ function Layouts({browser, platform}) {
         return true;
       },
     },
-  ] : [];
+  ];
   const shellActivities = [...activities.map((activity) => ({
     ...activity,
     onSelect: () => {
@@ -235,6 +256,7 @@ function Layouts({browser, platform}) {
       createProject: () => window.dispatchEvent(new CustomEvent(
         'cdeadmin:project-create'
       )),
+      openInterfaceDesigner,
       service: platform.schemaCompare,
       schemaCompare: platform.schemaCompare,
       lineage: platform.lineage,
@@ -255,7 +277,8 @@ function Layouts({browser, platform}) {
         delete pgAdmin.Browser.CDEadminCommandContext;
       }
     };
-  }, [changeWorkspace, ensureSurfaceHost, pgAdmin, platform.cdc,
+  }, [changeWorkspace, ensureSurfaceHost, openInterfaceDesigner, pgAdmin,
+    platform.cdc,
     platform.contract, platform.etl,
     platform.lineage, platform.quality,
     platform.apiDesigner, platform.migration, platform.replication, platform.schemaCompare,
@@ -386,7 +409,8 @@ function Layouts({browser, platform}) {
 
   return (
     <ApplicationStateProvider>
-      <div style={{height: (browser != 'Electron' ? 'calc(100% - 30px)' : '100%')}}>
+      <div style={{height: (browser != 'Electron' ?
+        'calc(100% - var(--cde-menu-row-height, 30px))' : '100%')}}>
         <WorkbenchShell activities={shellActivities}
           startCollapsed
           activeActivityOverride={activeWorkspaceActivity} initialLayout={{

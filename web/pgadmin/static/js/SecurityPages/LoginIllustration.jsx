@@ -7,7 +7,7 @@
 //
 //////////////////////////////////////////////////////////////
 
-import LoginImageUrl from '../../img/login.svg?url';
+import LoginImageUrl from '../../assets/cdeadmin/auth/login.svg?url';
 
 export default function LoginIllustration() {
   return <img

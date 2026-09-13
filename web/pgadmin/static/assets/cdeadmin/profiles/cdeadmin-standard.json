@@ -1,0 +1,20 @@
+{
+  "schema": "cdeadmin.interface-profile.v1",
+  "name": "CDEadmin standard",
+  "presentation": {
+    "accessibility_profile": "cdeadmin_standard",
+    "accessibility_density": "profile",
+    "accessibility_motion": "profile",
+    "accessibility_ui_font_family": "",
+    "accessibility_monospace_font_family": ""
+  },
+  "iconAssignments": {
+    "schema": "cdeadmin.icon-assignments.v1",
+    "assignments": {}
+  },
+  "menuCustomizations": {
+    "schema": "cdeadmin.menu-customization.v1",
+    "menus": {}
+  },
+  "commandCustomizations": {}
+}

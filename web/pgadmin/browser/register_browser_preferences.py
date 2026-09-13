@@ -26,6 +26,26 @@ def register_browser_preferences(self):
             'enabled-state restrictions used by CDEadmin command surfaces.'
         )
     )
+    self.preference.register(
+        'interface_customization', 'icon_assignments',
+        gettext('Icon assignments'), 'multiline',
+        '{"schema":"cdeadmin.icon-assignments.v1","assignments":{}}',
+        category_label=gettext('Interface customization'), hidden=True,
+        help_str=gettext(
+            'Validated per-user mappings from semantic icon identities to '
+            'assets in the CDEadmin artwork catalog.'
+        )
+    )
+    self.preference.register(
+        'interface_customization', 'menu_customizations',
+        gettext('Menu customizations'), 'multiline',
+        '{"schema":"cdeadmin.menu-customization.v1","menus":{}}',
+        category_label=gettext('Interface customization'), hidden=True,
+        help_str=gettext(
+            'Validated per-user menu labels, ordering, appearance, and '
+            'command placement used by the Interface Designer.'
+        )
+    )
 
     self.show_system_objects = self.preference.register(
         'display', 'show_system_objects',

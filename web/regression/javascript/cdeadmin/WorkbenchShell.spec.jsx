@@ -42,11 +42,9 @@ describe('Zero-Grey workbench shell', () => {
     expect([...activityTabs].every((button) => button.querySelector(
       '[data-icon-key]'))).toBe(true);
     expect(activityTabs[0]).toHaveAttribute('data-selected', 'true');
-    expect(activityTabs[0]).toHaveAttribute('data-visual-scale', '1.15');
-    expect(activityTabs[0]).toHaveAttribute('data-visual-brightness', '1');
+    expect(activityTabs[0]).toHaveAttribute('data-visual-emphasis', 'active');
     expect(activityTabs[1]).toHaveAttribute('data-selected', 'false');
-    expect(activityTabs[1]).toHaveAttribute('data-visual-scale', '1');
-    expect(activityTabs[1]).toHaveAttribute('data-visual-brightness', '0.85');
+    expect(activityTabs[1]).toHaveAttribute('data-visual-emphasis', 'inactive');
     expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
       .toHaveTextContent('Live resources');
     expect(screen.getByRole('main', {name: 'Main workbench'}))

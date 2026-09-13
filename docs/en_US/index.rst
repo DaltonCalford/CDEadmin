@@ -20,6 +20,7 @@ upstream attribution.
    cdeadmin_hard_fork
    project_governance
    cdeadmin_architecture
+   interface_designer
    implementation_status
    report_delivery
    external_database

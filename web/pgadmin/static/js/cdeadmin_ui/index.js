@@ -103,9 +103,12 @@ export {
   MenuBindingRegistry,
   MenuStructureRegistry,
   CDEADMIN_MENU_STRUCTURE,
+  MENU_CUSTOMIZATION_SCHEMA,
   PROVISIONAL_MENU_STRUCTURE,
+  createMenuCustomizationDocument,
   menuBindingRegistry,
   menuStructureRegistry,
+  normalizeMenuCustomizations,
 } from './commands/MenuStructure';
 export {ShortcutRegistry, shortcutRegistry} from './commands/ShortcutRegistry';
 export {ProjectExplorer} from './projects/ProjectExplorer';
@@ -141,6 +144,7 @@ export {
 } from './integrations/ddn';
 export * from './platform';
 export * from './shell';
+export * from './customization';
 export * from './modules/schema_compare';
 export * from './modules/lineage';
 export * from './modules/quality';

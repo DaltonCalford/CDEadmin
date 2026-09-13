@@ -109,6 +109,16 @@ contribution, command, event, diagnostics, and surface registries. Its
 Zero-Grey design system supplies token-driven light/dark and accessibility
 profiles, semantic controls, standard dialogs, persistent layouts, keyboard
 commands, project assets, and detachable/restorable work surfaces. The bundled
+Interface Designer lets each account edit reviewed fonts, colours, relative
+geometry, density, motion, semantic artwork assignments, menu structure, and
+authorized command placement. Portable validated profiles support personal,
+team, and organization baselines without embedding executable code or
+weakening command permissions. Product, engine, authentication, and command
+artwork is held in the canonical
+`web/pgadmin/static/assets/cdeadmin` catalog; new code uses semantic icon
+identities instead of physical asset paths.
+
+The bundled
 DDN Viewer and DDN Designer are consumed as versioned third-party libraries
 through their documented public APIs; editable DDN source remains the single
 diagram authority and is stored as an authenticated, versioned project asset.

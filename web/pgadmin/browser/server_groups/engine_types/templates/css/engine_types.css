@@ -6,7 +6,7 @@
   'yugabytedb'] %}
 {% for engine in engines %}
 .icon-engine-type-{{ engine }} {
-  background-image: url('{{ url_for('NODE-engine_type.static', filename='img/' + engine + '.svg') }}') !important;
+  background-image: url('{{ url_for("static", filename="assets/cdeadmin/engines/" + engine + ".svg") }}') !important;
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain !important;
@@ -14,7 +14,7 @@
   height: 1.3em;
 }
 .icon-engine-type-{{ engine }}-unavailable {
-  background-image: url('{{ url_for('NODE-engine_type.static', filename='img/' + engine + '.svg') }}') !important;
+  background-image: url('{{ url_for("static", filename="assets/cdeadmin/engines/" + engine + ".svg") }}') !important;
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain !important;

@@ -13,7 +13,7 @@ import usePreferences from '../../../preferences/static/js/store';
 import {menuStructureRegistry} from
   '../../../static/js/cdeadmin_ui/commands/MenuStructure';
 import {
-  executeMenuCommand, resolveMenuCommand,
+  commandCustomizations, executeMenuCommand, resolveMenuCommand,
 } from './CommandMenuAdapter';
 import {commandRegistry} from
   '../../../static/js/cdeadmin_ui/commands/CommandRegistry';
@@ -55,8 +55,13 @@ export default class MainMenuFactory {
 
   static createMainMenus() {
     pgAdmin.Browser.MainMenus = [];
-    menuStructureRegistry.get().forEach((_menu) => {
+    const menuPreference = usePreferences.getState().getPreferences(
+      'browser', 'menu_customizations'
+    )?.value;
+    menuStructureRegistry.resolve(menuPreference).forEach((_menu) => {
       let menuObj = Menu.create(_menu.name, gettext(_menu.label), _menu.id, _menu.index, _menu.addSeprator, _menu.hasDynamicMenuItems);
+      menuObj.iconKey = _menu.iconKey;
+      menuObj.presentation = _menu.presentation;
       pgAdmin.Browser.MainMenus.push(menuObj);
       // Don't add menuItems for hasDynamicMenuItems true as it's menuItems get changed on tree selection.
       if(!_menu.hasDynamicMenuItems) {
@@ -79,14 +84,20 @@ export default class MainMenuFactory {
     const cache = Object.assign({}, ...aliases.map((surface) =>
       pgAdmin.Browser.all_menus_cache?.[surface] ?? {}
     ));
-    const registered = commandRegistry.list().filter((command) =>
-      command.surfaces.includes(name)
+    const customizations = commandCustomizations();
+    const registered = commandRegistry.list().filter((command) => {
+      const requestedSurface = customizations[command.id]?.surface;
+      return requestedSurface ? requestedSurface === name :
+        command.surfaces.includes(name);
+    }
     ).reduce((result, command, index) => ({...result, [command.id]: {
       name: command.id.replaceAll('.', '_'),
       commandId: command.id,
-      label: command.label,
-      iconKey: command.iconKey,
-      priority: 1000 + index,
+      label: customizations[command.id]?.label ?? command.label,
+      iconKey: customizations[command.id]?.iconKey ?? command.iconKey,
+      presentation: customizations[command.id]?.presentation ?? {},
+      priority: Number.isFinite(customizations[command.id]?.priority) ?
+        customizations[command.id].priority : 1000 + index,
       category: 'common',
     }}), {});
     return {...cache, ...registered};

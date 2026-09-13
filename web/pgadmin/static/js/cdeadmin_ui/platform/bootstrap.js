@@ -77,6 +77,12 @@ function ensureCoreModules() {
         iconKey: 'tool.data-explorer', surfaces: ['view'],
         execute: (_args, context) => requiredCallback('showActivity', context)(
           'activity.data'
+        )},
+      {id: 'tools.interface-designer.open', label: 'Interface Designer',
+        description: 'Customize accessible presentation, artwork, menus, and commands.',
+        iconKey: 'action.settings', surfaces: ['tools', 'view'],
+        execute: (_args, context) => requiredCallback(
+          'openInterfaceDesigner', context
         )}],
     },
   });

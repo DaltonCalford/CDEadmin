@@ -8,6 +8,11 @@
 //////////////////////////////////////////////////////////////
 
 const MENU_NAME = /^[a-z][a-z0-9_-]*$/;
+const ICON_KEY = /^[a-z0-9][a-z0-9._-]*$/;
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const FONT_FAMILY = /^[a-zA-Z0-9 ,.'"_-]{1,160}$/;
+
+export const MENU_CUSTOMIZATION_SCHEMA = 'cdeadmin.menu-customization.v1';
 
 export const CDEADMIN_MENU_STRUCTURE = Object.freeze([
   Object.freeze({label: 'File', name: 'file', id: 'mnu_file', index: 0,
@@ -45,6 +50,77 @@ function normalizeMenu(input, index) {
     index: Number.isFinite(input.index) ? input.index : index,
     addSeprator: Boolean(input.addSeprator),
     hasDynamicMenuItems: Boolean(input.hasDynamicMenuItems),
+    iconKey: ICON_KEY.test(String(input.iconKey ?? '')) ?
+      String(input.iconKey) : '',
+    presentation: Object.freeze({...input.presentation}),
+  });
+}
+
+function bounded(value, minimum, maximum, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ?
+    Math.max(minimum, Math.min(maximum, number)) : fallback;
+}
+
+export function normalizeMenuPresentation(input={}) {
+  const fontFamily = String(input.fontFamily ?? '').trim();
+  const color = String(input.color ?? '').trim().toUpperCase();
+  const backgroundColor = String(input.backgroundColor ?? '').trim().toUpperCase();
+  const result = {};
+  if(FONT_FAMILY.test(fontFamily)) result.fontFamily = fontFamily;
+  if(Number.isFinite(Number(input.fontSize)) && Number(input.fontSize) !== -1) {
+    result.fontSize = bounded(input.fontSize, 8, 32, 14);
+  }
+  if(Number.isFinite(Number(input.fontWeight)) &&
+      Number(input.fontWeight) !== -1) {
+    result.fontWeight = bounded(input.fontWeight, 300, 900, 400);
+  }
+  if(HEX_COLOR.test(color)) result.color = color;
+  if(HEX_COLOR.test(backgroundColor)) {
+    result.backgroundColor = backgroundColor;
+  }
+  if(['after', 'hidden'].includes(input.iconPosition)) {
+    result.iconPosition = input.iconPosition;
+  }
+  return Object.freeze(result);
+}
+
+export function normalizeMenuCustomizations(input={}) {
+  let candidate = input;
+  if(typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate || '{}');
+    } catch {
+      return Object.freeze({});
+    }
+  }
+  if(candidate?.schema === MENU_CUSTOMIZATION_SCHEMA) candidate = candidate.menus;
+  if(!candidate || Array.isArray(candidate) || typeof candidate !== 'object') {
+    return Object.freeze({});
+  }
+  const result = {};
+  Object.entries(candidate).forEach(([key, value]) => {
+    const name = String(key).trim().toLowerCase();
+    if(!MENU_NAME.test(name) || !value || Array.isArray(value) ||
+        typeof value !== 'object') return;
+    const label = String(value.label ?? name).trim().slice(0, 80) || name;
+    const iconKey = String(value.iconKey ?? '').trim().toLowerCase();
+    result[name] = Object.freeze({
+      name,
+      label,
+      visible: value.visible !== false,
+      index: bounded(value.index, 0, 1000, 100),
+      iconKey: ICON_KEY.test(iconKey) ? iconKey : '',
+      presentation: normalizeMenuPresentation(value.presentation),
+    });
+  });
+  return Object.freeze(result);
+}
+
+export function createMenuCustomizationDocument(menus={}) {
+  return Object.freeze({
+    schema: MENU_CUSTOMIZATION_SCHEMA,
+    menus: normalizeMenuCustomizations(menus),
   });
 }
 
@@ -71,6 +147,33 @@ export class MenuStructureRegistry {
 
   get() {
     return this.structure;
+  }
+
+  resolve(customizations={}) {
+    const overrides = normalizeMenuCustomizations(customizations);
+    const defaults = new Map(this.structure.map((item)=>[item.name, item]));
+    const result = this.structure.map((item) => {
+      const override = overrides[item.name];
+      return override ? normalizeMenu({
+        ...item,
+        label: override.label,
+        index: override.index,
+        iconKey: override.iconKey,
+        presentation: override.presentation,
+      }, item.index) : item;
+    }).filter((item)=>overrides[item.name]?.visible !== false);
+    Object.values(overrides).forEach((override) => {
+      if(defaults.has(override.name) || !override.visible) return;
+      result.push(normalizeMenu({
+        ...override,
+        id: `mnu_${override.name}`,
+        addSeprator: true,
+        hasDynamicMenuItems: false,
+      }, result.length));
+    });
+    return Object.freeze(result.sort((left, right) =>
+      left.index - right.index || left.label.localeCompare(right.label)
+    ));
   }
 
   surfaces() {

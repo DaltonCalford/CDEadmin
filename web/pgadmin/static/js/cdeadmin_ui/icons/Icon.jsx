@@ -9,6 +9,7 @@
 
 import PropTypes from 'prop-types';
 import cn from 'classnames';
+import usePreferences from '../../../../preferences/static/js/store';
 import {
   resolveIconDefinition,
   semanticEngineIconKey,
@@ -23,7 +24,11 @@ export function Icon({
   size,
   ...props
 }) {
-  const definition = resolveIconDefinition(iconKey, {label});
+  usePreferences((state)=>state.version);
+  const assignments = usePreferences.getState().getPreferences(
+    'browser', 'icon_assignments'
+  )?.value;
+  const definition = resolveIconDefinition(iconKey, {label, assignments});
   const accessible = decorative ? {
     'aria-hidden': true,
   } : {

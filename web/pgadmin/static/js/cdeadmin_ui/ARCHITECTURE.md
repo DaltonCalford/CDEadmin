@@ -30,6 +30,15 @@ normalization, contrast protection, semantic CSS variables, reduced motion,
 and safe-mode persistence. Presentation settings are user preferences; display
 and window placement remain device-local.
 
+`customization/InterfaceDesigner` is the user-facing authority for appearance,
+artwork, menus, and command presentation. It persists only validated preference
+documents. Profile import/export is deliberately data-only and allowlisted:
+unrelated preferences, executable handlers, raw SVG, credentials, and arbitrary
+CSS are neither accepted nor exported. A deployment can distribute the same
+validated values through the existing CDEadmin preferences JSON mechanism;
+an account's saved values then provide the personal layer. Command visibility
+and enabled customizations are restrictive only and never grant permission.
+
 The emergency accessibility safe mode is toggled with Ctrl+Shift+0 or by
 dispatching a `cdeadmin:accessibility-safe-mode` window event. Safe mode uses a
 high-contrast theme, the low-vision sizing profile, reduced motion, and ignores
@@ -133,7 +142,10 @@ identity. Existing menu declarations pass through `CommandMenuAdapter`, giving
 legacy actions stable command identities during the migration.
 
 Application-menu commands use the curated, theme-aware Hugeicons Free command
-set under `static/img/command_icons`. Legacy command definitions receive a
+set under `static/assets/cdeadmin/commands`. Branding, engine, authentication,
+and command artwork share this canonical catalog. Runtime code consumes
+semantic keys and does not store file paths, raw SVG, or third-party component
+identities in a user profile. Legacy command definitions receive a
 semantic action icon from their stable ID, name, label, and description; an
 explicit `iconKey` always wins. The same resolved key is carried by browser,
 context, macro, and desktop menu descriptors, while `command.default` provides
@@ -146,6 +158,13 @@ Explorer only: it does not install a driver, prove local availability, create a
 connection, or grant access. Command customizations may change presentation or
 further restrict visibility/enabled state, but cannot override permissions,
 security-group restrictions, or runtime predicates.
+
+The Interface Designer can add and remove user-defined top-level menus, hide
+or relabel packaged menus, place registered commands, and change validated
+icon, font, weight, foreground, background, ordering, and shortcut
+presentation. It cannot create a command handler or remap one command ID to a
+different operation. The command registry and backend remain the execution and
+authorization authorities.
 
 ## Tool identity and host windows
 

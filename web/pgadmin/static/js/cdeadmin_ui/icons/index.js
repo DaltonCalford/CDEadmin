@@ -10,8 +10,12 @@
 export {EngineIcon, Icon, ObjectIcon} from './Icon';
 export {
   ICON_CATEGORIES,
+  ICON_ASSIGNMENT_SCHEMA,
+  createIconAssignmentDocument,
   inferActionIconKey,
   listIconDefinitions,
+  mergeIconAssignments,
+  normalizeIconAssignments,
   registerIconDefinition,
   resolveIconDefinition,
   semanticEngineIconKey,

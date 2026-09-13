@@ -11,7 +11,10 @@ import {render, screen} from '@testing-library/react';
 import {Icon, ObjectIcon} from 'sources/cdeadmin_ui/icons';
 import {
   ICON_CATEGORIES,
+  createIconAssignmentDocument,
   inferActionIconKey,
+  mergeIconAssignments,
+  normalizeIconAssignments,
   listIconDefinitions,
   registerIconDefinition,
   resolveIconDefinition,
@@ -36,6 +39,24 @@ describe('CDEadmin semantic icon registry', () => {
     expect(resolveIconDefinition('command.default').kind).toBe('component');
     expect(resolveIconDefinition('action.provider_specific').key)
       .toBe('command.default');
+  });
+
+  it('validates layered semantic assignments and rejects cycles safely', () => {
+    const organization = {'tool.data-explorer': 'action.search'};
+    const user = createIconAssignmentDocument({
+      'tool.data-explorer': 'action.refresh',
+      'tool.query': 'tool.query',
+      '<unsafe>': 'action.delete',
+    });
+    const assignments = mergeIconAssignments(organization, user);
+    expect(normalizeIconAssignments(user)).toEqual({
+      'tool.data-explorer': 'action.refresh',
+    });
+    expect(resolveIconDefinition('tool.data-explorer', {assignments}).key)
+      .toBe('action.refresh');
+    expect(resolveIconDefinition('tool.query', {assignments: {
+      'tool.query': 'action.search', 'action.search': 'tool.query',
+    }}).key).toBe('tool.query');
   });
 
   it('provides concrete icons for every activity-tab icon contract', () => {

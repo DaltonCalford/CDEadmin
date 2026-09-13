@@ -90,7 +90,7 @@ class ProductIdentityContractTests(unittest.TestCase):
         self.assertEqual('cdeadmin', self.identity['product']['short_name'])
 
     def test_login_illustration_is_self_contained(self):
-        path = ROOT / 'web/pgadmin/static/img/login.svg'
+        path = ROOT / 'web/pgadmin/static/assets/cdeadmin/auth/login.svg'
         source = path.read_text(encoding='utf-8')
         root = ElementTree.fromstring(source)
         images = []
@@ -119,7 +119,7 @@ class ProductIdentityContractTests(unittest.TestCase):
             self.assertTrue(decoded.startswith(b'\x89PNG\r\n\x1a\n'))
 
     def test_command_icons_are_self_contained_and_attributed(self):
-        directory = ROOT / 'web/pgadmin/static/img/command_icons'
+        directory = ROOT / 'web/pgadmin/static/assets/cdeadmin/commands'
         icons = sorted(directory.glob('*.svg'))
         self.assertGreaterEqual(len(icons), 30)
         self.assertTrue((directory / 'ASSET_NOTICE.md').is_file())

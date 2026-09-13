@@ -60,9 +60,12 @@ describe('CDEadmin main dock tab switcher', () => {
     ]).toEqual({display: 'none'});
     const main = panel['&.dock-style-playground']['&[data-dockid="id-main"]'];
     const tab = main['& > .dock > .dock-bar']['& .dock-tab'];
-    expect(tab.filter).toBe('brightness(0.85)');
+    expect(tab.filter).toBe(
+      'brightness(var(--cde-inactive-brightness, 0.85))'
+    );
     expect(tab['&.dock-tab-active']).toMatchObject({
-      filter: 'brightness(1)', transform: 'scale(1.15)',
+      filter: 'brightness(1)',
+      transform: 'scale(var(--cde-active-tab-scale, 1.15))',
     });
   });
 });

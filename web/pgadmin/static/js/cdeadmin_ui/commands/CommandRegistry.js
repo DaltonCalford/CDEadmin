@@ -229,6 +229,7 @@ export class CommandRegistry {
       label: String(customization.label ?? command.label),
       iconKey: String(customization.iconKey ?? command.iconKey),
       shortcut: customization.shortcut ?? context.shortcut ?? null,
+      presentation: customization.presentation ?? {},
       visible,
       enabled,
       checked: predicate(command.checkedWhen, context, false),

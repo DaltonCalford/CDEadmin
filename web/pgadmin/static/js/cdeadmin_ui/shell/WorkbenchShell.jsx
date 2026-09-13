@@ -104,8 +104,7 @@ function ActivityRail({activities, active, navigationVisible, onChange}) {
       return <IconButton key={activity.id}
         data-cdeadmin-qa-key={`activity-${activity.id}`}
         data-selected={selected ? 'true' : 'false'}
-        data-visual-scale={selected ? '1.15' : '1'}
-        data-visual-brightness={selected ? '1' : '0.85'}
+        data-visual-emphasis={selected ? 'active' : 'inactive'}
         label={activity.label} aria-current={selected ? 'page' : undefined}
         disabled={activity.disabled === true}
         onClick={() => {
@@ -113,8 +112,10 @@ function ActivityRail({activities, active, navigationVisible, onChange}) {
           onChange(activity.id);
         }}
         sx={{width: 48, height: 48, mx: '4px', my: '4px',
-          transform: selected ? 'scale(1.15)' : 'scale(1)',
-          filter: selected ? 'brightness(1)' : 'brightness(0.85)',
+          transform: selected ?
+            'scale(var(--cde-active-tab-scale, 1.15))' : 'scale(1)',
+          filter: selected ? 'brightness(1)' :
+            'brightness(var(--cde-inactive-brightness, 0.85))',
           transformOrigin: 'center', zIndex: selected ? 1 : 0,
           transition: 'transform 120ms ease, filter 120ms ease',
           '@media (prefers-reduced-motion: reduce)': {transition: 'none'},

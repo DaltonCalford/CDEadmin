@@ -44,7 +44,7 @@
     },
     {
       "path": "web/pgadmin/dashboard/static/js/WelcomeDashboard.jsx",
-      "required": ["CDEadminLogo", "Configure CDEadmin", "independent hard fork"],
+      "required": ["CDEadminLogo", "ActivityLaunchers", "A data management and business intelligence tool. A part of the ScratchBird CDE family of products."],
       "forbidden": ["PgAdminLogo", "Maximises PostgreSQL", "pgAdmin Website", "Planet PostgreSQL"]
     },
     {

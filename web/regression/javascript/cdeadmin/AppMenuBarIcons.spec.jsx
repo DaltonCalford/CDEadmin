@@ -33,4 +33,21 @@ describe('CDEadmin application menu command icons', () => {
     expect(document.querySelector('[data-icon-key="command.default"]'))
       .toBeInTheDocument();
   });
+
+  it('applies safe per-entry presentation and icon placement', () => {
+    render(<MenuCommandLabel menuItem={{
+      label: 'Accessible query', iconKey: 'action.search',
+      presentation: {fontFamily: 'Atkinson Hyperlegible', fontSize: 20,
+        fontWeight: 700, color: '#123456', backgroundColor: '#FFFFFF',
+        iconPosition: 'after'},
+    }} />);
+
+    const label = screen.getByText('Accessible query');
+    expect(label.parentElement).toHaveStyle({fontFamily: 'Atkinson Hyperlegible',
+      fontSize: '20px', fontWeight: '700', color: '#123456',
+      backgroundColor: '#FFFFFF'});
+    expect(label.nextElementSibling).toHaveAttribute(
+      'data-icon-key', 'action.search'
+    );
+  });
 });

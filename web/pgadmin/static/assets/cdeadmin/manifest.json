@@ -1,0 +1,35 @@
+{
+  "schema": "cdeadmin.artwork-catalog.v1",
+  "root": "/static/assets/cdeadmin",
+  "collections": {
+    "branding": {
+      "path": "branding",
+      "formats": ["svg"],
+      "customizable": false
+    },
+    "engines": {
+      "path": "engines",
+      "formats": ["svg"],
+      "customizable": true
+    },
+    "commands": {
+      "path": "commands",
+      "formats": ["svg"],
+      "customizable": true,
+      "license": "MIT",
+      "attribution": "Hugeicons Free Icons 4.3.0"
+    },
+    "authentication": {
+      "path": "auth",
+      "formats": ["svg"],
+      "customizable": false
+    },
+    "profiles": {
+      "path": "profiles",
+      "formats": ["json"],
+      "customizable": false
+    }
+  },
+  "assignment_contract": "cdeadmin.icon-assignments.v1",
+  "rule": "Runtime code consumes semantic icon keys; only this catalog owns physical CDEadmin artwork paths."
+}

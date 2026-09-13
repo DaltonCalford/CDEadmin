@@ -7,42 +7,42 @@
 //
 //////////////////////////////////////////////////////////////
 
-import AddCircleIcon from '../../../img/command_icons/add-circle.svg?svgr';
-import ArrowAllDirectionIcon from '../../../img/command_icons/arrow-all-direction.svg?svgr';
-import CalendarClockIcon from '../../../img/command_icons/calendar-clock.svg?svgr';
-import CancelCircleIcon from '../../../img/command_icons/cancel-circle.svg?svgr';
-import CodeIcon from '../../../img/command_icons/code.svg?svgr';
-import CommandLineIcon from '../../../img/command_icons/command-line.svg?svgr';
-import ConnectIcon from '../../../img/command_icons/connect.svg?svgr';
-import CopyIcon from '../../../img/command_icons/copy01.svg?svgr';
-import DatabaseAddIcon from '../../../img/command_icons/database-add.svg?svgr';
-import DatabaseBackupIcon from '../../../img/command_icons/database-backup.svg?svgr';
-import DatabaseRestoreIcon from '../../../img/command_icons/database-restore.svg?svgr';
-import DeleteIcon from '../../../img/command_icons/delete02.svg?svgr';
-import DownloadIcon from '../../../img/command_icons/download01.svg?svgr';
-import EditIcon from '../../../img/command_icons/edit01.svg?svgr';
-import EyeIcon from '../../../img/command_icons/eye.svg?svgr';
-import FileAddIcon from '../../../img/command_icons/file-add.svg?svgr';
-import FilterIcon from '../../../img/command_icons/filter.svg?svgr';
-import GitCompareIcon from '../../../img/command_icons/git-compare.svg?svgr';
-import HelpCircleIcon from '../../../img/command_icons/help-circle.svg?svgr';
-import HistoryIcon from '../../../img/command_icons/history.svg?svgr';
-import InformationCircleIcon from '../../../img/command_icons/information-circle.svg?svgr';
-import LinkIcon from '../../../img/command_icons/link01.svg?svgr';
-import LockIcon from '../../../img/command_icons/lock.svg?svgr';
-import MenuCircleIcon from '../../../img/command_icons/menu-circle.svg?svgr';
-import PlayCircleIcon from '../../../img/command_icons/play-circle.svg?svgr';
-import PrinterIcon from '../../../img/command_icons/printer.svg?svgr';
-import RefreshIcon from '../../../img/command_icons/refresh.svg?svgr';
-import SaveIcon from '../../../img/command_icons/save.svg?svgr';
-import SearchIcon from '../../../img/command_icons/search01.svg?svgr';
-import SettingsIcon from '../../../img/command_icons/settings02.svg?svgr';
-import ShieldUserIcon from '../../../img/command_icons/shield-user.svg?svgr';
-import SortIcon from '../../../img/command_icons/sort-by-down01.svg?svgr';
-import TransactionIcon from '../../../img/command_icons/transaction.svg?svgr';
-import UnlinkIcon from '../../../img/command_icons/unlink01.svg?svgr';
-import UploadIcon from '../../../img/command_icons/upload01.svg?svgr';
-import ScratchRobinIcon from '../../../../browser/server_groups/engine_types/static/img/scratchrobincde.svg?svgr';
+import AddCircleIcon from '../../../assets/cdeadmin/commands/add-circle.svg?svgr';
+import ArrowAllDirectionIcon from '../../../assets/cdeadmin/commands/arrow-all-direction.svg?svgr';
+import CalendarClockIcon from '../../../assets/cdeadmin/commands/calendar-clock.svg?svgr';
+import CancelCircleIcon from '../../../assets/cdeadmin/commands/cancel-circle.svg?svgr';
+import CodeIcon from '../../../assets/cdeadmin/commands/code.svg?svgr';
+import CommandLineIcon from '../../../assets/cdeadmin/commands/command-line.svg?svgr';
+import ConnectIcon from '../../../assets/cdeadmin/commands/connect.svg?svgr';
+import CopyIcon from '../../../assets/cdeadmin/commands/copy01.svg?svgr';
+import DatabaseAddIcon from '../../../assets/cdeadmin/commands/database-add.svg?svgr';
+import DatabaseBackupIcon from '../../../assets/cdeadmin/commands/database-backup.svg?svgr';
+import DatabaseRestoreIcon from '../../../assets/cdeadmin/commands/database-restore.svg?svgr';
+import DeleteIcon from '../../../assets/cdeadmin/commands/delete02.svg?svgr';
+import DownloadIcon from '../../../assets/cdeadmin/commands/download01.svg?svgr';
+import EditIcon from '../../../assets/cdeadmin/commands/edit01.svg?svgr';
+import EyeIcon from '../../../assets/cdeadmin/commands/eye.svg?svgr';
+import FileAddIcon from '../../../assets/cdeadmin/commands/file-add.svg?svgr';
+import FilterIcon from '../../../assets/cdeadmin/commands/filter.svg?svgr';
+import GitCompareIcon from '../../../assets/cdeadmin/commands/git-compare.svg?svgr';
+import HelpCircleIcon from '../../../assets/cdeadmin/commands/help-circle.svg?svgr';
+import HistoryIcon from '../../../assets/cdeadmin/commands/history.svg?svgr';
+import InformationCircleIcon from '../../../assets/cdeadmin/commands/information-circle.svg?svgr';
+import LinkIcon from '../../../assets/cdeadmin/commands/link01.svg?svgr';
+import LockIcon from '../../../assets/cdeadmin/commands/lock.svg?svgr';
+import MenuCircleIcon from '../../../assets/cdeadmin/commands/menu-circle.svg?svgr';
+import PlayCircleIcon from '../../../assets/cdeadmin/commands/play-circle.svg?svgr';
+import PrinterIcon from '../../../assets/cdeadmin/commands/printer.svg?svgr';
+import RefreshIcon from '../../../assets/cdeadmin/commands/refresh.svg?svgr';
+import SaveIcon from '../../../assets/cdeadmin/commands/save.svg?svgr';
+import SearchIcon from '../../../assets/cdeadmin/commands/search01.svg?svgr';
+import SettingsIcon from '../../../assets/cdeadmin/commands/settings02.svg?svgr';
+import ShieldUserIcon from '../../../assets/cdeadmin/commands/shield-user.svg?svgr';
+import SortIcon from '../../../assets/cdeadmin/commands/sort-by-down01.svg?svgr';
+import TransactionIcon from '../../../assets/cdeadmin/commands/transaction.svg?svgr';
+import UnlinkIcon from '../../../assets/cdeadmin/commands/unlink01.svg?svgr';
+import UploadIcon from '../../../assets/cdeadmin/commands/upload01.svg?svgr';
+import ScratchRobinIcon from '../../../assets/cdeadmin/branding/scratchrobincde.svg?svgr';
 
 export const ICON_CATEGORIES = Object.freeze({
   ACTION: 'action',
@@ -52,7 +52,7 @@ export const ICON_CATEGORIES = Object.freeze({
   TOOL: 'tool',
 });
 
-const ENGINE_IDS = Object.freeze([
+export const ENGINE_IDS = Object.freeze([
   'apache_ignite', 'cassandra', 'clickhouse', 'cockroachdb', 'dolt',
   'duckdb', 'firebird', 'foundationdb', 'immudb', 'influxdb', 'mariadb',
   'milvus', 'mongodb', 'mysql', 'neo4j', 'opensearch', 'postgresql',
@@ -301,6 +301,7 @@ const TAXONOMY_FALLBACKS = Object.freeze([
 
 const SAFE_CLASS = /^[a-zA-Z0-9_-]+(?:\s+[a-zA-Z0-9_-]+)*$/;
 const SAFE_KEY = /^[a-z0-9][a-z0-9._-]*$/;
+export const ICON_ASSIGNMENT_SCHEMA = 'cdeadmin.icon-assignments.v1';
 
 function title(value) {
   return String(value).replace(/[._-]+/g, ' ').replace(/\b\w/g, (c)=>c.toUpperCase());
@@ -447,6 +448,55 @@ export function registerIconDefinition(input) {
   return ()=>providerDefinitions.delete(item.key);
 }
 
+export function normalizeIconAssignments(input={}) {
+  let candidate = input;
+  if(typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate || '{}');
+    } catch {
+      return Object.freeze({});
+    }
+  }
+  if(candidate?.schema === ICON_ASSIGNMENT_SCHEMA) {
+    candidate = candidate.assignments;
+  }
+  if(!candidate || Array.isArray(candidate) || typeof candidate !== 'object') {
+    return Object.freeze({});
+  }
+  const assignments = {};
+  Object.entries(candidate).forEach(([source, target]) => {
+    const normalizedSource = String(source).trim().toLowerCase();
+    const normalizedTarget = String(target).trim().toLowerCase();
+    if(SAFE_KEY.test(normalizedSource) && SAFE_KEY.test(normalizedTarget) &&
+        normalizedSource !== normalizedTarget) {
+      assignments[normalizedSource] = normalizedTarget;
+    }
+  });
+  return Object.freeze(assignments);
+}
+
+export function mergeIconAssignments(...layers) {
+  return Object.freeze(Object.assign({}, ...layers.map(normalizeIconAssignments)));
+}
+
+export function createIconAssignmentDocument(assignments={}) {
+  return Object.freeze({
+    schema: ICON_ASSIGNMENT_SCHEMA,
+    assignments: normalizeIconAssignments(assignments),
+  });
+}
+
+function assignedIconKey(iconKey, input) {
+  const assignments = normalizeIconAssignments(input);
+  let key = String(iconKey ?? '').trim().toLowerCase();
+  const visited = new Set();
+  while(assignments[key] && !visited.has(key)) {
+    visited.add(key);
+    key = assignments[key];
+  }
+  return key;
+}
+
 function familyFallback(key) {
   const match = TAXONOMY_FALLBACKS.find(([prefix])=>key.startsWith(prefix));
   if(match) return builtins.get(match[1]);
@@ -457,7 +507,7 @@ function familyFallback(key) {
 }
 
 export function resolveIconDefinition(iconKey, options={}) {
-  let key = String(iconKey ?? '').trim().toLowerCase();
+  let key = assignedIconKey(iconKey, options.assignments);
   if(providerDefinitions.has(key)) return providerDefinitions.get(key);
   if(builtins.has(key)) return builtins.get(key);
 

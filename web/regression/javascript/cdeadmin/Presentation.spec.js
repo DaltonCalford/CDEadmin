@@ -197,6 +197,26 @@ describe('CDEadmin presentation profiles', () => {
     expect(value.gridCellPadding).toBe(32);
   });
 
+  it('controls workspace chrome geometry and activity emphasis', () => {
+    const value = resolvePresentation({
+      accessibility_tab_height: 200,
+      accessibility_toolbar_height: 10,
+      accessibility_menu_row_height: 44,
+      accessibility_status_height: 36,
+      accessibility_corner_radius: 12,
+      accessibility_active_tab_scale: 135,
+      accessibility_inactive_brightness: 60,
+    }, baseTheme);
+    const variables = presentationCssVariables(value);
+    expect(value).toMatchObject({tabHeight: 96, toolbarHeight: 24,
+      menuRowHeight: 44, statusHeight: 36, cornerRadius: 12,
+      activeTabScale: 1.35, inactiveBrightness: 0.6});
+    expect(variables['--cde-corner-radius']).toBe('12px');
+    expect(variables['--cde-active-tab-scale']).toBe('1.35');
+    expect(variables['--cde-inactive-brightness']).toBe('0.6');
+    expect(presentationThemeOverrides(value).shape.borderRadius).toBe(12);
+  });
+
   it('calculates standard contrast ratios', () => {
     expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 4);
     expect(contrastRatio('invalid', '#FFFFFF')).toBe(0);

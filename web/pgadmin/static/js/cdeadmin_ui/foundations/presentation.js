@@ -202,7 +202,7 @@ export const PRESENTATION_PROFILES = Object.freeze({
   }),
 });
 
-const OVERRIDE_RANGES = Object.freeze({
+export const PRESENTATION_OVERRIDE_RANGES = Object.freeze({
   accessibility_ui_scale: [75, 300],
   accessibility_icon_scale: [75, 300],
   accessibility_line_height: [1, 2.5],
@@ -220,11 +220,18 @@ const OVERRIDE_RANGES = Object.freeze({
   accessibility_grid_row_height: [24, 96],
   accessibility_grid_header_height: [24, 120],
   accessibility_grid_cell_padding: [2, 32],
+  accessibility_tab_height: [24, 96],
+  accessibility_toolbar_height: [24, 96],
+  accessibility_menu_row_height: [24, 96],
+  accessibility_status_height: [20, 72],
+  accessibility_corner_radius: [0, 24],
+  accessibility_active_tab_scale: [100, 150],
+  accessibility_inactive_brightness: [30, 100],
   accessibility_focus_width: [2, 8],
   accessibility_focus_offset: [0, 6],
 });
 
-const COLOR_PREFERENCES = Object.freeze({
+export const PRESENTATION_COLOR_PREFERENCES = Object.freeze({
   accessibility_color_canvas: 'canvas',
   accessibility_color_panel: 'panel',
   accessibility_color_text: 'text',
@@ -256,7 +263,7 @@ function boundedOverride(preferences, name, fallback) {
   if(number === null || number === -1) {
     return fallback;
   }
-  const [minimum, maximum] = OVERRIDE_RANGES[name];
+  const [minimum, maximum] = PRESENTATION_OVERRIDE_RANGES[name];
   return Math.min(maximum, Math.max(minimum, number));
 }
 
@@ -392,13 +399,14 @@ function zeroGreyProfile(profileId, profile) {
 }
 
 function readCustomColors(preferences) {
-  return Object.entries(COLOR_PREFERENCES).reduce((result, [preference, token]) => {
-    const value = normalizeHex(preferences?.[preference]);
-    if(value) {
-      result[token] = value;
-    }
-    return result;
-  }, {});
+  return Object.entries(PRESENTATION_COLOR_PREFERENCES).reduce(
+    (result, [preference, token]) => {
+      const value = normalizeHex(preferences?.[preference]);
+      if(value) {
+        result[token] = value;
+      }
+      return result;
+    }, {});
 }
 
 function applySafeColors(defaults, requested) {
@@ -537,10 +545,21 @@ export function resolvePresentation(preferences={}, theme={}, environment={}) {
       preferences, 'accessibility_tree_guide_width',
       profile.focusWidth >= 4 ? 2 : 1),
     gridRowHeight,
-    tabHeight: profile.tabHeight,
-    toolbarHeight: profile.toolbarHeight,
-    menuRowHeight: profile.menuRowHeight,
-    statusHeight: profile.statusHeight,
+    tabHeight: boundedOverride(
+      preferences, 'accessibility_tab_height', profile.tabHeight),
+    toolbarHeight: boundedOverride(
+      preferences, 'accessibility_toolbar_height', profile.toolbarHeight),
+    menuRowHeight: boundedOverride(
+      preferences, 'accessibility_menu_row_height', profile.menuRowHeight),
+    statusHeight: boundedOverride(
+      preferences, 'accessibility_status_height', profile.statusHeight),
+    cornerRadius: boundedOverride(
+      preferences, 'accessibility_corner_radius',
+      profileId === PRESENTATION_PROFILE_IDS.CLASSIC ? 4 : 0),
+    activeTabScale: boundedOverride(
+      preferences, 'accessibility_active_tab_scale', 115) / 100,
+    inactiveBrightness: boundedOverride(
+      preferences, 'accessibility_inactive_brightness', 85) / 100,
     gridHeaderHeight: boundedOverride(
       preferences, 'accessibility_grid_header_height',
       Math.max(gridRowHeight, profile.gridRowHeight + 4)),
@@ -576,10 +595,10 @@ export function safeModePreferences(preferences={}) {
     accessibility_density: 'comfortable',
     accessibility_motion: 'reduce',
   };
-  Object.keys(COLOR_PREFERENCES).forEach((name) => {
+  Object.keys(PRESENTATION_COLOR_PREFERENCES).forEach((name) => {
     safe[name] = '';
   });
-  Object.keys(OVERRIDE_RANGES).forEach((name) => {
+  Object.keys(PRESENTATION_OVERRIDE_RANGES).forEach((name) => {
     safe[name] = -1;
   });
   safe.accessibility_ui_font_family = '';
@@ -611,8 +630,7 @@ export function presentationThemeOverrides(presentation) {
   const {colors} = presentation;
   return {
     shape: {
-      borderRadius: presentation.profileId === PRESENTATION_PROFILE_IDS.CLASSIC ?
-        4 : 0,
+      borderRadius: presentation.cornerRadius,
     },
     typography: {
       fontFamily: presentation.fontFamily,
@@ -711,11 +729,14 @@ export function presentationCssVariables(presentation) {
     '--cde-toolbar-height': `${presentation.toolbarHeight}px`,
     '--cde-menu-row-height': `${presentation.menuRowHeight}px`,
     '--cde-status-height': `${presentation.statusHeight}px`,
+    '--cde-corner-radius': `${presentation.cornerRadius}px`,
+    '--cde-active-tab-scale': String(presentation.activeTabScale),
+    '--cde-inactive-brightness': String(presentation.inactiveBrightness),
     '--cde-focus-width': `${presentation.focusWidth}px`,
     '--cde-focus-offset': `${presentation.focusOffset}px`,
-    '--cde-radius-control': '0px',
-    '--cde-radius-panel': '0px',
-    '--cde-radius-dialog': '0px',
+    '--cde-radius-control': `${presentation.cornerRadius}px`,
+    '--cde-radius-panel': `${presentation.cornerRadius}px`,
+    '--cde-radius-dialog': `${presentation.cornerRadius}px`,
     '--cde-elevation-raised': 'none',
     '--cde-elevation-overlay': 'none',
     '--cde-motion-fast': presentation.reduceMotion ? '0.01ms' : '150ms',
