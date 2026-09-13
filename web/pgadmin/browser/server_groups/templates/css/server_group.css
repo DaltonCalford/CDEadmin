@@ -1,5 +1,5 @@
 .icon-server_group {
-  background-image: url('{{ url_for('NODE-server_group.static', filename='img/server_group.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/server_group.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-server_group_shared {
-  background-image: url('{{ url_for('NODE-server_group.static', filename='img/server_group_shared.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/server_group_shared.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

@@ -12,7 +12,7 @@ import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
 import { Box } from '@mui/material';
 import AdHocConnection from './AdHocConnection';
-import WelcomeBG from '../img/welcome_background.svg?svgr';
+import WelcomeBG from '../../../../static/assets/cdeadmin/backgrounds/welcome_background.svg?svgr';
 import { QueryToolIcon } from '../../../../static/js/components/ExternalIcon';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import { renderToStaticMarkup } from 'react-dom/server';

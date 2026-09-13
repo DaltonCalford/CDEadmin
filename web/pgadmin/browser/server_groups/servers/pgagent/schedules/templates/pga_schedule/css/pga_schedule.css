@@ -1,5 +1,5 @@
 .icon-pga_schedule {
-  background-image: url('{{ url_for('NODE-pga_schedule.static', filename='img/pga_schedule.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/pga_schedule.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-pga_schedule-disabled {
-  background-image: url('{{ url_for('NODE-pga_schedule.static', filename='img/pga_schedule-disabled.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/pga_schedule-disabled.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -17,7 +17,7 @@
 }
 
 .icon-coll-pga_schedule {
-  background-image: url('{{ url_for('NODE-pga_schedule.static', filename='img/coll-pga_schedule.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/coll-pga_schedule.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

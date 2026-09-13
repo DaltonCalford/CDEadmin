@@ -1,5 +1,5 @@
 .icon-{{ server_type }} {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/%s' % (icon)) }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/%s' % (icon)) }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

@@ -28,7 +28,7 @@ export function AzureCredentials(props) {
     const azureCloudDBCredSchema = new AzureCredSchema(_eventBus, {
       authenticateAzure:(auth_type, azure_tenant_id) => {
         let loading_icon_url = url_for(
-          'static', { 'filename': 'img/loading.gif'}
+          'static', { 'filename': 'assets/cdeadmin/controls/loading.gif'}
         );
         const axiosApi = getApiInstance();
         _eventBus.fireEvent('SET_ERROR_MESSAGE_FOR_CLOUD_WIZARD', [MESSAGE_TYPE.INFO, 'Microsoft Azure authentication process is in progress. <img src="' + loading_icon_url + '" alt="' + gettext('Loading...') + '">']);

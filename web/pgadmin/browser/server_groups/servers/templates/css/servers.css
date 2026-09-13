@@ -1,5 +1,5 @@
 .icon-server {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/server.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/server.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-server-not-connected {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/serverbad.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/serverbad.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -17,7 +17,7 @@
 }
 
 .icon-shared-server-not-connected {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/sharedserverbad.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/sharedserverbad.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -26,7 +26,7 @@
 }
 
 .icon-shared-server-not-connected {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/sharedserverbad.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/sharedserverbad.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -36,7 +36,7 @@
 
 
 .icon-server-cloud-deploy {
-  background-image: url('{{ url_for('NODE-server.static', filename='img/serverbeingdeployed.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/serverbeingdeployed.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

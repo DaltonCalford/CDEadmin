@@ -1,6 +1,6 @@
 import { Box } from '@mui/material';
 import { useState } from 'react';
-import ForgotPasswordImage from '../../img/forgot_password.svg?svgr';
+import ForgotPasswordImage from '../../assets/cdeadmin/controls/forgot_password.svg?svgr';
 import { InputText } from '../components/FormComponents';
 import BasePage, { SecurityButton } from './BasePage';
 import gettext from 'sources/gettext';

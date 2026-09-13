@@ -24,6 +24,44 @@
       "formats": ["svg"],
       "customizable": false
     },
+    "objects": {
+      "path": "objects",
+      "formats": ["svg"],
+      "customizable": true,
+      "license": "PostgreSQL",
+      "attribution": "pgAdmin Development Team"
+    },
+    "explain": {
+      "path": "explain",
+      "formats": ["svg"],
+      "customizable": true,
+      "license": "PostgreSQL",
+      "attribution": "pgAdmin Development Team"
+    },
+    "controls": {
+      "path": "controls",
+      "formats": ["svg", "gif"],
+      "customizable": true,
+      "license": "PostgreSQL",
+      "attribution": "pgAdmin Development Team"
+    },
+    "themes": {
+      "path": "themes",
+      "formats": ["png"],
+      "customizable": true
+    },
+    "backgrounds": {
+      "path": "backgrounds",
+      "formats": ["svg"],
+      "customizable": true
+    },
+    "tools": {
+      "path": "tools",
+      "formats": ["svg"],
+      "customizable": true,
+      "license": "PostgreSQL",
+      "attribution": "pgAdmin Development Team"
+    },
     "profiles": {
       "path": "profiles",
       "formats": ["json"],

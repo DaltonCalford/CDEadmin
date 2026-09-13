@@ -7,32 +7,32 @@
 //
 //////////////////////////////////////////////////////////////
 
-import QueryToolSvg from '../../img/fonticon/query_tool.svg?svgr';
-import ViewDataSvg from '../../img/fonticon/view_data.svg?svgr';
-import SaveDataSvg from '../../img/fonticon/save_data_changes.svg?svgr';
-import PasteSvg from '../../img/content_paste.svg?svgr';
-import FilterSvg from '../../img/filter_alt_black.svg?svgr';
-import ClearSvg from '../../img/cleaning_services_black.svg?svgr';
-import CommitSvg from '../../img/fonticon/commit.svg?svgr';
-import RollbackSvg from '../../img/fonticon/rollback.svg?svgr';
-import ConnectedSvg from '../../img/fonticon/connected.svg?svgr';
-import DisconnectedSvg from '../../img/fonticon/disconnected.svg?svgr';
-import RegexSvg from '../../img/fonticon/regex.svg?svgr';
-import FormatCaseSvg from '../../img/fonticon/format_case.svg?svgr';
+import QueryToolSvg from '../../assets/cdeadmin/controls/fonticon/query_tool.svg?svgr';
+import ViewDataSvg from '../../assets/cdeadmin/controls/fonticon/view_data.svg?svgr';
+import SaveDataSvg from '../../assets/cdeadmin/controls/fonticon/save_data_changes.svg?svgr';
+import PasteSvg from '../../assets/cdeadmin/controls/content_paste.svg?svgr';
+import FilterSvg from '../../assets/cdeadmin/controls/filter_alt_black.svg?svgr';
+import ClearSvg from '../../assets/cdeadmin/controls/cleaning_services_black.svg?svgr';
+import CommitSvg from '../../assets/cdeadmin/controls/fonticon/commit.svg?svgr';
+import RollbackSvg from '../../assets/cdeadmin/controls/fonticon/rollback.svg?svgr';
+import ConnectedSvg from '../../assets/cdeadmin/controls/fonticon/connected.svg?svgr';
+import DisconnectedSvg from '../../assets/cdeadmin/controls/fonticon/disconnected.svg?svgr';
+import RegexSvg from '../../assets/cdeadmin/controls/fonticon/regex.svg?svgr';
+import FormatCaseSvg from '../../assets/cdeadmin/controls/fonticon/format_case.svg?svgr';
 import PropTypes from 'prop-types';
-import Expand from '../../img/fonticon/open_in_full.svg?svgr';
-import Collapse from '../../img/fonticon/close_fullscreen.svg?svgr';
-import AWS from '../../img/aws.svg?svgr';
-import Azure from '../../img/azure.svg?svgr';
-import SQLFileSvg from '../../img/sql_file.svg?svgr';
-import SQLQuerySvg from '../../img/sql_query.svg?svgr';
-import ExecuteQuerySvg from '../../img/execute_query.svg?svgr';
-import MagicSvg from '../../img/magic.svg?svgr';
-import MsAzure from '../../img/ms_azure.svg?svgr';
-import GoogleCloud from '../../img/google-cloud-1.svg?svgr';
-import RowFilterSvg from '../../img/fonticon/row_filter.svg?svgr';
+import Expand from '../../assets/cdeadmin/controls/fonticon/open_in_full.svg?svgr';
+import Collapse from '../../assets/cdeadmin/controls/fonticon/close_fullscreen.svg?svgr';
+import AWS from '../../assets/cdeadmin/controls/aws.svg?svgr';
+import Azure from '../../assets/cdeadmin/controls/azure.svg?svgr';
+import SQLFileSvg from '../../assets/cdeadmin/controls/sql_file.svg?svgr';
+import SQLQuerySvg from '../../assets/cdeadmin/controls/sql_query.svg?svgr';
+import ExecuteQuerySvg from '../../assets/cdeadmin/controls/execute_query.svg?svgr';
+import MagicSvg from '../../assets/cdeadmin/controls/magic.svg?svgr';
+import MsAzure from '../../assets/cdeadmin/controls/ms_azure.svg?svgr';
+import GoogleCloud from '../../assets/cdeadmin/controls/google-cloud-1.svg?svgr';
+import RowFilterSvg from '../../assets/cdeadmin/controls/fonticon/row_filter.svg?svgr';
 import SvgIcon from '@mui/material/SvgIcon';
-import SchemaDiffSvg from '../../img/fonticon/compare.svg?svgr';
+import SchemaDiffSvg from '../../assets/cdeadmin/controls/fonticon/compare.svg?svgr';
 
 export default function ExternalIcon({Icon, ...props}) {
   return <SvgIcon component={Icon} inheritViewBox {...props}/>;

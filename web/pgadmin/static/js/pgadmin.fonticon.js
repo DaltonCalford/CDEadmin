@@ -1,6 +1,6 @@
 module.exports = {
   'files': [
-    '../img/fonticon/*.svg',
+    '../assets/cdeadmin/controls/fonticon/*.svg',
   ],
   'css': false,
   'fontName': 'pgfonticon',

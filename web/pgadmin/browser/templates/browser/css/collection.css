@@ -1,5 +1,5 @@
 .icon-coll-{{node_type}} {
-  background-image: url('{{ url_for('NODE-%s.static' % node_type, filename='img/coll-%s.svg' % node_type )}}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/coll-%s.svg' % node_type )}}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

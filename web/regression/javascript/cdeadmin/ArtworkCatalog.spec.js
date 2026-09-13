@@ -11,6 +11,27 @@ import {ENGINE_IDS, listIconDefinitions} from
 const ROOT = path.resolve(
   __dirname, '../../../pgadmin/static/assets/cdeadmin'
 );
+const PGADMIN_ROOT = path.resolve(__dirname, '../../../pgadmin');
+const ARTWORK_EXTENSIONS = new Set([
+  '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp',
+]);
+
+function authoredRuntimeArtwork(directory, found=[]) {
+  for(const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+    const item = path.join(directory, entry.name);
+    const relative = path.relative(PGADMIN_ROOT, item).replaceAll('\\', '/');
+    if(entry.isDirectory()) {
+      if(relative === 'static/assets/cdeadmin' ||
+          relative.startsWith('static/js/generated') ||
+          relative.startsWith('static/js/cdeadmin_ui/specifications')) continue;
+      authoredRuntimeArtwork(item, found);
+    } else if((relative.startsWith('static/') || relative.includes('/static/')) &&
+        ARTWORK_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      found.push(relative);
+    }
+  }
+  return found;
+}
 
 describe('CDEadmin artwork catalog', () => {
   it('owns the versioned canonical artwork collections', () => {
@@ -20,7 +41,8 @@ describe('CDEadmin artwork catalog', () => {
       assignment_contract: 'cdeadmin.icon-assignments.v1',
     }));
     for(const collection of ['branding', 'engines', 'commands',
-      'authentication', 'profiles']) {
+      'authentication', 'objects', 'explain', 'controls', 'themes',
+      'backgrounds', 'tools', 'profiles']) {
       expect(fs.statSync(path.join(
         ROOT, catalog.collections[collection].path
       )).isDirectory()).toBe(true);
@@ -46,5 +68,11 @@ describe('CDEadmin artwork catalog', () => {
     expect(JSON.parse(fs.readFileSync(path.join(
       ROOT, 'profiles', 'cdeadmin-standard.json'
     ))).schema).toBe('cdeadmin.interface-profile.v1');
+  });
+
+  it('keeps authored runtime artwork out of feature-local static folders', () => {
+    expect(authoredRuntimeArtwork(PGADMIN_ROOT)).toEqual([]);
+    expect(fs.readdirSync(path.join(ROOT, 'objects'))).toHaveLength(147);
+    expect(fs.readdirSync(path.join(ROOT, 'explain'))).toHaveLength(57);
   });
 });

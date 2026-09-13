@@ -279,7 +279,9 @@ class EmailAuthentication(BaseMFAuth):
 
     @property
     def icon(self):
-        return url_for("mfa.static", filename="images/email_lock.svg")
+        return url_for(
+            "static", filename="assets/cdeadmin/auth/email_lock.svg"
+        )
 
     @property
     def validate_script(self):

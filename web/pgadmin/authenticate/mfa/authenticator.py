@@ -99,7 +99,7 @@ class TOTPAuthenticator(BaseMFAuth):
         Returns:
             str: url for the icon representation for this auth method
         """
-        return url_for("mfa.static", filename="images/totp_lock.svg")
+        return url_for("static", filename="assets/cdeadmin/auth/totp_lock.svg")
 
     def validate(self, **kwargs):
         """

@@ -1,5 +1,5 @@
 .icon-coll-partition {
-  background-image: url('{{ url_for('NODE-partition.static', filename='img/coll-partition.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/coll-partition.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-partition {
-  background-image: url('{{ url_for('NODE-partition.static', filename='img/partition.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/partition.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -17,7 +17,7 @@
 }
 
 .icon-partition_table {
-  background-image: url('{{ url_for('NODE-partition.static', filename='img/partition_table.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/partition_table.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -26,7 +26,7 @@
 }
 
 .icon-sub_partition_table {
-  background-image: url('{{ url_for('NODE-partition.static', filename='img/sub_partition_table.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/sub_partition_table.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;

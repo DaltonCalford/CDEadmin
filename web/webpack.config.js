@@ -70,7 +70,7 @@ const bundleAnalyzer = new BundleAnalyzerPlugin({
 const copyFiles = new CopyPlugin({
   patterns: [
     {
-      from: './pgadmin/static/img/*.png',
+      from: './pgadmin/static/assets/cdeadmin/themes/*.png',
       to: 'img/[name][ext]',
     },
   ],

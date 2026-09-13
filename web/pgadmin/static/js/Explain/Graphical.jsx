@@ -301,7 +301,7 @@ function PlanContent({plan, pXpos, pYpos, ...props}) {
       </>}
         <Image
           label={nodeLabel}
-          content={url_for('misc.index') + 'static/explain/img/' + plan.image}
+          content={url_for('static', {filename: 'assets/cdeadmin/explain/'}) + plan.image}
           currentXpos={currentXpos}
           currentYpos={currentYpos}
           plan={plan}

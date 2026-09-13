@@ -29,4 +29,6 @@ def index():
 @blueprint.route('favicon.ico')
 def favicon():
     """Redirect to the favicon"""
-    return redirect(url_for('static', filename='cdeadmin.svg'))
+    return redirect(url_for(
+        'static', filename='assets/cdeadmin/branding/cdeadmin.svg'
+    ))

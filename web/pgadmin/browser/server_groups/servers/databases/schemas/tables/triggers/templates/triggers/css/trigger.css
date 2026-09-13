@@ -1,5 +1,5 @@
 .icon-coll-trigger {
-  background-image: url('{{ url_for('NODE-trigger.static', filename='img/coll-trigger.svg' )}}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/coll-trigger.svg' )}}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-trigger {
-  background-image: url('{{ url_for('NODE-trigger.static', filename='img/trigger.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/trigger.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -17,7 +17,7 @@
 }
 
 .icon-trigger-bad {
-  background-image: url('{{ url_for('NODE-trigger.static', filename='img/trigger-bad.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/trigger-bad.svg') }}') !important;
   background-size: 20px !important;
   border-radius: 10px
 }

@@ -1,5 +1,5 @@
 .icon-pga_jobstep {
-  background-image: url('{{ url_for('NODE-pga_jobstep.static', filename='img/pga_jobstep.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/pga_jobstep.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -8,7 +8,7 @@
 }
 
 .icon-pga_jobstep-disabled {
-  background-image: url('{{ url_for('NODE-pga_jobstep.static', filename='img/pga_jobstep-disabled.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/pga_jobstep-disabled.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
@@ -17,7 +17,7 @@
 }
 
 .icon-coll-pga_jobstep {
-  background-image: url('{{ url_for('NODE-pga_jobstep.static', filename='img/coll-pga_jobstep.svg') }}') !important;
+  background-image: url('{{ url_for('static', filename='assets/cdeadmin/objects/coll-pga_jobstep.svg') }}') !important;
   background-repeat: no-repeat;
   background-size: 20px !important;
   align-content: center;
