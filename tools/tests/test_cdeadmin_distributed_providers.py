@@ -471,6 +471,31 @@ class DistributedProviderTests(unittest.TestCase):
             '--snapshot', 'restore', 'pre_upgrade', '--sync', '--yes',
         ], restore['provider_action']['arguments'])
 
+    def test_ignite_topology_version_preserves_decimal_text(self):
+        from pgadmin.cdeadmin.visual_admin import ControlPlaneCatalog
+        operation = next(item for item in IGNITE_CONTROL_OPERATIONS
+                         if item.operation_id == 'set_version')
+        field = operation.fields[0]
+        self.assertEqual('text', field['control'])
+        catalog = ControlPlaneCatalog('apache_ignite', (operation,))
+        for version in ('1', '9007199254740991', '9007199254740993',
+                        '9223372036854775807'):
+            request = {'resource_kind': 'baseline-topology',
+                       'operation_id': 'set_version',
+                       'draft': {'topology_version': version}}
+            self.assertFalse(catalog.validate(request)['errors'])
+            result = compile_ignite_action(request)
+            self.assertEqual(['--baseline', 'version', version, '--yes'],
+                             result['provider_action']['arguments'])
+        for version in ('0', '-1', '9223372036854775808', '1e3', '1.5',
+                        ' 1', '1;shutdown', '', '1' * 1000, True, 1.5):
+            with self.subTest(version=version):
+                with self.assertRaises(NativeDistributedError):
+                    compile_ignite_action({
+                        'resource_kind': 'baseline-topology',
+                        'operation_id': 'set_version',
+                        'draft': {'topology_version': version}})
+
     def test_ignite_control_connection_arguments_cover_auth_and_tls(self):
         arguments = ignite_connection_arguments({
             'auth_mode': 'username-password', 'username': 'operator',

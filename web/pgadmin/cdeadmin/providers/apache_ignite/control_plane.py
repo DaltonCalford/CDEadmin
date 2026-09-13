@@ -64,8 +64,10 @@ OPERATIONS = (
     ControlPlaneOperation(
         'baseline-topology', 'set_version', 'Set baseline topology version',
         'destructive', 'topology_admin', (
-            cp_field('topology_version', 'Topology version', 'number', True,
-                     minimum=1, maximum=9223372036854775807),
+            cp_field('topology_version', 'Topology version', 'text', True,
+                     pattern=r'[0-9]{1,19}', max_length=19,
+                     help='Positive decimal integer, maximum '
+                          '9223372036854775807. Kept as text for precision.'),
         ), target_required=False, impact_scope='cluster', long_running=True
     ),
     ControlPlaneOperation(
@@ -211,6 +213,9 @@ def compile_action(request):
             ]
         elif operation == 'set_version':
             version = draft.get('topology_version')
+            if isinstance(version, str) and re.fullmatch(
+                    r'[0-9]{1,19}', version):
+                version = int(version)
             if isinstance(version, bool) or not isinstance(version, int) or (
                     not 1 <= version <= 9223372036854775807):
                 raise NativeDistributedError(

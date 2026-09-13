@@ -26,6 +26,20 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('keeps decimal-text integer fields exact across input and JSON transport', () => {
+    const changed = jest.fn();
+    render(<VisualAdminField field={{field_id: 'topology_version',
+      label: 'Topology version', control: 'text', required: true}}
+    value="" onChange={changed} />);
+    const input = screen.getByLabelText(/Topology version/);
+    expect(input.type).toBe('text');
+    for (const value of ['9007199254740993', '9223372036854775807']) {
+      fireEvent.change(input, {target: {value}});
+      const result = changed.mock.calls.at(-1)[0];
+      expect(result).toBe(value);
+      expect(JSON.parse(JSON.stringify({value: result})).value).toBe(value);
+    }
+  });
   it('serializes native JSON text and clones native structured records', () => {
     const rule = {score: {$gte: 0}};
     const records = [{name: 'a', type: 'INTEGER'}];
