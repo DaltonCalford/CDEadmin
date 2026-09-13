@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import io
 
 import sqlite3
 import sys
@@ -43,6 +44,7 @@ from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     ADMINISTRATION as FIREBIRD_ADMINISTRATION,
     _sequence_state,
+    _catalog_detail,
 )
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     ADMINISTRATION as DUCKDB_ADMINISTRATION,
@@ -164,6 +166,25 @@ def request(route, operation, draft, target=None):
 
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
+
+    def test_firebird_catalog_blob_text_preserved_and_closed(self):
+        text = '  comment; with apostrophe \' and newline\n' + 'x' * 100000
+        for field in ('description', 'expression_source', 'condition_source'):
+            stream = io.StringIO(text)
+            self.assertEqual(text, _catalog_detail(field, stream))
+            self.assertTrue(stream.closed)
+            self.assertEqual(text, _catalog_detail(field, text))
+            self.assertIsNone(_catalog_detail(field, None))
+        self.assertEqual('42', _catalog_detail('index_type', ' 42 '))
+
+    def test_firebird_catalog_failed_blob_read_closes_stream(self):
+        class FailingReader(io.StringIO):
+            def read(self):
+                raise OSError('read failed')
+        stream = FailingReader()
+        with self.assertRaises(OSError):
+            _catalog_detail('condition_source', stream)
+        self.assertTrue(stream.closed)
 
     def test_firebird_index_variants_compile(self):
         admin = FIREBIRD_ADMINISTRATION

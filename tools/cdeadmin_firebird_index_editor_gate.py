@@ -117,6 +117,50 @@ def run(profiles_path):
                     connection.commit()
                     result['checks'].append(
                         f'{kind}-{direction}-partial-{partial}')
+        # Native BLOB source must survive catalog reads and repeated replay.
+        # Raw fixture SQL deliberately includes native syntax not yet admitted
+        # by the visual expression validator; it is not visual-form evidence.
+        for long_source in (False, True):
+            name = table + '_R'
+            padding = ' ' * 10000 if long_source else ' '
+            expression = f'(UPPER(V){padding}|| \';\')'
+            predicate = 'WHERE\nID > 0' + padding + 'AND ID < 100'
+            execute(f'CREATE DESCENDING INDEX "{name}" ON "{table}" '
+                    f'COMPUTED BY {expression} {predicate}')
+            comment = "  Robin's index;\n" + 'x' * (
+                50000 if long_source else 1)
+            execute(f'COMMENT ON INDEX "{name}" IS \''
+                    + comment.replace("'", "''") + "'")
+            execute(f'ALTER INDEX "{name}" INACTIVE')
+            connection.commit()
+            for replay in range(2):
+                resource = next(item for item in _resources(connection, {
+                    'route': profile}) if item['resource_kind'] == 'index'
+                    and item['display_name'] == name)
+                native = resource['native']
+                assert native['description'] == comment
+                assert native['state']['active'] is False
+                assert native['expression_source'] == expression
+                assert native['condition_source'] == predicate
+                statements = native['recreation_statements']
+                assert len(statements) == 3
+                connection.commit()
+                apply('drop', {}, name)
+                for statement in statements:
+                    execute(statement)
+                connection.commit()
+                execute(f'ALTER INDEX "{name}" ACTIVE')
+                connection.commit()
+                execute(f'INSERT INTO "{table}" VALUES (1, \'Robin\')')
+                assert execute(
+                    f'SELECT ID FROM "{table}" WHERE ID > 0 AND ID < 100 '
+                    "AND UPPER(V) || ';' = 'ROBIN;'", fetch=True) == [(1,)]
+                connection.rollback()
+                execute(f'ALTER INDEX "{name}" INACTIVE')
+                connection.commit()
+                result['checks'].append(
+                    f'metadata-replay-long-{long_source}-cycle-{replay}')
+            apply('drop', {}, name)
         result.update(status='passed', engine_version=connection.info.version)
         return result
     finally:

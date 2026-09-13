@@ -745,6 +745,23 @@ def _initialize_connection(connection, route, module):
     connection.main_transaction.default_tpb = value
 
 
+def _catalog_detail(field, value):
+    """Materialize text BLOBs while their attachment/transaction is alive."""
+    if value is None:
+        return None
+    if callable(getattr(value, 'read', None)):
+        reader = value
+        try:
+            value = reader.read()
+        finally:
+            if callable(getattr(reader, 'close', None)):
+                reader.close()
+    text = str(value)
+    return text if field in {
+        'description', 'expression_source', 'condition_source',
+    } else text.strip()
+
+
 def _resources(connection, request):
     cursor = connection.cursor()
     try:
@@ -964,9 +981,7 @@ def _resources(connection, request):
             ('index', 'SELECT TRIM(RDB$RELATION_NAME), '
              'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, '
              'RDB$INDEX_TYPE, RDB$STATISTICS, '
-             'CAST(RDB$EXPRESSION_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), '
-             'CAST(RDB$CONDITION_SOURCE AS VARCHAR(8191)) '
+             'RDB$EXPRESSION_SOURCE, RDB$DESCRIPTION, RDB$CONDITION_SOURCE '
              'FROM RDB$INDICES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1, 2'),
             ('constraint', 'SELECT TRIM(C.RDB$RELATION_NAME), '
@@ -995,9 +1010,7 @@ def _resources(connection, request):
             for row in optional(source):
                 parent, name, *details = row
                 add(kind, [parent], name, {
-                    field: None if detail is None else (
-                        str(detail) if field == 'description' else
-                        str(detail).strip())
+                    field: _catalog_detail(field, detail)
                     for field, detail in zip(query_detail_names[kind], details)
                 })
             if 'SYSTEM_FLAG, 0) = 0' in source:
@@ -1006,8 +1019,7 @@ def _resources(connection, request):
                     parent, name, *details = row
                     add(kind, [parent], name, {
                         **{
-                            field: None if detail is None else
-                            str(detail).strip()
+                            field: _catalog_detail(field, detail)
                             for field, detail in zip(
                                 query_detail_names[kind], details)
                         },
@@ -2022,6 +2034,8 @@ def _resources(connection, request):
                     if expression:
                         if expression.upper().startswith('COMPUTED BY'):
                             target = expression
+                        elif expression.startswith('('):
+                            target = f'COMPUTED BY {expression}'
                         else:
                             target = f'COMPUTED BY ({expression})'
                     else:
@@ -2035,12 +2049,21 @@ def _resources(connection, request):
                         condition = str(
                             native.get('condition_source') or '').strip()
                         if condition:
-                            target += ' ' + (
-                                condition if condition.upper().startswith(
-                                    'WHERE ') else 'WHERE ' + condition)
-                        native['ddl'] = ' '.join(components) + (
-                            f' {target};'
-                        )
+                            target += '\n' + (
+                                condition if re.match(r'WHERE\b', condition,
+                                                      re.IGNORECASE)
+                                else 'WHERE ' + condition)
+                        statements = [' '.join(components) + f' {target}']
+                        if not native['state']['active']:
+                            statements.append(
+                                f'ALTER INDEX {identifier(name)} INACTIVE')
+                        if native.get('description') is not None:
+                            comment = native['description'].replace("'", "''")
+                            statements.append(
+                                f'COMMENT ON INDEX {identifier(name)} '
+                                f"IS '{comment}'")
+                        native['recreation_statements'] = statements
+                        native['ddl'] = ';\n'.join(statements) + ';'
             elif kind == 'constraint' and len(item['display_path']) > 1:
                 clause = constraint_clause(item)
                 if clause:
