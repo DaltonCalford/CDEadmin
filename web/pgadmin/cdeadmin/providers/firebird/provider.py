@@ -965,7 +965,8 @@ def _resources(connection, request):
              'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, '
              'RDB$INDEX_TYPE, RDB$STATISTICS, '
              'CAST(RDB$EXPRESSION_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)) '
+             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), '
+             'CAST(RDB$CONDITION_SOURCE AS VARCHAR(8191)) '
              'FROM RDB$INDICES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1, 2'),
             ('constraint', 'SELECT TRIM(C.RDB$RELATION_NAME), '
@@ -986,7 +987,7 @@ def _resources(connection, request):
             ),
             'index': (
                 'unique', 'inactive', 'index_type', 'statistics',
-                'expression_source', 'description',
+                'expression_source', 'description', 'condition_source',
             ),
             'constraint': ('constraint_type', 'index_name'),
         }
@@ -2031,6 +2032,12 @@ def _resources(connection, request):
                         ) + ')'
                     if (expression or native.get('segments')) and \
                             name not in constraint_indexes:
+                        condition = str(
+                            native.get('condition_source') or '').strip()
+                        if condition:
+                            target += ' ' + (
+                                condition if condition.upper().startswith(
+                                    'WHERE ') else 'WHERE ' + condition)
                         native['ddl'] = ' '.join(components) + (
                             f' {target};'
                         )

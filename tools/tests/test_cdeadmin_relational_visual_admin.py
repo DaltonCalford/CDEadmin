@@ -165,6 +165,52 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_index_variants_compile(self):
+        admin = FIREBIRD_ADMINISTRATION
+        for kind in ('columns', 'expression'):
+            for direction in ('ASCENDING', 'DESCENDING'):
+                for partial in (False, True):
+                    draft = {'name': 'IX_TEST', 'table': 'ITEMS',
+                             'index_kind': kind, 'direction': direction,
+                             'unique': True}
+                    if kind == 'columns':
+                        draft['columns'] = ['ID', 'VALUE']
+                    else:
+                        draft['expression'] = 'UPPER("VALUE")'
+                    if partial:
+                        draft['condition'] = '"ID" > 0'
+                    plan = admin.plan({'resource_kind': 'index',
+                                       'operation_id': 'create',
+                                       '_provider_route': {'database': 'test'},
+                                       'draft': draft})
+                    source = plan['command_preview']['statements'][0]['source']
+                    self.assertIn(f'CREATE UNIQUE {direction} INDEX', source)
+                    self.assertEqual(partial, ' WHERE ' in source)
+                    self.assertEqual(kind == 'expression',
+                                     'COMPUTED BY' in source)
+
+    def test_firebird_index_controls_and_invalid_inputs(self):
+        admin = FIREBIRD_ADMINISTRATION
+        form = admin._form('index', 'create')
+        admin._structured_record_controls(form)
+        fields = {f['field_id']: f for f in form['fields']}
+        self.assertEqual('expression',
+                         fields['expression']['visible_when']['equals'])
+        self.assertEqual('columns',
+                         fields['columns']['visible_when']['equals'])
+        self.assertIn('array_editor', fields['columns'])
+        for changes in ({'index_kind': 'other'}, {'direction': 'sideways'},
+                        {'index_kind': 'expression', 'expression': ''},
+                        {'condition': '1=1; DROP TABLE ITEMS'},
+                        {'condition': '1=1 -- comment'}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(RelationalClientError):
+                    admin.plan({'resource_kind': 'index',
+                                '_provider_route': {'database': 'test'},
+                                'operation_id': 'create', 'draft': {
+                                    'name': 'IX', 'table': 'ITEMS',
+                                    'columns': ['ID'], **changes}})
+
     def test_routine_parameter_forms_follow_native_compiler_records(self):
         for administration in (FIREBIRD_ADMINISTRATION,
                                MYSQL_ADMINISTRATION,

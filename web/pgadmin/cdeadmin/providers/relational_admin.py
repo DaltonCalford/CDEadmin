@@ -3567,6 +3567,10 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(draft))
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
+            if kind == 'index' and self.dialect.engine_id == 'firebird':
+                for key in ('index_kind', 'direction', 'condition'):
+                    if key in value:
+                        options[key] = value.pop(key)
             if kind == 'database' and self.dialect.engine_id in {
                     'mysql', 'mariadb'}:
                 database_keys = (
@@ -3976,6 +3980,26 @@ class RelationalAdministration:
                     self._field('unique', 'Unique index', 'boolean', False,
                                 default=False),
                 ))
+                if self.dialect.engine_id == 'firebird':
+                    for field in fields:
+                        if field['field_id'] == 'columns':
+                            field['visible_when'] = {
+                                'field_id': 'index_kind', 'equals': 'columns'}
+                    fields.extend((
+                        self._field('index_kind', 'Index definition', 'select',
+                                    default='columns',
+                                    options=('columns', 'expression')),
+                        self._field('direction', 'Index direction', 'select',
+                                    default='ASCENDING',
+                                    options=('ASCENDING', 'DESCENDING')),
+                        {**self._field('expression', 'Computed expression',
+                                       'text', True),
+                         'visible_when': {'field_id': 'index_kind',
+                                          'equals': 'expression'}},
+                        self._field('condition', 'Partial index predicate',
+                                    'text', False,
+                                    'Optional expression after WHERE.'),
+                    ))
             elif kind == 'sequence':
                 sequence_fields = [
                     self._field('start', 'Start value',
@@ -4830,7 +4854,28 @@ class RelationalAdministration:
             source = f'{command} {qualified} AS {query}'
         elif kind == 'index':
             table = self._option_path(options, 'table')
-            columns = self._identifier_list(options.get('columns'))
+            if self.dialect.engine_id == 'firebird':
+                index_kind = options.get('index_kind', 'columns')
+                direction = options.get('direction', 'ASCENDING')
+                if index_kind not in ('columns', 'expression'):
+                    raise RelationalClientError('Invalid Firebird index kind')
+                if direction not in ('ASCENDING', 'DESCENDING'):
+                    raise RelationalClientError('Invalid index direction')
+                if index_kind == 'expression':
+                    expression = self._safe_fragment(
+                        options.get('expression'), 'index expression')
+                    definition = f'COMPUTED BY ({expression})'
+                else:
+                    columns = self._identifier_list(options.get('columns'))
+                    definition = f'({columns})'
+                condition = options.get('condition')
+                if condition is not None and condition != '':
+                    definition += ' WHERE ' + self._safe_fragment(
+                        condition, 'index predicate')
+            else:
+                columns = self._identifier_list(options.get('columns'))
+                direction = ''
+                definition = f'({columns})'
             unique = 'UNIQUE ' if options.get('unique') else ''
             index_name = qualified
             table_name = self._qualified(table)
@@ -4845,8 +4890,8 @@ class RelationalAdministration:
             ):
                 index_name = self._quote(name)
             source = (
-                f'CREATE {unique}INDEX {index_name} ON '
-                f'{table_name} ({columns})'
+                f'CREATE {unique}{direction + " " if direction else ""}'
+                f'INDEX {index_name} ON {table_name} {definition}'
             )
         elif kind == 'sequence':
             source = f'CREATE SEQUENCE {qualified}'
