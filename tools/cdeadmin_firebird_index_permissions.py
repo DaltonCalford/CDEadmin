@@ -71,6 +71,52 @@ def verify(connection, client, profile, table, index, result):
             assert cursor.fetchone()[0] == 0
         connection.commit()
         result['checks'].append('permission-denials-preserve-index-state')
+        # Use the provider's class-wide privilege planner, not an invented
+        # per-index GRANT. Reconnect to test fresh attachment authority.
+
+        def privilege(operation):
+            plan = ADMINISTRATION.plan({
+                '_provider_route': profile, 'resource_kind': 'privilege',
+                'operation_id': operation, 'draft': {
+                    'principal': username, 'privilege_scope': 'ddl_class',
+                    'ddl_class': 'TABLE', 'ddl_privileges': ['ALTER ANY'],
+                    'ddl_principal_kind': 'USER'}})
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.commit()
+
+        limited.close()
+        limited = None
+        privilege('grant')
+        try:
+            limited = driver.connect(password=password,
+                                     **_route_arguments(route, driver))
+            plan = ADMINISTRATION.plan({
+                '_provider_route': route, 'resource_kind': 'index',
+                'operation_id': 'alter',
+                'draft': {'refresh_statistics': True},
+                'target_resource': {'display_name': index,
+                                    'display_path': [table, index]}})
+            ADMINISTRATION.apply(client, plan, connection=limited)
+            limited.commit()
+            result['checks'].append('ddl-grant-enables-index-statistics')
+        finally:
+            if limited is not None:
+                limited.close()
+                limited = None
+            privilege('revoke')
+        limited = driver.connect(password=password,
+                                 **_route_arguments(route, driver))
+        try:
+            with limited.cursor() as cursor:
+                cursor.execute(f'SET STATISTICS INDEX "{index}"')
+        except driver.DatabaseError as error:
+            assert error.sqlstate == '28000', error.sqlstate
+        else:
+            raise AssertionError('Revoked DDL privilege still succeeded')
+        finally:
+            if limited.main_transaction.is_active():
+                limited.rollback()
+        result['checks'].append('ddl-revoke-restores-index-statistics-denial')
     finally:
         try:
             if limited is not None:

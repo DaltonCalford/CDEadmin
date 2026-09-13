@@ -167,6 +167,40 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_class_wide_privilege_planning(self):
+        base = {'principal': 'operator', 'privilege_scope': 'ddl_class',
+                'ddl_class': 'TABLE', 'ddl_privileges': ['ALTER ANY'],
+                'ddl_principal_kind': 'USER'}
+
+        def plan(operation, draft):
+            return FIREBIRD_ADMINISTRATION.plan({
+                '_provider_route': {'database': 'test'},
+                'resource_kind': 'privilege', 'operation_id': operation,
+                'draft': draft})['command_preview']['statements'][0]['source']
+        self.assertEqual('GRANT ALTER ANY TABLE TO USER "operator"',
+                         plan('grant', base))
+        self.assertEqual('REVOKE ALTER ANY TABLE FROM USER "operator"',
+                         plan('revoke', base))
+        self.assertEqual('GRANT CREATE, DROP ANY VIEW TO ROLE "operator" '
+                         'WITH GRANT OPTION', plan('grant', {
+                             **base, 'ddl_class': 'VIEW',
+                             'ddl_privileges': ['CREATE', 'DROP ANY'],
+                             'ddl_principal_kind': 'ROLE',
+                             'grant_option': True}))
+        for invalid in ({'ddl_class': 'INDEX'},
+                        {'ddl_privileges': ['SELECT']},
+                        {'grant_option': 'false'},
+                        {'ddl_privileges': []}, {'ddl_principal_kind': 'ALL'},
+                        {'object_name': 'individual_table'},
+                        {'privilege_scope': 'other'}):
+            with self.assertRaises(RelationalClientError):
+                plan('grant', {**base, **invalid})
+        form = FIREBIRD_ADMINISTRATION._form('privilege', 'grant')
+        fields = {f['field_id']: f for f in form['fields']}
+        self.assertEqual('object',
+                         fields['object_name']['visible_when']['equals'])
+        self.assertEqual('multiselect', fields['ddl_privileges']['control'])
+
     def test_firebird_index_statistics_and_state_are_independent(self):
         def plan(draft):
             return FIREBIRD_ADMINISTRATION.plan({

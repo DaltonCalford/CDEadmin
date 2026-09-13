@@ -3895,6 +3895,34 @@ class RelationalAdministration:
                 self._field('object_name', 'Object name', 'text', True),
                 self._field('privileges', 'Privileges', 'json', True),
             ]
+            if self.dialect.engine_id == 'firebird':
+                for field in fields:
+                    if field['field_id'] != 'principal':
+                        field['visible_when'] = {
+                            'field_id': 'privilege_scope', 'equals': 'object'}
+                fields.insert(0, self._field(
+                    'privilege_scope', 'Privilege scope', 'select',
+                    default='object', options=('object', 'ddl_class')))
+                ddl_fields = [
+                    self._field('ddl_class', 'DDL object class', 'select',
+                                True,
+                                'Class-wide authority, not a single object.',
+                                options=('TABLE', 'VIEW', 'PROCEDURE',
+                                         'FUNCTION', 'PACKAGE', 'SEQUENCE',
+                                         'DOMAIN', 'EXCEPTION', 'ROLE',
+                                         'CHARACTER SET', 'COLLATION',
+                                         'FILTER', 'GENERATOR')),
+                    self._field('ddl_privileges', 'DDL privileges',
+                                'multiselect', True,
+                                options=('CREATE', 'ALTER ANY', 'DROP ANY')),
+                    self._field('ddl_principal_kind', 'Principal kind',
+                                'select', True, default='USER',
+                                options=('USER', 'ROLE')),
+                ]
+                for field in ddl_fields:
+                    field['visible_when'] = {
+                        'field_id': 'privilege_scope', 'equals': 'ddl_class'}
+                fields.extend(ddl_fields)
             if operation == 'grant':
                 fields.append(self._field(
                     'grant_option', 'With grant option', 'boolean', False,
@@ -5972,6 +6000,38 @@ class RelationalAdministration:
         operation = request['operation_id'].upper()
         draft = request['draft']
         principal = self._quote(draft['principal'])
+        if self.dialect.engine_id == 'firebird':
+            scope = draft.get('privilege_scope', 'object')
+            if scope not in ('object', 'ddl_class'):
+                raise RelationalClientError('Invalid Firebird privilege scope')
+            if scope == 'ddl_class':
+                target = draft.get('ddl_class')
+                if target not in (
+                        'TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'PACKAGE',
+                        'SEQUENCE', 'GENERATOR', 'DOMAIN', 'EXCEPTION', 'ROLE',
+                        'CHARACTER SET', 'COLLATION', 'FILTER'):
+                    raise RelationalClientError('Invalid Firebird DDL class')
+                values = draft.get('ddl_privileges')
+                if not isinstance(values, list) or not values or any(
+                        v not in ('CREATE', 'ALTER ANY', 'DROP ANY')
+                        for v in values):
+                    raise RelationalClientError('Invalid DDL privileges')
+                kind = draft.get('ddl_principal_kind', 'USER')
+                if kind not in ('USER', 'ROLE'):
+                    raise RelationalClientError('Invalid DDL principal kind')
+                if any(draft.get(k) for k in (
+                        'object_name', 'object_type', 'privileges')):
+                    raise RelationalClientError(
+                        'Do not combine object and class-wide privileges')
+                if 'grant_option' in draft and not isinstance(
+                        draft['grant_option'], bool):
+                    raise RelationalClientError('Grant option must be boolean')
+                suffix = (' WITH GRANT OPTION' if operation == 'GRANT' and
+                          draft.get('grant_option') else '')
+                prep = 'TO' if operation == 'GRANT' else 'FROM'
+                return {'source': (
+                    f'{operation} {", ".join(dict.fromkeys(values))} {target} '
+                    f'{prep} {kind} {principal}{suffix}'), 'parameters': ()}
         privileges = draft.get('privileges')
         if not isinstance(privileges, list) or not privileges:
             raise RelationalClientError('privileges must be a non-empty array')
