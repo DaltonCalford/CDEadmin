@@ -234,6 +234,76 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_visual_index_keys_preserve_order_types_and_native_options(self):
+        for kind, native in (('ascending', 1), ('descending', -1),
+                             ('text', 'text'), ('hashed', 'hashed'),
+                             ('2d', '2d'), ('2dsphere', '2dsphere')):
+            draft = {'name': 'example', 'keys': [
+                {'field': 'a.b', 'kind': kind}],
+                'options': {'hidden': True, 'partialFilterExpression': {
+                    'active': True}}}
+            result = MongoDBClient._index_options(draft)
+            self.assertEqual([('a.b', native)], result['keys'])
+            self.assertTrue(result['hidden'])
+            self.assertEqual({'active': True},
+                             result['partialFilterExpression'])
+            self.assertNotIn('name', draft['options'])
+        result = MongoDBClient._index_options({'name': 'compound', 'keys': [
+            {'field': 'b', 'kind': 'descending'},
+            {'field': 'a', 'kind': 'ascending'}]})
+        self.assertEqual([('b', -1), ('a', 1)], result['keys'])
+
+    def test_visual_index_keys_reject_conflicts_and_invalid_records(self):
+        good = {'field': 'a', 'kind': 'ascending'}
+        for draft in ({'keys': []}, {'keys': [good, good]},
+                      {'keys': [dict(good, unsupported=True)]},
+                      {'keys': [dict(good, kind='invented')]},
+                      {'keys': [dict(good, field='')]}, {'keys': [42]},
+                      {'keys': [good], 'options': {'keys': [('a', 1)]}},
+                      {'keys': [good], 'options': {'name': 'override'}}):
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({'name': 'example', **draft})
+        legacy = {'name': 'legacy', 'options': {
+            'keys': [('a', 1)], 'unique': True}}
+        self.assertEqual([('a', 1)],
+                         MongoDBClient._index_options(legacy)['keys'])
+
+    def test_visual_index_execution_uses_native_key_tuples(self):
+        calls = []
+        collection = SimpleNamespace(create_index=lambda keys, **options:
+                                     calls.append((keys, options)))
+        MongoDBClient._apply_index({'items': collection}, 'create', {
+            'name': 'ordered', 'keys': [
+                {'field': '$**', 'kind': 'ascending'}],
+            'options': {'wildcardProjection': {'private': 0}}},
+            {'collection': 'items'})
+        self.assertEqual([([('$**', 1)], {
+            'name': 'ordered', 'wildcardProjection': {'private': 0}})], calls)
+
+    def test_visual_index_form_and_plan_preserve_transport_contract(self):
+        adapter = client()
+        form = adapter._admin_form('index', 'create')
+        fields = {f['field_id']: f for f in form['fields']}
+        self.assertIn('array_editor', fields['keys'])
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {
+                       'database': 'qualification', 'collection': 'items'}},
+                   'draft': {'name': 'ordered', 'keys': [
+                       {'field': 'a', 'kind': 'descending'}],
+                       'options': {'unique': True}}}
+        self.assertFalse(adapter.validate_admin_operation(request)['errors'])
+        plan = adapter.plan_admin_operation(request)
+        payload = json.loads(json.dumps(plan['provider_payload']))
+        self.assertNotIn('keys', payload['draft'])
+        options = MongoDBClient._index_options(payload['draft'])
+        self.assertEqual([['a', -1]], options['keys'])
+        self.assertTrue(options['unique'])
+        self.assertEqual('ordered', options['name'])
+        request['draft']['keys'] = []
+        self.assertTrue(adapter.validate_admin_operation(request)['errors'])
+        adapter.close()
+
     def test_compatibility_matrix_keeps_exact_claims_fail_closed(self):
         matrix = json.loads((
             WEB / 'pgadmin/cdeadmin/providers/mongodb/'

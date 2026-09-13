@@ -1621,9 +1621,26 @@ class MongoDBClient:
                     'title': 'Create MongoDB index',
                     'fields': [
                         f('name', 'Index name', required=True),
+                        f('keys', 'Ordered index keys', 'json', default=[],
+                          json_type='array', array_editor={
+                              'item_kind': 'object', 'fields': [
+                                  f('field', 'Document field path',
+                                    required=True),
+                                  f('kind', 'Key type', 'select', True,
+                                    default='ascending', options=[
+                                        {'value': value, 'label': label}
+                                        for value, label in (
+                                            ('ascending', 'Ascending'),
+                                            ('descending', 'Descending'),
+                                            ('text', 'Text'),
+                                            ('hashed', 'Hashed'),
+                                            ('2d', '2D geospatial'),
+                                            ('2dsphere', '2D sphere'),
+                                        )]),
+                              ]}),
                         f(
-                            'options', 'Index keys and options', 'json', True,
-                            default={'keys': []}, json_type='object',
+                            'options', 'Additional native index options',
+                            'json', default={}, json_type='object',
                         ),
                     ],
                 }
@@ -1882,6 +1899,12 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind == 'index' and operation == 'create':
+            try:
+                self._index_options(draft)
+            except MongoDBClientError as error:
+                errors.append({'field_id': 'keys', 'code': 'index_keys',
+                               'message': str(error)})
         if kind == 'aggregation-pipeline' and operation == 'execute':
             pipeline = draft.get('pipeline')
             if not isinstance(pipeline, list) or any(
@@ -2005,6 +2028,9 @@ class MongoDBClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
+        if kind == 'index' and operation == 'create':
+            draft['options'] = self._index_options(draft)
+            draft.pop('keys', None)
         target = request.get('target_resource')
         native = self._native_target(target) if target else {}
         provider_payload = {
@@ -2805,10 +2831,50 @@ class MongoDBClient:
             raise MongoDBClientError('document operation is unavailable')
 
     @staticmethod
+    def _index_options(draft):
+        options = draft.get('options', {})
+        if not isinstance(options, Mapping):
+            raise MongoDBClientError('Index options must be an object.')
+        options = copy.deepcopy(dict(options))
+        records = draft.get('keys', [])
+        if not isinstance(records, list):
+            raise MongoDBClientError('Ordered index keys must be a list.')
+        if records:
+            if options.get('keys'):
+                raise MongoDBClientError(
+                    'Specify visual keys or legacy options.keys, not both.')
+            kinds = {'ascending': 1, 'descending': -1, 'text': 'text',
+                     'hashed': 'hashed', '2d': '2d', '2dsphere': '2dsphere'}
+            keys = []
+            seen = set()
+            for record in records:
+                if not isinstance(record, Mapping) or set(record) != {
+                        'field', 'kind'}:
+                    raise MongoDBClientError(
+                        'Each index key requires only field and kind.')
+                name, kind = record['field'], record['kind']
+                if not isinstance(name, str) or not name or '\x00' in name:
+                    raise MongoDBClientError('Index field path is invalid.')
+                if not isinstance(kind, str) or kind not in kinds:
+                    raise MongoDBClientError('Index key type is unsupported.')
+                if name in seen:
+                    raise MongoDBClientError('Duplicate index field path.')
+                seen.add(name)
+                keys.append((name, kinds[kind]))
+            options['keys'] = keys
+        if not isinstance(options.get('keys'), list) or not options['keys']:
+            raise MongoDBClientError('At least one index key is required.')
+        if 'name' in options and options['name'] != draft.get('name'):
+            raise MongoDBClientError(
+                'Native options cannot override the index name.')
+        options.setdefault('name', draft.get('name'))
+        return options
+
+    @staticmethod
     def _apply_index(database, operation, draft, native):
         collection = database[native.get('collection')]
         if operation == 'create':
-            options = dict(draft.get('options', {}))
+            options = MongoDBClient._index_options(draft)
             keys = options.pop('keys', None)
             if not isinstance(keys, list):
                 raise MongoDBClientError('index options require keys array')

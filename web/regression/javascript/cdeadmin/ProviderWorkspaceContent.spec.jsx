@@ -26,6 +26,39 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  let originalHeight;
+  beforeEach(() => {
+    originalHeight = window.innerHeight;
+    // The shared virtual-grid test setup assigns every element height 800.
+    // Give select popovers a viewport that accommodates that mocked geometry.
+    window.innerHeight = 1200;
+  });
+  afterEach(() => { window.innerHeight = originalHeight; });
+  it('preserves MongoDB key order and selected native key types', () => {
+    const field = {label: 'Ordered index keys', array_editor: {
+      item_kind: 'object', fields: [
+        {field_id: 'field', label: 'Document field path', control: 'text'},
+        {field_id: 'kind', label: 'Key type', control: 'select',
+          default: 'ascending', options: [
+            {value: 'ascending', label: 'Ascending'},
+            {value: 'descending', label: 'Descending'},
+          ]},
+      ],
+    }};
+    const onChange = jest.fn();
+    render(<RecordListAdminField field={field} value={[
+      {field: 'a', kind: 'ascending'}, {field: 'b', kind: 'descending'},
+    ]} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Ordered index keys 2: Move up'}));
+    expect(onChange).toHaveBeenLastCalledWith([
+      {field: 'b', kind: 'descending'}, {field: 'a', kind: 'ascending'},
+    ]);
+    fireEvent.mouseDown(screen.getAllByRole('combobox', {name: 'Key type'})[0]);
+    fireEvent.click(screen.getByRole('option', {name: 'Descending'}));
+    expect(onChange).toHaveBeenLastCalledWith([
+      {field: 'a', kind: 'descending'}, {field: 'b', kind: 'descending'},
+    ]);
+  });
   const properties = {field_id: 'properties', label: 'Constraint properties',
     control: 'json', default: {kind: 'CHECK', expression: ''},
     object_editor: {fields: [
