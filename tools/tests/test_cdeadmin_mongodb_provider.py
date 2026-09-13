@@ -237,6 +237,55 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_view_creation_fields_validate_and_preserve_pipeline(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'view', 'operation_id': 'create',
+                   'target_resource': {'native': {'database': 'selected'}},
+                   'draft': {'name': 'active', 'view_source': 'items',
+                             'configure_pipeline': True, 'view_pipeline': [
+                                 {'$match': {'active': True}},
+                                 {'$project': {'name': 1}}]}}
+        valid = visual.validate(request)
+        self.assertTrue(valid['valid'], valid['errors'])
+        payload = adapter.plan_admin_operation({
+            **request, 'draft': valid['draft']})['provider_payload']
+        draft = json.loads(json.dumps(payload))['draft']
+        options = adapter._view_creation_options(draft)
+        self.assertEqual('items', options['view_on'])
+        self.assertEqual(request['draft']['view_pipeline'],
+                         options['pipeline'])
+        self.assertEqual('selected', options['database'])
+        request['draft'].update(configure_pipeline=False,
+                                view_pipeline='hidden invalid')
+        valid = visual.validate(request)
+        self.assertTrue(valid['valid'], valid['errors'])
+        self.assertNotIn('view_pipeline', valid['draft'])
+        self.assertEqual([], adapter._view_creation_options(
+            valid['draft'])['pipeline'])
+        adapter.close()
+
+    def test_view_creation_options_reject_conflicts_and_bad_shapes(self):
+        adapter = client()
+        for draft in ({}, {'view_source': 1},
+                      {'view_source': 'a', 'options': {'view_on': 'a'}},
+                      {'options': {'viewOn': 'a', 'view_on': 'a'}},
+                      {'view_source': 'a', 'configure_pipeline': 1},
+                      {'view_source': 'a', 'configure_pipeline': True,
+                       'options': {'pipeline': []}}):
+            with self.assertRaises(MongoDBClientError):
+                adapter._view_creation_options(draft)
+        for pipeline in ({}, [1], [{}], [{'$match': {}, '$limit': 1}]):
+            with self.assertRaises(MongoDBClientError):
+                adapter._view_creation_options({
+                    'view_source': 'a', 'configure_pipeline': True,
+                    'view_pipeline': pipeline})
+        for key in ('view_on', 'viewOn'):
+            self.assertEqual('a', adapter._view_creation_options({
+                'options': {key: 'a'}})['view_on'])
+        adapter.close()
+
     def test_creation_database_target_and_explicit_names(self):
         adapter = client()
         for target, draft in (
@@ -249,6 +298,8 @@ class MongoDBProviderTests(unittest.TestCase):
                 request = {'resource_kind': kind, 'operation_id': 'create',
                            'target_resource': target,
                            'draft': {'name': 'created', **draft}}
+                if kind == 'view':
+                    request['draft']['view_source'] = 'source'
                 self.assertFalse(
                     adapter.validate_admin_operation(request)['errors'])
                 plan = adapter.plan_admin_operation(request)

@@ -1597,6 +1597,15 @@ class MongoDBClient:
                           help='Uses the selected database. Enter a database '
                                'when creating from a server connection.'),
                         *cls._collation_fields(kind),
+                        *([
+                            f('view_source', 'Source collection or view'),
+                            f('configure_pipeline', 'Define view pipeline',
+                              'boolean', default=False),
+                            f('view_pipeline', 'View aggregation pipeline',
+                              'json', default=[], json_type='array',
+                              visible_when={'field_id': 'configure_pipeline',
+                                            'equals': True}),
+                        ] if kind == 'view' else []),
                         f(
                             'options', f'MongoDB {label} options', 'json',
                             False, default={},
@@ -2041,7 +2050,10 @@ class MongoDBClient:
         errors = []
         if kind in {'collection', 'view'} and operation == 'create':
             try:
-                self._collection_options(draft)
+                if kind == 'view':
+                    self._view_creation_options(draft)
+                else:
+                    self._collection_options(draft)
             except MongoDBClientError as error:
                 errors.append({'field_id': 'options', 'code': 'options',
                                'message': str(error)})
@@ -2188,7 +2200,9 @@ class MongoDBClient:
         if kind in {'collection', 'view'} and operation == 'create':
             database_name = self._creation_database(request, draft)
             draft = {'name': draft.get('name'),
-                     'options': self._collection_options(draft)}
+                     'options': (self._view_creation_options(draft)
+                                 if kind == 'view' else
+                                 self._collection_options(draft))}
             draft['options']['database'] = database_name
         if kind == 'validator' and operation in {'create', 'alter'}:
             container = 'options' if operation == 'create' else 'changes'
@@ -2974,7 +2988,9 @@ class MongoDBClient:
     def _apply_collection(database, kind, operation, draft, name, native):
         if operation == 'create':
             name = _identifier(draft.get('name'), f'{kind} name')
-            options = MongoDBClient._collection_options(draft)
+            options = (MongoDBClient._view_creation_options(draft)
+                       if kind == 'view' else
+                       MongoDBClient._collection_options(draft))
             options.pop('database', None)
             if kind == 'view':
                 view_on = _identifier(options.pop('view_on', None), 'view_on')
@@ -3282,6 +3298,38 @@ class MongoDBClient:
                         'Required collation version (blank uses server)',
                         visible_when=visible))
         return fields
+
+    @classmethod
+    def _view_creation_options(cls, draft):
+        options = cls._collection_options(draft)
+        source = draft.get('view_source')
+        if source is not None and source != '':
+            if 'view_on' in options or 'viewOn' in options:
+                raise MongoDBClientError(
+                    'Specify the view source visually or in options, '
+                    'not both.')
+            options['view_on'] = source
+        if 'viewOn' in options:
+            if 'view_on' in options:
+                raise MongoDBClientError('Specify the view source only once.')
+            options['view_on'] = options.pop('viewOn')
+        options['view_on'] = _identifier(
+            options.get('view_on'), 'view source')
+        configure = draft.get('configure_pipeline', False)
+        if not isinstance(configure, bool):
+            raise MongoDBClientError('Define pipeline must be true or false.')
+        if configure:
+            if 'pipeline' in options:
+                raise MongoDBClientError(
+                    'Specify the pipeline visually or in options, not both.')
+            options['pipeline'] = copy.deepcopy(draft.get('view_pipeline', []))
+        pipeline = options.setdefault('pipeline', [])
+        if not isinstance(pipeline, list) or any(
+                not isinstance(stage, Mapping) or len(stage) != 1
+                for stage in pipeline):
+            raise MongoDBClientError(
+                'View pipeline must be an array of single-stage objects.')
+        return options
 
     @classmethod
     def _creation_database(cls, request, draft):

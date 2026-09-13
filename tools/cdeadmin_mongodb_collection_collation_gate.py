@@ -44,12 +44,17 @@ def verify(database, adapter, result):
     for mode in ('native', 'simple', 'locale'):
         name = 'collated_view_' + mode
         view = create('view', name, {
-            'options': {'view_on': source.name, 'pipeline': []},
+            'view_source': source.name, 'configure_pipeline': True,
+            'view_pipeline': [{'$match': {'value': 'Robin'}}],
             'collation_mode': mode, 'collation_locale': 'en',
             'collation_strength': '2'})
         expected = 1 if mode == 'locale' else 0
         assert view.count_documents({'value': 'robin'}) == expected
         result['checks'].append('view-' + mode + '-query-collation')
+        source.insert_one({'value': 'Other'})
+        assert view.count_documents({}) == 1
+        source.delete_one({'value': 'Other'})
+        result['checks'].append('view-' + mode + '-pipeline-filter')
         if mode == 'locale':
             try:
                 view.count_documents({}, collation={'locale': 'simple'})
