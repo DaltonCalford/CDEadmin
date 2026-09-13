@@ -233,6 +233,40 @@ def verify(connection, client, profile, table, index, result):
 
             role_check('role-member-without-activation-denied', False, False)
             role_check('active-role-allows-index-statistics', True, True)
+            session_route = {**route}
+            session_route.pop('role', None)
+            attachment = driver.connect(
+                password=password, **_route_arguments(session_route, driver))
+            try:
+                for selected, allowed in (('NONE', False), (role, True),
+                                          ('NONE', False), (role, True)):
+                    with attachment.cursor() as cursor:
+                        cursor.execute(f'SET ROLE "{selected}"')
+                        cursor.execute('SELECT CURRENT_ROLE '
+                                       'FROM RDB$DATABASE')
+                        assert cursor.fetchone()[0].strip() == selected
+                    attachment.commit()
+                    plan = ADMINISTRATION.plan({
+                        '_provider_route': session_route,
+                        'resource_kind': 'index', 'operation_id': 'alter',
+                        'draft': {'refresh_statistics': True},
+                        'target_resource': {'display_name': index,
+                                            'display_path': [table, index]}})
+                    try:
+                        ADMINISTRATION.apply(client, plan,
+                                             connection=attachment)
+                    except RelationalClientError as error:
+                        if allowed:
+                            raise
+                        assert 'DatabaseError' in str(error), error
+                    else:
+                        assert allowed, 'Inactive session role authorized DDL'
+                    if attachment.main_transaction.is_active():
+                        attachment.rollback()
+                result['checks'].append(
+                    'same-attachment-role-switch-deny-allow-deny-allow')
+            finally:
+                attachment.close()
             privilege('revoke', role, 'ROLE')
             role_check('role-ddl-revoke-denies-index-statistics', True, False)
             privilege('grant', role, 'ROLE')
@@ -297,6 +331,76 @@ def verify(connection, client, profile, table, index, result):
                     if allowed:
                         membership('revoke', admin_option_only=True)
                 result['checks'].append('role-delegation-allow-then-deny')
+
+                def grantor_authority(enabled):
+                    draft = ({'system_privileges': ['USE_GRANTED_BY_CLAUSE']}
+                             if enabled else {'drop_system_privileges': True})
+                    plan = ADMINISTRATION.plan({
+                        '_provider_route': profile, 'resource_kind': 'role',
+                        'operation_id': 'alter', 'draft': draft,
+                        'target_resource': {'display_name': role}})
+                    ADMINISTRATION.apply(client, plan, connection=connection)
+                    connection.commit()
+
+                try:
+                    for allowed in (True, False):
+                        grantor_authority(allowed)
+                        grantor_route = {**route, 'role': role}
+                        attachment = driver.connect(
+                            password=password,
+                            **_route_arguments(grantor_route, driver))
+                        try:
+                            plan = ADMINISTRATION.plan({
+                                '_provider_route': grantor_route,
+                                'resource_kind': 'role',
+                                'operation_id': 'grant',
+                                'target_resource': {'display_name': role},
+                                'draft': {'member': nested,
+                                          'member_kind': 'ROLE',
+                                          'grantor': 'SYSDBA'}})
+                            try:
+                                ADMINISTRATION.apply(client, plan,
+                                                     connection=attachment)
+                            except RelationalClientError as error:
+                                if allowed:
+                                    raise
+                                assert 'DatabaseError' in str(error), error
+                            else:
+                                assert allowed, 'Revoked grantor authority'
+                                with attachment.cursor() as cursor:
+                                    cursor.execute(
+                                        'SELECT TRIM(RDB$GRANTOR) FROM '
+                                        'RDB$USER_PRIVILEGES WHERE '
+                                        'RDB$USER = ? AND '
+                                        'RDB$RELATION_NAME = ?',
+                                        (nested, role))
+                                    assert cursor.fetchall() == [('SYSDBA',)]
+                                denied = ADMINISTRATION.plan({
+                                    '_provider_route': grantor_route,
+                                    'resource_kind': 'role',
+                                    'operation_id': 'grant',
+                                    'target_resource': {'display_name': role},
+                                    'draft': {'member': nested,
+                                              'member_kind': 'ROLE',
+                                              'grantor': username}})
+                                try:
+                                    ADMINISTRATION.apply(
+                                        client, denied, connection=attachment)
+                                except RelationalClientError as error:
+                                    assert 'DatabaseError' in str(error), error
+                                else:
+                                    raise AssertionError(
+                                        'Named grantor lacks role admin option')
+                                result['checks'].append(
+                                    'grantor-clause-requires-named-authority')
+                            if attachment.main_transaction.is_active():
+                                attachment.rollback()
+                        finally:
+                            attachment.close()
+                    result['checks'].append(
+                        'system-privilege-grantor-allow-then-revoke-deny')
+                finally:
+                    grantor_authority(False)
                 membership('grant', nested, 'ROLE', default_role=True)
                 membership('grant', selected_role=nested)
                 role_check('nested-default-role-inherits-ddl-privilege',

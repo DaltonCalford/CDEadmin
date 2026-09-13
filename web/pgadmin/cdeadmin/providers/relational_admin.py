@@ -3847,8 +3847,11 @@ class RelationalAdministration:
                         'Keeps membership. Leave both removal options '
                         'unchecked to revoke membership itself.')),
                 self._field('grantor', 'Grantor (optional)', 'text',
-                            help_text='Uses GRANTED BY USER; the server '
-                            'checks authority to act as this grantor.'),
+                            help_text='Uses GRANTED BY USER. Role admin '
+                            'permission alone does not authorize this clause; '
+                            'Firebird checks administrative or '
+                            'USE_GRANTED_BY_CLAUSE authority and the '
+                            'named grantor\'s permission.'),
             ]
             if operation == 'revoke':
                 fields.append(self._field(
