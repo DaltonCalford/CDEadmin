@@ -74,13 +74,13 @@ def verify(connection, client, profile, table, index, result):
         # Use the provider's class-wide privilege planner, not an invented
         # per-index GRANT. Reconnect to test fresh attachment authority.
 
-        def privilege(operation):
+        def privilege(operation, principal=username, kind='USER'):
             plan = ADMINISTRATION.plan({
                 '_provider_route': profile, 'resource_kind': 'privilege',
                 'operation_id': operation, 'draft': {
-                    'principal': username, 'privilege_scope': 'ddl_class',
+                    'principal': principal, 'privilege_scope': 'ddl_class',
                     'ddl_class': 'TABLE', 'ddl_privileges': ['ALTER ANY'],
-                    'ddl_principal_kind': 'USER'}})
+                    'ddl_principal_kind': kind}})
             ADMINISTRATION.apply(client, plan, connection=connection)
             connection.commit()
 
@@ -117,6 +117,91 @@ def verify(connection, client, profile, table, index, result):
             if limited.main_transaction.is_active():
                 limited.rollback()
         result['checks'].append('ddl-revoke-restores-index-statistics-denial')
+        limited.close()
+        limited = None
+        role = username + '_R'
+        execute(f'CREATE ROLE "{role}"')
+        connection.commit()
+        try:
+            privilege('grant', role, 'ROLE')
+            execute(f'GRANT "{role}" TO USER "{username}"')
+            connection.commit()
+
+            def role_check(label, active, allowed):
+                role_route = {**route}
+                role_route.pop('role', None)
+                if active:
+                    role_route['role'] = role
+                attachment = driver.connect(
+                    password=password, **_route_arguments(role_route, driver))
+                try:
+                    with attachment.cursor() as cursor:
+                        cursor.execute('SELECT CURRENT_USER, CURRENT_ROLE '
+                                       'FROM RDB$DATABASE')
+                        user_value, role_value = cursor.fetchone()
+                        assert user_value.strip() == username
+                        if not active:
+                            assert role_value.strip() == 'NONE', role_value
+                        if allowed:
+                            assert role_value.strip() == role, role_value
+                    attachment.commit()
+                    plan = ADMINISTRATION.plan({
+                        '_provider_route': role_route,
+                        'resource_kind': 'index', 'operation_id': 'alter',
+                        'draft': {'refresh_statistics': True},
+                        'target_resource': {'display_name': index,
+                                            'display_path': [table, index]}})
+                    if allowed:
+                        ADMINISTRATION.apply(client, plan,
+                                             connection=attachment)
+                        attachment.commit()
+                    else:
+                        try:
+                            ADMINISTRATION.apply(client, plan,
+                                                 connection=attachment)
+                        except RelationalClientError as error:
+                            assert 'execution failed (DatabaseError)' in str(
+                                error), error
+                        else:
+                            raise AssertionError(
+                                'Inactive/revoked role worked')
+                        with attachment.cursor() as cursor:
+                            try:
+                                cursor.execute(
+                                    f'SET STATISTICS INDEX "{index}"')
+                            except driver.DatabaseError as error:
+                                assert error.sqlstate == '28000', (
+                                    error.sqlstate)
+                            else:
+                                raise AssertionError('Missing native denial')
+                        attachment.rollback()
+                    result['checks'].append(label)
+                finally:
+                    attachment.close()
+
+            role_check('role-member-without-activation-denied', False, False)
+            role_check('active-role-allows-index-statistics', True, True)
+            privilege('revoke', role, 'ROLE')
+            role_check('role-ddl-revoke-denies-index-statistics', True, False)
+            privilege('grant', role, 'ROLE')
+            execute(f'REVOKE "{role}" FROM USER "{username}"')
+            connection.commit()
+            role_check('role-membership-revoke-denies-statistics', True, False)
+        finally:
+            if connection.main_transaction.is_active():
+                connection.rollback()
+            execute(f'DROP ROLE "{role}"')
+            connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT COUNT(*) FROM RDB$ROLES '
+                               'WHERE RDB$ROLE_NAME = ?', (role,))
+                assert cursor.fetchone()[0] == 0
+                cursor.execute('SELECT COUNT(*) FROM RDB$USER_PRIVILEGES '
+                               'WHERE RDB$USER = ? OR RDB$RELATION_NAME = ?',
+                               (role, role))
+                assert cursor.fetchone()[0] == 0
+            connection.commit()
+            result['temporary_role_removed'] = True
     finally:
         try:
             if limited is not None:
