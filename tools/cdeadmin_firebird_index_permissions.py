@@ -124,8 +124,33 @@ def verify(connection, client, profile, table, index, result):
         connection.commit()
         try:
             privilege('grant', role, 'ROLE')
-            execute(f'GRANT "{role}" TO USER "{username}"')
+
+            def membership(operation, member=username, kind='USER',
+                           selected_role=role, **options):
+                plan = ADMINISTRATION.plan({
+                    '_provider_route': profile, 'resource_kind': 'role',
+                    'operation_id': operation,
+                    'target_resource': {'display_name': selected_role},
+                    'draft': {'member': member, 'member_kind': kind,
+                              **options}})
+                ADMINISTRATION.apply(client, plan, connection=connection)
+                connection.commit()
+
+            membership('grant', admin_option=True, grantor='SYSDBA')
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT RDB$GRANT_OPTION FROM '
+                               'RDB$USER_PRIVILEGES WHERE RDB$USER = ? '
+                               'AND RDB$RELATION_NAME = ?', (username, role))
+                assert cursor.fetchone()[0] == 2  # WITH_ADMIN_OPTION
             connection.commit()
+            membership('revoke', admin_option_only=True, grantor='SYSDBA')
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT RDB$GRANT_OPTION FROM '
+                               'RDB$USER_PRIVILEGES WHERE RDB$USER = ? '
+                               'AND RDB$RELATION_NAME = ?', (username, role))
+                assert cursor.fetchone()[0] == 0
+            connection.commit()
+            result['checks'].append('provider-role-admin-option-grant-revoke')
 
             def role_check(label, active, allowed, selected_role=None):
                 role_route = {**route}
@@ -185,31 +210,53 @@ def verify(connection, client, profile, table, index, result):
             privilege('revoke', role, 'ROLE')
             role_check('role-ddl-revoke-denies-index-statistics', True, False)
             privilege('grant', role, 'ROLE')
-            execute(f'REVOKE "{role}" FROM USER "{username}"')
-            connection.commit()
+            membership('revoke')
             role_check('role-membership-revoke-denies-statistics', True, False)
-            execute(f'GRANT DEFAULT "{role}" TO USER "{username}"')
-            connection.commit()
+            membership('grant', default_role=True)
             role_check('default-role-without-explicit-activation', False, True)
-            execute(f'REVOKE DEFAULT "{role}" FROM USER "{username}"')
-            connection.commit()
+            membership('revoke', default_role=True)
             role_check('default-role-revocation-removes-implicit-access',
                        False, False)
             role_check('default-revocation-preserves-explicit-membership',
                        True, True)
-            execute(f'REVOKE "{role}" FROM USER "{username}"')
-            connection.commit()
+            membership('revoke')
             nested = role + '_N'
             execute(f'CREATE ROLE "{nested}"')
             connection.commit()
             try:
-                execute(f'GRANT DEFAULT "{role}" TO ROLE "{nested}"')
-                execute(f'GRANT "{nested}" TO USER "{username}"')
-                connection.commit()
+                membership('grant', admin_option=True)
+                for allowed in (True, False):
+                    attachment = driver.connect(
+                        password=password, **_route_arguments(route, driver))
+                    try:
+                        plan = ADMINISTRATION.plan({
+                            '_provider_route': route,
+                            'resource_kind': 'role', 'operation_id': 'grant',
+                            'target_resource': {'display_name': role},
+                            'draft': {'member': nested,
+                                      'member_kind': 'ROLE'}})
+                        try:
+                            ADMINISTRATION.apply(client, plan,
+                                                 connection=attachment)
+                        except RelationalClientError as error:
+                            if allowed:
+                                raise
+                            assert 'execution failed (DatabaseError)' in str(
+                                error), error
+                        else:
+                            assert allowed, 'Delegation without admin option'
+                        if attachment.main_transaction.is_active():
+                            attachment.rollback()
+                    finally:
+                        attachment.close()
+                    if allowed:
+                        membership('revoke', admin_option_only=True)
+                result['checks'].append('role-delegation-allow-then-deny')
+                membership('grant', nested, 'ROLE', default_role=True)
+                membership('grant', selected_role=nested)
                 role_check('nested-default-role-inherits-ddl-privilege',
                            True, True, nested)
-                execute(f'REVOKE "{role}" FROM ROLE "{nested}"')
-                connection.commit()
+                membership('revoke', nested, 'ROLE')
                 role_check('nested-role-edge-revocation-removes-access',
                            True, False, nested)
             finally:

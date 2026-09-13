@@ -114,7 +114,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'inspect', 'create', 'alter', 'drop',
         }),
         'role': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'user': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),

@@ -167,6 +167,43 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_role_membership_forms_and_commands(self):
+        catalog = FIREBIRD_ADMINISTRATION.catalog(
+            catalog_for_engine('firebird'))
+        role = next(item for item in catalog['objects']
+                    if item['resource_kind'] == 'role')
+        operations = {item['operation_id']: item
+                      for item in role['operations']}
+        for operation in ('grant', 'revoke'):
+            self.assertEqual(f'firebird.role.{operation}',
+                             operations[operation]['form']['form_id'])
+
+        def plan(operation, **options):
+            return FIREBIRD_ADMINISTRATION.plan({
+                '_provider_route': {'database': 'test'},
+                'resource_kind': 'role', 'operation_id': operation,
+                'target_resource': {'display_name': 'readers'},
+                'draft': {'member': 'operator', **options}
+            })['command_preview']['statements'][0]['source']
+
+        self.assertEqual('GRANT "readers" TO USER "operator"', plan('grant'))
+        self.assertEqual('REVOKE "readers" FROM USER "operator"',
+                         plan('revoke'))
+        self.assertEqual('GRANT DEFAULT "readers" TO ROLE "operator" '
+                         'WITH ADMIN OPTION GRANTED BY USER "SYSDBA"',
+                         plan('grant', default_role=True, member_kind='ROLE',
+                              admin_option=True, grantor='SYSDBA'))
+        self.assertEqual('REVOKE ADMIN OPTION FOR DEFAULT "readers" '
+                         'FROM USER "operator"', plan(
+                             'revoke', default_role=True,
+                             admin_option_only=True))
+        for invalid in ({'member_kind': 'GROUP'}, {'member': ''},
+                        {'default_role': 'false'}, {'admin_option': 1},
+                        {'admin_option_only': 'true'}):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(RelationalClientError):
+                    plan('grant', **invalid)
+
     def test_firebird_class_wide_privilege_planning(self):
         base = {'principal': 'operator', 'privilege_scope': 'ddl_class',
                 'ddl_class': 'TABLE', 'ddl_privileges': ['ALTER ANY'],

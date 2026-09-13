@@ -2953,6 +2953,10 @@ class RelationalAdministration:
                 request['resource_kind'] == 'role' and
                 operation in {'grant', 'revoke', 'set_default'}):
             return {'statements': [self._compile_mariadb_role(request)]}
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'role' and
+                operation in {'grant', 'revoke'}):
+            return {'statements': [self._compile_firebird_role(request)]}
         if operation in {'grant', 'revoke'}:
             return {'statements': [self._compile_privilege(request)]}
         if operation == 'execute':
@@ -3818,6 +3822,32 @@ class RelationalAdministration:
                 'title': f'{title} MariaDB replication channel',
                 'fields': fields,
             }
+        if self.dialect.engine_id == 'firebird' and kind == 'role' and (
+                operation in {'grant', 'revoke'}):
+            fields = [
+                self._field('member', 'Member name', 'text', True),
+                self._field('member_kind', 'Member type', 'select', True,
+                            default='USER', options=('USER', 'ROLE')),
+                self._field(
+                    'default_role', 'Default role' if operation == 'grant'
+                    else 'Remove default status only', 'boolean',
+                    default=False),
+                self._field(
+                    'admin_option' if operation == 'grant'
+                    else 'admin_option_only',
+                    'Allow delegation' if operation == 'grant'
+                    else 'Revoke admin option only', 'boolean',
+                    default=False),
+                self._field('grantor', 'Grantor (optional)', 'text',
+                            help_text='Uses GRANTED BY USER; the server '
+                            'checks authority to act as this grantor.'),
+            ]
+            if operation == 'revoke':
+                fields.append(self._field(
+                    'confirmation', 'Confirmation', 'text', True))
+            return {'form_id': f'firebird.role.{operation}',
+                    'title': f'{title} Firebird role membership',
+                    'fields': fields}
         if self.dialect.engine_id == 'mariadb' and kind == 'role' and (
                 operation in {'grant', 'revoke', 'set_default'}):
             fields = [
@@ -6073,6 +6103,30 @@ class RelationalAdministration:
             ),
             'parameters': (),
         }
+
+    def _compile_firebird_role(self, request):
+        operation = request['operation_id']
+        draft = request['draft']
+        kind = draft.get('member_kind', 'USER')
+        if kind not in {'USER', 'ROLE'}:
+            raise RelationalClientError('Firebird member type is invalid')
+        for field in ('default_role', 'admin_option', 'admin_option_only'):
+            if field in draft and not isinstance(draft[field], bool):
+                raise RelationalClientError(f'{field} must be boolean')
+        role = self._quote((request.get('target_resource') or {}).get(
+            'display_name'))
+        member = self._quote(draft.get('member'))
+        default = 'DEFAULT ' if draft.get('default_role') else ''
+        if operation == 'grant':
+            suffix = ' WITH ADMIN OPTION' if draft.get('admin_option') else ''
+            source = f'GRANT {default}{role} TO {kind} {member}{suffix}'
+        else:
+            prefix = 'ADMIN OPTION FOR ' if draft.get(
+                'admin_option_only') else ''
+            source = f'REVOKE {prefix}{default}{role} FROM {kind} {member}'
+        if draft.get('grantor'):
+            source += f' GRANTED BY USER {self._quote(draft["grantor"])}'
+        return {'source': source, 'parameters': ()}
 
     def _compile_mariadb_role(self, request):
         operation = request['operation_id']
