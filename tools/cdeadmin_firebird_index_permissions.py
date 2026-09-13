@@ -123,6 +123,9 @@ def verify(connection, client, profile, table, index, result):
         execute(f'CREATE ROLE "{role}"')
         connection.commit()
         try:
+            from cdeadmin_firebird_role_ownership import verify as verify_owner
+            verify_owner(connection, client, profile, route, password,
+                         username, role, result)
             privilege('grant', role, 'ROLE')
 
             def membership(operation, member=username, kind='USER',
@@ -390,7 +393,8 @@ def verify(connection, client, profile, table, index, result):
                                     assert 'DatabaseError' in str(error), error
                                 else:
                                     raise AssertionError(
-                                        'Named grantor lacks role admin option')
+                                        'Named grantor lacks role admin '
+                                        'option')
                                 result['checks'].append(
                                     'grantor-clause-requires-named-authority')
                             if attachment.main_transaction.is_active():

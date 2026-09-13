@@ -1841,6 +1841,13 @@ def _resources(connection, request):
                     f'{str(native["definition"]).strip()};'
                 )
             elif kind == 'role':
+                native['recreation_requirements'] = {
+                    'execute_as_user': native.get('owner'),
+                    'ownership_transfer_supported': False,
+                    'explanation': 'Firebird assigns role ownership to the '
+                    'creating user. Recreate through that user to preserve '
+                    'ownership; ALTER ROLE has no OWNER TO clause.',
+                }
                 if native.get('unknown_system_privilege_bits'):
                     native['ddl_unavailable_reason'] = (
                         'Unknown native system privilege bits; recreation '
