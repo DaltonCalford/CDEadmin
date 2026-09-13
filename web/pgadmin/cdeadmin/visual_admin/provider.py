@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import math
 import hashlib
 import json
 import re
@@ -953,6 +954,11 @@ class ProviderVisualAdministration:
                 return None, {
                     'field_id': field_id, 'code': 'type',
                     'message': f'{label} must be numeric.',
+                }
+            if isinstance(value, float) and not math.isfinite(value):
+                return None, {
+                    'field_id': field_id, 'code': 'finite',
+                    'message': f'{label} must be finite.',
                 }
             minimum = field.get('minimum')
             maximum = field.get('maximum')

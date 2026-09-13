@@ -144,6 +144,49 @@ class OrderedKeyAdapter(NativeAdapter):
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
 
+    def test_numeric_fields_reject_nonfinite_values_at_both_boundaries(self):
+        declaration = control_plane_field('value', 'Value', 'number', True,
+                                          minimum=-10, maximum=10)
+        for value in (float('nan'), float('inf'), float('-inf')):
+            with self.subTest(value=value):
+                cleaned, error = ProviderVisualAdministration._validate_field(
+                    declaration, value)
+                self.assertIsNone(cleaned)
+                self.assertEqual('finite', error['code'])
+                self.assertEqual('non_finite',
+                                 ControlPlaneCatalog._field_error(
+                                     declaration, value)[0])
+
+    def test_numeric_fields_preserve_exact_integers_and_finite_fractions(self):
+        declaration = control_plane_field('value', 'Value', 'number', True)
+        for value in (0, -1, 0.125, -(2 ** 63), 2 ** 63 - 1, 10 ** 400):
+            with self.subTest(value=value):
+                cleaned, error = ProviderVisualAdministration._validate_field(
+                    declaration, value)
+                self.assertIsNone(error)
+                self.assertEqual(value, cleaned)
+                self.assertEqual(type(value), type(cleaned))
+                self.assertIsNone(ControlPlaneCatalog._field_error(
+                    declaration, value))
+        for value in (True, '1', {}, []):
+            self.assertIsNotNone(ProviderVisualAdministration._validate_field(
+                declaration, value)[1])
+            self.assertIsNotNone(ControlPlaneCatalog._field_error(
+                declaration, value))
+
+    def test_nonfinite_numbers_are_rejected_in_structured_editor_records(self):
+        number = control_plane_field('value', 'Value', 'number', True)
+        for editor, value in (
+                ('array_editor', [{'value': float('nan')}]),
+                ('object_editor', {'value': float('inf')})):
+            declaration = {'field_id': 'settings', 'label': 'Settings',
+                           'control': 'json', 'required': True,
+                           editor: {'item_kind': 'object', 'fields': [number]}}
+            cleaned, error = ProviderVisualAdministration._validate_field(
+                declaration, value)
+            self.assertIsNone(cleaned)
+            self.assertIsNotNone(error)
+
     def test_firebird_properties_surface_native_metadata_sections(self):
         resources = {
             item['resource_kind']: item

@@ -284,7 +284,8 @@ class MongoDBProviderTests(unittest.TestCase):
                    {'geo_bits': 2, 'options': {'bits': 2}}]
         invalid += [{'geo_bits': v} for v in (0, 33, True, 1.5, '2')]
         invalid += [{'geo_min': v} for v in (
-            True, '1', float('nan'), float('inf'), float('-inf'))]
+            True, '1', float('nan'), float('inf'), float('-inf'),
+            10 ** 400, -(10 ** 400))]
         for draft in invalid:
             with self.subTest(draft=draft):
                 with self.assertRaises(MongoDBClientError):

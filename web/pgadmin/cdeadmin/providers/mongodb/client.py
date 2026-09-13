@@ -3164,8 +3164,15 @@ class MongoDBClient:
                 if type(value) is not int or not 1 <= value <= 32:
                     raise MongoDBClientError(
                         '2D bits must be an integer 1–32.')
-            elif type(value) not in (int, float) or not math.isfinite(value):
-                raise MongoDBClientError('2D bounds must be finite numbers.')
+            else:
+                try:
+                    finite = (type(value) in (int, float) and
+                              math.isfinite(value))
+                except OverflowError:
+                    finite = False
+                if not finite:
+                    raise MongoDBClientError(
+                        '2D bounds must be finite numbers.')
             add(key, value)
         lower, upper = options.get('min', -180), options.get('max', 180)
         if type(lower) in (int, float) and type(upper) in (int, float) and (

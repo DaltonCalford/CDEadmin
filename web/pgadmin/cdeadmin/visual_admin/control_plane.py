@@ -17,6 +17,7 @@ Each provider must explicitly compile every operation it advertises.
 from __future__ import annotations
 
 import copy
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -326,6 +327,8 @@ class ControlPlaneCatalog:
         elif control == 'number':
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return 'invalid_type', f'{label} must be a number.'
+            if isinstance(value, float) and not math.isfinite(value):
+                return 'non_finite', f'{label} must be finite.'
             minimum = declaration.get('minimum')
             maximum = declaration.get('maximum')
             if minimum is not None and value < minimum:
