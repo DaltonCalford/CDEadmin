@@ -237,6 +237,66 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_wildcard_projection_modes_defaults_and_plan(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'name': 'wild', 'keys': [
+                       {'field': '$**', 'kind': 'ascending'}],
+                       'configure_wildcard': True}}
+        for action, opposite in (('include', 'exclude'),
+                                 ('exclude', 'include')):
+            request['draft']['wildcard_fields'] = [
+                {'field': 'a.b', 'action': action},
+                {'field': '_id', 'action': opposite}]
+            valid = visual.validate(request)
+            self.assertTrue(valid['valid'], valid['errors'])
+            plan = adapter.plan_admin_operation({
+                **request, 'draft': valid['draft']})
+            draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+            self.assertEqual({'a.b': int(action == 'include'),
+                              '_id': int(opposite == 'include')},
+                             MongoDBClient._index_options(draft)[
+                                 'wildcardProjection'])
+        request['draft'].update(configure_wildcard=False,
+                                wildcard_fields='ignored')
+        valid = visual.validate(request)
+        self.assertTrue(valid['valid'], valid['errors'])
+        self.assertNotIn('wildcard_fields', valid['draft'])
+        self.assertNotIn('wildcardProjection', MongoDBClient._index_options(
+            valid['draft']))
+        adapter.close()
+
+    def test_wildcard_projection_rejects_invalid_controls(self):
+        good = {'field': 'a', 'action': 'include'}
+        base = {'name': 'wild', 'keys': [
+                    {'field': '$**', 'kind': 'ascending'}],
+                'configure_wildcard': True, 'wildcard_fields': [good]}
+        invalid = [{'configure_wildcard': 1}, {'wildcard_fields': []},
+                   {'wildcard_fields': {}}, {'wildcard_fields': [1]},
+                   {'wildcard_fields': [good, good]},
+                   {'wildcard_fields': [dict(good, extra=True)]},
+                   {'wildcard_fields': [dict(good, action='bad')]},
+                   {'wildcard_fields': [dict(good, field='')]},
+                   {'wildcard_fields': [dict(good, field='a\x00')]},
+                   {'wildcard_fields': [good, {
+                       'field': 'b', 'action': 'exclude'}]},
+                   {'options': {'wildcardProjection': {'a': 1}}}]
+        invalid += [{'keys': [{'field': field, 'kind': kind}]}
+                    for field, kind in (('a', 'ascending'),
+                                        ('a.$**', 'ascending'),
+                                        ('$**', 'text'))]
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({**base, **draft})
+        native = {'nested': {'a': 1}}
+        self.assertEqual(native, MongoDBClient._index_options({
+            **base, 'configure_wildcard': False,
+            'options': {'wildcardProjection': native}})['wildcardProjection'])
+
     def test_index_collation_modes_and_all_visual_options(self):
         base = {'name': 'collated', 'keys': [
             {'field': 'name', 'kind': 'ascending'}]}

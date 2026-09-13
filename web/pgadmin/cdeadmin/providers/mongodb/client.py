@@ -1689,6 +1689,21 @@ class MongoDBClient:
                                        ('native', 'Native default'),
                                        ('2', '2'), ('3', '3'))]),
                         *cls._collation_fields(),
+                        f('configure_wildcard',
+                          'Configure wildcard projection',
+                          'boolean', default=False),
+                        f('wildcard_fields', 'Wildcard projection fields',
+                          'json', True, default=[], json_type='array',
+                          visible_when={'field_id': 'configure_wildcard',
+                                        'equals': True},
+                          array_editor={'item_kind': 'object', 'fields': [
+                              f('field', 'Document field path', required=True),
+                              f('action', 'Projection action', 'select', True,
+                                default='include', options=[
+                                    {'value': 'include', 'label': 'Include'},
+                                    {'value': 'exclude', 'label': 'Exclude'},
+                                ]),
+                          ]}),
                         f(
                             'options', 'Additional native index options',
                             'json', default={}, json_type='object',
@@ -3083,11 +3098,53 @@ class MongoDBClient:
             raise MongoDBClientError('At least one index key is required.')
         MongoDBClient._text_index_options(draft, options)
         MongoDBClient._index_collation(draft, options)
+        MongoDBClient._wildcard_index_options(draft, options)
         if 'name' in options and options['name'] != draft.get('name'):
             raise MongoDBClientError(
                 'Native options cannot override the index name.')
         options.setdefault('name', draft.get('name'))
         return options
+
+    @staticmethod
+    def _wildcard_index_options(draft, options):
+        enabled = draft.get('configure_wildcard', False)
+        if not isinstance(enabled, bool):
+            raise MongoDBClientError(
+                'Configure wildcard must be true or false.')
+        if not enabled:
+            return
+        if 'wildcardProjection' in options:
+            raise MongoDBClientError(
+                'Specify wildcard projection visually or in advanced options, '
+                'not both.')
+        if not any(isinstance(key, (list, tuple)) and len(key) == 2 and
+                   key[0] == '$**' and key[1] in (1, -1)
+                   for key in options['keys']):
+            raise MongoDBClientError(
+                'Wildcard projection requires a root $** ascending or '
+                'descending index key.')
+        records = draft.get('wildcard_fields')
+        if not isinstance(records, list) or not records:
+            raise MongoDBClientError('Wildcard projection cannot be empty.')
+        projection = {}
+        for record in records:
+            if not isinstance(record, Mapping) or set(record) != {
+                    'field', 'action'}:
+                raise MongoDBClientError(
+                    'Each projection field requires field and action.')
+            field, action = record['field'], record['action']
+            if not isinstance(field, str) or not field or '\x00' in field:
+                raise MongoDBClientError('Projection field path is invalid.')
+            if field in projection:
+                raise MongoDBClientError('Duplicate projection field path.')
+            if action not in ('include', 'exclude'):
+                raise MongoDBClientError('Projection action is invalid.')
+            projection[field] = int(action == 'include')
+        modes = {value for key, value in projection.items() if key != '_id'}
+        if len(modes) > 1:
+            raise MongoDBClientError(
+                'Cannot mix inclusion and exclusion except for _id.')
+        options['wildcardProjection'] = projection
 
     @classmethod
     def _collation_fields(cls):
