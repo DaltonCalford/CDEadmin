@@ -1659,6 +1659,35 @@ class MongoDBClient:
                           True, minimum=0, maximum=2147483647,
                           visible_when={'field_id': 'enable_ttl',
                                         'equals': True}),
+                        f('configure_text', 'Configure text index options',
+                          'boolean', default=False),
+                        f('text_weights', 'Text field weights', 'json',
+                          default=[], json_type='array',
+                          visible_when={'field_id': 'configure_text',
+                                        'equals': True},
+                          array_editor={'item_kind': 'object', 'fields': [
+                              f('field', 'Weighted document field',
+                                required=True),
+                              f('weight', 'Weight', 'number', True, default=1,
+                                minimum=1, maximum=99999),
+                          ]}),
+                        *[f(field, label,
+                            visible_when={'field_id': 'configure_text',
+                                          'equals': True})
+                          for field, label in (
+                              ('text_language',
+                               'Default language (blank uses native default)'),
+                              ('text_language_override',
+                               'Language field (blank uses native default)'),
+                          )],
+                        f('text_version', 'Text index version', 'select',
+                          default='native',
+                          visible_when={'field_id': 'configure_text',
+                                        'equals': True},
+                          options=[{'value': v, 'label': label}
+                                   for v, label in (
+                                       ('native', 'Native default'),
+                                       ('2', '2'), ('3', '3'))]),
                         f(
                             'options', 'Additional native index options',
                             'json', default={}, json_type='object',
@@ -3051,11 +3080,71 @@ class MongoDBClient:
             options['keys'] = keys
         if not isinstance(options.get('keys'), list) or not options['keys']:
             raise MongoDBClientError('At least one index key is required.')
+        MongoDBClient._text_index_options(draft, options)
         if 'name' in options and options['name'] != draft.get('name'):
             raise MongoDBClientError(
                 'Native options cannot override the index name.')
         options.setdefault('name', draft.get('name'))
         return options
+
+    @staticmethod
+    def _text_index_options(draft, options):
+        enabled = draft.get('configure_text', False)
+        if not isinstance(enabled, bool):
+            raise MongoDBClientError('Configure text must be true or false.')
+        if not enabled:
+            return
+        if not any(isinstance(key, (list, tuple)) and len(key) == 2 and
+                   key[1] == 'text' for key in options['keys']):
+            raise MongoDBClientError('Text options require a text index key.')
+
+        def add(key, value):
+            if key in options:
+                raise MongoDBClientError(
+                    'Specify each text option once, visually or in advanced '
+                    'options, not both.')
+            options[key] = value
+
+        records = draft.get('text_weights', [])
+        if not isinstance(records, list):
+            raise MongoDBClientError('Text weights must be a list.')
+        weights = {}
+        for record in records:
+            if not isinstance(record, Mapping) or set(record) != {
+                    'field', 'weight'}:
+                raise MongoDBClientError(
+                    'Each weight requires field and weight.')
+            field, weight = record['field'], record['weight']
+            if not isinstance(field, str) or not field or '\x00' in field or (
+                    field != '$**' and any(
+                        not part or part.startswith('$')
+                        for part in field.split('.'))):
+                raise MongoDBClientError('Weighted document field is invalid.')
+            if field in weights:
+                raise MongoDBClientError('Duplicate weighted document field.')
+            if type(weight) is not int or not 1 <= weight <= 99999:
+                raise MongoDBClientError(
+                    'Weight must be an integer 1 to 99999.')
+            weights[field] = weight
+        if weights:
+            add('weights', weights)
+        for field, native in (
+                ('text_language', 'default_language'),
+                ('text_language_override', 'language_override')):
+            value = draft.get(field, '')
+            if not isinstance(value, str) or '\x00' in value:
+                raise MongoDBClientError(
+                    'Text language settings must be text.')
+            if value:
+                if native == 'language_override' and (
+                        value.startswith('$') or '.' in value):
+                    raise MongoDBClientError('Language field is invalid.')
+                add(native, value)
+        version = draft.get('text_version', 'native')
+        if version not in ('native', '2', '3'):
+            raise MongoDBClientError('Text index version choice is invalid.')
+        if version != 'native':
+            add('textIndexVersion', int(version))
 
     @staticmethod
     def _apply_index(database, operation, draft, native):

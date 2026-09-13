@@ -237,6 +237,79 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_text_index_visual_options_and_plan_roundtrip(self):
+        adapter = client()
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'name': 'search', 'keys': [
+                       {'field': 'title', 'kind': 'text'}],
+                       'configure_text': True, 'text_weights': [
+                           {'field': 'title', 'weight': 10},
+                           {'field': 'body', 'weight': 1}],
+                       'text_language': 'none',
+                       'text_language_override': 'document_language',
+                       'text_version': '3'}}
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        plan = adapter.plan_admin_operation({
+            **request, 'draft': validated['draft']})
+        draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+        self.assertEqual({'name', 'options'}, set(draft))
+        options = MongoDBClient._index_options(draft)
+        self.assertEqual({'title': 10, 'body': 1}, options['weights'])
+        self.assertEqual('none', options['default_language'])
+        self.assertEqual('document_language', options['language_override'])
+        self.assertEqual(3, options['textIndexVersion'])
+        request['draft'].update(configure_text=False, text_weights='ignored')
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        self.assertNotIn('text_weights', validated['draft'])
+        adapter.close()
+
+    def test_text_options_defaults_boundaries_and_advanced_preservation(self):
+        base = {'name': 'search', 'keys': [{'field': '$**', 'kind': 'text'}],
+                'configure_text': True}
+        self.assertEqual({'keys': [('$**', 'text')], 'name': 'search'},
+                         MongoDBClient._index_options(base))
+        for weight in (1, 99999):
+            options = MongoDBClient._index_options({**base, 'text_weights': [
+                {'field': '$**', 'weight': weight}]})
+            self.assertEqual({'$**': weight}, options['weights'])
+        advanced = {'weights': {'a': 2.5}, 'default_language': 'en',
+                    'textIndexVersion': 2}
+        self.assertEqual(advanced, {key: value for key, value in
+                         MongoDBClient._index_options({
+                             **base, 'options': advanced}).items()
+                         if key in advanced})
+
+    def test_text_options_reject_invalid_records_and_conflicts(self):
+        base = {'name': 'search', 'keys': [{'field': 'a', 'kind': 'text'}],
+                'configure_text': True}
+        invalid = [{'configure_text': 'yes'}, {'text_version': '1'},
+                   {'text_language': 1}, {'text_language_override': '$bad'},
+                   {'text_language_override': 'a.b'}, {'text_weights': {}},
+                   {'keys': [{'field': 'a', 'kind': 'ascending'}]}]
+        invalid += [{'text_weights': [{'field': 'a', 'weight': value}]}
+                    for value in (0, -1, 100000, True, 1.5, '2', None)]
+        invalid += [{'text_weights': [{'field': value, 'weight': 1}]}
+                    for value in ('', 'a..b', '$bad', 'a.$bad', 'a\x00')]
+        invalid += [{'text_weights': [1]}, {'text_weights': [
+            {'field': 'a', 'weight': 1}, {'field': 'a', 'weight': 2}]}]
+        for draft, native in (
+                ({'text_weights': [{'field': 'a', 'weight': 1}]},
+                 {'weights': {'a': 1}}),
+                ({'text_language': 'none'}, {'default_language': 'none'}),
+                ({'text_language_override': 'lang'},
+                 {'language_override': 'lang'}),
+                ({'text_version': '3'}, {'textIndexVersion': 3})):
+            invalid.append({**draft, 'options': native})
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({**base, **draft})
+
     def test_index_visual_flags_and_ttl_preserve_native_defaults(self):
         base = {'name': 'example', 'keys': [
             {'field': 'value', 'kind': 'ascending'}]}
