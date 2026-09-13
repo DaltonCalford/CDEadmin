@@ -144,6 +144,14 @@ PARENT_KINDS = {
     'view': ('schema', 'database'),
     'materialized-view': ('schema', 'database', 'keyspace'),
     'column': ('table', 'view', 'materialized-view'),
+    'function': ('schema', 'database', 'package'),
+    'procedure': ('schema', 'database', 'package'),
+    'sequence': ('schema', 'database'),
+    'domain': ('schema', 'database'),
+    'type': ('schema', 'database'),
+    'package': ('schema', 'database'),
+    'exception': ('database',),
+    'collection': ('database',),
     'field': ('collection', 'table', 'index'),
     'index': ('table', 'collection', 'database'),
     'constraint': ('table', 'database'),
@@ -279,18 +287,33 @@ def _editor_kind(kind, model_family, group_id):
     return 'relational-object'
 
 
-def _sections(group_id, operations):
+ROW_CONTAINER_KINDS = frozenset({
+    'table', 'view', 'materialized-view', 'foreign-table', 'virtual-table',
+    'fts-table',
+})
+
+
+def _data_presentation(kind, model_family):
+    """Presentation is object-specific, never inherited from a broad group."""
+    if kind in DATA_PRESENTATIONS:
+        return DATA_PRESENTATIONS[kind]
+    if kind in ROW_CONTAINER_KINDS:
+        return ('columnar-grid' if 'columnar' in model_family else
+                'structured-grid')
+    return None
+
+
+def _sections(group_id, operations, kind, presentation):
     sections = ['properties']
     if group_id in {
         'relations', 'programmable', 'graph-schema', 'search-schema',
         'ingest', 'analytics',
     }:
         sections.extend(['definition', 'dependencies'])
-    if group_id in {
-        'relations', 'documents', 'graph-data', 'keys', 'streams',
-        'search-schema', 'analytics',
-    }:
+    if presentation:
         sections.append('data')
+    if kind == 'sequence':
+        sections.append('state')
     if group_id in {
             'topology', 'replication', 'storage', 'operations', 'temporal'}:
         sections.extend(['state', 'statistics'])
@@ -334,12 +357,10 @@ def enrich_engine_experience(engine):
         editor = {
             'editor_id': f'cdeadmin.{engine_id}.{kind}.editor',
             'editor_kind': _editor_kind(kind, model_family, group_id),
-            'sections': _sections(group_id, operation_ids),
-            'data_presentation': DATA_PRESENTATIONS.get(
-                kind,
-                'columnar-grid' if 'columnar' in model_family else
-                'structured-grid' if group_id == 'relations' else None,
-            ),
+            'sections': _sections(
+                group_id, operation_ids, kind,
+                _data_presentation(kind, model_family)),
+            'data_presentation': _data_presentation(kind, model_family),
             'native_definition': group_id in {
                 'relations', 'programmable', 'graph-schema',
                 'search-schema', 'ingest', 'analytics',

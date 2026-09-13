@@ -20,6 +20,7 @@
   "composition": {"experience_families": ["cassandra"], "target_adapter_ids": ["cql-client"]},
   "extension_schema": null,
   "registration": {
+    "database_targeting": {"route_key": "keyspace", "mode": "optional", "multiple": true},
     "display_name": "Apache Cassandra 5.0.8",
     "workflow": "provider_endpoint",
     "route_kind": "network",

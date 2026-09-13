@@ -180,6 +180,17 @@ function executeProviderAction(menu, itemData, item) {
   );
 }
 
+export function openProviderObject(itemData, item) {
+  const menu = providerContextMenuItems(itemData, item)?.find(
+    (candidate) => candidate.commandId.endsWith('.browse')
+  );
+  if (menu?.enable()) return executeProviderAction(menu, itemData, item);
+  pgAdmin.Browser.notifier.error(
+    gettext('The provider has not made an object browser available for this object.')
+  );
+  return false;
+}
+
 export function providerTreeContextActions(itemData, item=null) {
   const menus = providerContextMenuItems(itemData, item);
   if(menus === null) return null;
@@ -202,16 +213,18 @@ export function providerTreeContextActions(itemData, item=null) {
     });
   });
   return [...grouped.entries()].sort(([left], [right])=>{
+    if (left === 'common') return -1;
+    if (right === 'common') return 1;
     const a = PROVIDER_MENU_CATEGORIES[left]?.priority ?? 1000;
     const b = PROVIDER_MENU_CATEGORIES[right]?.priority ?? 1000;
     return a - b || left.localeCompare(right);
-  }).map(([category, children])=>({
+  }).flatMap(([category, children])=>category === 'common' ? children : [{
     id: `provider-category-${category}`,
     label: PROVIDER_MENU_CATEGORIES[category]?.label || category,
     iconKey: '',
     enabled: true,
     children,
-  }));
+  }]);
 }
 
 export default providerContextMenuItems;

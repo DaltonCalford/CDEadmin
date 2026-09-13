@@ -159,7 +159,9 @@ function Layouts({browser, platform}) {
       LAYOUT_EVENTS.RESET, ()=>setObjectExplorerVisible(true));
   }, [setObjectExplorerVisible]);
   useEffect(() => {
-    const showInspector = () => requestWorkbenchInspection(true);
+    const showInspector = (_item, data) => requestWorkbenchInspection(
+      data?._type !== 'cde_resource_group'
+    );
     const hideInspector = () => requestWorkbenchInspection(false);
     pgAdmin.Browser.Events.on(
       'pgadmin-browser:node:selected', showInspector

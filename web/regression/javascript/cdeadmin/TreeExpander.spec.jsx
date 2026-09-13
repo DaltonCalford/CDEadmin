@@ -18,6 +18,18 @@ import pgAdmin from 'sources/pgadmin';
 import {manageTreeEvents} from 'sources/tree/tree';
 
 describe('CDEadmin tree expander', () => {
+  it('opens provider objects on activation without toggling their branch', async () => {
+    const tree = new FileTreeX({model: {root: {}}, onEvent: jest.fn()});
+    tree.setActiveFile = jest.fn().mockResolvedValue();
+    tree.toggleDirectory = jest.fn();
+    const dispatch = jest.spyOn(tree.events, 'dispatch');
+    const item = {_metadata: {data: {_type: 'cde_resource'}}};
+    const event = {};
+    await tree.handleItemDoubleClicked(event, item);
+    expect(tree.setActiveFile).toHaveBeenCalledWith(item);
+    expect(dispatch).toHaveBeenCalledWith(FileTreeXEvent.onTreeEvents, event, 'activated', item);
+    expect(tree.toggleDirectory).not.toHaveBeenCalled();
+  });
   it('dispatches a directory toggle immediately and only once', () => {
     const data = {
       id: 'engine_type_firebird',

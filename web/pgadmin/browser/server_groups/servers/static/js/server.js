@@ -14,6 +14,7 @@ import _ from 'lodash';
 import getApiInstance, { parseApiError } from '../../../../../static/js/api_instance';
 import { AllPermissionTypes } from '../../../../static/js/constants';
 import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
+import {openProviderObject} from '../../../../static/js/ProviderContextMenu';
 import {
   beforeOpenProviderDatabase, providerEndpointSessionReady,
 } from
@@ -409,6 +410,13 @@ define('pgadmin.node.server', [
                 response.data.runtime_verification_state;
               data.is_password_saved = response.data.is_password_saved;
               data.cde_session_authenticated = true;
+              // `connected` enables inherited PostgreSQL dashboard polling.
+              // Provider readiness has its own state and must not enable it.
+              data.connected = false;
+              if (response.data.icon) {
+                data.icon = response.data.icon;
+                tree.addIcon(item, {icon: response.data.icon});
+              }
               pgAdmin.Browser.notifier.success(response.info);
               if (!input.openOnSuccessItem && !input.onSuccess) {
                 this.callbacks.refresh.call(this, null, item);
@@ -425,6 +433,7 @@ define('pgadmin.node.server', [
               }
             },
             (error) => pgAdmin.Browser.notifier.pgRespErrorNotify(error),
+            input.databaseTargetId,
           );
           return false;
         },
@@ -1128,6 +1137,11 @@ define('pgadmin.node.server', [
       parent_type: ['cde_resource_group', 'cde_database_target'],
       type: 'cde_resource',
       label: gettext('Provider resource'),
+      callbacks: {
+        activated: function(item, data) {
+          return openProviderObject(data, item);
+        },
+      },
       hasProperties: false,
       hasSQL: false,
       hasStatistics: false,

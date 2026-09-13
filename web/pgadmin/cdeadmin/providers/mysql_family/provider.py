@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from importlib import resources as package_resources
 
+from ..catalog_presentation import annotate_relation_ownership
+
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
     PilotProfile,
@@ -1567,6 +1569,29 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             selected_database.strip() else None
         )
         resources = {}
+        catalog_failures = []
+        system_databases = {'information_schema', 'mysql',
+                            'performance_schema', 'sys'}
+
+        def catalog_source(source):
+            if selected_database not in system_databases:
+                return source
+            # Keep endpoint scans bounded, but never exclude the system
+            # database the user explicitly selected in the navigator.
+            return re.sub(
+                r"(?:WHERE|AND) (?:TABLE|TRIGGER|ROUTINE|EVENT)_SCHEMA "
+                r"NOT IN \('information_schema', 'mysql', "
+                r"'performance_schema', 'sys'\) ", '', source)
+
+        def record_failure(source, error):
+            code = getattr(error, 'errno', None)
+            catalog_failures.append({
+                'query_sha256': hashlib.sha256(source.encode()).hexdigest(),
+                'error_code': None if code is None else str(code),
+                'sqlstate': getattr(error, 'sqlstate', None),
+                'category': ('permission_denied' if code in {1142, 1227}
+                             else 'query_failed'),
+            })
 
         def add(kind, path, name, native=None):
             path = [str(item) for item in path]
@@ -1582,12 +1607,16 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             })
             if native:
                 resource.setdefault('native', {}).update(native)
+            if (path and path[0] in system_databases) or (
+                    kind == 'database' and name in system_databases):
+                resource.setdefault('native', {})['system_object'] = True
 
         def optional(source):
             try:
-                cursor.execute(source)
+                cursor.execute(catalog_source(source))
                 return cursor.fetchall()
-            except Exception:
+            except Exception as error:
+                record_failure(source, error)
                 return []
 
         def normalized(value):
@@ -1599,7 +1628,7 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
 
         def optional_records(source):
             try:
-                cursor.execute(source)
+                cursor.execute(catalog_source(source))
                 names = tuple(str(item[0]).lower() for item in (
                     cursor.description or ()
                 ))
@@ -1610,7 +1639,8 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                     }
                     for row in cursor.fetchall()
                 ]
-            except Exception:
+            except Exception as error:
+                record_failure(source, error)
                 return []
 
         if profile is MYSQL_PROFILE:
@@ -1674,13 +1704,13 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             else:
                 native['schema_comment'] = row[3]
             add('database', [], row[0], native)
-        cursor.execute(
+        cursor.execute(catalog_source(
             'SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE '
             'FROM information_schema.TABLES '
             "WHERE TABLE_SCHEMA NOT IN ('information_schema', 'mysql', "
             "'performance_schema', 'sys') "
             'ORDER BY TABLE_SCHEMA, TABLE_NAME'
-        )
+        ))
         for schema_name, object_name, object_type in cursor.fetchall():
             schema_name = str(schema_name)
             add('database', [], schema_name)
@@ -1712,6 +1742,11 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
             else:
                 kind = 'view' if 'VIEW' in object_type else 'table'
                 show_kind = 'VIEW' if kind == 'view' else 'TABLE'
+                if object_type == 'SYSTEM VIEW':
+                    # SYSTEM VIEWs include dictionary views and temporary
+                    # native tables. SHOW CREATE TABLE supports both;
+                    # SHOW CREATE VIEW fails with 1347 on the native tables.
+                    show_kind = 'TABLE'
                 definition = optional(
                     f'SHOW CREATE {show_kind} `{escaped_schema}`.'
                     f'`{escaped_name}`'
@@ -2007,7 +2042,11 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                         )
                         add(
                             'binary-log-event',
-                            [name], event_name, event,
+                            [name], event_name, {
+                                **event,
+                                'navigator_parent_resource_id':
+                                    f'binary-log:{name}',
+                            },
                         )
             for record in optional_records('SHOW BINLOG STATUS'):
                 name = record.get('file') or 'Current binary log position'
@@ -2113,6 +2152,26 @@ def _resources(connection, request, profile=MYSQL_PROFILE):
                 native['security'] = snapshot
                 if kind == 'privilege':
                     native['privileges'] = [snapshot]
+        annotate_relation_ownership(list(resources.values()))
+        coverage = {
+            'state': 'partial' if catalog_failures else 'queried',
+            'complete_native_inventory': False,
+            'failed_query_count': len(catalog_failures),
+            'failures': catalog_failures,
+        }
+        for resource in resources.values():
+            if resource['resource_kind'] in {'server', 'database'}:
+                resource.setdefault('native', {})['catalog_coverage'] = (
+                    copy.deepcopy(coverage))
+            elif catalog_failures:
+                # An object selection must not hide the endpoint's limited
+                # visibility. Avoid copying the full failure list per column.
+                resource.setdefault('native', {})['catalog_coverage'] = {
+                    'state': 'partial', 'scope': 'endpoint-catalog',
+                    'failed_query_count': len(catalog_failures),
+                    'complete_native_inventory': False,
+                    'details_resource_id': f'server:{profile.engine_name}',
+                }
         if selected_database is None:
             return list(resources.values())
         database_scoped = {

@@ -755,10 +755,26 @@ def _inspect_control_plane(client, request):
             'FROM dolt_merge_status',
         )
     if kind == 'rebase':
-        return query(
-            'SELECT rebase_order, action, commit_hash, commit_message '
-            'FROM dolt_rebase ORDER BY rebase_order',
-        )
+        connection = request.get('_provider_session_handle')
+        owns_connection = connection is None
+        if owns_connection:
+            connection = client._connect({'route': route})
+        cursor = None
+        try:
+            cursor = connection.cursor()
+            present, rows = _rebase_plan(cursor)
+            return {
+                'columns': ['rebase_order', 'action', 'commit_hash',
+                            'commit_message'],
+                'rows': list(rows), 'plan_table_present': present,
+                'provider_observation_only': True,
+                'finality_interpreted_by_common_code': False,
+            }
+        finally:
+            if cursor is not None:
+                client._safe_close(cursor)
+            if owns_connection:
+                client._forget_and_close(connection)
     return query(
         'SELECT active_branch(), table_name, staged, status '
         'FROM dolt_status ORDER BY table_name',
@@ -851,6 +867,30 @@ def _version(row):
     if match is None:
         raise RelationalClientError('Dolt version is unavailable')
     return match.group(1)
+
+
+def _rebase_plan(cursor):
+    """Read the conditional native plan without hiding catalog failures."""
+    cursor.execute('SELECT @@SESSION.dolt_show_system_tables')
+    previous_visibility = cursor.fetchone()[0]
+    if previous_visibility not in (0, 1):
+        raise RelationalClientError('Dolt system-table visibility is invalid')
+    try:
+        cursor.execute('SET @@SESSION.dolt_show_system_tables = 1')
+        cursor.execute(
+            'SELECT TABLE_NAME FROM information_schema.TABLES '
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'dolt_rebase'"
+        )
+        present = bool(cursor.fetchall())
+    finally:
+        cursor.execute('SET @@SESSION.dolt_show_system_tables = ' +
+                       str(int(previous_visibility)))
+    if not present:
+        return False, []
+    cursor.execute(
+        'SELECT rebase_order, action, commit_hash, commit_message '
+        'FROM dolt_rebase ORDER BY rebase_order')
+    return True, cursor.fetchall()
 
 
 def _extras(cursor, _request, generation):
@@ -1007,22 +1047,20 @@ def _extras(cursor, _request, generation):
             'status': merge_status,
         },
     ))
+    plan_present, rebase_rows = _rebase_plan(cursor)
     rebase_plan = [
         {
             'order': int(order), 'action': str(action),
             'commit_hash': str(commit_hash),
             'commit_message': str(commit_message),
         }
-        for order, action, commit_hash, commit_message in optional_rows(
-            cursor,
-            'SELECT rebase_order, action, commit_hash, commit_message '
-            'FROM dolt_rebase ORDER BY rebase_order',
-        )
+        for order, action, commit_hash, commit_message in rebase_rows
     ]
     values.append(resource(
         'rebase', [], 'current', generation, {
             'provider_virtual_control_target': True,
             'plan': rebase_plan,
+            'plan_table_present': plan_present,
         },
     ))
     return values

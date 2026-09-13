@@ -44,10 +44,10 @@ function GridActivationStatus({contract}) {
   const severity = blocked.length || !runtimeReady ? 'warning' : 'success';
   const detail = blocked.length ? blocked.map((gate) => gate.gate_id).join(', ') :
     (!runtimeReady ? gettext('live provider verification') :
-      gettext('all provider workspace grid gates passed'));
+      gettext('grid contract checks passed; this is not full engine qualification'));
   return <Alert severity={severity} sx={{m: 1}}
     aria-label={gettext('Provider grid activation status')}>
-    {gettext('Provider workspace')}: {detail}
+    {gettext('Provider grid')}: {detail}
   </Alert>;
 }
 
@@ -430,6 +430,8 @@ ResourceExplorer.propTypes = {
 };
 
 function initialFieldValue(field) {
+  if (field.object_editor) return JSON.parse(JSON.stringify(field.default || {}));
+  if (field.array_editor) return JSON.parse(JSON.stringify(field.default || []));
   if (field.default === undefined || field.default === null) {
     if (field.control === 'boolean') return false;
     if (field.control === 'multiselect') return [];
@@ -472,8 +474,21 @@ PasswordAdminField.propTypes = {
   onChange: PropTypes.func.isRequired,
 };
 
-function VisualAdminField({field, value, onChange}) {
+export function VisualAdminField({field, value, onChange}) {
+  if (field.object_editor) {
+    let record = value ?? initialFieldValue(field);
+    if (typeof record === 'string') {
+      try { record = JSON.parse(record); } catch { record = null; }
+    }
+    return <RecordListAdminField singleRecord field={{...field,
+      array_editor: {item_kind: 'object', ...field.object_editor}}}
+    value={[record]} onChange={(records) => onChange(records[0])} />;
+  }
   const admittedValue = value ?? initialFieldValue(field);
+  if (field.array_editor) {
+    return <RecordListAdminField field={field} value={admittedValue}
+      onChange={onChange} />;
+  }
   if (field.control === 'password') {
     return <PasswordAdminField field={field} value={admittedValue}
       onChange={onChange} />;
@@ -533,6 +548,74 @@ function VisualAdminField({field, value, onChange}) {
 }
 
 VisualAdminField.propTypes = {
+  field: PropTypes.object.isRequired,
+  value: PropTypes.any,
+  onChange: PropTypes.func.isRequired,
+};
+
+export function RecordListAdminField({field, value, onChange, singleRecord = false}) {
+  let items = value;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch { items = null; }
+  }
+  if (!Array.isArray(items)) return <Alert severity="error">
+    {gettext('This field cannot be loaded as a visual list. Its original value has not been changed.')}
+  </Alert>;
+  const schema = field.array_editor;
+  const children = schema.fields || [];
+  const known = new Set(children.map((child) => child.field_id));
+  if (items.some((item) => schema.item_kind === 'string' ?
+    typeof item !== 'string' : !item || typeof item !== 'object' ||
+    Array.isArray(item) || Object.keys(item).some((key) => !known.has(key)))) {
+    return <Alert severity="error">
+      {gettext('This list contains unsupported values. Its original value has not been changed.')}
+    </Alert>;
+  }
+  const setItem = (index, item) => onChange(items.map((existing, current) =>
+    current === index ? item : existing));
+  const move = (index, offset) => {
+    const next = [...items];
+    [next[index], next[index + offset]] = [next[index + offset], next[index]];
+    onChange(next);
+  };
+  return <Box role="group" aria-label={field.label}
+    sx={{border: 1, borderColor: 'divider', p: 1}}>
+    <Box component="strong">{field.label}</Box>
+    {items.map((item, index) => <Box key={index} sx={{my: 1, p: 1,
+      border: 1, borderColor: 'divider'}}>
+      {!singleRecord && <Box sx={{display: 'flex', gap: 1, mb: 1}}>
+        <Box>{index + 1}</Box>
+        <Button size="small" disabled={index === 0}
+          aria-label={`${field.label} ${index + 1}: ${gettext('Move up')}`}
+          onClick={() => move(index, -1)}>{gettext('Move up')}</Button>
+        <Button size="small" disabled={index === items.length - 1}
+          aria-label={`${field.label} ${index + 1}: ${gettext('Move down')}`}
+          onClick={() => move(index, 1)}>{gettext('Move down')}</Button>
+        <Button size="small" color="warning"
+          aria-label={`${field.label} ${index + 1}: ${gettext('Remove')}`}
+          onClick={() => onChange(items.filter((_, current) => current !== index))}>
+          {gettext('Remove')}</Button>
+      </Box>}
+      {schema.item_kind === 'string' ? <TextField fullWidth
+        label={`${field.label} ${index + 1}`} value={item}
+        onChange={(event) => setItem(index, event.target.value)} /> :
+        <Box sx={{display: 'grid', gridTemplateColumns: {
+          xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'}, gap: 2}}>
+          {children.filter((child) => fieldVisible(child, item)).map((child) =>
+            <VisualAdminField key={child.field_id} field={child}
+              value={item?.[child.field_id] ?? initialFieldValue(child)}
+              onChange={(next) => setItem(index, {...item, [child.field_id]: next})} />)}
+        </Box>}
+    </Box>)}
+    {!singleRecord && <Button onClick={() => onChange([...items, schema.item_kind === 'string' ? '' :
+      Object.fromEntries(children.map((child) =>
+        [child.field_id, initialFieldValue(child)]))])}>
+      {gettext('Add %s item', field.label)}</Button>}
+  </Box>;
+}
+
+RecordListAdminField.propTypes = {
+  singleRecord: PropTypes.bool,
   field: PropTypes.object.isRequired,
   value: PropTypes.any,
   onChange: PropTypes.func.isRequired,
@@ -692,7 +775,7 @@ function NativePropertyValue({value, depth=0}) {
       </Fragment>)}
     </Box>;
   }
-  return <Box component="span">{typeof value === 'boolean' ?
+  return <Box component="span" sx={{whiteSpace: 'pre-wrap'}}>{typeof value === 'boolean' ?
     (value ? gettext('Yes') : gettext('No')) : String(value)}</Box>;
 }
 
@@ -701,26 +784,39 @@ NativePropertyValue.propTypes = {
   depth: PropTypes.number,
 };
 
-function ObjectInspectorSection({resource, descriptor, loading}) {
+export function ObjectInspectorSection({resource, descriptor, loading,
+  tabbed=false, onRefresh}) {
   const sections = inspectorSections(resource, descriptor);
+  const coverage = providerNative(resource)?.catalog_coverage;
   const [section, setSection] = useState(sections[0]);
   useEffect(() => {
     if (!sections.includes(section)) setSection(sections[0]);
   }, [section, sections]);
   if (!resource) return null;
   return <Box sx={{mb: 2, border: 1, borderColor: 'divider'}}>
+    {coverage?.state === 'partial' && <Alert severity="warning">
+      {gettext('Catalog visibility is incomplete. Missing objects may reflect denied access or failed catalog queries, not an empty database.')}
+      <NativePropertyValue value={coverage} />
+    </Alert>}
     <Box sx={{p: 1}}>
       <Box component="strong">{resource.display_name}</Box>
       {' · '}{descriptor?.title || resource.resource_kind}
       {loading && <CircularProgress size={16} sx={{ml: 1}} />}
+      {onRefresh && <Button size="small" disabled={loading}
+        onClick={onRefresh}>{gettext('Refresh object properties')}</Button>}
     </Box>
-    <TextField select fullWidth size="small" value={section}
+    {tabbed ? <Tabs value={section || false} variant="scrollable"
+      scrollButtons="auto" aria-label={gettext('Object properties sections')}
+      onChange={(_event, value) => setSection(value)}>
+      {sections.map((item) => <Tab key={item} value={item}
+        label={INSPECTOR_SECTION_TITLES[item]} />)}
+    </Tabs> : <TextField select fullWidth size="small" value={section}
       label={gettext('Object properties task')}
       onChange={(event) => setSection(event.target.value)}>
       {sections.map((item) => <MenuItem key={item} value={item}>
         {INSPECTOR_SECTION_TITLES[item] || item.replaceAll('-', ' ')}
       </MenuItem>)}
-    </TextField>
+    </TextField>}
     <Box role="tabpanel" aria-label={`${section} ${gettext('object section')}`}
       sx={{m: 0, p: 1, overflow: 'auto', maxHeight: 320,
         bgcolor: 'background.default'}}>
@@ -735,23 +831,46 @@ ObjectInspectorSection.propTypes = {
   resource: PropTypes.object,
   descriptor: PropTypes.object,
   loading: PropTypes.bool,
+  tabbed: PropTypes.bool,
+  onRefresh: PropTypes.func,
 };
 
-function VisualAdministration({catalog, resources, selectedResource, post,
+export function initialObjectDraft(fields, resource) {
+  const native = providerNative(resource);
+  return Object.fromEntries(fields.map((field) => {
+    let value = initialFieldValue(field);
+    if (Array.isArray(field.initial_value_path) &&
+        field.initial_value_path.length > 0) {
+      let source = native;
+      for (const key of field.initial_value_path) {
+        source = source && typeof source === 'object' &&
+          Object.hasOwn(source, key) ? source[key] : undefined;
+      }
+      if (source !== undefined && source !== null) value = source;
+    }
+    return [field.field_id, value];
+  }));
+}
+
+export function VisualAdministration({catalog, resources, selectedResource, post,
   setError, resourceGeneration, initialOperationId, initialResourceKind,
-  focused=false}) {
+  focused=false, objectEditor=false}) {
   const objects = useMemo(() => (catalog?.objects || []).map((item) => ({
     ...item,
     operations: (item.operations || []).filter(
       (operation) => operation.native_supported !== false
     ),
-  })).filter((item) => item.operations.length > 0), [catalog]);
+  })).filter((item) => item.operations.length > 0 && (!objectEditor ||
+    item.resource_kind === selectedResource?.resource_kind)),
+  [catalog, objectEditor, selectedResource?.resource_kind]);
   const [resourceKind, setResourceKind] = useState(
     initialResourceKind || objects[0]?.resource_kind || ''
   );
   const [operationId, setOperationId] = useState(objects[0]?.operations?.[0]?.operation_id || '');
   const [targetId, setTargetId] = useState('');
   const [draft, setDraft] = useState({});
+  const [baselineDraft, setBaselineDraft] = useState({});
+  const [inspectionRevision, setInspectionRevision] = useState(0);
   const [plan, setPlan] = useState(null);
   const [validation, setValidation] = useState(null);
   const [result, setResult] = useState(null);
@@ -760,13 +879,20 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   const [inspectedResource, setInspectedResource] = useState(null);
   const [inspecting, setInspecting] = useState(false);
   const objectDescriptor = objects.find((item) => item.resource_kind === resourceKind);
-  const operations = objectDescriptor?.operations || [];
+  const operations = useMemo(() => (objectDescriptor?.operations || []).filter((item) =>
+    (!providerNative(selectedResource)?.system_object ||
+      item.operation_id === 'inspect') &&
+    (!objectEditor || (item.target_required !== false &&
+      (!item.target_resource_kinds || item.target_resource_kinds.includes(
+        selectedResource?.resource_kind))))),
+  [objectDescriptor, objectEditor, selectedResource]);
   const operation = operations.find((item) => item.operation_id === operationId);
   const allFields = operation?.form?.fields || [];
   const fields = allFields.filter((field) => fieldVisible(field, draft));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
   const matchingResources = (resources || []).filter(
-    (item) => targetKinds.includes(item.resource_kind)
+    (item) => targetKinds.includes(item.resource_kind) && (!objectEditor ||
+      item.resource_id === selectedResource?.resource_id)
   );
   const graphicalContract = catalog?.graphical_interface;
   const groupedObjects = useMemo(() => {
@@ -805,11 +931,11 @@ function VisualAdministration({catalog, resources, selectedResource, post,
 
   useEffect(() => {
     if (!selectedResource) return;
-    if (objects.some((item) =>
+    if (!initialResourceKind && objects.some((item) =>
       item.resource_kind === selectedResource.resource_kind)) {
       setResourceKind(selectedResource.resource_kind);
     }
-  }, [objects, selectedResource]);
+  }, [objects, selectedResource, initialResourceKind]);
 
   useEffect(() => {
     let active = true;
@@ -826,6 +952,7 @@ function VisualAdministration({catalog, resources, selectedResource, post,
       setInspecting(false);
       return () => { active = false; };
     }
+    setInspectedResource(null);
     setInspecting(true);
     post({
       action: 'resource_inspect', request: {
@@ -840,7 +967,7 @@ function VisualAdministration({catalog, resources, selectedResource, post,
       if (active) setInspecting(false);
     });
     return () => { active = false; };
-  }, [post, resourceGeneration, selectedResource, setError]);
+  }, [post, resourceGeneration, selectedResource, setError, inspectionRevision]);
 
   useEffect(() => {
     const nextOperation = operations.find((item) => item.operation_id === operationId) || operations[0];
@@ -857,16 +984,24 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   }, [initialOperationId, operations]);
 
   useEffect(() => {
-    const values = {};
-    allFields.forEach((field) => {
-      values[field.field_id] = initialFieldValue(field);
-    });
+    const values = initialObjectDraft(allFields, inspectedResource);
     setDraft(values);
+    setBaselineDraft(values);
     setPlan(null);
     setValidation(null);
-    setResult(null);
     setConfirmed(false);
-  }, [operationId, resourceKind]);
+  }, [operationId, resourceKind, inspectedResource]);
+
+  useEffect(() => {
+    setResult(null);
+  }, [operationId, resourceKind, selectedResource?.resource_id]);
+
+  // A preview authorizes one exact draft and target, never later edits.
+  useEffect(() => {
+    setPlan(null);
+    setValidation(null);
+    setConfirmed(false);
+  }, [draft, targetId]);
 
   useEffect(() => {
     if (selectedResource && matchingResources.some((item) =>
@@ -884,10 +1019,14 @@ function VisualAdministration({catalog, resources, selectedResource, post,
   const request = () => ({
     resource_kind: resourceKind,
     operation_id: operationId,
-    target_resource: matchingResources.find((item) =>
-      item.resource_id === targetId) || null,
+    target_resource: operation?.target_required === false ? null :
+      matchingResources.find((item) => item.resource_id === targetId) || null,
     draft: Object.fromEntries(fields.filter((field) => {
       const value = draft[field.field_id];
+      if (!field.required && field.initial_value_path &&
+          JSON.stringify(value) === JSON.stringify(baselineDraft[field.field_id])) {
+        return false;
+      }
       return field.required || (value !== '' &&
         !(Array.isArray(value) && value.length === 0));
     }).map((field) => [field.field_id, draft[field.field_id]])),
@@ -933,6 +1072,7 @@ function VisualAdministration({catalog, resources, selectedResource, post,
         },
       }));
       setPlan(null);
+      setInspectionRevision((revision) => revision + 1);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -942,18 +1082,18 @@ function VisualAdministration({catalog, resources, selectedResource, post,
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
-    {!focused && graphicalContract && <Alert severity={
-      graphicalContract?.activation_state === 'passed' ? 'success' : 'warning'
+    {!focused && !objectEditor && graphicalContract && <Alert severity={
+      graphicalContract?.activation_state === 'passed' ? 'info' : 'warning'
     } sx={{mb: 2}} aria-label={gettext('Engine graphical interface status')}>
       <Box component="strong">{catalog.engine_name} {catalog.reference_profile}</Box>
       {' — '}{graphicalContract?.graphical_operation_count || 0}/
       {graphicalContract?.native_operation_count || 0}{' '}
-      {gettext('native operations have engine-owned graphical forms.')}
+      {gettext('native operations have provider-owned form definitions. Full option coverage and live behavior require separate verification.')}
     </Alert>}
-    <Box sx={{display: 'grid', gridTemplateColumns: focused ? '1fr' :
+    <Box sx={{display: 'grid', gridTemplateColumns: focused || objectEditor ? '1fr' :
       'minmax(240px, 320px) minmax(420px, 1fr)', gap: 2,
     alignItems: 'start'}}>
-      {!focused && <Box component="nav"
+      {!focused && !objectEditor && <Box component="nav"
         aria-label={gettext('Engine administration tasks')}
         sx={{border: 1, borderColor: 'divider', maxHeight: '72vh',
           overflow: 'auto'}}>
@@ -992,76 +1132,98 @@ function VisualAdministration({catalog, resources, selectedResource, post,
         </Box>)}
       </Box>}
       <Box component="section" aria-label={gettext('Engine task form')}>
-        {(!focused || operationId === 'inspect') && <ObjectInspectorSection
+        {objectEditor && <Tabs value={operation?.operation_id || false}
+          variant="scrollable" scrollButtons="auto"
+          aria-label={gettext('Selected object operations')}
+          onChange={(_event, value) => setOperationId(value)}>
+          {operations.map((item) => <Tab key={item.operation_id}
+            value={item.operation_id} label={item.title} disabled={working} />)}
+        </Tabs>}
+        {(!objectEditor && (!focused || operationId === 'inspect') ||
+          objectEditor && operationId === 'inspect') && <ObjectInspectorSection
           resource={inspectedResource || selectedResource}
-          descriptor={objectDescriptor} loading={inspecting} />}
-        <Box component="h2" sx={{mt: 0}}>
-          {focused ? (operation?.title || gettext('Provider task')) : <>
-            {objectDescriptor?.title}
-            {objectDescriptor?.title && operation?.title ? ' — ' : ''}
-            {operation?.title || gettext('Provider task')}
-          </>}
-        </Box>
-        {operation?.graphical_ready === false && <Alert severity="warning"
-          sx={{mb: 2}}>
-          {gettext('This provider has not supplied an exact graphical form for this engine operation. Execution is blocked; CDEadmin will not show a generic substitute.')}
-        </Alert>}
-        {operation?.target_required && <TextField select fullWidth sx={{mt: 2}}
-          label={gettext('Target resource')} value={targetId}
-          onChange={(event) => setTargetId(event.target.value)}>
-          {matchingResources.map((item) => <MenuItem key={item.resource_id}
-            value={item.resource_id}>{item.display_name}</MenuItem>)}
-        </TextField>}
-        {operation?.target_required && matchingResources.length === 0 &&
-      <Alert severity="warning" sx={{mt: 2}}>{gettext('No discovered resource of this type is available. Refresh provider metadata or choose Create.')}</Alert>}
-        <Box sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2}}>
-          {fields.map((field) => <VisualAdminField key={field.field_id}
-            field={field} value={draft[field.field_id]}
-            onChange={(value) => setDraft((current) => ({...current, [field.field_id]: value}))} />)}
-        </Box>
-        {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>
-          {gettext('Execution readiness')}: {operation.blockers.join(', ')}
-        </Alert>}
-        {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
-          {validation.errors.map((item) => item.message).join(' ')}
-        </Alert>}
-        {plan && <Box component="pre" aria-label={gettext('Provider plan preview')}
-          sx={{mt: 2, p: 1, overflow: 'auto', maxHeight: 240, bgcolor: 'background.default'}}>
-          {JSON.stringify(plan, null, 2)}
-        </Box>}
-        {plan?.impact && <Alert severity={
-          plan.impact.availability_risk === 'high' ? 'warning' : 'info'
-        } sx={{mt: 2}}>
-          {gettext('Impact scope')}: {plan.impact.scope || operation?.impact_scope}.
-          {' '}{gettext('Availability risk')}: {plan.impact.availability_risk || gettext('provider assessed')}.
-          {' '}{plan.impact.data_movement_possible ?
-            gettext('Data movement may occur.') : gettext('No data movement is expected.')}
-        </Alert>}
-        {result && <>
-          <Alert severity="info" sx={{mt: 2}}>
-            {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
-          </Alert>
-          <Box component="pre" aria-label={gettext('Provider operation result')}
-            sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
-              bgcolor: 'background.default'}}>
-            {JSON.stringify(result.provider_result ?? result, null, 2)}
+          descriptor={objectDescriptor} loading={inspecting}
+          tabbed={objectEditor}
+          onRefresh={objectEditor && !working &&
+            JSON.stringify(draft) === JSON.stringify(baselineDraft) ?
+            () => setInspectionRevision((revision) => revision + 1) : undefined} />}
+        {objectEditor && operationId !== 'inspect' && !working &&
+          JSON.stringify(draft) === JSON.stringify(baselineDraft) &&
+          <Button size="small" disabled={inspecting}
+            onClick={() => setInspectionRevision((revision) => revision + 1)}>
+            {gettext('Refresh object properties')}</Button>}
+        {(!objectEditor || operationId !== 'inspect') && <>
+          <Box component="h2" sx={{mt: 0}}>
+            {focused ? (operation?.title || gettext('Provider task')) : <>
+              {objectDescriptor?.title}
+              {objectDescriptor?.title && operation?.title ? ' — ' : ''}
+              {operation?.title || gettext('Provider task')}
+            </>}
           </Box>
-        </>}
-        {operation?.confirmation_required && plan?.state === 'ready' &&
+          {operation?.graphical_ready === false && <Alert severity="warning"
+            sx={{mb: 2}}>
+            {gettext('This provider has not supplied an exact graphical form for this engine operation. Execution is blocked; CDEadmin will not show a generic substitute.')}
+          </Alert>}
+          {!objectEditor && operation?.target_required && <TextField select fullWidth sx={{mt: 2}}
+            disabled={working}
+            label={gettext('Target resource')} value={targetId}
+            onChange={(event) => setTargetId(event.target.value)}>
+            {matchingResources.map((item) => <MenuItem key={item.resource_id}
+              value={item.resource_id}>{item.display_name}</MenuItem>)}
+          </TextField>}
+          {operation?.target_required && matchingResources.length === 0 &&
+      <Alert severity="warning" sx={{mt: 2}}>{gettext('No discovered resource of this type is available. Refresh provider metadata or choose Create.')}</Alert>}
+          <Box component="fieldset" disabled={working || inspecting}
+            sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2,
+              p: 0, border: 0, minWidth: 0}}>
+            {fields.map((field) => <VisualAdminField key={field.field_id}
+              field={field} value={draft[field.field_id]}
+              onChange={(value) => setDraft((current) => ({...current, [field.field_id]: value}))} />)}
+          </Box>
+          {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>
+            {gettext('Execution readiness')}: {operation.blockers.join(', ')}
+          </Alert>}
+          {validation && !validation.valid && <Alert severity="error" sx={{mt: 2}}>
+            {validation.errors.map((item) => item.message).join(' ')}
+          </Alert>}
+          {plan && <Box component="pre" aria-label={gettext('Provider plan preview')}
+            sx={{mt: 2, p: 1, overflow: 'auto', maxHeight: 240, bgcolor: 'background.default'}}>
+            {JSON.stringify(plan, null, 2)}
+          </Box>}
+          {plan?.impact && <Alert severity={
+            plan.impact.availability_risk === 'high' ? 'warning' : 'info'
+          } sx={{mt: 2}}>
+            {gettext('Impact scope')}: {plan.impact.scope || operation?.impact_scope}.
+            {' '}{gettext('Availability risk')}: {plan.impact.availability_risk || gettext('provider assessed')}.
+            {' '}{plan.impact.data_movement_possible ?
+              gettext('Data movement may occur.') : gettext('No data movement is expected.')}
+          </Alert>}
+          {result && <>
+            <Alert severity="info" sx={{mt: 2}}>
+              {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
+            </Alert>
+            <Box component="pre" aria-label={gettext('Provider operation result')}
+              sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
+                bgcolor: 'background.default'}}>
+              {JSON.stringify(result.provider_result ?? result, null, 2)}
+            </Box>
+          </>}
+          {operation?.confirmation_required && plan?.state === 'ready' &&
       <FormControlLabel control={<Checkbox checked={confirmed}
         onChange={(event) => setConfirmed(event.target.checked)} />}
       label={gettext('I confirm this provider-planned operation.')} />}
-        <Box sx={{display: 'flex', gap: 1, mt: 2}}>
-          <Button variant="contained" disabled={working || !operation ||
+          <Box sx={{display: 'flex', gap: 1, mt: 2}}>
+            <Button variant="contained" disabled={working || inspecting || !operation ||
         operation.graphical_ready === false ||
         (operation.target_required && !targetId)} onClick={preview}>
-            {gettext('Validate and preview')}
-          </Button>
-          <Button color="warning" disabled={working || plan?.state !== 'ready' ||
+              {gettext('Validate and preview')}
+            </Button>
+            <Button color="warning" disabled={working || plan?.state !== 'ready' ||
         !plan?.execution_available || (operation?.confirmation_required && !confirmed)}
-          onClick={apply}>{gettext('Apply provider plan')}</Button>
-          {working && <CircularProgress size={24} />}
-        </Box>
+            onClick={apply}>{gettext('Apply provider plan')}</Button>
+            {working && <CircularProgress size={24} />}
+          </Box>
+        </>}
       </Box>
     </Box>
   </Box>;
@@ -1077,6 +1239,7 @@ VisualAdministration.propTypes = {
   initialOperationId: PropTypes.string,
   initialResourceKind: PropTypes.string,
   focused: PropTypes.bool,
+  objectEditor: PropTypes.bool,
 };
 
 function editorValue(value) {
@@ -6115,15 +6278,17 @@ export default function ProviderWorkspaceContent({
   useEffect(() => {
     setBusy(true);
     setError(null);
+    const requestedIdentity = initialContext.resource_id ||
+      initialContext.parent_resource_id;
     api.get(endpointUrl).then(async (response) => {
       const workspaceValue = response.data.data;
       let page = workspaceValue?.resource_page || null;
       let resources = [...(page?.items || [])];
       let requestedResource = resources.find(
-        (item) => item.resource_id === initialContext.resource_id
+        (item) => item.resource_id === requestedIdentity
       );
       while (!requestedResource && page?.next_cursor &&
-             initialContext.resource_id) {
+             requestedIdentity) {
         const nextResponse = await api.post(endpointUrl, {
           action: 'resource_page', request: {
             continuation: page.next_cursor,
@@ -6142,7 +6307,7 @@ export default function ProviderWorkspaceContent({
         resources = [...resources, ...(next.items || [])];
         page = {...next, items: resources};
         requestedResource = resources.find(
-          (item) => item.resource_id === initialContext.resource_id
+          (item) => item.resource_id === requestedIdentity
         );
       }
       if (!requestedResource && initialContext.resource_id &&
@@ -6175,6 +6340,7 @@ export default function ProviderWorkspaceContent({
       setBusy(false);
     });
   }, [api, endpointUrl, initialContext.resource_id,
+    initialContext.parent_resource_id,
     initialContext.resource_kind, onCredentialRequired,
     workspaceLoadGeneration]);
 
@@ -6508,6 +6674,7 @@ export default function ProviderWorkspaceContent({
         alignItems: 'center', gap: 1, px: 2, py: 1,
         borderBottom: 1, borderColor: 'divider'}}>
         <Box component="strong">{{
+          object: gettext('Object Browser'),
           resources: gettext('Resource Explorer'),
           properties: gettext('Database Properties'),
           studio: gettext('Data Studio'),
@@ -6607,7 +6774,13 @@ export default function ProviderWorkspaceContent({
         {rendered && resultPresentation === 'plan' &&
           <QueryPlanView rendered={rendered} />}
       </Box>}
-      {workspace && tab === 'administration' &&
+      {workspace && tab === 'object' &&
+        workspace.visual_admin?.objects?.find((item) =>
+          item.resource_kind === selectedResource?.resource_kind
+        )?.editor?.sections?.includes('data') &&
+        <Button onClick={() => setTab('data')}>
+          {gettext('Browse object data')}</Button>}
+      {workspace && ['administration', 'object'].includes(tab) &&
         <VisualAdministration catalog={workspace.visual_admin}
           resources={resourcePage?.items || []}
           selectedResource={selectedResource}
@@ -6615,6 +6788,7 @@ export default function ProviderWorkspaceContent({
           post={post} setError={setError}
           initialOperationId={selectedOperationId}
           initialResourceKind={selectedResourceKind}
+          objectEditor={tab === 'object'}
           focused={Boolean(initialContext.operation_id &&
             initialContext.resource_kind)} />}
       {workspace && tab === 'operations' &&
@@ -6699,6 +6873,7 @@ ProviderWorkspaceContent.propTypes = {
   closeModal: PropTypes.func,
   endpointUrl: PropTypes.string.isRequired,
   initialTab: PropTypes.oneOf([
+    'object',
     'properties', 'resources', 'studio', 'data', 'administration', 'operations',
     'semantic', 'movement', 'streams', 'connections',
   ]),

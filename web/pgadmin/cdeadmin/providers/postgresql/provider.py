@@ -662,7 +662,15 @@ class PostgreSQLProvider:
         manager = self._driver.connection_manager(server_id)
         if manager is None:
             raise PostgreSQLProviderError('PostgreSQL server is unavailable')
-        runtime_version = str(manager.version)
+        native_version = manager.version
+        # The preserved driver exposes libpq's server_version integer;
+        # template selection must retain that integer, but profile identity
+        # uses PostgreSQL's public major.minor release notation.
+        runtime_version = (
+            f'{native_version // 10000}.{native_version % 10000}'
+            if isinstance(native_version, int) and native_version >= 100000
+            else str(native_version)
+        )
         driver_version = str(self._driver.version())
         if runtime_version != PROFILE_VERSION:
             raise PostgreSQLProviderError(

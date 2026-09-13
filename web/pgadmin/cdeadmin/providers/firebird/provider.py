@@ -142,6 +142,10 @@ def _route_arguments(route, module=None):
         'session_time_zone', 'no_gc', 'no_db_triggers',
     }
     result = {key: value for key, value in route.items() if key in allowed}
+    # An unspecified driver charset can silently replace non-ASCII metadata
+    # when DDL literals are converted into Firebird's metadata character set.
+    # Default to Unicode while preserving an explicitly selected charset.
+    result.setdefault('charset', 'UTF8')
     database = result.get('database')
     host = route.get('host')
     port = route.get('port')
@@ -887,8 +891,8 @@ def _resources(connection, request):
             'RDB$SYSTEM_FLAG, RDB$RELATION_TYPE, '
             'TRIM(RDB$SECURITY_CLASS), TRIM(RDB$EXTERNAL_FILE), '
             'TRIM(RDB$OWNER_NAME), TRIM(RDB$DEFAULT_CLASS), RDB$FLAGS, '
-            'RDB$SQL_SECURITY FROM RDB$RELATIONS WHERE '
-            'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY RDB$RELATION_NAME'
+            'RDB$SQL_SECURITY FROM RDB$RELATIONS '
+            'ORDER BY RDB$RELATION_NAME'
         )
         relation_types = {
             0: 'persistent',
@@ -913,6 +917,7 @@ def _resources(connection, request):
                     relation_type, 'unknown'
                 ),
                 'system_flag': system_flag,
+                'system_object': bool(system_flag),
                 'owner': None if owner is None else str(owner).strip(),
                 'security_class': (
                     None if security_class is None else
@@ -954,8 +959,7 @@ def _resources(connection, request):
              'F.RDB$CHARACTER_SET_ID LEFT JOIN RDB$COLLATIONS CO ON '
              'CO.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID AND '
              'CO.RDB$COLLATION_ID = COALESCE(RF.RDB$COLLATION_ID, '
-             'F.RDB$COLLATION_ID) WHERE '
-             'COALESCE(R.RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, '
+             'F.RDB$COLLATION_ID) ORDER BY 1, '
              'RF.RDB$FIELD_POSITION'),
             ('index', 'SELECT TRIM(RDB$RELATION_NAME), '
              'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, '
@@ -990,9 +994,24 @@ def _resources(connection, request):
             for row in optional(source):
                 parent, name, *details = row
                 add(kind, [parent], name, {
-                    field: None if detail is None else str(detail).strip()
+                    field: None if detail is None else (
+                        str(detail) if field == 'description' else
+                        str(detail).strip())
                     for field, detail in zip(query_detail_names[kind], details)
                 })
+            if 'SYSTEM_FLAG, 0) = 0' in source:
+                for row in optional(source.replace(
+                        'SYSTEM_FLAG, 0) = 0', 'SYSTEM_FLAG, 0) > 0')):
+                    parent, name, *details = row
+                    add(kind, [parent], name, {
+                        **{
+                            field: None if detail is None else
+                            str(detail).strip()
+                            for field, detail in zip(
+                                query_detail_names[kind], details)
+                        },
+                        'system_object': True,
+                    })
         simple_queries = (
             ('domain', 'SELECT TRIM(F.RDB$FIELD_NAME), F.RDB$FIELD_TYPE, '
              'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
@@ -1009,7 +1028,9 @@ def _resources(connection, request):
              'F.RDB$COLLATION_ID WHERE COALESCE(F.RDB$SYSTEM_FLAG, 0) = 0 '
              "AND RDB$FIELD_NAME NOT STARTING WITH 'RDB$' ORDER BY 1"),
             ('sequence', 'SELECT TRIM(RDB$GENERATOR_NAME), '
-             'RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT FROM '
+             'RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT, '
+             'TRIM(RDB$OWNER_NAME), '
+             'RDB$DESCRIPTION FROM '
              'RDB$GENERATORS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('trigger', 'SELECT TRIM(RDB$TRIGGER_NAME), '
@@ -1060,10 +1081,12 @@ def _resources(connection, request):
              'ORDER BY 1'),
             ('character-set', 'SELECT TRIM(RDB$CHARACTER_SET_NAME), '
              'RDB$BYTES_PER_CHARACTER, TRIM(RDB$DEFAULT_COLLATE_NAME), '
-             'TRIM(RDB$FORM_OF_USE) FROM RDB$CHARACTER_SETS ORDER BY 1'),
+             'TRIM(RDB$FORM_OF_USE), RDB$SYSTEM_FLAG '
+             'FROM RDB$CHARACTER_SETS ORDER BY 1'),
             ('collation', 'SELECT TRIM(RDB$COLLATION_NAME), '
              'RDB$CHARACTER_SET_ID, RDB$COLLATION_ATTRIBUTES, '
-             'TRIM(RDB$BASE_COLLATION_NAME), RDB$SPECIFIC_ATTRIBUTES '
+             'TRIM(RDB$BASE_COLLATION_NAME), RDB$SPECIFIC_ATTRIBUTES, '
+             'RDB$SYSTEM_FLAG '
              'FROM RDB$COLLATIONS ORDER BY 1'),
             ('user', 'SELECT TRIM(SEC$USER_NAME), TRIM(SEC$PLUGIN) '
              'FROM SEC$USERS ORDER BY 1'),
@@ -1081,7 +1104,7 @@ def _resources(connection, request):
                 'default_source', 'validation_source', 'description',
                 'dimensions',
             ),
-            'sequence': ('initial_value', 'increment'),
+            'sequence': ('initial_value', 'increment', 'owner', 'description'),
             'trigger': (
                 'relation', 'trigger_type', 'inactive', 'position',
                 'metadata_source', 'description', 'sql_security',
@@ -1110,23 +1133,55 @@ def _resources(connection, request):
             'role': ('system_privileges', 'owner'),
             'character-set': (
                 'bytes_per_character', 'default_collation', 'form_of_use',
+                'system_flag',
             ),
             'collation': (
                 'character_set_id', 'attributes', 'base_collation',
                 'specific_attributes',
+                'system_flag',
             ),
             'user': ('plugin',),
             'plugin': ('value',),
             'publication': ('active',),
         }
+
+        def detail_value(field, detail):
+            if detail is None:
+                return None
+            if field == 'description':
+                # Text BLOBs may be streamed. Preserve the whole comment.
+                if callable(getattr(detail, 'read', None)):
+                    detail = detail.read()
+                return str(detail)
+            return str(detail).strip()
+
         for kind, source in simple_queries:
             for row in optional(source):
                 native = {
-                    field: None if detail is None else str(detail).strip()
+                    field: detail_value(field, detail)
                     for field, detail in zip(
                         simple_detail_names[kind], row[1:]
                     )
                 }
+                if native.get('system_flag') not in (None, '0'):
+                    native['system_object'] = True
+                add(kind, [], row[0], native)
+
+            # System objects are real catalog objects; "sys" is solely a
+            # navigator folder. Keep identities and authority paths intact.
+            if 'SYSTEM_FLAG, 0) = 0' not in source:
+                continue
+            system_source = source.replace(
+                'SYSTEM_FLAG, 0) = 0', 'SYSTEM_FLAG, 0) > 0'
+            ).replace("AND RDB$FIELD_NAME NOT STARTING WITH 'RDB$' ", '')
+            for row in optional(system_source):
+                native = {
+                    field: detail_value(field, detail)
+                    for field, detail in zip(
+                        simple_detail_names[kind], row[1:]
+                    )
+                }
+                native['system_object'] = True
                 add(kind, [], row[0], native)
 
         def routine_named(kind, name, package):
@@ -1755,6 +1810,10 @@ def _resources(connection, request):
             elif kind == 'sequence':
                 initial = native.get('initial_value')
                 increment = native.get('increment')
+                if increment is not None:
+                    native['increment'] = int(increment)
+                if initial is not None:
+                    native['initial_value'] = str(initial)
                 clauses = []
                 if initial not in (None, ''):
                     clauses.append(f'START WITH {initial}')
@@ -1763,6 +1822,15 @@ def _resources(connection, request):
                 native['ddl'] = ' '.join([
                     'CREATE SEQUENCE', identifier(name), *clauses,
                 ]) + ';'
+                if native.get('description') is not None:
+                    comment = str(native['description']).replace("'", "''")
+                    native['ddl'] += (
+                        f'\nCOMMENT ON SEQUENCE {identifier(name)} '
+                        f"IS '{comment}';")
+                # Only inspect the selected sequence, never consume a value
+                # or query every generator while expanding a catalog branch.
+                if request.get('resource_id') == item['resource_id']:
+                    native['state'] = _sequence_state(cursor, name)
             elif kind == 'exception' and native.get('message') is not None:
                 message = str(native['message']).replace("'", "''")
                 native['ddl'] = (
@@ -2000,6 +2068,8 @@ def _resources(connection, request):
             if item['resource_kind'] != 'table':
                 continue
             native = item.setdefault('native', {})
+            if native.get('system_object'):
+                continue
             lines = []
             for column in native.get('columns', []):
                 computed = str(column.get('computed_source') or '').strip()
@@ -2111,6 +2181,38 @@ def _resources(connection, request):
             if not str(metric['source']).startswith('MON$'):
                 continue
             add('metric', [metric['scope']], metric['native_name'], metric)
+        for item in resources.values():
+            native = item.get('native', {})
+            if item['resource_kind'] == 'trigger' and native.get('relation'):
+                item['display_path'] = [
+                    native['relation'], item['display_name'],
+                ]
+            elif item['resource_kind'] in {
+                    'procedure', 'function', 'external-function'
+            } and native.get('package'):
+                item['display_path'] = [
+                    native['package'], item['display_name'],
+                ]
+        system_paths = [tuple(item['display_path'])
+                        for item in resources.values()
+                        if item.get('native', {}).get('system_object')]
+        for item in resources.values():
+            path = tuple(item['display_path'])
+            if len(path) > 1 and item['resource_kind'] in {
+                    'column', 'index', 'constraint', 'trigger',
+                    'procedure', 'function', 'external-function'}:
+                owner_kinds = {'table', 'view'} if item['resource_kind'] in {
+                    'column', 'index', 'constraint', 'trigger'
+                } else {'package'}
+                owners = [parent for parent in resources.values()
+                          if parent['resource_kind'] in owner_kinds and
+                          parent['display_path'] == list(path[:-1])]
+                if len(owners) == 1:
+                    item.setdefault('native', {})[
+                        'navigator_parent_resource_id'] = owners[0][
+                            'resource_id']
+            if any(path[:len(parent)] == parent for parent in system_paths):
+                item.setdefault('native', {})['system_object'] = True
         return list(resources.values())
     finally:
         cursor.close()
@@ -2138,6 +2240,24 @@ def _security(connection, request):
         }
     finally:
         cursor.close()
+
+
+def _sequence_state(cursor, name):
+    quoted = '"' + str(name).replace('"', '""') + '"'
+    try:
+        cursor.execute(f'SELECT GEN_ID({quoted}, 0) FROM RDB$DATABASE')
+        row = cursor.fetchone()
+        if not row or row[0] is None:
+            return {'available': False,
+                    'reason': 'No generator value returned'}
+        return {
+            'available': True, 'current_value': str(row[0]),
+            'observation': 'GEN_ID(sequence, 0); does not advance sequence',
+            'concurrency_note': 'Other sessions may advance this value.',
+        }
+    except Exception as exc:
+        return {'available': False, 'error_type': type(exc).__name__,
+                'reason': 'Generator value could not be read by this account'}
 
 
 def _create_client(permissions):

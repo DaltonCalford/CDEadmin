@@ -1424,7 +1424,8 @@ def _extras(cursor, request, generation):
         display_name = f'{grantee}:{privilege}:{schema}.{table}'
         values.append(resource(
             'privilege', [schema, table, str(grantee)], display_name,
-            generation, {'privilege_type': str(privilege)},
+            generation, {'privilege_type': str(privilege),
+                         'navigator_relation_path': [schema, table]},
         ))
     route = request.get('route') or {}
     if route.get('cockroach_path'):

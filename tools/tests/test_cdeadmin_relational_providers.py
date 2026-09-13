@@ -427,6 +427,64 @@ class RelationalInventoryTests(unittest.TestCase):
             'stored_view': 'materialized-view',
         }, kinds)
 
+    def test_catalog_permission_errors_are_reported_without_secret_text(self):
+        for profile in (MYSQL_PROFILE, MARIADB_PROFILE):
+            for code in (1142, 1227, 9999):
+                cursor = mock.MagicMock()
+                cursor.fetchall.return_value = []
+                cursor.description = ()
+                failure = RuntimeError('sensitive native error detail')
+                failure.errno = code
+                failure.sqlstate = '42000'
+
+                def execute(source):
+                    if source.startswith('SELECT VERSION(), @@hostname'):
+                        raise failure
+
+                cursor.execute.side_effect = execute
+                values = mysql_resources(
+                    SimpleNamespace(cursor=lambda: cursor), {}, profile)
+                server = next(r for r in values
+                              if r['resource_kind'] == 'server')
+                coverage = server['native']['catalog_coverage']
+                self.assertEqual('partial', coverage['state'])
+                self.assertFalse(coverage['complete_native_inventory'])
+                self.assertEqual(1, coverage['failed_query_count'])
+                diagnostic = coverage['failures'][0]
+                self.assertEqual(str(code), diagnostic['error_code'])
+                self.assertEqual('permission_denied' if code in {1142, 1227}
+                                 else 'query_failed', diagnostic['category'])
+                self.assertNotIn('sensitive', json.dumps(coverage))
+                cursor.close.assert_called_once()
+
+    def test_native_system_views_use_show_create_table(self):
+        for profile in (MYSQL_PROFILE, MARIADB_PROFILE):
+            cursor = mock.MagicMock()
+            cursor.description = ()
+
+            def rows():
+                source = cursor.execute.call_args.args[0]
+                if source.startswith('SELECT TABLE_SCHEMA, TABLE_NAME, '
+                                     'TABLE_TYPE'):
+                    self.assertNotIn('NOT IN', source)
+                    return [('information_schema', 'TABLES', 'SYSTEM VIEW')]
+                if source.startswith('SHOW CREATE TABLE'):
+                    return [('TABLES', 'CREATE TEMPORARY TABLE TABLES (...)')]
+                return []
+
+            cursor.fetchall.side_effect = rows
+            values = mysql_resources(SimpleNamespace(cursor=lambda: cursor), {
+                'route': {'database': 'information_schema'}}, profile)
+            system_view = next(r for r in values
+                               if r['resource_kind'] == 'view')
+            self.assertTrue(system_view['native']['system_object'])
+            self.assertEqual('SYSTEM VIEW',
+                             system_view['native']['table_type'])
+            self.assertIn('CREATE TEMPORARY TABLE',
+                          system_view['native']['ddl'])
+            self.assertFalse(any(call.args[0].startswith('SHOW CREATE VIEW')
+                                 for call in cursor.execute.call_args_list))
+
     def test_mysql_catalog_is_scoped_and_preserves_database_native(self):
         class Cursor:
             source = ''
@@ -1131,12 +1189,20 @@ class RelationalInventoryTests(unittest.TestCase):
                 }),
             )
         self.assertEqual(
-            {'database': 'db.example:inventory', 'user': 'operator'},
+            {'database': 'db.example:inventory', 'user': 'operator',
+             'charset': 'UTF8'},
             firebird_route_arguments({
                 'database': 'db.example:inventory', 'user': 'operator',
                 'password': 'must-not-pass',
             }),
         )
+
+    def test_firebird_explicit_connection_charset_is_preserved(self):
+        for charset in ('UTF8', 'WIN1252', 'NONE'):
+            with self.subTest(charset=charset):
+                self.assertEqual(charset, firebird_route_arguments({
+                    'database': 'example.fdb', 'charset': charset,
+                })['charset'])
 
     def test_firebird_route_maps_trusted_auth_and_dpb_configuration(self):
         import firebird.driver as firebird_module

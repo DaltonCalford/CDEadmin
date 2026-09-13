@@ -213,13 +213,20 @@ class EndpointService:
             RESOLVER_ID, self.resolver
         )
 
-    def verify_server(self, server, password=None, connect_as=None):
+    def verify_server(self, server, password=None, connect_as=None,
+                      database_target_id=None):
         endpoint = getattr(server, 'endpoint_profile', None)
         if endpoint is None or endpoint.provider_version is None:
             raise EndpointRegistrationError(
                 'server is not a provider-managed endpoint'
             )
         profile = registration_profile(endpoint.profile_id)
+        database_override = Ellipsis
+        database_options = None
+        if database_target_id is not None:
+            target = self._owned_database_target(endpoint, database_target_id)
+            database_override = target.database
+            database_options = self._database_target_configuration(target)
         connect_as = self._validated_principal_override(connect_as)
         embedded = profile['route_kind'] == 'embedded_file'
         context = self._context(
@@ -243,6 +250,8 @@ class EndpointService:
             route, reference = self._route_and_reference(
                 server, endpoint, profile, route_model=route_model,
                 principal_override=connect_as,
+                database_override=database_override,
+                database_options=database_options,
             )
             transient = self._transient_credentials(
                 endpoint, route, reference, password
@@ -1447,6 +1456,17 @@ class EndpointService:
             # user explicitly disconnects it or converts it to a retained
             # database target.  Server-scope routes already have no database.
         route['route_id'] = route_model.id
+        if isinstance(profile, dict):
+            target_key = profile.get('database_targeting', {}).get(
+                'route_key', 'database')
+            if target_key != 'database':
+                database = route.pop('database', None)
+                route.pop('database_target_id', None)
+                if target_key is not None:
+                    if database is not None:
+                        route[target_key] = database
+                    elif database_override is None:
+                        route.pop(target_key, None)
         if isinstance(profile, dict) and profile.get('secret_fields'):
             fields = active_secret_fields(profile, route)
             models = {

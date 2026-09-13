@@ -392,6 +392,51 @@ def start_standard(engine):
         wait_until(lambda: _activate_ignite(name), timeout=180, interval=3)
     elif actual == "xtdb":
         wait_until(_xtdb_health_ready, timeout=180, interval=1)
+    elif actual in {'clickhouse', 'opensearch'}:
+        wait_until(lambda: _http_engine_ready(actual), timeout=300, interval=2)
+    elif actual == 'yugabytedb':
+        _check_yugabyte_master_addresses(name)
+
+
+def _check_yugabyte_master_addresses(name):
+    """Diagnose stale retained addresses without rewriting cluster topology."""
+    observed = run(['docker', 'exec', name, 'cat',
+                    '/root/var/conf/yugabyted.conf'], capture=True)
+    configuration = json.loads(observed.stdout)
+    masters = str(configuration.get('current_masters') or '')
+    if not masters:
+        raise RuntimeError('YugabyteDB retained master addresses unavailable')
+    for address in masters.split(','):
+        host = address.strip().rsplit(':', 1)[0].strip('[]')
+        if not host:
+            raise RuntimeError('YugabyteDB retained master address is invalid')
+        try:
+            run(['docker', 'exec', name, 'getent', 'hosts', host],
+                capture=True)
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError(
+                'YugabyteDB retained master cannot be resolved: ' + host +
+                '; verify native master membership before repairing config'
+            ) from error
+
+
+def _http_engine_ready(engine):
+    if engine == 'clickhouse':
+        with urllib.request.urlopen(
+                'http://127.0.0.1:58123/ping', timeout=5) as response:
+            if response.read(64).strip() != b'Ok.':
+                raise RuntimeError('ClickHouse native ping is not ready')
+    elif engine == 'opensearch':
+        with urllib.request.urlopen(
+                'http://127.0.0.1:59200/_cluster/health?'
+                'wait_for_status=yellow&timeout=5s', timeout=8) as response:
+            health = json.load(response)
+            if health.get('timed_out') or health.get('status') not in {
+                    'yellow', 'green'}:
+                raise RuntimeError('OpenSearch cluster is not ready')
+    else:
+        raise ValueError('unsupported HTTP readiness engine')
+    return True
 
 
 def _xtdb_health_ready():
@@ -795,19 +840,90 @@ def _tikv_topology_ready():
 
 
 def start_tidb():
-    start_tikv_stack()
+    ensure_network()
+    pd = 'cdeadmin-demo-tidb-pd'
+    config = ROOT / 'config/tidb/transactional.toml'
+    definitions = [(pd, 'pingcap/pd:v8.5.6', [
+        '--name=tidb-pd', '--data-dir=/data',
+        '--client-urls=http://0.0.0.0:2379',
+        '--peer-urls=http://0.0.0.0:2380',
+        f'--advertise-client-urls=http://{pd}:2379',
+        f'--advertise-peer-urls=http://{pd}:2380',
+        f'--initial-cluster=tidb-pd=http://{pd}:2380',
+    ])]
+    for index in range(1, 4):
+        store = f'cdeadmin-demo-tidb-store-{index}'
+        definitions.append((store, 'pingcap/tikv:v8.5.6', [
+            '--addr=0.0.0.0:20160', f'--advertise-addr={store}:20160',
+            f'--pd={pd}:2379', '--data-dir=/data',
+            '--config=/etc/tidb-transactional.toml',
+        ]))
+    for container, image, arguments in definitions:
+        if not docker_exists(container):
+            run(['docker', 'create', '--name', container, '--network', NETWORK,
+                 '--cpus=2',
+                 '-v', f'{container}-v1:/data',
+                 '-v', f'{config}:/etc/tidb-transactional.toml:ro',
+                 image, *arguments])
+        if not docker_running(container):
+            run(['docker', 'start', container])
     name = "cdeadmin-demo-tidb"
+    if docker_exists(name):
+        observed = run(['docker', 'inspect', '--format',
+                        '{{json .Config.Cmd}}', name], capture=True)
+        if '--path=cdeadmin-demo-pd:2379' in observed.stdout:
+            retired = 'cdeadmin-demo-tidb-retained-api-v2'
+            if docker_exists(retired):
+                raise RuntimeError('retained TiDB container already exists')
+            if docker_running(name):
+                run(['docker', 'stop', '--timeout', '30', name])
+            # Preserve the old launcher and all its storage. The new SQL demo
+            # has fresh volumes, not a storage API conversion in place.
+            run(['docker', 'rename', name, retired])
     if not docker_exists(name):
         run([
             "docker", "create", "--name", name, "--network", NETWORK,
             "-p", "127.0.0.1:54000:4000",
             "-p", "127.0.0.1:51000:10080", "pingcap/tidb:v8.5.6",
-            "--store=tikv", "--path=cdeadmin-demo-pd:2379",
+            "--store=tikv", f"--path={pd}:2379",
             "--host=0.0.0.0", "--status=10080",
         ])
     if not docker_running(name):
         run(["docker", "start", name])
     wait_tcp(54000, timeout=300)
+    wait_until(_tidb_sql_ready, timeout=300, interval=3)
+
+
+def _tidb_sql_ready():
+    """A Docker port can accept TCP before TiDB finishes its bootstrap."""
+    import mysql.connector
+    connection = mysql.connector.connect(
+        host='127.0.0.1', port=54000, user='root',
+        connection_timeout=5,
+    )
+    try:
+        cursor = connection.cursor()
+        try:
+            cursor.execute('SELECT VERSION()')
+            version = str(cursor.fetchone()[0])
+            if 'TiDB-v8.5.6' not in version:
+                raise RuntimeError('unexpected TiDB reference version')
+            cursor.execute('ADMIN SHOW DDL JOBS 1')
+            cursor.fetchall()
+        finally:
+            cursor.close()
+    finally:
+        connection.close()
+    return True
+
+
+def stop_tidb():
+    names = ['cdeadmin-demo-tidb'] + [
+        f'cdeadmin-demo-tidb-store-{index}' for index in range(1, 4)
+    ] + ['cdeadmin-demo-tidb-pd']
+    for name in names:
+        if docker_running(name):
+            run(['docker', 'stop', '--timeout', '30', name])
 
 
 def stop_tikv_stack(include_tidb=False):
@@ -885,6 +1001,27 @@ def start_vitess():
         "up", "-d",
     ], cwd=VITESS_COMPOSE.parent)
     wait_tcp(15306, timeout=600)
+    wait_until(_vitess_sql_ready, timeout=300, interval=2)
+
+
+def _vitess_sql_ready():
+    """Require vtgate query service and native VSchema, not an open port."""
+    import mysql.connector
+    connection = mysql.connector.connect(
+        host='127.0.0.1', port=15306, user='root',
+        connection_timeout=5, read_timeout=10, ssl_disabled=True)
+    try:
+        cursor = connection.cursor()
+        try:
+            cursor.execute('SHOW VITESS_KEYSPACES')
+            rows = cursor.fetchall()
+            if not any(row[0] == 'test_keyspace' for row in rows):
+                raise RuntimeError('Vitess demo keyspace is not ready')
+            return True
+        finally:
+            cursor.close()
+    finally:
+        connection.close()
 
 
 def stop_vitess():
@@ -1011,7 +1148,7 @@ def stop(engine):
     elif actual == "tikv":
         stop_tikv_stack()
     elif actual == "tidb":
-        stop_tikv_stack(include_tidb=True)
+        stop_tidb()
     elif actual == "milvus":
         stop_milvus()
     elif actual == "vitess":

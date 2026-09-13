@@ -268,6 +268,17 @@ class PostgreSQLProviderContractTests(unittest.TestCase):
             'verified', discovered['verified_runtime']['verification_state']
         )
 
+    def test_endpoint_discovery_accepts_real_libpq_integer_version(self):
+        self.driver.manager.version = 180003
+        result = self.provider.discover_endpoint({'route': {'server_id': 7}})
+        self.assertEqual('18.3',
+                         result['verified_runtime']['server_version'])
+        self.assertEqual(180003, self.driver.manager.version)
+        self.driver.manager.version = 180004
+        with self.assertRaisesRegex(PostgreSQLProviderError,
+                                    'exact profile 18.3'):
+            self.provider.discover_endpoint({'route': {'server_id': 7}})
+
     def test_endpoint_discovery_rejects_wrong_exact_runtime_or_driver(self):
         self.driver.manager.version = 18.4
         with self.assertRaisesRegex(

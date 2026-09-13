@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import json
+
 import sqlite3
 import sys
 import tempfile
@@ -40,6 +42,7 @@ from pgadmin.cdeadmin.providers.sqlite.provider import (  # noqa: E402
 )
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     ADMINISTRATION as FIREBIRD_ADMINISTRATION,
+    _sequence_state,
 )
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     ADMINISTRATION as DUCKDB_ADMINISTRATION,
@@ -161,6 +164,210 @@ def request(route, operation, draft, target=None):
 
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
+
+    def record_field(self, form_id, field_id, required=False):
+        form = {'form_id': form_id, 'fields': [{
+            'field_id': field_id, 'label': field_id, 'control': 'json',
+            'required': required}]}
+        RelationalAdministration._structured_record_controls(form)
+        return form['fields'][0]
+
+    def test_record_columns_validate_native_compiler_keys(self):
+        field = self.record_field('table.create', 'columns', True)
+        record = {'name': 'ID', 'type': 'BIGINT', 'nullable': False,
+                  'primary_key': True, 'default': '42'}
+        for source in ([record], json.dumps([record])):
+            with self.subTest(source=source):
+                admitted, error = ProviderVisualAdministration._validate_field(
+                    field, source)
+                self.assertIsNone(error)
+                self.assertEqual([record], admitted)
+        for invalid in ([], [{}], [{'name': 'ID'}],
+                        [{**record, 'invented_option': True}],
+                        [{**record, 'nullable': 'maybe'}], [42], {}):
+            with self.subTest(invalid=invalid):
+                _, error = ProviderVisualAdministration._validate_field(
+                    field, invalid)
+                self.assertIsNotNone(error)
+
+    def test_record_constraints_hide_inapplicable_fields(self):
+        field = self.record_field('table.create', 'constraints')
+        record = {'kind': 'CHECK', 'expression': 'ID > 0',
+                  'columns': [], 'references_table': '',
+                  'references_columns': []}
+        admitted, error = ProviderVisualAdministration._validate_field(
+            field, [record])
+        self.assertIsNone(error)
+        self.assertEqual([{'kind': 'CHECK', 'expression': 'ID > 0'}], admitted)
+        foreign = {'kind': 'FOREIGN KEY', 'columns': ['PARENT_ID'],
+                   'references_table': 'PARENT', 'references_columns': ['ID']}
+        admitted, error = ProviderVisualAdministration._validate_field(
+            field, [foreign])
+        self.assertIsNone(error)
+        self.assertEqual([foreign], admitted)
+        for invalid in ({**foreign, 'references_columns': [3]},
+                        {**foreign, 'kind': 'INVENTED'}):
+            _, error = ProviderVisualAdministration._validate_field(
+                field, [invalid])
+            self.assertIsNotNone(error)
+
+    def test_constraint_object_control_validates_and_plans(self):
+        field = self.record_field('constraint.create', 'properties', True)
+        self.assertIn('object_editor', field)
+        props = {'kind': 'FOREIGN KEY', 'columns': ['parent_id'],
+                 'references_table': 'parents', 'references_columns': ['id']}
+        for source in (props, json.dumps(props)):
+            admitted, error = ProviderVisualAdministration._validate_field(
+                field, source)
+            self.assertIsNone(error)
+            self.assertEqual(props, admitted)
+        for invalid in ([], None, {}, {'kind': 'CHECK', 'expression': ''},
+                        {'kind': 'UNIQUE', 'columns': []},
+                        {**props, 'references_table': ''},
+                        {**props, 'name': 'hidden_override'},
+                        {**props, 'unsupported': True}):
+            with self.subTest(invalid=invalid):
+                _, error = ProviderVisualAdministration._validate_field(
+                    field, invalid)
+                self.assertIsNotNone(error)
+        for administration, expected_quote in (
+                (FIREBIRD_ADMINISTRATION, '"'),
+                (MYSQL_ADMINISTRATION, '`'),
+                (MARIADB_ADMINISTRATION, '`')):
+            with self.subTest(engine=administration.dialect.engine_id):
+                planned = administration.plan({
+                    'resource_kind': 'constraint', 'operation_id': 'create',
+                    'target_resource': None,
+                    'draft': {'name': 'fk_parent', 'table': 'children',
+                              'properties': props},
+                    '_provider_route': self.route,
+                })
+                q = expected_quote
+                self.assertIn(
+                    f'ALTER TABLE {q}children{q} ADD CONSTRAINT '
+                    f'{q}fk_parent{q} FOREIGN KEY ({q}parent_id{q}) '
+                    f'REFERENCES {q}parents{q} ({q}id{q})',
+                    str(planned['command_preview']))
+
+    def test_record_rename_and_index_lists(self):
+        for form_id, name, value in (
+                ('table.alter', 'rename_columns', [{'from': 'A', 'to': 'B'}]),
+                ('table.alter', 'drop_columns', ['A']),
+                ('index.create', 'columns', ['A', 'B'])):
+            with self.subTest(name=name):
+                field = self.record_field(form_id, name)
+                admitted, error = ProviderVisualAdministration._validate_field(
+                    field, value)
+                self.assertIsNone(error)
+                self.assertEqual(value, admitted)
+        field = self.record_field('table.alter', 'rename_columns')
+        _, error = ProviderVisualAdministration._validate_field(
+            field, [{'from': 'A', 'to': ''}])
+        self.assertEqual('required', error['code'])
+
+    def test_visual_records_reach_sqlite_native_ddl_and_constraints(self):
+        field = self.record_field('table.create', 'columns', True)
+        columns, error = ProviderVisualAdministration._validate_field(field, [
+            {'name': 'id', 'type': 'INTEGER', 'primary_key': True},
+            {'name': 'value', 'type': 'INTEGER', 'nullable': False},
+        ])
+        self.assertIsNone(error)
+        constraints, error = ProviderVisualAdministration._validate_field(
+            self.record_field('table.create', 'constraints'), [
+                {'name': 'positive', 'kind': 'CHECK',
+                 'expression': 'value > 0'},
+            ])
+        self.assertIsNone(error)
+        created = self.admin.plan(request(self.route, 'create', {
+            'name': 'visual_records', 'definition': '',
+            'options': {'columns': columns, 'constraints': constraints},
+        }))
+        self.apply(created)
+        connection = sqlite3.connect(self.route['database'])
+        try:
+            columns = connection.execute(
+                'PRAGMA table_info(visual_records)').fetchall()
+            self.assertEqual(['id', 'value'], [row[1] for row in columns])
+            connection.execute('INSERT INTO visual_records VALUES (1, 5)')
+            connection.commit()
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute('INSERT INTO visual_records VALUES (2, 0)')
+            connection.rollback()
+            self.assertEqual([(1, 5)], connection.execute(
+                'SELECT * FROM visual_records').fetchall())
+        finally:
+            connection.close()
+
+    def test_sequence_observation_quotes_names_and_never_advances(self):
+        statements = []
+        cursor = SimpleNamespace(execute=statements.append,
+                                 fetchone=lambda: (9223372036854775807,))
+        observed = _sequence_state(cursor, 'quoted"sequence')
+        self.assertEqual('9223372036854775807', observed['current_value'])
+        self.assertEqual([
+            'SELECT GEN_ID("quoted""sequence", 0) FROM RDB$DATABASE',
+        ], statements)
+        cursor.fetchone = lambda: None
+        self.assertFalse(_sequence_state(cursor, 'missing')['available'])
+
+        def denied(_source):
+            raise PermissionError('private server details')
+
+        cursor.execute = denied
+        observed = _sequence_state(cursor, 'restricted')
+        self.assertFalse(observed['available'])
+        self.assertEqual('PermissionError', observed['error_type'])
+        self.assertNotIn('private server details', str(observed))
+
+    def test_firebird_sequence_forms_preserve_decimal_int64(self):
+        sequence = next(item for item in FIREBIRD_ADMINISTRATION.catalog(
+            catalog_for_engine('firebird'))['objects']
+            if item['resource_kind'] == 'sequence')
+        forms = {item['operation_id']: item['form']['fields']
+                 for item in sequence['operations']}
+        create = {field['field_id']: field for field in forms['create']}
+        alter = {field['field_id']: field for field in forms['alter']}
+        self.assertEqual('text', create['start']['control'])
+        self.assertEqual('text', alter['restart']['control'])
+        self.assertEqual(['increment'],
+                         alter['increment']['initial_value_path'])
+        self.assertNotIn('cycle', create)
+        self.assertNotIn('minimum', create)
+        self.assertNotIn('maximum', create)
+
+    def test_firebird_sequence_plan_validation_and_comments(self):
+        target = {'resource_id': 'sequence:sample',
+                  'resource_kind': 'sequence', 'display_name': 'sample',
+                  'display_path': ['sample']}
+
+        def plan(draft):
+            return FIREBIRD_ADMINISTRATION.plan({
+                'resource_kind': 'sequence', 'operation_id': 'alter',
+                'target_resource': target, 'draft': draft,
+                '_provider_route': {'database': '/sample.fdb'},
+            })['command_preview']['statements']
+
+        statements = plan({'restart': '9223372036854775807', 'increment': -2})
+        self.assertEqual('ALTER SEQUENCE "sample" RESTART WITH '
+                         '9223372036854775807 INCREMENT BY -2',
+                         statements[0]['source'])
+        self.assertEqual('ALTER SEQUENCE "sample" RESTART',
+                         plan({'restart_initial': True})[0]['source'])
+        self.assertEqual("COMMENT ON SEQUENCE \"sample\" IS 'Owner''s note'",
+                         plan({'description': "Owner's note"})[0]['source'])
+        self.assertEqual('COMMENT ON SEQUENCE "sample" IS NULL',
+                         plan({'clear_description': True})[0]['source'])
+        for draft in ({'restart': '9223372036854775808'},
+                      {'restart': '-9223372036854775809'},
+                      {'restart': '1.5'}, {'restart': True},
+                      {'increment': 0}, {'increment': 2147483648},
+                      {'increment': -2147483649},
+                      {'restart_initial': True, 'restart': '10'},
+                      {'clear_description': True, 'description': 'x'},
+                      {'restart_initial': False}):
+            with self.subTest(draft=draft):
+                with self.assertRaises(RelationalClientError):
+                    plan(draft)
 
     def test_firebird_database_create_form_requires_server_path(self):
         database = next(

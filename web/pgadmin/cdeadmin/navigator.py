@@ -124,11 +124,13 @@ def decode_navigator_state(token):
         raise ProviderNavigatorError('navigator token is invalid') from exc
     if not isinstance(state, dict) or set(state).difference({
         'scope', 'target_id', 'database', 'display_name', 'parent_path',
-        'resource_kind', 'resource_id',
+        'resource_kind', 'resource_id', 'object_scope',
     }):
         raise ProviderNavigatorError('navigator state is invalid')
     if state.get('scope') not in {'database', 'server', 'kind', 'resource'}:
         raise ProviderNavigatorError('navigator scope is invalid')
+    if state.get('object_scope') not in {None, 'user', 'system'}:
+        raise ProviderNavigatorError('navigator object scope is invalid')
     path = state.get('parent_path', [])
     if not isinstance(path, list) or not all(
         isinstance(item, str) and item for item in path
@@ -186,7 +188,7 @@ def database_entries(catalog):
     return entries
 
 
-def resource_children(resources, state):
+def resource_children(resources, state, visual_catalog=None):
     """Return immediate group or resource presentations for one tree node."""
     if not isinstance(resources, (list, tuple)):
         raise ProviderNavigatorError('provider resources must be an array')
@@ -194,6 +196,29 @@ def resource_children(resources, state):
     prepared = _prepared_resources(resources, state)
     scope = state['scope']
     parent_path = tuple(state.get('parent_path') or ())
+    paths = {tuple(item['_navigator_path']) for item in prepared}
+    system_paths = [
+        tuple(item['_navigator_path']) for item in prepared
+        if resource_native(item['_source']).get('system_object') is True
+        and not any(tuple(item['_navigator_path'][:size]) in paths
+                    for size in range(1, len(item['_navigator_path'])))
+    ]
+
+    def is_system(item):
+        path = tuple(item['_navigator_path'])
+        return any(path[:len(prefix)] == prefix for prefix in system_paths)
+
+    system_folder = []
+    if scope == 'database' and not state.get('object_scope') and system_paths:
+        system_folder = [{
+            'node_type': 'group', 'label': 'sys',
+            'resource_kind': 'system-objects', 'parent_path': [],
+            'has_children': True, 'object_scope': 'system',
+            'scope': 'database',
+        }]
+    if system_paths:
+        prepared = [item for item in prepared if is_system(item) == (
+            state.get('object_scope') == 'system')]
 
     if scope in {'database', 'server', 'resource'}:
         if scope == 'resource' and not _resource_exists(
@@ -202,12 +227,19 @@ def resource_children(resources, state):
             raise ProviderNavigatorError(
                 'navigator resource is unavailable'
             )
-        kinds = sorted({
+        kinds = {
             item['resource_kind'] for item in prepared
             if len(item['_navigator_path']) == len(parent_path) + 1 and
             tuple(item['_navigator_path'][:len(parent_path)]) == parent_path
-        }, key=lambda value: kind_label(value).casefold())
-        return [{
+            and (not resource_native(item['_source']).get(
+                'navigator_parent_resource_id') or
+                resource_native(item['_source'])[
+                    'navigator_parent_resource_id'] ==
+                state.get('resource_id'))
+        }
+        kinds.update(_empty_group_kinds(resources, state, visual_catalog))
+        kinds = sorted(kinds, key=lambda value: kind_label(value).casefold())
+        return system_folder + [{
             'node_type': 'group',
             'label': kind_label(kind),
             'resource_kind': kind,
@@ -221,6 +253,10 @@ def resource_children(resources, state):
     values = []
     for item in prepared:
         path = tuple(item['_navigator_path'])
+        owner = resource_native(item['_source']).get(
+            'navigator_parent_resource_id')
+        if owner and owner != state.get('resource_id'):
+            continue
         if item['resource_kind'] != kind or len(path) != len(
             parent_path
         ) + 1 or path[:len(parent_path)] != parent_path:
@@ -228,8 +264,14 @@ def resource_children(resources, state):
         has_children = any(
             len(other['_navigator_path']) > len(path) and
             tuple(other['_navigator_path'][:len(path)]) == path
+            and resource_native(other['_source']).get(
+                'navigator_parent_resource_id', item['resource_id']) ==
+            item['resource_id']
             for other in prepared
         )
+        has_children = has_children or bool(_empty_group_kinds(
+            resources, {**state, 'scope': 'resource',
+                        'resource_id': item['resource_id']}, visual_catalog))
         values.append({
             'node_type': 'resource',
             'label': item['display_name'],
@@ -243,6 +285,45 @@ def resource_children(resources, state):
         values,
         key=lambda item: (item['label'].casefold(), item['resource_id']),
     )
+
+
+def _empty_group_kinds(resources, state, catalog):
+    """Use declared provider parent kinds, never create fictional resources."""
+    if not catalog or state.get('object_scope') == 'system':
+        return set()
+    objects = catalog.get('objects', [])
+    declared = {item['resource_kind'] for item in objects}
+    parent = next((item for item in resources if item['resource_id'] ==
+                   state.get('resource_id')), None)
+    if parent and resource_native(parent).get('system_object'):
+        return set()
+    parent_kind = parent['resource_kind'] if parent else state.get('scope')
+    result = set()
+    for item in objects:
+        parents = item.get('navigator', {}).get('parent_kinds', [])
+        # Namespace-capable engines place relations under their namespaces,
+        # not additionally under the database fallback.
+        if parent_kind == 'database' and any(
+                kind in parents and kind in declared
+                for kind in ('schema', 'sql-schema')):
+            continue
+        if parent_kind not in parents:
+            continue
+        if any(op.get('operation_id') == 'create' and
+               op.get('native_supported') is not False
+               for op in item.get('operations', [])):
+            result.add(item['resource_kind'])
+    return result
+
+
+def resource_native(resource):
+    """Read native metadata from a raw client or admitted provider DTO."""
+    if isinstance(resource.get('native'), dict):
+        return resource['native']
+    for value in resource.get('extensions', {}).values():
+        if isinstance(value, dict) and isinstance(value.get('native'), dict):
+            return value['native']
+    return {}
 
 
 def _prepared_resources(resources, state):
@@ -293,20 +374,17 @@ def _prepared_resources(resources, state):
         if not path or item['resource_kind'] in {'server', 'database'}:
             continue
         prepared.append({**item, '_navigator_path': path})
-    represented_paths = {
-        tuple(item['_navigator_path']) for item in prepared
-    }
-    for item in prepared:
+    normalized_paths = {}
+    for item in sorted(prepared, key=lambda value: len(
+            value['_navigator_path'])):
         path = tuple(item['_navigator_path'])
-        if len(path) < 2 or path[:-1] in represented_paths:
-            continue
         ancestors = [
-            path[:index] for index in range(1, len(path) - 1)
-            if path[:index] in represented_paths
+            path[:index] for index in range(1, len(path))
+            if path[:index] in normalized_paths
         ]
-        item['_navigator_path'] = [
-            *(max(ancestors, key=len) if ancestors else ()), path[-1]
-        ]
+        parent = normalized_paths[max(ancestors, key=len)] if ancestors else ()
+        normalized_paths[path] = (*parent, path[-1])
+        item['_navigator_path'] = list(normalized_paths[path])
     return prepared
 
 

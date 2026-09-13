@@ -75,6 +75,45 @@ def registration_for(item, registrations):
 
 
 def route_for(item, host, registration, provider_route_options):
+    item = dict(item)
+    engine = item['engine']
+    if engine == 'tikv' and item.get('api_version') == 2:
+        item.pop('enable_ttl', None)  # UI switch is API-v1 TTL encoding only.
+    if item.get('user'):
+        item.setdefault('username', item['user'])
+    if engine == 'milvus' and item.get('password'):
+        item.setdefault('auth_kind', 'basic')
+    if engine == 'redis' and not item.get('password'):
+        item.pop('username', None)
+        item['auth_mode'] = 'none'
+    if engine in {'clickhouse', 'influxdb', 'opensearch',
+                  'opensearch_sql_ppl', 'milvus', 'xtdb'}:
+        item.setdefault('tls_mode', 'disable')
+    if engine in {'cassandra', 'yugabytedb_ycql'}:
+        item.setdefault('tls_mode', 'disabled')
+        item.setdefault('compression', 'none')
+    if engine == 'neo4j':
+        item.setdefault('tls_mode', 'disabled')
+        item.setdefault('routing', False)
+    if engine == 'mysql':
+        # MySQL's caching_sha2_password authentication needs a protected
+        # exchange; the shipped image supports TLS with its generated cert.
+        item.setdefault('ssl_disabled', False)
+        item.setdefault('ssl_verify_cert', False)
+        item.setdefault('ssl_verify_identity', False)
+    if engine in {'dolt', 'tidb', 'vitess'}:
+        item.setdefault('ssl_disabled', True)
+        item.setdefault('ssl_verify_cert', False)
+        item.setdefault('ssl_verify_identity', False)
+    if engine == 'mariadb':
+        item.setdefault('ssl', False)
+        item.setdefault('ssl_verify_cert', False)
+    if engine in {'postgresql', 'cockroachdb', 'yugabytedb', 'immudb'}:
+        item.setdefault('sslmode', 'disable')
+    if item['engine'] == 'vitess':
+        item.setdefault('vtgate_http_port', item['http_port'])
+        item.setdefault('vtgate_http_host', host)
+        item.setdefault('vtgate_http_tls_mode', 'disable')
     database = item.get("database")
     if database is None:
         database = "default"
@@ -102,7 +141,20 @@ def route_for(item, host, registration, provider_route_options):
         if field["control"] == "text" and isinstance(value, list):
             value = ",".join(str(part) for part in value)
         form[f"cde_route_{field_id}"] = value
-    return provider_route_options(registration, form, route)
+    route = provider_route_options(registration, form, route)
+    # Generic server fields are not native transport arguments. Retain the
+    # declared options, but discard base keys rejected by these adapters.
+    if engine in {'apache_ignite', 'cassandra', 'yugabytedb_ycql',
+                  'foundationdb', 'tikv', 'opensearch', 'opensearch_sql_ppl'}:
+        route.pop('database', None)
+    if engine in {'clickhouse', 'influxdb', 'opensearch', 'opensearch_sql_ppl',
+                  'milvus', 'xtdb', 'apache_ignite', 'cassandra',
+                  'yugabytedb_ycql', 'neo4j'}:
+        route.pop('user', None)
+        route.pop('connection_timeout', None)
+    if engine == 'redis' and not item.get('password'):
+        route.pop('user', None)
+    return route
 
 
 def update_visibility(db, Preferences, UserPreference, user_id):
@@ -182,11 +234,11 @@ def retain_database_target(
     endpoint.profile_generation = str(uuid.uuid4())
 
 
-def register(args):
+def register(args, app=None):
     host, profile_items = load_profiles(args.profiles.resolve())
     from pgadmin import create_app
 
-    app = create_app(config.APP_NAME + "-demo-profile-registration")
+    app = app or create_app(config.APP_NAME + "-demo-profile-registration")
     with app.app_context():
         from pgadmin.cdeadmin.endpoints import (
             provider_route_options, registration_profiles,

@@ -131,6 +131,10 @@ export class KeyboardHotkeys {
   private readonly selectFileOrToggleDirState = (): void => {
     const currentPseudoActive = this.fileTreeX.getActiveFile();
     if (!currentPseudoActive) { return; }
+    if (currentPseudoActive._metadata?.data?._type === 'cde_resource') {
+      this.events.dispatch(FileTreeXEvent.onTreeEvents, null, 'activated', currentPseudoActive);
+      return;
+    }
     if (currentPseudoActive.type === FileType.Directory) {
       this.fileTreeX.toggleDirectory(currentPseudoActive as Directory);
     } else if (currentPseudoActive.type === FileType.File) {

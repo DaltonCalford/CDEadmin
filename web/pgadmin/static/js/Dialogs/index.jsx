@@ -75,6 +75,7 @@ export function showServerPassword() {
 // Verify a provider-managed endpoint without entering PostgreSQL connect code.
 export function showEndpointVerification(
   title, nodeObj, nodeData, treeNodeInfo, itemNodeData, onSuccess, onFailure,
+  databaseTargetId=null,
 ) {
   const api = getApiInstance();
   const endpointUrl = nodeObj.generate_url(
@@ -91,11 +92,14 @@ export function showEndpointVerification(
     errmsg: null,
   };
 
-  const submit = (formData, onClose) => api.post(endpointUrl, formData)
-    .then((res) => {
-      onClose?.();
-      onSuccess?.(res.data, nodeData, treeNodeInfo, itemNodeData);
-    });
+  const submit = (formData, onClose) => {
+    if (databaseTargetId) formData.set('database_target_id', databaseTargetId);
+    return api.post(endpointUrl, formData)
+      .then((res) => {
+        onClose?.();
+        onSuccess?.(res.data, nodeData, treeNodeInfo, itemNodeData);
+      });
+  };
   const showSecretPrompt = () => pgAdmin.Browser.notifier.showModal(
     title, (onClose) => (
       <ConnectServerContent

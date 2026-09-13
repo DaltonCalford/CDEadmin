@@ -631,6 +631,11 @@ export class FileTreeX extends React.Component<IFileTreeXProps> {
   };
 
   private readonly handleItemDoubleClicked = async (ev: React.MouseEvent, item: FileOrDir) => {
+    if (item._metadata?.data?._type === 'cde_resource') {
+      await this.setActiveFile(item as FileEntry);
+      this.events.dispatch(FileTreeXEvent.onTreeEvents, ev, 'activated', item);
+      return;
+    }
     await this.toggleDirectory(item as Directory);
     await this.setActiveFile(item as FileEntry);
 

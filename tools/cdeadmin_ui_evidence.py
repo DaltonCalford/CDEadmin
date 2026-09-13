@@ -134,7 +134,7 @@ def named_tree_item(driver, label):
     matches = []
     for item in driver.find_elements(By.CSS_SELECTOR, '.file-name'):
         try:
-            if item.text == label:
+            if item.is_displayed() and item.text == label:
                 matches.append(item)
         except StaleElementReferenceException:
             continue
@@ -146,11 +146,19 @@ def expand(wait, label):
         collapsed = driver.find_elements(
             By.CSS_SELECTOR, f'button[aria-label="Expand {label}"]'
         )
+        try:
+            collapsed = [item for item in collapsed if item.is_displayed()]
+        except StaleElementReferenceException:
+            return None
         if collapsed:
             return ('expand', collapsed[-1])
         expanded = driver.find_elements(
             By.CSS_SELECTOR, f'button[aria-label="Collapse {label}"]'
         )
+        try:
+            expanded = [item for item in expanded if item.is_displayed()]
+        except StaleElementReferenceException:
+            return None
         if expanded:
             return ('expanded', expanded[-1])
         return None
@@ -162,6 +170,11 @@ def expand(wait, label):
         ))
 
         def click_when_ready(driver):
+            # Opening an unauthenticated database may replace its row and
+            # display verification before WebDriver receives click success.
+            # Hand control back so the caller can complete that real prompt.
+            if visible_menu_label(driver, 'Verify Endpoint'):
+                return True
             current_state = toggle(driver)
             if not current_state or current_state[0] != 'expand':
                 return current_state and current_state[0] == 'expanded'

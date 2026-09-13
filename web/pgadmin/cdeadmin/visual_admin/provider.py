@@ -1001,6 +1001,21 @@ class ProviderVisualAdministration:
                         'message': f'{label} must contain valid JSON.',
                     }
             if isinstance(value, (Mapping, list)):
+                if field.get('object_editor'):
+                    if not isinstance(value, Mapping):
+                        return None, {
+                            'field_id': field_id, 'code': 'json_type',
+                            'message': f'{label} must be a JSON object.',
+                        }
+                    record_field = {**field, 'json_type': 'array',
+                                    'array_editor': {
+                                        'item_kind': 'object',
+                                        **field['object_editor']}}
+                    record_field.pop('object_editor')
+                    admitted, error = (
+                        ProviderVisualAdministration._validate_field(
+                            record_field, [value]))
+                    return (None, error) if error else (admitted[0], None)
                 expected = field.get('json_type')
                 if expected == 'object' and not isinstance(value, Mapping):
                     return None, {
@@ -1012,6 +1027,58 @@ class ProviderVisualAdministration:
                         'field_id': field_id, 'code': 'json_type',
                         'message': f'{label} must be a JSON array.',
                     }
+                schema = field.get('array_editor')
+                if schema:
+                    if not isinstance(value, list):
+                        return None, {'field_id': field_id, 'code': 'type',
+                                      'message': f'{label} must be a list.'}
+                    if field.get('required') and not value:
+                        return None, {'field_id': field_id, 'code': 'required',
+                                      'message': f'{label} requires an item.'}
+                    normalized = []
+                    for index, item in enumerate(value):
+                        prefix = f'{label} item {index + 1}'
+                        if schema['item_kind'] == 'string':
+                            if not isinstance(item, str) or not item.strip():
+                                return None, {
+                                    'field_id': field_id, 'code': 'type',
+                                    'message': f'{prefix} requires text.',
+                                }
+                            normalized.append(item)
+                            continue
+                        children = schema.get('fields', [])
+                        known = {child['field_id'] for child in children}
+                        if not isinstance(item, Mapping) or set(item) - known:
+                            return None, {
+                                'field_id': field_id, 'code': 'unknown_fields',
+                                'message': f'{prefix} has unsupported fields.',
+                            }
+                        record = {}
+                        for child in children:
+                            if not ProviderVisualAdministration._field_active(
+                                    child, item):
+                                continue
+                            key = child['field_id']
+                            child_value = item.get(key)
+                            if child_value is None or child_value == '':
+                                if child.get('required'):
+                                    return None, {
+                                        'field_id': field_id,
+                                        'code': 'required',
+                                        'message': f'{prefix}: '
+                                        f'{child["label"]} is required.',
+                                    }
+                                continue
+                            admitted, error = (
+                                ProviderVisualAdministration._validate_field(
+                                    child, child_value))
+                            if error:
+                                return None, {**error, 'field_id': field_id,
+                                              'message': prefix + ': ' +
+                                              error['message']}
+                            record[key] = admitted
+                        normalized.append(record)
+                    return normalized, None
                 return copy.deepcopy(value), None
             return None, {
                 'field_id': field_id, 'code': 'type',

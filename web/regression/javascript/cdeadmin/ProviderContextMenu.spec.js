@@ -29,6 +29,16 @@ const action = (overrides={}) => ({
 });
 
 describe('provider-owned Object Explorer menus', () => {
+  it('puts common object actions directly on the popup, not in a submenu', () => {
+    const menus = providerTreeContextActions({cde_context_actions: [action({
+      command_id: 'resource.sqlite.table.create', label: 'New Table',
+      menu_group: 'common', handler: 'open_workspace',
+    })]});
+    expect(menus).toHaveLength(1);
+    expect(menus[0].label).toBe('New Table');
+    expect(menus[0].children).toBeUndefined();
+    expect(typeof menus[0].execute).toBe('function');
+  });
   it('recognizes an explicit empty provider menu as authoritative', () => {
     expect(isProviderContextNode({cde_context_actions: []})).toBe(true);
     expect(providerContextMenuItems({cde_context_actions: []})).toEqual([]);

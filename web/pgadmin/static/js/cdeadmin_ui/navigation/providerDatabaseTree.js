@@ -28,6 +28,7 @@ export function beforeOpenProviderDatabase(tree, serverNode, item) {
     item: serverItem,
     openOnSuccess: true,
     openOnSuccessItem: item,
+    databaseTargetId: tree.itemData(item)?._id,
   });
   return false;
 }

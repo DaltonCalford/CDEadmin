@@ -31,7 +31,7 @@ describe('CDEadmin provider hierarchy behavior', () => {
     const serverNode = {callbacks: {verify_cde_endpoint: verify}};
     const tree = {
       parent: jest.fn(() => serverItem),
-      itemData: jest.fn(() => ({
+      itemData: jest.fn((item) => item === databaseItem ? {_id: 'target-1'} : ({
         cde_endpoint: true,
         runtime_verification_state: 'stale',
       })),
@@ -44,6 +44,7 @@ describe('CDEadmin provider hierarchy behavior', () => {
       item: serverItem,
       openOnSuccess: true,
       openOnSuccessItem: databaseItem,
+      databaseTargetId: 'target-1',
     });
   });
 

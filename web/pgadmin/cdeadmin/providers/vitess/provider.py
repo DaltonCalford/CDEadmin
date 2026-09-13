@@ -8,6 +8,8 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import replace
 
+from ..catalog_presentation import annotate_relation_ownership
+
 from pgadmin.cdeadmin.sdk import (
     ActualEnginePilotProvider,
     PilotProfile,
@@ -870,7 +872,17 @@ def _catalog(connection, request):
     route = request.get('route') or request.get('_provider_route') or {}
     for item in control_catalog_resources(route, generation, keyspaces):
         values[item['resource_id']] = item
-    return list(values.values())
+    for item in values.values():
+        path = item['display_path']
+        if item['resource_kind'] == 'vschema':
+            item['display_path'] = [path[0], 'VSchema']
+            item.setdefault('native', {})['navigator_parent_resource_id'] = (
+                f'keyspace:{path[0]}')
+        elif item['resource_kind'] == 'shard' and len(path) == 2:
+            item['display_path'] = [path[0], path[1].split('/', 1)[-1]]
+    # Normalization changes relation IDs from physical vt_* schemas to routed
+    # keyspaces. Rebind ownership only after the normalized catalog is whole.
+    return annotate_relation_ownership(list(values.values()))
 
 
 class VitessProvider(ActualEnginePilotProvider):

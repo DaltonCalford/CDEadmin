@@ -30,6 +30,7 @@ from pgadmin.cdeadmin.context_menu import (  # noqa: E402
     database_target_context_actions,
     endpoint_context_actions,
     resource_context_actions,
+    resource_group_context_actions,
 )
 
 
@@ -73,6 +74,48 @@ def profile(engine_id, *, route_kind='network', multiple=False):
 
 
 class ContextMenuTests(unittest.TestCase):
+
+    def test_group_create_retains_scope_without_fabricating_target(self):
+        catalog = {'objects': [{'resource_kind': 'table', 'title': 'Table',
+                                'operations': [{
+                                    'operation_id': 'create',
+                                    'native_supported': True,
+                                    'execution_available': True,
+                                }]}]}
+        actions = resource_group_context_actions(
+            profile('firebird'), 'table', catalog,
+            database_target_id='db1',
+            parent_resource={'resource_id': 'schema1'})
+        self.assertEqual('New Table', actions[0]['label'])
+        self.assertEqual('common', actions[0]['menu_group'])
+        self.assertEqual('db1', actions[0]['arguments']['database_target_id'])
+        self.assertEqual('schema1',
+                         actions[0]['arguments']['parent_resource_id'])
+        self.assertNotIn('resource_id', actions[0]['arguments'])
+        self.assertEqual([], resource_group_context_actions(
+            profile('firebird'), 'table', catalog, system=True))
+        catalog['objects'][0]['operations'][0]['native_supported'] = False
+        self.assertEqual([], resource_group_context_actions(
+            profile('firebird'), 'table', catalog))
+
+    def test_object_labels_identify_target_and_create_stays_on_group(self):
+        catalog = {'objects': [{'resource_kind': 'table', 'title': 'Table',
+                               'operations': [{
+                                   'operation_id': action,
+                                   'execution_available': True,
+                               } for action in (
+                                   'create', 'inspect', 'alter', 'drop')]}]}
+        actions = resource_context_actions(profile('firebird'), {
+            'resource_id': 'table:T', 'resource_kind': 'table',
+            'display_name': 'T'}, catalog, database_target_id='db1')
+        labels = [item['label'] for item in actions]
+        self.assertIn('Alter Table T', labels)
+        self.assertIn('Drop Table T', labels)
+        self.assertFalse(any(item['command_id'].endswith('.create')
+                             for item in actions))
+        browser = next(item for item in actions
+                       if item['command_id'].endswith('.browse'))
+        self.assertEqual('object', browser['arguments']['tab'])
 
     def test_firebird_connector_separates_endpoint_create_and_register(self):
         actions = connector_context_actions(

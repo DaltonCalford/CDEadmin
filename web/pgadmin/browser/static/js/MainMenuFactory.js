@@ -282,6 +282,7 @@ export default class MainMenuFactory {
 
     // Push the category menus
     Object.values(categories).forEach((cmi)=>{
+      if (!cmi) return;
       const items = cmi.getMenuItems();
 
       // if there is only one menu in the category, then no need of the category.

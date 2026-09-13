@@ -51,11 +51,114 @@ class ReferenceEngineDemoTestCase(unittest.TestCase):
             )
         )["profiles"]
 
+    def test_tidb_readiness_uses_authenticated_sql_without_database(self):
+        import mysql.connector
+        connection = mock.MagicMock()
+        cursor = connection.cursor.return_value
+        cursor.fetchone.return_value = ('8.0.11-TiDB-v8.5.6',)
+        with mock.patch.object(mysql.connector, 'connect',
+                               return_value=connection) as connect:
+            self.assertTrue(self.estate._tidb_sql_ready())
+        self.assertNotIn('database', connect.call_args.kwargs)
+        self.assertEqual([mock.call('SELECT VERSION()'),
+                          mock.call('ADMIN SHOW DDL JOBS 1')],
+                         cursor.execute.call_args_list)
+        cursor.close.assert_called_once()
+        connection.close.assert_called_once()
+
+    def test_tidb_readiness_rejects_wrong_engine_and_closes_on_failure(self):
+        import mysql.connector
+        for failure in ('wrong_version', 'query_failure'):
+            with self.subTest(failure=failure):
+                connection = mock.MagicMock()
+                cursor = connection.cursor.return_value
+                cursor.fetchone.return_value = ('8.0.11-MySQL',)
+                if failure == 'query_failure':
+                    cursor.execute.side_effect = RuntimeError('not ready')
+                with mock.patch.object(mysql.connector, 'connect',
+                                       return_value=connection):
+                    with self.assertRaises(RuntimeError):
+                        self.estate._tidb_sql_ready()
+                cursor.close.assert_called_once()
+                connection.close.assert_called_once()
+
     def test_every_profile_has_a_native_seed_adapter(self):
         engines = set(self.estate.ENGINE_ORDER)
         self.assertEqual(26, len(engines))
         self.assertEqual(engines, {item["engine"] for item in self.profiles})
         self.assertEqual(engines, set(self.seed.SEEDERS))
+
+    def test_vitess_readiness_requires_its_native_keyspace(self):
+        import mysql.connector
+        for rows, ready in [([], False), ([('test_keyspace',)], True)]:
+            with self.subTest(rows=rows):
+                connection = mock.MagicMock()
+                cursor = connection.cursor.return_value
+                cursor.fetchall.return_value = rows
+                with mock.patch.object(mysql.connector, 'connect',
+                                       return_value=connection):
+                    if ready:
+                        self.assertTrue(self.estate._vitess_sql_ready())
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            self.estate._vitess_sql_ready()
+                cursor.execute.assert_called_once_with('SHOW VITESS_KEYSPACES')
+                cursor.close.assert_called_once()
+                connection.close.assert_called_once()
+
+    def test_tidb_uses_separate_storage_without_removing_old_volumes(self):
+        source = (DEMO / 'demo_estate.py').read_text()
+        start = source.split('def start_tidb():')[1].split(
+            'def _tidb_sql_ready():')[0]
+        self.assertNotIn('start_tikv_stack()', start)
+        self.assertIn('cdeadmin-demo-tidb-retained-api-v2', start)
+        self.assertIn("'docker', 'rename'", start)
+        self.assertNotIn("'docker', 'rm'", start)
+        config = (DEMO / 'config/tidb/transactional.toml').read_text()
+        self.assertIn('api-version = 1', config)
+        self.assertIn('enable-ttl = false', config)
+
+    def test_http_readiness_checks_native_response(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        with mock.patch.object(self.estate.urllib.request, 'urlopen',
+                               return_value=response):
+            response.read.return_value = b'Ok.\n'
+            self.assertTrue(self.estate._http_engine_ready('clickhouse'))
+            response.read.return_value = b'not ready'
+            with self.assertRaises(RuntimeError):
+                self.estate._http_engine_ready('clickhouse')
+            for status, succeeds in [('red', False), ('yellow', True),
+                                     ('green', True)]:
+                with mock.patch.object(self.estate.json, 'load',
+                                       return_value={'status': status}):
+                    if succeeds:
+                        self.assertTrue(self.estate._http_engine_ready(
+                            'opensearch'))
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            self.estate._http_engine_ready('opensearch')
+
+    def test_all_demo_profiles_pass_real_registration_validation(self):
+        from pgadmin.cdeadmin.endpoints.profiles import (
+            registration_profiles, provider_route_options,
+        )
+        registrations = {p['profile_id']: p for p in registration_profiles()}
+        for item in self.profiles:
+            with self.subTest(engine=item['engine']):
+                profile = self.registration.registration_for(
+                    item, registrations)
+                route = self.registration.route_for(
+                    item, '127.0.0.1', profile, provider_route_options)
+                self.assertNotIn('password', route)
+                if item['engine'] == 'vitess':
+                    self.assertEqual(15099, route['vtgate_http_port'])
+                if item['engine'] == 'tikv':
+                    self.assertNotIn('enable_ttl', route)
+                if item['engine'] == 'tidb':
+                    self.assertTrue(route['ssl_disabled'])
+                if item['engine'] == 'mysql':
+                    self.assertFalse(route['ssl_disabled'])
 
     def test_reference_version_manifest_is_complete(self):
         manifest = json.loads(

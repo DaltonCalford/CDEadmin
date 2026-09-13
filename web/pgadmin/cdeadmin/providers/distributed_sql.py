@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import re
 from typing import Any, Callable, Mapping
+
+from .catalog_presentation import annotate_relation_ownership
 
 from pgadmin.cdeadmin.sdk import (
     RelationalClientConfig,
@@ -325,7 +328,21 @@ def postgresql_catalog(connection, request, engine_name, extras=None):
     generation = str(request.get('capability_generation') or 'current')
     values = {resource('cluster', [], engine_name, generation)['resource_id']:
               resource('cluster', [], engine_name, generation)}
-    cursor = connection.cursor()
+    native_cursor = connection.cursor()
+
+    class CatalogCursor:
+        def __getattr__(self, key):
+            return getattr(native_cursor, key)
+
+        def execute(self, source, parameters=()):
+            # These catalogs are native readable metadata, not user schemas.
+            # Preserve every other query predicate and the caller's rights.
+            source = re.sub(
+                r"[A-Za-z_.]+ NOT IN \('pg_catalog', 'information_schema'"
+                r"(?:, 'crdb_internal')?\)", 'TRUE', source)
+            return native_cursor.execute(source, parameters)
+
+    cursor = CatalogCursor()
     try:
         databases = optional_rows(
             cursor,
@@ -389,7 +406,12 @@ def postgresql_catalog(connection, request, engine_name, extras=None):
         if extras:
             for item in extras(cursor, request, generation):
                 values[item['resource_id']] = item
-        return list(values.values())
+        for item in values.values():
+            path = item.get('display_path', [])
+            if path and path[0] in {
+                    'pg_catalog', 'information_schema', 'crdb_internal'}:
+                item.setdefault('native', {})['system_object'] = True
+        return annotate_relation_ownership(list(values.values()))
     finally:
         cursor.close()
 
@@ -439,7 +461,7 @@ def mysql_catalog(connection, request, engine_name, extras=None):
         if extras:
             for item in extras(cursor, request, generation):
                 values[item['resource_id']] = item
-        return list(values.values())
+        return annotate_relation_ownership(list(values.values()))
     finally:
         cursor.close()
 

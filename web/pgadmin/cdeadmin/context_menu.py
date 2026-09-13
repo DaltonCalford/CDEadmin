@@ -1043,11 +1043,46 @@ def database_target_context_actions(
     return actions
 
 
+def resource_group_context_actions(profile, resource_kind, visual_catalog,
+                                   *, database_target_id=None,
+                                   parent_resource=None, system=False):
+    """Creation belongs to a presentation group, never a fabricated object."""
+    if system:
+        return []
+    descriptor = next((item for item in
+                       (visual_catalog or {}).get('objects', [])
+                       if item.get('resource_kind') == resource_kind), None)
+    if not descriptor:
+        return []
+    create = next((item for item in descriptor.get('operations', [])
+                   if item.get('operation_id') == 'create' and
+                   item.get('native_supported') is not False), None)
+    if not create:
+        return []
+    arguments = {'tab': 'administration', 'operation_id': 'create',
+                 'resource_kind': resource_kind}
+    if database_target_id:
+        arguments['database_target_id'] = database_target_id
+    if parent_resource:
+        arguments['parent_resource_id'] = parent_resource['resource_id']
+    enabled = create.get('execution_available') is True
+    noun = descriptor.get('title') or resource_kind.replace('-', ' ').title()
+    return [_action(
+        f"resource.{profile['engine_id']}.{resource_kind}.create",
+        f'New {noun}', 'open_workspace', icon='action.create',
+        group='common', priority=10, arguments=arguments,
+        mutation=create.get('mutation_class', 'admin'), enabled=enabled,
+        disabled_reason=', '.join(create.get('blockers') or []) or (
+            '' if enabled else 'The provider has not admitted creation.'),
+    )]
+
+
 def resource_context_actions(
         profile: Mapping[str, Any], resource: Mapping[str, Any],
         visual_catalog: Mapping[str, Any] | None, *,
         database_target_id: str | None = None) -> list[dict[str, Any]]:
     """Resolve provider catalog operations for a discovered resource."""
+    from pgadmin.cdeadmin.navigator import resource_native
     engine_id = _required(profile.get('engine_id'), 'engine_id')
     resource_id = _required(resource.get('resource_id'), 'resource_id')
     resource_kind = _required(
@@ -1094,7 +1129,9 @@ def resource_context_actions(
         return actions
     operations = [
         operation for operation in descriptor.get('operations', [])
-        if operation.get('native_supported') is not False
+        if operation.get('native_supported') is not False and
+        (not resource_native(resource).get('system_object') or
+         operation.get('operation_id') == 'inspect')
     ]
     inspect = next((
         operation for operation in operations
@@ -1103,6 +1140,17 @@ def resource_context_actions(
     if inspect is not None:
         execution_available = inspect.get('execution_available') is True
         blockers = ', '.join(inspect.get('blockers') or [])
+        actions.append(_action(
+            f'resource.{engine_id}.{resource_kind}.browse',
+            f"Open {resource.get('display_name') or resource_kind}",
+            'open_workspace', icon='action.view', group='object', priority=1,
+            arguments={**base, 'tab': 'object', 'operation_id': 'inspect',
+                       'resource_kind': resource_kind},
+            enabled=execution_available,
+            disabled_reason=blockers or (
+                '' if execution_available else 'Object inspection unavailable.'
+            ),
+        ))
         actions.append(_action(
             f'resource.{engine_id}.{resource_kind}.inspect',
             inspect.get('title') or 'Inspect object...',
@@ -1129,7 +1177,7 @@ def resource_context_actions(
         operation_id = operation.get('operation_id')
         if (
             not isinstance(operation_id, str) or not operation_id or
-            operation_id == 'inspect'
+            operation_id in {'inspect', 'create'}
         ):
             continue
         mutation = operation.get('mutation_class', 'admin')
@@ -1137,14 +1185,20 @@ def resource_context_actions(
             mutation = 'admin'
         execution_available = operation.get('execution_available') is True
         blockers = ', '.join(operation.get('blockers') or [])
+        label = f"{operation.get('title') or operation_id}..."
+        if operation_id in {'alter', 'drop'}:
+            noun = descriptor.get('title') or resource_kind.replace('-', ' ')
+            label = (f'{operation_id.title()} {noun} '
+                     f"{resource.get('display_name') or resource_id}")
         actions.append(_action(
             f'resource.{engine_id}.{resource_kind}.{operation_id}',
-            f"{operation.get('title') or operation_id}...",
+            label,
             'open_workspace', icon=(
                 'action.delete' if mutation == 'destructive' else
                 'action.create' if operation_id == 'create' else
                 'action.edit'
-            ), group='operations', priority=30 + index,
+            ), group=('common' if operation_id in {'alter', 'drop'}
+                      else 'operations'), priority=30 + index,
             mutation=mutation, arguments={
                 **base, 'tab': 'administration',
                 'operation_id': operation_id,

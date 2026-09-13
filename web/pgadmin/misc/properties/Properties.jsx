@@ -19,6 +19,7 @@ import { Box } from '@mui/material';
 import { usePgAdmin } from '../../static/js/PgAdminProvider';
 import PropTypes from 'prop-types';
 import _ from 'lodash';
+import ProviderObjectProperties from './ProviderObjectProperties';
 
 const StyledBox = styled(Box)(({theme}) => ({
   height: '100%',
@@ -31,6 +32,13 @@ function Properties(props) {
   const isCollection = props.nodeData?._type?.startsWith('coll-') || props.nodeData?._type == 'dbms_job_scheduler';
   const pgAdmin = usePgAdmin();
   let noPropertyMsg = '';
+
+  if (props.nodeData?._type === 'cde_resource') {
+    return <StyledBox><ErrorBoundary>
+      <ProviderObjectProperties key={props.nodeData.cde_resource_id}
+        nodeData={props.nodeData} />
+    </ErrorBoundary></StyledBox>;
+  }
 
   if (!props.node) {
     noPropertyMsg = gettext('Please select an object in the tree view.');

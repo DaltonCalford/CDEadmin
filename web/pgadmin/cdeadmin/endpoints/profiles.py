@@ -354,6 +354,7 @@ def _load_profiles():
                 'endpoint database_targeting must be an object'
             )
         targeting = {
+            'route_key': targeting.get('route_key', 'database'),
             'mode': targeting.get('mode', 'required'),
             'multiple': targeting.get('multiple') is True,
             'server_verification': (
@@ -367,6 +368,11 @@ def _load_profiles():
             raise EndpointRegistrationError(
                 'endpoint database targeting mode is invalid'
             )
+        if targeting['route_key'] is not None and (
+                not isinstance(targeting['route_key'], str) or
+                not targeting['route_key'].isidentifier()):
+            raise EndpointRegistrationError(
+                'database target route key invalid')
         if route_kind == 'embedded_file' and (
             targeting['mode'] != 'required' or
             targeting['server_verification']

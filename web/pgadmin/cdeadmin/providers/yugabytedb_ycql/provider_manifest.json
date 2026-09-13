@@ -27,6 +27,7 @@
   "composition": {"experience_families": ["yugabytedb-ycql"], "target_adapter_ids": ["ycql-cassandra-driver"]},
   "extension_schema": null,
   "registration": {
+    "database_targeting": {"route_key": "keyspace", "mode": "optional", "multiple": true},
     "display_name": "YugabyteDB 2025.2.2.2 (YCQL)",
     "workflow": "provider_endpoint",
     "route_kind": "network",

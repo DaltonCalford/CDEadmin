@@ -232,6 +232,7 @@ class RelationalAdministration:
                         operation['form'] = copy.deepcopy(database_form)
                     elif operation.get('form_authority') != 'engine-profile':
                         operation['form'] = self._form(kind, operation_id)
+                    self._structured_record_controls(operation['form'])
                     if kind == 'privilege' and operation_id in {
                         'grant', 'revoke',
                     }:
@@ -3696,7 +3697,9 @@ class RelationalAdministration:
             elif kind == 'sequence':
                 value['changes'] = {
                     key: value.pop(key)
-                    for key in ('restart', 'increment') if key in value and (
+                    for key in ('restart', 'increment', 'restart_initial',
+                                'description', 'clear_description')
+                    if key in value and (
                         value[key] is not None and value[key] != ''
                     )
                 }
@@ -3974,7 +3977,9 @@ class RelationalAdministration:
                 ))
             elif kind == 'sequence':
                 sequence_fields = [
-                    self._field('start', 'Start value', 'number', False),
+                    self._field('start', 'Start value',
+                                'text' if self.dialect.engine_id ==
+                                'firebird' else 'number', False),
                     self._field(
                         'increment', 'Increment', 'number', False
                     ),
@@ -4309,6 +4314,33 @@ class RelationalAdministration:
                 ],
             }
         if operation == 'alter' and kind == 'sequence':
+            if self.dialect.engine_id == 'firebird':
+                return {
+                    'form_id': 'firebird.sequence.alter',
+                    'title': 'Alter Firebird sequence',
+                    'fields': [
+                        self._field(
+                            'restart', 'Next generated value', 'text', False,
+                            'Signed 64-bit integer. Leave empty to preserve '
+                            'the current generator position. Concurrent '
+                            'consumers can advance the sequence.',
+                        ),
+                        self._field(
+                            'restart_initial', 'Restart at original start',
+                            'boolean', False, default=False,
+                        ),
+                        {**self._field(
+                            'increment', 'Increment by', 'number'),
+                         'initial_value_path': ['increment']},
+                        {**self._field(
+                            'description', 'Comment', 'multiline'),
+                         'initial_value_path': ['description']},
+                        self._field(
+                            'clear_description', 'Remove comment',
+                            'boolean', False, default=False,
+                        ),
+                    ],
+                }
             return {
                 'form_id': 'sequence.alter', 'title': 'Alter sequence',
                 'fields': [
@@ -4592,6 +4624,76 @@ class RelationalAdministration:
         return fields
 
     @staticmethod
+    def _structured_record_controls(form):
+        """Visual schemas for this adapter's existing structured compiler."""
+        field = RelationalAdministration._field
+
+        def strings():
+            return {'item_kind': 'string'}
+
+        columns = {'item_kind': 'object', 'fields': [
+            field('name', 'Column name', 'text', True),
+            field('type', 'Native data type', 'text', True),
+            field('nullable', 'Nullable', 'boolean', default=True),
+            field('default', 'Default expression', 'text'),
+            field('unique', 'Unique', 'boolean', default=False),
+            field('primary_key', 'Primary key', 'boolean', default=False),
+        ]}
+
+        def column_names(name, label):
+            return {**field(name, label, 'json', default=[]),
+                    'json_type': 'array', 'array_editor': strings()}
+
+        constraints = {'item_kind': 'object', 'fields': [
+            field('name', 'Constraint name', 'text'),
+            field('kind', 'Constraint type', 'select', True,
+                  default='PRIMARY KEY',
+                  options=('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY', 'CHECK')),
+            column_names('columns', 'Columns'),
+            field('references_table', 'Referenced table', 'text'),
+            column_names('references_columns', 'Referenced columns'),
+            field('expression', 'Check expression', 'text'),
+        ]}
+        for item in constraints['fields']:
+            if item['field_id'] == 'columns':
+                item['required'] = True
+                item['visible_when'] = {'field_id': 'kind', 'in': [
+                    'PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY']}
+            elif item['field_id'] in {
+                    'references_table', 'references_columns'}:
+                item['required'] = True
+                item['visible_when'] = {'field_id': 'kind',
+                                        'equals': 'FOREIGN KEY'}
+            elif item['field_id'] == 'expression':
+                item['required'] = True
+                item['visible_when'] = {'field_id': 'kind', 'equals': 'CHECK'}
+        schemas = {
+            'table.create': {'columns': columns, 'constraints': constraints},
+            'table.alter': {
+                'add_columns': columns, 'drop_columns': strings(),
+                'rename_columns': {'item_kind': 'object', 'fields': [
+                    field('from', 'Existing name', 'text', True),
+                    field('to', 'New name', 'text', True),
+                ]},
+            },
+            'index.create': {'columns': strings()},
+        }.get(form.get('form_id'), {})
+        for item in form.get('fields', []):
+            if form.get('form_id') == 'constraint.create' and (
+                    item['field_id'] == 'properties'):
+                children = copy.deepcopy([
+                    child for child in constraints['fields']
+                    if child['field_id'] != 'name'])
+                item.update(object_editor={'fields': children},
+                            json_type='object', default={
+                                child['field_id']: child.get('default', '')
+                                for child in children})
+            schema = schemas.get(item['field_id'])
+            if schema is not None:
+                item.update(array_editor=copy.deepcopy(schema),
+                            json_type='array', default=[])
+
+    @staticmethod
     def _field(field_id, label, control, required=False, help_text='',
                default=None, options=None, sensitive=False):
         value = {
@@ -4704,7 +4806,10 @@ class RelationalAdministration:
                 ('minimum', ' MINVALUE '), ('maximum', ' MAXVALUE '),
             ):
                 if key in options:
-                    source += phrase + str(self._integer(options[key], key))
+                    value = (self._firebird_sequence_integer(options[key], key)
+                             if self.dialect.engine_id == 'firebird' else
+                             self._integer(options[key], key))
+                    source += phrase + str(value)
             if options.get('cycle'):
                 source += ' CYCLE'
         elif kind == 'package' and self.dialect.engine_id == 'firebird':
@@ -5208,26 +5313,52 @@ class RelationalAdministration:
             return statements
         if kind == 'sequence':
             clauses = []
+            firebird = self.dialect.engine_id == 'firebird'
+            if firebird and changes.get('restart_initial'):
+                if 'restart' in changes:
+                    raise RelationalClientError(
+                        'choose a next value or original start, not both')
+                clauses.append('RESTART')
             if 'restart' in changes:
+                value = (self._firebird_sequence_integer(
+                    changes['restart'], 'restart') if firebird else
+                    self._integer(changes['restart'], 'restart'))
                 clauses.append(
-                    'RESTART WITH ' + str(self._integer(
-                        changes['restart'], 'restart'
-                    ))
+                    'RESTART WITH ' + str(value)
                 )
             if 'increment' in changes:
+                value = (self._firebird_sequence_integer(
+                    changes['increment'], 'increment') if firebird else
+                    self._integer(changes['increment'], 'increment'))
                 clauses.append(
-                    'INCREMENT BY ' + str(self._integer(
-                        changes['increment'], 'increment'
-                    ))
+                    'INCREMENT BY ' + str(value)
                 )
-            if not clauses:
+            statements = [{
+                'source': f'ALTER SEQUENCE {target} {" ".join(clauses)}',
+                'parameters': (),
+            }] if clauses else []
+            if firebird and ('description' in changes or
+                             changes.get('clear_description')):
+                if changes.get('clear_description') and changes.get(
+                        'description'):
+                    raise RelationalClientError(
+                        'choose a comment or remove comment, not both')
+                description = (None if changes.get('clear_description') else
+                               changes['description'])
+                if description is not None and not isinstance(
+                        description, str):
+                    raise RelationalClientError('comment must be text')
+                statements.append({
+                    'source': f'COMMENT ON SEQUENCE {target} IS ' +
+                    ('NULL' if description is None else
+                     self._literal(description)),
+                    'parameters': (),
+                })
+            if not statements:
                 raise RelationalClientError(
                     'sequence alteration has no structured changes'
                 )
-            return [{
-                'source': f'ALTER SEQUENCE {target} {" ".join(clauses)}',
-                'parameters': (),
-            }]
+            return statements
         if kind == 'domain' and self.dialect.engine_id == 'firebird':
             clauses = []
             if changes.get('data_type'):
@@ -6662,6 +6793,22 @@ class RelationalAdministration:
         ).upper()
         value_sql = self._safe_fragment(str(value), 'change value')
         return f'{key_sql} {value_sql}'
+
+    @staticmethod
+    def _firebird_sequence_integer(value, label):
+        # Keep int64 values as decimal strings across the browser boundary.
+        if isinstance(value, str) and re.fullmatch(r'-?[0-9]+', value):
+            if len(value) > 21:
+                raise RelationalClientError(f'{label} is outside its range')
+            value = int(value)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise RelationalClientError(f'{label} must be an integer')
+        bits = 32 if label == 'increment' else 64
+        if not -(2 ** (bits - 1)) <= value < 2 ** (bits - 1):
+            raise RelationalClientError(f'{label} is outside its range')
+        if label == 'increment' and value == 0:
+            raise RelationalClientError('increment must not be zero')
+        return value
 
     @staticmethod
     def _integer(value, label):

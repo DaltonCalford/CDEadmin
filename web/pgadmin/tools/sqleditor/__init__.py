@@ -2433,8 +2433,9 @@ def get_new_connection_data(sgid=None, sid=None):
     """
     try:
         driver = get_driver(PG_DEFAULT_DRIVER)
-        from pgadmin.browser.server_groups.servers import \
-            server_icon_and_background
+        from pgadmin.browser.server_groups.servers import (
+            server_icon_and_background, _cde_registration,
+        )
         server_groups = get_server_groups_for_user()
         server_group_data = {server_group.name: [] for server_group in
                              server_groups}
@@ -2442,9 +2443,17 @@ def get_new_connection_data(sgid=None, sid=None):
             Server.is_adhoc == 0)
 
         for server in servers:
+            # This dialog opens the inherited PostgreSQL query tool. Other
+            # engines open their provider-native query workspace instead.
+            if _cde_registration(server)['workflow'] == 'provider_endpoint':
+                continue
             manager = driver.connection_manager(server.id)
-            conn = manager.connection()
-            connected = conn.connected()
+            # An instance-only registration has no default database. Listing
+            # it must not attempt a database connection or fail the whole menu.
+            connected = False
+            if server.maintenance_db or server.service:
+                conn = manager.connection()
+                connected = conn.connected()
             server_group_data[server.servergroup.name].append({
                 'label': server.name,
                 "value": server.id,

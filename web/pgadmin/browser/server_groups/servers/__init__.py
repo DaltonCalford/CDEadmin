@@ -72,6 +72,7 @@ from pgadmin.cdeadmin.context_menu import (
     database_target_context_actions,
     endpoint_context_actions,
     resource_context_actions,
+    resource_group_context_actions,
 )
 from pgadmin.cdeadmin.navigator import (
     ProviderNavigatorError,
@@ -208,17 +209,22 @@ def _cde_resource_nodes(gid, sid, profile, state, snapshot):
     nodes = []
     base_state = {
         key: state[key] for key in (
-            'target_id', 'database', 'display_name'
+            'target_id', 'database', 'display_name', 'object_scope'
         ) if key in state
     }
-    for value in resource_children(snapshot['resources'], state):
+    for value in resource_children(snapshot['resources'], state,
+                                   snapshot.get('visual_admin')):
         if value['node_type'] == 'group':
             child_state = {
                 **base_state,
-                'scope': 'kind',
+                'scope': value.get('scope', 'kind'),
                 'parent_path': value['parent_path'],
                 'resource_kind': value['resource_kind'],
             }
+            if value.get('object_scope'):
+                child_state['object_scope'] = value['object_scope']
+            if state.get('resource_id'):
+                child_state['resource_id'] = state['resource_id']
             token = encode_navigator_state(child_state)
             node_id = hashlib.sha256(token.encode('ascii')).hexdigest()[:24]
             nodes.append({
@@ -240,6 +246,16 @@ def _cde_resource_nodes(gid, sid, profile, state, snapshot):
                 'cde_engine_id': profile['engine_id'],
                 'cde_profile_id': profile['profile_id'],
                 'cde_resource_kind': value['resource_kind'],
+                'cde_context_actions': resource_group_context_actions(
+                    profile, value['resource_kind'],
+                    snapshot.get('visual_admin'),
+                    database_target_id=base_state.get('target_id'),
+                    parent_resource=next((item for item in
+                                          snapshot['resources']
+                                          if item['resource_id'] ==
+                                          state.get('resource_id')), None),
+                    system=child_state.get('object_scope') == 'system',
+                ),
             })
             continue
         resource = value['resource']
@@ -269,7 +285,12 @@ def _cde_resource_nodes(gid, sid, profile, state, snapshot):
                 if value['has_children'] else None
             ),
             'cde_resource_id': value['resource_id'],
+            'cde_database_target_id': base_state.get('target_id'),
             'cde_resource_kind': value['resource_kind'],
+            'cde_workspace_url': url_for(
+                'NODE-server.cde_workspace_id', gid=gid, sid=sid,
+                database_target_id=base_state.get('target_id'),
+            ),
             'cde_authority_path': resource['authority_path'],
             'cde_endpoint': True,
             'cde_engine_id': profile['engine_id'],
@@ -1689,19 +1710,21 @@ class ServerNode(PGChildNodeView):
             id=server.servergroup_id
         ).first()
 
-        driver = get_driver(PG_DEFAULT_DRIVER)
-
-        manager = driver.connection_manager(sid)
-        conn = manager.connection()
-        connected = conn.connected()
         profile = _cde_registration(server)
         provider_endpoint = profile['workflow'] == 'provider_endpoint'
+        manager = None
         if provider_endpoint:
+            # Keep the inherited PostgreSQL-session flag separate from the
+            # provider runtime verification state returned below.
             connected = False
-
-        # Get updated connection string to show on UI, if user change host,
-        # port and user when server is connected
-        display_connection_str = self.update_connection_string(manager, server)
+            display_connection_str = None
+        else:
+            driver = get_driver(PG_DEFAULT_DRIVER)
+            manager = driver.connection_manager(sid)
+            conn = manager.connection()
+            connected = conn.connected()
+            display_connection_str = self.update_connection_string(
+                manager, server)
 
         if _is_non_owner(server):
             shared_server = ServerModule.get_shared_server(server, gid)
@@ -1749,7 +1772,7 @@ class ServerNode(PGChildNodeView):
             'comment': server.comment,
             'role': server.role,
             'connected': connected,
-            'version': manager.ver,
+            'version': 0 if provider_endpoint else manager.ver,
             'server_type': (
                 profile['experience_family'] if provider_endpoint
                 else manager.server_type if connected else 'pg'
@@ -1778,8 +1801,10 @@ class ServerNode(PGChildNodeView):
             'tunnel_authentication': tunnel_authentication,
             'tunnel_keep_alive': tunnel_keep_alive,
             'kerberos_conn': bool(server.kerberos_conn),
-            'gss_authenticated': manager.gss_authenticated,
-            'gss_encrypted': manager.gss_encrypted,
+            'gss_authenticated': (
+                False if provider_endpoint else manager.gss_authenticated),
+            'gss_encrypted': (
+                False if provider_endpoint else manager.gss_encrypted),
             'cloud_status': server.cloud_status,
             'connection_params': connection_params,
             'connection_string': display_connection_str,
@@ -2407,7 +2432,9 @@ class ServerNode(PGChildNodeView):
         try:
             verification = endpoint_service_for_app(
                 current_app
-            ).verify_server(server, password, connect_as=connect_as)
+            ).verify_server(
+                server, password, connect_as=connect_as,
+                database_target_id=data.get('database_target_id') or None)
         except EndpointRegistrationError as exc:
             return make_json_response(
                 status=401, success=0, errormsg=str(exc)
@@ -2425,6 +2452,8 @@ class ServerNode(PGChildNodeView):
                 **verification,
                 'runtime_verification_state': 'verified',
                 'is_password_saved': bool(server.save_password),
+                'icon': server_icon_and_background(
+                    True, None, server, 'verified'),
             },
             info=gettext('Endpoint profile verification succeeded.')
         )
@@ -2534,6 +2563,20 @@ class ServerNode(PGChildNodeView):
             else:
                 data = request.get_json(silent=True) or {}
                 action = data.get('action')
+                scoped_target = request.args.get('database_target_id')
+                if scoped_target and action in {
+                        'resource_page', 'resource_inspect', 'resource_refresh'}:
+                    resource_request = data.get('request') or {}
+                    if not isinstance(resource_request, dict) or (
+                            resource_request.get('database_target_id') not in
+                            (None, scoped_target)):
+                        return bad_request(gettext(
+                            'Resource request database scope does not match '
+                            'the selected workspace.'))
+                    data['request'] = {
+                        **resource_request,
+                        'database_target_id': scoped_target,
+                    }
                 if action == 'route_list':
                     payload = endpoint_service_for_app(
                         current_app

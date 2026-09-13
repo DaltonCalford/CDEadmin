@@ -4,7 +4,7 @@
   "notes": "Local demonstration credentials only. ScratchBird native intentionally excluded.",
   "profiles": [
     {"engine": "apache_ignite", "name": "Local Ignite Demo", "port": 51080, "rest_port": 58080, "control_port": 10800, "control_sh_path": "${DEMO_ROOT}/config/ignite/control.sh", "database": null, "user": "ignite", "auth_mode": "username-password", "password": "ignite"},
-    {"engine": "cassandra", "name": "Local Cassandra Demo", "port": 19042, "database": "cdeadmin_demo", "user": "cassandra", "auth_mode": "password", "contact_points": ["127.0.0.2", "127.0.0.3"], "local_dc": "datacenter1", "jmx_port": 17199, "jmx_auth_mode": "password", "jmx_username": "cassandra", "tool_workspace": "${DEMO_ROOT}/runtime/tool_workspaces/cassandra"},
+    {"engine": "cassandra", "name": "Local Cassandra Demo", "port": 19042, "database": "cdeadmin_demo", "user": "cassandra", "password": "CDEadminDemo-2026!", "auth_mode": "password", "contact_points": ["127.0.0.2", "127.0.0.3"], "local_dc": "datacenter1", "jmx_port": 17199, "jmx_auth_mode": "password", "jmx_username": "cassandra", "tool_workspace": "${DEMO_ROOT}/runtime/tool_workspaces/cassandra"},
     {"engine": "clickhouse", "name": "Local ClickHouse Demo", "port": 58123, "native_port": 59001, "database": "cdeadmin_demo", "user": "cdeadmin_demo", "password": "CDEadminDemo-2026!"},
     {"engine": "cockroachdb", "name": "Local CockroachDB Demo", "port": 56257, "http_port": 58081, "database": "cdeadmin_demo", "user": "root", "sslmode": "disable"},
     {"engine": "dolt", "name": "Local Dolt Demo", "port": 53308, "database": "cdeadmin_demo", "user": "root"},

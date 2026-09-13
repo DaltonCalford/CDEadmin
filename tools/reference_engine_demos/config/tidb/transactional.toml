@@ -1,0 +1,10 @@
+# Separate from the raw TiKV API-v2/TTL demonstration; never reuse its volumes.
+memory-usage-limit = "1GB"
+
+[storage]
+api-version = 1
+enable-ttl = false
+reserve-space = "0MB"
+
+[storage.block-cache]
+capacity = "256MB"

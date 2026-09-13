@@ -245,6 +245,35 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
             self.assertEqual(group_id, resource['navigator']['group_id'])
             self.assertEqual(editor_kind, resource['editor']['editor_kind'])
 
+    def test_scalar_objects_do_not_inherit_table_data_editors(self):
+        for engine_id in PORTFOLIO_ENGINE_IDS:
+            if engine_id == 'scratchbird':
+                continue
+            for resource in catalog_for_engine(engine_id)['objects']:
+                if resource['resource_kind'] not in {
+                        'sequence', 'domain', 'constraint', 'column',
+                        'collation', 'function', 'procedure', 'package'}:
+                    continue
+                with self.subTest(engine=engine_id,
+                                  kind=resource['resource_kind']):
+                    self.assertIsNone(resource['editor']['data_presentation'])
+                    self.assertNotIn('data', resource['editor']['sections'])
+
+    def test_sequence_state_and_native_data_presentations(self):
+        for engine_id, kind, presentation in (
+                ('firebird', 'sequence', None),
+                ('firebird', 'table', 'structured-grid'),
+                ('mongodb', 'collection', 'document-grid'),
+                ('redis', 'hash', 'redis-hash'),
+                ('neo4j', 'relationship', 'graph-relationship')):
+            resource = next(item for item in
+                            catalog_for_engine(engine_id)['objects']
+                            if item['resource_kind'] == kind)
+            self.assertEqual(presentation,
+                             resource['editor']['data_presentation'])
+            # Explicit provider sections remain authoritative; state is
+            # offered only when the provider supplies that observation.
+
     def test_object_family_coverage_is_explicit_and_fail_closed(self):
         self.assertEqual(set(PORTFOLIO_ENGINE_IDS), set(
             ENGINE_EXPERIENCE_FAMILIES

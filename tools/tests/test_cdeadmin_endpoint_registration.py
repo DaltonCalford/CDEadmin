@@ -1150,6 +1150,25 @@ class EndpointVerificationTests(unittest.TestCase):
         )
         self.assertEqual('database-one', value['database_target_id'])
 
+    def test_provider_declares_native_database_target_key(self):
+        route = SimpleNamespace(id='r', priority=0, configuration=json.dumps({
+            'host': 'cql.example', 'keyspace': 'old'}))
+        endpoint = SimpleNamespace(routes=[route], secret_references=[],
+                                   database_targets=[])
+        service = EndpointService(SimpleNamespace(), SimpleNamespace(
+            secrets=SimpleNamespace(register_resolver=lambda *_args: None)))
+        profile = {'requires_secret': False,
+                   'database_targeting': {'route_key': 'keyspace'}}
+        value, _ = service._route_and_reference(
+            SimpleNamespace(user_id=7), endpoint, profile,
+            database_override='chosen')
+        self.assertEqual('chosen', value['keyspace'])
+        self.assertNotIn('database', value)
+        server_scope, _ = service._route_and_reference(
+            SimpleNamespace(user_id=7), endpoint, profile,
+            database_override=None)
+        self.assertNotIn('keyspace', server_scope)
+
     def test_legacy_route_database_survives_without_retained_target(self):
         route = SimpleNamespace(
             id='route-one', priority=0,
@@ -1243,8 +1262,19 @@ class EndpointVerificationTests(unittest.TestCase):
             return_value={
                 'route_kind': 'network', 'requires_secret': True,
             },
-        ), patch.object(service, '_record_verification') as record:
-            result = service.verify_server(server, 'secret-canary')
+        ), patch.object(service, '_record_verification') as record, \
+                patch.object(service, '_owned_database_target', return_value=
+                             SimpleNamespace(database='selected_database')) \
+                as owned_target, \
+                patch.object(service, '_database_target_configuration',
+                             return_value={}):
+            result = service.verify_server(
+                server, 'secret-canary', database_target_id='selected-target')
+        owned_target.assert_called_once_with(endpoint, 'selected-target')
+        self.assertEqual('selected_database',
+                         observed['request']['route']['database'])
+        self.assertEqual('endpoint_database',
+                         json.loads(route.configuration)['database'])
 
         serialized = json.dumps(observed['request'])
         self.assertNotIn('secret-canary', serialized)

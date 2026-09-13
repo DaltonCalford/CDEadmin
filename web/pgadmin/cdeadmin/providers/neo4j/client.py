@@ -1353,6 +1353,14 @@ class Neo4jClient:
     @staticmethod
     def _resource(kind, name, native, parent=None):
         native = copy.deepcopy(native)
+        discriminator = None
+        if kind in {'function', 'procedure'}:
+            discriminator = native.get('signature')
+        elif kind == 'privilege':
+            # SHOW PRIVILEGES identifies grants by their complete native
+            # subject/scope tuple, not the action alone. Include edition-
+            # specific columns without maintaining a lossy field allowlist.
+            discriminator = json.dumps(native, sort_keys=True, default=str)
         if kind in {'database', 'composite-database', 'server'}:
             native['state'] = copy.deepcopy(native)
         elif kind in {
@@ -1377,6 +1385,9 @@ class Neo4jClient:
         elif kind == 'privilege':
             native['privileges'] = [copy.deepcopy(native)]
         identity = str(native.get('element_id') or native.get('name') or name)
+        if discriminator is not None:
+            identity += ':' + hashlib.sha256(
+                str(discriminator).encode('utf-8')).hexdigest()
         encoded = quote(identity, safe='')
         generation = hashlib.sha256(
             json.dumps(native, sort_keys=True, default=str).encode('utf-8')
@@ -2436,8 +2447,8 @@ class Neo4jClient:
                         for item in remove_labels
                     ))
                 return (
-                    'MATCH (n) WHERE elementId(n) = $id '
-                    + ' '.join(clauses) + ' RETURN n',
+                    'MATCH (n) WHERE elementId(n) = $id ' +
+                    ' '.join(clauses) + ' RETURN n',
                     {'id': element_id, 'properties': properties},
                 )
             if operation == 'delete':

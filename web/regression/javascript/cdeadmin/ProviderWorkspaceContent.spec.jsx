@@ -8,16 +8,134 @@
 //////////////////////////////////////////////////////////////
 
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {useState} from 'react';
 import ProviderWorkspaceContent, {
   DatabaseTargetWorkspace,
+  ObjectInspectorSection,
   ResultControls,
+  RecordListAdminField,
   ServerProfileWorkspace,
+  VisualAdministration,
+  VisualAdminField,
   inspectorSections,
+  initialObjectDraft,
   semanticCrossFilter,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
+
+describe('provider structured record controls', () => {
+  const properties = {field_id: 'properties', label: 'Constraint properties',
+    control: 'json', default: {kind: 'CHECK', expression: ''},
+    object_editor: {fields: [
+      {field_id: 'kind', label: 'Constraint type', control: 'text'},
+      {field_id: 'expression', label: 'Expression', control: 'text',
+        visible_when: {field_id: 'kind', equals: 'CHECK'}},
+    ]}};
+  it('edits a single structured object without record-list actions', () => {
+    const onChange = jest.fn();
+    render(<VisualAdminField field={properties} value={undefined} onChange={onChange} />);
+    expect(screen.getByLabelText('Constraint type')).toHaveValue('CHECK');
+    fireEvent.change(screen.getByLabelText('Expression'), {target: {value: 'ID > 0'}});
+    expect(onChange).toHaveBeenCalledWith({kind: 'CHECK', expression: 'ID > 0'});
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+  it('loads serialized objects and preserves invalid or unknown fields', () => {
+    const onChange = jest.fn();
+    const {rerender} = render(<VisualAdminField field={properties}
+      value={'{"kind":"CHECK","expression":"ID > 0"}'} onChange={onChange} />);
+    expect(screen.getByLabelText('Expression')).toHaveValue('ID > 0');
+    for (const invalid of ['bad json', '[]', '{"unknown":true}', 'null']) {
+      rerender(<VisualAdminField field={properties} value={invalid} onChange={onChange} />);
+      expect(screen.getByRole('alert')).toHaveTextContent('original value has not been changed');
+    }
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it('submits an object draft to validation and planning and invalidates edited plans', async () => {
+    const post = jest.fn(async ({action}) => action === 'visual_admin_validate' ?
+      {valid: true} : {plan_id: 'constraint-plan', plan_digest: 'digest',
+        state: 'ready', execution_available: true});
+    render(<VisualAdministration resources={[]} post={post} setError={jest.fn()}
+      initialResourceKind="constraint" initialOperationId="create"
+      catalog={{objects: [{resource_kind: 'constraint', title: 'Constraint',
+        operations: [{operation_id: 'create', title: 'Create', target_required: false,
+          form: {fields: [properties]}}]}]}} />);
+    fireEvent.change(screen.getByLabelText('Expression'), {target: {value: 'ID > 0'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeEnabled());
+    for (const action of ['visual_admin_validate', 'visual_admin_plan']) {
+      expect(post).toHaveBeenCalledWith({action, request: {
+        resource_kind: 'constraint', operation_id: 'create', target_resource: null,
+        draft: {properties: {kind: 'CHECK', expression: 'ID > 0'}},
+      }});
+    }
+    fireEvent.change(screen.getByLabelText('Expression'), {target: {value: 'ID > 10'}});
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+  });
+  const field = {field_id: 'columns', label: 'Columns', array_editor: {
+    item_kind: 'object', fields: [
+      {field_id: 'name', label: 'Column name', control: 'text', required: true},
+      {field_id: 'nullable', label: 'Nullable', control: 'boolean', default: true},
+    ],
+  }};
+  function Harness() {
+    const [value, setValue] = useState([]);
+    return <><RecordListAdminField field={field} value={value} onChange={setValue} />
+      <output data-testid="record-value">{JSON.stringify(value)}</output></>;
+  }
+  it('adds, edits, reorders and removes draft records with defaults', () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole('button', {name: 'Add Columns item'}));
+    fireEvent.change(screen.getByLabelText(/Column name/), {target: {value: 'A'}});
+    expect(screen.getByTestId('record-value')).toHaveTextContent('"nullable":true');
+    fireEvent.click(screen.getByRole('button', {name: 'Add Columns item'}));
+    fireEvent.change(screen.getAllByLabelText(/Column name/)[1], {target: {value: 'B'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Columns 2: Move up'}));
+    expect(screen.getAllByLabelText(/Column name/)[0]).toHaveValue('B');
+    fireEvent.click(screen.getByRole('button', {name: 'Columns 1: Move down'}));
+    expect(screen.getAllByLabelText(/Column name/)[0]).toHaveValue('A');
+    fireEvent.click(screen.getByRole('button', {name: 'Columns 1: Remove'}));
+    expect(screen.getByLabelText(/Column name/)).toHaveValue('B');
+  });
+  it.each(['invalid JSON', '[42]', '[{"name":"A","unsupported":true}]']) (
+    'preserves unsupported input %s without silently discarding it', (value) => {
+      const onChange = jest.fn();
+      render(<RecordListAdminField field={field} value={value} onChange={onChange} />);
+      expect(screen.getByRole('alert')).toHaveTextContent('original value has not been changed');
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    });
+  it('edits primitive lists and accepts serialized existing lists', () => {
+    const onChange = jest.fn();
+    render(<RecordListAdminField field={{label: 'Index columns',
+      array_editor: {item_kind: 'string'}}} value={'["A"]'} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Index columns 1'), {target: {value: 'B'}});
+    expect(onChange).toHaveBeenCalledWith(['B']);
+  });
+  it('renders only fields applicable to the selected constraint type', () => {
+    const constraint = {label: 'Constraints', array_editor: {
+      item_kind: 'object', fields: [
+        {field_id: 'kind', label: 'Type', control: 'text'},
+        {field_id: 'expression', label: 'Check expression', control: 'text',
+          visible_when: {field_id: 'kind', equals: 'CHECK'}},
+        {field_id: 'columns', label: 'Columns', control: 'json', default: [],
+          array_editor: {item_kind: 'string'},
+          visible_when: {field_id: 'kind', in: ['UNIQUE', 'FOREIGN KEY']}},
+      ],
+    }};
+    const onChange = jest.fn();
+    const {rerender} = render(<RecordListAdminField field={constraint}
+      value={[{kind: 'CHECK', expression: 'A > 0'}]} onChange={onChange} />);
+    expect(screen.getByLabelText('Check expression')).toHaveValue('A > 0');
+    expect(screen.queryByRole('group', {name: 'Columns'})).not.toBeInTheDocument();
+    rerender(<RecordListAdminField field={constraint}
+      value={[{kind: 'UNIQUE', columns: ['A']}]} onChange={onChange} />);
+    expect(screen.queryByLabelText('Check expression')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Columns 1'), {target: {value: 'B'}});
+    expect(onChange).toHaveBeenCalledWith([{kind: 'UNIQUE', columns: ['B']}]);
+  });
+});
 
 const bootstrap = {
   endpoint: {
@@ -260,6 +378,228 @@ describe('ProviderWorkspaceContent', () => {
     }));
     expect(onRemoved).toHaveBeenCalledWith({removed: true});
   });
+
+  it('warns that incomplete catalogs are not empty databases', () => {
+    render(<ObjectInspectorSection resource={{display_name: 'Example',
+      resource_kind: 'database', extensions: {mysql: {native: {
+        catalog_coverage: {state: 'partial', failed_query_count: 1,
+          failures: [{category: 'permission_denied', error_code: '1142'}]},
+      }}}}} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Catalog visibility is incomplete');
+    expect(screen.getByRole('alert')).toHaveTextContent('permission_denied');
+    expect(screen.getByRole('alert')).toHaveTextContent('1142');
+  });
+
+  it('opens the selected object browser and its data view without mutations', async () => {
+    const table = {resource_id: 'table:assets', resource_kind: 'table',
+      display_name: 'ASSETS', authority_path: ['table', 'ASSETS']};
+    api.get.mockResolvedValue({data: {data: {...bootstrap,
+      resource_page: {items: [table]},
+      visual_admin: {objects: [{resource_kind: 'table', title: 'Table',
+        editor: {sections: ['properties', 'data']}, operations: [{
+          operation_id: 'inspect', title: 'Inspect table',
+          execution_available: true, target_required: true,
+          mutation_class: 'read', form: {fields: []},
+        }]}]},
+    }}});
+    api.post.mockResolvedValue({data: {data: table}});
+    render(<ProviderWorkspaceContent endpointUrl="/workspace/1"
+      initialTab="object" initialContext={{resource_id: table.resource_id,
+        resource_kind: 'table', operation_id: 'inspect'}} />);
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Browse object data',
+    }));
+    expect(await screen.findByRole('button', {name: 'Load rows'}))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Back'}));
+    expect(await screen.findByRole('button', {name: 'Browse object data'}))
+      .toBeInTheDocument();
+    expect(api.post.mock.calls.every(([, body]) =>
+      body.action === 'resource_inspect')).toBe(true);
+  });
+
+  it('keeps a sequence editor on its object and invalidates edited plans', async () => {
+    const sequence = {resource_id: 'sequence:one', resource_kind: 'sequence',
+      display_name: 'Sequence one', extensions: {firebird: {native: {
+        state: {value: 12}, ddl: 'CREATE SEQUENCE ONE;',
+        dependencies: [], privileges: [],
+      }}}};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return sequence;
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return {
+        plan_id: 'plan-one', plan_digest: 'digest', state: 'ready',
+        execution_available: true,
+      };
+      return {};
+    });
+    render(<VisualAdministration objectEditor selectedResource={sequence}
+      initialResourceKind="sequence" initialOperationId="inspect"
+      resources={[sequence, {...sequence, resource_id: 'sequence:two'}]}
+      post={post} setError={jest.fn()} catalog={{objects: [{
+        resource_kind: 'sequence', title: 'Sequence', operations: [
+          {operation_id: 'inspect', title: 'Inspect sequence',
+            target_required: true, form: {fields: []}},
+          {operation_id: 'create', title: 'Create sequence',
+            target_required: false, form: {fields: []}},
+          {operation_id: 'alter', title: 'Alter sequence',
+            target_required: true, form: {fields: [{
+              field_id: 'restart', label: 'Restart value', control: 'number',
+            }]}},
+          {operation_id: 'unsupported', title: 'Unsupported operation',
+            native_supported: false, form: {fields: []}},
+        ],
+      }, {resource_kind: 'table', title: 'Table', operations: [{
+        operation_id: 'alter', title: 'Alter table', form: {fields: []},
+      }]}]}} />);
+    expect(await screen.findByRole('tab', {name: 'Creation statement (DDL)'}))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', {name: 'Creation statement (DDL)'}));
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('CREATE SEQUENCE ONE;');
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', {name: 'Create sequence'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', {name: 'Alter table'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', {name: 'Unsupported operation'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', {name: 'Target resource'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', {name: 'Alter sequence'}));
+    fireEvent.change(await screen.findByRole('spinbutton', {name: 'Restart value'}),
+      {target: {value: '42'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: 'Apply provider plan',
+    })).toBeEnabled());
+    expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'sequence', operation_id: 'alter',
+      target_resource: sequence, draft: {restart: 42},
+    }});
+    fireEvent.change(screen.getByRole('spinbutton', {name: 'Restart value'}),
+      {target: {value: '43'}});
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+  });
+
+  it('loads only explicit native field mappings without rounding int64 text', () => {
+    const resource = {extensions: {firebird: {native: {
+      increment: -3, state: {current_value: '9223372036854775807'},
+      description: '  preserve spacing  ', restart: 'do not infer this',
+    }}}};
+    expect(initialObjectDraft([
+      {field_id: 'increment', control: 'number', initial_value_path: ['increment']},
+      {field_id: 'observed', control: 'text', initial_value_path: ['state', 'current_value']},
+      {field_id: 'description', control: 'multiline', initial_value_path: ['description']},
+      {field_id: 'restart', control: 'text'},
+    ], resource)).toEqual({increment: -3, observed: '9223372036854775807',
+      description: '  preserve spacing  ', restart: ''});
+  });
+
+  it('omits unchanged loaded values and refreshes state after applying an edit', async () => {
+    const object = {resource_id: 'sequence:one', resource_kind: 'sequence',
+      display_name: 'Sequence one', extensions: {firebird: {native: {
+        increment: 2, description: 'existing comment',
+      }}}};
+    let refreshed = false;
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return refreshed ? {
+        ...object, extensions: {firebird: {native: {
+          increment: 2, description: 'updated comment',
+        }}},
+      } : object;
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return {plan_id: 'p', plan_digest: 'd',
+        state: 'ready', execution_available: true};
+      refreshed = true;
+      return {provider_result: {state: 'applied'}};
+    });
+    render(<VisualAdministration objectEditor selectedResource={object}
+      resources={[object]} initialOperationId="alter" initialResourceKind="sequence"
+      post={post} setError={jest.fn()} catalog={{objects: [{
+        resource_kind: 'sequence', title: 'Sequence', operations: [{
+          operation_id: 'alter', title: 'Alter', target_required: true,
+          form: {fields: [
+            {field_id: 'increment', label: 'Increment', control: 'number',
+              initial_value_path: ['increment']},
+            {field_id: 'description', label: 'Comment', control: 'multiline',
+              initial_value_path: ['description']},
+          ]},
+        }],
+      }]}} />);
+    await waitFor(() => expect(screen.getByRole('textbox', {name: 'Comment'}))
+      .toHaveValue('existing comment'));
+    expect(screen.getByRole('spinbutton', {name: 'Increment'})).toHaveValue(2);
+    fireEvent.change(screen.getByRole('textbox', {name: 'Comment'}),
+      {target: {value: 'updated comment'}});
+    expect(screen.queryByRole('button', {name: 'Refresh object properties'}))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'}))
+      .toBeEnabled());
+    expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'sequence', operation_id: 'alter', target_resource: object,
+      draft: {description: 'updated comment'},
+    }});
+    fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+    await waitFor(() => expect(post.mock.calls.filter(([body]) =>
+      body.action === 'resource_inspect')).toHaveLength(2));
+    expect(await screen.findByRole('button', {name: 'Refresh object properties'}))
+      .toBeEnabled();
+    expect(screen.getByRole('textbox', {name: 'Comment'})).toHaveValue('updated comment');
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+  });
+
+  it.each(['procedure', 'function', 'package', 'collection', 'hash', 'relationship'])(
+    'keeps %s native editing and security operations on the selected object', async (kind) => {
+      const object = {resource_id: `${kind}:one`, resource_kind: kind,
+        display_name: 'Object one', extensions: {test: {native: {
+          definition: 'native definition', dependencies: ['dependency one'],
+          dependents: ['dependent one'], privileges: [{principal: 'reader'}],
+        }}}};
+      const post = jest.fn(async ({action}) => {
+        if (action === 'resource_inspect') return object;
+        if (action === 'visual_admin_validate') return {valid: true};
+        if (action === 'visual_admin_plan') return {
+          plan_id: 'native-plan', plan_digest: 'native-digest',
+          state: 'ready', execution_available: true,
+        };
+        return {provider_result: {state: 'applied'}};
+      });
+      render(<VisualAdministration objectEditor selectedResource={object}
+        initialResourceKind={kind} initialOperationId="inspect"
+        resources={[object]} post={post} setError={jest.fn()}
+        catalog={{objects: [{resource_kind: kind, title: kind, operations: [
+          {operation_id: 'inspect', title: 'Inspect', target_required: true,
+            form: {fields: []}},
+          {operation_id: 'alter', title: 'Edit native definition',
+            target_required: true, confirmation_required: true,
+            form: {fields: [{field_id: 'body', label: 'Native body',
+              control: 'code'}]}},
+          {operation_id: 'grant', title: 'Grant permissions',
+            target_required: true, form: {fields: [{field_id: 'principal',
+              label: 'Principal', control: 'text'}]}},
+        ]}]}} />);
+      fireEvent.click(await screen.findByRole('tab', {name: 'Depends on'}));
+      expect(screen.getByRole('tabpanel')).toHaveTextContent('dependency one');
+      fireEvent.click(screen.getByRole('tab', {name: 'Privileges and grants'}));
+      expect(screen.getByRole('tabpanel')).toHaveTextContent('reader');
+      fireEvent.click(screen.getByRole('tab', {name: 'Edit native definition'}));
+      fireEvent.change(await screen.findByRole('textbox', {name: 'Native body'}),
+        {target: {value: 'engine-native content'}});
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      const confirm = await screen.findByRole('checkbox', {
+        name: 'I confirm this provider-planned operation.',
+      });
+      expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+      fireEvent.click(confirm);
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      await waitFor(() => expect(post).toHaveBeenCalledWith({
+        action: 'visual_admin_apply', request: {
+          plan_id: 'native-plan', plan_digest: 'native-digest', confirmed: true,
+        },
+      }));
+      fireEvent.click(screen.getByRole('tab', {name: 'Grant permissions'}));
+      expect(await screen.findByRole('textbox', {name: 'Principal'})).toBeInTheDocument();
+      expect(screen.queryByRole('textbox', {name: 'Native body'})).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+    });
 
   it('renders database and server observations on one properties task', async () => {
     api.get.mockResolvedValue({data: {data: {
@@ -952,7 +1292,7 @@ describe('ProviderWorkspaceContent', () => {
     />);
     expect(await screen.findByText('MySQL SQL')).toBeInTheDocument();
     expect(screen.getByLabelText('Provider grid activation status'))
-      .toHaveTextContent('all provider workspace grid gates passed');
+      .toHaveTextContent('grid contract checks passed; this is not full engine qualification');
     fireEvent.click(screen.getByText('Run'));
     expect(await screen.findByText('42')).toBeInTheDocument();
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));

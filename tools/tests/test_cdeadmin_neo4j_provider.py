@@ -301,6 +301,32 @@ def context():
 
 class Neo4jProviderTests(unittest.TestCase):
 
+    def test_overloaded_routines_have_signature_specific_stable_ids(self):
+        for kind in ('function', 'procedure'):
+            first = {'name': 'example', 'signature': 'example(x :: STRING)'}
+            second = {**first, 'signature': 'example(x :: INTEGER)'}
+            a = Neo4jClient._resource(kind, 'example', first)
+            b = Neo4jClient._resource(kind, 'example', second)
+            self.assertNotEqual(a['resource_id'], b['resource_id'])
+            self.assertEqual(a['resource_id'], Neo4jClient._resource(
+                kind, 'example', {**first, 'description': 'Changed help'}
+            )['resource_id'])
+            self.assertEqual('example', a['display_name'])
+
+    def test_privilege_ids_include_native_subject_scope_and_access(self):
+        grant = {'action': 'match', 'role': 'reader', 'graph': 'neo4j',
+                 'access': 'GRANTED', 'segment': 'NODE(*)'}
+        base = Neo4jClient._resource('privilege', 'match', grant)
+        changes = (('role', 'operator'), ('graph', 'other'),
+                   ('access', 'DENIED'), ('segment', 'NODE(Person)'))
+        for field, value in changes:
+            changed = Neo4jClient._resource(
+                'privilege', 'match', {**grant, field: value})
+            self.assertNotEqual(base['resource_id'], changed['resource_id'])
+        reordered = dict(reversed(list(grant.items())))
+        self.assertEqual(base['resource_id'], Neo4jClient._resource(
+            'privilege', 'match', reordered)['resource_id'])
+
     def test_profile_is_full_graph_surface_and_production_renderer(self):
         self.assertEqual('graph', PROFILE.model_family)
         self.assertEqual(
