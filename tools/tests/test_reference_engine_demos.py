@@ -13,9 +13,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
+import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -135,6 +139,78 @@ class ReferenceEngineDemoTestCase(unittest.TestCase):
         )
         for relative in required:
             self.assertTrue((DEMO / relative).is_file(), relative)
+
+    def test_every_profile_has_an_executable_lifecycle_launcher(self):
+        lifecycle = DEMO / "lifecycle"
+        launchers = {
+            path.stem for path in lifecycle.glob("*.sh")
+            if not path.name.startswith("_")
+        }
+        self.assertEqual(set(self.estate.ENGINE_ORDER), launchers)
+        for engine in self.estate.ENGINE_ORDER:
+            launcher = lifecycle / f"{engine}.sh"
+            self.assertTrue(launcher.stat().st_mode & 0o111, launcher)
+            syntax = subprocess.run(
+                ["bash", "-n", str(launcher)], capture_output=True,
+                text=True, check=False,
+            )
+            self.assertEqual(0, syntax.returncode, syntax.stderr)
+            content = launcher.read_text(encoding="utf-8")
+            self.assertIn(f" {engine} \"$@\"", content)
+
+        helper = lifecycle / "_engine_lifecycle.sh"
+        self.assertTrue(helper.is_file())
+        self.assertTrue(helper.stat().st_mode & 0o111)
+        syntax = subprocess.run(
+            ["bash", "-n", str(helper)], capture_output=True,
+            text=True, check=False,
+        )
+        self.assertEqual(0, syntax.returncode, syntax.stderr)
+
+    def test_every_launcher_dispatches_startup_and_shutdown(self):
+        lifecycle = DEMO / "lifecycle"
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary_path = Path(temporary)
+            calls = temporary_path / "calls.log"
+            python = temporary_path / "python3"
+            python.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf '%s\\n' \"$*\" >> \"$CDEADMIN_LIFECYCLE_LOG\"\n",
+                encoding="utf-8",
+            )
+            python.chmod(0o755)
+            environment = dict(os.environ)
+            environment["PATH"] = (
+                f"{temporary_path}{os.pathsep}{environment['PATH']}"
+            )
+            environment["CDEADMIN_LIFECYCLE_LOG"] = str(calls)
+
+            for engine in self.estate.ENGINE_ORDER:
+                launcher = lifecycle / f"{engine}.sh"
+                subprocess.run(
+                    [launcher, "startup"], check=True, env=environment
+                )
+                subprocess.run(
+                    [launcher, "shutdown"], check=True, env=environment
+                )
+
+            observed = calls.read_text(encoding="utf-8").splitlines()
+            expected = []
+            for engine in self.estate.ENGINE_ORDER:
+                expected.extend((
+                    f"{DEMO / 'demo_estate.py'} start {engine}",
+                    f"{DEMO / 'demo_estate.py'} stop {engine}",
+                ))
+            self.assertEqual(expected, observed)
+
+    def test_status_can_be_limited_to_one_profile(self):
+        with mock.patch("builtins.print") as output:
+            self.estate.status("sqlite")
+        document = json.loads(output.call_args.args[0])
+        self.assertEqual([{"engine": "sqlite", "runtime": "file",
+                           "seeded": (
+                               DEMO / "evidence/sqlite.json"
+                           ).exists()}], document)
 
     def test_registration_retains_database_below_network_server(self):
         class Target:

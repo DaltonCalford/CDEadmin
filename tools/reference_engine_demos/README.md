@@ -91,6 +91,25 @@ python3 demo_estate.py verify firebird
 python3 demo_estate.py stop firebird
 ```
 
+For individual interactive QA, every connection profile also has an executable
+lifecycle launcher under `lifecycle/`. The launcher resolves this directory
+without depending on the caller's working directory and sources the required
+client environment automatically:
+
+```bash
+./lifecycle/firebird.sh start
+./lifecycle/firebird.sh status
+./lifecycle/firebird.sh verify
+./lifecycle/firebird.sh stop
+```
+
+Each launcher accepts `start` (or `startup`), `stop` (or `shutdown`), `restart`,
+`status`, `seed`, `verify`, and `test`. With no action it starts its engine.
+`test` starts the engine and performs its native verification while leaving it
+running for UI QA. The script name is the exact profile engine ID shown by
+`demo_estate.py list`; shared OpenSearch and YugabyteDB interfaces therefore
+have explicit launchers even though each pair controls one deployment.
+
 Run the destructive Firebird database-service form gate only against the
 packaged disposable demo instance:
 

@@ -1033,9 +1033,10 @@ def write_evidence(engine, payload):
     return document
 
 
-def status():
+def status(selected_engine=None):
     values = []
-    for engine in ENGINE_ORDER:
+    engines = (selected_engine,) if selected_engine else ENGINE_ORDER
+    for engine in engines:
         actual = ALIASES.get(engine, engine)
         if actual == "cassandra":
             states = [
@@ -1144,7 +1145,8 @@ def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list")
-    subparsers.add_parser("status")
+    child = subparsers.add_parser("status")
+    child.add_argument("engine", nargs="?", choices=ENGINE_ORDER)
     for name in ("start", "stop"):
         child = subparsers.add_parser(name)
         child.add_argument(
@@ -1181,7 +1183,7 @@ def main():
     if args.command == "list":
         print("\n".join(ENGINE_ORDER))
     elif args.command == "status":
-        status()
+        status(args.engine)
     elif args.command == "prepare":
         prepare(args.group)
     elif args.command in {"start", "stop"} and args.engine in {
