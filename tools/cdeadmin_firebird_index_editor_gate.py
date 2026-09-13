@@ -12,6 +12,7 @@ from cdeadmin_firebird_constraint_editor_gate import (
 )
 from pgadmin.cdeadmin.providers.firebird.provider import _resources
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from cdeadmin_firebird_index_permissions import verify as verify_permissions
 
 
 def run(profiles_path):
@@ -144,6 +145,29 @@ def run(profiles_path):
                        'WHERE RDB$INDEX_NAME = ?', (name,), True) == [(0,)]
         connection.commit()
         result['checks'].append('activate-and-refresh-statistics')
+        apply('alter', {'active': False}, name, commit=False)
+        connection.rollback()
+        assert execute('SELECT RDB$INDEX_INACTIVE FROM RDB$INDICES '
+                       'WHERE RDB$INDEX_NAME = ?', (name,), True) == [(0,)]
+        connection.commit()
+        result['checks'].append('index-deactivation-rollback')
+        other = driver.connect(password=profile['password'],
+                               **_route_arguments(profile, driver))
+        try:
+            plan = ADMINISTRATION.plan({
+                '_provider_route': profile, 'resource_kind': 'index',
+                'operation_id': 'alter', 'draft': {'active': False},
+                'target_resource': {'display_name': name,
+                                    'display_path': [table, name]}})
+            ADMINISTRATION.apply(client, plan, connection=other)
+            assert other.main_transaction.is_active()
+        finally:
+            other.close()
+        assert execute('SELECT RDB$INDEX_INACTIVE FROM RDB$INDICES '
+                       'WHERE RDB$INDEX_NAME = ?', (name,), True) == [(0,)]
+        connection.commit()
+        result['checks'].append('uncommitted-deactivation-attachment-close')
+        verify_permissions(connection, client, profile, table, name, result)
         apply('drop', {}, name)
         execute(f'DELETE FROM "{table}"')
         connection.commit()
