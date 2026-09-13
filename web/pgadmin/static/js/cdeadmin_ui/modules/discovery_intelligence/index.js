@@ -23,3 +23,7 @@ export * from './DiscoveryAnalysisService';
 export * from './DiscoveryAIToolBridge';
 export * from './DiscoveryEnrichmentService';
 export * from './DiscoveryVisibilityTestService';
+export * from './DiscoveryAdministrationAssets';
+export * from './DiscoveryFormCommandAdapter';
+export * from './DiscoveryIntelligenceRuntimeService';
+export * from './module';

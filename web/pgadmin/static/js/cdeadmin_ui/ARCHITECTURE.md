@@ -532,3 +532,50 @@ export and administration independent. Backend validation independently
 checks authored schemas, references, source-specific requirements, bounded
 page sizes, sampling rates, optimistic revisions and recursive secret
 exclusion.
+
+## AI Interface and Discovery Intelligence modules
+
+`modules/ai_interface` is the activated, versioned AI authority. Its connector
+registry admits only complete connector implementations and creates a
+dedicated AI principal/session; it never reuses a human provider session. Ten
+project asset types preserve model, connector, agent, instruction, policy and
+plan definitions with optimistic revisions. All 46 commands pass through the
+Command Registry, deterministic permission/risk authorization, approval,
+budget, egress and audit boundaries. Provider queries are compiled and
+reviewed by their exact provider authority. Result handles are bounded and
+opaque. Missing model, connector, tool or provider capabilities remain
+unavailable and are not advertised.
+
+`modules/discovery_intelligence` is the activated Data Discovery and
+Intelligence boundary. It composes the eight specified services and nine
+versioned project asset types behind 50 commands and 13 independent
+permissions. The 30 form contracts and 38 screen contracts use the shared
+contract workspace. Command-bearing forms are canonicalized before execution:
+screen context must provide existing asset IDs, project IDs, revisions,
+profiles and protected actor scope, while secret controls become
+`CredentialRef` values before entering the Command Registry. The adapter does
+not fabricate identity or provider semantics.
+
+Discovery index publication validates a complete candidate revision and
+switches it atomically; a failed candidate cannot replace or contaminate the
+last good document catalogue. Search applies provider/security admission
+before ranking, facets, autocomplete, graph traversal, analytics or AI
+exposure. Ranking is deterministic and explanation-bearing. Business terms,
+domains, metrics, data products, certifications, usage, recommendations,
+saved searches, collections, access requests, curation evidence and feedback
+retain their distinct contracts rather than being flattened into generic
+tables.
+
+Index-source adapters are registered by exact source identity. Provider grant
+planning/provisioning, provider mutations, certification evidence, visibility
+testing, analysis launchers and AI enrichment are enabled only when their real
+authorities are supplied. The default access policy creates a manual-review
+request; it is not a simulated provider grant. Discovery remains fully usable
+without AI. When both modules are active, only bounded Discovery read/propose
+tools are published to the AI tool catalogue and a second egress check applies
+before returned data enters model context.
+
+ScratchBird identities and access surfaces can be canonicalized and displayed
+by Discovery without treating compatibility listeners as separate engines.
+This does not activate or claim a native ScratchBird provider; that provider
+remains outside the current reference-engine completion stage.

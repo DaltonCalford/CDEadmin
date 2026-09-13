@@ -140,6 +140,20 @@ service maps, evidenced query/resource correlation, source and sampling
 administration, and provenance-bearing OTLP export. Provider-native tracing is
 enabled only by an exact adapter contract; internal CDEadmin spans remain a
 valid independent source.
+
+The activated AI Interface uses dedicated connector identities and governed
+tool, data-egress, approval, budget, retention, query-review, result-handle and
+audit authorities. It cannot borrow a signed-in user's database session, expose
+raw credentials, approve its own consequential action, or advertise a
+connector class without an implementation. The activated Data Discovery and
+Intelligence module provides security-trimmed lexical, facet, semantic and
+graph discovery; deterministic ranking; project-backed business knowledge,
+saved work and administration assets; governed access, certification,
+profiling, curation and analytics; and all specified Discovery workbench
+surfaces. Provider index sources, provider grant execution, live curation,
+visibility diagnostics and AI enrichment remain capability-gated until their
+real authorities are registered. System-catalog-only resources are not
+presented as business discovery content.
 See [UI architecture](web/pgadmin/static/js/cdeadmin_ui/ARCHITECTURE.md).
 
 PostgreSQL support remains a core engine provider, but it does not define the

@@ -51,6 +51,10 @@ import {
   AI_INTERFACE_MODULE_ID, AI_INTERFACE_RUNTIME_SERVICE_ID,
   registerAIInterfaceModule,
 } from '../modules/ai_interface';
+import {DISCOVERY_INTELLIGENCE_MODULE_ID,
+  DISCOVERY_INTELLIGENCE_RUNTIME_SERVICE_ID,
+  registerDiscoveryIntelligenceModule} from
+  '../modules/discovery_intelligence';
 
 const CORE_MODULE_ID = 'cdeadmin.core-shell';
 const PROJECTS_MODULE_ID = 'cdeadmin.projects';
@@ -143,24 +147,30 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
     modules: moduleRegistry, services: serviceRegistry, api,
     options: serviceOptions?.aiInterface ?? {},
   });
+  if(!moduleRegistry.has(DISCOVERY_INTELLIGENCE_MODULE_ID)) {
+    registerDiscoveryIntelligenceModule({modules: moduleRegistry,
+      services: serviceRegistry, api,
+      options: serviceOptions?.discoveryIntelligence ?? {}});
+  }
   ensureCoreModules();
-  initialization = Promise.all([
-    moduleRegistry.activate(CORE_MODULE_ID),
-    moduleRegistry.activate(PROJECTS_MODULE_ID),
-    moduleRegistry.activate(DDN_MODULE_ID),
-    moduleRegistry.activate(SCHEMA_COMPARE_MODULE_ID),
-    moduleRegistry.activate(LINEAGE_MODULE_ID),
-    moduleRegistry.activate(QUALITY_MODULE_ID),
-    moduleRegistry.activate(CONTRACT_MODULE_ID),
-    moduleRegistry.activate(ETL_MODULE_ID),
-    moduleRegistry.activate(CDC_MODULE_ID),
-    moduleRegistry.activate(REPLICATION_MODULE_ID),
-    moduleRegistry.activate(TRACING_MODULE_ID),
-    moduleRegistry.activate(MIGRATION_MODULE_ID),
-    moduleRegistry.activate(API_MODULE_ID),
-    moduleRegistry.activate(ML_VECTOR_MODULE_ID),
-    moduleRegistry.activate(AI_INTERFACE_MODULE_ID),
-  ]).then(async () => {
+  initialization = moduleRegistry.activate(AI_INTERFACE_MODULE_ID).then(() =>
+    Promise.all([
+      moduleRegistry.activate(CORE_MODULE_ID),
+      moduleRegistry.activate(PROJECTS_MODULE_ID),
+      moduleRegistry.activate(DDN_MODULE_ID),
+      moduleRegistry.activate(SCHEMA_COMPARE_MODULE_ID),
+      moduleRegistry.activate(LINEAGE_MODULE_ID),
+      moduleRegistry.activate(QUALITY_MODULE_ID),
+      moduleRegistry.activate(CONTRACT_MODULE_ID),
+      moduleRegistry.activate(ETL_MODULE_ID),
+      moduleRegistry.activate(CDC_MODULE_ID),
+      moduleRegistry.activate(REPLICATION_MODULE_ID),
+      moduleRegistry.activate(TRACING_MODULE_ID),
+      moduleRegistry.activate(MIGRATION_MODULE_ID),
+      moduleRegistry.activate(API_MODULE_ID),
+      moduleRegistry.activate(ML_VECTOR_MODULE_ID),
+      moduleRegistry.activate(DISCOVERY_INTELLIGENCE_MODULE_ID),
+    ])).then(async () => {
     const services = {};
     for(const [name, id] of Object.entries(PLATFORM_SERVICE_IDS)) {
       services[name.toLowerCase()] = await serviceRegistry.resolve(id);
@@ -180,6 +190,8 @@ export function initializeCDEadminPlatform({api, services: serviceOptions}={}) {
       apiDesigner: await serviceRegistry.resolve(API_SERVICE_ID),
       mlVector: await serviceRegistry.resolve(ML_VECTOR_SERVICE_ID),
       aiInterface: await serviceRegistry.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID),
+      discoveryIntelligence: await serviceRegistry.resolve(
+        DISCOVERY_INTELLIGENCE_RUNTIME_SERVICE_ID),
     });
   }).catch((error) => {
     initialization = null;
