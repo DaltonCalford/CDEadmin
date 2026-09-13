@@ -1110,7 +1110,7 @@ def _resources(connection, request):
              'FROM RDB$EXCEPTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('role', 'SELECT TRIM(RDB$ROLE_NAME), RDB$SYSTEM_PRIVILEGES, '
-             'TRIM(RDB$OWNER_NAME) '
+             'TRIM(RDB$OWNER_NAME), RDB$DESCRIPTION '
              'FROM RDB$ROLES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1'),
             ('character-set', 'SELECT TRIM(RDB$CHARACTER_SET_NAME), '
@@ -1164,7 +1164,7 @@ def _resources(connection, request):
                 'valid_body', 'sql_security',
             ),
             'exception': ('message', 'description'),
-            'role': ('system_privileges', 'owner'),
+            'role': ('system_privileges', 'owner', 'description'),
             'character-set': (
                 'bytes_per_character', 'default_collation', 'form_of_use',
                 'system_flag',
@@ -1183,10 +1183,7 @@ def _resources(connection, request):
             if detail is None:
                 return None
             if field == 'description':
-                # Text BLOBs may be streamed. Preserve the whole comment.
-                if callable(getattr(detail, 'read', None)):
-                    detail = detail.read()
-                return str(detail)
+                return _catalog_detail(field, detail)
             return str(detail).strip()
 
         for kind, source in simple_queries:
@@ -1852,7 +1849,14 @@ def _resources(connection, request):
                     privileges = native.get('system_privileges', [])
                     suffix = (' SET SYSTEM PRIVILEGES TO ' +
                               ', '.join(privileges)) if privileges else ''
-                    native['ddl'] = f'CREATE ROLE {identifier(name)}{suffix};'
+                    statements = [f'CREATE ROLE {identifier(name)}{suffix}']
+                    if native.get('description') is not None:
+                        comment = native['description'].replace("'", "''")
+                        statements.append(
+                            f'COMMENT ON ROLE {identifier(name)} '
+                            f"IS '{comment}'")
+                    native['recreation_statements'] = statements
+                    native['ddl'] = ';\n'.join(statements) + ';'
             elif kind == 'sequence':
                 initial = native.get('initial_value')
                 increment = native.get('increment')

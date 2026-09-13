@@ -41,7 +41,12 @@ def verify(connection, client, profile, result):
         cases.extend((('empty', []),
                       ('all', list(FIREBIRD_SYSTEM_PRIVILEGES))))
         for privilege, selected in cases:
-            apply('create', {'name': name, 'system_privileges': selected})
+            comment = ("  Owner's notes\n" + 'x' * 50000 + '\n  '
+                       if privilege == 'all' else '')
+            # Firebird stores an empty comment as NULL.
+            expected_comment = comment or None
+            apply('create', {'name': name, 'system_privileges': selected,
+                             'description': comment})
             connection.commit()
             created = True
             original = state()
@@ -53,19 +58,45 @@ def verify(connection, client, profile, result):
             native = resource['native']
             assert native['system_privileges'] == selected, native
             assert native['unknown_system_privilege_bits'] == [], native
-            ddl = native['ddl']
+            assert native['description'] == expected_comment, native
+            statements = native['recreation_statements']
             connection.commit()
             apply('drop', {'confirmation': name})
             connection.commit()
             created = False
             with connection.cursor() as cursor:
-                cursor.execute(ddl)
+                for statement in statements:
+                    cursor.execute(statement)
             connection.commit()
             created = True
             assert state() == original, privilege
             connection.commit()
             result['checks'].append('system-privilege-metadata-replay-' +
                                     privilege)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT RDB$DESCRIPTION FROM RDB$ROLES '
+                               'WHERE RDB$ROLE_NAME = ?', (name,))
+                assert cursor.fetchone()[0] == expected_comment
+            connection.commit()
+            apply('alter', {'description': "Edited role's comment\n "})
+            connection.commit()
+            apply('alter', {'clear_description': True})
+            connection.rollback()
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT RDB$DESCRIPTION FROM RDB$ROLES '
+                               'WHERE RDB$ROLE_NAME = ?', (name,))
+                assert cursor.fetchone()[0] == "Edited role's comment\n "
+            connection.commit()
+            apply('alter', {'clear_description': True})
+            connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT RDB$DESCRIPTION FROM RDB$ROLES '
+                               'WHERE RDB$ROLE_NAME = ?', (name,))
+                assert cursor.fetchone()[0] is None
+            connection.commit()
+            assert state() == original, privilege
+            connection.commit()
+            result['checks'].append('role-comment-lifecycle-' + privilege)
             apply('alter', {'drop_system_privileges': True})
             assert not any(state()), privilege
             connection.rollback()

@@ -168,6 +168,27 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_role_comments_are_independent_changes(self):
+        def plan(operation, draft):
+            return FIREBIRD_ADMINISTRATION.plan({
+                '_provider_route': {'database': 'test'},
+                'resource_kind': 'role', 'operation_id': operation,
+                'target_resource': {'display_name': 'r'},
+                'draft': {'name': 'r', **draft}
+            })['command_preview']['statements']
+        for operation in ('create', 'alter'):
+            statements = plan(operation, {'description': "  It's a role\n"})
+            self.assertEqual(statements[-1]['source'],
+                             'COMMENT ON ROLE "r" IS \'  It\'\'s a role\n\'')
+            self.assertEqual(len(statements),
+                             2 if operation == 'create' else 1)
+        self.assertEqual(plan('alter', {'clear_description': True})[0][
+            'source'], 'COMMENT ON ROLE "r" IS NULL')
+        for draft in ({'clear_description': 'false'}, {'description': 12},
+                      {'description': 'x', 'clear_description': True}, {}):
+            with self.assertRaises(RelationalClientError):
+                plan('alter', draft)
+
     def test_firebird_role_privilege_bitmap(self):
         from pgadmin.cdeadmin.providers.relational_admin import (
             FIREBIRD_SYSTEM_PRIVILEGES)

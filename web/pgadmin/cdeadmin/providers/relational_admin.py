@@ -3612,6 +3612,9 @@ class RelationalAdministration:
             if kind == 'database' and self.dialect.engine_id == 'duckdb':
                 if 'config' in value:
                     options['config'] = value.pop('config')
+            if (kind == 'role' and self.dialect.engine_id == 'firebird' and
+                    'description' in value):
+                options['description'] = value.pop('description')
             for key in (
                 'parent', 'table', 'columns', 'constraints', 'unique',
                 'start', 'increment', 'minimum', 'maximum', 'cycle',
@@ -3711,7 +3714,8 @@ class RelationalAdministration:
                 value['changes'] = {
                     key: value.pop(key)
                     for key in (
-                        'system_privileges', 'drop_system_privileges'
+                        'system_privileges', 'drop_system_privileges',
+                        'description', 'clear_description',
                     ) if key in value
                 }
             elif kind == 'index' and self.dialect.engine_id == 'firebird':
@@ -4013,6 +4017,9 @@ class RelationalAdministration:
                     'Use a qualified database or schema name where needed.',
                 ))
             elif kind == 'role' and self.dialect.engine_id == 'firebird':
+                fields.append(self._field(
+                    'description', 'Comment', 'multiline', False,
+                    'Firebird stores an empty comment as no comment.'))
                 fields.append(self._field(
                     'system_privileges', 'System privileges', 'multiselect',
                     False, 'Select Firebird 5.0 system privileges.', [],
@@ -4406,6 +4413,14 @@ class RelationalAdministration:
             return {
                 'form_id': 'role.alter', 'title': 'Alter role',
                 'fields': [
+                    {**self._field('description', 'Comment', 'multiline',
+                                   help_text='An empty comment removes the '
+                                   'stored comment.'),
+                     'initial_value_path': ['description'],
+                     'visible_when': {'field_id': 'clear_description',
+                                      'equals': False}},
+                    self._field('clear_description', 'Remove comment',
+                                'boolean', default=False),
                     {**self._field(
                         'system_privileges', 'Replacement system privileges',
                         'multiselect', False,
@@ -5070,6 +5085,13 @@ class RelationalAdministration:
                     self._privilege_names(privileges)
                 )
             members = options.get('members') or []
+            if self.dialect.engine_id == 'firebird' and (
+                    'description' in options):
+                if members:
+                    raise RelationalClientError(
+                        'initial role members are unavailable for this engine')
+                return [{'source': source, 'parameters': ()}] + (
+                    self._firebird_role_comment(role, options))
             if members:
                 if self.dialect.engine_id not in {'mysql', 'dolt'}:
                     raise RelationalClientError(
@@ -5451,16 +5473,22 @@ class RelationalAdministration:
                     'system_privileges'):
                 raise RelationalClientError(
                     'cannot replace and drop system privileges together')
+            statements = []
             if changes.get('drop_system_privileges'):
                 clause = 'DROP SYSTEM PRIVILEGES'
-            else:
+            elif changes.get('system_privileges'):
                 clause = 'SET SYSTEM PRIVILEGES TO ' + (
                     self._privilege_names(changes.get('system_privileges'))
                 )
-            return [{
-                'source': f'ALTER ROLE {target} {clause}',
-                'parameters': (),
-            }]
+            else:
+                clause = None
+            if clause:
+                statements.append({'source': f'ALTER ROLE {target} {clause}',
+                                   'parameters': ()})
+            statements.extend(self._firebird_role_comment(target, changes))
+            if not statements:
+                raise RelationalClientError('Choose a role change')
+            return statements
         if kind == 'index' and self.dialect.engine_id == 'firebird':
             target = self._quote(
                 request['target_resource'].get('display_name')
@@ -6141,6 +6169,21 @@ class RelationalAdministration:
             ),
             'parameters': (),
         }
+
+    def _firebird_role_comment(self, target, changes):
+        clear = changes.get('clear_description', False)
+        if not isinstance(clear, bool):
+            raise RelationalClientError('clear_description must be boolean')
+        if clear and changes.get('description'):
+            raise RelationalClientError('Cannot set and remove a comment')
+        if not clear and 'description' not in changes:
+            return []
+        value = None if clear else changes['description']
+        if value is not None and not isinstance(value, str):
+            raise RelationalClientError('Comment must be text')
+        return [{'source': f'COMMENT ON ROLE {target} IS ' +
+                 ('NULL' if value is None else self._literal(value)),
+                 'parameters': ()}]
 
     def _compile_firebird_role(self, request):
         operation = request['operation_id']
