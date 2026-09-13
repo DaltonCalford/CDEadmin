@@ -15,8 +15,6 @@ def verify(database, adapter, result):
     native = {'database': database.name}
 
     def create(kind, name, fields):
-        fields = {**fields, 'options': {
-            'database': database.name, **fields.get('options', {})}}
         request = {'resource_kind': kind, 'operation_id': 'create',
                    'target_resource': {'native': native},
                    'draft': {'name': name, **fields}}
@@ -24,8 +22,8 @@ def verify(database, adapter, result):
         assert not validation['errors'], validation
         payload = json.loads(json.dumps(adapter.plan_admin_operation(
             request)['provider_payload']))
-        adapter._apply_collection(database, kind, 'create', payload['draft'],
-                                  None, native)
+        adapter._apply_admin(database.client, {'database': 'wrong_route'},
+                             payload)
         return database[name]
 
     source = create('collection', 'collated_source', {

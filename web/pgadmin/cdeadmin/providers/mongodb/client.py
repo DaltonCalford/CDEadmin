@@ -1592,10 +1592,14 @@ class MongoDBClient:
                     'title': f'Create MongoDB {label}',
                     'fields': [
                         f('name', f'{label.title()} name', required=True),
+                        f('database', 'Database',
+                          initial_value_path=['database'],
+                          help='Uses the selected database. Enter a database '
+                               'when creating from a server connection.'),
                         *cls._collation_fields(kind),
                         f(
                             'options', f'MongoDB {label} options', 'json',
-                            True, default={'database': 'admin'},
+                            False, default={},
                             json_type='object',
                         ),
                     ],
@@ -2078,13 +2082,12 @@ class MongoDBClient:
                                '$merge.',
                 })
         if kind in {'collection', 'view'} and operation == 'create':
-            options = draft.get('options', {})
-            if not isinstance(options, Mapping) or not isinstance(
-                options.get('database'), str
-            ):
+            try:
+                self._creation_database(request, draft)
+            except MongoDBClientError as error:
                 errors.append({
-                    'field_id': 'options', 'code': 'database_required',
-                    'message': 'MongoDB create options require database.',
+                    'field_id': 'database', 'code': 'database',
+                    'message': str(error),
                 })
         if kind in {'user', 'role'} and operation == 'create':
             options = draft.get('options', {})
@@ -2183,8 +2186,10 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
         if kind in {'collection', 'view'} and operation == 'create':
+            database_name = self._creation_database(request, draft)
             draft = {'name': draft.get('name'),
                      'options': self._collection_options(draft)}
+            draft['options']['database'] = database_name
         if kind == 'validator' and operation in {'create', 'alter'}:
             container = 'options' if operation == 'create' else 'changes'
             draft = {container: self._validator_changes(operation, draft)}
@@ -2329,11 +2334,15 @@ class MongoDBClient:
         operation = payload['operation_id']
         draft = self._from_extended_json(payload['draft'])
         native = self._from_extended_json(payload['native'])
-        database_name = str(
-            native.get('database') or
-            draft.get('options', {}).get('database') or
-            route.get('database') or 'admin'
-        )
+        if kind in {'collection', 'view'} and operation == 'create':
+            database_name = self._creation_database(
+                {'target_resource': {'native': native}}, draft)
+        else:
+            database_name = str(
+                native.get('database') or
+                draft.get('options', {}).get('database') or
+                route.get('database') or 'admin'
+            )
         database = client[database_name]
         collection_name = native.get('collection')
         if operation == 'inspect':
@@ -3273,6 +3282,29 @@ class MongoDBClient:
                         'Required collation version (blank uses server)',
                         visible_when=visible))
         return fields
+
+    @classmethod
+    def _creation_database(cls, request, draft):
+        target = request.get('target_resource')
+        native = cls._native_target(target) if target else {}
+        options = draft.get('options', {})
+        if not isinstance(options, Mapping):
+            raise MongoDBClientError('Creation options must be an object.')
+        supplied = [native.get('database'), draft.get('database'),
+                    options.get('database')]
+        values = []
+        for value in supplied:
+            if value is None or value == '':
+                continue
+            values.append(_identifier(value, 'database'))
+        if not values:
+            raise MongoDBClientError(
+                'Select or enter a database for creation.')
+        if len(set(values)) != 1:
+            raise MongoDBClientError(
+                'Database conflicts with the selected target or creation '
+                'options. Select the intended database before creating.')
+        return values[0]
 
     @staticmethod
     def _collection_options(draft):

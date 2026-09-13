@@ -237,6 +237,71 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_creation_database_target_and_explicit_names(self):
+        adapter = client()
+        for target, draft in (
+                ({'native': {'database': 'selected'}}, {}),
+                (None, {'database': 'selected'}),
+                (None, {'options': {'database': 'selected'}}),
+                ({'extensions': {'mongodb': {'native': {
+                    'database': 'selected'}}}}, {'database': 'selected'})):
+            for kind in ('collection', 'view'):
+                request = {'resource_kind': kind, 'operation_id': 'create',
+                           'target_resource': target,
+                           'draft': {'name': 'created', **draft}}
+                self.assertFalse(
+                    adapter.validate_admin_operation(request)['errors'])
+                plan = adapter.plan_admin_operation(request)
+                self.assertEqual('selected', plan['provider_payload'][
+                    'draft']['options']['database'])
+        adapter.close()
+
+    def test_creation_database_rejects_ambiguity_and_missing_selection(self):
+        adapter = client()
+        for target, draft in (
+                (None, {}), (None, {'database': 5}),
+                (None, {'database': 'selected',
+                        'options': {'database': 'other'}}),
+                ({'native': {'database': 'selected'}}, {'database': 'other'}),
+                ({'native': {'database': 'selected'}},
+                 {'options': {'database': 'admin'}})):
+            request = {'resource_kind': 'collection', 'operation_id': 'create',
+                       'target_resource': target, 'draft': draft}
+            self.assertTrue(
+                adapter.validate_admin_operation(request)['errors'])
+            with self.assertRaises(MongoDBClientError):
+                adapter.plan_admin_operation(request)
+        adapter.close()
+
+    def test_collection_create_form_no_longer_requires_options_json(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'collection', 'operation_id': 'create',
+                   'target_resource': {'native': {'database': 'selected'}},
+                   'draft': {'name': 'created'}}
+        valid = visual.validate(request)
+        self.assertTrue(valid['valid'], valid['errors'])
+        fields = {f['field_id']: f for f in
+                  adapter._admin_form('collection', 'create')['fields']}
+        self.assertEqual({}, fields['options']['default'])
+        self.assertFalse(fields['options']['required'])
+        self.assertEqual(['database'],
+                         fields['database']['initial_value_path'])
+        adapter.close()
+
+    def test_creation_target_is_rechecked_before_database_access(self):
+        adapter = client()
+        for native, draft in (({}, {'name': 'example', 'options': {}}),
+                              ({'database': 'selected'}, {
+                                  'name': 'example', 'options': {
+                                      'database': 'other'}})):
+            with self.assertRaises(MongoDBClientError):
+                adapter._apply_admin(None, {'database': 'admin'}, {
+                    'resource_kind': 'collection', 'operation_id': 'create',
+                    'native': native, 'draft': draft})
+        adapter.close()
+
     def test_collection_and_view_collation_forms_compile_native_options(self):
         adapter = client()
         for kind in ('collection', 'view'):
