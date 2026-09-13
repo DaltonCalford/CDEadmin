@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import importlib
 import json
+import math
 import hashlib
 import uuid
 from itertools import islice
@@ -1689,6 +1690,29 @@ class MongoDBClient:
                                        ('native', 'Native default'),
                                        ('2', '2'), ('3', '3'))]),
                         *cls._collation_fields(),
+                        f('geo_mode', 'Geospatial index options', 'select',
+                          default='native', options=[
+                              {'value': value, 'label': label}
+                              for value, label in (
+                                  ('native', 'Native / advanced options'),
+                                  ('2d', 'Planar 2D'),
+                                  ('2dsphere', 'Spherical 2D'))]),
+                        f('geo_bits', '2D precision bits (blank uses native)',
+                          'number', minimum=1, maximum=32,
+                          visible_when={'field_id': 'geo_mode',
+                                        'equals': '2d'}),
+                        *[f('geo_' + key, label, 'number',
+                            visible_when={'field_id': 'geo_mode',
+                                          'equals': '2d'}) for key, label in (
+                              ('min', 'Minimum (blank uses native)'),
+                              ('max', 'Maximum (blank uses native)'),
+                          )],
+                        f('geo_version', '2dsphere index version', 'select',
+                          default='native',
+                          visible_when={'field_id': 'geo_mode',
+                                        'equals': '2dsphere'},
+                          options=[{'value': v, 'label': v} for v in (
+                              'native', '1', '2', '3')]),
                         f('configure_wildcard',
                           'Configure wildcard projection',
                           'boolean', default=False),
@@ -3099,11 +3123,54 @@ class MongoDBClient:
         MongoDBClient._text_index_options(draft, options)
         MongoDBClient._index_collation(draft, options)
         MongoDBClient._wildcard_index_options(draft, options)
+        MongoDBClient._geo_index_options(draft, options)
         if 'name' in options and options['name'] != draft.get('name'):
             raise MongoDBClientError(
                 'Native options cannot override the index name.')
         options.setdefault('name', draft.get('name'))
         return options
+
+    @staticmethod
+    def _geo_index_options(draft, options):
+        mode = draft.get('geo_mode', 'native')
+        if mode not in ('native', '2d', '2dsphere'):
+            raise MongoDBClientError('Geospatial options choice is invalid.')
+        if mode == 'native':
+            return
+        if not any(isinstance(key, (list, tuple)) and len(key) == 2 and
+                   key[1] == mode for key in options['keys']):
+            raise MongoDBClientError(
+                'Geospatial settings require a matching native index key.')
+
+        def add(key, value):
+            if key in options:
+                raise MongoDBClientError(
+                    'Specify each geospatial option visually or in advanced '
+                    'options, not both.')
+            options[key] = value
+
+        if mode == '2dsphere':
+            version = draft.get('geo_version', 'native')
+            if version not in ('native', '1', '2', '3'):
+                raise MongoDBClientError('2dsphere version is invalid.')
+            if version != 'native':
+                add('2dsphereIndexVersion', int(version))
+            return
+        for key in ('bits', 'min', 'max'):
+            value = draft.get('geo_' + key)
+            if value is None or value == '':
+                continue
+            if key == 'bits':
+                if type(value) is not int or not 1 <= value <= 32:
+                    raise MongoDBClientError(
+                        '2D bits must be an integer 1–32.')
+            elif type(value) not in (int, float) or not math.isfinite(value):
+                raise MongoDBClientError('2D bounds must be finite numbers.')
+            add(key, value)
+        lower, upper = options.get('min', -180), options.get('max', 180)
+        if type(lower) in (int, float) and type(upper) in (int, float) and (
+                lower >= upper):
+            raise MongoDBClientError('2D minimum must be less than maximum.')
 
     @staticmethod
     def _wildcard_index_options(draft, options):

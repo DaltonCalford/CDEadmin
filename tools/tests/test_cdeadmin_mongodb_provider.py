@@ -237,6 +237,65 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_geo_options_native_mapping_defaults_and_hidden_fields(self):
+        base = {'name': 'geo', 'keys': [{'field': 'point', 'kind': '2d'}],
+                'geo_mode': '2d'}
+        for bits in (1, 26, 32):
+            result = MongoDBClient._index_options({
+                **base, 'geo_bits': bits, 'geo_min': -100.5, 'geo_max': 100.5})
+            self.assertEqual((bits, -100.5, 100.5),
+                             (result['bits'], result['min'], result['max']))
+        self.assertNotIn('bits', MongoDBClient._index_options(base))
+        self.assertNotIn('bits', MongoDBClient._index_options({
+            **base, 'geo_mode': 'native', 'geo_bits': 'ignored'}))
+        for version in ('1', '2', '3'):
+            result = MongoDBClient._index_options({
+                'name': 'geo', 'keys': [{'field': 'p', 'kind': '2dsphere'}],
+                'geo_mode': '2dsphere', 'geo_version': version,
+                'geo_bits': 'ignored'})
+            self.assertEqual(int(version), result['2dsphereIndexVersion'])
+
+    def test_geo_form_validation_and_plan_roundtrip(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'name': 'geo', 'keys': [
+                       {'field': 'point', 'kind': '2d'}], 'geo_mode': '2d',
+                       'geo_bits': 26, 'geo_min': -100.5, 'geo_max': 100.5,
+                       'geo_version': 'hidden-invalid'}}
+        valid = visual.validate(request)
+        self.assertTrue(valid['valid'], valid['errors'])
+        self.assertNotIn('geo_version', valid['draft'])
+        plan = adapter.plan_admin_operation({
+            **request, 'draft': valid['draft']})
+        draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+        self.assertEqual({'name', 'options'}, set(draft))
+        self.assertEqual(26, MongoDBClient._index_options(draft)['bits'])
+        adapter.close()
+
+    def test_geo_rejects_invalid_visual_values_and_conflicts(self):
+        base = {'name': 'geo', 'keys': [{'field': 'p', 'kind': '2d'}],
+                'geo_mode': '2d'}
+        invalid = [{'geo_mode': 'bad'}, {'geo_mode': '2dsphere'},
+                   {'geo_min': 200}, {'geo_max': -200},
+                   {'geo_min': 0, 'geo_max': 0},
+                   {'geo_bits': 2, 'options': {'bits': 2}}]
+        invalid += [{'geo_bits': v} for v in (0, 33, True, 1.5, '2')]
+        invalid += [{'geo_min': v} for v in (
+            True, '1', float('nan'), float('inf'), float('-inf'))]
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({**base, **draft})
+        for draft in ({'geo_version': '4'}, {
+                'geo_version': '3', 'options': {'2dsphereIndexVersion': 3}}):
+            with self.assertRaises(MongoDBClientError):
+                MongoDBClient._index_options({
+                    **base, 'keys': [{'field': 'p', 'kind': '2dsphere'}],
+                    'geo_mode': '2dsphere', **draft})
+
     def test_wildcard_projection_modes_defaults_and_plan(self):
         adapter = client()
         visual = ProviderVisualAdministration(
