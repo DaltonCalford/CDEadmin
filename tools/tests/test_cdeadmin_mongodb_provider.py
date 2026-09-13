@@ -237,6 +237,60 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_view_alter_visual_form_and_plan(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        fields = {field['field_id']: field for field in
+                  adapter._admin_form('view', 'alter')['fields']}
+        self.assertEqual(['options', 'viewOn'],
+                         fields['view_source']['initial_value_path'])
+        self.assertTrue(fields['view_pipeline']['submit_unchanged'])
+        for draft, expected in (
+                ({'view_source': 'new'}, {'viewOn': 'new'}),
+                ({'configure_pipeline': True, 'view_pipeline': []},
+                 {'pipeline': []}),
+                ({'view_source': 'new', 'configure_pipeline': False,
+                  'view_pipeline': 'hidden invalid'}, {'viewOn': 'new'})):
+            request = {'resource_kind': 'view', 'operation_id': 'alter',
+                       'target_resource': {'native': {
+                           'database': 'test', 'collection': 'v'}},
+                       'draft': draft}
+            valid = visual.validate(request)
+            self.assertTrue(valid['valid'], valid['errors'])
+            payload = adapter.plan_admin_operation({
+                **request, 'draft': valid['draft']})['provider_payload']
+            self.assertEqual(expected, payload['draft']['changes'])
+        adapter.close()
+
+    def test_view_alter_invalid_and_ambiguous_inputs(self):
+        for draft in ({}, {'changes': []}, {'view_source': ''},
+                      {'view_source': 'a', 'changes': {'viewOn': 'b'}},
+                      {'configure_pipeline': 1},
+                      {'configure_pipeline': True},
+                      {'configure_pipeline': True, 'view_pipeline': [],
+                       'changes': {'pipeline': []}},
+                      {'changes': {'collMod': 'other'}},
+                      {'changes': {'pipeline': [{}]}},
+                      {'changes': {'pipeline': {}}}):
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._view_changes(draft)
+
+    def test_view_alter_does_not_replay_stale_catalog_values(self):
+        commands = []
+        database = SimpleNamespace(command=commands.append)
+        draft = {'changes': {'pipeline': [{'$match': {'active': True}}]}}
+        original = json.loads(json.dumps(draft))
+        MongoDBClient._apply_collection(
+            database, 'view', 'alter', draft, 'v',
+            {'options': {'viewOn': 'stale', 'pipeline': []}})
+        self.assertEqual([{'collMod': 'v', **draft['changes']}], commands)
+        self.assertEqual(original, draft)
+        normalized = MongoDBClient._view_changes(draft)
+        normalized['pipeline'][0]['$match']['active'] = False
+        self.assertEqual(original, draft)
+
     def test_view_creation_fields_validate_and_preserve_pipeline(self):
         adapter = client()
         visual = ProviderVisualAdministration(

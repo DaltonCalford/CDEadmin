@@ -1614,6 +1614,25 @@ class MongoDBClient:
                     ],
                 }
             if operation == 'alter':
+                if kind == 'view':
+                    return {
+                        'form_id': 'mongodb.view.alter.v1',
+                        'title': 'Modify MongoDB view',
+                        'fields': [
+                            f('view_source', 'Source collection or view',
+                              initial_value_path=['options', 'viewOn']),
+                            f('configure_pipeline', 'Replace view pipeline',
+                              'boolean', default=False),
+                            f('view_pipeline', 'View aggregation pipeline',
+                              'json', default=[], json_type='array',
+                              initial_value_path=['options', 'pipeline'],
+                              submit_unchanged=True,
+                              visible_when={'field_id': 'configure_pipeline',
+                                            'equals': True}),
+                            f('changes', 'Additional collMod fields', 'json',
+                              default={}, json_type='object'),
+                        ],
+                    }
                 return {
                     'form_id': f'mongodb.{kind}.alter.v1',
                     'title': f'Modify MongoDB {kind}',
@@ -2048,6 +2067,12 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind == 'view' and operation == 'alter':
+            try:
+                self._view_changes(draft)
+            except MongoDBClientError as error:
+                errors.append({'field_id': 'changes', 'code': 'view_changes',
+                               'message': str(error)})
         if kind in {'collection', 'view'} and operation == 'create':
             try:
                 if kind == 'view':
@@ -2197,6 +2222,8 @@ class MongoDBClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
+        if kind == 'view' and operation == 'alter':
+            draft = {'changes': self._view_changes(draft)}
         if kind in {'collection', 'view'} and operation == 'create':
             database_name = self._creation_database(request, draft)
             draft = {'name': draft.get('name'),
@@ -3003,9 +3030,7 @@ class MongoDBClient:
         elif operation == 'alter':
             changes = _mapping(draft.get('changes'), 'collection changes')
             if kind == 'view':
-                current = native.get('options', {})
-                changes.setdefault('viewOn', current.get('viewOn'))
-                changes.setdefault('pipeline', current.get('pipeline', []))
+                changes = MongoDBClient._view_changes(draft)
             database.command({'collMod': name, **changes})
         elif operation == 'rename':
             database[name].rename(
@@ -3298,6 +3323,38 @@ class MongoDBClient:
                         'Required collation version (blank uses server)',
                         visible_when=visible))
         return fields
+
+    @staticmethod
+    def _view_changes(draft):
+        changes = copy.deepcopy(_mapping(
+            draft.get('changes', {}), 'view changes'))
+        if 'view_source' in draft:
+            if 'viewOn' in changes:
+                raise MongoDBClientError('Specify the view source only once.')
+            changes['viewOn'] = draft['view_source']
+        if 'viewOn' in changes:
+            changes['viewOn'] = _identifier(changes['viewOn'], 'view source')
+        configure = draft.get('configure_pipeline', False)
+        if not isinstance(configure, bool):
+            raise MongoDBClientError('Replace pipeline must be true or false.')
+        if configure:
+            if 'pipeline' in changes:
+                raise MongoDBClientError('Specify the pipeline only once.')
+            if 'view_pipeline' not in draft:
+                raise MongoDBClientError('A replacement pipeline is required.')
+            changes['pipeline'] = copy.deepcopy(draft['view_pipeline'])
+        if 'pipeline' in changes:
+            pipeline = changes['pipeline']
+            if not isinstance(pipeline, list) or any(
+                    not isinstance(stage, Mapping) or len(stage) != 1
+                    for stage in pipeline):
+                raise MongoDBClientError(
+                    'View pipeline must be an array of single-stage objects.')
+        if not changes:
+            raise MongoDBClientError('Choose a view setting to modify.')
+        if 'collMod' in changes:
+            raise MongoDBClientError('The selected view cannot be overridden.')
+        return changes
 
     @classmethod
     def _view_creation_options(cls, draft):
