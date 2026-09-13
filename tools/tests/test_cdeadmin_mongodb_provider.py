@@ -237,6 +237,74 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_index_visual_flags_and_ttl_preserve_native_defaults(self):
+        base = {'name': 'example', 'keys': [
+            {'field': 'value', 'kind': 'ascending'}]}
+        for field in ('unique', 'sparse', 'hidden'):
+            for choice, expected in (('enabled', True), ('disabled', False)):
+                with self.subTest(field=field, choice=choice):
+                    result = MongoDBClient._index_options({
+                        **base, field + '_mode': choice})
+                    self.assertIs(expected, result[field])
+            result = MongoDBClient._index_options({
+                **base, field + '_mode': 'native'})
+            self.assertNotIn(field, result)
+            result = MongoDBClient._index_options({
+                **base, field + '_mode': 'native', 'options': {field: True}})
+            self.assertTrue(result[field])
+        for ttl in (0, 60, 2147483647):
+            self.assertEqual(ttl, MongoDBClient._index_options({
+                **base, 'enable_ttl': True,
+                'ttl_seconds': ttl})['expireAfterSeconds'])
+        self.assertNotIn('expireAfterSeconds', MongoDBClient._index_options({
+            **base, 'enable_ttl': False, 'ttl_seconds': 'ignored'}))
+
+    def test_index_visual_options_reject_conflicts_and_bad_types(self):
+        base = {'name': 'example', 'keys': [
+            {'field': 'value', 'kind': 'ascending'}]}
+        invalid = [{'enable_ttl': value} for value in (1, 'true', None)]
+        invalid += [{'enable_ttl': True, 'ttl_seconds': value}
+                    for value in (-1, 2147483648, True, 1.5, '10', None)]
+        invalid += [{'enable_ttl': True, 'ttl_seconds': 0,
+                     'options': {'expireAfterSeconds': 0}}]
+        for field in ('unique', 'sparse', 'hidden'):
+            invalid += [{field + '_mode': value}
+                        for value in (True, None, 'unknown', {})]
+            invalid += [{field + '_mode': 'enabled', 'options': {field: True}}]
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({**base, **draft})
+
+    def test_index_creation_visual_options_validate_and_roundtrip_plan(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'name': 'expiry', 'keys': [
+                       {'field': 'expires', 'kind': 'ascending'}],
+                       'unique_mode': 'disabled', 'sparse_mode': 'enabled',
+                       'hidden_mode': 'enabled', 'enable_ttl': True,
+                       'ttl_seconds': 0}}
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        plan = adapter.plan_admin_operation({
+            **request, 'draft': validated['draft']})
+        draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+        self.assertEqual({'name', 'options'}, set(draft))
+        expected = {'name': 'expiry', 'keys': [['expires', 1]],
+                    'unique': False, 'sparse': True, 'hidden': True,
+                    'expireAfterSeconds': 0}
+        self.assertEqual(expected, MongoDBClient._index_options(draft))
+        self.assertIn('automatically delete', str(plan))
+        request['draft']['enable_ttl'] = False
+        request['draft']['ttl_seconds'] = 'ignored hidden value'
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        self.assertNotIn('ttl_seconds', validated['draft'])
+        adapter.close()
+
     def test_index_ttl_editor_values_preserve_canonical_metadata(self):
         adapter = client()
         for seconds in (0, 60, 2147483647):

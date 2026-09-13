@@ -1642,6 +1642,23 @@ class MongoDBClient:
                                             ('2dsphere', '2D sphere'),
                                         )]),
                               ]}),
+                        *[f(field + '_mode', label, 'select',
+                            default='native', options=[
+                                {'value': 'native',
+                                 'label': 'Native default / advanced options'},
+                                {'value': 'enabled', 'label': 'Enabled'},
+                                {'value': 'disabled', 'label': 'Disabled'},
+                            ]) for field, label in (
+                                ('unique', 'Enforce unique keys'),
+                                ('sparse', 'Sparse index'),
+                                ('hidden', 'Hide from query planner'),
+                            )],
+                        f('enable_ttl', 'Enable automatic expiration (TTL)',
+                          'boolean', default=False),
+                        f('ttl_seconds', 'Expire after seconds', 'number',
+                          True, minimum=0, maximum=2147483647,
+                          visible_when={'field_id': 'enable_ttl',
+                                        'equals': True}),
                         f(
                             'options', 'Additional native index options',
                             'json', default={}, json_type='object',
@@ -2095,8 +2112,8 @@ class MongoDBClient:
         if kind == 'index' and operation == 'alter':
             draft = {'changes': self._index_changes(draft)}
         if kind == 'index' and operation == 'create':
-            draft['options'] = self._index_options(draft)
-            draft.pop('keys', None)
+            draft = {'name': draft.get('name'),
+                     'options': self._index_options(draft)}
         target = request.get('target_resource')
         native = self._native_target(target) if target else {}
         provider_payload = {
@@ -2108,6 +2125,11 @@ class MongoDBClient:
         }
         preview_draft = copy.deepcopy(draft)
         warnings = []
+        if kind == 'index' and operation == 'create' and (
+                'expireAfterSeconds' in draft['options']):
+            warnings.append(
+                'TTL indexes automatically delete expired documents. '
+                'Review retention before applying, including existing data.')
         if kind == 'validator' and operation in {'create', 'alter'}:
             changes = draft.get('changes', draft.get('options', {}))
             if changes.get('validationLevel') == 'off' or (
@@ -2979,6 +3001,28 @@ class MongoDBClient:
         if not isinstance(options, Mapping):
             raise MongoDBClientError('Index options must be an object.')
         options = copy.deepcopy(dict(options))
+        for field in ('unique', 'sparse', 'hidden'):
+            choice = draft.get(field + '_mode', 'native')
+            if choice not in ('native', 'enabled', 'disabled'):
+                raise MongoDBClientError('Index option choice is invalid.')
+            if choice != 'native':
+                if field in options:
+                    raise MongoDBClientError(
+                        'Specify each index option once, visually or in '
+                        'advanced options, not both.')
+                options[field] = choice == 'enabled'
+        enable_ttl = draft.get('enable_ttl', False)
+        if not isinstance(enable_ttl, bool):
+            raise MongoDBClientError('Enable TTL must be true or false.')
+        if enable_ttl:
+            if 'expireAfterSeconds' in options:
+                raise MongoDBClientError(
+                    'Specify TTL visually or in advanced options, not both.')
+            ttl = draft.get('ttl_seconds')
+            if type(ttl) is not int or not 0 <= ttl <= 2147483647:
+                raise MongoDBClientError(
+                    'TTL must be an integer from 0 to 2147483647 seconds.')
+            options['expireAfterSeconds'] = ttl
         records = draft.get('keys', [])
         if not isinstance(records, list):
             raise MongoDBClientError('Ordered index keys must be a list.')
