@@ -93,6 +93,47 @@ def run(binary, workspace):
                 result['checks'].append('unique-option-enforced')
             else:
                 raise AssertionError('Unique index accepted duplicate values')
+
+            def alter(collection, index_name, draft):
+                identity = {'database': database.name,
+                            'collection': collection, 'index_name': index_name}
+                request = {'resource_kind': 'index', 'operation_id': 'alter',
+                           'target_resource': {'native': identity},
+                           'draft': draft}
+                assert not adapter.validate_admin_operation(request)['errors']
+                payload = adapter.plan_admin_operation(request)[
+                    'provider_payload']
+                adapter._apply_index(database, 'alter', payload['draft'],
+                                     payload['native'])
+                return database[collection].index_information()[index_name]
+
+            for visibility in ('hidden', 'visible'):
+                info = alter('items', 'qa_unique', {'visibility': visibility})
+                assert bool(info.get('hidden')) == (visibility == 'hidden')
+                assert info['unique'] is True
+                result['checks'].append('alter-' + visibility)
+            adapter._apply_index(database, 'create', {
+                'name': 'qa_ttl', 'keys': [
+                    {'field': 'expires', 'kind': 'ascending'}]}, native)
+            for seconds in (3600, 60, 0):
+                info = alter('items', 'qa_ttl', {
+                    'change_ttl': True, 'ttl_seconds': seconds})
+                assert info['expireAfterSeconds'] == seconds
+                result['checks'].append('alter-ttl-' + str(seconds))
+            adapter._apply_index(database, 'create', {
+                'name': 'qa_convert', 'keys': [
+                    {'field': 'value', 'kind': 'ascending'}]},
+                {**native, 'collection': 'conversion'})
+            for operation, flag, expected in (
+                    ('prepare', 'prepareUnique', True),
+                    ('cancel_prepare', 'prepareUnique', False),
+                    ('prepare', 'prepareUnique', True),
+                    ('unique', 'unique', True),
+                    ('non_unique', 'unique', False)):
+                info = alter('conversion', 'qa_convert', {
+                    'uniqueness': operation})
+                assert bool(info.get(flag)) == expected
+                result['checks'].append('alter-' + operation)
             result['status'] = 'passed'
         finally:
             adapter.close()

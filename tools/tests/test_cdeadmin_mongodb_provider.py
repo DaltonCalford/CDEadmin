@@ -234,6 +234,72 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_visual_index_changes_default_to_no_mutation(self):
+        with self.assertRaises(MongoDBClientError):
+            MongoDBClient._index_changes({})
+        for draft, expected in (
+                ({'visibility': 'hidden'}, {'hidden': True}),
+                ({'visibility': 'visible'}, {'hidden': False}),
+                ({'change_ttl': True, 'ttl_seconds': 0},
+                 {'expireAfterSeconds': 0}),
+                ({'uniqueness': 'prepare'}, {'prepareUnique': True}),
+                ({'uniqueness': 'cancel_prepare'}, {'prepareUnique': False}),
+                ({'uniqueness': 'unique'}, {'unique': True}),
+                ({'uniqueness': 'non_unique'}, {'forceNonUnique': True}),
+                ({'changes': {'hidden': False}}, {'hidden': False})):
+            self.assertEqual(expected, MongoDBClient._index_changes(draft))
+
+    def test_visual_index_changes_reject_conflicts_and_unsafe_targets(self):
+        invalid = [
+            {'changes': {'name': 'different_index', 'hidden': True}},
+            {'changes': {'keyPattern': {'a': 1}, 'hidden': True}},
+            {'changes': {'unknown': True}},
+            {'visibility': 'hidden', 'changes': {'hidden': False}},
+            {'uniqueness': 'unique', 'changes': {'forceNonUnique': True}},
+            {'uniqueness': 'prepare', 'visibility': 'hidden'},
+            {'changes': {'unique': False}}, {'changes': {'hidden': 'false'}},
+            {'change_ttl': 'true'}, {'visibility': 'invented'},
+        ]
+        invalid.extend({'change_ttl': True, 'ttl_seconds': value}
+                       for value in (-1, 2147483648, 1.5, True, None))
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_changes(draft)
+
+    def test_index_alter_plan_omits_unselected_fields_and_keeps_identity(self):
+        adapter = client()
+        request = {'resource_kind': 'index', 'operation_id': 'alter',
+                   'target_resource': {'native': {
+                       'database': 'qualification', 'collection': 'items',
+                       'index_name': 'selected'}},
+                   'draft': {'visibility': 'visible', 'change_ttl': False,
+                             'ttl_seconds': 123, 'uniqueness': 'unchanged'}}
+        plan = adapter.plan_admin_operation(request)
+        self.assertEqual({'changes': {'hidden': False}},
+                         plan['provider_payload']['draft'])
+        calls = []
+
+        class Database:
+            def __getitem__(self, _name):
+                return None
+
+            def command(self, command):
+                calls.append(command)
+
+        MongoDBClient._apply_index(
+            Database(), 'alter', plan['provider_payload']['draft'],
+            plan['provider_payload']['native'])
+        self.assertEqual([{'collMod': 'items', 'index': {
+            'name': 'selected', 'hidden': False}}], calls)
+        for draft, warning in (
+                ({'change_ttl': True, 'ttl_seconds': 0}, 'automatic deletion'),
+                ({'uniqueness': 'prepare'}, 'new duplicate keys'),
+                ({'uniqueness': 'non_unique'}, 'removes uniqueness')):
+            plan = adapter.plan_admin_operation({**request, 'draft': draft})
+            self.assertIn(warning, ' '.join(plan['warnings']))
+        adapter.close()
+
     def test_visual_index_keys_preserve_order_types_and_native_options(self):
         for kind, native in (('ascending', 1), ('descending', -1),
                              ('text', 'text'), ('hashed', 'hashed'),

@@ -26,6 +26,38 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('shows TTL input only when requested and preserves zero seconds in the draft', async () => {
+    const target = {resource_id: 'index:ttl', resource_kind: 'index',
+      display_name: 'ttl'};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return target;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {state: 'ready', plan_id: 'ttl-plan', plan_digest: 'digest',
+        execution_available: true};
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="index" initialOperationId="alter" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'index',
+        title: 'Index', operations: [{operation_id: 'alter', title: 'Alter',
+          target_required: true, form: {fields: [
+            {field_id: 'change_ttl', label: 'Change TTL', control: 'boolean', default: false},
+            {field_id: 'ttl_seconds', label: 'Expire after seconds', control: 'number',
+              required: true, visible_when: {field_id: 'change_ttl', equals: true}},
+          ]}}]}]}} />);
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Change TTL'}));
+    fireEvent.change(screen.getByRole('spinbutton', {name: /Expire after seconds/}),
+      {target: {value: '0'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'index', operation_id: 'alter', target_resource: target,
+      draft: {change_ttl: true, ttl_seconds: 0},
+    }}));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Change TTL'}));
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+  });
   let originalHeight;
   beforeEach(() => {
     originalHeight = window.innerHeight;

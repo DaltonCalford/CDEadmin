@@ -1648,10 +1648,33 @@ class MongoDBClient:
                 return {
                     'form_id': 'mongodb.index.alter.v1',
                     'title': 'Modify MongoDB index properties',
-                    'fields': [f(
-                        'changes', 'collMod index fields', 'json', True,
-                        default={}, json_type='object',
-                    )],
+                    'fields': [
+                        f('visibility', 'Index visibility', 'select',
+                          default='unchanged', options=[
+                              {'value': value, 'label': label} for value, label
+                              in (('unchanged', 'Unchanged'),
+                                  ('hidden', 'Hidden'),
+                                  ('visible', 'Visible'))
+                          ]),
+                        f('change_ttl', 'Change TTL', 'boolean',
+                          default=False),
+                        f('ttl_seconds', 'Expire after seconds',
+                          'number', True,
+                          minimum=0, maximum=2147483647,
+                          visible_when={'field_id': 'change_ttl',
+                                        'equals': True}),
+                        f('uniqueness', 'Uniqueness operation', 'select',
+                          default='unchanged', options=[
+                              {'value': value, 'label': label} for value, label
+                              in (('unchanged', 'Unchanged'),
+                                  ('prepare', 'Prepare unique conversion'),
+                                  ('cancel_prepare', 'Cancel preparation'),
+                                  ('unique', 'Convert to unique'),
+                                  ('non_unique', 'Convert to non-unique'))
+                          ]),
+                        f('changes', 'Additional native index changes',
+                          'json', default={}, json_type='object'),
+                    ],
                 }
         if kind == 'validator' and operation in {'create', 'alter'}:
             container = 'options' if operation == 'create' else 'changes'
@@ -1899,6 +1922,12 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind == 'index' and operation == 'alter':
+            try:
+                self._index_changes(draft)
+            except MongoDBClientError as error:
+                errors.append({'field_id': 'changes', 'code': 'index_changes',
+                               'message': str(error)})
         if kind == 'index' and operation == 'create':
             try:
                 self._index_options(draft)
@@ -2028,6 +2057,8 @@ class MongoDBClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
+        if kind == 'index' and operation == 'alter':
+            draft = {'changes': self._index_changes(draft)}
         if kind == 'index' and operation == 'create':
             draft['options'] = self._index_options(draft)
             draft.pop('keys', None)
@@ -2042,6 +2073,19 @@ class MongoDBClient:
         }
         preview_draft = copy.deepcopy(draft)
         warnings = []
+        if kind == 'index' and operation == 'alter':
+            changes = draft['changes']
+            if 'expireAfterSeconds' in changes:
+                warnings.append(
+                    'TTL changes can make existing documents eligible for '
+                    'automatic deletion. Review retention before applying.')
+            if changes.get('prepareUnique'):
+                warnings.append(
+                    'Unique preparation rejects new duplicate keys; existing '
+                    'duplicates must be resolved before conversion.')
+            if changes.get('forceNonUnique'):
+                warnings.append(
+                    'Non-unique conversion removes uniqueness enforcement.')
         preview_observations = {}
         for container in ('options', 'changes'):
             value = preview_draft.get(container)
@@ -2831,6 +2875,62 @@ class MongoDBClient:
             raise MongoDBClientError('document operation is unavailable')
 
     @staticmethod
+    def _index_changes(draft):
+        raw = draft.get('changes', {})
+        allowed = {'hidden', 'expireAfterSeconds', 'prepareUnique', 'unique',
+                   'forceNonUnique'}
+        if not isinstance(raw, Mapping) or set(raw) - allowed:
+            raise MongoDBClientError(
+                'Index changes contain unsupported fields or an identity '
+                'override.')
+        changes = copy.deepcopy(dict(raw))
+
+        def add(key, value):
+            if key in changes:
+                raise MongoDBClientError(
+                    'Specify each index change once, visually or as native '
+                    'changes, not both.')
+            changes[key] = value
+
+        visibility = draft.get('visibility', 'unchanged')
+        if visibility not in ('unchanged', 'hidden', 'visible'):
+            raise MongoDBClientError('Index visibility choice is invalid.')
+        if visibility != 'unchanged':
+            add('hidden', visibility == 'hidden')
+        change_ttl = draft.get('change_ttl', False)
+        if not isinstance(change_ttl, bool):
+            raise MongoDBClientError('Change TTL must be true or false.')
+        if change_ttl:
+            add('expireAfterSeconds', draft.get('ttl_seconds'))
+        choices = {'prepare': ('prepareUnique', True),
+                   'cancel_prepare': ('prepareUnique', False),
+                   'unique': ('unique', True),
+                   'non_unique': ('forceNonUnique', True)}
+        uniqueness = draft.get('uniqueness', 'unchanged')
+        if uniqueness != 'unchanged':
+            if not isinstance(uniqueness, str) or uniqueness not in choices:
+                raise MongoDBClientError('Uniqueness choice is invalid.')
+            add(*choices[uniqueness])
+        if not changes:
+            raise MongoDBClientError('Choose at least one index change.')
+        for key, value in changes.items():
+            if key == 'expireAfterSeconds':
+                if type(value) is not int or not 0 <= value <= 2147483647:
+                    raise MongoDBClientError(
+                        'TTL must be an integer from 0 to 2147483647 seconds.')
+            elif not isinstance(value, bool):
+                raise MongoDBClientError('Index flags must be true or false.')
+            elif key in {'unique', 'forceNonUnique'} and not value:
+                raise MongoDBClientError(
+                    'Unique conversion flags only accept true.')
+        if {'unique', 'forceNonUnique'} <= set(changes):
+            raise MongoDBClientError('Conflicting uniqueness conversions.')
+        if 'prepareUnique' in changes and len(changes) != 1:
+            raise MongoDBClientError(
+                'Unique preparation must be performed separately.')
+        return changes
+
+    @staticmethod
     def _index_options(draft):
         options = draft.get('options', {})
         if not isinstance(options, Mapping):
@@ -2885,7 +2985,7 @@ class MongoDBClient:
                 'collMod': native.get('collection'),
                 'index': {
                     'name': native.get('index_name'),
-                    **_mapping(draft.get('changes'), 'index changes'),
+                    **MongoDBClient._index_changes(draft),
                 },
             })
         elif operation == 'drop':
