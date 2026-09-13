@@ -99,6 +99,34 @@ describe('provider structured record controls', () => {
       draft: {replace_rule: false, validation_action: 'warn'},
     }}));
   });
+  it('submits both Firebird role option removals without conflating them with membership removal', async () => {
+    const target = {resource_id: 'role:readers', resource_kind: 'role', display_name: 'readers'};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return target;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {state: 'ready', plan_id: 'role-options', plan_digest: 'digest', execution_available: true};
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="role" initialOperationId="revoke" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'role', title: 'Role',
+        operations: [{operation_id: 'revoke', title: 'Revoke', target_required: true,
+          form: {fields: [
+            {field_id: 'member', label: 'Member name', control: 'text', required: true},
+            {field_id: 'default_role', label: 'Remove default status only', control: 'boolean', default: false},
+            {field_id: 'admin_option_only', label: 'Revoke admin option only', control: 'boolean', default: false},
+            {field_id: 'confirmation', label: 'Confirmation', control: 'text', required: true},
+          ]}}]}]}} />);
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeEnabled());
+    fireEvent.change(screen.getByRole('textbox', {name: /Member name/}), {target: {value: 'operator'}});
+    fireEvent.change(screen.getByRole('textbox', {name: /Confirmation/}), {target: {value: 'readers'}});
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Remove default status only'}));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Revoke admin option only'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'role', operation_id: 'revoke', target_resource: target,
+      draft: {member: 'operator', confirmation: 'readers', default_role: true, admin_option_only: true},
+    }}));
+  });
   it('refreshes Firebird index statistics without replaying the catalog state', async () => {
     const target = {resource_id: 'index:items:ix', resource_kind: 'index',
       display_name: 'ix', extensions: {firebird: {native: {state: {active: true}}}}};

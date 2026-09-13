@@ -152,6 +152,32 @@ def verify(connection, client, profile, table, index, result):
             connection.commit()
             result['checks'].append('provider-role-admin-option-grant-revoke')
 
+            def membership_state(default, admin):
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        'SELECT RDB$FIELD_NAME, RDB$GRANT_OPTION FROM '
+                        'RDB$USER_PRIVILEGES WHERE RDB$USER = ? AND '
+                        'RDB$RELATION_NAME = ? AND RDB$PRIVILEGE = ?',
+                        (username, role, 'M'))
+                    rows = cursor.fetchall()
+                    assert len(rows) == 1, rows
+                    assert bool(rows[0][0]) == default, rows
+                    assert rows[0][1] == (2 if admin else 0), rows
+                connection.commit()
+
+            for default_only, admin_only in ((True, False), (False, True),
+                                             (True, True)):
+                membership('grant', default_role=True, admin_option=True)
+                membership_state(True, True)
+                membership('revoke', default_role=default_only,
+                           admin_option_only=admin_only)
+                membership_state(not default_only, not admin_only)
+                result['checks'].append(
+                    f'combined-role-revoke-default-{default_only}'
+                    f'-admin-{admin_only}-preserves-membership')
+            membership('revoke')
+            membership('grant')
+
             def role_check(label, active, allowed, selected_role=None):
                 role_route = {**route}
                 role_route.pop('role', None)
@@ -235,6 +261,25 @@ def verify(connection, client, profile, table, index, result):
                             'target_resource': {'display_name': role},
                             'draft': {'member': nested,
                                       'member_kind': 'ROLE'}})
+                        if allowed:
+                            forged = ADMINISTRATION.plan({
+                                '_provider_route': route,
+                                'resource_kind': 'role',
+                                'operation_id': 'grant',
+                                'target_resource': {'display_name': role},
+                                'draft': {'member': nested,
+                                          'member_kind': 'ROLE',
+                                          'grantor': 'SYSDBA'}})
+                            try:
+                                ADMINISTRATION.apply(client, forged,
+                                                     connection=attachment)
+                            except RelationalClientError as error:
+                                assert 'DatabaseError' in str(error), error
+                            else:
+                                raise AssertionError(
+                                    'Member impersonated SYSDBA grantor')
+                            result['checks'].append(
+                                'role-admin-cannot-impersonate-grantor')
                         try:
                             ADMINISTRATION.apply(client, plan,
                                                  connection=attachment)
@@ -259,6 +304,35 @@ def verify(connection, client, profile, table, index, result):
                 membership('revoke', nested, 'ROLE')
                 role_check('nested-role-edge-revocation-removes-access',
                            True, False, nested)
+                leaf = role + '_L'
+                execute(f'CREATE ROLE "{leaf}"')
+                connection.commit()
+                try:
+                    membership('grant', nested, 'ROLE', default_role=True)
+                    membership('grant', leaf, 'ROLE', selected_role=nested,
+                               default_role=True)
+                    membership('grant', selected_role=leaf)
+                    role_check('three-role-chain-inherits-ddl-privilege',
+                               True, True, leaf)
+                    membership('revoke', leaf, 'ROLE', selected_role=nested)
+                    role_check('three-role-chain-cut-removes-ddl-privilege',
+                               True, False, leaf)
+                finally:
+                    if connection.main_transaction.is_active():
+                        connection.rollback()
+                    execute(f'DROP ROLE "{leaf}"')
+                    connection.commit()
+                    with connection.cursor() as cursor:
+                        cursor.execute('SELECT COUNT(*) FROM RDB$ROLES '
+                                       'WHERE RDB$ROLE_NAME = ?', (leaf,))
+                        assert cursor.fetchone()[0] == 0
+                        cursor.execute(
+                            'SELECT COUNT(*) FROM RDB$USER_PRIVILEGES '
+                            'WHERE RDB$USER = ? OR RDB$RELATION_NAME = ?',
+                            (leaf, leaf))
+                        assert cursor.fetchone()[0] == 0
+                    connection.commit()
+                    result['temporary_leaf_role_removed'] = True
             finally:
                 if connection.main_transaction.is_active():
                     connection.rollback()

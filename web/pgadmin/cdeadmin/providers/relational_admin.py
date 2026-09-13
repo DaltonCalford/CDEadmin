@@ -3831,13 +3831,21 @@ class RelationalAdministration:
                 self._field(
                     'default_role', 'Default role' if operation == 'grant'
                     else 'Remove default status only', 'boolean',
-                    default=False),
+                    default=False, help_text=(
+                        'Makes the role effective without selecting it.'
+                        if operation == 'grant' else
+                        'Keeps membership. Select both removal options to '
+                        'remove default status and delegation together.')),
                 self._field(
                     'admin_option' if operation == 'grant'
                     else 'admin_option_only',
                     'Allow delegation' if operation == 'grant'
                     else 'Revoke admin option only', 'boolean',
-                    default=False),
+                    default=False, help_text=(
+                        'Allows the member to grant this role to others.'
+                        if operation == 'grant' else
+                        'Keeps membership. Leave both removal options '
+                        'unchecked to revoke membership itself.')),
                 self._field('grantor', 'Grantor (optional)', 'text',
                             help_text='Uses GRANTED BY USER; the server '
                             'checks authority to act as this grantor.'),
