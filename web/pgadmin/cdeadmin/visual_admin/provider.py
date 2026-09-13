@@ -1039,10 +1039,18 @@ class ProviderVisualAdministration:
                     for index, item in enumerate(value):
                         prefix = f'{label} item {index + 1}'
                         if schema['item_kind'] == 'string':
-                            if not isinstance(item, str) or not item.strip():
+                            if not isinstance(item, str) or (
+                                    not schema.get('allow_empty') and
+                                    not item.strip()):
                                 return None, {
                                     'field_id': field_id, 'code': 'type',
                                     'message': f'{prefix} requires text.',
+                                }
+                            if schema.get('unique_items') and (
+                                    item in normalized):
+                                return None, {
+                                    'field_id': field_id, 'code': 'duplicate',
+                                    'message': f'{prefix} duplicates a value.',
                                 }
                             normalized.append(item)
                             continue

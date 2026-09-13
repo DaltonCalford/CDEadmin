@@ -4134,6 +4134,7 @@ class RelationalAdministration:
                 fields.extend((
                     self._field(
                         'type_kind', 'Type kind', 'select', True,
+                        default='ALIAS',
                         options=('ALIAS', 'ENUM', 'STRUCT', 'UNION'),
                     ),
                     self._field('base_type', 'Alias base type', 'text'),
@@ -4142,6 +4143,29 @@ class RelationalAdministration:
                     self._field('fields', 'Struct/union fields', 'json',
                                 False, default=[]),
                 ))
+                for item in fields:
+                    key = item['field_id']
+                    if key == 'base_type':
+                        item.update(required=True, visible_when={
+                            'field_id': 'type_kind', 'equals': 'ALIAS'})
+                    elif key == 'enum_values':
+                        item.update(required=True, json_type='array',
+                                    array_editor={'item_kind': 'string',
+                                                  'allow_empty': True,
+                                                  'unique_items': True},
+                                    visible_when={'field_id': 'type_kind',
+                                                  'equals': 'ENUM'})
+                    elif key == 'fields':
+                        item.update(required=True, json_type='array',
+                                    array_editor={
+                                        'item_kind': 'object', 'fields': [
+                                            self._field('name', 'Member name',
+                                                        'text', True),
+                                            self._field('type', 'Native type',
+                                                        'text', True),
+                                        ]}, visible_when={
+                                            'field_id': 'type_kind',
+                                            'in': ['STRUCT', 'UNION']})
             elif kind in {'macro', 'function'} and (
                 self.dialect.engine_id == 'duckdb'
             ):

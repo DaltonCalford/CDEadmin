@@ -2738,6 +2738,121 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
 
 class DuckDBVisualAdministrationTests(unittest.TestCase):
 
+    def test_duckdb_type_validation_omits_inactive_values(self):
+        context = SimpleNamespace(
+            endpoint_id='duckdb-type-test', mode='legacy_native',
+            runtime_verification_state='verified',
+            verified_runtime_family='duckdb',
+            declared_runtime_family='duckdb',
+            effective_permissions=frozenset({'administer'}))
+        visual = ProviderVisualAdministration(
+            context, Permissions(), 'duckdb', '1.5.2',
+            AdministrationClient(DUCKDB_ADMINISTRATION))
+        for kind, value in (
+                ('ALIAS', {'base_type': 'INTEGER'}),
+                ('ENUM', {'enum_values': ['a', 'b']}),
+                ('STRUCT', {'fields': [{'name': 'a', 'type': 'INTEGER'}]}),
+                ('UNION', {'fields': [{'name': 'a', 'type': 'INTEGER'}]})):
+            draft = {'name': 'qa_type', 'type_kind': kind,
+                     'base_type': 'ignored', 'enum_values': ['ignored'],
+                     'fields': [{'ignored': True}], **value}
+            result = visual.validate({'resource_kind': 'type',
+                                      'operation_id': 'create',
+                                      'draft': draft})
+            self.assertTrue(result['valid'], result['errors'])
+            inactive = {'base_type', 'enum_values', 'fields'} - set(value)
+            for field_id in inactive:
+                self.assertNotIn(field_id, result['draft'])
+        invalid = visual.validate({'resource_kind': 'type',
+                                   'operation_id': 'create',
+                                   'draft': {
+                                       'name': 'bad', 'type_kind': 'ENUM',
+                                       'enum_values': []}})
+        self.assertFalse(invalid['valid'])
+
+    def test_duckdb_type_forms_select_only_native_kind_fields(self):
+        form = DUCKDB_ADMINISTRATION._form('type', 'create')
+        fields = {item['field_id']: item for item in form['fields']}
+        self.assertEqual('ALIAS', fields['type_kind']['default'])
+        for kind, expected in (('ALIAS', {'base_type'}),
+                               ('ENUM', {'enum_values'}),
+                               ('STRUCT', {'fields'}),
+                               ('UNION', {'fields'})):
+            with self.subTest(kind=kind):
+                active = {key for key in ('base_type', 'enum_values', 'fields')
+                          if ProviderVisualAdministration._field_active(
+                              fields[key], {'type_kind': kind})}
+                self.assertEqual(expected, active)
+                self.assertTrue(all(fields[key]['required'] for key in active))
+        enum = fields['enum_values']
+        for value in (['', ' ', "it's", '序列'],):
+            admitted, error = ProviderVisualAdministration._validate_field(
+                enum, value)
+            self.assertIsNone(error)
+            self.assertEqual(value, admitted)
+        for value in ([], ['same', 'same'], [1]):
+            _, error = ProviderVisualAdministration._validate_field(
+                enum, value)
+            self.assertIsNotNone(error)
+        invalid_members = [[], [{'name': 'a'}], [
+            {'name': 'a', 'type': 'INTEGER', 'unsupported': True}]]
+        for value in invalid_members:
+            _, error = ProviderVisualAdministration._validate_field(
+                fields['fields'], value)
+            self.assertIsNotNone(error)
+
+    def test_duckdb_visual_types_execute_all_four_native_kinds(self):
+        import duckdb
+        validate = ProviderVisualAdministration._validate_field
+        form = DUCKDB_ADMINISTRATION._form('type', 'create')
+        with tempfile.TemporaryDirectory() as temporary:
+            route = {'database': str(Path(temporary) / 'types.duckdb'),
+                     'filesystem_root': temporary, 'route_id': 'type-test'}
+            client = duckdb_client()
+            try:
+                cases = [
+                    ('ALIAS', {'base_type': 'INTEGER'},
+                     'SELECT 42::qa_alias', 42),
+                    ('ENUM', {'enum_values': ['', "it's", '序列']},
+                     "SELECT ''::qa_enum::VARCHAR", ''),
+                    ('STRUCT', {'fields': [
+                        {'name': 'a', 'type': 'INTEGER'},
+                        {'name': 'b', 'type': 'VARCHAR'}]},
+                     "SELECT ({'a': 42, 'b': 'ok'}::qa_struct).a", 42),
+                    ('UNION', {'fields': [
+                        {'name': 'n', 'type': 'INTEGER'},
+                        {'name': 's', 'type': 'VARCHAR'}]},
+                     'SELECT (union_value(n := 42)::qa_union).n', 42),
+                ]
+                for kind, values, query, expected in cases:
+                    with self.subTest(kind=kind):
+                        draft = {'name': 'qa_' + kind.lower(),
+                                 'type_kind': kind, **values}
+                        for field in form['fields']:
+                            key = field['field_id']
+                            if key in draft:
+                                draft[key], error = validate(field, draft[key])
+                                self.assertIsNone(error)
+                        plan = DUCKDB_ADMINISTRATION.plan({
+                            'resource_kind': 'type', 'operation_id': 'create',
+                            'target_resource': None, 'draft': draft,
+                            '_provider_route': route})
+                        DUCKDB_ADMINISTRATION.apply(client, {
+                            'provider_payload': plan['provider_payload']})
+                        connection = duckdb.connect(route['database'])
+                        try:
+                            observed = connection.execute(query).fetchone()[0]
+                            self.assertEqual(expected, observed)
+                            connection.execute('BEGIN TRANSACTION')
+                            connection.execute('DROP TYPE ' + draft['name'])
+                            connection.execute('ROLLBACK')
+                            observed = connection.execute(query).fetchone()[0]
+                            self.assertEqual(expected, observed)
+                        finally:
+                            connection.close()
+            finally:
+                client.close()
+
     def test_duckdb_profile_contributes_exact_native_query_plans(self):
         self.assertEqual((
             ('DuckDB physical query plan', 'EXPLAIN {source}'),
