@@ -167,6 +167,32 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_index_statistics_and_state_are_independent(self):
+        def plan(draft):
+            return FIREBIRD_ADMINISTRATION.plan({
+                'resource_kind': 'index', 'operation_id': 'alter',
+                '_provider_route': {'database': 'test'}, 'draft': draft,
+                'target_resource': {'display_name': 'IX',
+                                    'display_path': ['T', 'IX']},
+            })['command_preview']['statements']
+        self.assertEqual(['SET STATISTICS INDEX "IX"'], [
+            s['source'] for s in plan({'refresh_statistics': True})])
+        self.assertEqual(['ALTER INDEX "IX" INACTIVE'], [
+            s['source'] for s in plan({'active': False})])
+        self.assertEqual(['ALTER INDEX "IX" ACTIVE',
+                          'SET STATISTICS INDEX "IX"'], [s['source'] for s in
+                         plan({'active': True, 'refresh_statistics': True})])
+        for draft in ({}, {'refresh_statistics': False}, {'active': 1},
+                      {'refresh_statistics': 'yes'}):
+            with self.subTest(draft=draft):
+                with self.assertRaises(RelationalClientError):
+                    plan(draft)
+        fields = {f['field_id']: f for f in
+                  FIREBIRD_ADMINISTRATION._form('index', 'alter')['fields']}
+        self.assertEqual(['state', 'active'],
+                         fields['active']['initial_value_path'])
+        self.assertNotIn('default', fields['active'])
+
     def test_firebird_catalog_blob_text_preserved_and_closed(self):
         text = '  comment; with apostrophe \' and newline\n' + 'x' * 100000
         for field in ('description', 'expression_source', 'condition_source'):

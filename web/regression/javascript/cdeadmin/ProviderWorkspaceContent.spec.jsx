@@ -99,6 +99,39 @@ describe('provider structured record controls', () => {
       draft: {replace_rule: false, validation_action: 'warn'},
     }}));
   });
+  it('refreshes Firebird index statistics without replaying the catalog state', async () => {
+    const target = {resource_id: 'index:items:ix', resource_kind: 'index',
+      display_name: 'ix', extensions: {firebird: {native: {state: {active: true}}}}};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return target;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {state: 'ready', plan_id: 'index-statistics', plan_digest: 'digest',
+        execution_available: true};
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="index" initialOperationId="alter" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'index',
+        title: 'Index', operations: [{operation_id: 'alter', title: 'Alter',
+          target_required: true, form: {fields: [
+            {field_id: 'active', label: 'Active', control: 'boolean',
+              initial_value_path: ['state', 'active']},
+            {field_id: 'refresh_statistics', label: 'Recalculate index statistics',
+              control: 'boolean', default: false},
+          ]}}]}]}} />);
+    await waitFor(() => expect(screen.getByRole('checkbox', {name: 'Active'})).toBeChecked());
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Recalculate index statistics'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'index', operation_id: 'alter', target_resource: target,
+      draft: {refresh_statistics: true},
+    }}));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Active'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'index', operation_id: 'alter', target_resource: target,
+      draft: {active: false, refresh_statistics: true},
+    }}));
+  });
   it('shows TTL input only when requested and preserves zero seconds in the draft', async () => {
     const target = {resource_id: 'index:ttl', resource_kind: 'index',
       display_name: 'ttl'};

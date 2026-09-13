@@ -3698,7 +3698,8 @@ class RelationalAdministration:
                 }
             elif kind == 'index' and self.dialect.engine_id == 'firebird':
                 value['changes'] = {
-                    'active': value.pop('active')
+                    key: value.pop(key) for key in
+                    ('active', 'refresh_statistics') if key in value
                 }
             elif kind == 'sequence':
                 value['changes'] = {
@@ -4338,9 +4339,13 @@ class RelationalAdministration:
         ):
             return {
                 'form_id': 'index.alter', 'title': 'Alter index',
-                'fields': [self._field(
-                    'active', 'Active', 'boolean', False, default=True
-                )],
+                'fields': [
+                    {**self._field('active', 'Active', 'boolean', False),
+                     'initial_value_path': ['state', 'active']},
+                    self._field('refresh_statistics',
+                                'Recalculate index statistics', 'boolean',
+                                False, default=False),
+                ],
             }
         if operation == 'alter' and kind == 'publication' and (
             self.dialect.engine_id == 'firebird'
@@ -5361,14 +5366,23 @@ class RelationalAdministration:
                 'parameters': (),
             }]
         if kind == 'index' and self.dialect.engine_id == 'firebird':
-            state = 'ACTIVE' if changes.get('active') else 'INACTIVE'
             target = self._quote(
                 request['target_resource'].get('display_name')
             )
-            return [{
-                'source': f'ALTER INDEX {target} {state}',
-                'parameters': (),
-            }]
+            statements = []
+            for key in ('active', 'refresh_statistics'):
+                if key in changes and not isinstance(changes[key], bool):
+                    raise RelationalClientError(f'{key} must be boolean')
+            if 'active' in changes:
+                state = 'ACTIVE' if changes['active'] else 'INACTIVE'
+                statements.append({'source': f'ALTER INDEX {target} {state}',
+                                   'parameters': ()})
+            if changes.get('refresh_statistics'):
+                statements.append({'source': f'SET STATISTICS INDEX {target}',
+                                   'parameters': ()})
+            if not statements:
+                raise RelationalClientError('Choose an index change')
+            return statements
         if kind == 'publication' and self.dialect.engine_id == 'firebird':
             include = changes.get('include_tables') or []
             exclude = changes.get('exclude_tables') or []

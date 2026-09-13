@@ -118,6 +118,35 @@ def run(profiles_path):
                     connection.commit()
                     result['checks'].append(
                         f'{kind}-{direction}-partial-{partial}')
+        name = table + '_S'
+        apply('create', {'name': name, 'table': table, 'columns': ['ID']},
+              name)
+        for number in range(10):
+            execute(f'INSERT INTO "{table}" VALUES (?, \'sample\')',
+                    (number,))
+        connection.commit()
+        apply('alter', {'refresh_statistics': True}, name)
+        statistics, inactive = execute(
+            'SELECT RDB$STATISTICS, RDB$INDEX_INACTIVE FROM RDB$INDICES '
+            'WHERE RDB$INDEX_NAME = ?', (name,), True)[0]
+        assert abs(statistics - 0.1) < 0.00001, statistics
+        assert not inactive
+        connection.commit()
+        result['checks'].append('statistics-refresh-selectivity-active')
+        apply('alter', {'active': False}, name)
+        apply('alter', {'refresh_statistics': True}, name)
+        assert execute('SELECT RDB$INDEX_INACTIVE FROM RDB$INDICES '
+                       'WHERE RDB$INDEX_NAME = ?', (name,), True) == [(1,)]
+        connection.commit()
+        result['checks'].append('statistics-refresh-preserves-inactive')
+        apply('alter', {'active': True, 'refresh_statistics': True}, name)
+        assert execute('SELECT RDB$INDEX_INACTIVE FROM RDB$INDICES '
+                       'WHERE RDB$INDEX_NAME = ?', (name,), True) == [(0,)]
+        connection.commit()
+        result['checks'].append('activate-and-refresh-statistics')
+        apply('drop', {}, name)
+        execute(f'DELETE FROM "{table}"')
+        connection.commit()
         # Exercise native expression text through the provider planner.
         cases = [
             ('concat', "UPPER(V) || ';'", 'ID != 0', 'ROBIN;'),
