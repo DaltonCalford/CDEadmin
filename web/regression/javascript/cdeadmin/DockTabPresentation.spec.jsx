@@ -55,6 +55,9 @@ describe('CDEadmin main dock tab switcher', () => {
       shape: {borderRadius: 0},
     };
     const panel = rcdockOverride(theme)['.dock-layout']['& .dock-panel'];
+    expect(panel['&.dock-style-playground'][
+      '& > .dock > .dock-bar:has(.dock-tab):not(:has(.dock-tab ~ .dock-tab))'
+    ]).toEqual({display: 'none'});
     const main = panel['&.dock-style-playground']['&[data-dockid="id-main"]'];
     const tab = main['& > .dock > .dock-bar']['& .dock-tab'];
     expect(tab.filter).toBe('brightness(0.85)');

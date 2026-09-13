@@ -7,275 +7,183 @@
 //
 //////////////////////////////////////////////////////////////
 
-import { styled } from '@mui/material/styles';
+import {styled} from '@mui/material/styles';
 import gettext from 'sources/gettext';
-import _ from 'lodash';
 import PropTypes from 'prop-types';
-import pgAdmin from 'sources/pgadmin';
 import CDEadminLogo from './CDEadminLogo';
-import { Link } from '@mui/material';
 import url_for from 'sources/url_for';
-
+import {Icon} from 'sources/cdeadmin_ui/icons';
+import {useWorkbenchActivities} from 'sources/cdeadmin_ui/shell/WorkbenchShell';
 
 const Root = styled('div')(({theme}) => ({
   background: theme.palette.grey[400],
-  overflow: 'hidden',
-  padding: '8px',
-  display: 'flex',
-  flexDirection: 'column',
-  flexGrow: 1,
+  overflow: 'auto',
+  padding: 'clamp(8px, 1.5vw, 20px)',
   height: '100%',
   '& .WelcomeDashboard-dashboardContainer': {
-    paddingBottom: '8px',
-    minHeight: '100%',
-
-    '& .WelcomeDashboard-row': {
-      marginRight: '-8px',
-      marginLeft: '-8px'
+    width: 'min(1280px, 100%)',
+    margin: '0 auto',
+  },
+  '& .WelcomeDashboard-card': {
+    minWidth: 0,
+    wordWrap: 'break-word',
+    backgroundColor: theme.otherVars.tableBg,
+    border: `1px solid ${theme.otherVars.borderColor}`,
+    borderRadius: theme.shape.borderRadius,
+    marginBottom: 'clamp(10px, 1.5vw, 20px)',
+  },
+  '& .WelcomeDashboard-cardHeader': {
+    padding: '0.45rem 0.75rem',
+    fontWeight: 'bold',
+    borderBottom: `1px solid ${theme.otherVars.borderColor}`,
+  },
+  '& .WelcomeDashboard-cardBody': {
+    padding: 'clamp(12px, 2vw, 24px)',
+  },
+  '& .WelcomeDashboard-welcomeLogo .welcome-logo': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'clamp(14px, 2vw, 28px)',
+    '& svg': {
+      width: 'clamp(72px, 10vw, 128px)',
+      height: 'clamp(72px, 10vw, 128px)',
+      flex: '0 0 auto',
     },
-    '& .WelcomeDashboard-cardColumn': {
-      flex: '0 0 100%',
-      maxWidth: '100%',
-      margin: '8px',
-
-      '& .WelcomeDashboard-card': {
-        position: 'relative',
-        minWidth: 0,
-        wordWrap: 'break-word',
-        backgroundColor: theme.otherVars.tableBg,
-        backgroundClip: 'border-box',
-        border: '1px solid' + theme.otherVars.borderColor,
-        borderRadius: theme.shape.borderRadius,
-        marginTop: 8,
-
-        '& .WelcomeDashboard-cardHeader': {
-          padding: '0.25rem 0.5rem',
-          fontWeight: 'bold',
-          backgroundColor: theme.otherVars.tableBg,
-          borderBottom: '1px solid',
-          borderBottomColor: theme.otherVars.borderColor,
-        },
-        '& .WelcomeDashboard-cardBody': {
-          flex: '1 1 auto',
-          minHeight: '1px',
-          padding: '0.5rem !important',
-
-          '& .WelcomeDashboard-welcomeLogo': {
-            width: '400px',
-            '& .app-name': {
-              fill: theme.otherVars.colorBrand
-            },
-            '& .app-name-underline': {
-              stroke: theme.palette.text.primary
-            },
-            '& .app-tagline': {
-              fill: theme.palette.text.primary
-            }
-          },
-
-          '& .WelcomeDashboard-rowContent': {
-            display: 'flex',
-            flexWrap: 'wrap',
-            marginRight: '-7.5px',
-            marginLeft: '-7.5px',
-
-            '& .WelcomeDashboard-dashboardLink': {
-              color: theme.palette.text.primary + ' !important',
-              flex: '0 0 50%',
-              maxWidth: '50%',
-              textAlign: 'center',
-              cursor: 'pointer',
-
-              '& .WelcomeDashboard-link': {
-                color: theme.palette.text.primary + ' !important',
-
-                '& .WelcomeDashboard-dashboardIcon': {
-                  color: theme.otherVars.colorBrand
-                }
-              },
-            },
-
-            '& .WelcomeDashboard-gettingStartedLink': {
-              flex: '0 0 25%',
-              maxWidth: '50%',
-              textAlign: 'center',
-              cursor: 'pointer',
-
-              '& .WelcomeDashboard-link': {
-                color: theme.palette.text.primary + ' !important',
-
-                '& .WelcomeDashboard-dashboardIcon': {
-                  color: theme.otherVars.colorBrand
-                }
-              },
-            },
-          },
-        },
-      },
+    '& h1': {
+      color: theme.otherVars.colorBrand,
+      fontSize: 'clamp(1.6rem, 3.5vw, 3.25rem)',
+      lineHeight: 1.08,
+      margin: 0,
+    },
+  },
+  '& .WelcomeDashboard-description': {
+    fontSize: 'clamp(1rem, 1.35vw, 1.2rem)',
+    margin: '16px 0 0',
+  },
+  '& .WelcomeDashboard-launchGrid': {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(170px, 100%), 1fr))',
+    gap: 'clamp(10px, 1.5vw, 18px)',
+  },
+  '& .WelcomeDashboard-launchTile': {
+    appearance: 'none',
+    minWidth: 0,
+    minHeight: '132px',
+    padding: '16px 10px',
+    border: `1px solid ${theme.otherVars.borderColor}`,
+    borderRadius: theme.shape.borderRadius,
+    background: theme.palette.background.default,
+    color: `${theme.palette.text.primary} !important`,
+    font: 'inherit',
+    fontWeight: 600,
+    textDecoration: 'none !important',
+    textAlign: 'center',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    overflowWrap: 'anywhere',
+    '&:hover:not(:disabled)': {
+      borderColor: theme.palette.primary.main,
+      background: theme.palette.action.hover,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${theme.palette.primary.main}`,
+      outlineOffset: '2px',
+    },
+    '&:disabled': {
+      cursor: 'not-allowed',
+      opacity: 0.5,
+    },
+    '& svg, & img, & i': {
+      width: 'clamp(48px, 6vw, 72px)',
+      height: 'clamp(48px, 6vw, 72px)',
+      fontSize: 'clamp(48px, 6vw, 72px)',
+      flex: '0 0 auto',
+    },
+  },
+  '@media (max-width: 560px)': {
+    '& .WelcomeDashboard-welcomeLogo .welcome-logo': {
+      alignItems: 'flex-start',
+      flexDirection: 'column',
     },
   },
 }));
 
-
-function AddNewServer(pgBrowser) {
-  if (pgBrowser?.tree) {
-    let i = _.isUndefined(pgBrowser.tree.selected()) ?
-        pgBrowser.tree.first(null, false) :
-        pgBrowser.tree.selected(),
-      serverModule = pgAdmin.Browser.Nodes.server,
-      itemData = pgBrowser.tree.itemData(i);
-
-    while (itemData && itemData._type != 'server_group') {
-      i = pgBrowser.tree.next(i);
-      itemData = pgBrowser.tree.itemData(i);
-    }
-
-    if (!itemData) {
-      return;
-    }
-
-    if (serverModule) {
-      serverModule.callbacks.show_obj_properties.apply(
-        serverModule, [{
-          action: 'create',
-        }, i]
-      );
-    }
-  }
+function ActivityLaunchers() {
+  const {activities, activate} = useWorkbenchActivities();
+  return <div className="WelcomeDashboard-launchGrid"
+    data-cdeadmin-qa-key="dashboard.welcome.workspace-launchers">
+    {activities.map((activity) => <button type="button"
+      className="WelcomeDashboard-launchTile" key={activity.id}
+      disabled={activity.disabled === true}
+      title={activity.disabledReason || activity.label}
+      onClick={() => activate(activity.id)}>
+      <Icon iconKey={activity.iconKey || 'command.default'} decorative />
+      <span>{activity.label}</span>
+    </button>)}
+  </div>;
 }
 
-export default function WelcomeDashboard({ pgBrowser }) {
-  return (
-    <Root>
-      <div className='WelcomeDashboard-dashboardContainer'>
-        <div className='WelcomeDashboard-row'>
-          <div className='WelcomeDashboard-cardColumn'>
-            <div className='WelcomeDashboard-card'>
-              <div className='WelcomeDashboard-cardHeader'>{gettext('Welcome')}</div>
-              <div className='WelcomeDashboard-cardBody'>
-                <div className='WelcomeDashboard-welcomeLogo'>
-                  <CDEadminLogo />
-                </div>
-                <h4>
-                  {gettext('Multi-engine')} | {gettext('Multi-model')}{' '}
-                  | {gettext('Open Source')}{' '}
-                </h4>
-                <p>
-                  {gettext(
-                    'CDEadmin is an independent hard fork of pgAdmin 4 for administering ScratchBird and independently managed database engines. Its provider-driven workspaces support relational, document, graph, key-value, analytic and distributed data systems without treating an emulated endpoint differently from its native counterpart.'
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className='WelcomeDashboard-row'>
-          <div className='WelcomeDashboard-cardColumn'>
-            <div className='WelcomeDashboard-card'>
-              <div className='WelcomeDashboard-cardHeader'>{gettext('Quick Links')}</div>
-              <div className='WelcomeDashboard-cardBody'>
-                <div className='WelcomeDashboard-rowContent'>
-                  <div className='WelcomeDashboard-dashboardLink'>
-                    <Link onClick={() => { AddNewServer(pgBrowser); }} className='WelcomeDashboard-link'>
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          className="fa fa-4x fa-server"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('Add New Server')}
-                    </Link>
-                  </div>
-                  <div className='WelcomeDashboard-dashboardLink'>
-                    <Link onClick={() => pgAdmin.Preferences.show()} className='WelcomeDashboard-link'>
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          id="mnu_preferences"
-                          className="fa fa-4x fa-cogs"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('Configure CDEadmin')}
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className='WelcomeDashboard-row'>
-          <div className='WelcomeDashboard-cardColumn'>
-            <div className='WelcomeDashboard-card'>
-              <div className='WelcomeDashboard-cardHeader'>{gettext('Getting Started')}</div>
-              <div className='WelcomeDashboard-cardBody'>
-                <div className='WelcomeDashboard-rowContent'>
-                  <div className='WelcomeDashboard-gettingStartedLink'>
-                    <a
-                      href={url_for('help.static', {filename: 'index.html'})}
-                      target="cdeadmin_help"
-                      className='WelcomeDashboard-link'
-                    >
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          className="fa fa-4x dashboard-cdeadmin-doc"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('CDEadmin Documentation')}
-                    </a>
-                  </div>
-                  <div className='WelcomeDashboard-gettingStartedLink'>
-                    <a href="https://www.pgadmin.org" target="upstream_pgadmin" className='WelcomeDashboard-link'>
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          className="fa fa-4x fa-globe"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('Upstream pgAdmin Project')}
-                    </a>
-                  </div>
-                  <div className='WelcomeDashboard-gettingStartedLink'>
-                    <a
-                      href={url_for('help.static', {filename: 'cdeadmin_hard_fork.html'})}
-                      target="cdeadmin_status"
-                      className='WelcomeDashboard-link'
-                    >
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          className="fa fa-4x fa-book"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('Hard-fork Status')}
-                    </a>
-                  </div>
-                  <div className='WelcomeDashboard-gettingStartedLink'>
-                    <a
-                      href={url_for('help.static', {filename: 'licence.html'})}
-                      target="cdeadmin_licence"
-                      className='WelcomeDashboard-link'
-                    >
-                      <div className='WelcomeDashboard-dashboardIcon'>
-                        <span
-                          className="fa fa-4x fa-users"
-                          aria-hidden="true"
-                        ></span>
-                      </div>
-                      {gettext('Licence and Attribution')}
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Root>
-  );
+function DocumentationLaunchers() {
+  return <div className="WelcomeDashboard-launchGrid"
+    data-cdeadmin-qa-key="dashboard.welcome.documentation-launchers">
+    <a href={url_for('help.static', {filename: 'index.html'})}
+      target="scratchrobin_help" role="link"
+      data-cdeadmin-qa-key="dashboard.welcome.scratchrobin-documentation"
+      className="WelcomeDashboard-launchTile">
+      <Icon iconKey="tool.scratchrobin" decorative />
+      <span>{gettext('ScratchRobin Documentation')}</span>
+    </a>
+    <a href="https://github.com/scratchbird-software-inc/ScratchBird"
+      target="scratchbird_help" rel="noopener noreferrer"
+      data-cdeadmin-qa-key="dashboard.welcome.scratchbird-documentation"
+      className="WelcomeDashboard-launchTile">
+      <Icon iconKey="engine.scratchbird" decorative />
+      <span>{gettext('ScratchBird Documentation')}</span>
+    </a>
+  </div>;
 }
 
+export default function WelcomeDashboard({pgBrowser: _pgBrowser}) {
+  return <Root>
+    <div className="WelcomeDashboard-dashboardContainer">
+      <section className="WelcomeDashboard-card" aria-labelledby="welcome-title">
+        <div className="WelcomeDashboard-cardHeader">{gettext('Welcome')}</div>
+        <div className="WelcomeDashboard-cardBody">
+          <div className="WelcomeDashboard-welcomeLogo" id="welcome-title">
+            <CDEadminLogo />
+          </div>
+          <p className="WelcomeDashboard-description">
+            {gettext('A data management and business intelligence tool. A part of the ScratchBird CDE family of products.')}
+          </p>
+        </div>
+      </section>
+      <section className="WelcomeDashboard-card"
+        aria-labelledby="workspace-launcher-title">
+        <div className="WelcomeDashboard-cardHeader" id="workspace-launcher-title">
+          {gettext('Workspaces')}
+        </div>
+        <div className="WelcomeDashboard-cardBody">
+          <ActivityLaunchers />
+        </div>
+      </section>
+      <section className="WelcomeDashboard-card"
+        aria-labelledby="documentation-launcher-title">
+        <div className="WelcomeDashboard-cardHeader"
+          id="documentation-launcher-title">
+          {gettext('Documentation')}
+        </div>
+        <div className="WelcomeDashboard-cardBody">
+          <DocumentationLaunchers />
+        </div>
+      </section>
+    </div>
+  </Root>;
+}
 
 WelcomeDashboard.propTypes = {
-  pgBrowser: PropTypes.object.isRequired
+  pgBrowser: PropTypes.object.isRequired,
 };

@@ -213,18 +213,27 @@ hard-coding feature modules.
 `shell/WorkbenchShell` implements the activity rail, live-resource and authored
 project navigators, docked work surface, Inspector/Toolbox, bottom drawer, and
 status bar. Navigation, Inspector, and drawer dimensions are bounded and stored
-device-locally. Activity commands reveal the navigator as well as selecting its
-content. Explorer activities share one persistent, QA-identifiable navigator
-drawer. Selecting the active explorer activity again collapses the drawer to
-the rail and expands the workbench; selecting an explorer while it is collapsed
-slides the same drawer open. Switching explorer content does not replace the
-drawer DOM element or its QA identity. The activity rail is also the sole
-workspace switcher: Query Tool,
+device-locally. A new application session deliberately starts with no activity
+selected and with both navigator and Inspector closed; stored dimensions remain
+available, but stale open-pane state is not restored. Activity commands reveal
+the navigator as well as selecting its content. Explorer activities share one
+persistent, QA-identifiable navigator drawer. Selecting the active explorer
+activity again collapses the drawer to the rail and expands the workbench;
+selecting an explorer while it is collapsed slides the same drawer open.
+Switching explorer content does not replace the drawer DOM element or its QA
+identity. There is no floating navigator-reveal control over the application
+menu: the activity rail is the only navigator and workspace switcher. Query Tool,
 command-line, schema-diff, and Preferences actions are icon-bearing activity
 tabs, and the former vertical workspace toolbar is not rendered or retained.
-Unavailable workspace tabs remain visible and disabled. The legacy dock remains
-the panel layout engine behind the semantic shell boundary, and focus changes
-are reflected into workbench context.
+Unavailable workspace tabs remain visible and disabled. Explicit resource or
+project-asset selection opens the Inspector; deselection closes it, and the
+Inspector has no detached reveal button. The main dock suppresses its tab strip
+when a panel contains one tab and exposes the strip as soon as a second docked
+surface is present. The welcome workspace consumes the same authoritative
+activity catalog as the rail, presenting every activity as a responsive,
+large-icon launcher rather than maintaining a second hard-coded catalog. The
+legacy dock remains the panel layout engine behind the semantic shell boundary,
+and focus changes are reflected into workbench context.
 
 Live provider resources and authored project assets are intentionally separate.
 `ProjectAssetService` provides authenticated membership, optimistic project and

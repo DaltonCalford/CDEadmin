@@ -7,7 +7,9 @@
 //
 //////////////////////////////////////////////////////////////
 
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useState,
+} from 'react';
 import PropTypes from 'prop-types';
 import {Box} from '@mui/material';
 import {Icon} from '../icons';
@@ -15,17 +17,32 @@ import {IconButton} from '../primitives/Button';
 import {Drawer, Splitter, StatusBar, Toolbar} from '../layout/WorkbenchChrome';
 
 export const WORKBENCH_LAYOUT_SCHEMA = 'cdeadmin.workbench-layout.v1';
+export const WORKBENCH_INSPECT_EVENT = 'cdeadmin:workbench-inspect';
 export const ACTIVITY_RAIL_WIDTH = 56;
 export const DEFAULT_WORKBENCH_LAYOUT = Object.freeze({
   schema: WORKBENCH_LAYOUT_SCHEMA,
   navigationWidth: 288,
   inspectorWidth: 340,
   drawerHeight: 240,
-  navigationVisible: true,
-  inspectorVisible: true,
+  navigationVisible: false,
+  inspectorVisible: false,
   drawerVisible: false,
-  activeActivity: 'activity.data',
+  activeActivity: '',
 });
+
+const WorkbenchActivityContext = createContext(Object.freeze({
+  activities: Object.freeze([]), activate: () => false,
+}));
+
+export function useWorkbenchActivities() {
+  return useContext(WorkbenchActivityContext);
+}
+
+export function requestWorkbenchInspection(visible=true, target=window) {
+  target.dispatchEvent(new target.CustomEvent(WORKBENCH_INSPECT_EVENT, {
+    detail: {visible: Boolean(visible)},
+  }));
+}
 
 function bounded(value, minimum, maximum, fallback) {
   return Number.isFinite(value) ? Math.max(minimum, Math.min(maximum, value)) : fallback;
@@ -37,11 +54,11 @@ export function normalizeWorkbenchLayout(value={}) {
     navigationWidth: bounded(value.navigationWidth, 220, 480, 288),
     inspectorWidth: bounded(value.inspectorWidth, 280, 520, 340),
     drawerHeight: bounded(value.drawerHeight, 120, 720, 240),
-    navigationVisible: value.navigationVisible !== false,
-    inspectorVisible: value.inspectorVisible !== false,
+    navigationVisible: value.navigationVisible === true,
+    inspectorVisible: value.inspectorVisible === true,
     drawerVisible: value.drawerVisible === true,
     activeActivity: typeof value.activeActivity === 'string' ?
-      value.activeActivity : 'activity.data',
+      value.activeActivity : '',
   });
 }
 
@@ -93,9 +110,7 @@ function ActivityRail({activities, active, navigationVisible, onChange}) {
         disabled={activity.disabled === true}
         onClick={() => {
           if(activity.disabled) return;
-          const accepted = activity.onSelect?.();
-          if(accepted === false) return;
-          onChange(activity.id, ownsNavigation && !selected);
+          onChange(activity.id);
         }}
         sx={{width: 48, height: 48, mx: '4px', my: '4px',
           transform: selected ? 'scale(1.15)' : 'scale(1)',
@@ -121,111 +136,138 @@ ActivityRail.propTypes = {
 export function WorkbenchShell({activities, navigationViews, children,
   inspector, drawer, status, store: suppliedStore, initialLayout,
   onLayoutChange, navigationTitle, activeActivityOverride,
+  startCollapsed=false,
   inspectorTitle='Inspector',
   drawerTitle='Problems, Output, Tasks and Logs'}) {
   const store = useMemo(
     () => suppliedStore ?? new WorkbenchLayoutStore(), [suppliedStore]
   );
-  const [layout, setLayout] = useState(() => store.load(initialLayout));
+  const [layout, setLayout] = useState(() => {
+    const restored = store.load(initialLayout);
+    return startCollapsed ? normalizeWorkbenchLayout({...restored,
+      activeActivity: '', navigationVisible: false, inspectorVisible: false,
+    }) : restored;
+  });
   const update = useCallback((changes) => setLayout((current) =>
     store.save({...current, ...changes})
   ), [store]);
   useEffect(() => onLayoutChange?.(layout), [layout, onLayoutChange]);
-  useEffect(() => {
-    const listener = (event) => {
-      const detail = typeof event.detail === 'string' ? {
-        activityId: event.detail, navigationVisible: true,
-      } : event.detail;
-      update({activeActivity: detail.activityId,
-        navigationVisible: detail.navigationVisible !== false});
-    };
-    window.addEventListener('cdeadmin:show-activity', listener);
-    return () => window.removeEventListener('cdeadmin:show-activity', listener);
-  }, [update]);
-
   const knownActivities = activities.length ? activities : [{
     id: 'activity.data', label: 'Data Explorer', iconKey: 'object.database',
   }];
   const requestedActive = activeActivityOverride || layout.activeActivity;
   const active = knownActivities.some((item) => item.id === requestedActive) ?
-    requestedActive : knownActivities[0].id;
+    requestedActive : '';
   const activity = knownActivities.find((item) => item.id === active);
-  const navigation = navigationViews[active] ?? activity?.render?.() ?? null;
+  const navigation = active ?
+    navigationViews[active] ?? activity?.render?.() ?? null : null;
+  const activateActivity = useCallback((activityId, {toggle=false,
+    navigationVisible}={}) => {
+    const requested = knownActivities.find((item) => item.id === activityId);
+    if(!requested || requested.disabled) return false;
+    const accepted = requested.onSelect?.();
+    if(accepted === false) return false;
+    const ownsNavigation = requested.navigationVisible !== false;
+    const selected = requested.id === active && layout.navigationVisible &&
+      ownsNavigation;
+    update({activeActivity: requested.id,
+      navigationVisible: navigationVisible === undefined ?
+        ownsNavigation && !(toggle && selected) :
+        ownsNavigation && navigationVisible});
+    return true;
+  }, [knownActivities, active, layout.navigationVisible, update]);
+  useEffect(() => {
+    const showActivity = (event) => {
+      const detail = typeof event.detail === 'string' ?
+        {activityId: event.detail} : event.detail ?? {};
+      activateActivity(detail.activityId, {
+        navigationVisible: detail.navigationVisible,
+      });
+    };
+    const inspect = (event) => {
+      const visible = event.detail?.visible !== false;
+      if(visible && !active) return;
+      update({inspectorVisible: visible});
+    };
+    window.addEventListener('cdeadmin:show-activity', showActivity);
+    window.addEventListener(WORKBENCH_INSPECT_EVENT, inspect);
+    return () => {
+      window.removeEventListener('cdeadmin:show-activity', showActivity);
+      window.removeEventListener(WORKBENCH_INSPECT_EVENT, inspect);
+    };
+  }, [activateActivity, update]);
+  const activityContext = useMemo(() => Object.freeze({
+    activities: Object.freeze([...knownActivities]),
+    activate: (activityId) => activateActivity(activityId),
+  }), [knownActivities, activateActivity]);
 
-  return <Box data-cdeadmin-shell="zero-grey" sx={{height: '100%', minHeight: 0,
-    display: 'flex', bgcolor: 'background.default', color: 'text.primary'}}>
-    <ActivityRail activities={knownActivities} active={active}
-      navigationVisible={layout.navigationVisible}
-      onChange={(activeActivity, navigationVisible) => update({
-        activeActivity, navigationVisible,
-      })} />
-    <Box component="aside" aria-label={activity?.label}
-      aria-hidden={!layout.navigationVisible}
-      data-cdeadmin-explorer-workspace="true"
-      data-cdeadmin-qa-key="explorer-workspace"
-      sx={{width: layout.navigationVisible ? layout.navigationWidth : 0,
-        flex: layout.navigationVisible ?
-          `0 0 ${layout.navigationWidth}px` : '0 0 0px',
-        minWidth: 0, overflow: 'hidden',
-        visibility: layout.navigationVisible ? 'visible' : 'hidden',
-        pointerEvents: layout.navigationVisible ? 'auto' : 'none',
-        bgcolor: 'background.navigation',
-        transition: layout.navigationVisible ?
-          'width 160ms ease, flex-basis 160ms ease' :
-          'width 160ms ease, flex-basis 160ms ease, visibility 0s linear 160ms',
-        '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
-      <Box sx={{width: layout.navigationWidth, height: '100%', minWidth: 0,
-        display: 'flex', flexDirection: 'column',
-        transform: layout.navigationVisible ? 'translateX(0)' : 'translateX(-100%)',
-        transition: 'transform 160ms ease',
-        '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
-        <Toolbar label="Navigation controls" trailing={<IconButton
-          label="Hide navigation" onClick={() => update({navigationVisible: false})}>×</IconButton>}>
-          <Box component="strong">{navigationTitle || activity?.label}</Box>
-        </Toolbar>
-        <Box sx={{flex: 1, minHeight: 0}}>{navigation}</Box>
+  return <WorkbenchActivityContext.Provider value={activityContext}>
+    <Box data-cdeadmin-shell="zero-grey" sx={{height: '100%', minHeight: 0,
+      display: 'flex', bgcolor: 'background.default', color: 'text.primary'}}>
+      <ActivityRail activities={knownActivities} active={active}
+        navigationVisible={layout.navigationVisible}
+        onChange={(activityId) => activateActivity(activityId, {toggle: true})} />
+      <Box component="aside" aria-label={activity?.label || 'Explorer workspace'}
+        aria-hidden={!layout.navigationVisible}
+        data-cdeadmin-explorer-workspace="true"
+        data-cdeadmin-qa-key="explorer-workspace"
+        sx={{width: layout.navigationVisible ? layout.navigationWidth : 0,
+          flex: layout.navigationVisible ?
+            `0 0 ${layout.navigationWidth}px` : '0 0 0px',
+          minWidth: 0, overflow: 'hidden',
+          visibility: layout.navigationVisible ? 'visible' : 'hidden',
+          pointerEvents: layout.navigationVisible ? 'auto' : 'none',
+          bgcolor: 'background.navigation',
+          transition: layout.navigationVisible ?
+            'width 160ms ease, flex-basis 160ms ease' :
+            'width 160ms ease, flex-basis 160ms ease, visibility 0s linear 160ms',
+          '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
+        <Box sx={{width: layout.navigationWidth, height: '100%', minWidth: 0,
+          display: 'flex', flexDirection: 'column',
+          transform: layout.navigationVisible ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 160ms ease',
+          '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
+          <Toolbar label="Navigation controls" trailing={<IconButton
+            label="Hide navigation" onClick={() => update({navigationVisible: false})}>×</IconButton>}>
+            <Box component="strong">{navigationTitle || activity?.label}</Box>
+          </Toolbar>
+          <Box sx={{flex: 1, minHeight: 0}}>{navigation}</Box>
+        </Box>
       </Box>
+      {layout.navigationVisible && <Splitter value={layout.navigationWidth}
+        min={220} max={480} onChange={(navigationWidth) => update({navigationWidth})}
+        label="Resize navigation" />}
+      <Box component="main" aria-label="Main workbench"
+        sx={{flex: 1, minWidth: 0, minHeight: 0, display: 'flex',
+          flexDirection: 'column', bgcolor: 'background.workspace'}}>
+        <Box sx={{flex: 1, minHeight: 0, position: 'relative'}}>{children}</Box>
+        <Drawer open={layout.drawerVisible} label={drawerTitle}
+          height={layout.drawerHeight}
+          onHeightChange={(drawerHeight) => update({drawerHeight})}>
+          {drawer}
+        </Drawer>
+        <StatusBar>{status}</StatusBar>
+      </Box>
+      {layout.inspectorVisible && <Splitter value={layout.inspectorWidth}
+        min={280} max={520} onChange={(inspectorWidth) => update({inspectorWidth})}
+        label="Resize Inspector" />}
+      {layout.inspectorVisible && <Box component="aside" aria-label="Inspector"
+        sx={{width: layout.inspectorWidth, flex: `0 0 ${layout.inspectorWidth}px`,
+          minWidth: 0, display: 'flex', flexDirection: 'column',
+          bgcolor: 'background.elevated'}}>
+        <Toolbar label="Inspector controls" trailing={<IconButton
+          label="Hide Inspector" onClick={() => update({inspectorVisible: false})}>×</IconButton>}>
+          <Box component="strong">{inspectorTitle}</Box>
+        </Toolbar>
+        <Box sx={{flex: 1, minHeight: 0, overflow: 'auto'}}>{inspector}</Box>
+      </Box>}
+      <IconButton label={layout.drawerVisible ? 'Hide bottom drawer' : 'Show bottom drawer'}
+        onClick={() => update({drawerVisible: !layout.drawerVisible})}
+        sx={{position: 'absolute', right: layout.inspectorVisible ?
+          layout.inspectorWidth + 8 : 8, bottom: 'var(--cde-status-height)',
+        zIndex: 'popover'}}>▤</IconButton>
     </Box>
-    {layout.navigationVisible && <Splitter value={layout.navigationWidth}
-      min={220} max={480} onChange={(navigationWidth) => update({navigationWidth})}
-      label="Resize navigation" />}
-    <Box component="main" aria-label="Main workbench"
-      sx={{flex: 1, minWidth: 0, minHeight: 0, display: 'flex',
-        flexDirection: 'column', bgcolor: 'background.workspace'}}>
-      <Box sx={{flex: 1, minHeight: 0, position: 'relative'}}>{children}</Box>
-      <Drawer open={layout.drawerVisible} label={drawerTitle}
-        height={layout.drawerHeight}
-        onHeightChange={(drawerHeight) => update({drawerHeight})}>
-        {drawer}
-      </Drawer>
-      <StatusBar>{status}</StatusBar>
-    </Box>
-    {layout.inspectorVisible && <Splitter value={layout.inspectorWidth}
-      min={280} max={520} onChange={(inspectorWidth) => update({inspectorWidth})}
-      label="Resize Inspector" />}
-    {layout.inspectorVisible && <Box component="aside" aria-label="Inspector"
-      sx={{width: layout.inspectorWidth, flex: `0 0 ${layout.inspectorWidth}px`,
-        minWidth: 0, display: 'flex', flexDirection: 'column',
-        bgcolor: 'background.elevated'}}>
-      <Toolbar label="Inspector controls" trailing={<IconButton
-        label="Hide Inspector" onClick={() => update({inspectorVisible: false})}>×</IconButton>}>
-        <Box component="strong">{inspectorTitle}</Box>
-      </Toolbar>
-      <Box sx={{flex: 1, minHeight: 0, overflow: 'auto'}}>{inspector}</Box>
-    </Box>}
-    {!layout.navigationVisible && <IconButton label="Show navigation"
-      onClick={() => update({navigationVisible: true})}
-      sx={{position: 'absolute', left: ACTIVITY_RAIL_WIDTH, top: 0,
-        zIndex: 'popover'}}>☰</IconButton>}
-    {!layout.inspectorVisible && <IconButton label="Show Inspector"
-      onClick={() => update({inspectorVisible: true})}
-      sx={{position: 'absolute', right: 0, top: 0, zIndex: 'popover'}}>ⓘ</IconButton>}
-    <IconButton label={layout.drawerVisible ? 'Hide bottom drawer' : 'Show bottom drawer'}
-      onClick={() => update({drawerVisible: !layout.drawerVisible})}
-      sx={{position: 'absolute', right: layout.inspectorVisible ?
-        layout.inspectorWidth + 8 : 8, bottom: 'var(--cde-status-height)',
-      zIndex: 'popover'}}>▤</IconButton>
-  </Box>;
+  </WorkbenchActivityContext.Provider>;
 }
 
 WorkbenchShell.propTypes = {
@@ -239,6 +281,7 @@ WorkbenchShell.propTypes = {
   initialLayout: PropTypes.object,
   onLayoutChange: PropTypes.func,
   activeActivityOverride: PropTypes.string,
+  startCollapsed: PropTypes.bool,
   navigationTitle: PropTypes.node,
   inspectorTitle: PropTypes.node,
   drawerTitle: PropTypes.string,

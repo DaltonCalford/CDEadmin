@@ -27,7 +27,7 @@ const StyledBox = styled(Box)(({theme}) => ({
   display: 'flex',
   alignItems: 'center',
   '& .AppMenuBar-logo': {
-    width: '112px',
+    minWidth: '136px',
     height: '100%',
     backgroundPositionY: 'center',
     background: 'none',
@@ -36,6 +36,13 @@ const StyledBox = styled(Box)(({theme}) => ({
     fontSize: '1.05rem',
     fontWeight: 700,
     letterSpacing: '0.03em',
+    gap: '6px',
+    whiteSpace: 'nowrap',
+    '& svg': {
+      width: '24px',
+      height: '24px',
+      flex: '0 0 24px',
+    },
   },
   '& .AppMenuBar-menus': {
     display: 'flex',
@@ -133,7 +140,12 @@ export default function AppMenuBar() {
 
   return (
     <StyledBox data-test="app-menu-bar">
-      <div className='AppMenuBar-logo' aria-label='CDEadmin'>CDEadmin</div>
+      <div className='AppMenuBar-logo'
+        data-cdeadmin-qa-key='application.brand.scratchrobin'
+        aria-label='ScratchRobin CDE Administrator'>
+        <Icon iconKey='tool.scratchrobin' decorative />
+        <span>ScratchRobin</span>
+      </div>
       <div className='AppMenuBar-menus'>
         {pgAdmin.Browser.MainMenus?.map((menu)=>{
           return (

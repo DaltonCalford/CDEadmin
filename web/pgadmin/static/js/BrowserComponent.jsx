@@ -53,6 +53,7 @@ import {
   ActiveStatusHost,
   BottomDrawerHost,
   InspectorHost,
+  requestWorkbenchInspection,
   workbenchContextService,
 } from 'sources/cdeadmin_ui';
 
@@ -148,6 +149,24 @@ function Layouts({browser, platform}) {
     return docker.eventBus.registerListener(
       LAYOUT_EVENTS.RESET, ()=>setObjectExplorerVisible(true));
   }, [setObjectExplorerVisible]);
+  useEffect(() => {
+    const showInspector = () => requestWorkbenchInspection(true);
+    const hideInspector = () => requestWorkbenchInspection(false);
+    pgAdmin.Browser.Events.on(
+      'pgadmin-browser:node:selected', showInspector
+    );
+    pgAdmin.Browser.Events.on(
+      'pgadmin-browser:node:deselected', hideInspector
+    );
+    return () => {
+      pgAdmin.Browser.Events.off(
+        'pgadmin-browser:node:selected', showInspector
+      );
+      pgAdmin.Browser.Events.off(
+        'pgadmin-browser:node:deselected', hideInspector
+      );
+    };
+  }, [pgAdmin]);
 
   const activities = activityRegistry.resolve();
   const selectWorkspace = (workspace, permission) => {
@@ -369,9 +388,10 @@ function Layouts({browser, platform}) {
     <ApplicationStateProvider>
       <div style={{height: (browser != 'Electron' ? 'calc(100% - 30px)' : '100%')}}>
         <WorkbenchShell activities={shellActivities}
+          startCollapsed
           activeActivityOverride={activeWorkspaceActivity} initialLayout={{
-            navigationVisible: !enabled || isObjectExplorerVisible,
-            inspectorVisible: true,
+            navigationVisible: false,
+            inspectorVisible: false,
           }} onLayoutChange={(layout) => {
             if(enabled && layout.navigationVisible !== isObjectExplorerVisible) {
               setObjectExplorerVisible(layout.navigationVisible);
@@ -382,12 +402,15 @@ function Layouts({browser, platform}) {
               <div style={{flex: 1, minHeight: 0}}><ObjectExplorer /></div></div>,
             'activity.projects': <ProjectExplorer client={platform.projectAssets}
               onOpenAsset={openAsset}
-              onSelectAsset={(project, asset) => workbenchContextService.update({
-                surfaceTitle: asset.name, projectId: project.project_id,
-                assetId: asset.asset_id, persistence: 'clean',
-                validation: asset.validation_state === 'invalid' ?
-                  ['Asset validation failed'] : [],
-              })} />,
+              onSelectAsset={(project, asset) => {
+                workbenchContextService.update({
+                  surfaceTitle: asset.name, projectId: project.project_id,
+                  assetId: asset.asset_id, persistence: 'clean',
+                  validation: asset.validation_state === 'invalid' ?
+                    ['Asset validation failed'] : [],
+                });
+                requestWorkbenchInspection(true);
+              }} />,
           }} inspector={<InspectorHost corePages={[
             {id: 'properties', label: gettext('Properties'), content: <Properties />},
             {id: 'statistics', label: gettext('Statistics'), content: <Statistics />},

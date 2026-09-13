@@ -42,6 +42,9 @@ export default function rcdockOverride(theme) {
           borderRadius: 'inherit',
         },
         '&.dock-style-playground':{
+          '& > .dock > .dock-bar:has(.dock-tab):not(:has(.dock-tab ~ .dock-tab))': {
+            display: 'none',
+          },
           '&[data-dockid="id-main"]': {
             '& > .dock > .dock-bar': {
               minHeight: '52px',

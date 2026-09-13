@@ -805,6 +805,7 @@ define('pgadmin.browser.node', [
       deselected: function() {
         // The following call disables all menus mapped to any selected tree node.
         pgAdmin.Browser.enable_disable_menus.apply(pgBrowser, []);
+        pgBrowser.Events.trigger('pgadmin-browser:node:deselected');
       },
       removed: function(item) {
         let self = this;

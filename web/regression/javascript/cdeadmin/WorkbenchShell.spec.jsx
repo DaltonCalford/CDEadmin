@@ -11,7 +11,7 @@ import {act, fireEvent, render, screen} from '@testing-library/react';
 import {withTheme} from '../fake_theme';
 import {
   DEFAULT_WORKBENCH_LAYOUT, normalizeWorkbenchLayout, WorkbenchLayoutStore,
-  WorkbenchShell,
+  requestWorkbenchInspection, WorkbenchShell,
 } from 'sources/cdeadmin_ui/shell/WorkbenchShell';
 
 const activities = [
@@ -27,7 +27,9 @@ describe('Zero-Grey workbench shell', () => {
       'activity.data': <div>Live resources</div>,
       'activity.projects': <div>Authored assets</div>,
     }} inspector={<div>Properties</div>} drawer={<div>Problems</div>}
-    status={<div>Connected</div>} initialLayout={{drawerVisible: true}}>
+    status={<div>Connected</div>} initialLayout={{drawerVisible: true,
+      activeActivity: 'activity.data', navigationVisible: true,
+      inspectorVisible: true}}>
       <div>Editor surface</div>
     </Component>);
 
@@ -56,6 +58,31 @@ describe('Zero-Grey workbench shell', () => {
     expect(screen.getByRole('status', {name: 'Surface status'}))
       .toHaveTextContent('Connected');
   });
+
+  it('starts with no selected activity, navigator, inspector, or reveal buttons',
+    () => {
+      const Component = withTheme(WorkbenchShell);
+      window.localStorage.setItem('cdeadmin.workbench-layout.v1', JSON.stringify({
+        schema: 'cdeadmin.workbench-layout.v1',
+        activeActivity: 'activity.data', navigationVisible: true,
+        inspectorVisible: true,
+      }));
+      render(<Component activities={activities} navigationViews={{
+        'activity.data': <div>Live resources</div>,
+      }} inspector="Details" startCollapsed />);
+
+      for(const tab of screen.getByRole('navigation', {
+        name: 'Application activities',
+      }).querySelectorAll('button')) {
+        expect(tab).toHaveAttribute('data-selected', 'false');
+        expect(tab).not.toHaveAttribute('aria-current');
+      }
+      expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', {name: 'Show navigation'}))
+        .not.toBeInTheDocument();
+      expect(screen.queryByRole('button', {name: 'Show Inspector'}))
+        .not.toBeInTheDocument();
+    });
 
   it('switches Data and Project explorers without conflating their content', () => {
     const Component = withTheme(WorkbenchShell);
@@ -89,18 +116,18 @@ describe('Zero-Grey workbench shell', () => {
     );
 
     fireEvent.click(dataTab);
-    expect(dataTab).toHaveAttribute('data-selected', 'false');
-    expect(explorerWorkspace).toHaveAttribute('aria-hidden', 'true');
-    expect(screen.queryByRole('complementary', {name: 'Data Explorer'}))
-      .not.toBeInTheDocument();
-
-    fireEvent.click(dataTab);
     expect(dataTab).toHaveAttribute('data-selected', 'true');
     expect(explorerWorkspace).toHaveAttribute('aria-hidden', 'false');
     expect(document.querySelector('[data-cdeadmin-explorer-workspace="true"]'))
       .toBe(explorerWorkspace);
     expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
       .toHaveTextContent('Live resources');
+
+    fireEvent.click(dataTab);
+    expect(dataTab).toHaveAttribute('data-selected', 'false');
+    expect(explorerWorkspace).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('complementary', {name: 'Data Explorer'}))
+      .not.toBeInTheDocument();
   });
 
   it('runs action tabs and can hide navigation for a workspace surface', () => {
@@ -122,6 +149,7 @@ describe('Zero-Grey workbench shell', () => {
     const Component = withTheme(WorkbenchShell);
     render(<Component activities={[...activities, {
       id: 'activity.workspace.query', label: 'Query Tool', iconKey: 'tool.query',
+      navigationVisible: false,
     }]} activeActivityOverride="activity.workspace.query"
     navigationViews={{}} initialLayout={{inspectorVisible: false}} />);
     expect(screen.getByRole('button', {name: 'Query Tool'}))
@@ -148,7 +176,8 @@ describe('Zero-Grey workbench shell', () => {
       id: 'activity.denied', label: 'Denied Tool', iconKey: 'action.lock',
       navigationVisible: false, onSelect: () => false,
     }]} navigationViews={{'activity.data': <div>Live resources</div>}}
-    initialLayout={{inspectorVisible: false}} />);
+    initialLayout={{activeActivity: 'activity.data', navigationVisible: true,
+      inspectorVisible: false}} />);
     fireEvent.click(screen.getByRole('button', {name: 'Denied Tool'}));
     expect(screen.getByRole('button', {name: 'Data Explorer'}))
       .toHaveAttribute('aria-current', 'page');
@@ -156,19 +185,24 @@ describe('Zero-Grey workbench shell', () => {
       .toBeInTheDocument();
   });
 
-  it('collapses and restores navigation, inspector, and bottom drawer', () => {
+  it('collapses navigation and opens the inspector only on inspection', () => {
     const Component = withTheme(WorkbenchShell);
     render(<Component activities={activities} navigationViews={{}}
       inspector="Details" drawer="Tasks"
-      initialLayout={{activeActivity: 'activity.data'}} />);
+      initialLayout={{activeActivity: 'activity.data', navigationVisible: true,
+        inspectorVisible: true}} />);
     fireEvent.click(screen.getByRole('button', {name: 'Hide navigation'}));
     expect(screen.queryByRole('complementary', {name: 'Data Explorer'}))
       .not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Show navigation'}));
+    expect(screen.queryByRole('button', {name: 'Show navigation'}))
+      .not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Data Explorer'}));
     expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
       .toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Hide Inspector'}));
-    fireEvent.click(screen.getByRole('button', {name: 'Show Inspector'}));
+    expect(screen.queryByRole('button', {name: 'Show Inspector'}))
+      .not.toBeInTheDocument();
+    act(() => requestWorkbenchInspection(true));
     expect(screen.getByRole('complementary', {name: 'Inspector'}))
       .toHaveTextContent('Details');
     fireEvent.click(screen.getByRole('button', {name: 'Show bottom drawer'}));
@@ -184,7 +218,8 @@ describe('Zero-Grey workbench shell', () => {
     const store = new WorkbenchLayoutStore(storage, 'layout');
     const Component = withTheme(WorkbenchShell);
     render(<Component activities={activities} navigationViews={{}}
-      store={store} initialLayout={{navigationWidth: 288}} />);
+      store={store} initialLayout={{navigationWidth: 288,
+        activeActivity: 'activity.data', navigationVisible: true}} />);
     fireEvent.keyDown(screen.getByRole('separator', {name: 'Resize navigation'}),
       {key: 'ArrowRight'});
     expect(JSON.parse(values.get('layout')).navigationWidth).toBe(292);
