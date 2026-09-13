@@ -1681,10 +1681,27 @@ class MongoDBClient:
             return {
                 'form_id': f'mongodb.validator.{operation}.v1',
                 'title': f'{operation.title()} MongoDB validation rule',
-                'fields': [f(
-                    container, 'MongoDB validator expression', 'json', True,
-                    default={'validator': {}}, json_type='object',
-                )],
+                'fields': [
+                    f('replace_rule', 'Replace validation rule', 'boolean',
+                      default=False),
+                    f('validator', 'Validation rule (empty object clears it)',
+                      'json', default={}, json_type='object',
+                      visible_when={'field_id': 'replace_rule',
+                                    'equals': True}),
+                    f('validation_level', 'Validation level', 'select',
+                      default='unchanged', options=[
+                          {'value': v, 'label': v.title()}
+                          for v in ('unchanged', 'off', 'strict', 'moderate')
+                      ]),
+                    f('validation_action', 'Validation action', 'select',
+                      default='unchanged', options=[
+                          {'value': v, 'label': label} for v, label in (
+                              ('unchanged', 'Unchanged'), ('error', 'Reject'),
+                              ('warn', 'Warn only'),
+                              ('errorAndLog', 'Reject and log'))]),
+                    f(container, 'Native validation changes', 'json',
+                      default={}, json_type='object'),
+                ],
             }
         if kind in {'user', 'role'}:
             if operation in {'create', 'alter'}:
@@ -1922,6 +1939,12 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind == 'validator' and operation in {'create', 'alter'}:
+            try:
+                self._validator_changes(operation, draft)
+            except MongoDBClientError as error:
+                errors.append({'field_id': 'validator', 'code': 'validator',
+                               'message': str(error)})
         if kind == 'index' and operation == 'alter':
             try:
                 self._index_changes(draft)
@@ -2057,6 +2080,9 @@ class MongoDBClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
+        if kind == 'validator' and operation in {'create', 'alter'}:
+            container = 'options' if operation == 'create' else 'changes'
+            draft = {container: self._validator_changes(operation, draft)}
         if kind == 'index' and operation == 'alter':
             draft = {'changes': self._index_changes(draft)}
         if kind == 'index' and operation == 'create':
@@ -2073,6 +2099,14 @@ class MongoDBClient:
         }
         preview_draft = copy.deepcopy(draft)
         warnings = []
+        if kind == 'validator' and operation in {'create', 'alter'}:
+            changes = draft.get('changes', draft.get('options', {}))
+            if changes.get('validationLevel') == 'off' or (
+                    changes.get('validationAction') == 'warn') or (
+                    'validator' in changes and not changes['validator']):
+                warnings.append(
+                    'This change relaxes validation or clears the rule. '
+                    'Review whether invalid documents should be accepted.')
         if kind == 'index' and operation == 'alter':
             changes = draft['changes']
             if 'expireAfterSeconds' in changes:
@@ -2994,14 +3028,58 @@ class MongoDBClient:
             raise MongoDBClientError('index operation is unavailable')
 
     @staticmethod
-    def _apply_validator(database, operation, draft, native):
-        collection = native.get('collection')
-        if operation == 'drop':
-            validator = {}
+    def _validator_changes(operation, draft):
+        allowed = {'validator', 'validationLevel', 'validationAction'}
+        raw = draft.get('changes' if operation == 'alter' else 'options', {})
+        if not isinstance(raw, Mapping):
+            raise MongoDBClientError('Validation changes must be an object.')
+        if raw and ('validator' in raw or set(raw) <= allowed):
+            if set(raw) - allowed:
+                raise MongoDBClientError(
+                    'Unsupported validation change field.')
+            changes = copy.deepcopy(dict(raw))
         else:
-            value = draft.get('changes', draft.get('options', {}))
-            validator = value.get('validator', value)
-        database.command({'collMod': collection, 'validator': validator})
+            changes = {'validator': copy.deepcopy(dict(raw))} if raw else {}
+
+        def add(key, value):
+            if key in changes:
+                raise MongoDBClientError(
+                    'Specify each validation change once, visually or '
+                    'natively.')
+            changes[key] = copy.deepcopy(value)
+
+        replace = draft.get('replace_rule', False)
+        if not isinstance(replace, bool):
+            raise MongoDBClientError('Replace rule must be true or false.')
+        if replace:
+            add('validator', draft.get('validator', {}))
+        for field, native in (('validation_level', 'validationLevel'),
+                              ('validation_action', 'validationAction')):
+            if draft.get(field, 'unchanged') != 'unchanged':
+                add(native, draft[field])
+        if not changes:
+            raise MongoDBClientError('Choose at least one validation change.')
+        if 'validator' in changes and not isinstance(
+                changes['validator'], Mapping):
+            raise MongoDBClientError('Validation rule must be an object.')
+        if 'validationLevel' in changes and changes['validationLevel'] not in (
+                'off', 'strict', 'moderate'):
+            raise MongoDBClientError('Validation level is unsupported.')
+        if 'validationAction' in changes and (
+                changes['validationAction'] not in
+                ('error', 'warn', 'errorAndLog')):
+            raise MongoDBClientError('Validation action is unsupported.')
+        return changes
+
+    @staticmethod
+    def _apply_validator(database, operation, draft, native):
+        if operation == 'drop':
+            changes = {'validator': {}}
+        elif operation in {'create', 'alter'}:
+            changes = MongoDBClient._validator_changes(operation, draft)
+        else:
+            raise MongoDBClientError('Validator operation is unavailable.')
+        database.command({'collMod': native.get('collection'), **changes})
 
     def _use_admin_secret(
         self, route, container, callback, purpose='administer'

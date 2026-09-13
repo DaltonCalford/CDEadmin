@@ -23,7 +23,7 @@ from pgadmin.cdeadmin.providers.mongodb.client import (  # noqa: E402
 )
 
 
-def run(binary, workspace):
+def run(binary, workspace, extra_checks=None):
     import pymongo
     with socket.socket() as reserved:
         reserved.bind(('127.0.0.1', 0))
@@ -134,6 +134,8 @@ def run(binary, workspace):
                     'uniqueness': operation})
                 assert bool(info.get(flag)) == expected
                 result['checks'].append('alter-' + operation)
+            if extra_checks is not None:
+                extra_checks(database, adapter, result)
             result['status'] = 'passed'
         finally:
             adapter.close()

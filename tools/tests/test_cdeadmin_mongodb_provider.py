@@ -35,6 +35,9 @@ from pgadmin.cdeadmin.providers.mongodb.provider import (  # noqa: E402
     MongoDBPilotProvider,
     PROFILE,
 )
+from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
+    ProviderVisualAdministration,
+)
 
 
 class SecretLease:
@@ -233,6 +236,72 @@ def context():
 
 
 class MongoDBProviderTests(unittest.TestCase):
+
+    def test_validator_form_preserves_explicit_and_hidden_rule_semantics(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'validator', 'operation_id': 'alter',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'replace_rule': True, 'validator': '{}'}}
+        result = visual.validate(request)
+        self.assertTrue(result['valid'], result['errors'])
+        self.assertEqual({}, result['draft']['validator'])
+        result = visual.validate({**request, 'draft': {
+            'replace_rule': False, 'validator': 'invalid hidden input',
+            'validation_action': 'warn'}})
+        self.assertTrue(result['valid'], result['errors'])
+        self.assertNotIn('validator', result['draft'])
+        adapter.close()
+
+    def test_validator_changes_preserve_native_level_and_action(self):
+        rule = {'score': {'$gte': 0}}
+        wrapped = {'validator': rule, 'validationLevel': 'moderate',
+                   'validationAction': 'errorAndLog'}
+        for operation, container in (('create', 'options'),
+                                     ('alter', 'changes')):
+            self.assertEqual(wrapped, MongoDBClient._validator_changes(
+                operation, {container: wrapped}))
+            self.assertEqual({'validator': rule},
+                             MongoDBClient._validator_changes(
+                                 operation, {container: rule}))
+        self.assertEqual(wrapped, MongoDBClient._validator_changes('alter', {
+            'replace_rule': True, 'validator': rule,
+            'validation_level': 'moderate',
+            'validation_action': 'errorAndLog'}))
+        self.assertEqual({'validationAction': 'warn'},
+                         MongoDBClient._validator_changes('alter', {
+                             'validation_action': 'warn',
+                             'replace_rule': False,
+                             'validator': {}}))
+
+    def test_validator_changes_reject_ambiguous_or_invalid_edits(self):
+        for draft in ({}, {'replace_rule': 'yes'},
+                      {'replace_rule': True, 'validator': []},
+                      {'validation_level': 'invented'},
+                      {'validation_action': 'invented'},
+                      {'validation_action': 'warn',
+                       'changes': {'validationAction': 'error'}},
+                      {'replace_rule': True, 'changes': {'validator': {}}},
+                      {'changes': {'validator': {}, 'collMod': 'other'}}):
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._validator_changes('alter', draft)
+
+    def test_validator_execution_preserves_unchanged_rule(self):
+        commands = []
+        database = SimpleNamespace(command=commands.append)
+        native = {'collection': 'selected'}
+        MongoDBClient._apply_validator(database, 'alter', {
+            'validation_level': 'strict'}, native)
+        MongoDBClient._apply_validator(database, 'alter', {
+            'replace_rule': True, 'validator': {}}, native)
+        MongoDBClient._apply_validator(database, 'drop', {}, native)
+        self.assertEqual([
+            {'collMod': 'selected', 'validationLevel': 'strict'},
+            {'collMod': 'selected', 'validator': {}},
+            {'collMod': 'selected', 'validator': {}},
+        ], commands)
 
     def test_visual_index_changes_default_to_no_mutation(self):
         with self.assertRaises(MongoDBClientError):
