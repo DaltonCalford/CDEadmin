@@ -144,6 +144,72 @@ class OrderedKeyAdapter(NativeAdapter):
 
 class VisualAdministrationCatalogTests(unittest.TestCase):
 
+    def test_choice_fields_reject_nested_values_without_exceptions(self):
+        for control, values in (
+                ('select', ({}, [], {'value': 'a'}, ['a'])),
+                ('multiselect', ([{}], [[]], ['a', {}], [['a']], ['a', 'a']))):
+            declaration = control_plane_field(
+                'selection', 'Selection', control, True,
+                options=[{'value': v, 'label': v} for v in ('a', 'b')])
+            for value in values:
+                with self.subTest(control=control, value=value):
+                    cleaned, error = (
+                        ProviderVisualAdministration._validate_field(
+                            declaration, value))
+                    self.assertIsNone(cleaned)
+                    self.assertEqual('choice', error['code'])
+                    self.assertEqual('invalid_choice',
+                                     ControlPlaneCatalog._field_error(
+                                         declaration, value)[0])
+
+    def test_choice_fields_preserve_valid_values_and_selection_order(self):
+        for control, values in (('select', ('a', 'b')),
+                                ('multiselect', ([], ['a'], ['b', 'a']))):
+            declaration = control_plane_field(
+                'selection', 'Selection', control,
+                options=[{'value': v, 'label': v} for v in ('a', 'b')])
+            for value in values:
+                cleaned, error = ProviderVisualAdministration._validate_field(
+                    declaration, value)
+                self.assertIsNone(error)
+                self.assertEqual(value, cleaned)
+                self.assertIsNone(ControlPlaneCatalog._field_error(
+                    declaration, value))
+                if isinstance(value, list):
+                    self.assertIsNot(value, cleaned)
+
+    def test_structured_editor_rejects_malformed_nested_choice(self):
+        choice = control_plane_field('choice', 'Choice', 'select', True,
+                                     options=[{'value': 'a', 'label': 'A'}])
+        for editor, value in (
+                ('array_editor', [{'choice': {'value': 'a'}}]),
+                ('object_editor', {'choice': ['a']})):
+            declaration = {'field_id': 'settings', 'label': 'Settings',
+                           'control': 'json', 'required': True,
+                           editor: {'item_kind': 'object', 'fields': [choice]}}
+            cleaned, error = ProviderVisualAdministration._validate_field(
+                declaration, value)
+            self.assertIsNone(cleaned)
+            self.assertIsNotNone(error)
+
+    def test_control_plane_collects_all_malformed_choice_errors(self):
+        choices = [{'value': 'a', 'label': 'A'}]
+        operation = ControlPlaneOperation(
+            'cluster', 'configure', 'Configure', 'admin', 'topology_admin', (
+                control_plane_field('single', 'Single', 'select', True,
+                                    options=choices),
+                control_plane_field('multiple', 'Multiple', 'multiselect',
+                                    True, options=choices),
+            ), target_required=False)
+        catalog = ControlPlaneCatalog('test', (operation,))
+        result = catalog.validate({
+            'resource_kind': 'cluster', 'operation_id': 'configure',
+            'draft': {'single': {'value': 'a'}, 'multiple': ['a', ['a']]}})
+        self.assertEqual(['single', 'multiple'],
+                         [error['field_id'] for error in result['errors']])
+        self.assertEqual(['invalid_choice', 'invalid_choice'],
+                         [error['code'] for error in result['errors']])
+
     def test_numeric_fields_reject_nonfinite_values_at_both_boundaries(self):
         declaration = control_plane_field('value', 'Value', 'number', True,
                                           minimum=-10, maximum=10)

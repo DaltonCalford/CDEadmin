@@ -309,7 +309,11 @@ class ControlPlaneCatalog:
                 item.get('value') for item in declaration.get('options', [])
                 if isinstance(item, Mapping)
             }
-            if value not in admitted:
+            try:
+                valid = value in admitted
+            except TypeError:
+                valid = False
+            if not valid:
                 return 'invalid_choice', f'{label} is not an admitted choice.'
         elif control == 'multiselect':
             if not isinstance(value, list):
@@ -318,8 +322,12 @@ class ControlPlaneCatalog:
                 item.get('value') for item in declaration.get('options', [])
                 if isinstance(item, Mapping)
             }
-            if len(value) != len(set(value)) or any(
-                    item not in admitted for item in value):
+            try:
+                valid = len(value) == len(set(value)) and all(
+                    item in admitted for item in value)
+            except TypeError:
+                valid = False
+            if not valid:
                 return (
                     'invalid_choice',
                     f'{label} contains an unadmitted or duplicate choice.',

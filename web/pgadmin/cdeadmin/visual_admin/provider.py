@@ -975,7 +975,11 @@ class ProviderVisualAdministration:
             return value, None
         if control == 'select':
             choices = {item['value'] for item in field['options']}
-            if value not in choices:
+            try:
+                admitted = value in choices
+            except TypeError:
+                admitted = False
+            if not admitted:
                 return None, {
                     'field_id': field_id, 'code': 'choice',
                     'message': f'{label} has an unknown value.',
@@ -988,8 +992,12 @@ class ProviderVisualAdministration:
                     'message': f'{label} must be a list.',
                 }
             choices = {item['value'] for item in field['options']}
-            if len(value) != len(set(value)) or any(
-                    item not in choices for item in value):
+            try:
+                admitted = len(value) == len(set(value)) and all(
+                    item in choices for item in value)
+            except TypeError:
+                admitted = False
+            if not admitted:
                 return None, {
                     'field_id': field_id, 'code': 'choice',
                     'message': (
