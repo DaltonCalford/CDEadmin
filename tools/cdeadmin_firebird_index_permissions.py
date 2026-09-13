@@ -127,11 +127,11 @@ def verify(connection, client, profile, table, index, result):
             execute(f'GRANT "{role}" TO USER "{username}"')
             connection.commit()
 
-            def role_check(label, active, allowed):
+            def role_check(label, active, allowed, selected_role=None):
                 role_route = {**route}
                 role_route.pop('role', None)
                 if active:
-                    role_route['role'] = role
+                    role_route['role'] = selected_role or role
                 attachment = driver.connect(
                     password=password, **_route_arguments(role_route, driver))
                 try:
@@ -142,8 +142,9 @@ def verify(connection, client, profile, table, index, result):
                         assert user_value.strip() == username
                         if not active:
                             assert role_value.strip() == 'NONE', role_value
-                        if allowed:
-                            assert role_value.strip() == role, role_value
+                        if allowed and active:
+                            assert role_value.strip() == (
+                                selected_role or role), role_value
                     attachment.commit()
                     plan = ADMINISTRATION.plan({
                         '_provider_route': role_route,
@@ -187,6 +188,45 @@ def verify(connection, client, profile, table, index, result):
             execute(f'REVOKE "{role}" FROM USER "{username}"')
             connection.commit()
             role_check('role-membership-revoke-denies-statistics', True, False)
+            execute(f'GRANT DEFAULT "{role}" TO USER "{username}"')
+            connection.commit()
+            role_check('default-role-without-explicit-activation', False, True)
+            execute(f'REVOKE DEFAULT "{role}" FROM USER "{username}"')
+            connection.commit()
+            role_check('default-role-revocation-removes-implicit-access',
+                       False, False)
+            role_check('default-revocation-preserves-explicit-membership',
+                       True, True)
+            execute(f'REVOKE "{role}" FROM USER "{username}"')
+            connection.commit()
+            nested = role + '_N'
+            execute(f'CREATE ROLE "{nested}"')
+            connection.commit()
+            try:
+                execute(f'GRANT DEFAULT "{role}" TO ROLE "{nested}"')
+                execute(f'GRANT "{nested}" TO USER "{username}"')
+                connection.commit()
+                role_check('nested-default-role-inherits-ddl-privilege',
+                           True, True, nested)
+                execute(f'REVOKE "{role}" FROM ROLE "{nested}"')
+                connection.commit()
+                role_check('nested-role-edge-revocation-removes-access',
+                           True, False, nested)
+            finally:
+                if connection.main_transaction.is_active():
+                    connection.rollback()
+                execute(f'DROP ROLE "{nested}"')
+                connection.commit()
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT COUNT(*) FROM RDB$ROLES '
+                                   'WHERE RDB$ROLE_NAME = ?', (nested,))
+                    assert cursor.fetchone()[0] == 0
+                    cursor.execute('SELECT COUNT(*) FROM RDB$USER_PRIVILEGES '
+                                   'WHERE RDB$USER = ? OR '
+                                   'RDB$RELATION_NAME = ?', (nested, nested))
+                    assert cursor.fetchone()[0] == 0
+                connection.commit()
+                result['temporary_nested_role_removed'] = True
         finally:
             if connection.main_transaction.is_active():
                 connection.rollback()
