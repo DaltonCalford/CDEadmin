@@ -5,7 +5,8 @@
 import {immutable, noRawSecrets, plainObject, platformValue} from
   '../../platform/serviceUtils';
 import {normalizeDiscoveryIndexBackend} from './DiscoveryIndexBackend';
-import {validateDiscoveryDocument} from './DiscoveryDocument';
+import {discoveryDocumentVisibility, validateDiscoveryDocument} from
+  './DiscoveryDocument';
 import {validateDiscoveryGraphEdge} from './DiscoveryGraphIndex';
 import {BALANCED_DISCOVERY_RANKING_PROFILE,
   validateDiscoveryRankingProfile} from './DiscoveryRanking';
@@ -112,8 +113,8 @@ export function validateDiscoverySearchQuery(input) {
     result.rankingProfile, 'Discovery search ranking profile');
   result.pageSize = input.pageSize ?? 50;
   if(!Number.isInteger(result.pageSize) || result.pageSize < 1 ||
-      result.pageSize > 100) throw new TypeError(
-    'Discovery page size must be an integer from 1 to 100.'
+      result.pageSize > 200) throw new TypeError(
+    'Discovery page size must be an integer from 1 to 200.'
   );
   result.cursor = input.cursor === null || input.cursor === undefined ? null :
     platformValue(input.cursor, 'Discovery search cursor', 4096);
@@ -560,7 +561,7 @@ export class DiscoverySearchService {
       graphRevision = graphRevision ?? graphHealth.activeRevision;
       if(!graphHealth.ready) throw new TypeError('Discovery graph index is not ready.');
       const graph = await this.graphIndex.neighbors({canonicalRefs: query.relatedTo,
-        revision: graphRevision, limit: 200,
+        revision: graphRevision, limit: 100,
         admitEdge: (edge) => security.admitGraphEdge(edge) === true});
       if(!Array.isArray(graph)) throw new TypeError(
         'Discovery graph source returned an invalid candidate set.'
@@ -642,8 +643,14 @@ export class DiscoverySearchService {
       if(visible.exactBusinessTerm) candidate.sourceEvidence.push({source: 'exact',
         field: 'business_term'});
     }
-    merged = merged.filter((candidate) => matchesFilters(candidate.document, query,
-      parsed, security));
+    const technicalSearch = query.nativeKinds.length > 0 ||
+      ['ADVANCED_FACETED', 'FIELD', 'GRAPH_RELATED'].includes(query.mode);
+    merged = merged.filter((candidate) => {
+      const visibility = discoveryDocumentVisibility(candidate.document);
+      return (technicalSearch ? visibility.technicalSearch :
+        visibility.businessSearch) && matchesFilters(candidate.document, query,
+        parsed, security);
+    });
     merged.sort((left, right) => Number(right.exactVisibleName) -
       Number(left.exactVisibleName) || Math.max(right.lexical ?? 0,
       right.semantic ?? 0, right.business ?? 0, right.graph ?? 0) -
@@ -691,6 +698,7 @@ export class DiscoverySearchService {
     const match = normalized(prefix); const suggestions = new Map();
     for(const {document} of backendRows(candidates, 'Discovery autocomplete backend')) {
       if(security.admitDocument(document, 'DISCOVER_IDENTITY') !== true) continue;
+      if(!discoveryDocumentVisibility(document).businessSearch) continue;
       const visible = visibleText(document, parsed, security);
       const options = [{kind: 'name', value: document.name},
         ...visible.aliases.map((item) => ({kind: 'alias',
@@ -722,6 +730,7 @@ export class DiscoverySearchService {
       }
       output[field] = [...counts.entries()].sort((left, right) =>
         right[1] - left[1] || left[0].localeCompare(right[0]))
+        .slice(0, 50)
         .map(([value, count]) => ({value, count}));
     }
     return immutable(output);

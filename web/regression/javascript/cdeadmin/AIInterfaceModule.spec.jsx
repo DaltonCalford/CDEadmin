@@ -217,6 +217,38 @@ describe('AI Interface activation', () => {
       activeTaskRef: null, messages: [{role: 'user'}, {role: 'assistant'}]});
   });
 
+  it('keeps continuing work discoverable after its UI closes and displays unknown cost',
+    async () => {
+      let complete;
+      const host = architecture({sessionResponder: () => new Promise((resolve) => {
+        complete = resolve;
+      })});
+      await host.modules.activate(AI_INTERFACE_MODULE_ID);
+      const runtime = await host.services.resolve(AI_INTERFACE_RUNTIME_SERVICE_ID);
+      const currentUser = {id: 'session-owner', permissions: [
+        'ai.manage_own_sessions', 'ai.use']};
+      runtime.newSession({sessionId: 'session-continuing',
+        agentProfileRef: 'agent-one', connectorRefs: [], contextRefs: []},
+      {currentUser});
+      const task = runtime.ask('session-continuing', {prompt: 'Continue safely.',
+        retentionPolicy: {schemaVersion: 1, policyId: 'retention-one',
+          name: 'Test retention', retainMessages: false, conversationDays: 1,
+          retainToolResults: false, auditDays: 30,
+          retainPromptsInAudit: false}}, {currentUser});
+      expect(runtime.screenData('cdeadmin.ai_interface.run_monitor'))
+        .toContainEqual(expect.objectContaining({id: task.id,
+          type: AI_SESSION_TURN_TASK}));
+      runtime.audit.append({eventType: 'ai.usage', initiator: 'system',
+        usage: {inputTokens: 12, outputTokens: 4, toolCalls: 1}});
+      expect(runtime.screenData('cdeadmin.ai_interface.usage_cost'))
+        .toContainEqual(expect.objectContaining({usage: expect.objectContaining({
+          inputTokens: 12, cost: 'unknown'})}));
+      await Promise.resolve();
+      complete({text: 'Finished'});
+      const tasks = await host.services.resolve(PLATFORM_SERVICE_IDS.TASKS);
+      await expect(tasks.wait(task.id)).resolves.toEqual({text: 'Finished'});
+    });
+
   it('owns governed Discovery enrichment and analysis response boundaries', async () => {
     const discoveryResponder = jest.fn(async ({requestType}) =>
       requestType === 'enrichment' ? {proposedValue: 'Governed customer.',

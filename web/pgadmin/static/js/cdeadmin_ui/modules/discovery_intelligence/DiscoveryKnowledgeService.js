@@ -7,6 +7,7 @@ import {immutable, noRawSecrets, plainObject, platformValue} from
 import {discoveryKnowledgeIdentity, DISCOVERY_KNOWLEDGE_KINDS,
   validateCertificationRecord,
   validateDiscoveryKnowledgeAsset} from './DiscoveryKnowledgeContracts';
+import {discoveryDocumentVisibility} from './DiscoveryDocument';
 
 export const DISCOVERY_KNOWLEDGE_ASSET_TYPES = Object.freeze({
   BusinessTerm: 'cdeadmin.discovery.business_term',
@@ -237,16 +238,28 @@ const PRODUCT_TRANSITIONS = Object.freeze({DRAFT: ['REVIEW', 'DEPRECATED'],
   CERTIFIED: ['DEPRECATED'], DEPRECATED: ['REVIEW', 'RETIRED'], RETIRED: []});
 
 export class DataProductService {
-  constructor({knowledge}={}) {
+  constructor({knowledge, documentAuthority}={}) {
     if(!knowledge || typeof knowledge.save !== 'function' ||
         typeof knowledge.get !== 'function') throw new TypeError(
       'Data product service requires BusinessKnowledgeService.'
     );
-    this.knowledge = knowledge;
+    if(typeof documentAuthority?.resolve !== 'function') throw new TypeError(
+      'Data product service requires a resource document authority.'
+    );
+    this.knowledge = knowledge; this.documentAuthority = documentAuthority;
   }
 
-  save(projectId, input, options={}) {
-    return this.knowledge.save(projectId, 'DataProduct', input, options);
+  async save(projectId, input, options={}) {
+    const content = validateDiscoveryKnowledgeAsset('DataProduct', input);
+    for(const reference of content.resourceRefs) {
+      const document = await this.documentAuthority.resolve(reference);
+      if(!document || !discoveryDocumentVisibility(document).dataProductCandidate) {
+        throw new Error(
+          `Resource ${reference} is not eligible for Data Product membership.`
+        );
+      }
+    }
+    return this.knowledge.save(projectId, 'DataProduct', content, options);
   }
 
   async setStatus(projectId, assetId, status, {expectedVersion,

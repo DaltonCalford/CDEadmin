@@ -12,6 +12,10 @@ export const DISCOVERY_ENTITY_CLASSES = Object.freeze([
   'QUALITY_RULESET', 'LINEAGE_VIEW', 'ML_MODEL', 'VECTOR_INDEX', 'DDN_WORKSPACE',
   'PERSON', 'TEAM', 'POLICY',
 ]);
+export const DISCOVERY_VISIBILITY_FIELDS = Object.freeze([
+  'businessSearch', 'technicalSearch', 'recommendations',
+  'dataProductCandidate',
+]);
 
 const FIELDS = Object.freeze(['schemaVersion', 'documentId', 'canonicalRef',
   'entityClass', 'nativeKind', 'provider', 'connectionEnvironment', 'name',
@@ -108,6 +112,37 @@ export function validateDiscoveryDocument(input) {
     }
   }
   return immutable(result);
+}
+
+export function discoveryDocumentVisibility(document) {
+  plainObject(document, 'Discovery document visibility source');
+  noRawSecrets(document, 'Discovery document visibility source');
+  const nativeMetadata = document.nativeMetadataSummary ?? {};
+  const facets = document.facetValues ?? {};
+  plainObject(nativeMetadata, 'Discovery native metadata visibility source');
+  plainObject(facets, 'Discovery facet visibility source');
+  const configured = nativeMetadata.discoveryVisibility;
+  if(configured !== undefined) {
+    plainObject(configured, 'Discovery document visibility');
+    const unknown = Object.keys(configured).find((field) =>
+      !DISCOVERY_VISIBILITY_FIELDS.includes(field));
+    const missing = DISCOVERY_VISIBILITY_FIELDS.find((field) =>
+      !Object.hasOwn(configured, field));
+    if(unknown || missing || DISCOVERY_VISIBILITY_FIELDS.some((field) =>
+      typeof configured[field] !== 'boolean')) throw new TypeError(
+      `Discovery document visibility is invalid${unknown ? `: ${unknown}` : ''}.`
+    );
+    return immutable({...configured});
+  }
+  const systemCatalog = nativeMetadata.systemCatalog === true ||
+    facets.systemCatalog === true ||
+    ['system_catalog', 'catalog_projection', 'system_table', 'system_view']
+      .includes(String(document.nativeKind).toLocaleLowerCase());
+  return immutable(systemCatalog ? {businessSearch: false,
+    technicalSearch: true, recommendations: false,
+    dataProductCandidate: false} : {businessSearch: true,
+    technicalSearch: true, recommendations: true,
+    dataProductCandidate: true});
 }
 
 function alias(surface) {

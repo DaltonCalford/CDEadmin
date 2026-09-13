@@ -13,10 +13,13 @@ const FIELDS = Object.freeze(['eventType', 'sessionId', 'runId', 'planId', 'init
 function redact(value) {
   if(Array.isArray(value)) return value.map(redact);
   if(!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).map(([key, child]) => [key,
-    SECRET_KEY.test(key) && !['credentialRef', 'credential_ref', 'credentialRefs',
-      'credential_refs'].includes(key) ?
-      '[REDACTED]' : redact(child)]));
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => {
+    const numericTokenMeasure = /tokens$/i.test(key) && typeof child === 'number' &&
+      Number.isFinite(child);
+    return [key, SECRET_KEY.test(key) && !['credentialRef', 'credential_ref',
+      'credentialRefs', 'credential_refs'].includes(key) && !numericTokenMeasure ?
+      '[REDACTED]' : redact(child)];
+  }));
 }
 
 function structured(value, label) {

@@ -227,13 +227,13 @@ describe('DiscoveryUsageSignalService', () => {
 });
 
 describe('DiscoveryRecommendationService', () => {
-  function services(policy={}) {
+  function services(policy={}, documentAuthority=documents()) {
     const usage = new DiscoveryUsageSignalService({
       store: new InMemoryDiscoveryUsageStore(), actorAuthority: actorAuthority(),
       policy: {windows: ['30d', 'all']}, now: () => NOW});
     const index = new InMemoryDiscoveryRecommendationIndex();
     return {usage, index, recommendations: new DiscoveryRecommendationService({
-      index, usage, documentAuthority: documents(), policy,
+      index, usage, documentAuthority, policy,
       now: () => NOW})};
   }
 
@@ -287,6 +287,27 @@ describe('DiscoveryRecommendationService', () => {
       recommendationSecurity({admitRecommendation: () => false})})).toEqual([]);
     expect(recommendations.recommendations(SOURCE, {security:
       recommendationSecurity({admitSignal: () => false})})).toEqual([]);
+  });
+
+  test('suppresses native system catalogs from recommendations', () => {
+    const baseline = documents();
+    const targetCatalog = {resolve: (reference) => {
+      const value = baseline.resolve(reference);
+      return reference === TARGET ? {...value, nativeKind: 'system_table',
+        nativeMetadataSummary: {systemCatalog: true}} : value;
+    }};
+    const {index, recommendations} = services({}, targetCatalog);
+    index.publish([evidence('related_by_lineage')]);
+    expect(recommendations.recommendations(SOURCE,
+      {security: recommendationSecurity()})).toEqual([]);
+    const sourceCatalog = {resolve: (reference) => {
+      const value = baseline.resolve(reference);
+      return reference === SOURCE ? {...value, nativeKind: 'system_table'} : value;
+    }};
+    const source = services({}, sourceCatalog);
+    source.index.publish([evidence('related_by_lineage')]);
+    expect(source.recommendations.recommendations(SOURCE,
+      {security: recommendationSecurity()})).toEqual([]);
   });
 
   test('removes stale/expired evidence and caps each section', () => {

@@ -8,6 +8,7 @@ import {DISCOVERY_RECOMMENDATION_TYPES, DISCOVERY_USAGE_WINDOWS,
   validateProtectedActorScope, validateRecommendationEvidence,
   validateRecommendationPolicy, validateUsageEvent, validateUsagePolicy} from
   './DiscoveryEngagementContracts';
+import {discoveryDocumentVisibility} from './DiscoveryDocument';
 
 function requireMethod(authority, method, label) {
   if(typeof authority?.[method] !== 'function') throw new TypeError(
@@ -200,7 +201,8 @@ export class DiscoveryRecommendationService {
 
   _visible(reference, security) {
     const document = this.documentAuthority.resolve(reference);
-    return document && security.admitDocument(document) === true ? document : null;
+    return document && discoveryDocumentVisibility(document).recommendations &&
+      security.admitDocument(document) === true ? document : null;
   }
 
   recommendations(sourceRef, {security, window='30d'}={}) {

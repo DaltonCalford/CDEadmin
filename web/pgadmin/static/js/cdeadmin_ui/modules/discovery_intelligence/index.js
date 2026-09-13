@@ -22,3 +22,4 @@ export * from './DiscoveryServiceAPI';
 export * from './DiscoveryAnalysisService';
 export * from './DiscoveryAIToolBridge';
 export * from './DiscoveryEnrichmentService';
+export * from './DiscoveryVisibilityTestService';

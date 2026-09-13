@@ -7,7 +7,8 @@ import {
   DiscoveryQuerySyntaxError, DiscoveryRankingEngine, DiscoverySearchService,
   InMemoryDiscoveryCursorAuthority, InMemoryDiscoveryGraphIndex,
   InMemoryDiscoveryIndexBackend, parseDiscoverySearchText,
-  validateDiscoveryRankingProfile, validateDiscoverySearchQuery,
+  discoveryDocumentVisibility, validateDiscoveryRankingProfile,
+  validateDiscoverySearchQuery,
 } from 'sources/cdeadmin_ui/modules/discovery_intelligence';
 
 function document(id, overrides={}) {
@@ -170,6 +171,24 @@ describe('Discovery query language', () => {
       mode: 'GRAPH_RELATED'})).toThrow(/related resource/);
     expect(() => validateDiscoverySearchQuery({text: 'x', extra: true})).toThrow(
       /unsupported field extra/);
+    expect(validateDiscoverySearchQuery({text: 'customer', pageSize: 200})
+      .pageSize).toBe(200);
+    expect(() => validateDiscoverySearchQuery({text: 'customer', pageSize: 201}))
+      .toThrow(/1 to 200/);
+  });
+
+  test('derives exact business and technical visibility for native catalogs', () => {
+    expect(discoveryDocumentVisibility(document('Customer'))).toEqual({
+      businessSearch: true, technicalSearch: true, recommendations: true,
+      dataProductCandidate: true});
+    expect(discoveryDocumentVisibility(document('System', {
+      nativeKind: 'system_table'}))).toEqual({businessSearch: false,
+      technicalSearch: true, recommendations: false,
+      dataProductCandidate: false});
+    expect(() => discoveryDocumentVisibility(document('Invalid', {
+      nativeMetadataSummary: {discoveryVisibility: {businessSearch: true,
+        technicalSearch: true, recommendations: true}}}))).toThrow(
+      /visibility is invalid/);
   });
 });
 
@@ -184,6 +203,43 @@ describe('security-first candidate retrieval', () => {
     expect(result.facets.provider).toEqual([{value: 'firebird', count: 1}]);
     await expect(service.autocomplete('Se', {security: policy})).resolves.toEqual([]);
   });
+
+  test('suppresses system catalogs from business search and recommendations surfaces',
+    async () => {
+      const system = document('SystemCustomer', {nativeKind: 'system_table',
+        facetValues: {provider: 'firebird', nativeKind: 'system_table',
+          domain: 'operations', certification: 'CERTIFIED', quality: 'PASS',
+          freshness: 'CURRENT', access: 'AVAILABLE'}});
+      const {service} = await runtime({documents: [document('Customer'), system]});
+      const policy = security();
+      await expect(service.search({text: 'customer'}, {security: policy}))
+        .resolves.toMatchObject({totalVisibleEstimate: 1,
+          results: [{name: 'Customer'}]});
+      await expect(service.autocomplete('Sy', {security: policy}))
+        .resolves.toEqual([]);
+      await expect(service.search({text: '', mode: 'ADVANCED_FACETED',
+        nativeKinds: ['system_table']}, {security: policy})).resolves
+        .toMatchObject({totalVisibleEstimate: 1,
+          results: [{name: 'SystemCustomer'}]});
+    });
+
+  test('honors an explicit technical-search denial and caps every facet at 50',
+    async () => {
+      const hiddenTechnical = document('HiddenTechnical', {
+        nativeKind: 'system_table', nativeMetadataSummary: {
+          discoveryVisibility: {businessSearch: false, technicalSearch: false,
+            recommendations: false, dataProductCandidate: false}},
+        facetValues: {provider: 'provider-hidden', nativeKind: 'system_table'}});
+      const documents = [hiddenTechnical, ...Array.from({length: 55}, (_, index) =>
+        document(`Table${index}`, {provider: `provider-${index}`,
+          facetValues: {provider: `provider-${index}`, nativeKind: 'table'}}))];
+      const {service} = await runtime({documents});
+      const result = await service.search({text: '', mode: 'ADVANCED_FACETED',
+        pageSize: 200}, {security: security()});
+      expect(result.totalVisibleEstimate).toBe(55);
+      expect(result.results.some((item) => item.name === 'HiddenTechnical')).toBe(false);
+      expect(result.facets.provider).toHaveLength(50);
+    });
 
   test('matches and returns only the admitted ScratchBird alias', async () => {
     const item = document('Customer', {provider: 'scratchbird',
@@ -315,12 +371,14 @@ describe('candidate fusion, graph, semantic and structured retrieval', () => {
       toRef: orders.canonicalRef, type: 'feeds', weight: 0.9, directed: true,
       evidence: {}, revision: 'graph-1'};
     const graphIndex = {health: () => ({ready: true, activeRevision: 'graph-1'}),
-      neighbors: () => [{canonicalRef: orders.canonicalRef, score: 0.9,
-        evidence: [], edges: [edge]}]};
+      neighbors: jest.fn(() => [{canonicalRef: orders.canonicalRef, score: 0.9,
+        evidence: [], edges: [edge]}])};
     const {service} = await runtime({documents: [customer, orders], graphIndex});
     await expect(service.search({text: '', mode: 'GRAPH_RELATED',
       relatedTo: [customer.canonicalRef]}, {security: security({edges: false})}))
       .resolves.toMatchObject({results: [], totalVisibleEstimate: 0});
+    expect(graphIndex.neighbors).toHaveBeenCalledWith(expect.objectContaining({
+      limit: 100}));
   });
 
   test('publishes graph revisions atomically and rejects malformed edges', () => {

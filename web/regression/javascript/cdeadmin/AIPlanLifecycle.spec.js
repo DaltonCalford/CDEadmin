@@ -222,9 +222,13 @@ describe('AI emergency and audit authorities', () => {
   it('redacts structured secret fields and separates retained content from metadata', () => {
     const audit = new AIAuditService(); const record = audit.append({eventType: 'ai.test',
       initiator: 'human', redactedArguments: {password: 'raw', nested: {token: 'raw'}},
-      backendResult: {status: 'ok', secretValue: 'raw'}, content: {prompt: 'Explain orders'}});
+      backendResult: {status: 'ok', secretValue: 'raw'},
+      usage: {inputTokens: 12, outputTokens: 4, accessToken: 'raw'},
+      content: {prompt: 'Explain orders'}});
     expect(record.redactedArguments).toEqual({password: '[REDACTED]',
       nested: {token: '[REDACTED]'}});
+    expect(record.usage).toEqual({inputTokens: 12, outputTokens: 4,
+      accessToken: '[REDACTED]'});
     expect(audit.get(record.auditId).content).toBeUndefined();
     expect(audit.get(record.auditId, {includeContent: true}).content)
       .toEqual({prompt: 'Explain orders'});

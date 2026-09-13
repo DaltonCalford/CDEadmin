@@ -131,6 +131,8 @@ describe('AI Interface asset contracts', () => {
       .toThrow('cross-surface querying requires read access');
     expect(() => validateAIAsset('AIApprovalPolicy', {...fixtures.AIApprovalPolicy,
       riskRules: {...fixtures.AIApprovalPolicy.riskRules, R5: 'auto'}})).toThrow('R5 rule is invalid');
+    expect(() => validateAIAsset('AIApprovalPolicy', {...fixtures.AIApprovalPolicy,
+      riskRules: {...fixtures.AIApprovalPolicy.riskRules, R6: 'auto'}})).toThrow('R6 rule is invalid');
     expect(() => validateAIAsset('AIInstructionAsset', {...fixtures.AIInstructionAsset,
       password: 'do not persist'})).toThrow('Raw credential');
   });

@@ -172,8 +172,13 @@ describe('AIConnectorService', () => {
     expect(testRuntime.instances[1].instance.close).toHaveBeenCalledTimes(1);
     const disabled = await testRuntime.service.disable('database-main');
     expect(disabled.state).toBe('disabled'); expect(disabled.profile.enabled).toBe(false);
+    await testRuntime.service.enable('database-main');
+    const revokedPrepared = await testRuntime.service.prepare('database-main',
+      {operationId: 'revoked-operation', action: 'read'});
     const revoked = await testRuntime.service.revoke('database-main');
     expect(revoked.state).toBe('revoked');
+    await expect(testRuntime.service.execute('database-main',
+      revokedPrepared.preparedId)).rejects.toThrow(/not usable \(revoked\)/);
     await expect(testRuntime.service.enable('database-main')).rejects.toThrow('cannot be enabled');
     await expect(testRuntime.service.update('database-main', updatedInput)).rejects.toThrow(
       'cannot be updated');

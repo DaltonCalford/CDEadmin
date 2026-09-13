@@ -36,6 +36,14 @@ function retention(input) {
   return validateAIAsset('AIRetentionPolicy', input);
 }
 
+function usageCostView(record) {
+  if(record.usage == null) return null;
+  const usage = {...record.usage};
+  if(usage.cost == null) usage.cost = usage.actualCost ??
+    usage.estimatedCost ?? 'unknown';
+  return immutable({...record, usage: immutable(usage)});
+}
+
 export class AIInterfaceRuntimeService {
   constructor({assets, connectors, plans, planExecution, queries, audit,
     emergency, backgroundRuns, tasks, toolCatalog=null,
@@ -44,7 +52,7 @@ export class AIInterfaceRuntimeService {
       plans: ['create', 'get'], planExecution: ['execute', 'cancel'],
       queries: ['compile', 'review', 'execute'], audit: ['append', 'export'],
       emergency: ['snapshot', 'disableAll'], backgroundRuns: ['start', 'cancel'],
-      tasks: ['register', 'submit', 'wait', 'cancel']};
+      tasks: ['register', 'submit', 'wait', 'cancel', 'list']};
     const supplied = {assets, connectors, plans, planExecution, queries, audit,
       emergency, backgroundRuns, tasks};
     for(const [name, methods] of Object.entries(requiredAuthorities)) {
@@ -101,9 +109,10 @@ export class AIInterfaceRuntimeService {
         item.assetKind === 'AIAgentProfile'),
       model_providers: [...this.savedAssets.values()].filter((item) =>
         item.assetKind === 'AIModelProfile'),
-      plan_review: this.plans.list(), run_monitor: [...this.planExecution.runs.values(),
-        ...this.backgroundRuns.runs.values()], audit: this.audit.list(),
-      usage_cost: this.audit.list().filter((item) => item.usage != null),
+      plan_review: this.plans.list(), run_monitor: [...this.tasks.list(),
+        ...this.planExecution.runs.values(), ...this.backgroundRuns.runs.values()],
+      audit: this.audit.list(), usage_cost: this.audit.list()
+        .map(usageCostView).filter(Boolean),
       ai_admin: [this.emergency.snapshot()],
     };
     return immutable(values[name] ?? []);

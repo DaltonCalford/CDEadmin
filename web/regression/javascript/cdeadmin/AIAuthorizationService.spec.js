@@ -200,6 +200,26 @@ describe('AIAuthorizationService', () => {
       .resolves.toMatchObject({deniedAt: 'delegation'});
   });
 
+  it('never auto-approves R6 and preserves an SBsql engine-privilege denial',
+    async () => {
+      const highRisk = operation({commandId: 'ai.production.cutover',
+        operationKind: 'command', riskClass: 'R6', approvalEvidence: null});
+      await expect(fixture().service.evaluate(highRisk, context())).resolves
+        .toMatchObject({allowed: false, deniedAt: 'approval',
+          reason: 'Approval is required by R6 policy.'});
+      const denied = fixture({backendAuthorization: jest.fn(() => ({
+        allowed: false, reason: 'SBsql object privilege denied',
+        evidenceRef: 'engine:denied'}))});
+      const scratchBird = context(); scratchBird.connectorProfile = {
+        ...scratchBird.connectorProfile, connectorClass: 'scratchbird_sbsql',
+        providerId: 'scratchbird', dialectId: 'sbsql'};
+      scratchBird.dataPolicy.queryPolicy.allowCrossSurface = true;
+      await expect(denied.service.evaluate(operation({
+        accessSurfaceRefs: ['postgresql', 'firebird']}), scratchBird)).resolves
+        .toMatchObject({allowed: false, deniedAt: 'backend_authorization',
+          reason: 'SBsql object privilege denied'});
+    });
+
   it('requires every independent authority at construction', async () => {
     const {commands, authorities} = fixture(); delete authorities.databasePrecheck;
     expect(() => new AIAuthorizationService({commands, ...authorities})).toThrow(

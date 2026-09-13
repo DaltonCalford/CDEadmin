@@ -169,12 +169,15 @@ describe('Discovery knowledge contracts and persistence', () => {
 });
 
 describe('BusinessKnowledgeService and DataProductService', () => {
-  function services() {
+  function services(documentAuthority={resolve: (reference) => ({
+    canonicalRef: reference, nativeKind: 'table', nativeMetadataSummary: {},
+    facetValues: {}})}) {
     const assets = new DiscoveryKnowledgeAssetAuthority({projectAssets:
       new ProjectAssets()});
     const knowledge = new BusinessKnowledgeService({assets,
       now: () => Date.parse('2026-09-12T12:00:00Z')});
-    return {assets, knowledge, products: new DataProductService({knowledge})};
+    return {assets, knowledge, products: new DataProductService({knowledge,
+      documentAuthority})};
   }
 
   test('rejects domain cycles and preserves the current good hierarchy', () => {
@@ -224,6 +227,14 @@ describe('BusinessKnowledgeService and DataProductService', () => {
       {expectedVersion: 3, certification: record})).resolves.toMatchObject({
       content: {status: 'CERTIFIED', certification: {
         certificationId: 'cert-product'}}});
+  });
+
+  test('refuses system-catalog resources as Data Product members', async () => {
+    const {products} = services({resolve: (reference) => ({
+      canonicalRef: reference, nativeKind: 'system_table',
+      nativeMetadataSummary: {systemCatalog: true}, facetValues: {}})});
+    await expect(products.save('project', product())).rejects.toThrow(
+      /not eligible for Data Product membership/);
   });
 });
 
