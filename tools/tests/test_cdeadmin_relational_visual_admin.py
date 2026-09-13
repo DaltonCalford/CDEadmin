@@ -223,7 +223,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         for changes in ({'index_kind': 'other'}, {'direction': 'sideways'},
                         {'index_kind': 'expression', 'expression': ''},
                         {'condition': '1=1; DROP TABLE ITEMS'},
-                        {'condition': '1=1 -- comment'}):
+                        {'condition': '1=1 /* unclosed comment'}):
             with self.subTest(changes=changes):
                 with self.assertRaises(RelationalClientError):
                     admin.plan({'resource_kind': 'index',

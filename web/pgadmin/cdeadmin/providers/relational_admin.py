@@ -30,6 +30,7 @@ from typing import Any, Mapping, Sequence
 
 from ..sdk.relational import RelationalClientError
 from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
+from .firebird_expressions import index_expression
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -4862,16 +4863,16 @@ class RelationalAdministration:
                 if direction not in ('ASCENDING', 'DESCENDING'):
                     raise RelationalClientError('Invalid index direction')
                 if index_kind == 'expression':
-                    expression = self._safe_fragment(
+                    expression = index_expression(
                         options.get('expression'), 'index expression')
-                    definition = f'COMPUTED BY ({expression})'
+                    definition = f'COMPUTED BY ({expression}\n)'
                 else:
                     columns = self._identifier_list(options.get('columns'))
                     definition = f'({columns})'
                 condition = options.get('condition')
                 if condition is not None and condition != '':
-                    definition += ' WHERE ' + self._safe_fragment(
-                        condition, 'index predicate')
+                    condition = index_expression(condition, 'index predicate')
+                    definition += f' WHERE ({condition}\n)'
             else:
                 columns = self._identifier_list(options.get('columns'))
                 direction = ''

@@ -11,6 +11,7 @@ from cdeadmin_firebird_constraint_editor_gate import (
     ADMINISTRATION, ROOT, _create_client, _route_arguments,
 )
 from pgadmin.cdeadmin.providers.firebird.provider import _resources
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 def run(profiles_path):
@@ -117,6 +118,49 @@ def run(profiles_path):
                     connection.commit()
                     result['checks'].append(
                         f'{kind}-{direction}-partial-{partial}')
+        # Exercise native expression text through the provider planner.
+        cases = [
+            ('concat', "UPPER(V) || ';'", 'ID != 0', 'ROBIN;'),
+            ('alternative-quote', "V || q'[Robin's ;)]'", 'ID !< 1',
+             "RobinRobin's ;)"),
+            ('comments', 'UPPER(V) /* ) ; */', 'ID > 0 -- final comment',
+             'ROBIN'),
+            ('case', 'CASE WHEN ID > 0 THEN UPPER(V) ELSE V END',
+             "V SIMILAR TO '[A-Za-z]+'", 'ROBIN'),
+            ('quoted', '"V" || \'Robin\'\'s\'', 'ID IS NOT NULL',
+             "RobinRobin's"),
+        ]
+        for label, expression, predicate, expected in cases:
+            name = table + '_E'
+            apply('create', {'name': name, 'table': table,
+                             'index_kind': 'expression',
+                             'expression': expression,
+                             'condition': predicate}, name)
+            execute(f'INSERT INTO "{table}" VALUES (1, \'Robin\')')
+            assert execute(f'SELECT COUNT(*) FROM "{table}"',
+                           fetch=True) == [(1,)]
+            assert execute(f'SELECT ({expression}\n) FROM "{table}" '
+                           f'WHERE ({predicate}\n)',
+                           fetch=True) == [(expected,)]
+            connection.rollback()
+            apply('drop', {}, name)
+            result['checks'].append('visual-expression-' + label)
+        name = table + '_BAD'
+        try:
+            apply('create', {'name': name, 'table': table,
+                             'index_kind': 'expression',
+                             'expression': 'NO_SUCH_FUNCTION(V)'}, name)
+        except RelationalClientError as error:
+            assert 'execution failed (DatabaseError)' in str(error), error
+            if connection.main_transaction.is_active():
+                connection.rollback()
+            assert execute('SELECT COUNT(*) FROM RDB$INDICES '
+                           'WHERE RDB$INDEX_NAME = ?',
+                           (name,), True) == [(0,)]
+            connection.commit()
+            result['checks'].append('native-invalid-expression-no-index')
+        else:
+            raise AssertionError('Native-invalid expression was accepted')
         # Native BLOB source must survive catalog reads and repeated replay.
         # Raw fixture SQL deliberately includes native syntax not yet admitted
         # by the visual expression validator; it is not visual-form evidence.
