@@ -38,6 +38,7 @@ import {
   safeModePreferences,
   writeAccessibilitySafeMode,
 } from '../cdeadmin_ui/foundations/presentation';
+import {QAVisualIdentityBoundary} from 'sources/cdeadmin_ui/qa';
 
 /* Common settings across all themes */
 let basicSettings = createTheme();
@@ -1070,6 +1071,7 @@ export default function Theme({children}) {
   return (
     <ThemeProvider theme={themeObj}>
       <CssBaseline />
+      <QAVisualIdentityBoundary />
       <LocalizationProvider dateAdapter={AdapterDateFns}>
         {children}
       </LocalizationProvider>

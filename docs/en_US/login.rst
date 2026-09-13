@@ -4,10 +4,10 @@
 `Login Page`:index:
 *********************
 
-Use the *Login* page to log in to pgAdmin:
+Use the *Login* page to log in to ScratchRobin CDE Administration Console:
 
 .. image:: images/login.png
-    :alt: pgAdmin login page
+    :alt: ScratchRobin CDE Administration Console login page
     :align: center
 
 Use the fields in the *Login* page to authenticate your connection. There are
@@ -28,9 +28,16 @@ two ways to authenticate your connection:
 
   * Provide your password in the *Password* field.
 
-Click the *Login* button to securely log into pgAdmin.
+Turn on *QA mode - show visual element IDs on hover* when performing visual
+quality assurance. The setting is stored on the current device and remains in
+effect after login. In QA mode, pointing to or focusing a visual element shows
+its unique CDEadmin QA identifier. Turn the switch off to remove the identifiers
+and hints. QA mode does not change permissions, accessible names, database
+objects, or data.
 
-Please note that if the pgAdmin server is restarted, then you will be logged
+Click the *Login* button to securely log into CDEadmin.
+
+Please note that if the CDEadmin server is restarted, then you will be logged
 out. You need to re-login to continue.
 
 Recovering a Lost Password

@@ -5,6 +5,7 @@ import BasePage, { SecurityButton } from './BasePage';
 import LoginIllustration from './LoginIllustration';
 import gettext from 'sources/gettext';
 import PropTypes from 'prop-types';
+import {QAVisualIdentityToggle} from 'sources/cdeadmin_ui/qa';
 
 export default function LoginPage({userLanguage, langOptions, forgotPassUrl, csrfToken, loginUrl, authSources, authSourcesEnum, oauth2Config, loginBanner, ...props}) {
   const [form, setForm] = useState(({email: '', password: '', language: userLanguage}));
@@ -29,7 +30,18 @@ export default function LoginPage({userLanguage, langOptions, forgotPassUrl, csr
         marginLeft: 'auto'
       }} textCenter />}
       <BasePage title={gettext('Login')} pageImage={<LoginIllustration />} {...props}>
-        <form style={{display:'flex', gap:'15px', flexDirection:'column'}} action={loginUrl} method="POST">
+        <form data-cdeadmin-qa-key="security.login.form"
+          style={{display:'flex', gap:'15px', flexDirection:'column'}}
+          action={loginUrl} method="POST">
+          <Box data-cdeadmin-qa-key="security.login.product-identity"
+            textAlign="center">
+            <Box component="strong" display="block">
+              {gettext('ScratchRobin CDE Administration Console')}
+            </Box>
+            <Box component="span" display="block">
+              {gettext('Alpha QA Release')}
+            </Box>
+          </Box>
           {showLoginForm &&
           <>
             <input name="csrf_token" defaultValue={csrfToken} hidden/>
@@ -41,8 +53,11 @@ export default function LoginPage({userLanguage, langOptions, forgotPassUrl, csr
               <a style={{color: 'inherit'}} href={forgotPassUrl}>{gettext('Forgotten your password?')}</a>
             </Box>
             <InputSelectNonSearch name="language" options={langOptions} value={form.language} onChange={(v)=>onTextChange('language', v.target.value)} />
-            <SecurityButton name="internal_button" value="Login" disabled={!(form.email && form.password)}>{gettext('Login')}</SecurityButton>
           </>
+          }
+          <QAVisualIdentityToggle />
+          {showLoginForm &&
+            <SecurityButton name="internal_button" value="Login" disabled={!(form.email && form.password)}>{gettext('Login')}</SecurityButton>
           }
           {authSources?.includes?.(authSourcesEnum.OAUTH2) &&
           oauth2Config.map((oauth)=>{

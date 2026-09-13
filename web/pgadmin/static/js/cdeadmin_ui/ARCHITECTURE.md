@@ -35,6 +35,28 @@ dispatching a `cdeadmin:accessibility-safe-mode` window event. Safe mode uses a
 high-contrast theme, the low-vision sizing profile, reduced motion, and ignores
 unsafe custom presentation values. It does not delete the user's saved profile.
 
+## Visual QA identity
+
+The shared `Theme` boundary installs the opt-in visual identity authority on
+every themed CDEadmin page, including authentication pages and the workbench.
+The login page switch persists the device-local QA mode under
+`cdeadmin.qa.visual-identities.enabled.v1`. When enabled, every rendered HTML
+and SVG element receives a collision-checked `data-cdeadmin-qa-id`; dynamically
+inserted content, React portals, open shadow roots, and accessible same-origin
+frame documents are observed for their entire lifetime. A pointer hover or
+keyboard focus displays the exact identifier in a non-interactive overlay.
+Disabling the mode removes the instrumentation and observers immediately.
+
+Feature code may set `data-cdeadmin-qa-key` to give an important control or
+surface a stable, human-readable semantic segment. Keys must be globally
+namespaced (`module.surface.control`), must describe the control rather than
+its presentation, and must never contain a username, object name, query,
+credential, or other user/provider data. The authority generates structural
+identities for unannotated legacy controls and hashes existing implementation
+identifiers so the QA overlay does not disclose them. QA identity is diagnostic
+metadata only: it does not replace a DOM `id`, command ID, resource identity,
+accessible name, permission check, or provider object identity.
+
 ## Design-system components
 
 The public surface includes actions, fields and choices, layout, navigation,
