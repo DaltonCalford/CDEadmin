@@ -61,7 +61,7 @@ Button.propTypes = {
   onClick: PropTypes.func,
 };
 
-export function IconButton({label, title, ...props}) {
+export function IconButton({label, title, icon, children, ...props}) {
   const accessibleLabel = label || title;
   if(!accessibleLabel) {
     throw new TypeError('IconButton requires a label or title.');
@@ -69,6 +69,7 @@ export function IconButton({label, title, ...props}) {
   return <PgIconButton
     aria-label={accessibleLabel}
     title={title || accessibleLabel}
+    icon={icon ?? children}
     {...props}
   />;
 }
@@ -76,4 +77,6 @@ export function IconButton({label, title, ...props}) {
 IconButton.propTypes = {
   label: PropTypes.string,
   title: PropTypes.string,
+  icon: PropTypes.node,
+  children: PropTypes.node,
 };

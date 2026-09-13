@@ -72,9 +72,9 @@ function ensureCoreModules() {
     id: CORE_MODULE_ID, version: '1.0.0', title: 'CDEadmin shell',
     contributions: {
       activity: [{id: 'activity.data', label: 'Data Explorer',
-        iconKey: 'object.database', priority: 10}],
+        iconKey: 'tool.data-explorer', priority: 10}],
       commands: [{id: 'view.data-explorer.focus', label: 'Data Explorer',
-        iconKey: 'object.database', surfaces: ['view'],
+        iconKey: 'tool.data-explorer', surfaces: ['view'],
         execute: (_args, context) => requiredCallback('showActivity', context)(
           'activity.data'
         )}],
@@ -82,11 +82,11 @@ function ensureCoreModules() {
   });
   if(!moduleRegistry.has(PROJECTS_MODULE_ID)) moduleRegistry.register({
     id: PROJECTS_MODULE_ID, version: '1.0.0', title: 'Projects',
-    iconKey: 'object.schema',
+    iconKey: 'tool.project-explorer',
     serviceRequirements: [PROJECT_ASSET_SERVICE_ID],
     contributions: {
       activity: [{id: 'activity.projects', label: 'Project Explorer',
-        iconKey: 'object.schema', priority: 20}],
+        iconKey: 'tool.project-explorer', priority: 20}],
       commands: [
         {id: 'project.create', label: 'New Project', iconKey: 'action.new',
           surfaces: ['file', 'project'],
@@ -94,7 +94,7 @@ function ensureCoreModules() {
             'createProject', context
           )()},
         {id: 'project.explorer.focus', label: 'Project Explorer',
-          iconKey: 'object.schema', surfaces: ['view', 'project'],
+          iconKey: 'tool.project-explorer', surfaces: ['view', 'project'],
           execute: (_args, context) => requiredCallback(
             'showActivity', context
           )('activity.projects')},

@@ -32,7 +32,9 @@ Turn on *QA mode - show visual element IDs on hover* when performing visual
 quality assurance. The setting is stored on the current device and remains in
 effect after login. In QA mode, pointing to or focusing a visual element shows
 its unique CDEadmin QA identifier. Turn the switch off to remove the identifiers
-and hints. QA mode does not change permissions, accessible names, database
+and hints. With an identifier visible, press *Ctrl+Alt+C* on Windows/Linux or
+*Command+Option+C* on macOS to copy it to the clipboard. QA mode does not change
+permissions, accessible names, database
 objects, or data.
 
 Click the *Login* button to securely log into CDEadmin.

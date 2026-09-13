@@ -5,8 +5,10 @@
 export const QA_VISUAL_MODE_STORAGE_KEY =
   'cdeadmin.qa.visual-identities.enabled.v1';
 export const QA_VISUAL_MODE_EVENT = 'cdeadmin:qa-visual-mode';
+export const QA_VISUAL_ID_COPIED_EVENT = 'cdeadmin:qa-visual-id-copied';
 export const QA_VISUAL_ID_ATTRIBUTE = 'data-cdeadmin-qa-id';
 export const QA_VISUAL_KEY_ATTRIBUTE = 'data-cdeadmin-qa-key';
+export const QA_VISUAL_COPY_SHORTCUT = 'Ctrl/Cmd+Alt+C';
 
 const EXCLUDED_ELEMENTS = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'BASE',
   'TITLE', 'TEMPLATE', 'NOSCRIPT']);
@@ -103,7 +105,7 @@ function tooltip(documentValue) {
     maxWidth: 'min(720px, calc(100vw - 24px))', padding: '5px 8px',
     color: '#ffffff', background: '#111827', border: '1px solid #67e8f9',
     borderRadius: '3px', fontFamily: 'monospace', fontSize: '12px',
-    lineHeight: '1.4', overflowWrap: 'anywhere',
+    lineHeight: '1.4', overflowWrap: 'anywhere', whiteSpace: 'pre-wrap',
     boxShadow: '0 2px 8px rgba(0,0,0,.45)'});
   documentValue.body.appendChild(element); return element;
 }
@@ -114,11 +116,31 @@ function eventElement(event) {
     value.hasAttribute?.(QA_VISUAL_ID_ATTRIBUTE)) ?? null;
 }
 
+function defaultClipboardWriter(text, documentValue, windowValue) {
+  if(windowValue.navigator?.clipboard?.writeText) {
+    return windowValue.navigator.clipboard.writeText(text);
+  }
+  const field = documentValue.createElement('textarea');
+  field.value = text;
+  field.setAttribute('data-cdeadmin-qa-overlay', 'true');
+  Object.assign(field.style, {
+    position: 'fixed', opacity: '0', pointerEvents: 'none',
+  });
+  documentValue.body.appendChild(field);
+  field.select();
+  const copied = documentValue.execCommand?.('copy') === true;
+  field.remove();
+  if(!copied) return Promise.reject(new Error('Clipboard access is unavailable.'));
+  return Promise.resolve();
+}
+
 export class QAVisualIdentityController {
   constructor({windowValue=window, storage=windowValue.localStorage,
-    observerFactory=(callback) => new windowValue.MutationObserver(callback)}={}) {
+    observerFactory=(callback) => new windowValue.MutationObserver(callback),
+    clipboardWriter=defaultClipboardWriter}={}) {
     this.window = windowValue; this.storage = storage;
     this.observerFactory = observerFactory; this.enabled = false;
+    this.clipboardWriter = clipboardWriter;
     this.started = false; this.roots = new Map(); this.claims = new Map();
     this.assigned = new Set();
     this.onModeRequest = (event) => this.setEnabled(event.detail?.enabled ?? true);
@@ -158,11 +180,13 @@ export class QAVisualIdentityController {
   observeDocument(documentValue, framePrefix='') {
     if(!documentValue?.documentElement || this.roots.has(documentValue)) return;
     const state = {framePrefix, observer: this.createObserver(documentValue,
-      framePrefix), overlay: null, listeners: {}, shadow: false};
+      framePrefix), overlay: null, listeners: {}, shadow: false,
+    activeTarget: null, copyTimer: null};
     const show = (event) => this.showHint(documentValue, event);
-    const hide = () => this.hideHint(documentValue);
+    const hide = () => this.hideHint(documentValue, {clearTarget: true});
+    const copy = (event) => this.copyActiveIdentity(documentValue, event);
     state.listeners = {pointerover: show, pointermove: show, pointerout: hide,
-      focusin: show, focusout: hide};
+      focusin: show, focusout: hide, keydown: copy};
     for(const [name, listener] of Object.entries(state.listeners)) {
       documentValue.addEventListener(name, listener, true);
     }
@@ -203,7 +227,7 @@ export class QAVisualIdentityController {
     const observer = this.createObserver(documentValue, framePrefix);
     observer.observe(root, {childList: true, subtree: true});
     this.roots.set(root, {observer, overlay: null, listeners: {},
-      framePrefix, shadow: true});
+      framePrefix, shadow: true, activeTarget: null, copyTimer: null});
     for(const element of root.children) this.scan(element, documentValue,
       framePrefix);
   }
@@ -251,8 +275,13 @@ export class QAVisualIdentityController {
     if(!target) return this.hideHint(documentValue);
     const state = this.roots.get(documentValue);
     if(!state) return;
+    if(state.copyTimer) this.window.clearTimeout(state.copyTimer);
+    state.copyTimer = null;
+    state.activeTarget = target;
     state.overlay ??= tooltip(documentValue);
-    state.overlay.textContent = target.getAttribute(QA_VISUAL_ID_ATTRIBUTE);
+    state.overlay.removeAttribute('data-cdeadmin-qa-copy-state');
+    state.overlay.textContent = `${target.getAttribute(QA_VISUAL_ID_ATTRIBUTE)}\n${
+      QA_VISUAL_COPY_SHORTCUT} to copy`;
     const rect = target.getBoundingClientRect();
     const x = Number.isFinite(event.clientX) && event.clientX > 0 ?
       event.clientX : rect.left;
@@ -265,14 +294,52 @@ export class QAVisualIdentityController {
     state.overlay.style.display = 'block';
   }
 
-  hideHint(documentValue) {
-    const overlay = this.roots.get(documentValue)?.overlay;
+  hideHint(documentValue, {clearTarget=false}={}) {
+    const state = this.roots.get(documentValue);
+    const overlay = state?.overlay;
     if(overlay) overlay.style.display = 'none';
+    if(clearTarget && state) state.activeTarget = null;
+  }
+
+  copyActiveIdentity(documentValue, event) {
+    const shortcut = String(event.key ?? '').toLowerCase() === 'c' &&
+      event.altKey && (event.ctrlKey || event.metaKey) && !event.shiftKey;
+    if(!shortcut) return false;
+    const state = this.roots.get(documentValue);
+    const target = state?.activeTarget ?? eventElement(event);
+    const identity = target?.getAttribute?.(QA_VISUAL_ID_ATTRIBUTE);
+    if(!identity) return false;
+    event.preventDefault();
+    Promise.resolve(this.clipboardWriter(identity, documentValue, this.window))
+      .then(() => {
+        if(!this.enabled || !this.roots.has(documentValue)) return;
+        state.overlay ??= tooltip(documentValue);
+        state.overlay.textContent = `Copied: ${identity}`;
+        state.overlay.setAttribute('data-cdeadmin-qa-copy-state', 'copied');
+        state.overlay.style.display = 'block';
+        this.window.dispatchEvent(new this.window.CustomEvent(
+          QA_VISUAL_ID_COPIED_EVENT, {detail: {identity}}
+        ));
+        if(state.copyTimer) this.window.clearTimeout(state.copyTimer);
+        state.copyTimer = this.window.setTimeout(() => {
+          if(state.overlay) state.overlay.style.display = 'none';
+          state.copyTimer = null;
+        }, 1500);
+      })
+      .catch(() => {
+        if(!this.enabled || !this.roots.has(documentValue)) return;
+        state.overlay ??= tooltip(documentValue);
+        state.overlay.textContent = `Unable to copy: ${identity}`;
+        state.overlay.setAttribute('data-cdeadmin-qa-copy-state', 'failed');
+        state.overlay.style.display = 'block';
+      });
+    return true;
   }
 
   clear() {
     for(const [root, state] of this.roots) {
       state.observer.disconnect();
+      if(state.copyTimer) this.window.clearTimeout(state.copyTimer);
       if(!state.shadow) for(const [name, listener] of Object.entries(
         state.listeners)) root.removeEventListener(name, listener, true);
       state.overlay?.remove();

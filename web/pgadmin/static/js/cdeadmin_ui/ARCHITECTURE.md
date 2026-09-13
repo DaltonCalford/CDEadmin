@@ -45,6 +45,8 @@ and SVG element receives a collision-checked `data-cdeadmin-qa-id`; dynamically
 inserted content, React portals, open shadow roots, and accessible same-origin
 frame documents are observed for their entire lifetime. A pointer hover or
 keyboard focus displays the exact identifier in a non-interactive overlay.
+While that hint is active, Ctrl/Cmd+Alt+C copies the identifier and displays a
+short success confirmation; ordinary Copy remains untouched.
 Disabling the mode removes the instrumentation and observers immediately.
 
 Feature code may set `data-cdeadmin-qa-key` to give an important control or
@@ -212,8 +214,12 @@ hard-coding feature modules.
 project navigators, docked work surface, Inspector/Toolbox, bottom drawer, and
 status bar. Navigation, Inspector, and drawer dimensions are bounded and stored
 device-locally. Activity commands reveal the navigator as well as selecting its
-content. The legacy dock remains the panel layout engine behind the semantic
-shell boundary, and focus changes are reflected into workbench context.
+content. The activity rail is also the sole workspace switcher: Query Tool,
+command-line, schema-diff, and Preferences actions are icon-bearing activity
+tabs, and the former vertical workspace toolbar is not rendered or retained.
+Unavailable workspace tabs remain visible and disabled. The legacy dock remains
+the panel layout engine behind the semantic shell boundary, and focus changes
+are reflected into workbench context.
 
 Live provider resources and authored project assets are intentionally separate.
 `ProjectAssetService` provides authenticated membership, optimistic project and

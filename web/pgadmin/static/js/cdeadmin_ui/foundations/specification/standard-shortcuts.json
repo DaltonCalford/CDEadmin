@@ -13,7 +13,8 @@
     "Safe Accessibility Mode": "Ctrl+Shift+0",
     "Help": "F1",
     "Refresh": "F5",
-    "Global Resource Search": "Ctrl/Cmd+P"
+    "Global Resource Search": "Ctrl/Cmd+P",
+    "Copy QA Visual ID": "Ctrl/Cmd+Alt+C (QA mode only)"
   },
   "editing": {
     "Undo": "Ctrl/Cmd+Z",

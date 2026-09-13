@@ -21,7 +21,9 @@ import ObjectExplorer from './tree/ObjectExplorer';
 import Properties from '../../misc/properties/Properties';
 import SQL from '../../misc/sql/static/js/SQL';
 import Statistics from '../../misc/statistics/static/js/Statistics';
-import { BROWSER_PANELS, WORKSPACES } from '../../browser/static/js/constants';
+import {
+  AllPermissionTypes, BROWSER_PANELS, WORKSPACES,
+} from '../../browser/static/js/constants';
 import Dependencies from '../../misc/dependencies/static/js/Dependencies';
 import Dependents from '../../misc/dependents/static/js/Dependents';
 import ModalProvider from './helpers/ModalProvider';
@@ -36,8 +38,8 @@ import Processes from '../../misc/bgprocess/static/js/Processes';
 import currentUser from 'pgadmin.user_management.current_user';
 import { useBeforeUnload } from './custom_hooks';
 import pgWindow from 'sources/window';
-import WorkspaceToolbar from '../../misc/workspaces/static/js/WorkspaceToolbar';
 import { useWorkspace, WorkspaceProvider } from '../../misc/workspaces/static/js/WorkspaceProvider';
+import withCheckPermission from '../../browser/static/js/withCheckPermission';
 import { PgAdminProvider, usePgAdmin } from './PgAdminProvider';
 import PreferencesComponent from '../../preferences/static/js/components/PreferencesComponent';
 import { ApplicationStateProvider } from '../../settings/static/ApplicationStateProvider';
@@ -97,7 +99,8 @@ function Layouts({browser, platform}) {
   const pgAdmin = usePgAdmin();
   const surfaceHost = useRef(null);
   const {
-    config, enabled, currentWorkspace, isObjectExplorerVisible, setObjectExplorerVisible,
+    config, enabled, currentWorkspace, isObjectExplorerVisible,
+    setObjectExplorerVisible, changeWorkspace, hasOpenTabs,
   } = useWorkspace();
 
   const ensureSurfaceHost = useCallback(() => {
@@ -144,11 +147,69 @@ function Layouts({browser, platform}) {
   }, [setObjectExplorerVisible]);
 
   const activities = activityRegistry.resolve();
+  const selectWorkspace = (workspace, permission) => {
+    const permitted = !permission || currentUser.permissions?.includes(permission);
+    withCheckPermission(
+      permission ? {permission} : {}, () => changeWorkspace(workspace)
+    )();
+    return permitted;
+  };
+  const workspaceActivities = enabled ? [
+    {
+      id: 'activity.workspace.query', label: gettext('Query Tool'),
+      iconKey: 'tool.query', priority: 11, navigationVisible: false,
+      disabled: !hasOpenTabs(WORKSPACES.QUERY_TOOL),
+      onSelect: () => selectWorkspace(WORKSPACES.QUERY_TOOL,
+        AllPermissionTypes.TOOLS_QUERY_TOOL),
+    },
+    ...(pgAdmin.enable_psql ? [{
+      id: 'activity.workspace.psql', label: gettext('Command Line'),
+      iconKey: 'action.terminal', priority: 12, navigationVisible: false,
+      disabled: !hasOpenTabs(WORKSPACES.PSQL_TOOL),
+      onSelect: () => selectWorkspace(WORKSPACES.PSQL_TOOL,
+        AllPermissionTypes.TOOLS_PSQL_TOOL),
+    }] : []),
+    {
+      id: 'activity.workspace.schema-diff', label: gettext('Schema Diff'),
+      iconKey: 'tool.schema-compare', priority: 13, navigationVisible: false,
+      disabled: !hasOpenTabs(WORKSPACES.SCHEMA_DIFF_TOOL),
+      onSelect: () => selectWorkspace(WORKSPACES.SCHEMA_DIFF_TOOL,
+        AllPermissionTypes.TOOLS_SCHEMA_DIFF),
+    },
+    {
+      id: 'activity.preferences', label: gettext('Preferences'),
+      iconKey: 'action.settings', priority: 1000, navigationVisible: false,
+      onSelect: () => {
+        changeWorkspace(WORKSPACES.DEFAULT);
+        pgAdmin.Browser.MainMenus?.find((menu) => menu.name === 'file')?.menuItems
+          ?.find((menu) => menu.name === 'mnu_preferences')?.callback?.();
+        return true;
+      },
+    },
+  ] : [];
+  const shellActivities = [...activities.map((activity) => ({
+    ...activity,
+    onSelect: () => {
+      activity.onSelect?.();
+      changeWorkspace(WORKSPACES.DEFAULT);
+      return true;
+    },
+  })), ...workspaceActivities].sort((left, right) =>
+    left.priority - right.priority || left.id.localeCompare(right.id)
+  );
+  const activeWorkspaceActivity = {
+    [WORKSPACES.QUERY_TOOL]: 'activity.workspace.query',
+    [WORKSPACES.PSQL_TOOL]: 'activity.workspace.psql',
+    [WORKSPACES.SCHEMA_DIFF_TOOL]: 'activity.workspace.schema-diff',
+  }[currentWorkspace];
   useEffect(() => {
     const context = () => ({
-      showActivity: (activityId) => window.dispatchEvent(new CustomEvent(
-        'cdeadmin:show-activity', {detail: activityId}
-      )),
+      showActivity: (activityId) => {
+        changeWorkspace(WORKSPACES.DEFAULT);
+        window.dispatchEvent(new CustomEvent(
+          'cdeadmin:show-activity', {detail: activityId}
+        ));
+      },
       createProject: () => window.dispatchEvent(new CustomEvent(
         'cdeadmin:project-create'
       )),
@@ -172,7 +233,8 @@ function Layouts({browser, platform}) {
         delete pgAdmin.Browser.CDEadminCommandContext;
       }
     };
-  }, [ensureSurfaceHost, pgAdmin, platform.cdc, platform.contract, platform.etl,
+  }, [changeWorkspace, ensureSurfaceHost, pgAdmin, platform.cdc,
+    platform.contract, platform.etl,
     platform.lineage, platform.quality,
     platform.apiDesigner, platform.migration, platform.replication, platform.schemaCompare,
     platform.tracing]);
@@ -303,35 +365,35 @@ function Layouts({browser, platform}) {
   return (
     <ApplicationStateProvider>
       <div style={{height: (browser != 'Electron' ? 'calc(100% - 30px)' : '100%')}}>
-        <WorkbenchShell activities={activities} initialLayout={{
-          navigationVisible: !enabled || isObjectExplorerVisible,
-          inspectorVisible: true,
-        }} onLayoutChange={(layout) => {
-          if(enabled && layout.navigationVisible !== isObjectExplorerVisible) {
-            setObjectExplorerVisible(layout.navigationVisible);
-          }
-        }} navigationViews={{
-          'activity.data': <div style={{height: '100%', display: 'flex',
-            flexDirection: 'column'}}><ObjectExplorerToolbar />
-            <div style={{flex: 1, minHeight: 0}}><ObjectExplorer /></div></div>,
-          'activity.projects': <ProjectExplorer client={platform.projectAssets}
-            onOpenAsset={openAsset}
-            onSelectAsset={(project, asset) => workbenchContextService.update({
-              surfaceTitle: asset.name, projectId: project.project_id,
-              assetId: asset.asset_id, persistence: 'clean',
-              validation: asset.validation_state === 'invalid' ?
-                ['Asset validation failed'] : [],
-            })} />,
-        }} inspector={<InspectorHost corePages={[
-          {id: 'properties', label: gettext('Properties'), content: <Properties />},
-          {id: 'statistics', label: gettext('Statistics'), content: <Statistics />},
-          {id: 'dependencies', label: gettext('Dependencies'), content: <Dependencies />},
-          {id: 'dependents', label: gettext('Dependents'), content: <Dependents />},
-        ]} />} drawer={<BottomDrawerHost tasks={platform.services.tasks}
-          corePages={[{id: 'output', label: gettext('Output'),
-            content: <Processes />}]} />}
-        status={<ActiveStatusHost />}>
-          {enabled && <WorkspaceToolbar/> }
+        <WorkbenchShell activities={shellActivities}
+          activeActivityOverride={activeWorkspaceActivity} initialLayout={{
+            navigationVisible: !enabled || isObjectExplorerVisible,
+            inspectorVisible: true,
+          }} onLayoutChange={(layout) => {
+            if(enabled && layout.navigationVisible !== isObjectExplorerVisible) {
+              setObjectExplorerVisible(layout.navigationVisible);
+            }
+          }} navigationViews={{
+            'activity.data': <div style={{height: '100%', display: 'flex',
+              flexDirection: 'column'}}><ObjectExplorerToolbar />
+              <div style={{flex: 1, minHeight: 0}}><ObjectExplorer /></div></div>,
+            'activity.projects': <ProjectExplorer client={platform.projectAssets}
+              onOpenAsset={openAsset}
+              onSelectAsset={(project, asset) => workbenchContextService.update({
+                surfaceTitle: asset.name, projectId: project.project_id,
+                assetId: asset.asset_id, persistence: 'clean',
+                validation: asset.validation_state === 'invalid' ?
+                  ['Asset validation failed'] : [],
+              })} />,
+          }} inspector={<InspectorHost corePages={[
+            {id: 'properties', label: gettext('Properties'), content: <Properties />},
+            {id: 'statistics', label: gettext('Statistics'), content: <Statistics />},
+            {id: 'dependencies', label: gettext('Dependencies'), content: <Dependencies />},
+            {id: 'dependents', label: gettext('Dependents'), content: <Dependents />},
+          ]} />} drawer={<BottomDrawerHost tasks={platform.services.tasks}
+            corePages={[{id: 'output', label: gettext('Output'),
+              content: <Processes />}]} />}
+          status={<ActiveStatusHost />}>
           <Layout
             getLayoutInstance={(obj)=>{
               pgAdmin.Browser.docker.default_workspace = obj;

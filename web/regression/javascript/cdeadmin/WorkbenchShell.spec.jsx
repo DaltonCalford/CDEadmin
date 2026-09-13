@@ -15,8 +15,8 @@ import {
 } from 'sources/cdeadmin_ui/shell/WorkbenchShell';
 
 const activities = [
-  {id: 'activity.data', label: 'Data Explorer', iconKey: 'object.database'},
-  {id: 'activity.projects', label: 'Project Explorer', iconKey: 'object.schema'},
+  {id: 'activity.data', label: 'Data Explorer', iconKey: 'tool.data-explorer'},
+  {id: 'activity.projects', label: 'Project Explorer', iconKey: 'tool.project-explorer'},
 ];
 
 describe('Zero-Grey workbench shell', () => {
@@ -33,6 +33,18 @@ describe('Zero-Grey workbench shell', () => {
 
     expect(screen.getByRole('navigation', {name: 'Application activities'}))
       .toBeInTheDocument();
+    const activityTabs = screen.getByRole('navigation', {
+      name: 'Application activities',
+    }).querySelectorAll('button');
+    expect(activityTabs).toHaveLength(2);
+    expect([...activityTabs].every((button) => button.querySelector(
+      '[data-icon-key]'))).toBe(true);
+    expect(activityTabs[0]).toHaveAttribute('data-selected', 'true');
+    expect(activityTabs[0]).toHaveAttribute('data-visual-scale', '1.15');
+    expect(activityTabs[0]).toHaveAttribute('data-visual-brightness', '1');
+    expect(activityTabs[1]).toHaveAttribute('data-selected', 'false');
+    expect(activityTabs[1]).toHaveAttribute('data-visual-scale', '1');
+    expect(activityTabs[1]).toHaveAttribute('data-visual-brightness', '0.85');
     expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
       .toHaveTextContent('Live resources');
     expect(screen.getByRole('main', {name: 'Main workbench'}))
@@ -55,6 +67,59 @@ describe('Zero-Grey workbench shell', () => {
     expect(screen.getByRole('complementary', {name: 'Project Explorer'}))
       .toHaveTextContent('Authored assets');
     expect(screen.queryByText('Live resources')).not.toBeInTheDocument();
+  });
+
+  it('runs action tabs and can hide navigation for a workspace surface', () => {
+    const onSelect = jest.fn();
+    const Component = withTheme(WorkbenchShell);
+    render(<Component activities={[...activities, {
+      id: 'activity.workspace.query', label: 'Query Tool',
+      iconKey: 'tool.query', navigationVisible: false, onSelect,
+    }]} navigationViews={{}} initialLayout={{inspectorVisible: false}} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Query Tool'}));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('complementary', {name: 'Query Tool'}))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Query Tool'}))
+      .toHaveAttribute('aria-current', 'page');
+  });
+
+  it('reflects an externally activated workspace in the selected activity tab', () => {
+    const Component = withTheme(WorkbenchShell);
+    render(<Component activities={[...activities, {
+      id: 'activity.workspace.query', label: 'Query Tool', iconKey: 'tool.query',
+    }]} activeActivityOverride="activity.workspace.query"
+    navigationViews={{}} initialLayout={{inspectorVisible: false}} />);
+    expect(screen.getByRole('button', {name: 'Query Tool'}))
+      .toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', {name: 'Data Explorer'}))
+      .not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps unavailable activity tabs visible, icon-bearing, and disabled', () => {
+    const Component = withTheme(WorkbenchShell);
+    render(<Component activities={[...activities, {
+      id: 'activity.workspace.schema-diff', label: 'Schema Diff',
+      iconKey: 'tool.schema-compare', disabled: true,
+    }]} navigationViews={{}} initialLayout={{inspectorVisible: false}} />);
+    const tab = screen.getByRole('button', {name: 'Schema Diff'});
+    expect(tab).toBeDisabled();
+    expect(tab.querySelector('[data-icon-key="tool.schema-compare"]'))
+      .toBeInTheDocument();
+  });
+
+  it('does not visually select an activity rejected by its permission authority', () => {
+    const Component = withTheme(WorkbenchShell);
+    render(<Component activities={[...activities, {
+      id: 'activity.denied', label: 'Denied Tool', iconKey: 'action.lock',
+      navigationVisible: false, onSelect: () => false,
+    }]} navigationViews={{'activity.data': <div>Live resources</div>}}
+    initialLayout={{inspectorVisible: false}} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Denied Tool'}));
+    expect(screen.getByRole('button', {name: 'Data Explorer'}))
+      .toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
+      .toBeInTheDocument();
   });
 
   it('collapses and restores navigation, inspector, and bottom drawer', () => {

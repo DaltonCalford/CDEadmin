@@ -15,6 +15,7 @@ import {IconButton} from '../primitives/Button';
 import {Drawer, Splitter, StatusBar, Toolbar} from '../layout/WorkbenchChrome';
 
 export const WORKBENCH_LAYOUT_SCHEMA = 'cdeadmin.workbench-layout.v1';
+export const ACTIVITY_RAIL_WIDTH = 56;
 export const DEFAULT_WORKBENCH_LAYOUT = Object.freeze({
   schema: WORKBENCH_LAYOUT_SCHEMA,
   navigationWidth: 288,
@@ -76,16 +77,35 @@ export class WorkbenchLayoutStore {
 
 function ActivityRail({activities, active, onChange}) {
   return <Box component="nav" aria-label="Application activities"
-    sx={{width: 48, flex: '0 0 48px', borderRight: '1px solid',
-      borderColor: 'divider', bgcolor: 'background.navigation', overflowY: 'auto'}}>
-    {activities.map((activity) => <IconButton key={activity.id}
-      label={activity.label} aria-current={activity.id === active ? 'page' : undefined}
-      onClick={() => onChange(activity.id)}
-      sx={{width: 48, height: 48, borderLeft: activity.id === active ?
-        '3px solid' : '3px solid transparent', borderColor: activity.id === active ?
-        'primary.main' : 'transparent'}}>
-      <Icon iconKey={activity.iconKey} decorative size="20px" />
-    </IconButton>)}
+    sx={{width: ACTIVITY_RAIL_WIDTH, flex: `0 0 ${ACTIVITY_RAIL_WIDTH}px`,
+      borderRight: '1px solid', borderColor: 'divider',
+      bgcolor: 'background.navigation', overflowY: 'auto', overflowX: 'hidden'}}>
+    {activities.map((activity) => {
+      const selected = activity.id === active;
+      return <IconButton key={activity.id}
+        data-cdeadmin-qa-key={`activity-${activity.id}`}
+        data-selected={selected ? 'true' : 'false'}
+        data-visual-scale={selected ? '1.15' : '1'}
+        data-visual-brightness={selected ? '1' : '0.85'}
+        label={activity.label} aria-current={selected ? 'page' : undefined}
+        disabled={activity.disabled === true}
+        onClick={() => {
+          if(activity.disabled) return;
+          const accepted = activity.onSelect?.();
+          if(accepted === false) return;
+          onChange(activity.id, activity.navigationVisible !== false);
+        }}
+        sx={{width: 48, height: 48, mx: '4px', my: '4px',
+          transform: selected ? 'scale(1.15)' : 'scale(1)',
+          filter: selected ? 'brightness(1)' : 'brightness(0.85)',
+          transformOrigin: 'center', zIndex: selected ? 1 : 0,
+          transition: 'transform 120ms ease, filter 120ms ease',
+          '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
+          borderLeft: selected ? '3px solid' : '3px solid transparent',
+          borderColor: selected ? 'primary.main' : 'transparent'}}>
+        <Icon iconKey={activity.iconKey || 'command.default'} decorative size="20px" />
+      </IconButton>;
+    })}
   </Box>;
 }
 
@@ -97,7 +117,8 @@ ActivityRail.propTypes = {
 
 export function WorkbenchShell({activities, navigationViews, children,
   inspector, drawer, status, store: suppliedStore, initialLayout,
-  onLayoutChange, navigationTitle, inspectorTitle='Inspector',
+  onLayoutChange, navigationTitle, activeActivityOverride,
+  inspectorTitle='Inspector',
   drawerTitle='Problems, Output, Tasks and Logs'}) {
   const store = useMemo(
     () => suppliedStore ?? new WorkbenchLayoutStore(), [suppliedStore]
@@ -108,9 +129,13 @@ export function WorkbenchShell({activities, navigationViews, children,
   ), [store]);
   useEffect(() => onLayoutChange?.(layout), [layout, onLayoutChange]);
   useEffect(() => {
-    const listener = (event) => update({
-      activeActivity: event.detail, navigationVisible: true,
-    });
+    const listener = (event) => {
+      const detail = typeof event.detail === 'string' ? {
+        activityId: event.detail, navigationVisible: true,
+      } : event.detail;
+      update({activeActivity: detail.activityId,
+        navigationVisible: detail.navigationVisible !== false});
+    };
     window.addEventListener('cdeadmin:show-activity', listener);
     return () => window.removeEventListener('cdeadmin:show-activity', listener);
   }, [update]);
@@ -118,16 +143,17 @@ export function WorkbenchShell({activities, navigationViews, children,
   const knownActivities = activities.length ? activities : [{
     id: 'activity.data', label: 'Data Explorer', iconKey: 'object.database',
   }];
-  const active = knownActivities.some((item) => item.id === layout.activeActivity) ?
-    layout.activeActivity : knownActivities[0].id;
+  const requestedActive = activeActivityOverride || layout.activeActivity;
+  const active = knownActivities.some((item) => item.id === requestedActive) ?
+    requestedActive : knownActivities[0].id;
   const activity = knownActivities.find((item) => item.id === active);
   const navigation = navigationViews[active] ?? activity?.render?.() ?? null;
 
   return <Box data-cdeadmin-shell="zero-grey" sx={{height: '100%', minHeight: 0,
     display: 'flex', bgcolor: 'background.default', color: 'text.primary'}}>
     <ActivityRail activities={knownActivities} active={active}
-      onChange={(activeActivity) => update({
-        activeActivity, navigationVisible: true,
+      onChange={(activeActivity, navigationVisible) => update({
+        activeActivity, navigationVisible,
       })} />
     {layout.navigationVisible && <Box component="aside" aria-label={activity?.label}
       sx={{width: layout.navigationWidth, flex: `0 0 ${layout.navigationWidth}px`,
@@ -168,7 +194,8 @@ export function WorkbenchShell({activities, navigationViews, children,
     </Box>}
     {!layout.navigationVisible && <IconButton label="Show navigation"
       onClick={() => update({navigationVisible: true})}
-      sx={{position: 'absolute', left: 48, top: 0, zIndex: 'popover'}}>☰</IconButton>}
+      sx={{position: 'absolute', left: ACTIVITY_RAIL_WIDTH, top: 0,
+        zIndex: 'popover'}}>☰</IconButton>}
     {!layout.inspectorVisible && <IconButton label="Show Inspector"
       onClick={() => update({inspectorVisible: true})}
       sx={{position: 'absolute', right: 0, top: 0, zIndex: 'popover'}}>ⓘ</IconButton>}
@@ -190,6 +217,7 @@ WorkbenchShell.propTypes = {
   store: PropTypes.object,
   initialLayout: PropTypes.object,
   onLayoutChange: PropTypes.func,
+  activeActivityOverride: PropTypes.string,
   navigationTitle: PropTypes.node,
   inspectorTitle: PropTypes.node,
   drawerTitle: PropTypes.string,

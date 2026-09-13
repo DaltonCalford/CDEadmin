@@ -38,6 +38,19 @@ describe('CDEadmin semantic icon registry', () => {
       .toBe('command.default');
   });
 
+  it('provides concrete icons for every activity-tab icon contract', () => {
+    const keys = ['tool.data-explorer', 'tool.project-explorer', 'tool.erd',
+      'tool.schema-compare', 'tool.lineage', 'tool.quality', 'tool.contract',
+      'tool.etl', 'tool.cdc', 'tool.replication', 'tool.tracing',
+      'tool.migration', 'tool.api', 'tool.ml-vector', 'tool.ai', 'tool.search',
+      'tool.query'];
+    for(const key of keys) {
+      expect(resolveIconDefinition(key)).toEqual(expect.objectContaining({
+        key, category: ICON_CATEGORIES.TOOL,
+      }));
+    }
+  });
+
   it('infers specific command actions before ambiguous general actions', () => {
     expect(inferActionIconKey({label: 'Disconnect server'}))
       .toBe('action.disconnect');

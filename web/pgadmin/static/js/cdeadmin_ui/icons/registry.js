@@ -248,9 +248,7 @@ const TOOL_CLASSES = Object.freeze({
   dashboard: 'icon-dashboard',
   dataflow: 'icon-erd',
   datapump: 'fa fa-exchange',
-  erd: 'icon-erd',
   mind_map: 'fa fa-sitemap',
-  query: 'icon-query-tool',
   report: 'fa fa-bar-chart',
   whiteboard: 'fa fa-pencil-square-o',
 });
@@ -381,6 +379,21 @@ const BUILTIN_DEFINITIONS = [
   ...Object.entries(TOOL_CLASSES).map(([name, className])=>definition(
     `tool.${name}`, ICON_CATEGORIES.TOOL, className
   )),
+  componentDefinition(
+    'tool.data-explorer', ICON_CATEGORIES.TOOL, EyeIcon, 'Data Explorer'
+  ),
+  componentDefinition(
+    'tool.project-explorer', ICON_CATEGORIES.TOOL, FileAddIcon, 'Project Explorer'
+  ),
+  componentDefinition(
+    'tool.erd', ICON_CATEGORIES.TOOL, ArrowAllDirectionIcon, 'Diagram Designer'
+  ),
+  componentDefinition(
+    'tool.search', ICON_CATEGORIES.TOOL, SearchIcon, 'Discovery Search'
+  ),
+  componentDefinition(
+    'tool.query', ICON_CATEGORIES.TOOL, CodeIcon, 'Query Tool'
+  ),
 ];
 
 const builtins = new Map(BUILTIN_DEFINITIONS.map((item)=>[item.key, item]));

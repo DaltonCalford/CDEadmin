@@ -4,7 +4,8 @@
 
 import {fireEvent} from '@testing-library/react';
 import {QA_VISUAL_ID_ATTRIBUTE, QA_VISUAL_MODE_STORAGE_KEY,
-  QAVisualIdentityController, readQAVisualMode, requestQAVisualMode,
+  QA_VISUAL_ID_COPIED_EVENT, QAVisualIdentityController,
+  readQAVisualMode, requestQAVisualMode,
   writeQAVisualMode} from 'sources/cdeadmin_ui/qa';
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -121,4 +122,34 @@ describe('QA visual identity authority', () => {
       expect(document.querySelector('[data-cdeadmin-qa-overlay]')).toBeNull();
       expect(document.documentElement.dataset.cdeadminQaVisualIds).toBeUndefined();
     });
+
+  test('copies the active visual ID with the QA-only keyboard shortcut', async () => {
+    document.body.innerHTML = '<button>Run</button>';
+    window.localStorage.setItem(QA_VISUAL_MODE_STORAGE_KEY, 'true');
+    const clipboardWriter = jest.fn(() => Promise.resolve());
+    const copied = jest.fn();
+    window.addEventListener(QA_VISUAL_ID_COPIED_EVENT, copied, {once: true});
+    controller = new QAVisualIdentityController({clipboardWriter}).start();
+    const button = document.querySelector('button');
+    fireEvent.pointerOver(button, {clientX: 20, clientY: 30});
+    const identity = button.getAttribute(QA_VISUAL_ID_ATTRIBUTE);
+    fireEvent.keyDown(document, {key: 'c', ctrlKey: true, altKey: true});
+    await tick();
+    expect(clipboardWriter).toHaveBeenCalledWith(identity, document, window);
+    expect(copied).toHaveBeenCalledWith(expect.objectContaining({
+      detail: {identity},
+    }));
+    expect(document.querySelector('[data-cdeadmin-qa-copy-state="copied"]'))
+      .toHaveTextContent(`Copied: ${identity}`);
+  });
+
+  test('does not intercept copy keys outside an active QA visual target', () => {
+    document.body.innerHTML = '<button>Run</button>';
+    window.localStorage.setItem(QA_VISUAL_MODE_STORAGE_KEY, 'true');
+    const clipboardWriter = jest.fn();
+    controller = new QAVisualIdentityController({clipboardWriter}).start();
+    fireEvent.keyDown(document, {key: 'c', ctrlKey: true});
+    fireEvent.keyDown(document, {key: 'c', ctrlKey: true, altKey: true});
+    expect(clipboardWriter).not.toHaveBeenCalled();
+  });
 });
