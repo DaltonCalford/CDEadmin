@@ -1688,6 +1688,7 @@ class MongoDBClient:
                                    for v, label in (
                                        ('native', 'Native default'),
                                        ('2', '2'), ('3', '3'))]),
+                        *cls._collation_fields(),
                         f(
                             'options', 'Additional native index options',
                             'json', default={}, json_type='object',
@@ -3081,11 +3082,92 @@ class MongoDBClient:
         if not isinstance(options.get('keys'), list) or not options['keys']:
             raise MongoDBClientError('At least one index key is required.')
         MongoDBClient._text_index_options(draft, options)
+        MongoDBClient._index_collation(draft, options)
         if 'name' in options and options['name'] != draft.get('name'):
             raise MongoDBClientError(
                 'Native options cannot override the index name.')
         options.setdefault('name', draft.get('name'))
         return options
+
+    @classmethod
+    def _collation_fields(cls):
+        f = cls._field
+        visible = {'field_id': 'collation_mode', 'equals': 'locale'}
+        fields = [f('collation_mode', 'Index collation', 'select',
+                    default='native', options=[
+                        {'value': 'native',
+                         'label': 'Collection default / advanced options'},
+                        {'value': 'simple', 'label': 'Binary (simple)'},
+                        {'value': 'locale', 'label': 'Locale-specific'},
+                    ]),
+                  f('collation_locale', 'Locale', required=True,
+                    visible_when=visible)]
+        choices = {
+            'strength': ('1', '2', '3', '4', '5'),
+            'caseFirst': ('upper', 'lower', 'off'),
+            'alternate': ('non-ignorable', 'shifted'),
+            'maxVariable': ('punct', 'space'),
+            **{key: ('enabled', 'disabled') for key in (
+                'caseLevel', 'numericOrdering', 'normalization', 'backwards')},
+        }
+        labels = {'strength': 'Comparison strength',
+                  'caseFirst': 'Case ordering',
+                  'alternate': 'Alternate handling',
+                  'maxVariable': 'Maximum variable character class',
+                  'caseLevel': 'Separate case level',
+                  'numericOrdering': 'Numeric ordering',
+                  'normalization': 'Unicode normalization',
+                  'backwards': 'Reverse accent ordering'}
+        for key, values in choices.items():
+            fields.append(f('collation_' + key, labels[key], 'select',
+                            default='native', visible_when=visible,
+                            options=[{'value': 'native',
+                                      'label': 'Native locale default'}] + [
+                                {'value': value, 'label': value}
+                                for value in values]))
+        fields.append(f('collation_version',
+                        'Required collation version (blank uses server)',
+                        visible_when=visible))
+        return fields
+
+    @staticmethod
+    def _index_collation(draft, options):
+        mode = draft.get('collation_mode', 'native')
+        if mode not in ('native', 'simple', 'locale'):
+            raise MongoDBClientError('Collation choice is invalid.')
+        if mode == 'native':
+            return
+        if 'collation' in options:
+            raise MongoDBClientError(
+                'Specify collation visually or in advanced options, not both.')
+        if mode == 'simple':
+            options['collation'] = {'locale': 'simple'}
+            return
+        locale = draft.get('collation_locale')
+        if not isinstance(locale, str) or not locale or '\x00' in locale:
+            raise MongoDBClientError('A valid collation locale is required.')
+        collation = {'locale': locale}
+        choices = {'strength': ('1', '2', '3', '4', '5'),
+                   'caseFirst': ('upper', 'lower', 'off'),
+                   'alternate': ('non-ignorable', 'shifted'),
+                   'maxVariable': ('punct', 'space')}
+        booleans = ('caseLevel', 'numericOrdering',
+                    'normalization', 'backwards')
+        choices.update({key: ('enabled', 'disabled') for key in booleans})
+        for key, allowed in choices.items():
+            value = draft.get('collation_' + key, 'native')
+            if value == 'native':
+                continue
+            if value not in allowed:
+                raise MongoDBClientError('Collation option is invalid: ' + key)
+            collation[key] = (value == 'enabled' if key in booleans else
+                              int(value) if key == 'strength' else value)
+        version = draft.get('collation_version', '')
+        if not isinstance(version, str) or '\x00' in version:
+            raise MongoDBClientError('Collation version must be text.')
+        if version:
+            collation['version'] = version
+        options['collation'] = collation
 
     @staticmethod
     def _text_index_options(draft, options):

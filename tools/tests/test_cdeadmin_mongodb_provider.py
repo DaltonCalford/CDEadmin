@@ -237,6 +237,72 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_index_collation_modes_and_all_visual_options(self):
+        base = {'name': 'collated', 'keys': [
+            {'field': 'name', 'kind': 'ascending'}]}
+        result = MongoDBClient._index_options({
+            **base, 'collation_mode': 'simple', 'collation_strength': 'bad'})
+        self.assertEqual({'locale': 'simple'}, result['collation'])
+        native = {'locale': 'fr', 'backwards': True}
+        result = MongoDBClient._index_options({
+            **base, 'options': {'collation': native}})
+        self.assertEqual(native, result['collation'])
+        choices = {'strength': '2', 'caseFirst': 'upper',
+                   'alternate': 'shifted', 'maxVariable': 'space',
+                   'caseLevel': 'enabled', 'numericOrdering': 'enabled',
+                   'normalization': 'disabled', 'backwards': 'disabled',
+                   'version': '57.1'}
+        result = MongoDBClient._index_options({
+            **base, 'collation_mode': 'locale', 'collation_locale': 'en',
+            **{'collation_' + key: value for key, value in choices.items()}})
+        self.assertEqual({'locale': 'en', 'strength': 2, 'caseFirst': 'upper',
+                          'alternate': 'shifted', 'maxVariable': 'space',
+                          'caseLevel': True, 'numericOrdering': True,
+                          'normalization': False, 'backwards': False,
+                          'version': '57.1'}, result['collation'])
+
+    def test_index_collation_form_and_serialized_plan(self):
+        adapter = client()
+        visual = ProviderVisualAdministration(
+            context(), Permissions(), 'mongodb', '8.2.6', adapter)
+        request = {'resource_kind': 'index', 'operation_id': 'create',
+                   'target_resource': {'native': {'collection': 'items'}},
+                   'draft': {'name': 'collated', 'keys': [
+                       {'field': 'name', 'kind': 'ascending'}],
+                       'collation_mode': 'locale', 'collation_locale': 'en',
+                       'collation_strength': '2'}}
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        plan = adapter.plan_admin_operation({
+            **request, 'draft': validated['draft']})
+        draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+        self.assertEqual({'locale': 'en', 'strength': 2},
+                         MongoDBClient._index_options(draft)['collation'])
+        request['draft'].update(collation_mode='simple',
+                                collation_locale=None,
+                                collation_strength='hidden-invalid')
+        validated = visual.validate(request)
+        self.assertTrue(validated['valid'], validated['errors'])
+        self.assertNotIn('collation_strength', validated['draft'])
+        adapter.close()
+
+    def test_index_collation_rejects_invalid_visual_values_and_conflicts(self):
+        base = {'name': 'collated', 'keys': [
+            {'field': 'name', 'kind': 'ascending'}],
+            'collation_mode': 'locale', 'collation_locale': 'en'}
+        invalid = [{'collation_mode': 'unknown'}, {'collation_locale': ''},
+                   {'collation_locale': 'en\x00'}, {'collation_version': 1},
+                   {'options': {'collation': {'locale': 'en'}}}]
+        for field in ('strength', 'caseFirst', 'alternate', 'maxVariable',
+                      'caseLevel', 'numericOrdering', 'normalization',
+                      'backwards'):
+            invalid += [{'collation_' + field: value}
+                        for value in (True, None, 'bad', {})]
+        for draft in invalid:
+            with self.subTest(draft=draft):
+                with self.assertRaises(MongoDBClientError):
+                    MongoDBClient._index_options({**base, **draft})
+
     def test_text_index_visual_options_and_plan_roundtrip(self):
         adapter = client()
         request = {'resource_kind': 'index', 'operation_id': 'create',
