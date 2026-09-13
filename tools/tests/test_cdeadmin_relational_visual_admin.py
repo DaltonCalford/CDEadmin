@@ -165,6 +165,58 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_routine_parameter_forms_follow_native_compiler_records(self):
+        for administration in (FIREBIRD_ADMINISTRATION,
+                               MYSQL_ADMINISTRATION,
+                               MARIADB_ADMINISTRATION):
+            catalog = administration.catalog(catalog_for_engine(
+                administration.dialect.engine_id))
+            for obj in catalog['objects']:
+                if obj['resource_kind'] not in {'procedure', 'function'}:
+                    continue
+                for operation in obj['operations']:
+                    if operation['operation_id'] not in {'create', 'alter'}:
+                        continue
+                    form = operation['form']
+                    if form['form_id'] not in {
+                            'procedure.create', 'procedure.alter',
+                            'function.create', 'function.alter'}:
+                        continue
+                    fields = {f['field_id']: f for f in form['fields']}
+                    if 'parameters' not in fields:
+                        continue
+                    field = fields['parameters']
+                    self.assertIn('array_editor', field)
+                    params = [{'name': 'P_ID', 'type': 'INTEGER'}]
+                    admitted, error = (
+                        ProviderVisualAdministration._validate_field(
+                            field, params))
+                    self.assertIsNone(error)
+                    self.assertEqual(params, admitted)
+                    for invalid in ([{'name': 'P_ID'}],
+                                    [{'name': 'P_ID', 'type': 'INTEGER',
+                                      'ignored_mode': 'OUT'}], [42]):
+                        _, error = (
+                            ProviderVisualAdministration._validate_field(
+                                field, invalid))
+                        self.assertIsNotNone(error)
+                    if administration.dialect.engine_id == 'firebird':
+                        if obj['resource_kind'] == 'function':
+                            self.assertNotIn('return_parameters', fields)
+                            self.assertTrue(fields['returns']['required'])
+                        else:
+                            self.assertNotIn('returns', fields)
+                            self.assertIn('array_editor',
+                                          fields['return_parameters'])
+
+    def test_duckdb_macro_parameters_are_not_typed_routine_records(self):
+        for kind in ('macro', 'function'):
+            form = DUCKDB_ADMINISTRATION._form(kind, 'create')
+            DUCKDB_ADMINISTRATION._routine_record_controls(form)
+            params = next(f for f in form['fields']
+                          if f['field_id'] == 'parameters')
+            self.assertNotIn('array_editor', params)
+
     def record_field(self, form_id, field_id, required=False):
         form = {'form_id': form_id, 'fields': [{
             'field_id': field_id, 'label': field_id, 'control': 'json',

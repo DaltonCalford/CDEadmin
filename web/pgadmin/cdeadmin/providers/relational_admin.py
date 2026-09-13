@@ -233,6 +233,7 @@ class RelationalAdministration:
                     elif operation.get('form_authority') != 'engine-profile':
                         operation['form'] = self._form(kind, operation_id)
                     self._structured_record_controls(operation['form'])
+                    self._routine_record_controls(operation['form'])
                     if kind == 'privilege' and operation_id in {
                         'grant', 'revoke',
                     }:
@@ -4646,6 +4647,30 @@ class RelationalAdministration:
             ),
         ))
         return fields
+
+    def _routine_record_controls(self, form):
+        """Expose the named/type records consumed by routine planners."""
+        if self.dialect.engine_id == 'duckdb' or form.get('form_id') not in {
+                'procedure.create', 'function.create',
+                'procedure.alter', 'function.alter'}:
+            return
+        kind = form['form_id'].split('.')[0]
+        if self.dialect.engine_id == 'firebird':
+            unused = 'returns' if kind == 'procedure' else 'return_parameters'
+            form['fields'] = [item for item in form['fields']
+                              if item['field_id'] != unused]
+        for item in form['fields']:
+            key = item['field_id']
+            if key == 'parameters' or (
+                    key == 'return_parameters' and
+                    self.dialect.engine_id == 'firebird'):
+                item.update(json_type='array', default=[], array_editor={
+                    'item_kind': 'object', 'fields': [
+                        self._field('name', 'Parameter name', 'text', True),
+                        self._field('type', 'Native data type', 'text', True),
+                    ]})
+            if self.dialect.engine_id == 'firebird' and key == 'returns':
+                item['required'] = True
 
     @staticmethod
     def _structured_record_controls(form):
