@@ -167,6 +167,41 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_native_system_privilege_selector(self):
+        from pgadmin.cdeadmin.providers.relational_admin import (
+            FIREBIRD_SYSTEM_PRIVILEGES)
+        self.assertEqual(len(FIREBIRD_SYSTEM_PRIVILEGES), 27)
+        for operation in ('create', 'alter'):
+            form = FIREBIRD_ADMINISTRATION._form('role', operation)
+            field = next(item for item in form['fields']
+                         if item['field_id'] == 'system_privileges')
+            self.assertEqual(field['control'], 'multiselect')
+            self.assertEqual({item['value'] for item in field['options']},
+                             set(FIREBIRD_SYSTEM_PRIVILEGES))
+            for privilege in FIREBIRD_SYSTEM_PRIVILEGES:
+                plan = FIREBIRD_ADMINISTRATION.plan({
+                    '_provider_route': {'database': 'test'},
+                    'resource_kind': 'role', 'operation_id': operation,
+                    'target_resource': {'display_name': 'audit_role'},
+                    'draft': {'name': 'audit_role',
+                              'system_privileges': [privilege]}})
+                self.assertIn('SET SYSTEM PRIVILEGES TO ' + privilege,
+                              plan['command_preview']['statements'][0][
+                                  'source'])
+        for value in (['SUPERUSER'], ['USER_MANAGEMENT; DROP ROLE X'],
+                      ['USER_MANAGEMENT', 'USER_MANAGEMENT'], [None]):
+            with self.assertRaises(RelationalClientError):
+                FIREBIRD_ADMINISTRATION._privilege_names(value)
+        for changes in ({'drop_system_privileges': 'false'},
+                        {'drop_system_privileges': True,
+                         'system_privileges': ['USER_MANAGEMENT']}):
+            with self.assertRaises(RelationalClientError):
+                FIREBIRD_ADMINISTRATION.plan({
+                    '_provider_route': {'database': 'test'},
+                    'resource_kind': 'role', 'operation_id': 'alter',
+                    'target_resource': {'display_name': 'audit_role'},
+                    'draft': changes})
+
     def test_firebird_role_membership_forms_and_commands(self):
         catalog = FIREBIRD_ADMINISTRATION.catalog(
             catalog_for_engine('firebird'))
@@ -1501,7 +1536,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'target_resource': None,
             'draft': {
                 'name': 'DATA_ADMIN',
-                'system_privileges': ['CREATE_TABLE', 'DROP_ANY_TABLE'],
+                'system_privileges': ['CREATE_DATABASE', 'DROP_DATABASE'],
             },
             '_provider_route': route,
         })

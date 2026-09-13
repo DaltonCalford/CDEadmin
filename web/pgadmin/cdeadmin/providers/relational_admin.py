@@ -34,6 +34,20 @@ from .firebird_expressions import index_expression
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
+FIREBIRD_SYSTEM_PRIVILEGES = (
+    'USER_MANAGEMENT', 'READ_RAW_PAGES', 'CREATE_USER_TYPES',
+    'USE_NBACKUP_UTILITY', 'CHANGE_SHUTDOWN_MODE', 'TRACE_ANY_ATTACHMENT',
+    'MONITOR_ANY_ATTACHMENT', 'ACCESS_SHUTDOWN_DATABASE', 'CREATE_DATABASE',
+    'DROP_DATABASE', 'USE_GBAK_UTILITY', 'USE_GSTAT_UTILITY',
+    'USE_GFIX_UTILITY',
+    'IGNORE_DB_TRIGGERS', 'CHANGE_HEADER_SETTINGS',
+    'SELECT_ANY_OBJECT_IN_DATABASE', 'ACCESS_ANY_OBJECT_IN_DATABASE',
+    'MODIFY_ANY_OBJECT_IN_DATABASE', 'CHANGE_MAPPING_RULES',
+    'USE_GRANTED_BY_CLAUSE', 'GRANT_REVOKE_ON_ANY_OBJECT',
+    'GRANT_REVOKE_ANY_DDL_RIGHT', 'CREATE_PRIVILEGED_ROLES',
+    'GET_DBCRYPT_INFO', 'MODIFY_EXT_CONN_POOL', 'REPLICATE_INTO_DATABASE',
+    'PROFILE_ANY_ATTACHMENT',
+)
 _DDL_PREFIX = re.compile(
     r'^\s*(?:create|alter|drop|grant|revoke|attach|detach)\b', re.I
 )
@@ -4000,8 +4014,9 @@ class RelationalAdministration:
                 ))
             elif kind == 'role' and self.dialect.engine_id == 'firebird':
                 fields.append(self._field(
-                    'system_privileges', 'System privileges', 'json', False,
-                    'Array of Firebird system privilege names.', [],
+                    'system_privileges', 'System privileges', 'multiselect',
+                    False, 'Select Firebird 5.0 system privileges.', [],
+                    options=FIREBIRD_SYSTEM_PRIVILEGES,
                 ))
             elif kind == 'role' and self.dialect.engine_id == 'mariadb':
                 fields.extend((
@@ -4391,11 +4406,14 @@ class RelationalAdministration:
             return {
                 'form_id': 'role.alter', 'title': 'Alter role',
                 'fields': [
-                    self._field(
-                        'system_privileges', 'System privileges', 'json',
-                        False, 'Array of Firebird system privilege names.',
-                        [],
-                    ),
+                    {**self._field(
+                        'system_privileges', 'Replacement system privileges',
+                        'multiselect', False,
+                        'Replaces the entire privilege set, not an additive '
+                        'grant. Select every privilege to retain.', [],
+                        options=FIREBIRD_SYSTEM_PRIVILEGES),
+                     'visible_when': {'field_id': 'drop_system_privileges',
+                                      'equals': False}},
                     self._field(
                         'drop_system_privileges',
                         'Drop all system privileges', 'boolean', False,
@@ -5424,6 +5442,14 @@ class RelationalAdministration:
                 'parameters': (),
             }]
         if kind == 'role' and self.dialect.engine_id == 'firebird':
+            if ('drop_system_privileges' in changes and not isinstance(
+                    changes['drop_system_privileges'], bool)):
+                raise RelationalClientError(
+                    'drop_system_privileges must be boolean')
+            if changes.get('drop_system_privileges') and changes.get(
+                    'system_privileges'):
+                raise RelationalClientError(
+                    'cannot replace and drop system privileges together')
             if changes.get('drop_system_privileges'):
                 clause = 'DROP SYSTEM PRIVILEGES'
             else:
@@ -6789,6 +6815,13 @@ class RelationalAdministration:
             raise RelationalClientError(
                 'system privileges must be a non-empty array'
             )
+        if self.dialect.engine_id == 'firebird':
+            if any(not isinstance(value, str) or value not in
+                   FIREBIRD_SYSTEM_PRIVILEGES for value in values):
+                raise RelationalClientError(
+                    'unknown Firebird 5.0 system privilege')
+            if len(values) != len(set(values)):
+                raise RelationalClientError('duplicate system privilege')
         return ', '.join(
             self._safe_fragment(value, 'system privilege').upper()
             for value in values

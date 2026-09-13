@@ -509,6 +509,7 @@ export function VisualAdminField({field, value, onChange}) {
   }
   if (field.control === 'multiselect') {
     return <TextField select fullWidth label={field.label}
+      helperText={field.help_text}
       value={Array.isArray(admittedValue) ? admittedValue : []}
       required={field.required} SelectProps={{
         multiple: true,

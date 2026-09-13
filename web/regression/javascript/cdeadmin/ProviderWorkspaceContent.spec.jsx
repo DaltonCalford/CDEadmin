@@ -127,6 +127,41 @@ describe('provider structured record controls', () => {
       draft: {member: 'operator', confirmation: 'readers', default_role: true, admin_option_only: true},
     }}));
   });
+  it('hides Firebird replacement privileges when clearing the complete set', async () => {
+    const target = {resource_id: 'role:reader', resource_kind: 'role', display_name: 'reader'};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return target;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {state: 'ready', plan_id: 'role-privileges', plan_digest: 'digest', execution_available: true};
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="role" initialOperationId="alter" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'role', title: 'Role',
+        operations: [{operation_id: 'alter', title: 'Alter', target_required: true,
+          form: {fields: [
+            {field_id: 'system_privileges', label: 'Replacement system privileges', control: 'multiselect', default: [],
+              help_text: 'Replaces the entire privilege set.',
+              options: [{value: 'USER_MANAGEMENT', label: 'USER_MANAGEMENT'}],
+              visible_when: {field_id: 'drop_system_privileges', equals: false}},
+            {field_id: 'drop_system_privileges', label: 'Drop all system privileges', control: 'boolean', default: false},
+          ]}}]}]}} />);
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeEnabled());
+    expect(screen.getByText('Replaces the entire privilege set.')).toBeInTheDocument();
+    const selector = screen.getByRole('combobox', {name: 'Replacement system privileges'});
+    fireEvent.change(selector.parentElement.querySelector('input'), {target: {value: 'USER_MANAGEMENT'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'role', operation_id: 'alter', target_resource: target,
+      draft: {system_privileges: ['USER_MANAGEMENT'], drop_system_privileges: false},
+    }}));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Drop all system privileges'}));
+    expect(screen.queryByRole('combobox', {name: 'Replacement system privileges'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'role', operation_id: 'alter', target_resource: target,
+      draft: {drop_system_privileges: true},
+    }}));
+  });
   it('refreshes Firebird index statistics without replaying the catalog state', async () => {
     const target = {resource_id: 'index:items:ix', resource_kind: 'index',
       display_name: 'ix', extensions: {firebird: {native: {state: {active: true}}}}};

@@ -13,6 +13,7 @@ from cdeadmin_firebird_constraint_editor_gate import (
 from pgadmin.cdeadmin.providers.firebird.provider import _resources
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 from cdeadmin_firebird_index_permissions import verify as verify_permissions
+from cdeadmin_firebird_system_privileges import verify as verify_privileges
 
 
 def run(profiles_path):
@@ -45,6 +46,7 @@ def run(profiles_path):
             connection.commit()
 
     try:
+        verify_privileges(connection, client, profile, result)
         execute(f'CREATE TABLE "{table}" (ID INTEGER, V VARCHAR(20))')
         connection.commit()
         created = True
