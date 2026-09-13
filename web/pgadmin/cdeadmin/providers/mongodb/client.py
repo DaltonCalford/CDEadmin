@@ -1592,6 +1592,7 @@ class MongoDBClient:
                     'title': f'Create MongoDB {label}',
                     'fields': [
                         f('name', f'{label.title()} name', required=True),
+                        *cls._collation_fields(kind),
                         f(
                             'options', f'MongoDB {label} options', 'json',
                             True, default={'database': 'admin'},
@@ -2034,6 +2035,12 @@ class MongoDBClient:
         operation = request['operation_id']
         draft = request.get('draft', {})
         errors = []
+        if kind in {'collection', 'view'} and operation == 'create':
+            try:
+                self._collection_options(draft)
+            except MongoDBClientError as error:
+                errors.append({'field_id': 'options', 'code': 'options',
+                               'message': str(error)})
         if kind == 'validator' and operation in {'create', 'alter'}:
             try:
                 self._validator_changes(operation, draft)
@@ -2175,6 +2182,9 @@ class MongoDBClient:
         kind = request['resource_kind']
         operation = request['operation_id']
         draft = copy.deepcopy(request.get('draft', {}))
+        if kind in {'collection', 'view'} and operation == 'create':
+            draft = {'name': draft.get('name'),
+                     'options': self._collection_options(draft)}
         if kind == 'validator' and operation in {'create', 'alter'}:
             container = 'options' if operation == 'create' else 'changes'
             draft = {container: self._validator_changes(operation, draft)}
@@ -2955,7 +2965,7 @@ class MongoDBClient:
     def _apply_collection(database, kind, operation, draft, name, native):
         if operation == 'create':
             name = _identifier(draft.get('name'), f'{kind} name')
-            options = dict(draft.get('options', {}))
+            options = MongoDBClient._collection_options(draft)
             options.pop('database', None)
             if kind == 'view':
                 view_on = _identifier(options.pop('view_on', None), 'view_on')
@@ -3121,7 +3131,7 @@ class MongoDBClient:
         if not isinstance(options.get('keys'), list) or not options['keys']:
             raise MongoDBClientError('At least one index key is required.')
         MongoDBClient._text_index_options(draft, options)
-        MongoDBClient._index_collation(draft, options)
+        MongoDBClient._collation_options(draft, options)
         MongoDBClient._wildcard_index_options(draft, options)
         MongoDBClient._geo_index_options(draft, options)
         if 'name' in options and options['name'] != draft.get('name'):
@@ -3221,13 +3231,16 @@ class MongoDBClient:
         options['wildcardProjection'] = projection
 
     @classmethod
-    def _collation_fields(cls):
+    def _collation_fields(cls, scope='index'):
         f = cls._field
         visible = {'field_id': 'collation_mode', 'equals': 'locale'}
-        fields = [f('collation_mode', 'Index collation', 'select',
+        default_label = ('Collection default / advanced options'
+                         if scope == 'index' else
+                         'Native default / advanced options')
+        fields = [f('collation_mode', scope.title() + ' collation', 'select',
                     default='native', options=[
                         {'value': 'native',
-                         'label': 'Collection default / advanced options'},
+                         'label': default_label},
                         {'value': 'simple', 'label': 'Binary (simple)'},
                         {'value': 'locale', 'label': 'Locale-specific'},
                     ]),
@@ -3262,7 +3275,17 @@ class MongoDBClient:
         return fields
 
     @staticmethod
-    def _index_collation(draft, options):
+    def _collection_options(draft):
+        raw = draft.get('options', {})
+        if not isinstance(raw, Mapping):
+            raise MongoDBClientError(
+                'Collection/view options must be an object.')
+        options = copy.deepcopy(dict(raw))
+        MongoDBClient._collation_options(draft, options)
+        return options
+
+    @staticmethod
+    def _collation_options(draft, options):
         mode = draft.get('collation_mode', 'native')
         if mode not in ('native', 'simple', 'locale'):
             raise MongoDBClientError('Collation choice is invalid.')

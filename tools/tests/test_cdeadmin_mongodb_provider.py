@@ -237,6 +237,56 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_collection_and_view_collation_forms_compile_native_options(self):
+        adapter = client()
+        for kind in ('collection', 'view'):
+            visual = ProviderVisualAdministration(
+                context(), Permissions(), 'mongodb', '8.2.6', adapter)
+            request = {'resource_kind': kind, 'operation_id': 'create',
+                       'target_resource': {'native': {'database': 'example'}},
+                       'draft': {'name': 'example', 'options': {
+                           'database': 'example', 'view_on': 'source',
+                           'pipeline': []} if kind == 'view' else {
+                               'database': 'example'},
+                           'collation_mode': 'locale',
+                           'collation_locale': 'en',
+                           'collation_strength': '2'}}
+            valid = visual.validate(request)
+            self.assertTrue(valid['valid'], valid['errors'])
+            plan = adapter.plan_admin_operation({
+                **request, 'draft': valid['draft']})
+            draft = json.loads(json.dumps(plan['provider_payload']))['draft']
+            self.assertEqual({'name', 'options'}, set(draft))
+            options = adapter._collection_options(draft)
+            self.assertEqual({'locale': 'en', 'strength': 2},
+                             options['collation'])
+            if kind == 'view':
+                self.assertEqual('source', options['view_on'])
+                self.assertEqual([], options['pipeline'])
+            form = adapter._admin_form(kind, 'create')
+            mode = next(f for f in form['fields']
+                        if f['field_id'] == 'collation_mode')
+            self.assertEqual(kind.title() + ' collation', mode['label'])
+            self.assertNotIn('Collection default', mode['options'][0]['label'])
+        adapter.close()
+
+    def test_collection_collation_conflicts_validate_before_execution(self):
+        adapter = client()
+        for options in ([], {'collation': {'locale': 'en'}}):
+            request = {'resource_kind': 'collection', 'operation_id': 'create',
+                       'draft': {'name': 'example', 'options': options,
+                                 'collation_mode': 'simple'}}
+            self.assertTrue(
+                adapter.validate_admin_operation(request)['errors'])
+            with self.assertRaises(MongoDBClientError):
+                adapter.plan_admin_operation(request)
+        original = {'options': {'collation': {'locale': 'fr'},
+                                'validator': {'a': {'$gte': 0}}}}
+        options = adapter._collection_options(original)
+        options['collation']['locale'] = 'en'
+        self.assertEqual('fr', original['options']['collation']['locale'])
+        adapter.close()
+
     def test_geo_options_native_mapping_defaults_and_hidden_fields(self):
         base = {'name': 'geo', 'keys': [{'field': 'point', 'kind': '2d'}],
                 'geo_mode': '2d'}
