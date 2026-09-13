@@ -18,6 +18,7 @@ from pgadmin.cdeadmin.sdk import (
     load_optional_module,
 )
 from ..relational_admin import (
+    FIREBIRD_SYSTEM_PRIVILEGES,
     RelationalAdministration,
     RelationalAdminDialect,
 )
@@ -762,6 +763,26 @@ def _catalog_detail(field, value):
     } else text.strip()
 
 
+def _role_privileges(value):
+    """Decode Firebird's byte-indexed privilege bitmap (bit zero reserved)."""
+    if value is None:
+        value = b''
+    if not isinstance(value, (bytes, bytearray, memoryview)):
+        raise RelationalClientError(
+            'Firebird role privilege bitmap is invalid')
+    raw = bytes(value)
+    bits = {index * 8 + bit for index, byte in enumerate(raw)
+            for bit in range(8) if byte & (1 << bit)}
+    return {
+        'system_privileges': [
+            name for index, name in enumerate(FIREBIRD_SYSTEM_PRIVILEGES, 1)
+            if index in bits],
+        'system_privileges_hex': raw.hex(),
+        'unknown_system_privilege_bits': sorted(
+            bits - set(range(1, len(FIREBIRD_SYSTEM_PRIVILEGES) + 1))),
+    }
+
+
 def _resources(connection, request):
     cursor = connection.cursor()
     try:
@@ -1178,6 +1199,8 @@ def _resources(connection, request):
                 }
                 if native.get('system_flag') not in (None, '0'):
                     native['system_object'] = True
+                if kind == 'role':
+                    native.update(_role_privileges(row[1]))
                 add(kind, [], row[0], native)
 
             # System objects are real catalog objects; "sys" is solely a
@@ -1195,6 +1218,8 @@ def _resources(connection, request):
                     )
                 }
                 native['system_object'] = True
+                if kind == 'role':
+                    native.update(_role_privileges(row[1]))
                 add(kind, [], row[0], native)
 
         def routine_named(kind, name, package):
@@ -1819,7 +1844,15 @@ def _resources(connection, request):
                     f'{str(native["definition"]).strip()};'
                 )
             elif kind == 'role':
-                native['ddl'] = f'CREATE ROLE {identifier(name)};'
+                if native.get('unknown_system_privilege_bits'):
+                    native['ddl_unavailable_reason'] = (
+                        'Unknown native system privilege bits; recreation '
+                        'would lose privileges.')
+                else:
+                    privileges = native.get('system_privileges', [])
+                    suffix = (' SET SYSTEM PRIVILEGES TO ' +
+                              ', '.join(privileges)) if privileges else ''
+                    native['ddl'] = f'CREATE ROLE {identifier(name)}{suffix};'
             elif kind == 'sequence':
                 initial = native.get('initial_value')
                 increment = native.get('increment')

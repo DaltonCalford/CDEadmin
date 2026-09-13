@@ -4412,6 +4412,7 @@ class RelationalAdministration:
                         'Replaces the entire privilege set, not an additive '
                         'grant. Select every privilege to retain.', [],
                         options=FIREBIRD_SYSTEM_PRIVILEGES),
+                     'initial_value_path': ['system_privileges'],
                      'visible_when': {'field_id': 'drop_system_privileges',
                                       'equals': False}},
                     self._field(

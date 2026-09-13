@@ -4,7 +4,8 @@ import uuid
 
 
 def verify(connection, client, profile, result):
-    from pgadmin.cdeadmin.providers.firebird.provider import ADMINISTRATION
+    from pgadmin.cdeadmin.providers.firebird.provider import (
+        ADMINISTRATION, _resources)
     from pgadmin.cdeadmin.providers.relational_admin import (
         FIREBIRD_SYSTEM_PRIVILEGES)
 
@@ -35,13 +36,36 @@ def verify(connection, client, profile, result):
             assert native == set(FIREBIRD_SYSTEM_PRIVILEGES), native
         connection.commit()
         result['checks'].append('system-privilege-selector-native-catalog')
-        for privilege in FIREBIRD_SYSTEM_PRIVILEGES:
-            apply('create', {'name': name, 'system_privileges': [privilege]})
+        cases = [(privilege, [privilege])
+                 for privilege in FIREBIRD_SYSTEM_PRIVILEGES]
+        cases.extend((('empty', []),
+                      ('all', list(FIREBIRD_SYSTEM_PRIVILEGES))))
+        for privilege, selected in cases:
+            apply('create', {'name': name, 'system_privileges': selected})
             connection.commit()
             created = True
             original = state()
-            assert any(original), privilege
+            assert bool(any(original)) == bool(selected), privilege
             connection.commit()
+            resource = next(item for item in _resources(connection, {
+                'route': profile}) if item['resource_kind'] == 'role' and
+                item['display_name'] == name)
+            native = resource['native']
+            assert native['system_privileges'] == selected, native
+            assert native['unknown_system_privilege_bits'] == [], native
+            ddl = native['ddl']
+            connection.commit()
+            apply('drop', {'confirmation': name})
+            connection.commit()
+            created = False
+            with connection.cursor() as cursor:
+                cursor.execute(ddl)
+            connection.commit()
+            created = True
+            assert state() == original, privilege
+            connection.commit()
+            result['checks'].append('system-privilege-metadata-replay-' +
+                                    privilege)
             apply('alter', {'drop_system_privileges': True})
             assert not any(state()), privilege
             connection.rollback()
@@ -51,7 +75,8 @@ def verify(connection, client, profile, result):
             connection.commit()
             assert not any(state()), privilege
             connection.commit()
-            apply('alter', {'system_privileges': [privilege]})
+            apply('alter', {'system_privileges': selected} if selected else
+                  {'drop_system_privileges': True})
             connection.commit()
             assert state() == original, privilege
             connection.commit()

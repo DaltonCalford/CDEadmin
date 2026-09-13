@@ -26,6 +26,19 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('prefills Firebird system privileges as a typed selection, not JSON text', () => {
+    const privileges = ['USER_MANAGEMENT', 'PROFILE_ANY_ATTACHMENT'];
+    const fields = [{field_id: 'system_privileges', control: 'multiselect',
+      initial_value_path: ['system_privileges']}];
+    const result = initialObjectDraft(fields, {
+      extensions: {firebird: {native: {system_privileges: privileges}}},
+    });
+    expect(result.system_privileges).toEqual(privileges);
+    expect(Array.isArray(result.system_privileges)).toBe(true);
+    expect(initialObjectDraft(fields, {extensions: {firebird: {native: {
+      system_privileges: [],
+    }}}}).system_privileges).toEqual([]);
+  });
   it('keeps decimal-text integer fields exact across input and JSON transport', () => {
     const changed = jest.fn();
     render(<VisualAdminField field={{field_id: 'topology_version',

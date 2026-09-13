@@ -45,6 +45,7 @@ from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     ADMINISTRATION as FIREBIRD_ADMINISTRATION,
     _sequence_state,
     _catalog_detail,
+    _role_privileges,
 )
 from pgadmin.cdeadmin.providers.duckdb.provider import (  # noqa: E402
     ADMINISTRATION as DUCKDB_ADMINISTRATION,
@@ -167,6 +168,23 @@ def request(route, operation, draft, target=None):
 
 class RelationalVisualAdministrationTests(unittest.TestCase):
 
+    def test_firebird_role_privilege_bitmap(self):
+        from pgadmin.cdeadmin.providers.relational_admin import (
+            FIREBIRD_SYSTEM_PRIVILEGES)
+        for index, name in enumerate(FIREBIRD_SYSTEM_PRIVILEGES, 1):
+            raw = (1 << index).to_bytes(8, 'little')
+            for value in (raw, bytearray(raw), memoryview(raw)):
+                decoded = _role_privileges(value)
+                self.assertEqual(decoded['system_privileges'], [name])
+                self.assertEqual(decoded['unknown_system_privilege_bits'], [])
+                self.assertEqual(decoded['system_privileges_hex'], raw.hex())
+        self.assertEqual(_role_privileges(None)['system_privileges'], [])
+        self.assertEqual(_role_privileges(b'\x01\x00\x00\x80')[
+            'unknown_system_privilege_bits'], [0, 31])
+        for invalid in ('0', 1, [], {}):
+            with self.assertRaises(RelationalClientError):
+                _role_privileges(invalid)
+
     def test_firebird_native_system_privilege_selector(self):
         from pgadmin.cdeadmin.providers.relational_admin import (
             FIREBIRD_SYSTEM_PRIVILEGES)
@@ -176,6 +194,9 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             field = next(item for item in form['fields']
                          if item['field_id'] == 'system_privileges')
             self.assertEqual(field['control'], 'multiselect')
+            if operation == 'alter':
+                self.assertEqual(field['initial_value_path'],
+                                 ['system_privileges'])
             self.assertEqual({item['value'] for item in field['options']},
                              set(FIREBIRD_SYSTEM_PRIVILEGES))
             for privilege in FIREBIRD_SYSTEM_PRIVILEGES:
