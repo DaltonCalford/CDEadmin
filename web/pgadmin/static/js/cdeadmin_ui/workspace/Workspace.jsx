@@ -14,6 +14,7 @@ export {
   LayoutDockerContext as WorkspaceContext,
   LAYOUT_EVENTS as WORKSPACE_EVENTS,
   TabTitle as ToolTabTitle,
+  dockTabIconKey,
   WORKSPACE_PLACEMENTS,
 } from '../../helpers/Layout';
 

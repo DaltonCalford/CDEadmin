@@ -12,7 +12,6 @@ export const QA_VISUAL_COPY_SHORTCUT = 'Ctrl/Cmd+Alt+C';
 
 const EXCLUDED_ELEMENTS = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'BASE',
   'TITLE', 'TEMPLATE', 'NOSCRIPT']);
-const MAX_ID_LENGTH = 512;
 
 export function readQAVisualMode(storage=window.localStorage) {
   try { return storage?.getItem(QA_VISUAL_MODE_STORAGE_KEY) === 'true'; }
@@ -31,23 +30,6 @@ export function requestQAVisualMode(enabled, target=window) {
     detail: {enabled: Boolean(enabled)}}));
 }
 
-function hash(value) {
-  let result = 0x811c9dc5;
-  for(const character of String(value)) {
-    result ^= character.charCodeAt(0);
-    result = Math.imul(result, 0x01000193);
-  }
-  return (result >>> 0).toString(36).padStart(7, '0');
-}
-
-function safeToken(value, maximum=48) {
-  const token = String(value ?? '').trim().toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
-  if(!token) return '';
-  return token.length <= maximum ? token : `${token.slice(0, maximum - 8)}-${
-    hash(token)}`;
-}
-
 function isElement(value) {
   return value?.nodeType === 1;
 }
@@ -55,45 +37,6 @@ function isElement(value) {
 function visualElement(element) {
   return isElement(element) && !EXCLUDED_ELEMENTS.has(element.tagName) &&
     !element.hasAttribute('data-cdeadmin-qa-overlay');
-}
-
-function semanticSegment(element) {
-  const tag = safeToken(element.localName || element.tagName || 'element');
-  const explicit = element.getAttribute(QA_VISUAL_KEY_ATTRIBUTE);
-  if(explicit) return `${tag}.${safeToken(explicit)}`;
-  const attributes = [['id', 'id'], ['data-testid', 'test'], ['name', 'name'],
-    ['role', 'role'], ['data-command-id', 'command'],
-    ['data-surface-id', 'surface']];
-  for(const [attribute, kind] of attributes) {
-    const value = element.getAttribute(attribute);
-    if(value) return `${tag}.${kind}-${hash(value)}`;
-  }
-  const parent = element.parentElement;
-  if(!parent) return tag;
-  const peers = [...parent.children].filter((candidate) =>
-    candidate.localName === element.localName &&
-    !EXCLUDED_ELEMENTS.has(candidate.tagName));
-  return `${tag}.${peers.indexOf(element) + 1}`;
-}
-
-function rootScope(documentValue, framePrefix='') {
-  let locationKey = 'document';
-  try {
-    locationKey = `${documentValue.location.origin}${documentValue.location.pathname}`;
-  } catch { /* Use the non-sensitive default for inaccessible location. */ }
-  return `cde.qa.v1.${framePrefix ? `frame-${hash(framePrefix)}.` : ''}doc-${
-    hash(locationKey)}`;
-}
-
-function generatedIdentity(element, documentValue, framePrefix='') {
-  const segments = []; let current = element;
-  while(current && current !== documentValue.documentElement) {
-    segments.unshift(semanticSegment(current)); current = current.parentElement;
-  }
-  const candidate = `${rootScope(documentValue, framePrefix)}.${
-    segments.join('.')}`;
-  return candidate.length <= MAX_ID_LENGTH ? candidate : `${rootScope(
-    documentValue, framePrefix)}.path-${hash(candidate)}`;
 }
 
 function tooltip(documentValue) {
@@ -142,7 +85,7 @@ export class QAVisualIdentityController {
     this.observerFactory = observerFactory; this.enabled = false;
     this.clipboardWriter = clipboardWriter;
     this.started = false; this.roots = new Map(); this.claims = new Map();
-    this.assigned = new Set();
+    this.assigned = new Set(); this.nextIdentity = 1;
     this.onModeRequest = (event) => this.setEnabled(event.detail?.enabled ?? true);
     this.onStorage = (event) => {
       if(event.key === QA_VISUAL_MODE_STORAGE_KEY) this.setEnabled(
@@ -215,7 +158,7 @@ export class QAVisualIdentityController {
     const elements = isElement(root) ? [root, ...root.querySelectorAll('*')] : [];
     for(const element of elements) {
       if(!visualElement(element)) continue;
-      this.assign(element, documentValue, framePrefix);
+      this.assign(element);
       if(element.shadowRoot) this.observeRoot(element.shadowRoot, documentValue,
         `${framePrefix}.${element.getAttribute(QA_VISUAL_ID_ATTRIBUTE)}`);
       if(element.localName === 'iframe') this.observeFrame(element, framePrefix);
@@ -243,16 +186,12 @@ export class QAVisualIdentityController {
     connect(); frame.addEventListener('load', connect, {once: true});
   }
 
-  assign(element, documentValue, framePrefix) {
+  assign(element) {
     if(element.hasAttribute(QA_VISUAL_ID_ATTRIBUTE)) {
       const existing = element.getAttribute(QA_VISUAL_ID_ATTRIBUTE);
       if(this.claims.get(existing) === element) return existing;
     }
-    const base = generatedIdentity(element, documentValue, framePrefix);
-    let identity = base; let instance = 1;
-    while(this.claims.has(identity) && this.claims.get(identity) !== element) {
-      identity = `${base}.instance-${++instance}`;
-    }
+    const identity = String(this.nextIdentity++);
     element.setAttribute(QA_VISUAL_ID_ATTRIBUTE, identity);
     this.claims.set(identity, element); this.assigned.add(element);
     return identity;
@@ -349,5 +288,6 @@ export class QAVisualIdentityController {
       element.removeAttribute?.(QA_VISUAL_ID_ATTRIBUTE);
     }
     this.roots.clear(); this.claims.clear(); this.assigned.clear();
+    this.nextIdentity = 1;
   }
 }

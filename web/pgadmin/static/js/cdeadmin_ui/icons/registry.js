@@ -42,6 +42,7 @@ import SortIcon from '../../../img/command_icons/sort-by-down01.svg?svgr';
 import TransactionIcon from '../../../img/command_icons/transaction.svg?svgr';
 import UnlinkIcon from '../../../img/command_icons/unlink01.svg?svgr';
 import UploadIcon from '../../../img/command_icons/upload01.svg?svgr';
+import ScratchRobinIcon from '../../../../browser/server_groups/engine_types/static/img/scratchrobincde.svg?svgr';
 
 export const ICON_CATEGORIES = Object.freeze({
   ACTION: 'action',
@@ -393,6 +394,10 @@ const BUILTIN_DEFINITIONS = [
   ),
   componentDefinition(
     'tool.query', ICON_CATEGORIES.TOOL, CodeIcon, 'Query Tool'
+  ),
+  componentDefinition(
+    'tool.scratchrobin', ICON_CATEGORIES.TOOL, ScratchRobinIcon,
+    'ScratchRobin Home'
   ),
 ];
 

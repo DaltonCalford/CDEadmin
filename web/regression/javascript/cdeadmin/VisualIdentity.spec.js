@@ -33,7 +33,7 @@ describe('QA visual identity authority', () => {
     expect(writeQAVisualMode(blocked, true)).toBe(true);
   });
 
-  test('assigns unique deterministic IDs to every DOM and SVG visual element',
+  test('assigns short unique integer IDs to every DOM and SVG visual element',
     () => {
       document.body.innerHTML = '<main data-cdeadmin-qa-key="workspace">' +
         '<button name="run">Run</button><button name="run">Run again</button>' +
@@ -46,14 +46,16 @@ describe('QA visual identity authority', () => {
       const identities = visuals.map((element) =>
         element.getAttribute(QA_VISUAL_ID_ATTRIBUTE));
       expect(identities.every(Boolean)).toBe(true);
+      expect(identities.every((identity) => /^\d+$/.test(identity))).toBe(true);
       expect(new Set(identities).size).toBe(identities.length);
-      expect(document.querySelector('main').getAttribute(
-        QA_VISUAL_ID_ATTRIBUTE)).toContain('main.workspace');
+      expect(Math.max(...identities.map(Number))).toBeLessThan(100);
+      expect(document.querySelector('main')).toHaveAttribute(
+        'data-cdeadmin-qa-key', 'workspace');
       expect(document.querySelector('script')).not.toHaveAttribute(
         QA_VISUAL_ID_ATTRIBUTE);
     });
 
-  test('covers dynamic content and reuses its structural identity after removal',
+  test('covers dynamic content without reusing a retired numeric identity',
     async () => {
       document.body.innerHTML = '<main data-cdeadmin-qa-key="workspace"></main>';
       window.localStorage.setItem(QA_VISUAL_MODE_STORAGE_KEY, 'true');
@@ -66,7 +68,9 @@ describe('QA visual identity authority', () => {
       first.remove(); await tick();
       const replacement = document.createElement('button');
       replacement.name = 'refresh'; main.appendChild(replacement); await tick();
-      expect(replacement.getAttribute(QA_VISUAL_ID_ATTRIBUTE)).toBe(identity);
+      expect(replacement.getAttribute(QA_VISUAL_ID_ATTRIBUTE)).not.toBe(identity);
+      expect(Number(replacement.getAttribute(QA_VISUAL_ID_ATTRIBUTE)))
+        .toBeGreaterThan(Number(identity));
     });
 
   test('covers open shadow roots and same-origin iframe documents', async () => {
@@ -102,6 +106,7 @@ describe('QA visual identity authority', () => {
       expect(overlay).toHaveAttribute('aria-hidden', 'true');
       expect(button.getAttribute(QA_VISUAL_ID_ATTRIBUTE)).not.toContain(
         'private-object-name');
+      expect(button.getAttribute(QA_VISUAL_ID_ATTRIBUTE)).toMatch(/^\d+$/);
       fireEvent.pointerOut(button); expect(overlay.style.display).toBe('none');
       fireEvent.focusIn(button); expect(overlay.style.display).toBe('block');
     });

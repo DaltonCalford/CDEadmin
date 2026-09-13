@@ -42,6 +42,35 @@ export default function rcdockOverride(theme) {
           borderRadius: 'inherit',
         },
         '&.dock-style-playground':{
+          '&[data-dockid="id-main"]': {
+            '& > .dock > .dock-bar': {
+              minHeight: '52px',
+              overflow: 'visible',
+              '& .dock-nav-wrap': {
+                padding: '4px 8px',
+              },
+              '& .dock-tab': {
+                margin: '0 6px',
+                filter: 'brightness(0.85)',
+                transform: 'scale(1)',
+                transformOrigin: 'center',
+                transition: 'transform 120ms ease, filter 120ms ease',
+                '& > div': {
+                  minHeight: '40px',
+                  padding: '8px 12px',
+                  fontSize: '1rem',
+                },
+                '&.dock-tab-active': {
+                  filter: 'brightness(1)',
+                  transform: 'scale(1.15)',
+                  zIndex: 2,
+                },
+              },
+              '@media (prefers-reduced-motion: reduce)': {
+                '& .dock-tab': {transition: 'none'},
+              },
+            },
+          },
           '&:not([data-dockid="id-main"])': {
             '& .dock-extra-content': {
               display: 'none',
@@ -141,7 +170,22 @@ export default function rcdockOverride(theme) {
         },
         '& .dock-tab-icon': {
           fontSize: 'var(--cde-icon-scale, 1rem)',
-          marginRight: '4px'
+          width: '1.5em',
+          height: '1.5em',
+          marginRight: '6px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: '0 0 auto',
+          '& svg, & img, & i': {
+            width: '100%',
+            height: '100%',
+          },
+          '&.dock-tab-product-icon': {
+            backgroundColor: '#214d67',
+            borderRadius: '4px',
+            padding: '2px',
+          },
         }
       },
       '& .dock-extra-content': {

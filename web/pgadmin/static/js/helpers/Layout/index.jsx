@@ -31,6 +31,7 @@ import { BROWSER_PANELS, WORKSPACES } from '../../../../browser/static/js/consta
 import pgWindow from 'sources/window';
 import {createWorkspaceHost} from 'sources/cdeadmin_ui/workspace/WorkspaceHost';
 import {toolFactoryRegistry} from 'sources/cdeadmin_ui/workspace/ToolRegistry';
+import {Icon} from 'sources/cdeadmin_ui/icons';
 
 export const WORKSPACE_PLACEMENTS = Object.freeze({
   BEFORE: 'before-tab',
@@ -49,6 +50,30 @@ const VALID_WORKSPACE_PLACEMENTS = new Set(
   Object.values(WORKSPACE_PLACEMENTS)
 );
 
+const SEMANTIC_ICON_KEY = /^[a-z][a-z0-9_-]*\.[a-z0-9][a-z0-9._-]*$/;
+
+export function dockTabIconKey({id='', title='', icon='', iconKey=''}={}) {
+  if(SEMANTIC_ICON_KEY.test(String(iconKey))) return String(iconKey);
+  if(SEMANTIC_ICON_KEY.test(String(icon))) return String(icon);
+  const source = `${id} ${title} ${icon}`.toLowerCase();
+  const mappings = [
+    [/dashboard|welcome|scratchrobin/, 'tool.scratchrobin'],
+    [/\bhelp\b|documentation|manual/, 'action.help'],
+    [/preferences|settings/, 'action.settings'],
+    [/schema.?diff|compare/, 'tool.schema-compare'],
+    [/\berd\b|diagram/, 'tool.erd'],
+    [/psql|terminal|command.?line/, 'action.terminal'],
+    [/query|\bsql\b/, 'tool.query'],
+    [/debug/, 'action.execute'],
+    [/propert/, 'action.properties'],
+    [/statistic|metric/, 'object.measure'],
+    [/dependenc/, 'object.relationship'],
+    [/process|history/, 'action.history'],
+  ];
+  return mappings.find(([pattern]) => pattern.test(source))?.[1] ??
+    'command.default';
+}
+
 export function TabTitle({id, closable, defaultInternal}) {
   const layoutDocker = React.useContext(LayoutDockerContext);
   const internal = layoutDocker?.find(id)?.internal ?? defaultInternal;
@@ -57,6 +82,7 @@ export function TabTitle({id, closable, defaultInternal}) {
   );
   const [attrs, setAttrs] = useState({
     icon: internal.icon,
+    iconKey: dockTabIconKey({id, ...internal}),
     title: internal.title,
     tooltip: internal.tooltip ?? internal.title,
     bgcolor: internal.bgcolor,
@@ -89,6 +115,7 @@ export function TabTitle({id, closable, defaultInternal}) {
         const internal = layoutDocker?.find(id)?.internal??{};
         setAttrs({
           icon: internal.icon,
+          iconKey: dockTabIconKey({id, ...internal}),
           title: internal.title,
           tooltip: internal.tooltip ?? internal.title,
           bgcolor: internal.bgcolor,
@@ -145,8 +172,13 @@ export function TabTitle({id, closable, defaultInternal}) {
   }, []);
 
   return (
-    <Box display="flex" alignItems="center" title={attrs.tooltip} onContextMenu={onContextMenu} onMouseDown={onMouseDown} width="100%">
-      {attrs.icon && <span className={`dock-tab-icon ${attrs.icon}`}></span>}
+    <Box display="flex" alignItems="center" title={attrs.tooltip}
+      data-cdeadmin-tab-id={id} onContextMenu={onContextMenu}
+      onMouseDown={onMouseDown} width="100%">
+      <span className={attrs.iconKey === 'tool.scratchrobin' ?
+        'dock-tab-icon dock-tab-product-icon' : 'dock-tab-icon'}>
+        <Icon iconKey={attrs.iconKey} decorative />
+      </span>
       {showServerColorIndicator && attrs.bgcolor && !isVisible && (
         <Box
           component="span"
@@ -250,6 +282,9 @@ export class LayoutDocker {
     }
     if(icon) {
       internal.icon = icon;
+      internal.iconKey = dockTabIconKey({
+        id: panelId, title: internal.title, icon,
+      });
     }
     if(tooltip) {
       internal.tooltip = tooltip;
@@ -598,11 +633,12 @@ export class LayoutDocker {
     this.eventBus.fireEvent(LAYOUT_EVENTS.RESET);
   }
 
-  static getPanel({icon, title, closable, tooltip, renamable, manualClose,
+  static getPanel({icon, iconKey, title, closable, tooltip, renamable, manualClose,
     detachable=false, floatable=false, toolDescriptor, bgcolor, fgcolor,
     server_id, ...attrs}) {
     const internal = {
       icon: icon,
+      iconKey: dockTabIconKey({id: attrs.id, title, icon, iconKey}),
       title: title,
       tooltip: tooltip,
       closable: _.isUndefined(closable) ? manualClose : closable,

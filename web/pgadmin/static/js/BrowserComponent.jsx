@@ -66,10 +66,13 @@ export const preferencesPanelData = {
 
 export const defaultTabsData = [
   {
-    id: BROWSER_PANELS.DASHBOARD, title: gettext('Dashboard'), content: <Dashboard />, closable: true, group: 'playground'
+    id: BROWSER_PANELS.DASHBOARD, title: gettext('ScratchRobin'),
+    tooltip: gettext('ScratchRobin Dashboard'), iconKey: 'tool.scratchrobin',
+    content: <Dashboard />, closable: true, group: 'playground'
   },
   {
-    id: BROWSER_PANELS.SQL, title: gettext('SQL'), content: <SQL />, closable: true, group: 'playground'
+    id: BROWSER_PANELS.SQL, title: gettext('SQL'), iconKey: 'tool.query',
+    content: <SQL />, closable: true, group: 'playground'
   },
 ];
 

@@ -31,7 +31,8 @@ two ways to authenticate your connection:
 Turn on *QA mode - show visual element IDs on hover* when performing visual
 quality assurance. The setting is stored on the current device and remains in
 effect after login. In QA mode, pointing to or focusing a visual element shows
-its unique CDEadmin QA identifier. Turn the switch off to remove the identifiers
+its short, application-session-unique integer CDEadmin QA identifier. Turn the switch off to
+remove the identifiers
 and hints. With an identifier visible, press *Ctrl+Alt+C* on Windows/Linux or
 *Command+Option+C* on macOS to copy it to the clipboard. QA mode does not change
 permissions, accessible names, database

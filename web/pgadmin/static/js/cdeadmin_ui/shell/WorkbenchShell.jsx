@@ -75,13 +75,15 @@ export class WorkbenchLayoutStore {
   }
 }
 
-function ActivityRail({activities, active, onChange}) {
+function ActivityRail({activities, active, navigationVisible, onChange}) {
   return <Box component="nav" aria-label="Application activities"
     sx={{width: ACTIVITY_RAIL_WIDTH, flex: `0 0 ${ACTIVITY_RAIL_WIDTH}px`,
       borderRight: '1px solid', borderColor: 'divider',
       bgcolor: 'background.navigation', overflowY: 'auto', overflowX: 'hidden'}}>
     {activities.map((activity) => {
-      const selected = activity.id === active;
+      const ownsNavigation = activity.navigationVisible !== false;
+      const selected = activity.id === active &&
+        (navigationVisible || !ownsNavigation);
       return <IconButton key={activity.id}
         data-cdeadmin-qa-key={`activity-${activity.id}`}
         data-selected={selected ? 'true' : 'false'}
@@ -93,7 +95,7 @@ function ActivityRail({activities, active, onChange}) {
           if(activity.disabled) return;
           const accepted = activity.onSelect?.();
           if(accepted === false) return;
-          onChange(activity.id, activity.navigationVisible !== false);
+          onChange(activity.id, ownsNavigation && !selected);
         }}
         sx={{width: 48, height: 48, mx: '4px', my: '4px',
           transform: selected ? 'scale(1.15)' : 'scale(1)',
@@ -112,6 +114,7 @@ function ActivityRail({activities, active, onChange}) {
 ActivityRail.propTypes = {
   activities: PropTypes.array.isRequired,
   active: PropTypes.string.isRequired,
+  navigationVisible: PropTypes.bool.isRequired,
   onChange: PropTypes.func.isRequired,
 };
 
@@ -152,19 +155,37 @@ export function WorkbenchShell({activities, navigationViews, children,
   return <Box data-cdeadmin-shell="zero-grey" sx={{height: '100%', minHeight: 0,
     display: 'flex', bgcolor: 'background.default', color: 'text.primary'}}>
     <ActivityRail activities={knownActivities} active={active}
+      navigationVisible={layout.navigationVisible}
       onChange={(activeActivity, navigationVisible) => update({
         activeActivity, navigationVisible,
       })} />
-    {layout.navigationVisible && <Box component="aside" aria-label={activity?.label}
-      sx={{width: layout.navigationWidth, flex: `0 0 ${layout.navigationWidth}px`,
-        minWidth: 0, display: 'flex', flexDirection: 'column',
-        bgcolor: 'background.navigation'}}>
-      <Toolbar label="Navigation controls" trailing={<IconButton
-        label="Hide navigation" onClick={() => update({navigationVisible: false})}>×</IconButton>}>
-        <Box component="strong">{navigationTitle || activity?.label}</Box>
-      </Toolbar>
-      <Box sx={{flex: 1, minHeight: 0}}>{navigation}</Box>
-    </Box>}
+    <Box component="aside" aria-label={activity?.label}
+      aria-hidden={!layout.navigationVisible}
+      data-cdeadmin-explorer-workspace="true"
+      data-cdeadmin-qa-key="explorer-workspace"
+      sx={{width: layout.navigationVisible ? layout.navigationWidth : 0,
+        flex: layout.navigationVisible ?
+          `0 0 ${layout.navigationWidth}px` : '0 0 0px',
+        minWidth: 0, overflow: 'hidden',
+        visibility: layout.navigationVisible ? 'visible' : 'hidden',
+        pointerEvents: layout.navigationVisible ? 'auto' : 'none',
+        bgcolor: 'background.navigation',
+        transition: layout.navigationVisible ?
+          'width 160ms ease, flex-basis 160ms ease' :
+          'width 160ms ease, flex-basis 160ms ease, visibility 0s linear 160ms',
+        '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
+      <Box sx={{width: layout.navigationWidth, height: '100%', minWidth: 0,
+        display: 'flex', flexDirection: 'column',
+        transform: layout.navigationVisible ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 160ms ease',
+        '@media (prefers-reduced-motion: reduce)': {transition: 'none'}}}>
+        <Toolbar label="Navigation controls" trailing={<IconButton
+          label="Hide navigation" onClick={() => update({navigationVisible: false})}>×</IconButton>}>
+          <Box component="strong">{navigationTitle || activity?.label}</Box>
+        </Toolbar>
+        <Box sx={{flex: 1, minHeight: 0}}>{navigation}</Box>
+      </Box>
+    </Box>
     {layout.navigationVisible && <Splitter value={layout.navigationWidth}
       min={220} max={480} onChange={(navigationWidth) => update({navigationWidth})}
       label="Resize navigation" />}

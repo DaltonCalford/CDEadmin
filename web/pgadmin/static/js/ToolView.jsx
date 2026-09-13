@@ -46,11 +46,11 @@ ToolForm.propTypes = {
 
 const TOOL_ICON_KEYS = Object.freeze({
   [TOOL_KINDS.QUERY_EDITOR]: 'tool.query',
-  [TOOL_KINDS.NATIVE_TERMINAL]: 'tool.query',
+  [TOOL_KINDS.NATIVE_TERMINAL]: 'action.terminal',
   [TOOL_KINDS.ERD]: 'tool.erd',
-  [TOOL_KINDS.SCHEMA_DIFF]: 'tool.dataflow',
-  [TOOL_KINDS.DEBUGGER]: 'tool.query',
-  [TOOL_KINDS.GENERIC]: 'tool.query',
+  [TOOL_KINDS.SCHEMA_DIFF]: 'tool.schema-compare',
+  [TOOL_KINDS.DEBUGGER]: 'action.execute',
+  [TOOL_KINDS.GENERIC]: 'command.default',
 });
 
 function registerIframeToolFactories() {

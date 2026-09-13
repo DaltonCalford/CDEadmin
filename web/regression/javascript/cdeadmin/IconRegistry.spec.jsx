@@ -43,7 +43,7 @@ describe('CDEadmin semantic icon registry', () => {
       'tool.schema-compare', 'tool.lineage', 'tool.quality', 'tool.contract',
       'tool.etl', 'tool.cdc', 'tool.replication', 'tool.tracing',
       'tool.migration', 'tool.api', 'tool.ml-vector', 'tool.ai', 'tool.search',
-      'tool.query'];
+      'tool.query', 'tool.scratchrobin'];
     for(const key of keys) {
       expect(resolveIconDefinition(key)).toEqual(expect.objectContaining({
         key, category: ICON_CATEGORIES.TOOL,

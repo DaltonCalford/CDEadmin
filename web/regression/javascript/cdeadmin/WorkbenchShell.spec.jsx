@@ -63,10 +63,44 @@ describe('Zero-Grey workbench shell', () => {
       'activity.data': <div>Live resources</div>,
       'activity.projects': <div>Authored assets</div>,
     }} initialLayout={{inspectorVisible: false}} />);
+    const explorerWorkspace = document.querySelector(
+      '[data-cdeadmin-explorer-workspace="true"]'
+    );
     fireEvent.click(screen.getByRole('button', {name: 'Project Explorer'}));
     expect(screen.getByRole('complementary', {name: 'Project Explorer'}))
       .toHaveTextContent('Authored assets');
     expect(screen.queryByText('Live resources')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-cdeadmin-explorer-workspace="true"]'))
+      .toBe(explorerWorkspace);
+    expect(explorerWorkspace).toHaveAttribute(
+      'data-cdeadmin-qa-key', 'explorer-workspace'
+    );
+  });
+
+  it('uses an active explorer tab as the drawer collapse and reveal control', () => {
+    const Component = withTheme(WorkbenchShell);
+    render(<Component activities={activities} navigationViews={{
+      'activity.data': <div>Live resources</div>,
+      'activity.projects': <div>Authored assets</div>,
+    }} initialLayout={{inspectorVisible: false}} />);
+    const dataTab = screen.getByRole('button', {name: 'Data Explorer'});
+    const explorerWorkspace = document.querySelector(
+      '[data-cdeadmin-explorer-workspace="true"]'
+    );
+
+    fireEvent.click(dataTab);
+    expect(dataTab).toHaveAttribute('data-selected', 'false');
+    expect(explorerWorkspace).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('complementary', {name: 'Data Explorer'}))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(dataTab);
+    expect(dataTab).toHaveAttribute('data-selected', 'true');
+    expect(explorerWorkspace).toHaveAttribute('aria-hidden', 'false');
+    expect(document.querySelector('[data-cdeadmin-explorer-workspace="true"]'))
+      .toBe(explorerWorkspace);
+    expect(screen.getByRole('complementary', {name: 'Data Explorer'}))
+      .toHaveTextContent('Live resources');
   });
 
   it('runs action tabs and can hide navigation for a workspace surface', () => {
