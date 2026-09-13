@@ -846,7 +846,14 @@ export function initialObjectDraft(fields, resource) {
         source = source && typeof source === 'object' &&
           Object.hasOwn(source, key) ? source[key] : undefined;
       }
-      if (source !== undefined && source !== null) value = source;
+      if (source !== undefined && source !== null) {
+        value = source;
+        if (field.control === 'json' && typeof source === 'object') {
+          const serialized = JSON.stringify(source, null, 2);
+          value = field.array_editor || field.object_editor ?
+            JSON.parse(serialized) : serialized;
+        }
+      }
     }
     return [field.field_id, value];
   }));
@@ -1023,7 +1030,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
       matchingResources.find((item) => item.resource_id === targetId) || null,
     draft: Object.fromEntries(fields.filter((field) => {
       const value = draft[field.field_id];
-      if (!field.required && field.initial_value_path &&
+      if (!field.required && !field.submit_unchanged && field.initial_value_path &&
           JSON.stringify(value) === JSON.stringify(baselineDraft[field.field_id])) {
         return false;
       }

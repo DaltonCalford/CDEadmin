@@ -37,6 +37,35 @@ def verify(database, adapter, result):
                                'validation_action': 'error'})
     assert options['validator'] == rule
     assert options['validationLevel'] == 'strict'
+    host, port = database.client.address
+    resources = adapter.list_resources({'route': {
+        'host': host, 'port': port, 'database': database.name}})
+    validator = next(item['native'] for item in resources
+                     if item['resource_kind'] == 'validator' and
+                     item['native'].get('collection') == collection.name)
+    form = adapter._admin_form('validator', 'alter')
+    expected = {'validator': adapter._extended_json(rule),
+                'validation_level': 'strict',
+                'validation_action': 'error'}
+    for field in form['fields']:
+        if field['field_id'] not in expected:
+            continue
+        observed = validator
+        for key in field['initial_value_path']:
+            observed = observed[key]
+        assert observed == expected[field['field_id']]
+    result['checks'].append('validator-native-prefill-paths')
+    index = next(item['native'] for item in resources
+                 if item['resource_kind'] == 'index' and
+                 item['native'].get('index_name') == 'qa_ttl')
+    index_form = adapter._admin_form('index', 'alter')
+    ttl = next(field for field in index_form['fields']
+               if field['field_id'] == 'ttl_seconds')
+    observed = index
+    for key in ttl['initial_value_path']:
+        observed = observed[key]
+    assert observed == 0
+    result['checks'].append('index-native-zero-ttl-prefill-path')
     rejected({'score': -1})
     collection.insert_one({'score': 1})
     result['checks'].append('validator-strict-error')

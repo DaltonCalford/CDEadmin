@@ -1058,6 +1058,10 @@ class MongoDBClient:
             native['definition'] = copy.deepcopy(native['validator'])
         elif kind == 'index' and 'index' in native:
             native['definition'] = copy.deepcopy(native['index'])
+            index = self._from_extended_json(native['index'])
+            ttl = index.get('expireAfterSeconds')
+            if isinstance(ttl, int) and not isinstance(ttl, bool):
+                native['editor_values'] = {'ttl_seconds': int(ttl)}
         elif kind == 'document' and 'document' in native:
             native['data'] = copy.deepcopy(native['document'])
         elif kind == 'statistics' and 'stats' in native:
@@ -1660,6 +1664,7 @@ class MongoDBClient:
                           default=False),
                         f('ttl_seconds', 'Expire after seconds',
                           'number', True,
+                          initial_value_path=['editor_values', 'ttl_seconds'],
                           minimum=0, maximum=2147483647,
                           visible_when={'field_id': 'change_ttl',
                                         'equals': True}),
@@ -1686,14 +1691,18 @@ class MongoDBClient:
                       default=False),
                     f('validator', 'Validation rule (empty object clears it)',
                       'json', default={}, json_type='object',
+                      initial_value_path=['options', 'validator'],
+                      submit_unchanged=True,
                       visible_when={'field_id': 'replace_rule',
                                     'equals': True}),
                     f('validation_level', 'Validation level', 'select',
+                      initial_value_path=['options', 'validationLevel'],
                       default='unchanged', options=[
                           {'value': v, 'label': v.title()}
                           for v in ('unchanged', 'off', 'strict', 'moderate')
                       ]),
                     f('validation_action', 'Validation action', 'select',
+                      initial_value_path=['options', 'validationAction'],
                       default='unchanged', options=[
                           {'value': v, 'label': label} for v, label in (
                               ('unchanged', 'Unchanged'), ('error', 'Reject'),

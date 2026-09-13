@@ -26,6 +26,65 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('serializes native JSON text and clones native structured records', () => {
+    const rule = {score: {$gte: 0}};
+    const records = [{name: 'a', type: 'INTEGER'}];
+    const source = {extensions: {mongodb: {native: {rule, records}}}};
+    const result = initialObjectDraft([
+      {field_id: 'rule', control: 'json', initial_value_path: ['rule']},
+      {field_id: 'records', control: 'json', array_editor: {item_kind: 'object'},
+        initial_value_path: ['records']},
+      {field_id: 'object', control: 'json', object_editor: {fields: []},
+        initial_value_path: ['rule']},
+    ], source);
+    expect(result.rule).toBe(JSON.stringify(rule, null, 2));
+    expect(result.records).toEqual(records);
+    expect(result.records).not.toBe(records);
+    expect(result.records[0]).not.toBe(records[0]);
+    expect(result.object).toEqual(rule);
+    expect(result.object).not.toBe(rule);
+  });
+  it('submits a prefilled rule only when explicit replacement is selected', async () => {
+    const rule = {score: {$gte: 0}};
+    const target = {resource_id: 'validator:items', resource_kind: 'validator',
+      display_name: 'Rule', extensions: {mongodb: {native: {options: {
+        validator: rule, validationAction: 'error',
+      }}}}};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return target;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {state: 'ready', plan_id: 'replace-rule', plan_digest: 'digest',
+        execution_available: true};
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="validator" initialOperationId="alter" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'validator',
+        title: 'Validator', operations: [{operation_id: 'alter', title: 'Alter',
+          target_required: true, form: {fields: [
+            {field_id: 'replace_rule', label: 'Replace rule', control: 'boolean', default: false},
+            {field_id: 'validator', label: 'Rule', control: 'json', default: {},
+              initial_value_path: ['options', 'validator'], submit_unchanged: true,
+              visible_when: {field_id: 'replace_rule', equals: true}},
+            {field_id: 'validation_action', label: 'Action', control: 'text',
+              initial_value_path: ['options', 'validationAction']},
+          ]}}]}]}} />);
+    await waitFor(() => expect(screen.getByRole('textbox', {name: 'Action'})).toHaveValue('error'));
+    expect(screen.queryByRole('textbox', {name: 'Rule'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Replace rule'}));
+    expect(screen.getByRole('textbox', {name: 'Rule'})).toHaveValue(JSON.stringify(rule, null, 2));
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'validator', operation_id: 'alter', target_resource: target,
+      draft: {replace_rule: true, validator: JSON.stringify(rule, null, 2)},
+    }}));
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Replace rule'}));
+    fireEvent.change(screen.getByRole('textbox', {name: 'Action'}), {target: {value: 'warn'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'validator', operation_id: 'alter', target_resource: target,
+      draft: {replace_rule: false, validation_action: 'warn'},
+    }}));
+  });
   it('shows TTL input only when requested and preserves zero seconds in the draft', async () => {
     const target = {resource_id: 'index:ttl', resource_kind: 'index',
       display_name: 'ttl'};

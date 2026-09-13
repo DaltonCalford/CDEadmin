@@ -237,6 +237,24 @@ def context():
 
 class MongoDBProviderTests(unittest.TestCase):
 
+    def test_index_ttl_editor_values_preserve_canonical_metadata(self):
+        adapter = client()
+        for seconds in (0, 60, 2147483647):
+            with self.subTest(seconds=seconds):
+                native = adapter._resource('index', ['db', 'items'], 'ttl',
+                                           'generation', {'index': {
+                                               'expireAfterSeconds': seconds,
+                                           }})['native']
+                self.assertEqual(seconds,
+                                 native['editor_values']['ttl_seconds'])
+                self.assertEqual({'$numberInt': str(seconds)},
+                                 native['index']['expireAfterSeconds'])
+                self.assertEqual(native['index'], native['definition'])
+        native = adapter._resource('index', ['db', 'items'], 'ordinary',
+                                   'generation', {'index': {'key': {'a': 1}}})
+        self.assertNotIn('editor_values', native['native'])
+        adapter.close()
+
     def test_validator_form_preserves_explicit_and_hidden_rule_semantics(self):
         adapter = client()
         visual = ProviderVisualAdministration(
