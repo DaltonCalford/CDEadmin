@@ -6988,10 +6988,14 @@ export default function ProviderWorkspaceContent({
         {tab !== initialTab && <Button size="small" sx={{ml: 'auto'}}
           onClick={() => setTab(initialTab)}>{gettext('Back')}</Button>}
       </Box>}
-      {error && <Alert severity="error">{error}</Alert>}
-      {workspace && <EngineContractStatus
-        contract={workspace.engine_contracts} />}
-      {workspace && <GridActivationStatus contract={workspace.grid_workspace} />}
+      {(error || workspace) && <Box role="region" tabIndex={0}
+        aria-label={gettext('Provider workspace status')}
+        sx={{minHeight: 0, maxHeight: '40%', overflow: 'auto', flexShrink: 0}}>
+        {error && <Alert severity="error">{error}</Alert>}
+        {workspace && <EngineContractStatus
+          contract={workspace.engine_contracts} />}
+        {workspace && <GridActivationStatus contract={workspace.grid_workspace} />}
+      </Box>}
       {busy && !workspace && <Box p={3}><CircularProgress /></Box>}
       {workspace && tab === 'resources' &&
         <ResourceExplorer catalog={workspace.visual_admin}

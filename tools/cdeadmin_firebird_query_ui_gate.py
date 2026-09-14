@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
@@ -246,6 +247,43 @@ def run(options, password):
                    'Maximum fetched rows must be an integer from '
                                                '0 to 1000000.'))
         _capture(driver, options, 'fetch-limit-invalid', screenshots, controls)
+        # Real native-grid diagnostics plus a real validation error must not
+        # consume the query area or push Close outside the modal at large
+        # text sizes. Open the actual details control, not injected DOM.
+        status_region = driver.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider workspace status"]')
+        grid_details = status_region.find_element(
+            By.CSS_SELECTOR,
+            'details[aria-label="Provider grid activation status"]')
+        grid_summary = grid_details.find_element(By.TAG_NAME, 'summary')
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})', grid_summary)
+        grid_summary.click()
+        assert grid_details.get_attribute('open') is not None
+        _capture(driver, options, 'fetch-limit-expanded-status', screenshots,
+                 controls, reset_scroll=False)
+        status_geometry = driver.execute_script('''
+          const region = arguments[0];
+          return {height: region.getBoundingClientRect().height,
+            parentHeight: region.parentElement.getBoundingClientRect().height,
+            clientHeight: region.clientHeight,
+            scrollHeight: region.scrollHeight,
+            tabIndex: region.tabIndex};
+        ''', status_region)
+        maximum = status_geometry['parentHeight'] * 0.4 + 1
+        assert status_geometry['height'] <= maximum
+        assert status_geometry['tabIndex'] == 0
+        controls['fetch-limit-expanded-status'].append({
+            'status_region_geometry': status_geometry})
+        status_region.send_keys(Keys.END)
+        if status_geometry['scrollHeight'] > status_geometry['clientHeight']:
+            wait.until(lambda _driver: driver.execute_script(
+                'return arguments[0].scrollTop > 0', status_region))
+        _capture(driver, options, 'status-keyboard-end', screenshots, controls,
+                 reset_scroll=False)
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})', grid_summary)
+        grid_summary.click()
         for bound, reached in (('2', True), ('1000000', False)):
             _set_text(driver, limit_input, bound)
             _set_text(driver, editor, 'SELECT RDB$TYPE AS N FROM RDB$TYPES '

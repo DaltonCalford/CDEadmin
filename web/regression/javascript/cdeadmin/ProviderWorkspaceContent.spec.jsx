@@ -742,6 +742,27 @@ describe('ProviderWorkspaceContent', () => {
     api.get.mockResolvedValue({data: {data: bootstrap}});
   });
 
+  it('keeps stacked status messages in a keyboard-accessible bounded region', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap,
+      engine_contracts: {state: 'blocked', dialect: {state: 'blocked'},
+        metrics: {state: 'passed'}}, languages: [{
+        language_profile: 'firebird-sql', title: 'Firebird SQL',
+        starter_source: 'SELECT 1 FROM RDB$DATABASE',
+      }]}}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    const limit = await screen.findByLabelText('Maximum fetched rows');
+    fireEvent.change(limit, {target: {value: '1000001'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    const status = screen.getByRole('region', {name: 'Provider workspace status'});
+    expect(status).toHaveAttribute('tabindex', '0');
+    expect(status).toHaveStyle({maxHeight: '40%', overflow: 'auto', flexShrink: '0'});
+    expect(status).toContainElement(screen.getByText(/Maximum fetched rows must be an integer/));
+    expect(status).toContainElement(screen.getByLabelText('Exact engine contract status'));
+    expect(status).toContainElement(screen.getByLabelText('Provider grid activation status'));
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('submits ordered Firebird query parameters through its language contract', async () => {
     api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
       language_profile: 'firebird-sql', title: 'Firebird SQL',
