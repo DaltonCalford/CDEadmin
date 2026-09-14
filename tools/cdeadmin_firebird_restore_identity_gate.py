@@ -24,6 +24,9 @@ from pgadmin.cdeadmin.providers.firebird.provider import (
     ADMINISTRATION, _configure_client_library)
 from pgadmin.cdeadmin.security.secrets import SecretLease
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.restore_policy import (
+    physical_restore_policy)
 
 
 OWNER = 'firebird-restore-identity'
@@ -40,7 +43,7 @@ def remove_owned(container):
     docker('rm', '--force', '--volumes', container)
 
 
-def run(image):
+def run(image, *, read_only_source=False):
     import firebird.driver as native
     _configure_client_library(native)
     token = uuid.uuid4().hex
@@ -50,6 +53,7 @@ def run(image):
     container = connection = client = None
     phase = 'create-container'
     result = {'complete': False, 'cases': [], 'failures': [],
+              'read_only_source': read_only_source,
               'container_name': name, 'owned_container_removed': False,
               'credential_values_exported': False}
 
@@ -84,11 +88,19 @@ def run(image):
                    '_provider_route': {**route, 'database': database}}
         assert not ADMINISTRATION.validate(request)['errors']
         plan = ADMINISTRATION.plan(request)
+        expected = None
+        if name in {'restore_physical', 'fixup_database'}:
+            expected = physical_restore_policy(name, draft)
+        if expected is not None:
+            assert plan['command_preview']['restore_policy_requested'] == (
+                expected)
         applied = ADMINISTRATION.apply(client, {
             'provider_payload': plan['provider_payload']})
         observed = applied['driver_observation']
         assert observed['server_completed'] is True
         assert observed['service_release']['service_handle_released'] is True
+        if expected is not None:
+            assert observed['restore_policy_requested'] == expected
 
     try:
         env = dict(os.environ, FIREBIRD_ROOT_PASSWORD=password,
@@ -155,6 +167,63 @@ def run(image):
         connection = None
         client = _create_client(SimpleNamespace(
             acquire_secret=lambda *_args: SecretLease(password)))
+        if read_only_source:
+            phase = 'set-source-read-only'
+            operation('set_access_mode', {'mode': 'READ_ONLY'})
+            connection = connect()
+            source_guid, source_sequence = identity(connection)
+            connection.close()
+            connection = None
+            result['source_replication_sequence'] = source_sequence
+            phase = 'read-only-physical-backup-denial'
+            try:
+                operation('backup_physical', {
+                    'backup_file': primary + '.denied.nbk', 'backup_level': 0})
+            except RelationalClientError as exc:
+                denied_codes = status_codes(exc)
+                assert 335544765 in denied_codes
+            else:
+                raise AssertionError('Read-only physical backup was accepted')
+            connection = connect()
+            assert identity(connection) == (source_guid, source_sequence)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT MON$READ_ONLY, MON$BACKUP_STATE '
+                               'FROM MON$DATABASE')
+                assert cursor.fetchone() == (1, 0)
+                cursor.execute('SELECT COUNT(*) FROM RDB$BACKUP_HISTORY')
+                assert cursor.fetchone() == (0,)
+            connection.rollback()
+            connection.close()
+            connection = None
+            result['cases'].append({'case': phase,
+                                    'native_denial_codes': list(denied_codes),
+                                    'source_identity_unchanged': True,
+                                    'source_read_only': True,
+                                    'source_backup_state_normal': True,
+                                    'history_unchanged': True})
+            phase = 'read-only-logical-backup'
+            logical = primary + '.fbk'
+            operation('backup_logical', {
+                'backup_file': logical, 'verbose': False})
+            for access in ('READ_WRITE', 'READ_ONLY'):
+                phase = 'logical-restore-' + access.lower()
+                destination = primary + '.' + access.lower() + '.fdb'
+                operation('restore_logical', {
+                    'backup_file': logical, 'restore_database': destination,
+                    'access_mode': access, 'verbose': False})
+                connection = connect(destination)
+                with connection.cursor() as cursor:
+                    cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
+                    assert cursor.fetchone() == (int(access == 'READ_ONLY'),)
+                    cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD')
+                    assert cursor.fetchall() == [(1, 'Identity restore proof')]
+                connection.rollback()
+                connection.close()
+                connection = None
+                result['cases'].append({'case': phase,
+                                        'read_only': access == 'READ_ONLY',
+                                        'payload_verified': True})
+            return result
         phase = 'physical-full-backup'
         backup = primary + '.nbk'
         operation('backup_physical', {
@@ -187,6 +256,8 @@ def run(image):
             assert (restored_guid == source_guid) is preserve
             assert restored_sequence == (source_sequence if preserve else 0)
             with connection.cursor() as cursor:
+                cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
+                assert cursor.fetchone() == (int(read_only_source),)
                 cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD')
                 assert cursor.fetchall() == [(1, 'Identity restore proof')]
             connection.rollback()
@@ -195,6 +266,7 @@ def run(image):
             result['cases'].append({'case': phase,
                                     'guid_preserved': preserve,
                                     'replication_sequence': restored_sequence,
+                                    'read_only': read_only_source,
                                     'payload_verified': True})
             phase = ('in-place-preserve' if preserve else 'in-place-reset')
             inplace = {
@@ -268,6 +340,8 @@ def run(image):
             assert (actual_guid == source_guid) is preserve
             assert actual_sequence == (source_sequence if preserve else 0)
             with connection.cursor() as cursor:
+                cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
+                assert cursor.fetchone() == (int(read_only_source),)
                 cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD')
                 assert cursor.fetchall() == [(1, 'Identity restore proof')]
             connection.rollback()
@@ -276,6 +350,7 @@ def run(image):
             result['cases'].append({'case': phase,
                                     'guid_preserved': preserve,
                                     'replication_sequence': actual_sequence,
+                                    'read_only': read_only_source,
                                     'payload_verified': True})
             phase += '-already-fixed-denial'
             try:
@@ -293,7 +368,9 @@ def run(image):
                                     'native_denial_codes': fixed_codes})
     except Exception as exc:
         result['failures'].append({'stage': phase,
-                                   'type': type(exc).__name__})
+                                   'type': type(exc).__name__,
+                                   'native_status_codes': list(
+                                       status_codes(exc))})
     finally:
         for handle in (connection, client):
             if handle is not None:
@@ -309,8 +386,10 @@ def run(image):
             except Exception as exc:
                 result['failures'].append({'stage': 'cleanup',
                                            'type': type(exc).__name__})
-    result['complete'] = (not result['failures'] and len(result['cases']) == 10
-                          and result['owned_container_removed'])
+        result['complete'] = (not result['failures'] and
+                              len(result['cases']) == (
+                                  3 if read_only_source else 10) and
+                              result['owned_container_removed'])
     return result
 
 
@@ -318,10 +397,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--read-only-source', action='store_true')
     options = parser.parse_args()
     if options.output.exists():
         raise SystemExit('Choose a new evidence output file')
-    result = run(options.image)
+    result = run(options.image, read_only_source=options.read_only_source)
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     raise SystemExit(0 if result['complete'] else 1)

@@ -57,8 +57,9 @@ def test_initial_failure_redacts_credentials_and_cleans_only_owned(
     result = gate.run('owned-image')
     assert result['complete'] is False
     assert 'SECRET' not in str(result)
-    assert result['failures'] == [{'stage': phase + '-container',
-                                  'type': 'RuntimeError'}]
+    assert result['failures'] == [
+        {'stage': phase + '-container', 'type': 'RuntimeError',
+         'native_status_codes': []}]
     if phase == 'create':
         remove.assert_not_called()
     else:

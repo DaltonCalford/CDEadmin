@@ -25,6 +25,7 @@ from ..relational_admin import (
 from . import columns, mappings
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
+from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
 from .column_type_metadata import type_editor_values
 from .catalog_reader import CatalogReader
@@ -665,6 +666,9 @@ def _firebird_service_operation(
         options = {**options, 'database_guid': normalize_backup_guid(
             options.get('database_guid')), 'backup_level':
             normalize_backup_level(options.get('backup_level'))}
+    restore_policy = (physical_restore_policy(operation_id, options)
+                      if operation_id in {'restore_physical', 'fixup_database'}
+                      else None)
     service = server.database
     result = {
         'schema': 'cdeadmin.firebird-service-result.v1',
@@ -675,6 +679,8 @@ def _firebird_service_operation(
         'output_truncated': False,
     }
     role = options.get('role') or None
+    if restore_policy is not None:
+        result['restore_policy_requested'] = restore_policy
     if operation_id == 'backup_physical':
         result['backup_io_requested'] = (
             'NATIVE' if options['direct_io'] is None else

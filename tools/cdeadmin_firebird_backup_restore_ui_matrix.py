@@ -89,14 +89,16 @@ def run_scale(options, native, profile, password, scale):
     root = PurePosixPath(profile['database']).parent
     path = str(root / ('cde_history_ui_' + uuid.uuid4().hex + '.fdb'))
     restored = path + '.RESTORED.fdb'
+    preserved = path + '.RESTORED.PRESERVE.fdb'
     backups = [path + '.' + part + '.nbk' for part in ('ROWS', 'DAYS', 'GUID')]
     claimed = False
     result = {'scale': scale, 'complete': False, 'target_database': path,
-              'restored_database': restored, 'databases_removed': [],
+              'restored_database': restored, 'preserved_database': preserved,
+              'databases_removed': [],
               'backup_files_absent': [], 'failures': [],
               'credential_values_exported': False}
     try:
-        for candidate in (path, restored, *backups):
+        for candidate in (path, restored, preserved, *backups):
             docker(options.container, 'exec', 'test', '!', '-e', candidate)
         claimed = True
         connection = database_connection(native, profile, password, path,
@@ -142,12 +144,13 @@ def run_scale(options, native, profile, password, scale):
                 observed.get('target_database') != path):
             raise RuntimeError('Firebird browser evidence target mismatch')
         docker(options.container, 'exec', 'test', '-e', restored)
+        docker(options.container, 'exec', 'test', '-e', preserved)
     except Exception as exc:
         result['failures'].append({'stage': 'run', 'type': type(exc).__name__})
     finally:
         if claimed:
             try:
-                for candidate in (restored, path):
+                for candidate in (preserved, restored, path):
                     found = docker(options.container, 'exec', 'test', '-e',
                                    candidate, absent_ok=True)
                     if found.returncode == 0:

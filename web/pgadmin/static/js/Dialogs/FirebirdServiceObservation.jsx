@@ -25,6 +25,41 @@ export default function FirebirdServiceObservation({observation, title}) {
   ];
   const selection = observation.backup_selection_requested;
   const retention = observation.history_retention_requested;
+  const restore = observation.restore_policy_requested;
+  let restorePolicyInvalid = false;
+  if (restore !== undefined) {
+    const modeLabels = {
+      NEW_DATABASE: gettext('Create a new restored database'),
+      IN_PLACE: gettext('Apply increments to an existing offline database'),
+      FIXUP: gettext('Fix up an offline copied database'),
+    };
+    const identityLabels = {
+      PRESERVE: gettext('Preserve database GUID and replication counter'),
+      RESET: gettext('New database GUID; reset replication counter to zero'),
+    };
+    const accessLabels = {
+      READ_ONLY: gettext('Read-only result'),
+      UNCHANGED: gettext('Keep copied-file access mode'),
+      FROM_BACKUP: gettext('Use backed-up access mode'),
+    };
+    const expectedAccess = {NEW_DATABASE: 'FROM_BACKUP', IN_PLACE: 'READ_ONLY', FIXUP: 'UNCHANGED'};
+    const valid = typeof restore?.mode === 'string' && Object.hasOwn(modeLabels, restore.mode) &&
+      typeof restore.replication_identity === 'string' &&
+      Object.hasOwn(identityLabels, restore.replication_identity) &&
+      restore.result_access === expectedAccess[restore.mode] &&
+      restore.offline_required === (restore.mode !== 'NEW_DATABASE');
+    restorePolicyInvalid = !valid;
+    for (const [name, key, labels] of [
+      [gettext('Requested file operation'), 'mode', modeLabels],
+      [gettext('Requested replication identity'), 'replication_identity', identityLabels],
+      [gettext('Requested access handling'), 'result_access', accessLabels],
+    ]) {
+      fields.push([name, valid ? labels[restore[key]] : gettext('Not reported')]);
+    }
+    fields.push([gettext('Offline destination prerequisite'), !valid ? gettext('Not reported') :
+      restore.offline_required ? gettext('Required; not verified by this observation') :
+        gettext('New-file creation; no existing destination is modified')]);
+  }
   if (observation.backup_io_requested !== undefined) {
     const policies = {
       NATIVE: gettext('Native default'),
@@ -70,6 +105,9 @@ export default function FirebirdServiceObservation({observation, title}) {
     </Alert>}
     {outputInvalid && <Alert severity="warning">
       {gettext('Native output could not be displayed in full. Review the native service receipt.')}
+    </Alert>}
+    {restorePolicyInvalid && <Alert severity="warning">
+      {gettext('Restore policy is incomplete or inconsistent. Review the native service receipt.')}
     </Alert>}
     <Box component="h4" sx={{fontSize: '1em'}}>{gettext('Native output')}</Box>
     {output.length > 0 ? <Box component="pre"

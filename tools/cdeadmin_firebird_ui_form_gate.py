@@ -731,6 +731,9 @@ def fill_form_values(driver, wait, fields, values, control_root=None):
             continue
         schema = field.get('array_editor') or field.get('object_editor')
         if schema is None:
+            if (field.get('control') in {'multiselect', 'json'} and
+                    not isinstance(value, str)):
+                value = json.dumps(value, ensure_ascii=False)
             fill_fields(wait, [f'{label}={value}'], control_root=control_root)
             continue
         if isinstance(value, str):

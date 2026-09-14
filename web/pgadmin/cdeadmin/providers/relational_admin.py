@@ -35,6 +35,7 @@ from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
 from .firebird.backup_guid import normalize_backup_guid
 from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
+from .firebird.restore_policy import physical_restore_policy
 from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
@@ -2432,6 +2433,9 @@ class RelationalAdministration:
                    if 'backup_selection' in compiled else {}),
                 **({'backup_io_requested': compiled['backup_io_requested']}
                    if 'backup_io_requested' in compiled else {}),
+                **({'restore_policy_requested': copy.deepcopy(
+                    compiled['restore_policy_requested'])}
+                   if 'restore_policy_requested' in compiled else {}),
             },
             'provider_payload': {
                 'route': copy.deepcopy(dict(route)),
@@ -3038,6 +3042,10 @@ class RelationalAdministration:
                 'database': database.strip(),
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                **({'restore_policy_requested': physical_restore_policy(
+                    operation, request.get('draft', {}))}
+                   if operation in {'restore_physical', 'fixup_database'}
+                   else {}),
                 **({'backup_io_requested': (
                     'NATIVE' if request['draft']['direct_io'] is None else
                     'ON' if request['draft']['direct_io'] else 'OFF')}

@@ -59,7 +59,8 @@ def run(options, password):
 
     def readable_result(result, prefix):
         for index, term in enumerate(result.find_elements(By.TAG_NAME, 'dt')):
-            if not term.text.startswith('Requested backup'):
+            if (not term.text.startswith('Requested ') and
+                    term.text != 'Offline destination prerequisite'):
                 continue
             geometry = driver.execute_script('''
                 const group = arguments[0].parentElement;
@@ -96,6 +97,10 @@ def run(options, password):
                 cursor.execute('CREATE TABLE OWNED_UI_PAYLOAD '
                                '(ID INTEGER PRIMARY KEY, V VARCHAR(60))')
             connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', 'DB_GUID') "
+                               'FROM RDB$DATABASE')
+                source_database_guid = cursor.fetchone()[0]
             with connection.cursor() as cursor:
                 cursor.execute('INSERT INTO OWNED_UI_PAYLOAD VALUES (?, ?)',
                                (1, 'Full backup proof'))
@@ -375,6 +380,10 @@ def run(options, password):
         full = str(root / (options.database + '.DAYS.nbk'))
         increment = str(root / (options.database + '.GUID.nbk'))
         destination = str(root / (options.database + '.RESTORED.fdb'))
+        reset_policy = {'mode': 'NEW_DATABASE',
+                        'replication_identity': 'RESET',
+                        'offline_required': False,
+                        'result_access': 'FROM_BACKUP'}
         fill_form_values(driver, wait, restore_fields, {
             'Ordered backup files': [
                 increment, full, '/unused/not-applied.nbk'],
@@ -396,6 +405,8 @@ def run(options, password):
             By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
         assert preview['draft']['backup_files'] == [full, increment]
         assert preview['draft']['restore_database'] == destination
+        assert preview['command_preview']['restore_policy_requested'] == (
+            reset_policy)
         capture('restore-ordered-native-plan')
         click_unobscured(driver, wait, _button(
             wait, 'Ordered backup files 2: Move up'))
@@ -420,6 +431,7 @@ def run(options, password):
         press('Apply provider plan')
         result = wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+        readable_result(result, 'restore-reset')
         click_unobscured(driver, wait, result.find_element(
             By.TAG_NAME, 'summary'))
         observed = json.loads(result.find_element(
@@ -427,6 +439,7 @@ def run(options, password):
             '[aria-label="Firebird native service receipt"]').text)
         assert observed['server_completed'] is True
         assert observed['database'] == destination
+        assert observed['restore_policy_requested'] == reset_policy
         assert observed['service_release']['service_handle_released'] is True
         connection = native.connect(password=password, **_route_arguments(
             {**route, 'database': destination}, native))
@@ -436,12 +449,86 @@ def run(options, password):
                                'ORDER BY ID')
                 assert cursor.fetchall() == [(1, 'Full backup proof'),
                                              (2, 'Increment proof')]
+                cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', 'DB_GUID') "
+                               'FROM RDB$DATABASE')
+                assert cursor.fetchone()[0] != source_database_guid
         finally:
             connection.close()
         capture('restore-native-payload-verified')
         evidence['cases'].append('visual-ordered-chain-restored-payload')
         close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 6
+        database = wait_for_tree_item(wait, options.database)
+        invoke_context_action(wait, driver, database,
+                              ['Restore', 'Physical restore (nbackup)...'],
+                              password, endpoint_prompt_timeout=1)
+        press('Continue')
+        complete_endpoint_prompt(driver, password, timeout=1)
+        wait.until(lambda _driver: visible_named_control(
+            driver, 'Restored database filename on the Firebird server'))
+        destination = str(root / (
+            options.database + '.RESTORED.PRESERVE.fdb'))
+        preserve_policy = {**reset_policy, 'replication_identity': 'PRESERVE'}
+        fill_form_values(driver, wait, restore_fields, {
+            'Ordered backup files': [increment],
+            'Restored database filename on the Firebird server': destination,
+            'Physical restore options': ['SEQUENCE', 'IN_PLACE']})
+        press('Validate and preview')
+        complete_endpoint_prompt(driver, password, timeout=3)
+        preview = json.loads(wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
+        assert preview['command_preview']['restore_policy_requested'] == {
+            **preserve_policy, 'mode': 'IN_PLACE', 'offline_required': True,
+            'result_access': 'READ_ONLY'}
+        capture('restore-inplace-preserve-plan-only')
+        fill_form_values(driver, wait, restore_fields, {
+            'Physical restore options': ['SEQUENCE']})
+        wait.until(lambda value: not value.find_elements(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]'))
+        assert not visible_named_control(
+            driver, 'Apply provider plan').is_enabled()
+        capture('restore-policy-change-invalidates-plan')
+        fill_form_values(driver, wait, restore_fields, {
+            'Ordered backup files': [full, increment]})
+        press('Validate and preview')
+        complete_endpoint_prompt(driver, password, timeout=3)
+        preview = json.loads(wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
+        assert preview['command_preview']['restore_policy_requested'] == (
+            preserve_policy)
+        assert preview['draft']['restore_database'] == destination
+        capture('restore-preserve-new-file-plan')
+        click_unobscured(driver, wait, visible_named_control(
+            driver, 'I confirm this provider-planned operation.'))
+        press('Apply provider plan')
+        result = wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+        readable_result(result, 'restore-preserve')
+        click_unobscured(driver, wait, result.find_element(
+            By.TAG_NAME, 'summary'))
+        observed = json.loads(result.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Firebird native service receipt"]').text)
+        assert observed['server_completed'] is True
+        assert observed['service_release']['service_handle_released'] is True
+        assert observed['restore_policy_requested'] == preserve_policy
+        assert observed['database'] == destination
+        connection = native.connect(password=password, **_route_arguments(
+            {**route, 'database': destination}, native))
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT ID, V FROM OWNED_UI_PAYLOAD '
+                               'ORDER BY ID')
+                assert cursor.fetchall() == [(1, 'Full backup proof'),
+                                             (2, 'Increment proof')]
+                cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', 'DB_GUID') "
+                               'FROM RDB$DATABASE')
+                assert cursor.fetchone()[0] == source_database_guid
+        finally:
+            connection.close()
+        capture('restore-preserved-identity-native-verified')
+        evidence['cases'].append('visual-restore-identity-policies-verified')
+        close_workspace(driver, wait)
+        evidence['passed'] = len(evidence['cases']) == 7
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
         capture(active_operation + '-failure')

@@ -10,6 +10,45 @@ describe('Firebird native service result', () => {
     service_release: {service_handle_released: true},
   };
 
+  it.each([
+    ['NEW_DATABASE', 'FROM_BACKUP', false, 'Create a new restored database'],
+    ['IN_PLACE', 'READ_ONLY', true, 'Apply increments to an existing offline database'],
+    ['FIXUP', 'UNCHANGED', true, 'Fix up an offline copied database'],
+  ].flatMap((mode) => ['RESET', 'PRESERVE'].map((identity) => [...mode, identity])))(
+    'describes requested %s policy with %s access and %s offline prerequisite',
+    (mode, access, offline, label, identity) => {
+      const policy = {mode, result_access: access, offline_required: offline,
+        replication_identity: identity};
+      render(<FirebirdServiceObservation observation={{...observation,
+        restore_policy_requested: policy}} />);
+      expect(screen.getByText('Requested file operation').nextElementSibling).toHaveTextContent(label);
+      expect(screen.getByText('Requested replication identity').nextElementSibling).toHaveTextContent(
+        identity === 'PRESERVE' ? 'Preserve database GUID and replication counter' :
+          'New database GUID; reset replication counter to zero');
+      expect(screen.getByText('Offline destination prerequisite').nextElementSibling).toHaveTextContent(
+        offline ? 'Required; not verified by this observation' :
+          'New-file creation; no existing destination is modified');
+      expect(screen.queryByText(/Restore policy is incomplete/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Firebird service result')).toHaveTextContent('not independent verification');
+    });
+
+  it.each([null, {}, [], false,
+    {mode: '__proto__'}, {mode: 'IN_PLACE', result_access: 'FROM_BACKUP',
+      offline_required: false, replication_identity: 'PRESERVE'},
+    {mode: 'FIXUP', result_access: 'UNCHANGED', offline_required: true,
+      replication_identity: {}},
+    {mode: 'NEW_DATABASE', result_access: 'FROM_BACKUP', offline_required: 0,
+      replication_identity: 'RESET'},
+  ])('does not turn malformed restore policy into asserted state: %j', (policy) => {
+    render(<FirebirdServiceObservation observation={{...observation,
+      restore_policy_requested: policy}} />);
+    for (const label of ['Requested file operation', 'Requested replication identity',
+      'Requested access handling', 'Offline destination prerequisite']) {
+      expect(screen.getByText(label).nextElementSibling).toHaveTextContent('Not reported');
+    }
+    expect(screen.getByText(/Restore policy is incomplete or inconsistent/)).toBeInTheDocument();
+  });
+
   it('shows native fields and exact output with the raw receipt collapsed', () => {
     render(<FirebirdServiceObservation observation={observation} title="Statistics" />);
     const panel = screen.getByLabelText('Firebird service result');

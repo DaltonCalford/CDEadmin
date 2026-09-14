@@ -106,6 +106,7 @@ def test_fixture_lifecycle_and_failure_barriers(
             'DO-NOT-EXPORT')
         path = command[command.index('--database') + 1]
         present.add(path + '.RESTORED.fdb')
+        present.add(path + '.RESTORED.PRESERVE.fdb')
         present.update(path + '.' + name + '.nbk'
                        for name in ('ROWS', 'DAYS', 'GUID'))
         output = command[command.index('--output') + 1]
@@ -133,14 +134,14 @@ def test_fixture_lifecycle_and_failure_barriers(
         assert not created
         assert len(calls) == 1
     elif failure == 'drop':
-        assert len(present) == 5
+        assert len(present) == 6
         assert not any(args[:3] == ('exec', 'rm', '-f') for args in calls)
         assert result['failures'][0]['stage'] == 'cleanup'
     else:
         assert not present
         assert len(result['backup_files_absent']) == 3
         assert len(result['databases_removed']) == (
-            1 if failure == 'create' else 2)
+            1 if failure == 'create' else 3)
 
 
 def test_existing_evidence_is_never_overwritten(tmp_path):

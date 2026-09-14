@@ -468,7 +468,7 @@
     "firebird_backup_physical": {
       "title": "Firebird physical backup (nbackup)",
       "fields": [
-        {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096, "help": "Physical backup requires a writable database. Use logical backup for a read-only database."},
         {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 32767, "help": "0 creates a full backup. A positive level requires the preceding level in backup history. Restore the complete chain in order."},
         {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false, "help": "Enter a hyphenated UUID, with or without braces. The native request always uses braces so it cannot be mistaken for a backup level."},
         {"field_id": "direct_io_mode", "label": "Backup read I/O policy", "control": "select", "required": true, "default": "NATIVE", "help": "Default: ON on Windows servers, OFF elsewhere. Direct reads require filesystem support.", "options": [{"value": "NATIVE", "label": "Native default"}, {"value": "ON", "label": "Direct reads ON"}, {"value": "OFF", "label": "Direct reads OFF"}]},
@@ -484,7 +484,7 @@
       "fields": [
         {"field_id": "backup_files", "label": "Ordered backup files", "control": "json", "json_type": "array", "required": true, "default": [], "array_editor": {"item_kind": "string"}, "help": "New restore: full backup, then increments in order. In-place: increments only."},
         {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
-        {"field_id": "restore_flags", "label": "Physical restore options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IN_PLACE", "label": "In-place"}, {"value": "SEQUENCE", "label": "Sequence mode"}]},
+        {"field_id": "restore_flags", "label": "Physical restore options", "control": "multiselect", "required": false, "default": [], "help": "Default: new database GUID and replication counter reset to zero. In-place requires an offline destination and leaves it read-only; this form does not secure exclusive server-wide access.", "options": [{"value": "IN_PLACE", "label": "Apply increments to an existing offline database"}, {"value": "SEQUENCE", "label": "Preserve database GUID and replication counter"}]},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
       ]
     },
@@ -579,7 +579,7 @@
     },
     "firebird_fixup_database": {
       "title": "Fix up Firebird database after a filesystem copy", "fields": [
-        {"field_id": "fixup_flags", "label": "Fixup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "SEQUENCE", "label": "Preserve replication sequence"}]},
+        {"field_id": "fixup_flags", "label": "Fixup options", "control": "multiselect", "required": false, "default": [], "help": "Default: new database GUID and replication counter reset to zero. The copied database must be offline; this form does not secure exclusive server-wide access.", "options": [{"value": "SEQUENCE", "label": "Preserve database GUID and replication counter"}]},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
       ]
     },
