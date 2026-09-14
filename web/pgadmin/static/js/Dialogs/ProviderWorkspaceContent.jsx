@@ -835,6 +835,10 @@ export function ObjectInspectorSection({resource, descriptor, loading,
   }, [section, sections]);
   if (!resource) return null;
   return <Box sx={{mb: 2, border: 1, borderColor: 'divider'}}>
+    {Array.isArray(providerNative(resource)?.catalog_warnings) &&
+      providerNative(resource).catalog_warnings.filter((message) =>
+        typeof message === 'string' && message.trim()).map((message, index) =>
+        <Alert key={index} severity="warning">{message}</Alert>)}
     {coverage?.state === 'partial' && <Alert severity="warning">
       {gettext('Catalog visibility is incomplete. Missing objects may reflect denied access or failed catalog queries, not an empty database.')}
       <NativePropertyValue value={coverage} />

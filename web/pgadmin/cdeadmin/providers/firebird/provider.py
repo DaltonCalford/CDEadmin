@@ -810,10 +810,14 @@ def _resources(connection, request):
         generation = str(request.get('capability_generation') or 'current')
         resources = {}
 
-        def add(kind, path, name, native=None):
+        def add(kind, path, name, native=None, *, native_identity=None):
             path = [str(item).rstrip(' ') for item in path]
             name = str(name).rstrip(' ')
             resource_id = _catalog_resource_id(kind, path, name)
+            if native_identity is not None:
+                resource_id = _catalog_resource_id(kind, [], json.dumps(
+                    native_identity, ensure_ascii=False,
+                    separators=(',', ':')))
             resources[resource_id] = {
                 'resource_id': resource_id,
                 'resource_kind': kind,
@@ -1418,12 +1422,6 @@ def _resources(connection, request):
             'function', 'external-function', 'package', 'exception', 'role',
             'publication',
         }
-        grantable_names = {
-            item['display_name']
-            for item in resources.values()
-            if item['resource_kind'] in grantable_kinds
-        }
-        grantable_names.add('database')
         for (
                 grantee, relation, field, privilege, grantor, grant_option,
                 user_type, object_type) in optional(
@@ -1437,8 +1435,6 @@ def _resources(connection, request):
             'ORDER BY 1, 2, 3, 4, 5, 7, 8'
         ):
             relation = str(relation or '').rstrip(' ') or 'database'
-            if relation not in grantable_names:
-                continue
             grantee = str(grantee).rstrip(' ')
             privilege = str(privilege).strip()
             field = str(field or '').rstrip(' ')
@@ -1448,8 +1444,7 @@ def _resources(connection, request):
                 field = ''  # Native default-role marker, not a column.
             granted_object = relation + (f'.{field}' if field else '')
             name = f'{grantee}:{privilege} on {granted_object}'
-            if membership:
-                name += f' [{user_type}; grantor {str(grantor).rstrip(' ')}]'
+            name += f' [{user_type}; grantor {str(grantor).rstrip(' ')}]'
             # A granted object is metadata of a Firebird grant, not its
             # navigator parent.  Keeping it in display_path incorrectly
             # nested grants beneath tables, views and sequences and could
@@ -1465,7 +1460,9 @@ def _resources(connection, request):
                 'grant_option': grant_option,
                 'user_type': user_type,
                 'object_type': object_type,
-            })
+            }, native_identity=[grantee, relation, field, privilege, grantor,
+                                grant_option, user_type, object_type,
+                                default_role])
         dependency_rows = optional(
             'SELECT TRIM(TRAILING FROM RDB$DEPENDENT_NAME), '
             'RDB$DEPENDENT_TYPE, '
@@ -1626,17 +1623,50 @@ def _resources(connection, request):
                 [target for target in objects_named(object_name)
                  if target['resource_kind'] in target_kinds]
             )
+            field_targets = [
+                target for target in objects_named(field_name)
+                if target['resource_kind'] == 'column' and
+                target['display_path'][-2] == object_name
+            ] if field_name and grant.get('object_type') == 0 else []
+            resolved = field_targets if field_name else targets
+            ddl_class = {
+                22: 'TABLE', 23: 'VIEW', 24: 'PROCEDURE', 25: 'FUNCTION',
+                26: 'PACKAGE', 27: 'SEQUENCE', 28: 'DOMAIN', 29: 'EXCEPTION',
+                30: 'ROLE', 31: 'CHARACTER SET', 32: 'COLLATION', 33: 'FILTER',
+            }.get(grant.get('object_type'))
+            resolution = {
+                'state': 'resolved' if len(resolved) == 1 else
+                'ambiguous' if resolved else 'unresolved',
+                'resource_ids': [target['resource_id'] for target in resolved],
+                'authority': 'native-catalog-name-matching',
+                'effective_access_verified': False,
+            }
+            if ddl_class and not field_name:
+                resolution.update(state='class-scope', ddl_class=ddl_class)
+            elif resolution['state'] != 'resolved':
+                resolution['warning'] = (
+                    'The native grant target does not resolve uniquely in '
+                    'the visible catalog. This is not evidence that access '
+                    'is absent. A renamed Firebird column can retain its '
+                    'old grant name; verify effective access before changing '
+                    'security.')
+            grant['target_resolution'] = resolution
+            item.setdefault('native', {})['target_resolution'] = resolution
+            if resolution.get('warning'):
+                item['native']['catalog_warnings'] = [resolution['warning']]
             for target in targets:
+                if resolution.get('warning'):
+                    messages = target.setdefault('native', {}).setdefault(
+                        'catalog_warnings', [])
+                    if resolution['warning'] not in messages:
+                        messages.append(resolution['warning'])
                 target.setdefault('native', {}).setdefault(
                     'privileges', []
                 ).append(grant)
-            if field_name:
-                for target in objects_named(field_name):
-                    if target['resource_kind'] == 'column' and (
-                            target['display_path'][-2] == object_name):
-                        target.setdefault('native', {}).setdefault(
-                            'privileges', []
-                        ).append(grant)
+            for target in field_targets:
+                target.setdefault('native', {}).setdefault(
+                    'privileges', []
+                ).append(grant)
             principal_kind = {
                 8: 'user', 13: 'role',
             }.get(grant.get('user_type'))

@@ -868,6 +868,18 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('1142');
   });
 
+  it('surfaces provider catalog warnings without interpreting markup', () => {
+    render(<ObjectInspectorSection resource={{display_name: 'T',
+      resource_kind: 'table', extensions: {firebird: {native: {
+        catalog_warnings: [null, {}, '',
+          'Unresolved grant: <script>do not execute</script>'],
+      }}}}} />);
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Unresolved grant: <script>do not execute</script>');
+    expect(screen.getByRole('alert').querySelector('script')).toBeNull();
+  });
+
   it('opens the selected object browser and its data view without mutations', async () => {
     const table = {resource_id: 'table:assets', resource_kind: 'table',
       display_name: 'ASSETS', authority_path: ['table', 'ASSETS']};

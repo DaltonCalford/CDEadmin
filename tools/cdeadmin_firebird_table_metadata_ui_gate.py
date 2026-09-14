@@ -49,6 +49,8 @@ def run(options, profiles):
     domain = 'rdb$' + prefix
     tables = []
     domain_created = False
+    role_created = False
+    role = prefix + '_ROLE'
     browser = None
     result = {'passed': False, 'checks': [], 'failures': [],
               'fixtures_removed': False, 'credential_values_exported': False,
@@ -66,6 +68,8 @@ def run(options, profiles):
         execute('CREATE DOMAIN ' + quote(domain) +
                 ' AS INTEGER DEFAULT 7 CHECK (VALUE > 0)')
         domain_created = True
+        execute('CREATE ROLE ' + quote(role))
+        role_created = True
         variants = [
             ('DOMAIN', 'V ' + quote(domain), False),
             ('KEY', 'V INTEGER CONSTRAINT ' + quote(prefix + '_NN') +
@@ -74,6 +78,7 @@ def run(options, profiles):
              False),
             ('IDENTITY', 'V BIGINT GENERATED ALWAYS AS IDENTITY', False),
             ('TEMPORARY', 'V INTEGER', True),
+            ('SECURITY', 'V INTEGER', False),
         ]
         for label, definition, temporary in variants:
             name = prefix + '_' + label
@@ -87,6 +92,11 @@ def run(options, profiles):
                     " IS '  table ''é''; text  '")
             execute('COMMENT ON COLUMN ' + quote(name) +
                     ".V IS '  column ''é''; text  '")
+            if label == 'SECURITY':
+                execute('GRANT UPDATE(V) ON ' + quote(name) +
+                        ' TO ROLE ' + quote(role))
+                execute('ALTER TABLE ' + quote(name) +
+                        ' ALTER COLUMN V TO W')
         expected = {item['display_name']: item['native'] for item in
                     _resources(native, {'route': route}) if
                     item['resource_kind'] == 'table' and
@@ -107,6 +117,12 @@ def run(options, profiles):
             forms._open_focused_form(browser, operation, resource,
                                      probe['database_target_id'])
             forms._wait_for_operation(wait, operation)
+            warnings_visible = []
+            for message in expected[name].get('catalog_warnings', []):
+                wait.until(lambda web: any(
+                    node.is_displayed() and message in node.text for node in
+                    web.find_elements('css selector', '[role="alert"]')))
+                warnings_visible.append(message)
             fill_fields(wait, [
                 'Object properties task=Creation statement (DDL)'])
             panel = wait.until(lambda web: next((
@@ -130,11 +146,26 @@ def run(options, profiles):
                 node for node in web.find_elements(
                     'css selector', '[aria-label="columns object section"]')
                 if node.is_displayed()), None))
-            assert 'V' in columns_panel.text
+            assert ('W' if name.endswith('_SECURITY') else 'V') in (
+                columns_panel.text)
+            if name.endswith('_SECURITY'):
+                assert warnings_visible
+                fill_fields(wait, [
+                    'Object properties task=Privileges and grants'])
+                security_panel = wait.until(lambda web: next((
+                    node for node in web.find_elements(
+                        'css selector', '[aria-label="privileges '
+                        'object section"]') if node.is_displayed()), None))
+                assert role in security_panel.text
+                assert 'unresolved' in security_panel.text
+                path = options.output_root / (name + '-grants.png')
+                paths.append({'path': str(path),
+                              'sha256': screenshot(browser, path)})
             result['checks'].append({'table': name, 'ddl': ddl,
                                      'exact_ddl_rendered': True,
                                      'columns_rendered': True,
-                                     'screenshots': paths})
+                                     'screenshots': paths,
+                                     'catalog_warnings': warnings_visible})
             close_workspace(browser, wait)
         result['passed'] = len(result['checks']) == len(variants)
     except Exception:
@@ -147,11 +178,27 @@ def run(options, profiles):
             except Exception as error:
                 result['diagnostic_error_type'] = type(error).__name__
     finally:
+        if role_created:
+            try:
+                if native.main_transaction.is_active():
+                    native.rollback()
+                execute('DROP ROLE ' + quote(role))
+                with native.cursor() as cursor:
+                    cursor.execute('SELECT COUNT(*) FROM RDB$ROLES WHERE '
+                                   'RDB$ROLE_NAME = ?', (role,))
+                    assert cursor.fetchone()[0] == 0
+                native.commit()
+                result['role_removed'] = True
+            except Exception:
+                result['role_removed'] = False
+                result['failures'].append({
+                    'case': 'role-cleanup', 'owned_role': role,
+                    'traceback': traceback.format_exc()})
         cleanup = cleanup_column_fixtures(
             browser, native, tables, domain if domain_created else None)
         result['fixtures_removed'] = cleanup['fixtures_removed']
         result['failures'].extend(cleanup['errors'])
-        result['passed'] = result['passed'] and not cleanup['errors']
+        result['passed'] = result['passed'] and not result['failures']
     return result
 
 
