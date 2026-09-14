@@ -462,10 +462,20 @@ class RelationalDBAPIClient:
         except RelationalClientError:
             raise
         except Exception as exc:
-            raise RelationalClientError(
+            message = (
                 f'{self.config.profile.engine_name} connection failed '
                 f'({type(exc).__name__})'
-            ) from None
+            )
+            codes = ()
+            if self.config.profile.engine_id == 'firebird':
+                from ..providers.firebird.error_diagnostics import status_codes
+                codes = status_codes(exc)
+                if codes:
+                    message += '; Firebird status codes: ' + ', '.join(
+                        str(code) for code in codes)
+            error = RelationalClientError(message)
+            error.gds_codes = codes
+            raise error from None
         return connection
 
     def create_database(self, request, database, driver_operation):

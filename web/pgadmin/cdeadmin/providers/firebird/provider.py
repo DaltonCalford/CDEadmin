@@ -25,6 +25,9 @@ from ..relational_admin import (
 from . import columns, mappings
 from .column_type_metadata import type_editor_values
 from .catalog_reader import CatalogReader
+from .connection_strings import (
+    database_dsn, server_host, service_dsn, target_path,
+)
 from .identity import catalog_resource_id as _catalog_resource_id
 
 
@@ -157,13 +160,14 @@ def _route_arguments(route, module=None):
     # Default to Unicode while preserving an explicitly selected charset.
     result.setdefault('charset', 'UTF8')
     database = result.get('database')
-    host = route.get('host')
+    host = server_host(route.get('host'))
     port = route.get('port')
-    if isinstance(database, str) and isinstance(host, str) and host and (
-        ':' not in database
-    ):
-        host_spec = f'{host}/{port}' if isinstance(port, int) else host
-        result['database'] = f'{host_spec}:{database}'
+    path = target_path(database, host, port) if database else database
+    if database:
+        protocol = route.get('protocol')
+        result['database'] = database_dsn(
+            path, host, port,
+            protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
     configured = any(
         name in route for name in (
             'trusted_auth', 'timeout', 'protocol',
@@ -178,7 +182,8 @@ def _route_arguments(route, module=None):
         return result
     material = {
         name: route.get(name) for name in (
-            'host', 'port', 'database', 'trusted_auth', 'timeout',
+            'host', 'port', 'database', 'user', 'auth_plugin_list',
+            'trusted_auth', 'timeout',
             'protocol', 'dummy_packet_interval', 'wire_config',
             'wire_crypt', 'wire_compression',
         )
@@ -192,9 +197,14 @@ def _route_arguments(route, module=None):
         server = module.driver_config.get_server(server_name)
         if server is None:
             server = module.driver_config.register_server(server_name)
-        server.host.value = route.get('host')
+        # Driver 2.0.3 has no INET6 enum, although Firebird supports it.
+        # Use its documented DSN configuration with a hostless private server
+        # configuration so driver defaults cannot add a second address.
+        inet6 = route.get('protocol') == 'INET6'
+        server.host.value = None if inet6 else host
         server.port.value = (
-            str(route['port']) if route.get('port') is not None else None
+            str(route['port'])
+            if route.get('port') is not None and not inet6 else None
         )
         server.user.value = route.get('user')
         server.trusted_auth.value = bool(route.get('trusted_auth'))
@@ -202,9 +212,11 @@ def _route_arguments(route, module=None):
         config = module.driver_config.get_database(database_name)
         if config is None:
             config = module.driver_config.register_database(database_name)
-            config.database.value = route.get('database') or database
+            config.database.value = None if inet6 else path
             config.server.value = server_name
-            if route.get('protocol'):
+            if inet6:
+                config.dsn.value = database_dsn(path, host, port, 'INET6')
+            elif route.get('protocol'):
                 config.protocol.value = module.NetProtocol[
                     route['protocol']
                 ]
@@ -246,7 +258,8 @@ def _server_arguments(route, module):
     _configure_client_library(module)
     material = {
         name: route.get(name) for name in (
-            'host', 'port', 'trusted_auth', 'auth_plugin_list',
+            'host', 'port', 'user', 'protocol', 'trusted_auth',
+            'auth_plugin_list',
             'wire_config', 'wire_crypt', 'wire_compression',
         )
     }
@@ -258,10 +271,11 @@ def _server_arguments(route, module):
         server = module.driver_config.get_server(server_name)
         if server is None:
             server = module.driver_config.register_server(server_name)
-        server.host.value = route.get('host')
-        server.port.value = (
-            str(route['port']) if route.get('port') is not None else None
-        )
+        protocol = route.get('protocol')
+        server.host.value = service_dsn(
+            route.get('host'), route.get('port'),
+            protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
+        server.port.value = None
         server.user.value = route.get('user')
         server.trusted_auth.value = bool(route.get('trusted_auth'))
         server.auth_plugin_list.value = route.get('auth_plugin_list')

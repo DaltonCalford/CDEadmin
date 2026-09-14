@@ -3727,7 +3727,9 @@ class RelationalAdministration:
                 if mode == 'embedded-file' and os.path.isabs(current):
                     root = os.path.dirname(current)
                 elif mode == 'firebird-driver':
-                    server_path = current.split(':', 1)[-1]
+                    from .firebird.connection_strings import target_path
+                    server_path = target_path(
+                        current, route.get('host'), route.get('port'))
                     if server_path.startswith('/'):
                         root = posixpath.dirname(server_path)
         if not isinstance(root, str) or not root:
@@ -3764,16 +3766,11 @@ class RelationalAdministration:
                 raise RelationalClientError(
                     'database file escapes the approved creation root'
                 )
-            host = route.get('host')
-            port = route.get('port')
-            host_spec = (
-                f'{host}/{port}' if isinstance(port, int) else host
-            )
-            database = (
-                f'{host_spec}:{database_path}'
-                if isinstance(host_spec, str) and host_spec
-                else database_path
-            )
+            from .firebird.connection_strings import database_dsn
+            protocol = route.get('protocol')
+            database = database_dsn(
+                database_path, route.get('host'), route.get('port'),
+                protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
             driver_operation = 'firebird-create-database'
         else:
             raise RelationalClientError(
