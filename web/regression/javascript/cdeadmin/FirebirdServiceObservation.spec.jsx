@@ -44,6 +44,39 @@ describe('Firebird native service result', () => {
     expect(screen.getByLabelText('Firebird service result')).toHaveTextContent('Not reported');
   });
 
+  it.each([
+    [{mode: 'guid', guid: '{00112233-4455-6677-8899-AABBCCDDEEFF}'}, 'GUID: {00112233-4455-6677-8899-AABBCCDDEEFF}'],
+    [{mode: 'level', level: 0}, 'Level: 0'],
+    [{mode: 'level', level: 3}, 'Level: 3'],
+    [null, 'Not reported'],
+    [{mode: 'level', level: -1}, 'Not reported'],
+    [{mode: 'level', level: '0'}, 'Not reported'],
+    [{mode: 'guid', guid: {}}, 'Not reported'],
+  ])('labels the requested backup selection without inferring it: %j', (selection, text) => {
+    render(<FirebirdServiceObservation observation={{...observation,
+      backup_selection_requested: selection}} />);
+    expect(screen.getByText('Requested backup selection').nextElementSibling).toHaveTextContent(text);
+  });
+
+  it.each([
+    [{unit: 'ROWS', value: 1}, 'Newest rows (timestamp cutoff): 1'],
+    [{unit: 'DAYS', value: 7}, 'Calendar days including today: 7'],
+    [null, 'Not reported'],
+    [{unit: 'OTHER', value: 1}, 'Not reported'],
+    [{unit: 'ROWS', value: 0}, 'Not reported'],
+    [{unit: 'DAYS', value: '7'}, 'Not reported'],
+  ])('shows requested history retention, not an asserted database result: %j', (retention, text) => {
+    render(<FirebirdServiceObservation observation={{...observation,
+      history_retention_requested: retention}} />);
+    expect(screen.getByText('Requested backup-history retention').nextElementSibling).toHaveTextContent(text);
+  });
+
+  it('does not add backup fields to unrelated service observations', () => {
+    render(<FirebirdServiceObservation observation={observation} />);
+    expect(screen.queryByText('Requested backup selection')).not.toBeInTheDocument();
+    expect(screen.queryByText('Requested backup-history retention')).not.toBeInTheDocument();
+  });
+
   it('explicitly reports truncated native output', () => {
     render(<FirebirdServiceObservation observation={{...observation, output_truncated: true}} />);
     expect(screen.getByRole('alert')).toHaveTextContent('displayed text is incomplete');

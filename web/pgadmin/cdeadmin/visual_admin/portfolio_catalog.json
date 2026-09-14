@@ -470,7 +470,7 @@
       "fields": [
         {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
         {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 255},
-        {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false},
+        {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false, "help": "Enter a hyphenated UUID, with or without braces. The native request always uses braces so it cannot be mistaken for a backup level."},
         {"field_id": "direct_io", "label": "Use direct I/O", "control": "boolean", "required": false, "default": false},
         {"field_id": "backup_flags", "label": "Physical backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "NO_TRIGGERS", "label": "Disable database triggers"}]},
         {"field_id": "clean_history", "label": "Clean backup history after backup", "control": "boolean", "required": false, "default": false, "help": "Removes native backup-history records, not backup files. Older level/GUID lookup may no longer be possible; keep an independently verified restore chain."},

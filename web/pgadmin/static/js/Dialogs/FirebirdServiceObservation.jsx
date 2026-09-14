@@ -23,6 +23,23 @@ export default function FirebirdServiceObservation({observation, title}) {
     [gettext('Service attachment'), release === true ? gettext('Released') :
       release === false ? gettext('Release unconfirmed') : gettext('Not reported')],
   ];
+  const selection = observation.backup_selection_requested;
+  const retention = observation.history_retention_requested;
+  if (selection !== undefined) {
+    const guid = selection?.mode === 'guid' && typeof selection.guid === 'string';
+    const level = selection?.mode === 'level' && Number.isInteger(selection.level) && selection.level >= 0;
+    fields.push([gettext('Requested backup selection'), guid ?
+      gettext('GUID: %s', selection.guid) : level ?
+        gettext('Level: %s', selection.level) : gettext('Not reported')]);
+  }
+  if (retention !== undefined) {
+    const valid = Number.isInteger(retention?.value) && retention.value > 0;
+    const policy = valid && retention.unit === 'ROWS' ?
+      gettext('Newest rows (timestamp cutoff): %s', retention.value) :
+      valid && retention.unit === 'DAYS' ?
+        gettext('Calendar days including today: %s', retention.value) : gettext('Not reported');
+    fields.push([gettext('Requested backup-history retention'), policy]);
+  }
   return <Box component="section" aria-label={gettext('Firebird service result')}
     sx={{mt: 1, p: 1, minWidth: 0, bgcolor: 'background.default'}}>
     <Box component="h3" sx={{mt: 0, fontSize: '1em'}}>

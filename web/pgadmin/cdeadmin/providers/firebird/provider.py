@@ -23,6 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings
+from .backup_guid import normalize_backup_guid
 from .column_type_metadata import type_editor_values
 from .catalog_reader import CatalogReader
 from .connection_strings import (
@@ -619,6 +620,7 @@ def _service_backup_with_history(server, database, options, module):
             not 1 <= count <= 2147483647):
         raise RelationalClientError(
             'Firebird backup history retention is invalid')
+    guid = normalize_backup_guid(options.get('database_guid'))
     flags = _flag_value(module, 'SrvNBackupFlag', options.get('backup_flags'),
                         allowed={'NO_TRIGGERS'})
     core = module.core
@@ -630,9 +632,9 @@ def _service_backup_with_history(server, database, options, module):
                           encoding=server.encoding)
         spb.insert_string(core.SrvNBackupOption.FILE, options['backup_file'],
                           encoding=server.encoding)
-        if options.get('database_guid'):
+        if guid is not None:
             spb.insert_string(core.SrvNBackupOption.GUID,
-                              options['database_guid'])
+                              guid)
         else:
             spb.insert_int(core.SrvNBackupOption.LEVEL,
                            options.get('backup_level', 0))
@@ -652,6 +654,9 @@ def _service_backup_with_history(server, database, options, module):
 def _firebird_service_operation(
         server, operation_id, database, options, module):
     """Dispatch one exact Firebird 5 database service-manager task."""
+    if operation_id == 'backup_physical':
+        options = {**options, 'database_guid': normalize_backup_guid(
+            options.get('database_guid'))}
     service = server.database
     result = {
         'schema': 'cdeadmin.firebird-service-result.v1',
@@ -662,6 +667,12 @@ def _firebird_service_operation(
         'output_truncated': False,
     }
     role = options.get('role') or None
+    if operation_id == 'backup_physical':
+        result['backup_selection_requested'] = ({
+            'mode': 'guid', 'guid': options['database_guid'],
+        } if options['database_guid'] is not None else {
+            'mode': 'level', 'level': options.get('backup_level', 0),
+        })
     if operation_id == 'backup_logical':
         lines, truncated = _service_lines(lambda output: service.backup(
             database=database, backup=options['backup_file'], role=role,

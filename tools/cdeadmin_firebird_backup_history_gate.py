@@ -63,7 +63,8 @@ def run(profiles, container):
         if connection.main_transaction.is_active():
             connection.rollback()
         with connection.cursor() as cursor:
-            cursor.execute('SELECT RDB$BACKUP_ID, RDB$GUID, RDB$TIMESTAMP '
+            cursor.execute('SELECT RDB$BACKUP_ID, RDB$GUID, RDB$TIMESTAMP, '
+                           'RDB$BACKUP_LEVEL '
                            'FROM RDB$BACKUP_HISTORY ORDER BY RDB$BACKUP_ID')
             rows = cursor.fetchall()
         connection.rollback()
@@ -76,6 +77,11 @@ def run(profiles, container):
         checked = ADMINISTRATION.validate(request)
         assert not checked['errors'], checked['errors']
         plan = ADMINISTRATION.plan(request)
+        if options.get('database_guid'):
+            compiled_guid = plan['provider_payload']['compiled'][
+                'options']['database_guid']
+            assert compiled_guid.startswith('{')
+            assert compiled_guid.endswith('}')
         if options.get('clean_history'):
             assert any('history' in warning for warning in plan['warnings'])
         applied = ADMINISTRATION.apply(client, {
@@ -149,15 +155,31 @@ def run(profiles, container):
             result['cases'].append('pruned-guid-native-rejection')
         else:
             raise AssertionError('A removed history GUID was accepted')
+        # A bare UUID must still select GUID mode, never atoi's level path.
+        latest_guid = before[-1][1].strip()
+        with connection.cursor() as cursor:
+            cursor.execute('INSERT INTO OWNED_PAYLOAD VALUES (?, ?)',
+                           (2, 'GUID increment proof'))
+        connection.commit()
+        increment = str(root / f'cde_history_{token}_guid_increment.nbk')
+        claim(increment)
+        operation('backup_physical', {
+            'backup_file': increment,
+            'database_guid': latest_guid.strip('{}').lower(),
+            'clean_history': True, 'history_keep_unit': 'DAYS',
+            'history_keep_value': 1})
+        assert history()[-1][3] is None
+        result['cases'].append('bare-guid-increment-native-history')
         claim(restored)
-        operation('restore_physical', {'backup_files': [backups[-1]],
-                                       'restore_database': restored,
-                                       'restore_flags': []})
+        operation('restore_physical', {
+            'backup_files': [backups[-1], increment],
+            'restore_database': restored, 'restore_flags': []})
         restored_connection = connect(restored)
         try:
             with restored_connection.cursor() as cursor:
-                cursor.execute('SELECT ID, V FROM OWNED_PAYLOAD')
-                assert cursor.fetchall() == [(1, 'Restore proof')]
+                cursor.execute('SELECT ID, V FROM OWNED_PAYLOAD ORDER BY ID')
+                assert cursor.fetchall() == [
+                    (1, 'Restore proof'), (2, 'GUID increment proof')]
         finally:
             restored_connection.close()
         result['cases'].append('restored-payload-verified')
@@ -186,7 +208,7 @@ def run(profiles, container):
                     result['failures'].append({
                         'case': 'cleanup', 'path': path,
                         'error_type': type(exc).__name__})
-    result['complete'] = (len(result['cases']) == 6 and
+    result['complete'] = (len(result['cases']) == 7 and
                           not result['failures'] and
                           len(result['owned_paths_removed']) == len(owned))
     return result

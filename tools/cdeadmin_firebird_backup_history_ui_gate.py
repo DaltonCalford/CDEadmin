@@ -50,11 +50,43 @@ def run(options, password):
                 driver, path, reset_scroll=False)}
         evidence['controls'][state] = _grid_control_evidence(driver)
 
+    def readable_result(result, prefix):
+        for index, term in enumerate(result.find_elements(By.TAG_NAME, 'dt')):
+            if not term.text.startswith('Requested backup'):
+                continue
+            geometry = driver.execute_script('''
+                const group = arguments[0].parentElement;
+                group.scrollIntoView({block: 'center'});
+                let visible = true;
+                for (const item of group.children) {
+                  const r = item.getBoundingClientRect();
+                  visible &&= r.top >= 0 && r.left >= 0 &&
+                    r.bottom <= innerHeight && r.right <= innerWidth;
+                  visible &&= item.scrollWidth <= item.clientWidth + 1;
+                  for (let p = item.parentElement; p; p = p.parentElement) {
+                    const css = getComputedStyle(p);
+                    const b = p.getBoundingClientRect();
+                    if (['auto','scroll','hidden'].includes(css.overflowY))
+                      visible &&= r.top >= b.top - 1 &&
+                        r.bottom <= b.bottom + 1;
+                    if (['auto','scroll','hidden'].includes(css.overflowX))
+                      visible &&= r.left >= b.left - 1 &&
+                        r.right <= b.right + 1;
+                  }
+                }
+                return {label_and_value_visible: visible};
+            ''', term)
+            assert geometry['label_and_value_visible']
+            state = prefix + '-readable-result-' + str(index)
+            capture(state)
+            evidence['controls'][state].append(geometry)
+
     try:
         prepare_tree(driver, wait, options, password)
         fields = next(item['form']['fields']
                       for item in firebird_service_forms()
                       if item['operation_id'] == 'backup_physical')
+        latest_guid = None
         for index, unit in enumerate(('ROWS', 'DAYS')):
             database = wait_for_tree_item(wait, options.database)
             invoke_context_action(wait, driver, database,
@@ -126,6 +158,14 @@ def run(options, password):
             apply.click()
             result = wait.until(lambda value: value.find_element(
                 By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+            assert 'Requested backup selection' in result.text
+            assert 'Level: 0' in result.text
+            assert 'Requested backup-history retention' in result.text
+            expected_policy = ('Newest rows (timestamp cutoff): 1'
+                               if unit == 'ROWS' else
+                               'Calendar days including today: 1')
+            assert expected_policy in result.text
+            readable_result(result, unit.lower())
             details = result.find_element(By.TAG_NAME, 'details')
             details.find_element(By.TAG_NAME, 'summary').click()
             observed = json.loads(result.find_element(
@@ -142,12 +182,76 @@ def run(options, password):
                 with connection.cursor() as cursor:
                     cursor.execute('SELECT COUNT(*) FROM RDB$BACKUP_HISTORY')
                     assert cursor.fetchone() == (index + 1,)
+                    cursor.execute('SELECT FIRST 1 RDB$GUID FROM '
+                                   'RDB$BACKUP_HISTORY '
+                                   'ORDER BY RDB$BACKUP_ID DESC')
+                    latest_guid = cursor.fetchone()[0].strip()
             finally:
                 connection.close()
             capture(unit.lower() + '-native-result')
             evidence['cases'].append(unit + '-native-history-verified')
             close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 2
+        database = wait_for_tree_item(wait, options.database)
+        invoke_context_action(wait, driver, database,
+                              ['Backup', 'Physical backup (nbackup)...'],
+                              password, endpoint_prompt_timeout=1)
+        complete_endpoint_prompt(driver, password, timeout=1)
+        guid_label = 'Database backup GUID (overrides level)'
+        values = {
+            'Physical backup filename on the Firebird server': str(
+                root / (options.database + '.GUID.nbk')),
+            guid_label: 'not-a-guid',
+        }
+        fill_form_values(driver, wait, fields, values)
+        _button(wait, 'Validate and preview').click()
+        wait.until(lambda value: 'Firebird backup GUID must be a hyphenated '
+                   'UUID' in value.find_element(
+                       By.CSS_SELECTOR, '[role="dialog"]').text)
+        capture('guid-invalid-format')
+        values[guid_label] = latest_guid.strip('{}').lower()
+        fill_form_values(driver, wait, fields, values)
+        control = visible_named_control(driver, guid_label)
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block:"center"})', control)
+        capture('guid-control')
+        _button(wait, 'Validate and preview').click()
+        complete_endpoint_prompt(driver, password, timeout=3)
+        apply = _button(wait, 'Apply provider plan')
+        preview = json.loads(driver.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]').text)
+        assert preview['command_preview']['backup_selection'] == {
+            'mode': 'guid', 'guid': latest_guid.upper()}
+        capture('guid-native-plan')
+        apply.click()
+        result = wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+        assert 'Requested backup selection' in result.text
+        assert 'GUID: ' + latest_guid.upper() in result.text
+        assert 'Requested backup-history retention' not in result.text
+        readable_result(result, 'guid')
+        result.find_element(By.TAG_NAME, 'summary').click()
+        observed = json.loads(result.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Firebird native service receipt"]').text)
+        assert observed['server_completed'] is True
+        assert observed['service_release']['service_handle_released'] is True
+        assert observed['backup_selection_requested'] == {
+            'mode': 'guid', 'guid': latest_guid.upper()}
+        assert 'history_retention_requested' not in observed
+        connection = native.connect(password=password,
+                                    **_route_arguments(route, native))
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT FIRST 1 RDB$BACKUP_LEVEL FROM '
+                               'RDB$BACKUP_HISTORY '
+                               'ORDER BY RDB$BACKUP_ID DESC')
+                assert cursor.fetchone() == (None,)
+        finally:
+            connection.close()
+        capture('guid-native-result')
+        evidence['cases'].append('bare-guid-native-increment-verified')
+        close_workspace(driver, wait)
+        evidence['passed'] = len(evidence['cases']) == 3
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
         capture('failure')

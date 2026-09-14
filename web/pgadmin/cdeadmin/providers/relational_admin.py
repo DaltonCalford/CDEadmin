@@ -33,6 +33,7 @@ from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
+from .firebird.backup_guid import normalize_backup_guid
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
@@ -2424,6 +2425,9 @@ class RelationalAdministration:
                 'statements': preview,
                 'provider_constructed': True,
                 'driver_operation': compiled.get('driver_operation'),
+                **({'backup_selection': copy.deepcopy(
+                    compiled['backup_selection'])}
+                   if 'backup_selection' in compiled else {}),
             },
             'provider_payload': {
                 'route': copy.deepcopy(dict(route)),
@@ -3030,6 +3034,13 @@ class RelationalAdministration:
                 'database': database.strip(),
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                **({'backup_selection': ({
+                    'mode': 'guid',
+                    'guid': request['draft']['database_guid'],
+                } if request.get('draft', {}).get('database_guid') else {
+                    'mode': 'level',
+                    'level': request.get('draft', {}).get('backup_level', 0),
+                })} if operation == 'backup_physical' else {}),
                 'warnings': [
                     'Firebird will remove backup-history records after the '
                     'physical backup. This does not delete backup files. '
@@ -3493,6 +3504,14 @@ class RelationalAdministration:
         if operation in {'backup_logical', 'backup_physical'}:
             path('backup_file')
         if operation == 'backup_physical':
+            try:
+                normalize_backup_guid(draft.get('database_guid'))
+            except RelationalClientError as error:
+                errors.append({
+                    'field_id': 'database_guid',
+                    'code': 'invalid_firebird_backup_guid',
+                    'message': str(error),
+                })
             clean = draft.get('clean_history', False)
             unit = draft.get('history_keep_unit')
             count = draft.get('history_keep_value')
@@ -3868,6 +3887,13 @@ class RelationalAdministration:
         if not isinstance(draft, Mapping):
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation == 'backup_physical' and 'database_guid' in value):
+            guid = normalize_backup_guid(value['database_guid'])
+            if guid is None:
+                value.pop('database_guid')
+            else:
+                value['database_guid'] = guid
         if (self.dialect.engine_id == 'firebird' and kind == 'column' and
                 operation == 'create' and 'column_mode' in value):
             return value
