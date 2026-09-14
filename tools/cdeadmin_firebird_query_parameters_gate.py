@@ -17,6 +17,7 @@ from cdeadmin_firebird_admin_mapping_gate import (
     ADMINISTRATION, RelationalClientError, _create_client, _route_arguments,
 )
 from pgadmin.cdeadmin.security.secrets import SecretLease
+from cdeadmin_firebird_query_limits_cases import qualify_fetch_limits
 
 
 def run(profiles, container, unicode_path=False):
@@ -619,6 +620,7 @@ def run(profiles, container, unicode_path=False):
                     f'detach-failure-{detach_failure}')
             finally:
                 service_client.close()
+        qualify_fetch_limits(client, handle, run_request, result)
     except Exception as exc:
         result['failures'].append({'case': 'gate',
                                    'error_type': type(exc).__name__,
@@ -652,11 +654,11 @@ def run(profiles, container, unicode_path=False):
             except Exception as exc:
                 result['failures'].append({'case': 'cleanup',
                                            'error_type': type(exc).__name__})
-    if len(result['cases']) != 113:
+    if len(result['cases']) != 129:
         result['failures'].append({'case': 'coverage-count',
-                                   'expected': 113,
+                                   'expected': 129,
                                    'observed': len(result['cases'])})
-    result['complete'] = (len(result['cases']) == 113 and
+    result['complete'] = (len(result['cases']) == 129 and
                           result['fixture_removed'] and not result['failures'])
     return result
 

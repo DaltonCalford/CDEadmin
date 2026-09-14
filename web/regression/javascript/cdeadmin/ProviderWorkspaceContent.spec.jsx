@@ -765,8 +765,47 @@ describe('ProviderWorkspaceContent', () => {
       action: 'execute', session_id: 'firebird-session',
       source: 'SELECT CAST(? AS INTEGER) FROM RDB$DATABASE',
       parameters: [42, 'text', null], database_target_id: 'firebird-target',
+      max_rows: 1000,
     }));
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
+  });
+
+  it.each(['', '-1', '1.5', '1000001'])('rejects invalid Firebird row bound %s before opening a session', async (value) => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.change(await screen.findByLabelText('Maximum fetched rows'), {target: {value}});
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    expect(await screen.findByText('Maximum fetched rows must be an integer from 0 to 1000000.'))
+      .toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it.each([['0', null], ['7', 7], ['1000000', 1000000]])('transports Firebird fetch bound %s without modifying source', async (value, expected) => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
+      open_session: {session_id: 'fb'}, execute: {occurrence_id: 'query'},
+      poll: {occurrence: {operation: {terminal: true}, result: {complete: true,
+        extensions: {firebird: {payload: {fetch_observation: {
+          limit_reached: true, rows_returned: 7, total_rows: null,
+        }}}}}}},
+    }[payload.action]}}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.change(await screen.findByLabelText('Maximum fetched rows'), {target: {value}});
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', expect.objectContaining({
+      action: 'execute', max_rows: expected, source: 'SELECT 1 FROM RDB$DATABASE',
+    })));
+    expect(await screen.findByLabelText('Firebird fetch observation'))
+      .toHaveTextContent('Further rows may exist; the total was not counted.');
+    expect(api.post.mock.calls.some(([, payload]) => payload.action === 'transaction_control')).toBe(false);
   });
 
   it.each(['{"one":42}', 'null', '42'])('rejects %s before opening a positional query session', async (value) => {

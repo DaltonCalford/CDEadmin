@@ -219,6 +219,64 @@ def run(options, password):
                 f'visible alerts: {alerts}'
             )
         _capture(driver, options, 'result-rendered', screenshots, controls)
+        limit_label = next(label for label in driver.find_elements(
+            By.TAG_NAME, 'label') if label.is_displayed() and
+            label.text == 'Maximum fetched rows')
+        limit_input = driver.find_element(
+            By.ID, limit_label.get_attribute('for'))
+        assert limit_input.get_attribute('value') == '1000'
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})', limit_input)
+        _capture(driver, options, 'fetch-limit-control', screenshots, controls,
+                 reset_scroll=False)
+        for alignment in ('start', 'end'):
+            help_text = driver.find_element(
+                By.ID, limit_input.get_attribute('aria-describedby'))
+            assert 'does not limit modified rows' in help_text.text
+            assert 'selectable procedure may not run to completion' in (
+                help_text.text)
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block: arguments[1]})',
+                help_text, alignment)
+            _capture(driver, options, 'fetch-limit-help-' + alignment,
+                     screenshots, controls, reset_scroll=False)
+        _set_text(driver, limit_input, '1000001')
+        _button(wait, 'Run').click()
+        wait.until(lambda value: _visible_text(value,
+                   'Maximum fetched rows must be an integer from '
+                                               '0 to 1000000.'))
+        _capture(driver, options, 'fetch-limit-invalid', screenshots, controls)
+        for bound, reached in (('2', True), ('1000000', False)):
+            _set_text(driver, limit_input, bound)
+            _set_text(driver, editor, 'SELECT RDB$TYPE AS N FROM RDB$TYPES '
+                      'ORDER BY RDB$TYPE')
+            _button(wait, 'Run').click()
+            observation = wait.until(lambda value: next((
+                item for item in value.find_elements(
+                    By.CSS_SELECTOR,
+                    '[aria-label="Firebird fetch observation"]')
+                if item.is_displayed()), None))
+            expected_text = ('Fetch limit reached.' if reached else
+                             'The end of this result cursor was observed.')
+            wait.until(lambda _value: expected_text in observation.text)
+            if reached:
+                assert 'Rows returned: 2' in observation.text
+                assert 'total was not counted' in observation.text
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block: "center"})', observation)
+            _capture(driver, options, 'fetch-limit-result-' + bound,
+                     screenshots, controls, reset_scroll=False)
+        _set_text(driver, limit_input, '0')
+        _set_text(driver, editor, 'SELECT 654321 AS UNBOUNDED_PROOF '
+                  'FROM RDB$DATABASE')
+        _button(wait, 'Run').click()
+        wait.until(lambda value: _visible_text(value, '654321'))
+        assert not driver.find_elements(
+            By.CSS_SELECTOR,
+            '[aria-label="Firebird fetch observation"]')
+        _capture(driver, options, 'fetch-limit-explicit-unbounded',
+                 screenshots, controls)
+        _set_text(driver, limit_input, '1000')
         parameters = wait.until(_binding_editor)
         assert parameters.get_attribute('value') == '[]'
         _set_text(driver, parameters, '{"named": 1}')
@@ -464,6 +522,9 @@ def run(options, password):
             'reference_version': '5.0.4',
             'database': options.database,
             'query_kind': 'firebird-select-first',
+            'fetch_bound_cases': ['default-1000', 'invalid-before-dispatch',
+                                  'limit-reached-total-unknown',
+                                  'end-observed', 'explicit-unbounded'],
             'database_scoped_session': True,
             'result_observed': 'Northwind Field Lab',
             'positional_binding_cases': [

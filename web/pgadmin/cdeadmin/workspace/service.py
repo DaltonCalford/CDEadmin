@@ -996,7 +996,7 @@ class ProviderWorkspaceService:
 
     def execute(
         self, server, session_id, source, parameters=None,
-        database_target_id=Ellipsis,
+        database_target_id=Ellipsis, *, max_rows=None,
     ):
         context, _endpoint, _root = self.endpoint_service.workspace(
             server, database_target_id=database_target_id
@@ -1006,12 +1006,21 @@ class ProviderWorkspaceService:
         if parameters is not None and not isinstance(parameters, (dict, list)):
             raise ProviderWorkspaceError(
                 'query parameters must be an object or array')
+        policy = {'redact_keys': []}
+        if max_rows is not None:
+            if context.provider_id != 'org.cdeadmin.firebird':
+                raise ProviderWorkspaceError(
+                    'this provider has not admitted a maximum-row fetch policy')
+            if type(max_rows) is not int or not 1 <= max_rows <= 1_000_000:
+                raise ProviderWorkspaceError(
+                    'maximum fetched rows must be an integer from 1 to 1000000')
+            policy['max_rows'] = max_rows
         return self.studio_service.execute(
             context,
             session_id,
             source,
             parameters=copy.deepcopy(parameters),
-            output_policy={'redact_keys': []},
+            output_policy=policy,
         )
 
     def poll(self, server, occurrence_id, database_target_id=Ellipsis):

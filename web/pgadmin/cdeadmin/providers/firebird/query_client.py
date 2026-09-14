@@ -10,6 +10,7 @@ from pgadmin.cdeadmin.sdk.relational import (
 )
 from .error_diagnostics import status_codes
 from .query_parameters import normalize_parameters
+from .query_limits import query_row_limit
 from .transaction_sql import (
     start_native_transaction, starts_transaction, transaction_command,
 )
@@ -160,6 +161,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             raise RelationalClientError('Firebird query source is required')
         payload = copy.deepcopy(dict(request))
         self.config.query_parameter_normalizer(payload.get('parameters', ()))
+        query_row_limit(payload)
         with self._exclusive(handle) as state:
             query = _Query(handle)
             state.query = query
@@ -266,11 +268,24 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             return self._execute_sql(handle, request)
 
     def _execute_sql(self, handle, request):
+        limit = query_row_limit(request)
         if starts_transaction(request.get('source')):
             return self._start_transaction_sql(handle, request)
         command = transaction_command(request.get('source'))
         if command is None:
-            return super().execute(handle, request)
+            token = super().execute(handle, request)
+            if limit is not None and token.columns:
+                token.firebird_fetch_observation = {
+                    'max_rows': limit,
+                    'rows_returned': len(token.rows),
+                    'limit_reached': len(token.rows) == limit,
+                    'end_of_cursor_observed': len(token.rows) < limit,
+                    'total_rows': (len(token.rows)
+                                   if len(token.rows) < limit else None),
+                    'sql_rewritten': False,
+                    'transaction_action_requested': False,
+                }
+            return token
         if normalize_parameters(request.get('parameters')):
             raise RelationalClientError(
                 'Firebird transaction commands do not accept parameters')
@@ -280,6 +295,14 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         token.firebird_transaction_receipt = receipt
         self._tokens.append(token)
         return token
+
+    def _fetch_query_rows(self, cursor, request):
+        limit = query_row_limit(request)
+        if limit is None:
+            return super()._fetch_query_rows(cursor, request)
+        # Do not fetch a look-ahead row: selectable PSQL may have side effects.
+        # Reaching the bound does not establish whether another row exists.
+        return list(cursor.fetchmany(limit))
 
     def _start_transaction_sql(self, handle, request):
         if normalize_parameters(request.get('parameters')):
@@ -350,6 +373,9 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         receipt = getattr(token, 'firebird_transaction_receipt', None)
         if receipt is not None:
             result['payload']['transaction_action'] = copy.deepcopy(receipt)
+        observation = getattr(token, 'firebird_fetch_observation', None)
+        if observation is not None:
+            result['payload']['fetch_observation'] = copy.deepcopy(observation)
         return result
 
     def runtime_identity(self, request, handle=None):

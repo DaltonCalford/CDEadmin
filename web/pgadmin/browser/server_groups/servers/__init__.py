@@ -2639,6 +2639,7 @@ class ServerNode(PGChildNodeView):
                         data.get('source'),
                         data.get('parameters'),
                         data.get('database_target_id'),
+                        max_rows=data.get('max_rows'),
                     )
                 elif action == 'poll':
                     payload = service.poll(

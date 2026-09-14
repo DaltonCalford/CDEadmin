@@ -991,6 +991,10 @@ class RelationalDBAPIClient:
         finally:
             self._forget_and_close(connection)
 
+    def _fetch_query_rows(self, cursor, request):
+        """Provider override point; ordinary DB-API behavior is unchanged."""
+        return list(cursor.fetchall())
+
     def execute(self, handle, request):
         source = request.get('source')
         if not isinstance(source, str) or not source.strip():
@@ -1024,7 +1028,8 @@ class RelationalDBAPIClient:
             )
             if self.config.query_columns_reader is not None:
                 columns = tuple(self.config.query_columns_reader(cursor))
-            rows = list(cursor.fetchall()) if description else []
+            rows = (self._fetch_query_rows(cursor, request)
+                    if description else [])
             if self.config.query_value_normalizer is not None:
                 rows = [tuple(self.config.query_value_normalizer(value)
                               for value in row) for row in rows]

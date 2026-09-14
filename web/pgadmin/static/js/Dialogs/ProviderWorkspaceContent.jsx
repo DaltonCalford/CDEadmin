@@ -6422,6 +6422,8 @@ export default function ProviderWorkspaceContent({
   const [source, setSource] = useState('');
   const [languageProfile, setLanguageProfile] = useState('');
   const [parameterSource, setParameterSource] = useState('{}');
+  const [maximumRows, setMaximumRows] = useState('1000');
+  const [fetchObservation, setFetchObservation] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [occurrenceId, setOccurrenceId] = useState(null);
   const [rendered, setRendered] = useState(null);
@@ -6716,6 +6718,7 @@ export default function ProviderWorkspaceContent({
         acceptRendered(response.rendered_result);
       }
       const native = response.occurrence?.result?.extensions?.firebird?.payload;
+      setFetchObservation(native?.fetch_observation || null);
       if (native?.error) {
         const codes = (native.error.native_status_codes || []).join(', ');
         setError(gettext('Firebird query did not complete.') +
@@ -6747,8 +6750,16 @@ export default function ProviderWorkspaceContent({
     setBusy(true);
     setError(null);
     setRendered(null);
+    setFetchObservation(null);
     setResultPresentation(presentation);
     try {
+      let rowPolicy = {};
+      if (languageProfile === 'firebird-sql') {
+        if (!/^\d+$/.test(maximumRows) || Number(maximumRows) > 1000000) {
+          throw new Error(gettext('Maximum fetched rows must be an integer from 0 to 1000000.'));
+        }
+        rowPolicy = {max_rows: Number(maximumRows) || null};
+      }
       const parameters = JSON.parse(
         parameterSource || defaultParameterSource(activeLanguage));
       const expectsArray = activeLanguage?.parameter_shape === 'array';
@@ -6764,6 +6775,7 @@ export default function ProviderWorkspaceContent({
       const occurrence = await post({
         action: 'execute', session_id: activeSession, source: executionSource,
         parameters,
+        ...rowPolicy,
         database_target_id: queryDatabaseTargetId,
       });
       setOccurrenceId(occurrence.occurrence_id);
@@ -6858,6 +6870,7 @@ export default function ProviderWorkspaceContent({
       setQuerySessionBlocked(false);
       setOccurrenceId(null);
       setRendered(null);
+      setFetchObservation(null);
       setTransaction(null);
     } catch (requestError) {
       // The existing language and session remain owned until native release.
@@ -7020,6 +7033,20 @@ export default function ProviderWorkspaceContent({
           helperText={activeLanguage?.parameter_hint ||
             gettext('Use a JSON object of parameter names and values.')}
           onChange={(event) => setParameterSource(event.target.value)} />
+        {languageProfile === 'firebird-sql' && <TextField
+          type="number" size="small" sx={{mt: 1}}
+          label={gettext('Maximum fetched rows')} value={maximumRows}
+          disabled={busy || !!occurrenceId}
+          inputProps={{min: 0, max: 1000000, step: 1}}
+          onChange={(event) => setMaximumRows(event.target.value)}
+          helperText={gettext('0 fetches all rows. Otherwise fetching stops and the cursor closes at this application limit. This does not limit modified rows or commit/roll back. A selectable procedure may not run to completion.')} />}
+        {fetchObservation && <Alert severity={fetchObservation.limit_reached ? 'warning' : 'info'}
+          sx={{mt: 1}} aria-label={gettext('Firebird fetch observation')}>
+          {fetchObservation.limit_reached ?
+            gettext('Fetch limit reached. Further rows may exist; the total was not counted. The cursor has been closed, without commit or rollback.') :
+            gettext('The end of this result cursor was observed. No commit or rollback was requested.')}
+          {' '}{gettext('Rows returned:')} {fetchObservation.rows_returned}
+        </Alert>}
         <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
           <Button variant="contained" disabled={busy || querySessionBlocked || !!occurrenceId || !source.trim()}
             onClick={() => execute()}>{gettext('Run')}</Button>
