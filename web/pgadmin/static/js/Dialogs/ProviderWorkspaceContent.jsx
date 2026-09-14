@@ -76,6 +76,10 @@ function defaultSource(language) {
     language.starter_source : '';
 }
 
+function defaultParameterSource(language) {
+  return language?.parameter_shape === 'array' ? '[]' : '{}';
+}
+
 function sourcePresets(language) {
   if (!Array.isArray(language?.source_presets)) return [];
   return language.source_presets.filter((item) =>
@@ -6455,6 +6459,7 @@ export default function ProviderWorkspaceContent({
       const language = workspaceValue?.languages?.[0];
       setLanguageProfile(language?.language_profile || '');
       setSource(defaultSource(language));
+      setParameterSource(defaultParameterSource(language));
       setBusy(false);
     }).catch((requestError) => {
       if (requestError?.response?.status === 401 &&
@@ -6655,10 +6660,19 @@ export default function ProviderWorkspaceContent({
     setRendered(null);
     setResultPresentation(presentation);
     try {
+      const parameters = JSON.parse(
+        parameterSource || defaultParameterSource(activeLanguage));
+      const expectsArray = activeLanguage?.parameter_shape === 'array';
+      if(expectsArray ? !Array.isArray(parameters) :
+        (!parameters || typeof parameters !== 'object' || Array.isArray(parameters))) {
+        throw new Error(expectsArray ?
+          gettext('This provider requires an ordered JSON parameter array.') :
+          gettext('This provider requires a JSON parameter object.'));
+      }
       const activeSession = await ensureSession();
       const occurrence = await post({
         action: 'execute', session_id: activeSession, source: executionSource,
-        parameters: JSON.parse(parameterSource || '{}'),
+        parameters,
         database_target_id: queryDatabaseTargetId,
       });
       setOccurrenceId(occurrence.occurrence_id);
@@ -6741,8 +6755,10 @@ export default function ProviderWorkspaceContent({
       querySessionIdRef.current = null;
     }
     setLanguageProfile(profile);
-    setSource(defaultSource(workspace?.languages?.find((item) =>
-      item.language_profile === profile)));
+    const language = workspace?.languages?.find((item) =>
+      item.language_profile === profile);
+    setSource(defaultSource(language));
+    setParameterSource(defaultParameterSource(language));
     setSessionId(null);
     setOccurrenceId(null);
     setRendered(null);
@@ -6892,7 +6908,10 @@ export default function ProviderWorkspaceContent({
           onChange={(event) => setSource(event.target.value)}
           inputProps={{'aria-label': gettext('Query source')}} />
         <TextField multiline minRows={2} maxRows={6} value={parameterSource}
-          sx={{mt: 1}} label={gettext('Query parameters (JSON)')}
+          sx={{mt: 1}} label={activeLanguage?.parameter_shape === 'array' ?
+            gettext('Query parameters (JSON array)') : gettext('Query parameters (JSON)')}
+          helperText={activeLanguage?.parameter_hint ||
+            gettext('Use a JSON object of parameter names and values.')}
           onChange={(event) => setParameterSource(event.target.value)} />
         <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
           <Button variant="contained" disabled={busy || !source.trim()}

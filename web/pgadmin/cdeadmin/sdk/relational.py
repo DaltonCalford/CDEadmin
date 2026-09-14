@@ -135,8 +135,30 @@ class RelationalClientConfig:
     server_operation_runner: Callable[
         [object, str, str, Mapping[str, Any]], Mapping[str, Any]
     ] | None = field(default=None, repr=False, compare=False)
+    query_parameter_normalizer: Callable[[object], object] | None = field(
+        default=None, repr=False, compare=False)
+    session_rollback_needed: Callable[[object], bool] | None = field(
+        default=None, repr=False, compare=False)
+    transaction_observer: Callable[[object], Mapping[str, Any]] | None = field(
+        default=None, repr=False, compare=False)
+    session_releaser: Callable[[object], None] | None = field(
+        default=None, repr=False, compare=False)
 
     def __post_init__(self):
+        if self.session_releaser is not None and not callable(
+                self.session_releaser):
+            raise RelationalClientError('session_releaser must be callable')
+        if self.transaction_observer is not None and not callable(
+                self.transaction_observer):
+            raise RelationalClientError('transaction_observer must be callable')
+        if self.session_rollback_needed is not None and not callable(
+                self.session_rollback_needed):
+            raise RelationalClientError(
+                'session_rollback_needed must be callable')
+        if self.query_parameter_normalizer is not None and not callable(
+                self.query_parameter_normalizer):
+            raise RelationalClientError(
+                'query_parameter_normalizer must be callable')
         if not isinstance(self.profile, PilotProfile):
             raise RelationalClientError('relational profile is required')
         for name in ('module_name', 'version_query', 'connector_name'):
@@ -744,6 +766,8 @@ class RelationalDBAPIClient:
         return connection
 
     def describe_transaction(self, handle):
+        if self.config.transaction_observer is not None:
+            return dict(self.config.transaction_observer(handle))
         observations = {}
         for name in ('autocommit', 'in_transaction', 'isolation_level'):
             try:
@@ -785,10 +809,15 @@ class RelationalDBAPIClient:
         """Roll back and release one retained DB-API connection."""
         rollback = getattr(handle, 'rollback', None)
         rollback_requested = False
-        if callable(rollback):
+        needed = self.config.session_rollback_needed
+        if callable(rollback) and (needed is None or needed(handle)):
             rollback()
             rollback_requested = True
-        self._forget_and_close(handle)
+        if self.config.session_releaser is not None:
+            self.config.session_releaser(handle)
+            self._forget_connection(handle)
+        else:
+            self._forget_and_close(handle)
         return {
             'rollback_requested': rollback_requested,
             'connection_released': True,
@@ -939,6 +968,8 @@ class RelationalDBAPIClient:
         if not isinstance(source, str) or not source.strip():
             raise RelationalClientError('relational query source is required')
         parameters = request.get('parameters', ())
+        if self.config.query_parameter_normalizer is not None:
+            parameters = self.config.query_parameter_normalizer(parameters)
         if not isinstance(parameters, (Mapping, list, tuple)):
             raise RelationalClientError(
                 'relational query parameters must be a mapping or sequence'
@@ -992,10 +1023,19 @@ class RelationalDBAPIClient:
                 '; ' + ', '.join(native_identity)
                 if native_identity else ''
             )
-            raise RelationalClientError(
+            codes = ()
+            if self.config.profile.engine_id == 'firebird':
+                from ..providers.firebird.error_diagnostics import status_codes
+                codes = status_codes(exc)
+                if codes:
+                    detail += '; Firebird status codes: ' + ', '.join(
+                        str(code) for code in codes)
+            error = RelationalClientError(
                 f'relational execution failed ({type(exc).__name__}'
                 f'{detail})'
-            ) from None
+            )
+            error.gds_codes = codes
+            raise error from None
 
     def describe_result(self, token):
         if not isinstance(token, _ResultToken) or token not in self._tokens:
@@ -1050,10 +1090,13 @@ class RelationalDBAPIClient:
             except Exception:
                 pass
 
-    def _forget_and_close(self, connection):
+    def _forget_connection(self, connection):
         self._connection_databases.pop(id(connection), None)
         try:
             self._connections.remove(connection)
         except ValueError:
             pass
+
+    def _forget_and_close(self, connection):
+        self._forget_connection(connection)
         self._safe_close(connection)

@@ -195,6 +195,8 @@ class DataStudioService:
             'editor_mode': item.editor_mode,
             'model_families': sorted(item.model_families),
             'source_kind': item.source_kind,
+            'parameter_shape': item.parameter_shape,
+            'parameter_hint': item.parameter_hint,
             'starter_source': item.starter_source,
             'source_presets': [
                 {'label': label, 'source': source}
@@ -283,6 +285,16 @@ class DataStudioService:
         contribution = self.contributions.execution(
             session.language_profile
         )
+        language = self.contributions.language(session.language_profile)
+        if parameters is None or (language.parameter_shape == 'array' and
+                                  isinstance(parameters, dict) and
+                                  not parameters):
+            parameters = [] if language.parameter_shape == 'array' else {}
+        expected = list if language.parameter_shape == 'array' else dict
+        if not isinstance(parameters, expected):
+            raise DataStudioAccessError(
+                'This provider language requires a JSON parameter ' +
+                language.parameter_shape)
         execution_id = str(uuid.uuid4())
         occurrence_id = str(uuid.uuid4())
         policy = dict(output_policy or {})
@@ -301,7 +313,7 @@ class DataStudioService:
             'session_id': session.session_id,
             'language_profile': session.language_profile,
             'source': str(source),
-            'parameters': dict(parameters or {}),
+            'parameters': copy.deepcopy(parameters),
             'deadline': deadline,
             'output_policy': policy,
             'extensions': {
@@ -716,7 +728,11 @@ class DataStudioService:
             'language_profile': execution['language_profile'],
             'source_length': len(source),
             'source_sha256': hashlib.sha256(source).hexdigest(),
-            'parameter_names': sorted(str(key) for key in parameters),
+            'parameter_names': (sorted(str(key) for key in parameters)
+                                if isinstance(parameters, dict) else []),
+            'parameter_shape': (
+                'object' if isinstance(parameters, dict) else 'array'),
+            'parameter_count': len(parameters),
             'deadline': execution['deadline'],
         }
 

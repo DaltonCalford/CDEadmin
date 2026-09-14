@@ -200,7 +200,7 @@ export interface Execution {
   session_id: string;
   language_profile: string;
   source: string;
-  parameters: Record<string, unknown>;
+  parameters: Record<string, unknown> | Array<unknown>;
   deadline: string | null;
   output_policy: Record<string, unknown>;
   extensions?: Record<string, unknown>;

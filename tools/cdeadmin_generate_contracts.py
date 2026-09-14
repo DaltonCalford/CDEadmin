@@ -28,17 +28,16 @@ def py_type(node: Mapping[str, Any]) -> str:
     """Map the supported JSON Schema subset to Python annotations."""
     if '$ref' in node:
         return node['$ref'].rsplit('/', 1)[-1]
-    expected = node.get('type', 'object')
+    expected = node.get('type')
     if isinstance(expected, list):
-        concrete = [item for item in expected if item != 'null']
-        base = py_type({**node, 'type': concrete[0]})
-        return f'{base} | None'
+        return ' | '.join(py_type({**node, 'type': item}) for item in expected)
     if expected == 'array':
         return f"list[{py_type(node.get('items', {}))}]"
     return {
         'boolean': 'bool',
         'integer': 'int',
         'number': 'float',
+        'null': 'None',
         'object': 'dict[str, Any]',
         'string': 'str',
     }.get(expected, 'Any')
@@ -48,7 +47,7 @@ def ts_type(node: Mapping[str, Any]) -> str:
     """Map the supported JSON Schema subset to TypeScript types."""
     if '$ref' in node:
         return node['$ref'].rsplit('/', 1)[-1]
-    expected = node.get('type', 'object')
+    expected = node.get('type')
     if isinstance(expected, list):
         values = [ts_type({**node, 'type': item}) for item in expected]
         return ' | '.join(values)

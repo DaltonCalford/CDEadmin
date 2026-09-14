@@ -2,7 +2,7 @@
 // CDEadmin context-sensitive Inspector, Drawer and Status hosts.
 /////////////////////////////////////////////////////////////
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useId, useMemo, useRef, useState} from 'react';
 import PropTypes from 'prop-types';
 import {Box} from '@mui/material';
 import {
@@ -53,24 +53,54 @@ ContributionValue.propTypes = {value: PropTypes.any};
 function TabbedHost({label, pages, emptyMessage}) {
   const available = pages.filter((page) => page.visible !== false);
   const [selected, setSelected] = useState('');
+  const hostId = useId();
+  const tabList = useRef(null);
   const activeId = available.some((page) => page.id === selected) ?
     selected : available[0]?.id;
   const active = available.find((page) => page.id === activeId);
+  const activeIndex = available.findIndex((page) => page.id === activeId);
+  useEffect(() => {
+    tabList.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({
+      block: 'nearest', inline: 'nearest',
+    });
+  }, [activeId]);
+  const navigate = (event, index) => {
+    const rtl = window.getComputedStyle(event.currentTarget).direction === 'rtl';
+    let next;
+    if(event.key === 'Home') next = 0;
+    else if(event.key === 'End') next = available.length - 1;
+    else if(event.key === 'ArrowRight') next = index + (rtl ? -1 : 1);
+    else if(event.key === 'ArrowLeft') next = index + (rtl ? 1 : -1);
+    else return;
+    event.preventDefault();
+    next = (next + available.length) % available.length;
+    setSelected(available[next].id);
+    tabList.current?.querySelectorAll('[role="tab"]')[next]?.focus();
+  };
   if(!active) return <EmptyState message={emptyMessage} />;
   return <Box component="section" aria-label={label}
-    sx={{height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0}}>
-    <Box role="tablist" aria-label={label + ' pages'}
-      sx={{display: 'flex', minHeight: 'var(--cde-tab-height)',
+    sx={{height: '100%', display: 'flex', flexDirection: 'column',
+      minHeight: 0, minWidth: 0}}>
+    <Box ref={tabList} role="tablist" aria-label={label + ' pages'}
+      sx={{display: 'flex', flexShrink: 0, minWidth: 0,
+        minHeight: 'var(--cde-tab-height)',
         overflowX: 'auto', borderBottom: '1px solid', borderColor: 'divider'}}>
-      {available.map((page) => <Button key={page.id} role="tab"
+      {available.map((page, index) => <Button key={page.id} role="tab"
+        id={`${hostId}-tab-${index}`} aria-controls={`${hostId}-panel`}
+        tabIndex={page.id === activeId ? 0 : -1}
+        onKeyDown={(event) => navigate(event, index)}
         aria-selected={page.id === activeId} onClick={() => setSelected(page.id)}
-        sx={{borderBottom: page.id === activeId ? '2px solid' : '2px solid transparent',
+        sx={{flexShrink: 0, minWidth: 'max-content', maxWidth: 'none',
+          whiteSpace: 'nowrap', height: 'auto', minHeight: 'var(--cde-tab-height)',
+          borderBottom: page.id === activeId ? '2px solid' : '2px solid transparent',
           borderColor: page.id === activeId ? 'primary.main' : 'transparent'}}>
         {page.label}
       </Button>)}
     </Box>
-    <Box role="tabpanel" aria-label={active.label}
-      sx={{flex: 1, minHeight: 0, overflow: 'auto'}}>{active.content}</Box>
+    <Box role="tabpanel" id={`${hostId}-panel`}
+      aria-labelledby={`${hostId}-tab-${activeIndex}`} tabIndex={0}
+      sx={{flex: 1, minWidth: 0, minHeight: 0, overflow: 'auto'}}>
+      {active.content}</Box>
   </Box>;
 }
 

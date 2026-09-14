@@ -365,7 +365,7 @@
         "session_id": {"type": "string"},
         "language_profile": {"type": "string"},
         "source": {"type": "string"},
-        "parameters": {"type": "object", "additionalProperties": true},
+        "parameters": {"type": ["object", "array"], "items": {}, "additionalProperties": true},
         "deadline": {"type": ["string", "null"]},
         "output_policy": {"type": "object", "additionalProperties": true},
         "extensions": {"type": "object", "additionalProperties": true}

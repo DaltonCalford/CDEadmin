@@ -250,7 +250,7 @@ class Execution(ContractDTO):
     session_id: str
     language_profile: str
     source: str
-    parameters: dict[str, Any]
+    parameters: dict[str, Any] | list[Any]
     deadline: str | None
     output_policy: dict[str, Any]
     extensions: dict[str, Any] = field(default_factory=dict)

@@ -29,6 +29,8 @@ from .connection_strings import (
     database_dsn, server_host, service_dsn, target_path,
 )
 from .identity import catalog_resource_id as _catalog_resource_id
+from .query_parameters import normalize_parameters
+from .transaction_state import observe_transaction, release_session
 
 
 PROFILE = PilotProfile(
@@ -69,6 +71,10 @@ PROFILE = PilotProfile(
     ),
     dialect_contract_file='firebird_dialect_5_0_4.json',
     metrics_contract_file='firebird_metrics_5_0_4.json',
+    parameter_shape='array',
+    parameter_hint=(
+        'Use a JSON array in ? placeholder order, '
+        'for example [42, "text", null].'),
 )
 
 
@@ -2750,6 +2756,11 @@ def _create_client(permissions):
         version_parser=_version,
         connect_arguments=lambda route: _route_arguments(route, module),
         metadata_reader=_resources,
+        query_parameter_normalizer=normalize_parameters,
+        session_rollback_needed=lambda connection: (
+            connection.main_transaction.is_active()),
+        transaction_observer=observe_transaction,
+        session_releaser=release_session,
         security_reader=_security,
         credential_argument='password',
         secret_acquirer=permissions.acquire_secret,

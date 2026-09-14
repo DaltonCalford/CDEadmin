@@ -43,6 +43,7 @@ from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
     screenshot,
 )
 from tools.cdeadmin_ui_evidence import (  # noqa: E402
+    _xpath_literal,
     complete_endpoint_prompt,
     invoke_context_action,
     visible_named_control,
@@ -95,9 +96,29 @@ def _visible_text(driver, expected):
     return any(
         item.is_displayed() and item.text.strip() == expected
         for item in driver.find_elements(
-            By.XPATH, f'//*[normalize-space(text())={json.dumps(expected)}]'
+            By.XPATH,
+            f'//*[normalize-space(text())={_xpath_literal(expected)}]'
         )
     )
+
+
+def _set_text(driver, element, value):
+    driver.execute_script('''
+        const element = arguments[0];
+        const prototype = element.tagName === 'TEXTAREA'
+          ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(prototype, 'value').set.call(
+          element, arguments[1]);
+        element.dispatchEvent(new Event('input', {bubbles: true}));
+    ''', element, value)
+
+
+def _binding_editor(driver):
+    for label in driver.find_elements(By.TAG_NAME, 'label'):
+        if (label.is_displayed() and
+                label.text == 'Query parameters (JSON array)'):
+            return driver.find_element(By.ID, label.get_attribute('for'))
+    return None
 
 
 def _capture(driver, options, state, screenshots, controls):
@@ -168,6 +189,31 @@ def run(options, password):
                 f'visible alerts: {alerts}'
             )
         _capture(driver, options, 'result-rendered', screenshots, controls)
+        parameters = wait.until(_binding_editor)
+        assert parameters.get_attribute('value') == '[]'
+        _set_text(driver, parameters, '{"named": 1}')
+        _button(wait, 'Run').click()
+        wait.until(lambda value: any(
+            item.is_displayed() and 'ordered JSON parameter array' in item.text
+            for item in value.find_elements(By.CSS_SELECTOR, '[role="alert"]')
+        ))
+        _capture(driver, options, 'named-bindings-rejected',
+                 screenshots, controls)
+        for state, source, values, expected in (
+            ('ordered-bindings',
+             'SELECT CAST(? AS VARCHAR(80)) AS BINDING_TEXT, '
+             'CAST(? AS INTEGER) AS BINDING_NUMBER FROM RDB$DATABASE',
+             ['binding-order-proof', 741], 'binding-order-proof'),
+            ('unicode-bindings',
+             'SELECT CAST(? AS VARCHAR(80) CHARACTER SET UTF8) '
+             'AS BINDING_TEXT FROM RDB$DATABASE',
+             ["é ' ? ; -- literal-value"], "é ' ? ; -- literal-value"),
+        ):
+            _set_text(driver, editor, source)
+            _set_text(driver, parameters, json.dumps(values))
+            _button(wait, 'Run').click()
+            wait.until(lambda value: _visible_text(value, expected))
+            _capture(driver, options, state, screenshots, controls)
         _button(wait, 'Provider transaction state').click()
         wait.until(lambda value: any(
             item.is_displayed() and 'driver_observation_only' in item.text
@@ -194,6 +240,9 @@ def run(options, password):
             'query_kind': 'firebird-select-first',
             'database_scoped_session': True,
             'result_observed': 'Northwind Field Lab',
+            'positional_binding_cases': [
+                'named-bindings-rejected', 'ordered-bindings',
+                'unicode-bindings'],
             'transaction_state_observed': True,
             'provider_session_closed': True,
             'common_finality_interpreted': False,
@@ -202,6 +251,15 @@ def run(options, password):
             'controls': controls,
             'passed': True,
         }
+    except Exception as exc:
+        _capture(driver, options, 'failure', screenshots, controls)
+        options.summary_output.parent.mkdir(parents=True, exist_ok=True)
+        options.summary_output.write_text(json.dumps({
+            'passed': False, 'error_type': type(exc).__name__,
+            'screenshots': screenshots, 'controls': controls,
+            'credential_values_exported': False,
+        }, indent=2) + '\n')
+        raise
     finally:
         try:
             close_session = visible_named_control(

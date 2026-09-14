@@ -42,6 +42,7 @@ else:
 
 
 GATE_SCRIPTS = {
+    'inspector-tabs': 'cdeadmin_firebird_inspector_tabs_ui_gate.py',
     'rename': 'cdeadmin_firebird_rename_ui_gate.py',
     'table-metadata': 'cdeadmin_firebird_table_metadata_ui_gate.py',
     'privileges': 'cdeadmin_firebird_privileges_ui_gate.py',
@@ -145,7 +146,7 @@ def gate_command(options, url, database_label, config_database=None):
             '--profiles', str(options.profiles),
             '--manifest-output', str(options.manifest_output),
         ])
-    elif options.gate_kind == 'lifecycle':
+    elif options.gate_kind in {'lifecycle', 'inspector-tabs'}:
         if config_database is None:
             raise RuntimeError(
                 'lifecycle gate requires an isolated configuration database'

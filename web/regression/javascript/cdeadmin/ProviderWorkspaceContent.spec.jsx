@@ -735,6 +735,48 @@ describe('ProviderWorkspaceContent', () => {
     api.get.mockResolvedValue({data: {data: bootstrap}});
   });
 
+  it('submits ordered Firebird query parameters through its language contract', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT CAST(? AS INTEGER) FROM RDB$DATABASE',
+      parameter_shape: 'array', parameter_hint: 'Ordered ? placeholders',
+    }]}}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
+      open_session: {session_id: 'firebird-session'},
+      execute: {occurrence_id: 'firebird-occurrence'},
+      poll: {occurrence: {operation: {terminal: true}}, rendered_result: null},
+    }[payload.action]}}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio"
+      initialContext={{database_target_id: 'firebird-target'}} />);
+    const input = await screen.findByLabelText('Query parameters (JSON array)');
+    expect(input).toHaveValue('[]');
+    expect(screen.getByText('Ordered ? placeholders')).toBeInTheDocument();
+    fireEvent.change(input, {target: {value: '[42,"text",null]'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'execute', session_id: 'firebird-session',
+      source: 'SELECT CAST(? AS INTEGER) FROM RDB$DATABASE',
+      parameters: [42, 'text', null], database_target_id: 'firebird-target',
+    }));
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
+  });
+
+  it.each(['{"one":42}', 'null', '42'])('rejects %s before opening a positional query session', async (value) => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT ? FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.change(await screen.findByLabelText('Query parameters (JSON array)'),
+      {target: {value}});
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    expect(await screen.findByText('This provider requires an ordered JSON parameter array.'))
+      .toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('shows only provider-evidenced property sections', () => {
     const resource = {extensions: {mongodb: {native: {
       definition: {validator: {$jsonSchema: {bsonType: 'object'}}},

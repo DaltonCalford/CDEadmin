@@ -73,8 +73,14 @@ class LanguageContribution:
     query_plan_templates: tuple[tuple[str, str], ...] = ()
     dialect_contract_id: str | None = None
     dialect_evidence: tuple[str, ...] = ()
+    parameter_shape: str = 'object'
+    parameter_hint: str = ''
 
     def __post_init__(self):
+        if self.parameter_shape not in {'object', 'array'}:
+            raise DataStudioError('parameter_shape must be object or array')
+        if not isinstance(self.parameter_hint, str):
+            raise DataStudioError('parameter_hint must be a string')
         names = ('language_profile', 'title', 'editor_mode', 'source_kind')
         for name in names:
             object.__setattr__(

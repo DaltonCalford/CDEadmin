@@ -128,8 +128,9 @@ def test_data_gates_use_reference_profile_without_secret_argument():
         assert '--endpoint-password-env' not in command
 
 
-def test_lifecycle_gate_uses_isolated_config_and_firebird_server_scope():
-    value = options('lifecycle')
+@pytest.mark.parametrize('kind', ['lifecycle', 'inspector-tabs'])
+def test_lifecycle_gate_uses_isolated_config_and_firebird_server_scope(kind):
+    value = options(kind)
     value.database = '/var/lib/firebird/data/sample.fdb'
     value.host = '127.0.0.1'
     value.firebird_port = 53050

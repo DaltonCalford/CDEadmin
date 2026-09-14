@@ -107,8 +107,14 @@ class PilotProfile:
     dialect_evidence: tuple[str, ...] = ()
     dialect_contract_file: str | None = None
     metrics_contract_file: str | None = None
+    parameter_shape: str = 'object'
+    parameter_hint: str = ''
 
     def __post_init__(self):
+        if self.parameter_shape not in {'object', 'array'}:
+            raise PilotProviderError('parameter_shape must be object or array')
+        if not isinstance(self.parameter_hint, str):
+            raise PilotProviderError('parameter_hint must be a string')
         fields = (
             'provider_id', 'profile_id', 'engine_id', 'engine_name',
             'exact_version', 'protocol_id', 'model_family',
@@ -813,6 +819,8 @@ class ActualEnginePilotProvider:
                     ),
                     dialect_contract_id=self.profile.dialect_contract_id,
                     dialect_evidence=self.profile.dialect_evidence,
+                    parameter_shape=self.profile.parameter_shape,
+                    parameter_hint=self.profile.parameter_hint,
                 ),
             ),
             'sessions': (

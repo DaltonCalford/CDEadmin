@@ -79,8 +79,8 @@ export function Splitter({orientation='vertical', value, min=0, max=Infinity,
     }}
     sx={{position: 'relative', flex: '0 0 auto', cursor: vertical ?
       'col-resize' : 'row-resize', width: vertical ?
-      'var(--cde-resize-handle-size)' : '100%', height: vertical ?
-      '100%' : 'var(--cde-resize-handle-size)', outline: 0,
+      'calc(var(--cde-resize-handle-size, 8) * 1px)' : '100%', height: vertical ?
+      '100%' : 'calc(var(--cde-resize-handle-size, 8) * 1px)', outline: 0,
     '&::after': {content: '""', position: 'absolute', bgcolor: 'divider',
       ...(vertical ? {width: 1, top: 0, bottom: 0, left: '50%'} :
         {height: 1, left: 0, right: 0, top: '50%'})},

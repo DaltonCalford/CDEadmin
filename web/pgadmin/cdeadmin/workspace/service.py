@@ -1003,13 +1003,14 @@ class ProviderWorkspaceService:
         )
         if not isinstance(source, str) or not source.strip():
             raise ProviderWorkspaceError('query source must not be empty')
-        if parameters is not None and not isinstance(parameters, dict):
-            raise ProviderWorkspaceError('query parameters must be an object')
+        if parameters is not None and not isinstance(parameters, (dict, list)):
+            raise ProviderWorkspaceError(
+                'query parameters must be an object or array')
         return self.studio_service.execute(
             context,
             session_id,
             source,
-            parameters=copy.deepcopy(parameters or {}),
+            parameters=copy.deepcopy(parameters),
             output_policy={'redact_keys': []},
         )
 
