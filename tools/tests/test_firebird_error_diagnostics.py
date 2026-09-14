@@ -40,7 +40,12 @@ def test_executor_reports_codes_without_native_message_arguments():
     class NativeFailure(Exception):
         gds_codes = (335544351, 335544352)
     cursor = Mock()
-    cursor.execute.side_effect = NativeFailure('password=do-not-retain')
+
+    def execute(source):
+        if source.startswith('SELECT '):
+            raise NativeFailure('password=do-not-retain')
+
+    cursor.execute.side_effect = execute
     connection = Mock()
     connection.cursor.return_value = cursor
     client = SimpleNamespace(config=SimpleNamespace(
@@ -53,4 +58,6 @@ def test_executor_reports_codes_without_native_message_arguments():
     assert '335544351, 335544352' in str(failure.value)
     assert 'password' not in str(failure.value)
     assert 'do-not-retain' not in str(failure.value)
-    connection.rollback.assert_called_once()
+    connection.rollback.assert_not_called()
+    assert any(call.args[0].startswith('ROLLBACK TO SAVEPOINT ')
+               for call in cursor.execute.call_args_list)

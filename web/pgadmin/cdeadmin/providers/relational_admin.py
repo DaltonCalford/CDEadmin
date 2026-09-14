@@ -37,6 +37,7 @@ from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
+from .firebird.task_savepoint import NativeTaskSavepoint
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -2561,8 +2562,11 @@ class RelationalAdministration:
                 'transaction_finality_interpreted_by_common_code': False,
             }
         owns_connection = connection is None
+        borrowed_firebird = (not owns_connection and
+                             self.dialect.engine_id == 'firebird')
         connection = connection or client._connect({'route': route})
         cursor = None
+        task_savepoint = None
         commit_requested = False
         rollback_requested = False
         results = []
@@ -2575,6 +2579,9 @@ class RelationalAdministration:
                 )
                 else connection.cursor()
             )
+            if borrowed_firebird:
+                task_savepoint = NativeTaskSavepoint(cursor)
+                task_savepoint.begin()
             transition = compiled.get('firebird_column_rename') if (
                 self.dialect.engine_id == 'firebird') else None
             previous_identity = firebird_identity.column_identity(
@@ -2619,29 +2626,52 @@ class RelationalAdministration:
             if transition:
                 identity_change = firebird_identity.verify_column_rename(
                     cursor, transition, previous_identity)
+            if task_savepoint is not None:
+                task_savepoint.release()
             if owns_connection:
                 commit = getattr(connection, 'commit', None)
                 if callable(commit):
                     commit_requested = True
                     commit()
-        except RelationalClientError:
-            rollback = getattr(connection, 'rollback', None)
-            if callable(rollback):
-                rollback_requested = True
-                rollback()
+        except RelationalClientError as exc:
+            if borrowed_firebird:
+                try:
+                    if task_savepoint is not None:
+                        task_savepoint.rollback()
+                except Exception:
+                    raise RelationalClientError(
+                        str(exc) + '; Firebird task rollback could not be '
+                        'verified; the transaction remains caller-owned'
+                    ) from None
+            else:
+                rollback = getattr(connection, 'rollback', None)
+                if callable(rollback):
+                    rollback_requested = True
+                    rollback()
             raise
         except Exception as exc:
-            rollback = getattr(connection, 'rollback', None)
-            if callable(rollback):
-                rollback_requested = True
+            task_rollback_failed = False
+            if borrowed_firebird:
                 try:
-                    rollback()
+                    if task_savepoint is not None:
+                        task_savepoint.rollback()
                 except Exception:
-                    pass
+                    task_rollback_failed = True
+            else:
+                rollback = getattr(connection, 'rollback', None)
+                if callable(rollback):
+                    rollback_requested = True
+                    try:
+                        rollback()
+                    except Exception:
+                        pass
             codes = firebird_status_codes(exc) if (
                 self.dialect.engine_id == 'firebird') else ()
             detail = ('; Firebird status codes: ' + ', '.join(map(str, codes))
                       if codes else '')
+            if task_rollback_failed:
+                detail += ('; Firebird task rollback could not be verified; '
+                           'the transaction remains caller-owned')
             raise RelationalClientError(
                 'relational administration execution failed '
                 f'({type(exc).__name__}){detail}'
@@ -2665,6 +2695,13 @@ class RelationalAdministration:
                 **identity_change,
                 'committed_by_provider': owns_connection and commit_requested,
                 'staged_in_provider_session': not owns_connection,
+            }
+        if task_savepoint is not None:
+            response['native_task_scope'] = {
+                'kind': 'firebird_savepoint', 'released': True,
+                'transaction_owner': 'caller',
+                'driver_observation_only': True,
+                'covers_nontransactional_effects': False,
             }
         if isinstance(compiled.get('database_target'), Mapping):
             response['dropped_endpoint_database_target'] = copy.deepcopy(

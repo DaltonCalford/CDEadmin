@@ -367,10 +367,17 @@ def seed_duckdb():
             "customers": 3, "work_orders": 4}
 
 
-def seed_firebird():
+def seed_firebird(*, connection=None,
+                  database_path="/var/lib/firebird/data/cdeadmin_demo.fdb"):
+    """Reset demo fixtures; a supplied connection remains caller-owned.
+
+    Qualification callers supply a freshly created disposable database so the
+    ordinary demo database and its existing rows are never involved.
+    """
     from firebird.driver import connect, create_database
-    dsn = "127.0.0.1/53050:/var/lib/firebird/data/cdeadmin_demo.fdb"
+    dsn = "127.0.0.1/53050:" + database_path
     password = PASSWORD
+    owns_connection = connection is None
 
     def attach_or_create():
         try:
@@ -385,7 +392,8 @@ def seed_firebird():
 
     # The image opens its TCP listener before its security database and the
     # configured demo database have necessarily completed initialization.
-    connection = retry(attach_or_create, timeout=180)
+    if owns_connection:
+        connection = retry(attach_or_create, timeout=180)
     cursor = connection.cursor()
 
     def exists(kind, name):
@@ -541,8 +549,9 @@ def seed_firebird():
     ):
         object_counts[kind] = int(exists(kind, name))
     cursor.close()
-    connection.close()
-    return {"database": "/var/lib/firebird/data/cdeadmin_demo.fdb",
+    if owns_connection:
+        connection.close()
+    return {"database": database_path,
             "customers": 3, "assets": 4, "work_orders": 4,
             "native_object_targets": object_counts}
 

@@ -70,7 +70,10 @@ def test_receipt_requires_native_identity_and_preserves_transaction_owner(
             ADMINISTRATION.apply(client, request,
                                  connection=None if owned else connection)
         connection.commit.assert_not_called()
-        connection.rollback.assert_called_once()
+        assert connection.rollback.call_count == int(owned)
+        if not owned:
+            assert any(call.args[0].startswith('ROLLBACK TO SAVEPOINT ')
+                       for call in cursor.execute.call_args_list)
     else:
         result = ADMINISTRATION.apply(
             client, request, connection=None if owned else connection)
