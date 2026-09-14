@@ -191,7 +191,12 @@ class FirebirdUIFormGateTests(unittest.TestCase):
             self.assertTrue(case['expected'])
             if case['kind'] == 'required':
                 self.assertTrue(field['required'])
-                self.assertNotIn('default', field)
+                if field.get('array_editor'):
+                    # An empty visual list is reachable and still fails
+                    # required admission, despite its explicit [] default.
+                    self.assertEqual([], field['default'])
+                else:
+                    self.assertNotIn('default', field)
             else:
                 self.assertEqual(field['label'], case['label'])
                 self.assertIn('invalid_value', case)

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -15,7 +16,8 @@ from cdeadmin_firebird_query_ui_gate import (
     invoke_context_action, prepare_tree, screenshot, wait_for_tree_item,
 )
 from cdeadmin_firebird_ui_form_gate import (
-    close_workspace, fill_form_values, firebird_service_forms,
+    click_unobscured, close_workspace, fill_form_values,
+    firebird_service_forms,
 )
 from cdeadmin_ui_evidence import visible_named_control
 from cdeadmin_firebird_admin_mapping_gate import _route_arguments
@@ -83,6 +85,19 @@ def run(options, password):
             assert geometry['label_and_value_visible']
 
     try:
+        connection = native.connect(password=password,
+                                    **_route_arguments(route, native))
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('CREATE TABLE OWNED_UI_PAYLOAD '
+                               '(ID INTEGER PRIMARY KEY, V VARCHAR(60))')
+            connection.commit()
+            with connection.cursor() as cursor:
+                cursor.execute('INSERT INTO OWNED_UI_PAYLOAD VALUES (?, ?)',
+                               (1, 'Full backup proof'))
+            connection.commit()
+        finally:
+            connection.close()
         prepare_tree(driver, wait, options, password)
         fields = next(item['form']['fields']
                       for item in firebird_service_forms()
@@ -202,6 +217,15 @@ def run(options, password):
             capture(unit.lower() + '-native-result')
             evidence['cases'].append(unit + '-native-history-verified')
             close_workspace(driver, wait)
+        connection = native.connect(password=password,
+                                    **_route_arguments(route, native))
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('INSERT INTO OWNED_UI_PAYLOAD VALUES (?, ?)',
+                               (2, 'Increment proof'))
+            connection.commit()
+        finally:
+            connection.close()
         database = wait_for_tree_item(wait, options.database)
         invoke_context_action(wait, driver, database,
                               ['Backup', 'Physical backup (nbackup)...'],
@@ -299,8 +323,84 @@ def run(options, password):
         assert visible_named_control(driver, 'Backup read I/O policy') is None
         capture('restore-no-ineffective-io-control')
         evidence['cases'].append('restore-form-no-ineffective-io-control')
+        _button(wait, 'Validate and preview').click()
+        wait.until(lambda value: 'Ordered backup files is required.' in
+                   value.find_element(By.CSS_SELECTOR, '[role="dialog"]').text)
+        assert not visible_named_control(
+            driver, 'Apply provider plan').is_enabled()
+        capture('restore-empty-list-rejected')
+        restore_fields = next(item['form']['fields']
+                              for item in firebird_service_forms()
+                              if item['operation_id'] == 'restore_physical')
+        full = str(root / (options.database + '.DAYS.nbk'))
+        increment = str(root / (options.database + '.GUID.nbk'))
+        destination = str(root / (options.database + '.RESTORED.fdb'))
+        fill_form_values(driver, wait, restore_fields, {
+            'Ordered backup files': [
+                increment, full, '/unused/not-applied.nbk'],
+            'Restored database filename on the Firebird server': destination})
+        click_unobscured(driver, wait, _button(
+            wait, 'Ordered backup files 3: Remove'))
+        reorder = _button(wait, 'Ordered backup files 1: Move down')
+        driver.execute_script('arguments[0].scrollIntoView({block:"center"});'
+                              'arguments[0].focus()', reorder)
+        reorder.send_keys(Keys.ENTER)
+        assert visible_named_control(
+            driver, 'Ordered backup files 1').get_attribute('value') == full
+        assert visible_named_control(driver, (
+            'Ordered backup files 2')).get_attribute('value') == increment
+        capture('restore-ordered-visual-list')
+        _button(wait, 'Validate and preview').click()
+        complete_endpoint_prompt(driver, password, timeout=3)
+        preview = json.loads(wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
+        assert preview['draft']['backup_files'] == [full, increment]
+        assert preview['draft']['restore_database'] == destination
+        capture('restore-ordered-native-plan')
+        click_unobscured(driver, wait, _button(
+            wait, 'Ordered backup files 2: Move up'))
+        wait.until(lambda value: not value.find_elements(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]'))
+        assert not visible_named_control(
+            driver, 'Apply provider plan').is_enabled()
+        capture('restore-reorder-invalidates-plan')
+        click_unobscured(driver, wait, _button(
+            wait, 'Ordered backup files 1: Move down'))
+        _button(wait, 'Validate and preview').click()
+        complete_endpoint_prompt(driver, password, timeout=3)
+        preview = json.loads(wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
+        assert preview['draft']['backup_files'] == [full, increment]
+        assert preview['draft']['restore_database'] == destination
+        capture('restore-replanned-chain')
+        confirmation = visible_named_control(
+            driver, 'I confirm this provider-planned operation.')
+        assert confirmation is not None
+        click_unobscured(driver, wait, confirmation)
+        _button(wait, 'Apply provider plan').click()
+        result = wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+        result.find_element(By.TAG_NAME, 'summary').click()
+        observed = json.loads(result.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Firebird native service receipt"]').text)
+        assert observed['server_completed'] is True
+        assert observed['database'] == destination
+        assert observed['service_release']['service_handle_released'] is True
+        connection = native.connect(password=password, **_route_arguments(
+            {**route, 'database': destination}, native))
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT ID, V FROM OWNED_UI_PAYLOAD '
+                               'ORDER BY ID')
+                assert cursor.fetchall() == [(1, 'Full backup proof'),
+                                             (2, 'Increment proof')]
+        finally:
+            connection.close()
+        capture('restore-native-payload-verified')
+        evidence['cases'].append('visual-ordered-chain-restored-payload')
         close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 4
+        evidence['passed'] = len(evidence['cases']) == 5
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
         capture('failure')
@@ -310,10 +410,17 @@ def run(options, password):
             options.summary_output.parent.mkdir(parents=True, exist_ok=True)
             options.summary_output.write_text(
                 json.dumps(evidence, indent=2) + '\n')
-            _write_records(options, evidence,
-                           command_id='database.firebird.backup_physical',
-                           form_id='firebird_backup_physical',
-                           proof_id='firebird-backup-history-ui-gate')
+            for operation in ('backup', 'restore'):
+                screenshots = {
+                    state: value
+                    for state, value in evidence['screenshots'].items()
+                    if state.startswith('restore-') == (operation == 'restore')
+                }
+                _write_records(
+                    options, {**evidence, 'screenshots': screenshots},
+                    command_id=f'database.firebird.{operation}_physical',
+                    form_id=f'firebird_{operation}_physical',
+                    proof_id='firebird-backup-restore-ui-gate')
         finally:
             driver.quit()
 

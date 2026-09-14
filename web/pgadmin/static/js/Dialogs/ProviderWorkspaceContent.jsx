@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import {
-  Fragment, useCallback, useEffect, useMemo, useRef, useState,
+  Fragment, useCallback, useEffect, useId, useMemo, useRef, useState,
 } from 'react';
 import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
@@ -616,6 +616,7 @@ VisualAdminField.propTypes = {
 };
 
 export function RecordListAdminField({field, value, onChange, singleRecord = false, disabled=false}) {
+  const helpId = useId();
   let items = value;
   if (typeof items === 'string') {
     try { items = JSON.parse(items); } catch { items = null; }
@@ -641,11 +642,13 @@ export function RecordListAdminField({field, value, onChange, singleRecord = fal
     onChange(next);
   };
   return <Box role="group" aria-label={field.label}
+    aria-describedby={field.help ? helpId : undefined}
     sx={{border: 1, borderColor: 'divider', p: 1}}>
     <Box component="strong">{field.label}</Box>
+    {field.help && <Box component="p" id={helpId} sx={{my: 1}}>{field.help}</Box>}
     {items.map((item, index) => <Box key={index} sx={{my: 1, p: 1,
       border: 1, borderColor: 'divider'}}>
-      {!singleRecord && <Box sx={{display: 'flex', gap: 1, mb: 1}}>
+      {!singleRecord && <Box sx={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mb: 1}}>
         <Box>{index + 1}</Box>
         <Button size="small" disabled={disabled || index === 0}
           aria-label={`${field.label} ${index + 1}: ${gettext('Move up')}`}

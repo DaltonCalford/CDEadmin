@@ -108,7 +108,7 @@ PREVIEW_VALUES = {
         ),
     },
     'restore_physical': {
-        'Ordered server backup filenames (JSON array)': (
+        'Ordered backup files': (
             '["/var/lib/firebird/data/cdeadmin-ui-form-gate.nbk"]'
         ),
         'Restored database filename on the Firebird server': (
@@ -147,7 +147,7 @@ VALIDATION_CASES = {
         'field_id': 'backup_files',
         'kind': 'required',
         'expected': (
-            'Ordered server backup filenames (JSON array) is required.'
+            'Ordered backup files is required.'
         ),
     },
     'validate_database': {
@@ -529,9 +529,15 @@ def assert_form_controls(wait, fields):
         label = field['label']
         print(f'  rendered field {field["field_id"]}: {label}', flush=True)
         try:
-            control = wait.until(
-                lambda driver, name=label: visible_named_control(driver, name)
-            )
+            if field.get('array_editor') or field.get('object_editor'):
+                selector = ('[role="group"][aria-label=' +
+                            json.dumps(label, ensure_ascii=False) + ']')
+                control = wait.until(
+                    expected.visibility_of_element_located(
+                        (By.CSS_SELECTOR, selector)))
+            else:
+                control = wait.until(lambda driver, name=label:
+                                     visible_named_control(driver, name))
         except TimeoutException as exc:
             raise RuntimeError(
                 f'field {field["field_id"]!r} did not render with '
@@ -656,7 +662,7 @@ def completion_values(options, operation_id):
             ),
         },
         'restore_physical': {
-            'Ordered server backup filenames (JSON array)': json.dumps([
+            'Ordered backup files': json.dumps([
                 f'{prefix}.nbk'
             ]),
             'Restored database filename on the Firebird server': (

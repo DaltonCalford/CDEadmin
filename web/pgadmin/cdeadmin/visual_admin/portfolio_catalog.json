@@ -482,7 +482,7 @@
     "firebird_restore_physical": {
       "title": "Firebird physical restore (nbackup)",
       "fields": [
-        {"field_id": "backup_files", "label": "Ordered server backup filenames (JSON array)", "control": "json", "required": true},
+        {"field_id": "backup_files", "label": "Ordered backup files", "control": "json", "json_type": "array", "required": true, "default": [], "array_editor": {"item_kind": "string"}, "help": "New restore: full backup, then increments in order. In-place: increments only."},
         {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
         {"field_id": "restore_flags", "label": "Physical restore options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IN_PLACE", "label": "In-place"}, {"value": "SEQUENCE", "label": "Sequence mode"}]},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
