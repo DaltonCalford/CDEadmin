@@ -1425,6 +1425,65 @@ describe('ProviderWorkspaceContent', () => {
     expect(api.get).toHaveBeenCalledWith('/workspace/1');
   });
 
+  it.each(['first-page', 'outside-page'])(
+    'retains the natively renamed domain on the %s for the next edit', async (location) => {
+      const original = {resource_id: 'domain:D', resource_kind: 'domain',
+        display_name: 'D', display_path: ['D']};
+      const renamed = {...original, resource_id: 'domain:E',
+        display_name: 'E', display_path: ['E']};
+      api.get.mockResolvedValue({data: {data: {...bootstrap,
+        resource_page: {generation: 'old', items: [original]},
+        visual_admin: {objects: [{resource_kind: 'domain', title: 'Domain',
+          operations: [{operation_id: 'rename', title: 'Rename domain',
+            target_required: true, form: {fields: [{field_id: 'new_name',
+              label: 'New name', control: 'text', required: true}]}}]}]},
+      }}});
+      api.post.mockImplementation(async (_url, {action, request}) => {
+        let value;
+        if (action === 'resource_inspect') {
+          value = request.resource_id === renamed.resource_id ? renamed : original;
+        } else if (action === 'visual_admin_validate') {
+          value = {valid: true};
+        } else if (action === 'visual_admin_plan') {
+          value = {plan_id: 'plan', plan_digest: 'digest',
+            state: 'ready', execution_available: true};
+        } else if (action === 'visual_admin_apply') {
+          value = {provider_result: {resource_identity_change: {
+            resource_kind: 'domain', previous_resource_id: original.resource_id,
+            resource_id: renamed.resource_id, native_identity_verified: true,
+            committed_by_provider: true,
+          }}};
+        } else if (action === 'resource_page') {
+          value = {generation: 'new', items: location === 'first-page' ?
+            [renamed] : [], next_cursor: 'remaining'};
+        } else {
+          throw new Error('Unexpected action ' + action);
+        }
+        return {data: {data: value}};
+      });
+      render(<ProviderWorkspaceContent endpointUrl="/workspace/1"
+        initialTab="administration" initialContext={{resource_id: 'domain:D',
+          resource_kind: 'domain', operation_id: 'rename'}} />);
+      fireEvent.change(await screen.findByRole('textbox', {name: 'New name'}),
+        {target: {value: 'E'}});
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      await waitFor(() => expect(screen.getByRole('button',
+        {name: 'Apply provider plan'})).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      await waitFor(() => expect(screen.getByRole('button',
+        {name: 'Validate and preview'})).toBeEnabled());
+      fireEvent.change(screen.getByRole('textbox', {name: 'New name'}),
+        {target: {value: 'D'}});
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+        action: 'visual_admin_plan', request: {
+          resource_kind: 'domain', operation_id: 'rename',
+          target_resource: renamed, draft: {new_name: 'D'},
+        },
+      }));
+      expect(screen.queryByText(/No discovered resource of this type/)).toBeNull();
+    });
+
   it('requests credentials and reloads after a workspace 401', async () => {
     const onCredentialRequired = jest.fn();
     api.get

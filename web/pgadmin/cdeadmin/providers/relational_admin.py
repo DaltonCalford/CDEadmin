@@ -2582,9 +2582,10 @@ class RelationalAdministration:
             if borrowed_firebird:
                 task_savepoint = NativeTaskSavepoint(cursor)
                 task_savepoint.begin()
-            transition = compiled.get('firebird_column_rename') if (
+            transition = (compiled.get('firebird_column_rename') or
+                          compiled.get('firebird_domain_rename')) if (
                 self.dialect.engine_id == 'firebird') else None
-            previous_identity = firebird_identity.column_identity(
+            previous_identity = firebird_identity.rename_identity(
                 cursor, transition, transition['old_name']
             ) if transition else None
             for statement in compiled.get('statements', []):
@@ -2624,7 +2625,7 @@ class RelationalAdministration:
                     'rows': copy.deepcopy(rows),
                 })
             if transition:
-                identity_change = firebird_identity.verify_column_rename(
+                identity_change = firebird_identity.verify_rename(
                     cursor, transition, previous_identity)
             if task_savepoint is not None:
                 task_savepoint.release()
@@ -3163,6 +3164,18 @@ class RelationalAdministration:
                     'Firebird may retain the old column name in privilege '
                     'catalog rows after a rename. Review grants and effective '
                     'access; this operation does not rewrite or revoke grants.'
+                ]
+            elif (self.dialect.engine_id == 'firebird' and
+                    request['resource_kind'] == 'domain'):
+                compiled['firebird_domain_rename'] = (
+                    firebird_identity.domain_rename(
+                        self._target_path(request['target_resource']),
+                        request['draft']['new_name']))
+                compiled['warnings'] = [
+                    'Firebird can reject a domain rename at commit when '
+                    'routine parameters depend on that domain. A staged '
+                    'rename is not a committed change. This operation does '
+                    'not rewrite dependent routines or system catalogs.'
                 ]
             return compiled
         if operation == 'drop':

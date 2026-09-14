@@ -8,6 +8,7 @@
 """Rename and rename back through the same focused native column editor."""
 
 import json
+import os
 import sys
 import traceback
 import uuid
@@ -53,11 +54,18 @@ def run(options, profiles):
                               **_route_arguments(route, firebird))
     prefix = 'CDE_UI_RENAME_' + uuid.uuid4().hex[:10].upper()
     tables, browser = [], None
+    domain_mode = os.environ.get('CDEADMIN_FIREBIRD_RENAME_KIND') == 'domain'
+    domains = []
     cases = [('stored', 'INTEGER', 'W'),
              ('identity', 'BIGINT GENERATED ALWAYS AS IDENTITY', 'Id New'),
              ('computed', 'COMPUTED BY (X + 1)', 'Calculated'),
              ('blob', 'BLOB SUB_TYPE TEXT', 'épreuve:blob%'),
              ('array', 'INTEGER[1:3]', 'Quote"Name')]
+    if domain_mode:
+        cases = [('scalar', 'INTEGER DEFAULT 7 CHECK (VALUE > 0)', 'new'),
+                 ('blob', 'BLOB SUB_TYPE TEXT', 'épreuve:blob%'),
+                 ('array', 'INTEGER[-2:3,1:2]', 'Quote"Name')]
+    kind = 'domain' if domain_mode else 'column'
     result = {'passed': False, 'checks': [], 'failures': [],
               'fixtures_removed': False, 'credential_values_exported': False}
 
@@ -80,10 +88,26 @@ def run(options, profiles):
         native.commit()
         return value
 
+    def domain_source(table):
+        with native.cursor() as cursor:
+            cursor.execute('SELECT TRIM(TRAILING FROM RDB$FIELD_SOURCE) '
+                           'FROM RDB$RELATION_FIELDS WHERE '
+                           "RDB$RELATION_NAME = ? AND RDB$FIELD_NAME = 'V'",
+                           (table,))
+            value = cursor.fetchone()[0]
+        native.commit()
+        return value
+
     try:
         for index, (_label, definition, _new) in enumerate(cases):
             table = prefix + '_' + str(index)
             with native.cursor() as cursor:
+                if domain_mode:
+                    domain = table + '_D'
+                    cursor.execute('CREATE DOMAIN ' + identifier(domain) +
+                                   ' AS ' + definition)
+                    domains.append(domain)
+                    definition = identifier(domain)
                 cursor.execute('CREATE TABLE ' + identifier(table) +
                                ' (X INTEGER, V ' + definition + ')')
             native.commit()
@@ -103,31 +127,39 @@ def run(options, profiles):
         browser.set_script_timeout(120)
         wait = WebDriverWait(browser, options.timeout)
         forms._prepare_tree(browser, wait, options)
-        probe = forms._workspace_probe(browser, ['column'],
+        probe = forms._workspace_probe(browser, [kind],
                                        collect_context_commands=False)
         operation = next(iter(forms._enumerate_operations(
-            probe['catalog'], ['column'], ['rename'])))
+            probe['catalog'], [kind], ['rename'])))
         for index, (label, _definition, new_name) in enumerate(cases):
             table = tables[index]
             try:
                 baseline_rows = rows(table, 'V')
+                original = table + '_D' if domain_mode else 'V'
+                if domain_mode:
+                    new_name = table + '_' + new_name
+                    domains.append(new_name)
+                path = [original] if domain_mode else [table, original]
                 target = next(item for item in probe['resources'] if
-                              item['resource_kind'] == 'column' and
-                              item['display_path'] == [table, 'V'])
+                              item['resource_kind'] == kind and
+                              item['display_path'] == path)
                 forms._open_focused_form(browser, operation, target,
                                          probe['database_target_id'])
                 forms._wait_for_operation(wait, operation)
-                for old, new in [('V', new_name), (new_name, 'V')]:
-                    label_now = label + ('-forward' if old == 'V' else '-back')
-                    print('column rename: ' + label_now, flush=True)
+                for old, new in [(original, new_name), (new_name, original)]:
+                    label_now = label + (
+                        '-forward' if old == original else '-back')
+                    print(kind + ' rename: ' + label_now, flush=True)
                     fill_fields(wait, ['New name=' + new])
                     images = screenshot_form_pages(
                         browser, options.output_root / label_now)
                     plan = plan_preview(browser, wait, operation, {})
                     source = plan['command_preview']['statements'][0]['source']
-                    assert source == ('ALTER TABLE ' + identifier(table) +
-                                      ' ALTER COLUMN ' + identifier(old) +
-                                      ' TO ' + identifier(new)), source
+                    expected = (
+                        'ALTER DOMAIN ' + identifier(old) if domain_mode else
+                        'ALTER TABLE ' + identifier(table) +
+                        ' ALTER COLUMN ' + identifier(old))
+                    assert source == expected + ' TO ' + identifier(new)
                     confirm = visible_named_control(
                         browser, 'I confirm this provider-planned operation.')
                     if confirm is not None and not confirm.is_selected():
@@ -147,9 +179,14 @@ def run(options, profiles):
                     assert receipt['native_identity_verified'] is True
                     assert receipt['committed_by_provider'] is True
                     assert receipt['resource_id'] == catalog_resource_id(
-                        'column', [table], new)
-                    assert names(table) == ['X', new]
-                    assert rows(table, new) == baseline_rows
+                        kind, [] if domain_mode else [table], new)
+                    if domain_mode:
+                        assert domain_source(table) == new
+                        assert names(table) == ['X', 'V']
+                    else:
+                        assert names(table) == ['X', new]
+                    assert rows(table, 'V' if domain_mode else new) == (
+                        baseline_rows)
                     wait.until(lambda driver: visible_named_control(
                         driver, 'Validate and preview').is_enabled())
                     assert 'Do not repeat the operation' not in (
@@ -171,7 +208,8 @@ def run(options, profiles):
     except Exception:
         result['failures'].append({'traceback': traceback.format_exc()})
     finally:
-        cleanup = cleanup_column_fixtures(browser, native, tables)
+        cleanup = cleanup_column_fixtures(
+            browser, native, tables, domains=domains)
         result['fixtures_removed'] = cleanup['fixtures_removed']
         result['failures'].extend(cleanup['errors'])
         result['passed'] = result['passed'] and not result['failures']

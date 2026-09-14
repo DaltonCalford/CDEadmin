@@ -35,7 +35,8 @@ from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
 from tools.cdeadmin_ui_evidence import fill_fields  # noqa: E402
 
 
-def cleanup_column_fixtures(browser, native, tables, domain=None):
+def cleanup_column_fixtures(browser, native, tables, domain=None, *,
+                            domains=()):
     """Collect failures without letting browser shutdown skip owned DDL."""
     errors = []
 
@@ -52,8 +53,10 @@ def cleanup_column_fixtures(browser, native, tables, domain=None):
     attempt('rollback before cleanup', lambda: native.rollback()
             if native.main_transaction.is_active() else None)
     removed = True
+    domain_names = list(dict.fromkeys(
+        [*domains, *([domain] if domain else [])]))
     for kind, name in [('TABLE', table) for table in reversed(tables)] + (
-            [('DOMAIN', domain)] if domain else []):
+            [('DOMAIN', name) for name in domain_names]):
         def drop(kind=kind, name=name):
             with native.cursor() as cursor:
                 catalog, field_name = (

@@ -4,7 +4,7 @@
 # This software is released under the PostgreSQL Licence
 ##########################################################################
 
-"""Native catalog identity and checked column rename transitions."""
+"""Native catalog identity and checked rename transitions."""
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 from .mappings import identifier
@@ -30,6 +30,61 @@ def column_rename(path, new_name):
             'column', path[:1], path[1]),
         'resource_id': catalog_resource_id('column', path[:1], new_name),
     }
+
+
+def domain_rename(path, new_name):
+    if len(path) != 1:
+        raise RelationalClientError(
+            'A Firebird domain has no schema qualifier')
+    identifier(path[0])
+    identifier(new_name)
+    if path[0] == new_name:
+        raise RelationalClientError('The new domain name must be different')
+    return {
+        'resource_kind': 'domain', 'old_name': path[0], 'new_name': new_name,
+        'previous_resource_id': catalog_resource_id('domain', [], path[0]),
+        'resource_id': catalog_resource_id('domain', [], new_name),
+    }
+
+
+def domain_identity(cursor, transition, name):
+    # This key is compared only inside one native transaction. It is not a
+    # durable domain ID, is never serialized, and is discarded before return.
+    cursor.execute('SELECT F.RDB$DB_KEY FROM RDB$FIELDS F '
+                   'WHERE F.RDB$FIELD_NAME = ?', (name,))
+    rows = list(cursor.fetchall())
+    if (len(rows) != 1 or len(rows[0]) != 1 or
+            not isinstance(rows[0][0], (bytes, bytearray, memoryview)) or
+            len(rows[0][0]) != 8):
+        raise RelationalClientError(
+            'Firebird domain record identity could not be verified')
+    return bytes(rows[0][0])
+
+
+def rename_identity(cursor, transition, name):
+    if transition['resource_kind'] == 'column':
+        return column_identity(cursor, transition, name)
+    if transition['resource_kind'] == 'domain':
+        return domain_identity(cursor, transition, name)
+    raise RelationalClientError('Unsupported Firebird rename identity')
+
+
+def verify_rename(cursor, transition, previous):
+    if transition['resource_kind'] == 'column':
+        return verify_column_rename(cursor, transition, previous)
+    if transition['resource_kind'] != 'domain':
+        raise RelationalClientError('Unsupported Firebird rename identity')
+    current = domain_identity(cursor, transition, transition['new_name'])
+    if current != previous:
+        raise RelationalClientError('Firebird domain record identity changed')
+    cursor.execute('SELECT COUNT(*) FROM RDB$FIELDS WHERE RDB$FIELD_NAME = ?',
+                   (transition['old_name'],))
+    if cursor.fetchone()[0] != 0:
+        raise RelationalClientError(
+            'The previous Firebird domain still exists')
+    return {**transition, 'native_identity_verified': True,
+            'native_identity_kind': 'record-key-within-transaction',
+            'record_key_retained': False}
 
 
 def column_identity(cursor, transition, name):

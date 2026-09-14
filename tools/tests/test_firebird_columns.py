@@ -92,11 +92,13 @@ def test_fixture_cleanup_collects_failures_and_attempts_remaining_objects(
         close=lambda: events.append('close'),
         main_transaction=SimpleNamespace(is_active=lambda: True))
     result = cleanup_column_fixtures(
-        SimpleNamespace(quit=quit_browser), native, ['T1', 'T2'], 'D')
+        SimpleNamespace(quit=quit_browser), native, ['T1', 'T2'], 'D',
+        domains=['D', 'E'])
     assert result['fixtures_removed'] is (not drop_fails)
     assert len(result['errors']) == int(quit_fails) + int(drop_fails)
     assert [item for item in events if item.startswith('DROP')] == [
-        'DROP TABLE "T2"', 'DROP TABLE "T1"', 'DROP DOMAIN "D"']
+        'DROP TABLE "T2"', 'DROP TABLE "T1"', 'DROP DOMAIN "D"',
+        'DROP DOMAIN "E"']
     assert events[-1] == 'close'
 
 

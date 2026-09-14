@@ -6375,6 +6375,9 @@ export default function ProviderWorkspaceContent({
   const [resultPresentation, setResultPresentation] = useState('native');
   const [transaction, setTransaction] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
+  // A verified object can be outside the visible page after a mutation.
+  // Bind that observation to the cache generation, not page membership.
+  const selectedObservationRef = useRef(null);
   const [selectedOperationId, setSelectedOperationId] = useState(
     initialContext.operation_id || ''
   );
@@ -6509,7 +6512,9 @@ export default function ProviderWorkspaceContent({
 
   useEffect(() => {
     if (selectedResource && !resourcePage?.items?.some((item) =>
-      item.resource_id === selectedResource.resource_id)) {
+      item.resource_id === selectedResource.resource_id) && !(
+      selectedObservationRef.current?.resourceId === selectedResource.resource_id &&
+      selectedObservationRef.current?.generation === resourcePage?.generation)) {
       setSelectedResource(null);
     }
   }, [resourcePage, selectedResource]);
@@ -6599,6 +6604,9 @@ export default function ProviderWorkspaceContent({
         }
       }
     } finally {
+      selectedObservationRef.current = nextSelected ? {
+        resourceId: nextSelected.resource_id, generation: refreshed.generation,
+      } : null;
       setResourcePage(refreshed);
       setSelectedResource(nextSelected);
     }
