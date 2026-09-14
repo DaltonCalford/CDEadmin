@@ -227,7 +227,8 @@ class RelationalAdministration:
                     kind in firebird_mappings.KINDS):
                 resource['operations'] = [
                     item for item in resource['operations']
-                    if item['operation_id'] not in {'create_or_alter', 'comment'}
+                    if item['operation_id'] not in {
+                        'create_or_alter', 'comment'}
                 ] + [{
                     'operation_id': operation,
                     'title': title, 'mutation_class': 'admin',
@@ -4963,8 +4964,7 @@ class RelationalAdministration:
             if self.dialect.engine_id == 'firebird' and key == 'returns':
                 item['required'] = True
 
-    @staticmethod
-    def _structured_record_controls(form):
+    def _structured_record_controls(self, form):
         """Visual schemas for this adapter's existing structured compiler."""
         field = RelationalAdministration._field
 
@@ -4979,6 +4979,11 @@ class RelationalAdministration:
             field('unique', 'Unique', 'boolean', default=False),
             field('primary_key', 'Primary key', 'boolean', default=False),
         ]}
+        if self.dialect.engine_id == 'firebird':
+            columns['fields'] = [
+                item for item in
+                firebird_columns.creation_form(field)['fields']
+                if item['field_id'] != 'table']
 
         def column_names(name, label):
             return {**field(name, label, 'json', default=[]),
@@ -5947,9 +5952,12 @@ class RelationalAdministration:
                     'parameters': (),
                 })
             for name in changes.get('drop_columns', []):
+                drop_keyword = ('DROP' if
+                                self.dialect.engine_id == 'firebird' else
+                                'DROP COLUMN')
                 statements.append({
                     'source': (
-                        f'ALTER TABLE {target} DROP COLUMN '
+                        f'ALTER TABLE {target} {drop_keyword} '
                         f'{self._quote(name)}'
                     ),
                     'parameters': (),
@@ -7112,6 +7120,8 @@ class RelationalAdministration:
     def _column_definition(self, item):
         if not isinstance(item, Mapping):
             raise RelationalClientError('column definition must be an object')
+        if self.dialect.engine_id == 'firebird' and 'column_mode' in item:
+            return firebird_columns.definition(item)
         name = self._quote(item.get('name'))
         data_type = self._safe_fragment(item.get('type'), 'column type')
         parts = [name, data_type]

@@ -777,6 +777,12 @@ def _catalog_detail(field, value):
     } else text.rstrip(' ')
 
 
+def _catalog_resource_id(kind, path, name):
+    """Escape delimiters, retaining existing IDs for ordinary identifiers."""
+    return ':'.join(str(value).replace('%', '%25').replace(':', '%3A')
+                    for value in (kind, *path, name))
+
+
 def _role_privileges(value):
     """Decode Firebird's byte-indexed privilege bitmap (bit zero reserved)."""
     if value is None:
@@ -806,7 +812,7 @@ def _resources(connection, request):
         def add(kind, path, name, native=None):
             path = [str(item).rstrip(' ') for item in path]
             name = str(name).rstrip(' ')
-            resource_id = ':'.join([kind, *path, name])
+            resource_id = _catalog_resource_id(kind, path, name)
             resources[resource_id] = {
                 'resource_id': resource_id,
                 'resource_kind': kind,

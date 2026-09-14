@@ -8982,22 +8982,22 @@
       "sha256": "71dce5bde254bf76f3eca3ea2ae88cc0cf96ad3de1a007358e29317615b862c0"
     },
     {
-      "artifact": "create-live-4.json",
+      "artifact": "table-live-1.json",
       "authority": "Firebird 5.0.4 runtime",
       "evidence_id": "firebird-5.0.4-column-alterations-live",
       "evidence_kind": "live_execution",
       "format": "cdeadmin.firebird-columns.v1",
       "license_id": "PostgreSQL",
-      "sha256": "c1ef940545d3572536186b7eb1526249a3f3d958b85d6cf1859457f57bce3947"
+      "sha256": "6598e7bafcf3272c7e8e0e8f4050dd61fbbfb7bfadd529a746e93b9dbc366da0"
     },
     {
-      "artifact": "create-live-4.json",
+      "artifact": "table-live-1.json",
       "authority": "Firebird 5.0.4 runtime",
       "evidence_id": "firebird-5.0.4-column-alterations-parser",
       "evidence_kind": "parser_acceptance",
       "format": "cdeadmin.firebird-columns.v1",
       "license_id": "PostgreSQL",
-      "sha256": "c1ef940545d3572536186b7eb1526249a3f3d958b85d6cf1859457f57bce3947"
+      "sha256": "6598e7bafcf3272c7e8e0e8f4050dd61fbbfb7bfadd529a746e93b9dbc366da0"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9755,28 +9755,31 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-column-alterations-parser",
+        "firebird-5.0.4-column-alterations-live"
       ],
       "required_bindings": [],
-      "source": "ALTER TABLE \"cde_editor_probe\" ADD \"note\" INTEGER",
+      "source": "ALTER TABLE \"CDE_COLUMN\" DROP \"RENAMED\"\n;\nALTER TABLE \"CDE_COLUMN\" DROP \"Z\"",
       "source_format": "ordered_native_statements",
       "statements": [
-        "ALTER TABLE \"cde_editor_probe\" ADD \"note\" INTEGER"
+        "ALTER TABLE \"CDE_COLUMN\" DROP \"RENAMED\"",
+        "ALTER TABLE \"CDE_COLUMN\" DROP \"Z\""
       ],
       "task_id": "visual_admin.table.alter"
     },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-column-alterations-parser",
+        "firebird-5.0.4-column-alterations-live"
       ],
       "required_bindings": [],
-      "source": "CREATE TABLE \"cde_editor_probe\" (\"id\" INTEGER NOT NULL PRIMARY KEY, \"value\" INTEGER)",
+      "source": "CREATE TABLE \"CDE_COLUMN\" (\"X\" INTEGER DEFAULT 1, \"V\" BIGINT GENERATED ALWAYS AS IDENTITY (START WITH 25 INCREMENT BY 5), \"C\" NUMERIC(18, 2) COMPUTED BY (X * 1.25\n), \"S\" VARCHAR(20) CHARACTER SET \"UTF8\" COLLATE \"UNICODE_CI\", \"D\" \"CDE_DOMAIN\", \"A\" CHAR(5)[-1:2] CHARACTER SET \"UTF8\", \"B\" BLOB SUB_TYPE 1 SEGMENT SIZE 120 CHARACTER SET \"UTF8\", CONSTRAINT \"CDE_TPK\" PRIMARY KEY (\"V\"))",
       "source_format": "ordered_native_statements",
       "statements": [
-        "CREATE TABLE \"cde_editor_probe\" (\"id\" INTEGER NOT NULL PRIMARY KEY, \"value\" INTEGER)"
+        "CREATE TABLE \"CDE_COLUMN\" (\"X\" INTEGER DEFAULT 1, \"V\" BIGINT GENERATED ALWAYS AS IDENTITY (START WITH 25 INCREMENT BY 5), \"C\" NUMERIC(18, 2) COMPUTED BY (X * 1.25\n), \"S\" VARCHAR(20) CHARACTER SET \"UTF8\" COLLATE \"UNICODE_CI\", \"D\" \"CDE_DOMAIN\", \"A\" CHAR(5)[-1:2] CHARACTER SET \"UTF8\", \"B\" BLOB SUB_TYPE 1 SEGMENT SIZE 120 CHARACTER SET \"UTF8\", CONSTRAINT \"CDE_TPK\" PRIMARY KEY (\"V\"))"
       ],
       "task_id": "visual_admin.table.create"
     },

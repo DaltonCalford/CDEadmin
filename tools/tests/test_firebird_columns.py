@@ -12,6 +12,7 @@ import pytest
 
 from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION
 from pgadmin.cdeadmin.providers.firebird import columns
+from pgadmin.cdeadmin.providers.firebird.provider import _catalog_resource_id
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
 from pgadmin.cdeadmin.visual_admin import ProviderVisualAdministration
@@ -20,6 +21,42 @@ from tools.reference_engine_demos.generate_firebird_dialect_contract import (
     WEB, supplement_columns,
 )
 from tools.cdeadmin_firebird_columns_ui_gate import cleanup_column_fixtures
+from tools.cdeadmin_firebird_ui_form_gate import (
+    _draft_field_visible, fill_form_values,
+)
+
+
+@pytest.mark.parametrize('condition', [
+    {'all': []}, {'all': None}, [], {'unknown': True},
+])
+def test_browser_record_helper_rejects_unknown_visibility(condition):
+    with pytest.raises(ValueError):
+        _draft_field_visible({'visible_when': condition}, {})
+
+
+def test_browser_record_helper_uses_active_controls(monkeypatch):
+    observed = []
+
+    def fill(_wait, values, **_kwargs):
+        observed.extend(values)
+
+    monkeypatch.setattr(
+        'tools.cdeadmin_firebird_ui_form_gate.fill_fields', fill)
+    fields = [
+        {'field_id': 'enabled', 'label': 'Enabled', 'control': 'boolean'},
+        {'field_id': 'value', 'label': 'Value', 'control': 'text',
+         'visible_when': {'all': [
+             {'field_id': 'enabled', 'equals': True},
+             {'field_id': 'mode', 'in': ['STORED']}]}},
+        {'field_id': 'mode', 'label': 'Mode', 'control': 'text',
+         'default': 'STORED'}]
+    fill_form_values(None, None, fields, {'Enabled': 'true', 'Value': '42'})
+    assert observed == ['Enabled=true', 'Value=42']
+    observed.clear()
+    fill_form_values(None, None, fields, {'Enabled': 'false', 'Value': '42'})
+    assert observed == ['Enabled=false']
+    with pytest.raises(ValueError, match='Unknown form label'):
+        fill_form_values(None, None, fields, {'Unknown': '42'})
 
 
 @pytest.mark.parametrize('quit_fails,drop_fails', [
@@ -36,7 +73,10 @@ def test_fixture_cleanup_collects_failures_and_attempts_remaining_objects(
         def __exit__(self, *_args):
             pass
 
-        def execute(self, sql):
+        def fetchone(self):
+            return (1,)
+
+        def execute(self, sql, parameters=()):
             events.append(sql)
             if drop_fails and '"T2"' in sql:
                 raise OSError('simulated native failure')
@@ -72,6 +112,15 @@ def create_request(**values):
             '_provider_route': {'database': 'example.fdb'},
             'draft': {'table': 'T', 'name': 'V', 'column_mode': 'STORED',
                       'data_type': 'INTEGER', **values}}
+
+
+def test_catalog_delimiters_cannot_alias_distinct_physical_paths():
+    paths = [('A:B', 'C'), ('A', 'B:C'), ('A%3AB', 'C'),
+             ('A', 'B%3AC'), ('A:B:C', 'D'), ('A:B', 'C:D')]
+    identities = [_catalog_resource_id('column', [table], column)
+                  for table, column in paths]
+    assert len(set(identities)) == len(paths)
+    assert _catalog_resource_id('column', ['T'], 'V') == 'column:T:V'
 
 
 @pytest.mark.parametrize('values,expected', [
@@ -151,6 +200,48 @@ def test_creation_form_has_native_structured_dimensions_and_constraints():
         assert ('constraints' in active) != computed
         assert ('generation' in active) == (mode == 'IDENTITY')
         assert ('dimensions' in active) == (mode == 'STORED')
+
+
+@pytest.mark.parametrize('operation,key', [
+    ('create', 'columns'), ('alter', 'add_columns'),
+])
+def test_table_column_lists_use_native_creation_records(operation, key):
+    catalog = ADMINISTRATION.catalog(catalog_for_engine('firebird'))
+    table = next(item for item in catalog['objects'] if
+                 item['resource_kind'] == 'table')
+    form = next(item['form'] for item in table['operations'] if
+                item['operation_id'] == operation)
+    field = next(item for item in form['fields'] if item['field_id'] == key)
+    value = {'name': 'V', 'column_mode': 'IDENTITY', 'data_type': 'BIGINT',
+             'generation': 'ALWAYS', 'start_value': '25', 'increment': '5'}
+    normalized, error = ProviderVisualAdministration._validate_field(
+        field, [value])
+    assert error is None
+    request = {'resource_kind': 'table', 'operation_id': operation,
+               '_provider_route': {'database': 'example.fdb'},
+               'target_resource': {'display_name': 'T', 'display_path': ['T']},
+               'draft': {key: normalized}}
+    if operation == 'create':
+        request['draft']['name'] = 'T'
+    plan = ADMINISTRATION.plan(request)
+    assert ('"V" BIGINT GENERATED ALWAYS AS IDENTITY '
+            '(START WITH 25 INCREMENT BY 5)') in (
+                plan['command_preview']['statements'][0]['source'])
+    names = {item['field_id'] for item in field['array_editor']['fields']}
+    assert {'dimensions', 'constraints', 'expression', 'collation'} <= names
+    assert 'table' not in names
+    assert 'type' not in names
+
+
+def test_table_drop_column_uses_firebird_grammar():
+    plan = ADMINISTRATION.plan({
+        'resource_kind': 'table', 'operation_id': 'alter',
+        '_provider_route': {'database': 'example.fdb'},
+        'target_resource': {'display_name': 'current',
+                            'display_path': ['current']},
+        'draft': {'drop_columns': ['V']}})
+    assert plan['command_preview']['statements'][0]['source'] == (
+        'ALTER TABLE "current" DROP "V"')
 
 
 @pytest.mark.parametrize('action,values,clause', [
@@ -352,9 +443,19 @@ def proof():
     } | {'create-reference-' + action + '-' + str(explicit)
          for action in columns.REFERENTIAL_ACTIONS
          for explicit in (False, True)}
+    cases |= {'table-structured-definition-recreation',
+              'table-structured-add', 'table-structured-rename',
+              'table-structured-drop', 'table-add-failure-atomicity'}
     return {'passed': True, 'engine_version': '5.0.4',
             'fixture_removed': True, 'temporary_user_removed': True,
             'failures': [], 'checks': [{'case': case} for case in cases],
+            'table_task_evidence': {
+                'visual_admin.table.create': {
+                    'live_execution': 'passed',
+                    'statements': ['CREATE TABLE "T" ("V" INTEGER)']},
+                'visual_admin.table.alter': {
+                    'live_execution': 'passed',
+                    'statements': ['ALTER TABLE "T" ADD "V2" INTEGER']}},
             'task_evidence': {f'visual_admin.column.{operation}': {
                 'live_execution': 'passed', 'statements': [statement]}
                 for operation, statement in (
@@ -381,6 +482,7 @@ def test_column_supplement_preserves_other_tasks_and_is_idempotent():
     {'passed': False}, {'engine_version': '5.0.3'}, {'fixture_removed': False},
     {'temporary_user_removed': False}, {'failures': ['failed']},
     {'checks': []}, {'task_evidence': {}},
+    {'table_task_evidence': {}}, {'table_task_evidence': None},
 ])
 def test_column_supplement_requires_complete_evidence(changed):
     with pytest.raises(ValueError):

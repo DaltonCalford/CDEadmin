@@ -466,7 +466,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         form = {'form_id': form_id, 'fields': [{
             'field_id': field_id, 'label': field_id, 'control': 'json',
             'required': required}]}
-        RelationalAdministration._structured_record_controls(form)
+        DUCKDB_ADMINISTRATION._structured_record_controls(form)
         return form['fields'][0]
 
     def test_record_columns_validate_native_compiler_keys(self):

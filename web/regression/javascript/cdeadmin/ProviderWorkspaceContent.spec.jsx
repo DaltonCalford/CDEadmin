@@ -474,6 +474,29 @@ describe('provider structured record controls', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Columns 1: Remove'}));
     expect(screen.getByLabelText(/Column name/)).toHaveValue('B');
   });
+  it('filters per-record type choices and resets them without changing other records', () => {
+    const schema = {label: 'Columns', array_editor: {item_kind: 'object', fields: [
+      {field_id: 'mode', label: 'Mode', control: 'text', default: 'stored'},
+      {field_id: 'type', label: 'Type', control: 'select', default: 'INTEGER', options: [
+        {value: 'INTEGER', label: 'Integer'},
+        {value: 'DOMAIN', label: 'Domain', visible_when: {field_id: 'mode', equals: 'stored'}},
+      ]},
+    ]}};
+    function Records() {
+      const [value, setValue] = useState([{mode: 'stored', type: 'DOMAIN'},
+        {mode: 'stored', type: 'DOMAIN'}]);
+      return <><RecordListAdminField field={schema} value={value} onChange={setValue} />
+        <output data-testid="record-types">{JSON.stringify(value)}</output></>;
+    }
+    render(<Records />);
+    fireEvent.change(screen.getAllByLabelText('Mode')[0], {target: {value: 'computed'}});
+    expect(JSON.parse(screen.getByTestId('record-types').textContent)).toEqual([
+      {mode: 'computed', type: 'INTEGER'}, {mode: 'stored', type: 'DOMAIN'},
+    ]);
+    fireEvent.mouseDown(screen.getAllByLabelText('Type')[0]);
+    expect(screen.queryByRole('option', {name: 'Domain'})).not.toBeInTheDocument();
+    expect(screen.getByRole('option', {name: 'Integer'})).toBeInTheDocument();
+  });
   it.each(['invalid JSON', '[42]', '[{"name":"A","unsupported":true}]']) (
     'preserves unsupported input %s without silently discarding it', (value) => {
       const onChange = jest.fn();

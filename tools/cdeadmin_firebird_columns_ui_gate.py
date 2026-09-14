@@ -25,7 +25,9 @@ from tools.cdeadmin_firebird_role_ui_gate import (  # noqa: E402
 from tools.cdeadmin_firebird_admin_mapping_gate import (  # noqa: E402
     _create_client,
 )
-from tools.cdeadmin_firebird_ui_form_gate import click_unobscured  # noqa: E402
+from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
+    click_unobscured, fill_form_values,
+)
 from pgadmin.cdeadmin.providers.firebird import columns  # noqa: E402
 from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
     ProviderVisualAdministration,
@@ -54,6 +56,18 @@ def cleanup_column_fixtures(browser, native, tables, domain=None):
             [('DOMAIN', domain)] if domain else []):
         def drop(kind=kind, name=name):
             with native.cursor() as cursor:
+                catalog, field_name = (
+                    ('RDB$RELATIONS', 'RDB$RELATION_NAME') if kind == 'TABLE'
+                    else ('RDB$FIELDS', 'RDB$FIELD_NAME'))
+                cursor.execute('SELECT COUNT(*) FROM ' + catalog +
+                               ' WHERE ' + field_name + ' = ?', (name,))
+                row = cursor.fetchone()
+                if row is None or row[0] not in (0, 1):
+                    raise RuntimeError('Fixture existence could not '
+                                       'be verified')
+                if row[0] == 0:
+                    native.commit()
+                    return
                 cursor.execute('DROP ' + kind + ' ' + columns.identifier(name))
             native.commit()
         if not attempt('drop ' + kind + ' ' + name, drop):
@@ -199,12 +213,39 @@ def run(options, profiles):
         cases.append(('create-' + label, None,
                       {'column_mode': 'STORED', 'data_type': 'INTEGER',
                        **draft}, expected))
+    cases.extend([
+        ('table-create', None, {'columns': [
+            {'name': 'X', 'column_mode': 'STORED', 'data_type': 'INTEGER'},
+            {'name': 'V', 'column_mode': 'IDENTITY', 'data_type': 'BIGINT',
+             'generation': 'ALWAYS', 'start_value': '25', 'increment': '5',
+             'constraints': [{'kind': 'PRIMARY KEY'}]},
+            {'name': 'C', 'column_mode': 'COMPUTED', 'data_type': 'INTEGER',
+             'expression': 'X * 2'},
+            {'name': 'A', 'column_mode': 'STORED', 'data_type': 'VARCHAR',
+             'length': 10, 'character_set': 'UTF8',
+             'dimensions': [{'lower': -2, 'upper': 3}]}]},
+         {'column_names': ['X', 'V', 'C', 'A']}),
+        ('table-add', 'INTEGER', {'add_columns': [
+            {'name': 'ADDED', 'column_mode': 'STORED', 'data_type': 'VARCHAR',
+             'length': 20, 'has_default': True, 'default_kind': 'TEXT',
+             'default_value': 'test', 'constraints': [{'kind': 'NOT NULL'}]},
+            {'name': 'CALC', 'column_mode': 'COMPUTED INFERRED',
+             'expression': 'X + 1'}]},
+         {'column_names': ['X', 'V', 'ADDED', 'CALC']}),
+        ('table-rename', 'INTEGER', {'rename_columns': [
+            {'from': 'V', 'to': 'RENAMED'}]},
+         {'column_names': ['X', 'RENAMED']}),
+        ('table-drop', 'INTEGER', {'drop_columns': ['V']},
+         {'column_names': ['X']}),
+    ])
     scope = os.environ.get('CDEADMIN_FIREBIRD_COLUMNS_SCOPE', 'all')
-    if scope not in ('all', 'create', 'alter'):
+    if scope not in ('all', 'create', 'alter', 'table'):
         raise ValueError('Unknown column verification scope')
     if scope != 'all':
-        cases = [item for item in cases if
-                 item[0].startswith('create-') == (scope == 'create')]
+        cases = [item for item in cases if (
+            item[0].startswith('table-') if scope == 'table' else
+            item[0].startswith('create-') if scope == 'create' else
+            not item[0].startswith(('table-', 'create-')))]
     result['scope'] = scope
     result['expected_mutation_count'] = len(cases)
     try:
@@ -212,35 +253,44 @@ def run(options, profiles):
         domain_created = True
         for number, (label, definition, draft, expected) in enumerate(cases):
             table = prefix + '_' + str(number)
-            sql('CREATE TABLE ' + table + ' (X INTEGER' + (
-                ', V ' + definition if definition is not None else '') + ')')
             tables.append(table)
+            if label != 'table-create':
+                sql('CREATE TABLE ' + table + ' (X INTEGER' + (
+                    ', V ' + definition if definition is not None else '') +
+                    ')')
             if label == 'comment-clear':
                 sql('COMMENT ON COLUMN ' + table + ".V IS 'previous comment'")
         browser = create_driver(options)
         browser.set_script_timeout(120)
         wait = WebDriverWait(browser, options.timeout)
         forms._prepare_tree(browser, wait, options)
-        probe = forms._workspace_probe(browser, ['column'])
+        probe = forms._workspace_probe(browser, ['column', 'table'],
+                                       collect_context_commands=False)
+        result['context_commands_collected'] = False
         for number, (label, definition, draft, expected) in enumerate(cases):
             table = tables[number]
             print(label, flush=True)
-            creating = label.startswith('create-')
+            table_operation = label.startswith('table-')
+            creating = label.startswith('create-') or label == 'table-create'
+            kind = 'table' if table_operation else 'column'
             operation = next(iter(forms._enumerate_operations(
-                probe['catalog'], ['column'], [
+                probe['catalog'], [kind], [
                     'create' if creating else 'comment' if
                     label.startswith('comment-') else 'alter'])))
             target = None if creating else next(
                 item for item in probe['resources'] if
-                item['resource_kind'] == 'column' and
-                item['display_path'] == [table, 'V'])
+                item['resource_kind'] == kind and
+                item['display_path'] == ([table] if table_operation else
+                                         [table, 'V']))
             assert operation['execution_available'] is True
             forms._open_focused_form(browser, operation, target,
                                      probe['database_target_id'])
             forms._wait_for_operation(wait, operation)
             labels = {item['field_id']: item['label']
                       for item in operation['form']['fields']}
-            if creating:
+            if creating and table_operation:
+                draft = {'name': table, **draft}
+            elif creating:
                 draft = {'table': table, 'name': 'V', **draft}
             active_fields = {item['field_id'] for item in
                              operation['form']['fields'] if
@@ -251,7 +301,12 @@ def run(options, profiles):
                           not isinstance(value, list)}
             fill_fields(wait, [f'{key}={value}'
                                for key, value in primitives.items()])
-            for field_name in ('dimensions', 'constraints'):
+            if table_operation:
+                fill_form_values(browser, wait, operation['form']['fields'],
+                                 {labels[key]: value for key, value in
+                                  draft.items() if isinstance(value, list)})
+            for field_name in (() if table_operation else
+                               ('dimensions', 'constraints')):
                 field = next((item for item in operation['form']['fields']
                               if item['field_id'] == field_name), None)
                 records = draft.get(field_name, [])
@@ -287,7 +342,17 @@ def run(options, profiles):
                     'css selector', '[aria-label="Provider operation result"]')
                 if element.is_displayed()), None))
             assert json.loads(output.text)['accepted'] is True
-            observed = snapshot(table)
+            if table_operation:
+                resources = _resources(native, {'route': route})
+                native.commit()
+                table_metadata = next(item['native'] for item in resources if
+                                      item['resource_kind'] == 'table' and
+                                      item['display_name'] == table)
+                observed = {'column_names': [item['name'] for item in
+                                             table_metadata['columns']],
+                            'native': table_metadata}
+            else:
+                observed = snapshot(table)
             for key, value in expected.items():
                 assert observed[key] == value, (key, observed.get(key), value)
             path = options.output_root / f'{number:02d}-{label}.png'

@@ -480,14 +480,23 @@ def supplement_columns(document, evidence, digest, artifact):
          for explicit in (False, True)}
     tasks = {'visual_admin.column.alter', 'visual_admin.column.comment',
              'visual_admin.column.create'}
+    table_tasks = {'visual_admin.table.create', 'visual_admin.table.alter'}
+    table_proof = evidence.get('table_task_evidence', {})
+    required |= {'table-structured-definition-recreation',
+                 'table-structured-add', 'table-structured-rename',
+                 'table-structured-drop', 'table-add-failure-atomicity'}
     cases = {item.get('case') for item in evidence.get('checks', [])}
     if (evidence.get('passed') is not True or
             evidence.get('engine_version') != '5.0.4' or
             evidence.get('fixture_removed') is not True or
             evidence.get('temporary_user_removed') is not True or
             evidence.get('failures') != [] or not required.issubset(cases) or
-            set(evidence.get('task_evidence', {})) != tasks):
+            set(evidence.get('task_evidence', {})) != tasks or
+            not isinstance(table_proof, dict) or
+            set(table_proof) != table_tasks):
         raise ValueError('Column definition/alteration evidence is incomplete')
+    tasks |= table_tasks
+    task_proof = {**evidence['task_evidence'], **table_proof}
     value = copy.deepcopy(document)
     proof_id = 'firebird-5.0.4-column-alterations-live'
     parser_id = 'firebird-5.0.4-column-alterations-parser'
@@ -501,7 +510,7 @@ def supplement_columns(document, evidence, digest, artifact):
             'cdeadmin.firebird-columns.v1', 'PostgreSQL'))
     value['task_templates'] = [item for item in value['task_templates']
                                if item['task_id'] not in tasks]
-    for task_id, record in evidence['task_evidence'].items():
+    for task_id, record in task_proof.items():
         statements = record.get('statements')
         if (record.get('live_execution') != 'passed' or
                 not isinstance(statements, list) or not statements or

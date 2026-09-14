@@ -444,6 +444,42 @@ def run(profiles):
             execute('DROP TABLE ' + quote(table_name))
             connection.commit()
 
+        overlapping = [('A:B', 'C'), ('A', 'B:C'), ('A%3AB', 'C')]
+        for table_name, column_name in overlapping:
+            execute(f'CREATE TABLE {quote(table_name)} '
+                    f'({quote(column_name)} INTEGER)')
+        connection.commit()
+        resources = _resources(connection, {'route': route})
+        connection.commit()
+        identities = set()
+        for table_name, column_name in overlapping:
+            target = next(item for item in resources if
+                          item['resource_kind'] == 'column' and
+                          item['display_path'] == [table_name, column_name])
+            parent = next(item for item in resources if
+                          item['resource_kind'] == 'table' and
+                          item['display_name'] == table_name)
+            assert target['native']['navigator_parent_resource_id'] == (
+                parent['resource_id'])
+            identities.add(target['resource_id'])
+            plan = ADMINISTRATION.plan({
+                '_provider_route': route, 'resource_kind': 'column',
+                'operation_id': 'alter', 'target_resource': target,
+                'draft': {'action': 'SET DEFAULT', 'default_kind': 'NUMBER',
+                          'default_value': '42'}})
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.commit()
+            execute('INSERT INTO ' + quote(table_name) + ' DEFAULT VALUES')
+            assert scalar('SELECT ' + quote(column_name) + ' FROM ' +
+                          quote(table_name)) == 42
+            connection.rollback()
+        assert len(identities) == len(overlapping)
+        for table_name, _column_name in overlapping:
+            execute('DROP TABLE ' + quote(table_name))
+        connection.commit()
+        result['checks'].append({'case': 'collision-free-catalog-identities',
+                                 'resource_ids': sorted(identities)})
+
         def run_create_case(label, draft, expected_definition):
             execute('CREATE TABLE CDE_COLUMN (X INTEGER)')
             connection.commit()
@@ -621,6 +657,114 @@ def run(profiles):
                             {'constraints': [reference]}, native_clause)
         execute('DROP TABLE CDE_PARENT')
         connection.commit()
+        table_columns = [
+            {'name': 'X', 'column_mode': 'STORED', 'data_type': 'INTEGER',
+             'has_default': True, 'default_kind': 'NUMBER',
+             'default_value': '1'},
+            {'name': 'V', 'column_mode': 'IDENTITY', 'data_type': 'BIGINT',
+             'generation': 'ALWAYS', 'start_value': '25', 'increment': '5'},
+            {'name': 'C', 'column_mode': 'COMPUTED', 'data_type': 'NUMERIC',
+             'precision': 18, 'scale': 2, 'expression': 'X * 1.25'},
+            {'name': 'S', 'column_mode': 'STORED', 'data_type': 'VARCHAR',
+             'length': 20, 'character_set': 'UTF8', 'collation': 'UNICODE_CI'},
+            {'name': 'D', 'column_mode': 'STORED', 'data_type': 'DOMAIN',
+             'domain': 'CDE_DOMAIN'},
+            {'name': 'A', 'column_mode': 'STORED', 'data_type': 'CHAR',
+             'length': 5, 'character_set': 'UTF8',
+             'dimensions': [{'lower': -1, 'upper': 2}]},
+            {'name': 'B', 'column_mode': 'STORED', 'data_type': 'BLOB',
+             'blob_subtype': 1, 'segment_size': 120, 'character_set': 'UTF8'},
+        ]
+        table_plan = ADMINISTRATION.plan({
+            '_provider_route': route, 'resource_kind': 'table',
+            'operation_id': 'create', 'draft': {
+                'name': 'CDE_COLUMN', 'columns': table_columns,
+                'constraints': [{'name': 'CDE_TPK', 'kind': 'PRIMARY KEY',
+                                 'columns': ['V']}]}})
+        ADMINISTRATION.apply(client, table_plan, connection=connection)
+        connection.rollback()
+        assert scalar('SELECT COUNT(*) FROM RDB$RELATIONS '
+                      "WHERE RDB$RELATION_NAME='CDE_COLUMN'") == 0
+        connection.commit()
+        ADMINISTRATION.apply(client, table_plan, connection=connection)
+        connection.commit()
+        recreate('table-structured-definition-recreation')
+        ADMINISTRATION.apply(client, table_plan, connection=connection)
+        connection.commit()
+        execute('INSERT INTO CDE_COLUMN DEFAULT VALUES')
+        connection.commit()
+        assert scalar('SELECT V FROM CDE_COLUMN') == 25
+        assert scalar('SELECT C FROM CDE_COLUMN') == 1.25
+        connection.commit()
+        result['table_task_evidence'] = {'visual_admin.table.create': {
+            'live_execution': 'passed', 'statements': [
+                item['source'] for item in
+                table_plan['command_preview']['statements']]}}
+
+        def alter_table(label, draft):
+            before = fingerprint()
+            plan = ADMINISTRATION.plan({
+                '_provider_route': route, 'resource_kind': 'table',
+                'operation_id': 'alter', 'draft': draft,
+                'target_resource': {'display_name': 'CDE_COLUMN',
+                                    'display_path': ['CDE_COLUMN']}})
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.rollback()
+            assert fingerprint() == before, label + ' rollback'
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.commit()
+            assert scalar('SELECT COUNT(*) FROM CDE_COLUMN') == 1
+            connection.commit()
+            result['checks'].append({'case': label,
+                                     'rollback_verified': True,
+                                     'existing_rows_preserved': True})
+            result['table_task_evidence']['visual_admin.table.alter'] = {
+                'live_execution': 'passed', 'statements': [
+                    item['source'] for item in
+                    plan['command_preview']['statements']]}
+
+        alter_table('table-structured-add', {'add_columns': [
+            {'name': 'Y', 'column_mode': 'STORED', 'data_type': 'INTEGER',
+             'has_default': True, 'default_kind': 'NUMBER',
+             'default_value': '42', 'constraints': [{'kind': 'NOT NULL'}]},
+            {'name': 'Z', 'column_mode': 'COMPUTED INFERRED',
+             'expression': 'X + 1'}]})
+        assert scalar('SELECT Y FROM CDE_COLUMN') == 42
+        assert scalar('SELECT Z FROM CDE_COLUMN') == 2
+        connection.commit()
+        alter_table('table-structured-rename', {'rename_columns': [
+            {'from': 'Y', 'to': 'RENAMED'}]})
+        assert scalar('SELECT RENAMED FROM CDE_COLUMN') == 42
+        connection.commit()
+        alter_table('table-structured-drop',
+                    {'drop_columns': ['RENAMED', 'Z']})
+        assert scalar('SELECT COUNT(*) FROM RDB$RELATION_FIELDS '
+                      "WHERE RDB$RELATION_NAME='CDE_COLUMN' "
+                      "AND RDB$FIELD_NAME IN ('RENAMED', 'Z')") == 0
+        connection.commit()
+        before = fingerprint()
+        invalid_plan = ADMINISTRATION.plan({
+            '_provider_route': route, 'resource_kind': 'table',
+            'operation_id': 'alter',
+            'target_resource': {'display_name': 'CDE_COLUMN',
+                                'display_path': ['CDE_COLUMN']},
+            'draft': {'add_columns': [
+                {'name': 'GOOD', 'column_mode': 'STORED',
+                 'data_type': 'INTEGER'},
+                {'name': 'BAD', 'column_mode': 'COMPUTED INFERRED',
+                 'expression': 'MISSING_COLUMN + 1'}]}})
+        try:
+            ADMINISTRATION.apply(client, invalid_plan, connection=connection)
+        except RelationalClientError:
+            if connection.main_transaction.is_active():
+                connection.rollback()
+            assert fingerprint() == before
+            assert scalar('SELECT COUNT(*) FROM CDE_COLUMN') == 1
+            connection.commit()
+            result['checks'].append({'case': 'table-add-failure-atomicity',
+                                     'rows_and_metadata_unchanged': True})
+        else:
+            raise AssertionError('Invalid table alteration was accepted')
         result['passed'] = not result['failures']
     except Exception:
         result['failures'].append({'case': 'infrastructure',

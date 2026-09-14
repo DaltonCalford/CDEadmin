@@ -310,7 +310,7 @@ def _prepare_tree(driver, wait, options):
     return database
 
 
-def _workspace_probe(driver, resource_kinds=None):
+def _workspace_probe(driver, resource_kinds=None, collect_context_commands=True):
     """Return provider catalog plus recursively resolved context commands."""
     return driver.execute_async_script(
         """
@@ -391,7 +391,7 @@ def _workspace_probe(driver, resource_kinds=None):
             }
           }
         };
-        walk(database.children_url)
+        (arguments[1] === false ? Promise.resolve() : walk(database.children_url))
           .then(() => request(endpointUrl))
           .then(async (workspace) => {
             const value = workspace.body?.data || {};
@@ -425,11 +425,12 @@ def _workspace_probe(driver, resource_kinds=None):
               resources,
               resource_complete: continuation == null,
               context_commands: commands,
+              context_commands_collected: arguments[1] !== false,
             });
           })
           .catch(error => done({probe_error: String(error)}));
         """,
-        resource_kinds or [],
+        resource_kinds or [], collect_context_commands,
     )
 
 
@@ -507,8 +508,11 @@ def _preview_values(kind, operation, target, engine_id):
             values = {'name': object_name}
             if kind == 'table':
                 values['columns'] = json.dumps([
-                    {'name': 'ID', 'type': 'INTEGER', 'primary_key': True},
-                    {'name': 'VALUE_TEXT', 'type': 'VARCHAR(80)'},
+                    {'name': 'ID', 'column_mode': 'STORED',
+                     'data_type': 'INTEGER',
+                     'constraints': [{'kind': 'PRIMARY KEY'}]},
+                    {'name': 'VALUE_TEXT', 'column_mode': 'STORED',
+                     'data_type': 'VARCHAR', 'length': 80},
                 ])
             elif kind == 'view':
                 values['query'] = (
@@ -520,7 +524,8 @@ def _preview_values(kind, operation, target, engine_id):
                 })
             elif kind == 'column':
                 values.update({
-                    'table': 'CUSTOMERS', 'data_type': 'VARCHAR(80)',
+                    'table': 'CUSTOMERS', 'column_mode': 'STORED',
+                    'data_type': 'VARCHAR', 'length': 80,
                 })
             elif kind == 'constraint':
                 values.update({

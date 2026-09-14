@@ -458,6 +458,25 @@ function fieldVisible(field, draft) {
   return false;
 }
 
+function visibleFieldOptions(field, draft) {
+  return field.options ? {...field, options: field.options.filter(
+    (option) => fieldVisible(option, draft))} : field;
+}
+
+function changedFieldDraft(fields, current, id, value) {
+  const next = {...current, [id]: value};
+  for (const dependent of fields) {
+    if (dependent.control !== 'select' ||
+        !dependent.options?.some((option) => option.visible_when)) continue;
+    const choices = dependent.options.filter((option) => fieldVisible(option, next));
+    if (!choices.some((option) => option.value === next[dependent.field_id])) {
+      next[dependent.field_id] = choices.find((option) =>
+        option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
+    }
+  }
+  return next;
+}
+
 function PasswordAdminField({field, value, onChange, disabled=false}) {
   const [visible, setVisible] = useState(false);
   return <TextField disabled={disabled} fullWidth label={field.label} value={value}
@@ -610,9 +629,11 @@ export function RecordListAdminField({field, value, onChange, singleRecord = fal
         <Box sx={{display: 'grid', gridTemplateColumns: {
           xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'}, gap: 2}}>
           {children.filter((child) => fieldVisible(child, item)).map((child) =>
-            <VisualAdminField disabled={disabled} key={child.field_id} field={child}
+            <VisualAdminField disabled={disabled} key={child.field_id}
+              field={visibleFieldOptions(child, item)}
               value={item?.[child.field_id] ?? initialFieldValue(child)}
-              onChange={(next) => setItem(index, {...item, [child.field_id]: next})} />)}
+              onChange={(next) => setItem(index,
+                changedFieldDraft(children, item, child.field_id, next))} />)}
         </Box>}
     </Box>)}
     {!singleRecord && <Button disabled={disabled} onClick={() => onChange([...items, schema.item_kind === 'string' ? '' :
@@ -907,8 +928,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const operation = operations.find((item) => item.operation_id === operationId);
   const allFields = operation?.form?.fields || [];
   const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
-    (field) => field.options ? {...field, options: field.options.filter(
-      (option) => fieldVisible(option, draft))} : field);
+    (field) => visibleFieldOptions(field, draft));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
   const matchingResources = (resources || []).filter(
     (item) => targetKinds.includes(item.resource_kind) &&
@@ -1200,19 +1220,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
             {fields.map((field) => <VisualAdminField disabled={working || inspecting} key={field.field_id}
               field={field} value={draft[field.field_id]}
               onChange={(value) => {
-                if (!working && !inspecting) setDraft((current) => {
-                  const next = {...current, [field.field_id]: value};
-                  for (const dependent of allFields) {
-                    if (dependent.control !== 'select' ||
-                        !dependent.options?.some((option) => option.visible_when)) continue;
-                    const choices = dependent.options.filter((option) => fieldVisible(option, next));
-                    if (!choices.some((option) => option.value === next[dependent.field_id])) {
-                      next[dependent.field_id] = choices.find((option) =>
-                        option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
-                    }
-                  }
-                  return next;
-                });
+                if (!working && !inspecting) setDraft((current) =>
+                  changedFieldDraft(allFields, current, field.field_id, value));
               }} />)}
           </Box>
           {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>

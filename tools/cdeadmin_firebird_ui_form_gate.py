@@ -23,6 +23,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -641,14 +642,99 @@ def click_unobscured(driver, wait, element):
     element.click()
 
 
+def _draft_field_visible(field, draft):
+    condition = field.get('visible_when')
+    if condition is None:
+        return True
+    if not isinstance(condition, dict):
+        raise ValueError('Invalid field visibility contract')
+    if 'all' in condition:
+        children = condition['all']
+        if not isinstance(children, list) or not children:
+            raise ValueError('Invalid visibility conjunction')
+        return all(_draft_field_visible({'visible_when': item}, draft)
+                   for item in children)
+    if 'equals' in condition:
+        return draft.get(condition['field_id']) == condition['equals']
+    if isinstance(condition.get('in'), list):
+        return draft.get(condition['field_id']) in condition['in']
+    raise ValueError('Unknown field visibility contract')
+
+
+def fill_form_values(driver, wait, fields, values, control_root=None):
+    """Fill declared controls, including nested visual records, through UI."""
+    by_label = {field['label']: field for field in fields}
+    draft = {field['field_id']: values.get(
+        field['label'], field.get('default')) for field in fields}
+    for field in fields:
+        value = draft[field['field_id']]
+        if field.get('control') == 'boolean' and isinstance(value, str):
+            if value.lower() in ('true', 'false'):
+                draft[field['field_id']] = value.lower() == 'true'
+    for label, value in values.items():
+        field = by_label.get(label)
+        if field is None:
+            raise ValueError('Unknown form label: ' + label)
+        if not _draft_field_visible(field, draft):
+            continue
+        schema = field.get('array_editor') or field.get('object_editor')
+        if schema is None:
+            fill_fields(wait, [f'{label}={value}'], control_root=control_root)
+            continue
+        if isinstance(value, str):
+            value = json.loads(value)
+        single = 'object_editor' in field
+        items = [value] if single else value
+        if not isinstance(items, list):
+            raise ValueError('Visual records must be a list')
+        root = control_root or driver
+        selector = ('[role="group"][aria-label=' +
+                    json.dumps(label, ensure_ascii=False) + ']')
+
+        def find_group(_driver):
+            return next((item for item in root.find_elements(
+                By.CSS_SELECTOR, selector) if item.is_displayed()), None)
+
+        group = wait.until(find_group)
+        if not single:
+            removal = re.compile(re.escape(label) + r' \d+: Remove\Z')
+            while True:
+                buttons = [button for button in group.find_elements(
+                    By.CSS_SELECTOR, 'button') if button.is_displayed() and
+                    removal.fullmatch(button.accessible_name)]
+                if not buttons:
+                    break
+                click_unobscured(driver, wait, buttons[-1])
+                group = wait.until(find_group)
+        for index, record in enumerate(items):
+            if not single:
+                button = visible_named_control(group, 'Add ' + label + ' item')
+                click_unobscured(driver, wait, button)
+            group = wait.until(find_group)
+            boxes = group.find_elements(By.XPATH, './div')
+            record_box = boxes[index]
+            if schema.get('item_kind') == 'string':
+                fill_fields(wait, [f'{label} {index + 1}={record}'],
+                            control_root=record_box)
+            else:
+                children = schema.get('fields', [])
+                child_labels = {child['field_id']: child['label']
+                                for child in children}
+                if (not isinstance(record, dict) or
+                        set(record) - set(child_labels)):
+                    raise ValueError('Invalid visual record fields')
+                fill_form_values(driver, wait, children,
+                                 {child_labels[key]: item
+                                  for key, item in record.items()}, record_box)
+
+
 def plan_preview(driver, wait, operation, values=None):
     values = (
         PREVIEW_VALUES.get(operation['operation_id'], {})
         if values is None else values
     )
-    fill_fields(wait, [
-        f'{label}={value}' for label, value in values.items()
-    ])
+    fill_form_values(driver, wait, operation.get('form', {}).get('fields', []),
+                     values)
     button = wait.until(
         lambda value: visible_named_control(value, 'Validate and preview')
     )

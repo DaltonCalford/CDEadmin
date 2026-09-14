@@ -21,13 +21,27 @@ from tools.cdeadmin_provider_object_form_gate import (
 
 def test_focused_role_probe_traverses_organizational_system_branch():
     class Driver:
-        def execute_async_script(self, source, kinds):
+        def execute_async_script(self, source, kinds, collect_commands):
             assert "'system-objects'" in source
             assert 'containers.has(kind)' in source
             assert kinds == ['role']
+            assert collect_commands is True
             return {'probe': 'recorded'}
 
     assert _workspace_probe(Driver(), ['role']) == {'probe': 'recorded'}
+
+
+def test_form_probe_explicitly_excludes_recursive_context_qualification():
+    class Driver:
+        def execute_async_script(self, source, kinds, collect_commands):
+            assert kinds == ['table']
+            assert collect_commands is False
+            assert ('context_commands_collected: arguments[1] !== false'
+                    in source)
+            assert 'Promise.resolve() : walk(database.children_url)' in source
+            return {'context_commands_collected': False}
+    assert _workspace_probe(Driver(), ['table'], False) == {
+        'context_commands_collected': False}
 
 
 def test_native_blocked_forms_cannot_disappear_from_qualification_count():
