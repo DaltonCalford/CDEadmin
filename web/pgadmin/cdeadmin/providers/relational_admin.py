@@ -3030,6 +3030,13 @@ class RelationalAdministration:
                 'database': database.strip(),
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                'warnings': [
+                    'Firebird will remove backup-history records after the '
+                    'physical backup. This does not delete backup files. '
+                    'Older level/GUID lookup can become unavailable; '
+                    'independently verify and preserve the restore chain.'
+                ] if operation == 'backup_physical' and request.get(
+                    'draft', {}).get('clean_history') is True else [],
             }
         if (
             self.dialect.engine_id == 'sqlite' and
@@ -3485,6 +3492,38 @@ class RelationalAdministration:
 
         if operation in {'backup_logical', 'backup_physical'}:
             path('backup_file')
+        if operation == 'backup_physical':
+            clean = draft.get('clean_history', False)
+            unit = draft.get('history_keep_unit')
+            count = draft.get('history_keep_value')
+            if not isinstance(clean, bool):
+                errors.append({
+                    'field_id': 'clean_history',
+                    'code': 'invalid_firebird_history_selection',
+                    'message': 'History cleanup must be enabled or disabled.',
+                })
+            if clean is True:
+                if not isinstance(unit, str) or unit not in {'DAYS', 'ROWS'}:
+                    errors.append({
+                        'field_id': 'history_keep_unit',
+                        'code': 'invalid_firebird_history_unit',
+                        'message': 'Choose native history retention in days '
+                                   'or rows.',
+                    })
+                if (isinstance(count, bool) or not isinstance(count, int) or
+                        not 1 <= count <= 2147483647):
+                    errors.append({
+                        'field_id': 'history_keep_value',
+                        'code': 'invalid_firebird_history_count',
+                        'message': 'History retention must be a positive '
+                                   'signed 32-bit integer.',
+                    })
+            elif unit is not None or count is not None:
+                errors.append({
+                    'field_id': 'clean_history',
+                    'code': 'firebird_history_cleanup_required',
+                    'message': 'Retention settings require history cleanup.',
+                })
         if operation in {'restore_logical', 'restore_physical'}:
             path('restore_database')
         if operation == 'restore_logical':

@@ -463,9 +463,11 @@ def invoke_context_action(
             """
             const supplied = arguments[0];
             if (supplied) supplied.click();
-            const target = document.querySelector(
-              '.file-entry[aria-selected="true"]'
-            ) || supplied?.closest('.file-entry') || supplied;
+            // Selection from click can be queued by the double-click handler.
+            // A supplied target must never fall back to the previously
+            // selected server/database while that click is pending.
+            const target = supplied?.closest('.file-entry') || supplied ||
+              document.querySelector('.file-entry[aria-selected="true"]');
             if (!target) throw new Error('selected tree row is unavailable');
             const bounds = target.getBoundingClientRect();
             target.dispatchEvent(new MouseEvent('contextmenu', {

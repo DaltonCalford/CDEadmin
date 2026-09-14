@@ -604,6 +604,51 @@ def _service_nfix_database(service, database, flags, role, module):
     server.wait()
 
 
+def _service_backup_with_history(server, database, options, module):
+    """Firebird 5 NBAK history retention, absent from driver 1.10.11 API.
+
+    Native svc.cpp requires CLEAN_HISTORY plus exactly one KEEP parameter.
+    nbackup.cpp cleans RDB$BACKUP_HISTORY after recording the new backup;
+    this does not delete backup files or prove a recoverable backup chain.
+    """
+    unit = options.get('history_keep_unit')
+    count = options.get('history_keep_value')
+    if (options.get('clean_history') is not True or
+            not isinstance(unit, str) or unit not in {'DAYS', 'ROWS'} or
+            isinstance(count, bool) or not isinstance(count, int) or
+            not 1 <= count <= 2147483647):
+        raise RelationalClientError(
+            'Firebird backup history retention is invalid')
+    flags = _flag_value(module, 'SrvNBackupFlag', options.get('backup_flags'),
+                        allowed={'NO_TRIGGERS'})
+    core = module.core
+    server._reset_output()
+    with module.get_api().util.get_xpb_builder(
+            core.XpbKind.SPB_START) as spb:
+        spb.insert_tag(core.ServerAction.NBAK)
+        spb.insert_string(core.SPBItem.DBNAME, str(database),
+                          encoding=server.encoding)
+        spb.insert_string(core.SrvNBackupOption.FILE, options['backup_file'],
+                          encoding=server.encoding)
+        if options.get('database_guid'):
+            spb.insert_string(core.SrvNBackupOption.GUID,
+                              options['database_guid'])
+        else:
+            spb.insert_int(core.SrvNBackupOption.LEVEL,
+                           options.get('backup_level', 0))
+        if options.get('direct_io') is not None:
+            spb.insert_string(core.SrvNBackupOption.DIRECT,
+                              'ON' if options['direct_io'] else 'OFF')
+        if options.get('role'):
+            spb.insert_string(core.SPBItem.SQL_ROLE_NAME, options['role'],
+                              encoding=server.encoding)
+        spb.insert_int(core.SPBItem.OPTIONS, flags)
+        spb.insert_tag(core.SrvNBackupOption.CLEAN_HISTORY)
+        spb.insert_int(core.SrvNBackupOption['KEEP_' + unit], count)
+        server._svc.start(spb.get_buffer())
+    server.wait()
+
+
 def _firebird_service_operation(
         server, operation_id, database, options, module):
     """Dispatch one exact Firebird 5 database service-manager task."""
@@ -684,6 +729,13 @@ def _firebird_service_operation(
             database=options['restore_database'], output=lines,
             output_truncated=truncated,
         )
+    elif operation_id == 'backup_physical' and options.get('clean_history'):
+        _service_backup_with_history(server, database, options, module)
+        result['history_retention_requested'] = {
+            'unit': options['history_keep_unit'],
+            'value': options['history_keep_value'],
+            'backup_files_deleted': False,
+        }
     elif operation_id == 'backup_physical':
         service.nbackup(
             database=database, backup=options['backup_file'], role=role,
