@@ -23,6 +23,7 @@ else:
 from pgadmin.cdeadmin.providers.firebird.provider import (
     ADMINISTRATION, _configure_client_library)
 from pgadmin.cdeadmin.security.secrets import SecretLease
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 OWNER = 'firebird-restore-identity'
@@ -77,10 +78,10 @@ def run(image):
         handle.rollback()
         return guid, int(sequence)
 
-    def operation(name, draft):
+    def operation(name, draft, database=primary):
         request = {'engine_id': 'firebird', 'resource_kind': 'database',
                    'operation_id': name, 'draft': draft,
-                   '_provider_route': route}
+                   '_provider_route': {**route, 'database': database}}
         assert not ADMINISTRATION.validate(request)['errors']
         plan = ADMINISTRATION.plan(request)
         applied = ADMINISTRATION.apply(client, {
@@ -158,6 +159,22 @@ def run(image):
         backup = primary + '.nbk'
         operation('backup_physical', {
             'backup_file': backup, 'backup_level': 0})
+        connection = connect()
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT FIRST 1 RDB$GUID FROM RDB$BACKUP_HISTORY '
+                           'ORDER BY RDB$BACKUP_ID DESC')
+            backup_guid = cursor.fetchone()[0].strip()
+        connection.rollback()
+        with connection.cursor() as cursor:
+            cursor.execute('INSERT INTO OWNED_RESTORE_PAYLOAD VALUES (?, ?)',
+                           (2, 'Incremental restore proof'))
+        connection.commit()
+        increment_guid, increment_sequence = identity(connection)
+        connection.close()
+        connection = None
+        increment = primary + '.increment.nbk'
+        operation('backup_physical', {
+            'backup_file': increment, 'database_guid': backup_guid})
         for preserve in (False, True):
             phase = 'restore-preserve' if preserve else 'restore-reset'
             destination = primary + ('.preserve.fdb' if preserve else
@@ -179,6 +196,101 @@ def run(image):
                                     'guid_preserved': preserve,
                                     'replication_sequence': restored_sequence,
                                     'payload_verified': True})
+            phase = ('in-place-preserve' if preserve else 'in-place-reset')
+            inplace = {
+                'backup_files': [increment], 'restore_database': destination,
+                'restore_flags': ['IN_PLACE'] + (
+                    ['SEQUENCE'] if preserve else [])}
+            operation('restore_physical', inplace)
+            connection = connect(destination)
+            actual_guid, actual_sequence = identity(connection)
+            assert (actual_guid == increment_guid) is preserve
+            assert actual_sequence == (increment_sequence if preserve else 0)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
+                assert cursor.fetchone() == (1,)
+                cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD '
+                               'ORDER BY ID')
+                expected = [(1, 'Identity restore proof'),
+                            (2, 'Incremental restore proof')]
+                assert cursor.fetchall() == expected
+            connection.rollback()
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute('INSERT INTO OWNED_RESTORE_PAYLOAD '
+                                   'VALUES (3, \'must be denied\')')
+            except native.DatabaseError as exc:
+                denied_codes = tuple(exc.gds_codes)
+                assert 335544765 in denied_codes  # read_only_database
+            else:
+                raise AssertionError('In-place result accepted a write')
+            finally:
+                connection.rollback()
+            connection.close()
+            connection = None
+            result['cases'].append({'case': phase,
+                                    'guid_preserved': preserve,
+                                    'replication_sequence': actual_sequence,
+                                    'payload_verified': True,
+                                    'read_only': True,
+                                    'write_denial_codes': denied_codes})
+            # Replaying the same increment has the wrong predecessor GUID.
+            # It must be denied, never interpreted as a safe mutation retry.
+            phase += '-replay-denial'
+            try:
+                operation('restore_physical', inplace)
+            except RelationalClientError as exc:
+                replay_codes = tuple(exc.gds_codes)
+                assert 337117247 in replay_codes  # nbackup_wrong_orderbk
+            else:
+                raise AssertionError('Repeated increment was accepted')
+            connection = connect(destination)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD '
+                               'ORDER BY ID')
+                assert cursor.fetchall() == expected
+            connection.rollback()
+            connection.close()
+            connection = None
+            result['cases'].append({'case': phase, 'payload_unchanged': True,
+                                    'native_denial_codes': replay_codes})
+        for preserve in (False, True):
+            phase = 'fixup-preserve' if preserve else 'fixup-reset'
+            destination = primary + ('.fix-preserve.fdb' if preserve else
+                                     '.fix-reset.fdb')
+            docker('exec', container, 'test', '!', '-e', destination)
+            docker('exec', container, 'cp', backup, destination)
+            docker('exec', container, 'chown', owner, destination)
+            draft = {'fixup_flags': ['SEQUENCE'] if preserve else []}
+            operation('fixup_database', draft, destination)
+            connection = connect(destination)
+            actual_guid, actual_sequence = identity(connection)
+            assert (actual_guid == source_guid) is preserve
+            assert actual_sequence == (source_sequence if preserve else 0)
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT ID, V FROM OWNED_RESTORE_PAYLOAD')
+                assert cursor.fetchall() == [(1, 'Identity restore proof')]
+            connection.rollback()
+            connection.close()
+            connection = None
+            result['cases'].append({'case': phase,
+                                    'guid_preserved': preserve,
+                                    'replication_sequence': actual_sequence,
+                                    'payload_verified': True})
+            phase += '-already-fixed-denial'
+            try:
+                operation('fixup_database', draft, destination)
+            except RelationalClientError as exc:
+                fixed_codes = tuple(exc.gds_codes)
+                assert 337117232 in fixed_codes  # nbackup_fixup_wrongstate
+            else:
+                raise AssertionError('An already-fixed database was accepted')
+            connection = connect(destination)
+            assert identity(connection) == (actual_guid, actual_sequence)
+            connection.close()
+            connection = None
+            result['cases'].append({'case': phase, 'identity_unchanged': True,
+                                    'native_denial_codes': fixed_codes})
     except Exception as exc:
         result['failures'].append({'stage': phase,
                                    'type': type(exc).__name__})
@@ -197,7 +309,7 @@ def run(image):
             except Exception as exc:
                 result['failures'].append({'stage': 'cleanup',
                                            'type': type(exc).__name__})
-    result['complete'] = (not result['failures'] and len(result['cases']) == 2
+    result['complete'] = (not result['failures'] and len(result['cases']) == 10
                           and result['owned_container_removed'])
     return result
 
