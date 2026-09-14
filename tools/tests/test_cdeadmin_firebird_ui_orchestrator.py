@@ -49,6 +49,18 @@ def options(kind):
     )
 
 
+def test_role_mutation_gate_receives_exact_profile_and_database():
+    settings = options('role')
+    settings.database = '/var/lib/firebird/data/sample.fdb'
+    command = gate_command(settings, 'http://127.0.0.1:5052', 'sample.fdb')
+    assert command[1].endswith('cdeadmin_firebird_role_ui_gate.py')
+    assert command[command.index('--profiles') + 1] == '/profiles.json'
+    assert command[command.index('--database-path') + 1] == settings.database
+    assert command[command.index('--reference-version') + 1] == '5.0.4'
+    assert command[command.index('--endpoint-password-env') + 1] == (
+        'FIREBIRD_TEST_PASSWORD')
+
+
 def test_object_gate_uses_exact_firebird_identity_and_secret_reference():
     command = gate_command(options('object'), 'http://127.0.0.1:5052',
                            'sample.fdb')

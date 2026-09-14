@@ -79,7 +79,30 @@ basicSettings = createTheme(basicSettings, {
     MuiTextField: {
       defaultProps: {
         variant: 'outlined',
-      }
+        // Compact input padding cannot accommodate MUI's full-height inline
+        // label. Keep a stable, visible label for empty and populated fields.
+        InputLabelProps: {shrink: true},
+      },
+      styleOverrides: {
+        root: {
+          '& > .MuiInputLabel-root[data-shrink="true"] ~ .MuiInputBase-root .MuiOutlinedInput-notchedOutline legend': {
+            display: 'none',
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          // Fixed-pixel floating transforms overlap enlarged input text.
+          '.MuiTextField-root > &[data-shrink="true"]': {
+            position: 'relative',
+            transform: 'none',
+            maxWidth: '100%',
+            marginBottom: '0.25rem',
+          },
+        },
+      },
     },
     MuiButton: {
       defaultProps: {
@@ -596,7 +619,7 @@ function getFinalTheme(baseTheme, presentation) {
         styleOverrides: {
           root: {
             color: baseTheme.palette.text.primary,
-            fontSize: baseTheme.typography.fontSize,
+            fontSize: '1rem',
             whiteSpace: 'normal !important'
           },
           asterisk: {
@@ -614,7 +637,7 @@ function getFinalTheme(baseTheme, presentation) {
             },
           },
           inputMultiline: {
-            fontSize: baseTheme.typography.fontSize,
+            fontSize: '1rem',
             height: 'unset',
             backgroundColor: baseTheme.palette.background.default,
             '&[readonly], &.Mui-disabled': {
@@ -623,7 +646,7 @@ function getFinalTheme(baseTheme, presentation) {
             },
           },
           input: {
-            fontSize: baseTheme.typography.fontSize,
+            fontSize: '1rem',
             height: 'unset',
             backgroundColor: baseTheme.palette.background.default,
             '&[readonly], &.Mui-disabled': {

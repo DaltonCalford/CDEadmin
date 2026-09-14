@@ -489,6 +489,38 @@ def prepare_tree(driver, wait, options, password):
     raise RuntimeError('unreachable provider tree retry state')
 
 
+def assert_field_label_geometry(driver, control):
+    """Check compact labels independently of accessible-name existence."""
+    geometry = driver.execute_script(
+        """
+        const field = arguments[0].closest('.MuiFormControl-root');
+        const label = field?.querySelector('.MuiInputLabel-root');
+        const input = field?.querySelector('.MuiInputBase-root');
+        if (!label || !input) return null;
+        const bounds = element => {
+          const r = element.getBoundingClientRect();
+          return {top: r.top, bottom: r.bottom, height: r.height};
+        };
+        return {label: bounds(label), input: bounds(input),
+          label_font_size: parseFloat(getComputedStyle(label).fontSize),
+          root_font_size: parseFloat(getComputedStyle(
+            document.documentElement).fontSize),
+          shrink: label.dataset.shrink === 'true'};
+        """, control,
+    )
+    if geometry is not None:
+        if geometry.get('label_font_size', 1) < (
+                geometry.get('root_font_size', 1) * 0.9):
+            raise RuntimeError('Field label did not follow the text scale')
+        label, field = geometry['label'], geometry['input']
+        if label['height'] <= 0 or label['bottom'] > field['bottom'] + 0.5:
+            raise RuntimeError('Field label extends below its input boundary')
+        if geometry['shrink'] and label['bottom'] > (
+                field['top'] + label['height'] * 0.6):
+            raise RuntimeError('Floated field label overlaps the input text')
+    return geometry
+
+
 def assert_form_controls(wait, fields):
     driver = wait._driver
     observed = []
@@ -532,6 +564,7 @@ def assert_form_controls(wait, fields):
             'role': control.get_attribute('role') or '',
             'accessible_name': accessible_name,
             'enabled': control.is_enabled(),
+            'label_geometry': assert_field_label_geometry(driver, control),
         })
     return observed
 

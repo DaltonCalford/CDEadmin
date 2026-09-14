@@ -26,6 +26,35 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('blocks role confirmation until asynchronous inspection is complete', async () => {
+    const target = {resource_id: 'role:reader', resource_kind: 'role', display_name: 'reader'};
+    let finishInspection;
+    const inspection = new Promise((resolve) => { finishInspection = resolve; });
+    const post = jest.fn(({action}) => {
+      if (action === 'resource_inspect') return inspection;
+      if (action === 'visual_admin_validate') return Promise.resolve({valid: true});
+      return Promise.resolve({state: 'ready', plan_id: 'drop-role', execution_available: true});
+    });
+    render(<VisualAdministration resources={[target]} selectedResource={target}
+      initialResourceKind="role" initialOperationId="drop" post={post}
+      setError={jest.fn()} catalog={{objects: [{resource_kind: 'role', title: 'Role',
+        operations: [{operation_id: 'drop', title: 'Drop', target_required: true,
+          form: {fields: [{field_id: 'confirmation', label: 'Confirmation',
+            control: 'text', required: true}]}}]}]}} />);
+    const confirmation = screen.getByRole('textbox', {name: /Confirmation/});
+    expect(confirmation).toBeDisabled();
+    expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeDisabled();
+    await act(async () => { finishInspection(target); });
+    await waitFor(() => expect(confirmation).toBeEnabled());
+    fireEvent.change(confirmation, {target: {value: 'reader'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post).toHaveBeenCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'role', operation_id: 'drop', target_resource: target,
+      draft: {confirmation: 'reader'},
+    }}));
+    expect(confirmation).toHaveValue('reader');
+  });
+
   it('prefills Firebird system privileges as a typed selection, not JSON text', () => {
     const privileges = ['USER_MANAGEMENT', 'PROFILE_ANY_ATTACHMENT'];
     const fields = [{field_id: 'system_privileges', control: 'multiselect',

@@ -9,6 +9,7 @@
 
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {useTheme} from '@mui/material/styles';
+import {MenuItem, TextField} from '@mui/material';
 import Theme from 'sources/Theme';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
 import usePreferences from '../../../pgadmin/preferences/static/js/store';
@@ -42,6 +43,31 @@ describe('CDEadmin accessibility Theme integration', () => {
   beforeEach(() => {
     window.localStorage.clear();
     setMiscPreferences({theme: 'light', accessibility_profile: 'classic'});
+  });
+
+  it.each(['', 'populated'])('keeps compact labels above fields for %s values', (value) => {
+    render(<Theme><>
+      <TextField label="Role name" defaultValue={value} />
+      <TextField label="Comment" multiline defaultValue={value} />
+      <TextField label="Privileges" select defaultValue={value}>
+        <MenuItem value="">None</MenuItem>
+        <MenuItem value="populated">Monitor</MenuItem>
+      </TextField>
+      <TextField label="Limit" type="number" />
+      <TextField label="Secret" type="password" />
+    </></Theme>);
+    for (const label of document.querySelectorAll('.MuiInputLabel-root')) {
+      expect(label).toHaveAttribute('data-shrink', 'true');
+      expect(label).toHaveStyle({fontSize: '1rem'});
+      expect(label).toHaveStyle({position: 'relative', transform: 'none', marginBottom: '0.25rem'});
+    }
+    expect(document.querySelectorAll('.MuiInputLabel-root')).toHaveLength(5);
+    expect(screen.getByLabelText('Role name')).toHaveValue(value);
+  });
+
+  it('preserves an explicit field label presentation override', () => {
+    render(<Theme><TextField label="Explicit" InputLabelProps={{shrink: false}} /></Theme>);
+    expect(document.querySelector('.MuiInputLabel-root')).toHaveAttribute('data-shrink', 'false');
   });
 
   it('applies account preferences to the shared theme', () => {

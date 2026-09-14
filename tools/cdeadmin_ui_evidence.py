@@ -338,6 +338,12 @@ def fill_fields(wait, values):
 
         def find_control(driver, name=label):
             control = visible_named_control(driver, name)
+            # Native value setters bypass disabled fieldsets. Do not enter
+            # values until asynchronous metadata initialization has finished.
+            if control is not None and (
+                    not control.is_enabled() or
+                    control.get_attribute('aria-disabled') == 'true'):
+                return None
             if control is not None:
                 located['driver'] = driver
             return control

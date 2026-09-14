@@ -65,6 +65,26 @@ def test_unavailable_selection_does_not_change_existing_values():
     existing.click.assert_not_called()
 
 
+def test_field_entry_waits_for_metadata_initialization(monkeypatch):
+    control = Mock(tag_name='input')
+    control.get_attribute.side_effect = {'type': 'checkbox'}.get
+    control.is_enabled.side_effect = [False, True]
+    control.is_selected.return_value = False
+    monkeypatch.setattr('tools.cdeadmin_ui_evidence.visible_named_control',
+                        lambda driver, name: control)
+    driver = Mock()
+    wait = Mock()
+
+    def poll(callback):
+        assert callback(driver) is None
+        control.click.assert_not_called()
+        return callback(driver)
+
+    wait.until.side_effect = poll
+    fill_fields(wait, ['Default role=true'])
+    control.click.assert_called_once()
+
+
 def test_failed_selection_is_reported():
     existing = option('A', False)
     existing.click.side_effect = None

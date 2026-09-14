@@ -407,6 +407,7 @@ def _workspace_probe(driver, resource_kinds=None):
               status: workspace.status,
               endpoint_url: endpointUrl,
               database_target_id: database._id,
+              generation,
               engine_id: value.visual_admin?.engine_id || null,
               catalog: value.visual_admin || null,
               resources,
