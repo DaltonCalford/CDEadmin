@@ -1,6 +1,7 @@
 """Native transaction observations do not create or finalize transactions."""
 
 from enum import IntEnum
+import json
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
@@ -19,6 +20,10 @@ if 'pgadmin' not in sys.modules:
 from pgadmin.cdeadmin.providers.firebird.transaction_state import (  # noqa: E402
     observe_transaction,
 )
+from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
+    _initialize_connection,
+)
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError  # noqa: E402
 
 
 class Isolation(IntEnum):
@@ -93,3 +98,57 @@ def test_failed_info_acquisition_keeps_activity_without_inventing_fields():
     assert result['fields'] == {}
     assert result['information_error_type'] == 'RuntimeError'
     assert 'secret' not in str(result)
+
+
+@pytest.mark.parametrize('timeout', [-2, 32768, 86400, True, 1.5, '15'])
+def test_invalid_native_timeout_is_rejected_before_building_tpb(timeout):
+    module = SimpleNamespace(Isolation={'SNAPSHOT': 2},
+                             TraAccessMode={'WRITE': 9}, tpb=Mock())
+    with patch('pgadmin.cdeadmin.providers.firebird.provider.'
+               '_client_library_identity', return_value={}):
+        with pytest.raises(RelationalClientError, match='32767'):
+            _initialize_connection(Mock(),
+                                   {'transaction_lock_timeout': timeout},
+                                   module)
+    module.tpb.assert_not_called()
+
+
+@pytest.mark.parametrize('timeout', [-1, 0, 1, 32767])
+def test_native_timeout_bounds_reach_tpb_unchanged(timeout):
+    module = SimpleNamespace(Isolation={'SNAPSHOT': 2},
+                             TraAccessMode={'WRITE': 9},
+                             tpb=Mock(return_value=b'owned-tpb'))
+    value = Mock()
+    with patch('pgadmin.cdeadmin.providers.firebird.provider.'
+               '_client_library_identity', return_value={}):
+        _initialize_connection(value,
+                               {'transaction_lock_timeout': timeout}, module)
+    module.tpb.assert_called_once_with(isolation=2, lock_timeout=timeout,
+                                       access_mode=9)
+    assert value.main_transaction.default_tpb == b'owned-tpb'
+
+
+def test_server_and_database_forms_use_the_native_timeout_limit():
+    from pgadmin.cdeadmin.providers.form_contracts import (
+        provider_form_contract,
+    )
+    manifest = json.loads((WEB / 'pgadmin/cdeadmin/providers/firebird/'
+                           'provider_manifest.json').read_text())
+    contract = provider_form_contract({
+        **manifest['registration'], 'profile_id': 'firebird-native',
+        'engine_id': 'firebird'})
+
+    def find(value):
+        if isinstance(value, dict):
+            if value.get('field_id') == 'transaction_lock_timeout':
+                yield value
+            for child in value.values():
+                yield from find(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from find(child)
+
+    fields = list(find(contract))
+    assert len(fields) >= 4
+    assert all(field['minimum'] == -1 and field['maximum'] == 32767
+               for field in fields)

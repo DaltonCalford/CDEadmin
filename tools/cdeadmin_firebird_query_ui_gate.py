@@ -121,16 +121,38 @@ def _binding_editor(driver):
     return None
 
 
-def _capture(driver, options, state, screenshots, controls):
+def _capture(driver, options, state, screenshots, controls, reset_scroll=True):
     viewport = f'{options.width}x{options.height}'
     path = options.output_root / (
         f'{state}-{viewport}-{evidence_variant(options)}.png'
     )
     screenshots[state] = {
         'path': str(path),
-        'sha256': screenshot(driver, path),
+        'sha256': screenshot(driver, path, reset_scroll=reset_scroll),
     }
     controls[state] = _grid_control_evidence(driver)
+    layout = driver.execute_script('''
+      const body = document.querySelector(
+        '[aria-label="Provider query workspace"]');
+      const dialog = body?.closest('[role="dialog"]');
+      const footer = dialog?.querySelector('.ModalContent-footer');
+      if (!body || !dialog || !footer) return null;
+      const b = body.getBoundingClientRect();
+      const f = footer.getBoundingClientRect();
+      const d = dialog.getBoundingClientRect();
+      return {bodyBottom: b.bottom, bodyHeight: b.height,
+        footerTop: f.top, footerBottom: f.bottom, dialogBottom: d.bottom,
+        overflowY: getComputedStyle(body).overflowY};
+    ''')
+    controls[state].append({'query_workspace_layout': layout})
+    if state == 'failure':
+        return
+    assert layout is not None, 'Query workspace layout cannot be observed'
+    assert layout['overflowY'] == 'auto'
+    assert layout['bodyHeight'] > 0
+    assert layout['bodyBottom'] <= layout['footerTop'] + 1, (
+        'Query workspace extends behind its footer')
+    assert layout['footerBottom'] <= layout['dialogBottom'] + 1
 
 
 def run(options, password):
@@ -214,14 +236,56 @@ def run(options, password):
             _button(wait, 'Run').click()
             wait.until(lambda value: _visible_text(value, expected))
             _capture(driver, options, state, screenshots, controls)
+            cell = next(item for item in driver.find_elements(
+                By.XPATH,
+                f'//*[normalize-space(text())={_xpath_literal(expected)}]'
+            ) if item.is_displayed())
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block: "center"})', cell)
+            _capture(driver, options, state + '-result-detail',
+                     screenshots, controls, reset_scroll=False)
         _button(wait, 'Provider transaction state').click()
         wait.until(lambda value: any(
-            item.is_displayed() and 'driver_observation_only' in item.text
-            for item in value.find_elements(By.TAG_NAME, 'pre')
+            item.is_displayed() and 'Active transaction' in item.text
+            for item in value.find_elements(
+                By.CSS_SELECTOR,
+                '[aria-label="Provider query transaction state"]')
         ))
+        transaction_panel = driver.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Provider query transaction state"]')
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})',
+            transaction_panel)
         _capture(
-            driver, options, 'transaction-state', screenshots, controls
+            driver, options, 'transaction-state', screenshots, controls,
+            reset_scroll=False,
         )
+        details = transaction_panel.find_element(By.TAG_NAME, 'details')
+        summary = details.find_element(By.TAG_NAME, 'summary')
+        assert details.get_attribute('open') is None
+        summary.click()
+        wait.until(lambda _value: details.get_attribute('open') is not None)
+        assert 'driver_observation_only' in details.text
+        _capture(driver, options, 'transaction-native-details', screenshots,
+                 controls, reset_scroll=False)
+        summary.click()
+        wait.until(lambda _value: details.get_attribute('open') is None)
+        for action in ('commit', 'rollback'):
+            if action == 'rollback':
+                _button(wait, 'Run').click()
+                wait.until(lambda value: _visible_text(value, expected))
+                _button(wait, 'Provider transaction state').click()
+                wait.until(lambda _value: 'Active transaction' in
+                           transaction_panel.text)
+            _button(wait, action).click()
+            wait.until(lambda _value: 'Idle — no active transaction' in
+                       transaction_panel.text)
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block: "center"})',
+                transaction_panel)
+            _capture(driver, options, 'transaction-' + action + '-idle',
+                     screenshots, controls, reset_scroll=False)
         close_session = _button(wait, 'Close query session')
         close_session.click()
         wait.until(lambda value: (
@@ -244,6 +308,7 @@ def run(options, password):
                 'named-bindings-rejected', 'ordered-bindings',
                 'unicode-bindings'],
             'transaction_state_observed': True,
+            'transaction_actions_observed': ['commit', 'rollback'],
             'provider_session_closed': True,
             'common_finality_interpreted': False,
             'credential_values_exported': False,

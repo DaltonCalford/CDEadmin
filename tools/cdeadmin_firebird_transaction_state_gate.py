@@ -7,11 +7,14 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from cdeadmin_firebird_admin_mapping_gate import _create_client
+from cdeadmin_firebird_admin_mapping_gate import (
+    _create_client, _route_arguments, RelationalClientError,
+)
 from pgadmin.cdeadmin.security.secrets import SecretLease
 
 
 def run(profiles):
+    import firebird.driver as driver
     document = json.loads(profiles.read_text())
     route = next(dict(item) for item in document['profiles']
                  if item['engine'] == 'firebird')
@@ -27,7 +30,7 @@ def run(profiles):
                       'READ_COMMITTED_RECORD_VERSION',
                       'READ_COMMITTED_READ_CONSISTENCY'):
         for access in ('READ', 'WRITE'):
-            for timeout in (-1, 0, 3):
+            for timeout in (-1, 0, 3, 32767):
                 case = {'requested_isolation': isolation, 'access': access,
                         'lock_timeout': timeout}
                 client = _create_client(SimpleNamespace(
@@ -82,7 +85,45 @@ def run(profiles):
                         **case, 'error_type': type(exc).__name__})
                 finally:
                     client.close()
-    result['complete'] = len(result['cases']) == 36 and not result['failures']
+    for timeout in (32768, 86400):
+        case = {'invalid_lock_timeout': timeout}
+        client = _create_client(SimpleNamespace(
+            acquire_secret=lambda *_args: SecretLease(password)))
+        direct = None
+        try:
+            try:
+                client.open_session({'route': {
+                    **route, 'transaction_lock_timeout': timeout}})
+            except RelationalClientError:
+                assert not client._connections
+            else:
+                raise AssertionError('Provider accepted excessive timeout')
+            direct = driver.connect(password=password,
+                                    **_route_arguments(route, driver))
+            try:
+                direct.begin(driver.tpb(isolation=driver.Isolation.SNAPSHOT,
+                                        lock_timeout=timeout))
+            except driver.DatabaseError as exc:
+                assert 335544330 in exc.gds_codes
+                assert 335544903 in exc.gds_codes
+                case['native_codes'] = list(exc.gds_codes)
+            else:
+                raise AssertionError('Native engine accepted excess timeout')
+            assert not direct.main_transaction.is_active()
+            result['cases'].append(case)
+        except Exception as exc:
+            result['failures'].append({**case,
+                                       'error_type': type(exc).__name__})
+        finally:
+            if direct is not None:
+                try:
+                    direct.close()
+                except Exception as exc:
+                    result['failures'].append({
+                        **case, 'phase': 'close',
+                        'error_type': type(exc).__name__})
+            client.close()
+    result['complete'] = len(result['cases']) == 50 and not result['failures']
     return result
 
 

@@ -8,6 +8,7 @@ import subprocess
 import uuid
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from cdeadmin_firebird_admin_mapping_gate import (
     ADMINISTRATION, RelationalClientError, _create_client, _route_arguments,
@@ -153,6 +154,25 @@ def run(profiles, container):
         assert closed['rollback_requested'] is True
         assert external_rows() == []
         result['cases'].append('close-active-session-rolls-back')
+        handle = client.open_session({'route': {**route, 'database': path}})
+        execute(source, [10, 'pending before close failure'])
+        with patch.object(handle, 'close', side_effect=RuntimeError(
+                'private-close-failure-canary')):
+            try:
+                client.close_session(handle)
+            except RelationalClientError as exc:
+                assert 'private-close-failure-canary' not in str(exc)
+            else:
+                raise AssertionError('Injected close failure was hidden')
+        assert not handle.is_closed()
+        assert handle in client._connections
+        assert not handle.main_transaction.is_active()
+        assert external_rows() == []
+        closed = client.close_session(handle)
+        assert closed['connection_released'] is True
+        assert closed['rollback_requested'] is False
+        handle = None
+        result['cases'].append('close-error-after-native-rollback-recovery')
     except Exception as exc:
         result['failures'].append({'case': 'gate',
                                    'error_type': type(exc).__name__,
@@ -181,7 +201,7 @@ def run(profiles, container):
             except Exception as exc:
                 result['failures'].append({'case': 'cleanup',
                                            'error_type': type(exc).__name__})
-    result['complete'] = (len(result['cases']) == 17 and
+    result['complete'] = (len(result['cases']) == 18 and
                           result['fixture_removed'] and not result['failures'])
     return result
 

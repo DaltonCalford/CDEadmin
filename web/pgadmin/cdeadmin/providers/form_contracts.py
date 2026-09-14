@@ -248,7 +248,7 @@ _DATABASE_SPECS = {
                    'select', default='WRITE', options=('WRITE', 'READ')),
             _field('transaction_lock_timeout',
                    'Transaction lock timeout (seconds)', 'number',
-                   default=-1, minimum=-1, maximum=86400),
+                   default=-1, minimum=-1, maximum=32767),
         ),
     },
     'mongodb-native': {

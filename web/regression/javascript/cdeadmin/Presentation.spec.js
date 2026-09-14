@@ -173,6 +173,21 @@ describe('CDEadmin presentation profiles', () => {
     expect(variables['--cde-color-text']).toBe('#03045E');
   });
 
+  it('keeps legacy empty panels on the resolved foreground/background pair', () => {
+    const legacyDark = {...baseTheme,
+      otherVars: {...baseTheme.otherVars, emptySpaceBg: '#010B15'}};
+    const presentation = resolvePresentation(safeModePreferences(), legacyDark);
+    const overrides = presentationThemeOverrides(presentation);
+    expect(overrides.otherVars.emptySpaceBg).toBe(presentation.colors.canvas);
+    expect(contrastRatio(overrides.palette.text.primary,
+      overrides.otherVars.emptySpaceBg)).toBeGreaterThanOrEqual(4.5);
+    ['success', 'warning', 'error', 'info'].forEach((severity) => {
+      expect(overrides.palette[severity].light).toBe(presentation.colors.panel);
+      expect(contrastRatio(overrides.palette.text.primary,
+        overrides.palette[severity].light)).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
   it('bounds user-configurable branching-tree geometry', () => {
     const value = resolvePresentation({
       accessibility_tree_indent: 999,

@@ -23,6 +23,7 @@ import BaseChart from '../chartjs';
 import { ModalContent, ModalFooter } from '../components/ModalContent';
 import ContextMenu from '../components/ContextMenu';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
+import ProviderTransactionObservation from './ProviderTransactionObservation';
 
 const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
   'resource_page', 'resource_refresh', 'resource_inspect',
@@ -1969,12 +1970,8 @@ function StructuredDataGrid({catalog, resources, post, setError,
         readOnly={!page.editable}
         rowKeyGetter={(row) => row.__identityToken}
         ariaLabel={gettext('Provider table or view rows')} />
-      {transaction && <Box component="pre"
-        aria-label={gettext('Provider grid transaction state')}
-        sx={{mt: 1, p: 1, maxHeight: 140, overflow: 'auto',
-          bgcolor: 'background.default'}}>
-        {JSON.stringify(transaction, null, 2)}
-      </Box>}
+      {transaction && <ProviderTransactionObservation transaction={transaction}
+        label={gettext('Provider grid transaction state')} />}
     </>}
     {page?.continuation && <Box sx={{display: 'flex', gap: 1, mt: 1}}>
       <Button disabled={working} onClick={() => load(page.continuation)}>
@@ -6885,7 +6882,10 @@ export default function ProviderWorkspaceContent({
           databaseTargets={workspace.database_targets}
           resources={resourcePage?.items || []}
           targetId={initialContext.resource_id} />}
-      {workspace && tab === 'studio' && <Box sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0}}>
+      {workspace && tab === 'studio' && <Box role="region"
+        aria-label={gettext('Provider query workspace')}
+        sx={{p: 2, flex: 1, display: 'flex', flexDirection: 'column',
+          minHeight: 0, minWidth: 0, overflow: 'auto'}}>
         <TextField select size="small" sx={{mb: 1, maxWidth: 360}}
           label={gettext('Provider language')} value={languageProfile}
           onChange={(event) => selectLanguage(event.target.value)}>
@@ -6901,6 +6901,7 @@ export default function ProviderWorkspaceContent({
               {label}</Button>)}
         </Box>
         {sourcePresets(activeLanguage).length === 0 &&
+          !defaultSource(activeLanguage).trim() && !source.trim() &&
           <Alert severity="info" sx={{mb: 1}}>
             {gettext('This provider has not supplied an evidence-bound query template. The editor is intentionally empty.')}
           </Alert>}
@@ -6935,7 +6936,8 @@ export default function ProviderWorkspaceContent({
             {gettext('Close query session')}</Button>
           {busy && <CircularProgress size={24} />}
         </Box>
-        {transaction && <Box component="pre" sx={{overflow: 'auto', maxHeight: 120}}>{JSON.stringify(transaction, null, 2)}</Box>}
+        {transaction && <ProviderTransactionObservation transaction={transaction}
+          label={gettext('Provider query transaction state')} />}
         {rendered && <ResultControls rendered={rendered} history={resultHistory}
           post={post} onRendered={acceptRendered} setError={setError}
           setBusy={setBusy}
@@ -7046,7 +7048,8 @@ export default function ProviderWorkspaceContent({
           languageProfile={workspace.languages?.[0]?.language_profile}
           post={post} setError={setError}
           initialResource={selectedResource} />}
-      <ModalFooter><Button onClick={closeModal}>{gettext('Close')}</Button></ModalFooter>
+      <ModalFooter sx={{flexShrink: 0}}>
+        <Button onClick={closeModal}>{gettext('Close')}</Button></ModalFooter>
     </ModalContent>
   );
 }

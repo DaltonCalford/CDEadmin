@@ -793,10 +793,11 @@ def _initialize_connection(connection, route, module):
             'Firebird transaction defaults are invalid'
         ) from exc
     if isinstance(lock_timeout, bool) or not isinstance(lock_timeout, int) or (
-        not -1 <= lock_timeout <= 86400
+        not -1 <= lock_timeout <= 32767
     ):
         raise RelationalClientError(
-            'Firebird transaction lock timeout is invalid'
+            'Firebird transaction lock timeout must be an integer from '
+            '-1 through 32767 seconds'
         )
     value = module.tpb(
         isolation=isolation, lock_timeout=lock_timeout,

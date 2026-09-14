@@ -94,6 +94,50 @@ def run(options):
                 if geometry['widths'][index] <= geometry['stripWidth']:
                     assert geometry['selectedVisible'], (
                         'Keyboard-selected tab was not scrolled into view')
+                if labels[index] in ('Dependencies', 'Dependents'):
+                    contrast = browser.execute_script('''
+                      const selected = document.querySelector(
+                        arguments[0] + ' [aria-selected="true"]');
+                      const panel = document.getElementById(
+                        selected.getAttribute('aria-controls'));
+                      const text = [...panel.querySelectorAll('span')].find(
+                        el => /No depend(?:ency|ent) information/.test(
+                          el.textContent)
+                          && el.getClientRects().length);
+                      if (!text) return {available: false};
+                      const rgb = color => {
+                        const values = color.match(/[\\d.]+/g)?.map(Number);
+                        if (!values || values.length < 3) return null;
+                        return values.length === 3 || values[3] === 1
+                          ? values.slice(0, 3) : null;
+                      };
+                      const foreground = getComputedStyle(text).color;
+                      let background = null;
+                      for (let el = text; el; el = el.parentElement) {
+                        const color = getComputedStyle(el).backgroundColor;
+                        if (rgb(color)) { background = color; break; }
+                        if (color !== 'rgba(0, 0, 0, 0)' &&
+                            color !== 'transparent') break;
+                      }
+                      if (!rgb(foreground) || !background)
+                        return {available: false, foreground, background};
+                      const luminance = color => rgb(color).map(value => {
+                        const s = value / 255;
+                        return s <= 0.04045 ? s / 12.92 :
+                          Math.pow((s + 0.055) / 1.055, 2.4);
+                      }).reduce((sum, value, i) =>
+                        sum + value * [0.2126, 0.7152, 0.0722][i], 0);
+                      const a = luminance(foreground);
+                      const b = luminance(background);
+                      return {available: true, foreground, background,
+                        ratio: (Math.max(a, b) + 0.05) /
+                          (Math.min(a, b) + 0.05)};
+                    ''', selector)
+                    geometry['empty_message_contrast'] = contrast
+                    assert contrast['available'], (
+                        'Cannot verify the empty message color pair')
+                    assert contrast['ratio'] >= 4.5, (
+                        'Empty information message has insufficient contrast')
                 path = options.output_root / (
                     f'inspector-{width}-page-{index}.png')
                 digest = screenshot(browser, path, reset_scroll=False)

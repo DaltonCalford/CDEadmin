@@ -1289,6 +1289,21 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
+  it('does not call an engine-provided starter empty when there are no presets', async () => {
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap,
+      languages: [{language_profile: 'firebird-sql', title: 'Firebird SQL',
+        starter_source: 'SELECT 42 FROM RDB$DATABASE'}],
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    await waitFor(() => expect(screen.getByLabelText('Query source'))
+      .toHaveValue('SELECT 42 FROM RDB$DATABASE'));
+    expect(screen.getByRole('region', {name: 'Provider query workspace'}))
+      .toHaveStyle({overflow: 'auto', minHeight: '0'});
+    expect(screen.queryByText(/editor is intentionally empty/)).not.toBeInTheDocument();
+  });
+
   it('renders MariaDB properties as exact provider-specific groups', async () => {
     api.get.mockResolvedValue({data: {data: {
       ...bootstrap,
@@ -1587,6 +1602,10 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByLabelText('Query source')).toHaveValue('');
     expect(screen.queryByDisplayValue('SELECT 1')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Query source'), {
+      target: {value: 'provider-owned user source'},
+    });
+    expect(screen.queryByText(/editor is intentionally empty/)).not.toBeInTheDocument();
   });
 
   it('shows workspace tabs only for explicit drag-drop composition', async () => {
