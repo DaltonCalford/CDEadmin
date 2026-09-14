@@ -219,7 +219,7 @@ def test_attachment_hooks_run_after_ownership_and_failure_stays_owned(
 
 @pytest.mark.parametrize('detach_failure', [False, True])
 @pytest.mark.parametrize('outcome', [
-    'returned', 'native_error', 'foreign_error', 'invalid'])
+    'returned', 'native_error', 'driver_error', 'foreign_error', 'invalid'])
 def test_service_outcome_is_not_replaced_by_detach_failure(
         rig, detach_failure, outcome):
     handle = service_handle(rig)
@@ -229,6 +229,10 @@ def test_service_outcome_is_not_replaced_by_detach_failure(
     runner = Mock(return_value=(observation if outcome == 'returned' else []))
     if outcome == 'native_error':
         runner.side_effect = native_error
+    elif outcome == 'driver_error':
+        driver_error = RuntimeError('credential-canary')
+        driver_error.gds_codes = (337117261,)
+        runner.side_effect = driver_error
     elif outcome == 'foreign_error':
         runner.side_effect = RuntimeError('credential-canary')
     rig.client.config = replace(rig.client.config,
@@ -253,8 +257,13 @@ def test_service_outcome_is_not_replaced_by_detach_failure(
             elif outcome == 'invalid':
                 assert 'invalid result' in str(caught.value)
             else:
-                assert str(caught.value) == (
-                    'provider server operation failed (RuntimeError)')
+                assert ('Firebird service operation failed (RuntimeError'
+                        in str(caught.value))
+                assert 'Do not automatically replay' in str(caught.value)
+                assert caught.value.gds_codes == (
+                    (337117261,) if outcome == 'driver_error' else ())
+                if outcome == 'driver_error':
+                    assert 'native status 337117261' in str(caught.value)
             receipt = caught.value.service_release
             assert 'credential-canary' not in str(caught.value)
     runner.assert_called_once_with(handle, 'database_statistics', 'owned', {})

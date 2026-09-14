@@ -682,10 +682,7 @@ class RelationalDBAPIClient:
             failure = exc
             raise
         except Exception as exc:
-            failure = RelationalClientError(
-                'provider server operation failed '
-                f'({type(exc).__name__})'
-            )
+            failure = self._server_operation_error(exc)
             raise failure from None
         finally:
             self._finish_server_operation(server, result, failure)
@@ -693,6 +690,12 @@ class RelationalDBAPIClient:
     def _finish_server_operation(self, server, result, failure):
         """Provider hook separating the returned observation from cleanup."""
         self._forget_and_close(server)
+
+    def _server_operation_error(self, error):
+        """Allow provider-owned diagnostics without leaking native text."""
+        return RelationalClientError(
+            'provider server operation failed '
+            f'({type(error).__name__})')
 
     def run_database_operation(
             self, connection, route, operation_id, options):

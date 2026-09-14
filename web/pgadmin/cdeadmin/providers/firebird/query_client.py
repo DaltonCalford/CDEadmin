@@ -437,6 +437,18 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             return super().run_server_operation(
                 request, operation_id, database, options)
 
+    def _server_operation_error(self, error):
+        codes = status_codes(error)
+        diagnostic = ('; native status ' + ', '.join(map(str, codes))
+                      if codes else '')
+        failure = RelationalClientError(
+            'Firebird service operation failed (' + type(error).__name__ +
+            diagnostic + '). Completion is unconfirmed; inspect the native '
+            'state before deciding what to do. Do not automatically replay '
+            'the operation.')
+        failure.gds_codes = codes
+        return failure
+
     def plan_admin_operation(self, request):
         with self._temporary_operation():
             plan = super().plan_admin_operation(request)
