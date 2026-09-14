@@ -12,7 +12,22 @@ from types import SimpleNamespace
 from tools.cdeadmin_firebird_ui_orchestrator import gate_command
 from pgadmin.cdeadmin.providers.firebird.provider import ADMINISTRATION
 from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
-from tools.cdeadmin_provider_object_form_gate import _preview_values
+from tools.cdeadmin_provider_object_form_gate import (
+    _enumerate_operations, _preview_values,
+)
+
+
+def test_native_blocked_forms_cannot_disappear_from_qualification_count():
+    catalog = {'objects': [{'resource_kind': 'role', 'operations': [
+        {'operation_id': 'inspect', 'execution_available': True},
+        {'operation_id': 'alter', 'execution_available': False,
+         'native_supported': True, 'blockers': ['permission_not_granted']},
+        {'operation_id': 'unsupported', 'execution_available': False,
+         'native_supported': False},
+    ]}]}
+    assert [operation['operation_id'] for operation in
+            _enumerate_operations(catalog, ['role'])] == [
+                'inspect', 'alter', 'unsupported']
 
 
 def options(kind):
@@ -131,7 +146,14 @@ def test_firebird_preview_values_cover_every_required_native_form_field():
                 kind, {**operation, 'resource_kind': kind}, target,
                 'firebird',
             )
+            fields = operation.get('form', {}).get('fields', [])
+            draft = {field['field_id']: values.get(
+                field['label'], field.get('default')) for field in fields}
             for field in operation.get('form', {}).get('fields', []):
+                condition = field.get('visible_when')
+                if condition and draft.get(condition['field_id']) != (
+                        condition['equals']):
+                    continue
                 if field.get('required') and 'default' not in field and (
                         field['label'] not in values):
                     missing.append(
@@ -169,4 +191,4 @@ def test_firebird_role_alter_preview_requests_a_native_change():
         'role', operation,
         {'display_name': 'CDEADMIN_OPERATOR'}, 'firebird',
     )
-    assert values['System privileges'] == '["USER_MANAGEMENT"]'
+    assert values['Replacement system privileges'] == '["USER_MANAGEMENT"]'

@@ -206,18 +206,16 @@ def run(options):
             )
             _wait_for_server(process, port)
             options.summary_output.unlink(missing_ok=True)
-            completed = subprocess.run(
-                gate_command(
-                    options, f'http://127.0.0.1:{port}', database_label,
-                    config_database,
-                ),
-                cwd=ROOT, env=environment, capture_output=True, text=True,
-                check=False,
-            )
             options.browser_log.parent.mkdir(parents=True, exist_ok=True)
-            options.browser_log.write_text(
-                completed.stdout + completed.stderr, encoding='utf-8'
-            )
+            with options.browser_log.open('w', encoding='utf-8') as log:
+                completed = subprocess.run(
+                    gate_command(
+                        options, f'http://127.0.0.1:{port}', database_label,
+                        config_database,
+                    ),
+                    cwd=ROOT, env=environment, stdout=log,
+                    stderr=subprocess.STDOUT, text=True, check=False,
+                )
             if options.summary_output.is_file():
                 result = json.loads(options.summary_output.read_text(
                     encoding='utf-8'

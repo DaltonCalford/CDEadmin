@@ -39,6 +39,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 if __package__:
     from .cdeadmin_ui_evidence import (
+        ensure_data_explorer,
         _control_evidence,
         browser_binary,
         complete_endpoint_prompt,
@@ -50,6 +51,7 @@ if __package__:
     )
 else:
     from cdeadmin_ui_evidence import (
+        ensure_data_explorer,
         _control_evidence,
         browser_binary,
         complete_endpoint_prompt,
@@ -451,6 +453,7 @@ def _prepare_tree_once(driver, wait, options, password):
     driver.get(options.url.rstrip('/') + '/browser/')
     wait.until(lambda value: '/browser/' in value.current_url)
     apply_presentation(driver, wait, options)
+    ensure_data_explorer(wait)
     for label, child in (
         ('Connectors', options.engine),
         (options.engine, options.server),

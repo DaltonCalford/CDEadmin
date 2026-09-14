@@ -53,6 +53,7 @@ if __package__:
     )
     from .cdeadmin_ui_evidence import (
         complete_endpoint_prompt,
+        ensure_data_explorer,
         expand,
         fill_fields,
         visible_named_control,
@@ -73,6 +74,7 @@ else:
     )
     from cdeadmin_ui_evidence import (
         complete_endpoint_prompt,
+        ensure_data_explorer,
         expand,
         fill_fields,
         visible_named_control,
@@ -154,6 +156,7 @@ def _prepare_tree(driver, wait, options):
     driver.get(options.url.rstrip('/') + '/browser/')
     wait.until(lambda value: '/browser/' in value.current_url)
     apply_presentation(driver, wait, options)
+    ensure_data_explorer(wait)
     for label, child in (
         ('Connectors', options.engine),
         (options.engine, options.server),
@@ -215,6 +218,7 @@ def _prepare_tree(driver, wait, options):
         """
     )
     if options.endpoint_password_env:
+        print('complete endpoint verification prompt', flush=True)
         password = os.environ.get(options.endpoint_password_env)
         if password is None:
             raise RuntimeError(
@@ -290,14 +294,18 @@ def _prepare_tree(driver, wait, options):
             json.dumps(diagnostic, sort_keys=True)
         ) from exc
     close_workspace(driver, wait)
+    print('endpoint workspace verified', flush=True)
     return database
 
 
-def _workspace_probe(driver):
+def _workspace_probe(driver, resource_kinds=None):
     """Return provider catalog plus recursively resolved context commands."""
     return driver.execute_async_script(
         """
         const done = arguments[arguments.length - 1];
+        const selectedKinds = new Set(arguments[0] || []);
+        const containers = new Set(['database', 'schema', 'namespace',
+          'system', 'catalog']);
         const app = window.pgAdmin;
         const tree = app?.Browser?.tree;
         const databaseItem = window.__cdeadminQaDatabaseItem ||
@@ -364,7 +372,11 @@ def _workspace_probe(driver):
                 resource_kind: item.cde_resource_kind || null,
               });
             }
-            if (item.children_url) await walk(item.children_url, depth + 1);
+            const kind = item.cde_resource_kind;
+            if (item.children_url && (!selectedKinds.size || !kind ||
+                containers.has(kind) || selectedKinds.has(kind))) {
+              await walk(item.children_url, depth + 1);
+            }
           }
         };
         walk(database.children_url)
@@ -403,7 +415,8 @@ def _workspace_probe(driver):
             });
           })
           .catch(error => done({probe_error: String(error)}));
-        """
+        """,
+        resource_kinds or [],
     )
 
 
@@ -512,6 +525,11 @@ def _preview_values(kind, operation, target, engine_id):
                 values['message'] = 'CDEadmin browser preview exception'
             elif kind == 'user':
                 values['password'] = 'ui-preview-only'
+            elif kind == 'role':
+                values.update({
+                    'description': 'Browser role creation preview',
+                    'system_privileges': '["USER_MANAGEMENT"]',
+                })
             return rendered(values)
         if operation_id == 'alter':
             values_by_kind = {
@@ -537,11 +555,17 @@ def _preview_values(kind, operation, target, engine_id):
                     'message': 'CDEadmin browser replacement exception',
                 },
                 'role': {
+                    'description': 'Browser role alteration preview',
                     'system_privileges': '["USER_MANAGEMENT"]',
                 },
             }
             if kind in values_by_kind:
                 return rendered(values_by_kind[kind])
+        if kind == 'role' and operation_id in {'grant', 'revoke'}:
+            values = {'member': 'SYSDBA', 'member_kind': 'USER'}
+            if operation_id == 'revoke':
+                values['confirmation'] = str(name)
+            return rendered(values)
         if kind == 'privilege' and operation_id in {'grant', 'revoke'}:
             values = {
                 'principal': 'SYSDBA', 'object_type': 'TABLE',
@@ -811,8 +835,6 @@ def _enumerate_operations(catalog, resource_kinds=None, operation_ids=None):
                 # Server properties already have a dedicated endpoint task;
                 # provider-owned server actions remain eligible here.
                 continue
-            if operation.get('execution_available') is not True:
-                continue
             if (
                 admitted_operations and
                 operation.get('operation_id') not in admitted_operations
@@ -896,7 +918,8 @@ def run(options):
     probe = None
     try:
         _prepare_tree(driver, wait, options)
-        probe = _workspace_probe(driver)
+        print('read focused provider catalog and context commands', flush=True)
+        probe = _workspace_probe(driver, options.resource_kinds)
         if probe.get('probe_error'):
             raise RuntimeError(probe['probe_error'])
         if probe.get('status') != 200:
@@ -913,6 +936,13 @@ def run(options):
                 catalog, options.resource_kinds, options.operation_ids):
             kind = operation['resource_kind']
             operation_id = operation['operation_id']
+            if operation.get('execution_available') is not True:
+                failures.append({
+                    'resource_kind': kind, 'operation_id': operation_id,
+                    'error': 'Declared operation is blocked in workspace',
+                    'blockers': operation.get('blockers', []),
+                })
+                continue
             target = next((item for item in resources if
                            item.get('resource_kind') == kind), None)
             if (
@@ -1119,7 +1149,19 @@ def run(options):
                     'traceback': traceback.format_exc(),
                     'screenshot': str(failure_image),
                 })
-                break
+                try:
+                    close_workspace(driver, wait)
+                except Exception as recovery_error:
+                    failures.append({
+                        'error': 'Cannot recover the browser after failure',
+                        'error_type': type(recovery_error).__name__,
+                        'remaining_operations_not_tested': True,
+                    })
+                    break
+    except Exception:
+        options.output_root.mkdir(parents=True, exist_ok=True)
+        driver.save_screenshot(str(options.output_root / 'setup-failure.png'))
+        raise
     finally:
         _quit_driver(driver)
     expected = len(_enumerate_operations(
@@ -1182,7 +1224,8 @@ def main(argv=None):
         'expected_operation_count': result['expected_operation_count'],
         'passed_operation_count': result['passed_operation_count'],
         'failed_operations': [
-            f"{item['resource_kind']}.{item['operation_id']}"
+            f"{item.get('resource_kind', 'browser')}."
+            f"{item.get('operation_id', 'recovery')}"
             for item in result['failures']
         ],
         'output': str(options.summary_output),

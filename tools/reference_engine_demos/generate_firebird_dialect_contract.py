@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import copy
 import hashlib
 import json
 import sys
@@ -31,7 +32,10 @@ if 'pgadmin' not in sys.modules:
     sys.modules['pgadmin'] = package
 
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
-    ADMINISTRATION,
+    ADMINISTRATION, PROFILE,
+)
+from pgadmin.cdeadmin.engine_contracts import (  # noqa: E402
+    validate_dialect_contract,
 )
 
 
@@ -285,6 +289,60 @@ def generate(inventory_path, live_path):
     }
 
 
+def supplement_roles(document, evidence, digest, artifact):
+    """Add exact live role membership tasks without replacing earlier proof."""
+    validate_dialect_contract(document, PROFILE)
+    task_ids = {'visual_admin.role.grant', 'visual_admin.role.revoke'}
+    records = evidence.get('role_dialect_task_evidence', {})
+    if (evidence.get('status') != 'passed' or
+            not str(evidence.get('engine_version', '')).startswith('5.0.4') or
+            set(records) != task_ids or
+            evidence.get('role_memberships_replayed') != 3 or
+            any(evidence.get(key) is not True for key in (
+                'temporary_user_removed', 'temporary_role_removed',
+                'temporary_owned_role_removed', 'temporary_table_removed'))):
+        raise ValueError('Role evidence is incomplete or fixtures remain')
+    value = copy.deepcopy(document)
+    prefix = 'firebird-5.0.4-role-membership'
+    proof_ids = [prefix + '-parser-acceptance', prefix + '-live-execution']
+    value['proof_records'] = [record for record in value['proof_records']
+                              if record['evidence_id'] not in proof_ids]
+    for proof_id, kind in zip(proof_ids, (
+            'parser_acceptance', 'live_execution')):
+        value['proof_records'].append(_evidence(
+            proof_id, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            'cdeadmin.firebird-role-membership-live.v1', 'PostgreSQL'))
+    value['task_templates'] = [task for task in value['task_templates']
+                               if task['task_id'] not in task_ids]
+    for task_id in sorted(task_ids):
+        record = records[task_id]
+        statements = record.get('command_preview', {}).get('statements', [])
+        if (record.get('live_execution') != 'passed' or not statements or
+                any(not item.get('source') or item.get('parameter_count') != 0
+                    for item in statements)):
+            raise ValueError('Role task lacks successful native statements')
+        sources = [item['source'] for item in statements]
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(sources),
+            'source_format': 'ordered_native_statements',
+            'statements': sources, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': proof_ids,
+        })
+    value['task_templates'].sort(key=lambda task: task['task_id'])
+    ids = [task['task_id'] for task in value['task_templates']]
+    value['coverage'].update({
+        'authoritative_task_ids': ids,
+        'authoritative_task_count': len(ids),
+        'implemented_task_count': len(ids),
+    })
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_ids[1]]))
+    validate_dialect_contract(
+        value, PROFILE, ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -306,12 +364,21 @@ def _write_csv(path, document):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--inventory', type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument('--inventory', type=Path)
+    source.add_argument('--existing-contract', type=Path)
     parser.add_argument('--live-evidence', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--task-report', type=Path, required=True)
     options = parser.parse_args(argv)
-    document = generate(options.inventory, options.live_evidence)
+    if options.existing_contract:
+        document = supplement_roles(
+            json.loads(options.existing_contract.read_text(encoding='utf-8')),
+            json.loads(options.live_evidence.read_text(encoding='utf-8')),
+            _sha256(options.live_evidence), options.live_evidence.name,
+        )
+    else:
+        document = generate(options.inventory, options.live_evidence)
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(
         json.dumps(document, indent=2, sort_keys=True) + '\n',

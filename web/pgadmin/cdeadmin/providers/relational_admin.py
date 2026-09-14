@@ -345,6 +345,14 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                operation_id == 'drop' and draft.get('cascade')):
+            errors.append({
+                'field_id': 'cascade',
+                'code': 'firebird_drop_cascade_unsupported',
+                'message': 'Firebird does not support DROP CASCADE. '
+                'Review and resolve dependent objects explicitly.',
+            })
         definition = draft.get('definition')
         if isinstance(definition, str) and _DDL_PREFIX.match(definition):
             errors.append({
@@ -4930,6 +4938,9 @@ class RelationalAdministration:
                 self._field('confirmation', 'Confirmation', 'text', True),
             ],
         }.get(operation, [])
+        if operation == 'drop' and not self.dialect.supports_cascade:
+            fields = [field for field in fields
+                      if field['field_id'] != 'cascade']
         return {
             'form_id': f'{kind}.{operation}',
             'title': operation.replace('_', ' ').title(),
@@ -6015,6 +6026,9 @@ class RelationalAdministration:
             }
         target = self._qualified(self._target_path(request['target_resource']))
         cascade = bool(request['draft'].get('cascade'))
+        if cascade and self.dialect.engine_id == 'firebird':
+            raise RelationalClientError(
+                'Firebird does not support DROP CASCADE')
         suffix = (
             ' CASCADE'
             if cascade and self.dialect.supports_cascade else ''

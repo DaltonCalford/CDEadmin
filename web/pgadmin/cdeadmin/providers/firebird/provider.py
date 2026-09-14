@@ -68,6 +68,7 @@ PROFILE = PilotProfile(
 ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
     engine_id='firebird',
     database_create_mode='firebird-driver',
+    supports_cascade=False,
     database_extension='.fdb',
     not_applicable_concepts=frozenset({
         'schemas', 'materialized_views', 'types', 'partitions',
@@ -1360,7 +1361,7 @@ def _resources(connection, request):
             'TRIM(RDB$FIELD_NAME), TRIM(RDB$PRIVILEGE), '
             'TRIM(RDB$GRANTOR), RDB$GRANT_OPTION, RDB$USER_TYPE, '
             'RDB$OBJECT_TYPE FROM RDB$USER_PRIVILEGES '
-            'ORDER BY 1, 2, 3, 4'
+            'ORDER BY 1, 2, 3, 4, 5, 7, 8'
         ):
             relation = str(relation or '').strip() or 'database'
             if relation not in grantable_names:
@@ -1368,8 +1369,14 @@ def _resources(connection, request):
             grantee = str(grantee).strip()
             privilege = str(privilege).strip()
             field = str(field or '').strip()
+            membership = privilege == 'M' and object_type == 13
+            default_role = bool(field) if membership else False
+            if membership:
+                field = ''  # Native default-role marker, not a column.
             granted_object = relation + (f'.{field}' if field else '')
             name = f'{grantee}:{privilege} on {granted_object}'
+            if membership:
+                name += f' [{user_type}; grantor {str(grantor).strip()}]'
             # A granted object is metadata of a Firebird grant, not its
             # navigator parent.  Keeping it in display_path incorrectly
             # nested grants beneath tables, views and sequences and could
@@ -1378,6 +1385,8 @@ def _resources(connection, request):
                 'grantee': grantee,
                 'privilege': privilege,
                 'granted_object': granted_object,
+                'object_name': relation,
+                'default_role': default_role,
                 'field': field or None,
                 'grantor': str(grantor or '').strip(),
                 'grant_option': grant_option,
@@ -1510,6 +1519,8 @@ def _resources(connection, request):
             grant = dict(item.get('native', {}))
             granted_object = grant.get('granted_object') or ''
             object_name, _, field_name = granted_object.partition('.')
+            object_name = grant.get('object_name') or object_name
+            field_name = grant.get('field') or ''
             privilege_target_kinds = {
                 0: {'table', 'view'}, 5: {'procedure'}, 7: {'exception'},
                 9: {'domain'}, 13: {'role'}, 14: {'sequence'},
@@ -1841,8 +1852,37 @@ def _resources(connection, request):
                     f'{str(native["definition"]).strip()};'
                 )
             elif kind == 'role':
+                memberships = [grant for grant in native.get('privileges', [])
+                               if grant.get('privilege') == 'M']
+                native['memberships'] = memberships
+                native['membership_recreation_statements'] = []
+                for grant in memberships:
+                    member_kind = {8: 'USER', 13: 'ROLE'}.get(
+                        grant.get('user_type'))
+                    if member_kind is None or not grant.get('grantor'):
+                        native['membership_recreation_unavailable_reason'] = (
+                            'Membership principal type or grantor is unknown.')
+                        native['membership_recreation_statements'] = []
+                        break
+                    statement = ADMINISTRATION._compile_firebird_role({
+                        'operation_id': 'grant',
+                        'target_resource': {'display_name': name},
+                        'draft': {'member': grant['grantee'],
+                                  'member_kind': member_kind,
+                                  'default_role': grant['default_role'],
+                                  'admin_option': grant['grant_option'] == 2,
+                                  'grantor': grant['grantor']}})
+                    native['membership_recreation_statements'].append(
+                        statement['source'])
+                native['membership_recreation_requirements'] = (
+                    'Create roles and principals first. Replay as a user '
+                    'authorized for GRANTED BY; each recorded grantor must '
+                    'already have authority to grant the role. These '
+                    'statements are separate from object creation DDL.')
                 native['recreation_requirements'] = {
                     'execute_as_user': native.get('owner'),
+                    'requires_privileged_role_creation_authority': bool(
+                        native.get('system_privileges')),
                     'ownership_transfer_supported': False,
                     'explanation': 'Firebird assigns role ownership to the '
                     'creating user. Recreate through that user to preserve '

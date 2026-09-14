@@ -225,7 +225,8 @@ def visible_named_control(driver, name):
     """Find one displayed form control by its exact accessible name."""
     matches = []
     for element in driver.find_elements(
-        By.CSS_SELECTOR, 'input, textarea, select, button, [role="button"]'
+        By.CSS_SELECTOR,
+        'input, textarea, select, button, [role="button"], [role="combobox"]'
     ):
         try:
             if element.is_displayed() and element.accessible_name == name:
@@ -269,6 +270,62 @@ def visible_named_control(driver, name):
     return None
 
 
+def _multiple_values(value):
+    values = json.loads(value)
+    if not isinstance(values, list) or any(
+            not isinstance(item, str) for item in values):
+        raise ValueError('Multiple selections require a JSON string array')
+    if len(set(values)) != len(values):
+        raise ValueError('Multiple selections must not contain duplicates')
+    return values
+
+
+def _fill_multiple_options(driver, values):
+    options = [option for option in driver.find_elements(
+        By.CSS_SELECTOR, '[role="option"]') if option.is_displayed()]
+    available = {option.get_attribute('data-value') for option in options}
+    if not set(values).issubset(available):
+        raise ValueError('Requested selection is not an available option')
+    for option in options:
+        wanted = option.get_attribute('data-value') in values
+        if (option.get_attribute('aria-selected') == 'true') != wanted:
+            option.click()
+    selected = {option.get_attribute('data-value') for option in
+                driver.find_elements(By.CSS_SELECTOR, '[role="option"]')
+                if option.is_displayed() and
+                option.get_attribute('aria-selected') == 'true'}
+    if selected != set(values):
+        raise RuntimeError('Multiple selections did not match the request')
+    driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+
+
+def ensure_data_explorer(wait):
+    """Open a closed navigator through its activity control."""
+    def locate(driver):
+        for control in driver.find_elements(By.CSS_SELECTOR, (
+                'button[aria-label="Expand Connectors"], '
+                'button[aria-label="Collapse Connectors"]')):
+            if control.is_displayed():
+                return 'open'
+        for control in driver.find_elements(By.CSS_SELECTOR, (
+                '[data-cdeadmin-qa-key="activity-activity.data"]')):
+            if control.is_displayed() and control.is_enabled():
+                return control
+        return None
+
+    def ready(driver):
+        try:
+            return locate(driver)
+        except StaleElementReferenceException:
+            return None
+
+    state = wait.until(ready)
+    if state != 'open':
+        if state.get_attribute('data-selected') != 'true':
+            state.click()
+        wait.until(lambda driver: ready(driver) == 'open')
+
+
 def fill_fields(wait, values):
     """Enter non-recorded QA values into explicitly named controls."""
     for assignment in values:
@@ -291,12 +348,25 @@ def fill_fields(wait, values):
         role = control.get_attribute('role') or ''
         if tag_name == 'select':
             select = Select(control)
+            if select.is_multiple:
+                selections = _multiple_values(value)
+                select.deselect_all()
+                for selection in selections:
+                    select.select_by_value(selection)
+                continue
             try:
                 select.select_by_value(value)
             except Exception:
                 select.select_by_visible_text(value)
         elif role == 'combobox':
             control.click()
+            listbox = wait.until(lambda current: next((
+                box for box in current.find_elements(
+                    By.CSS_SELECTOR, '[role="listbox"]')
+                if box.is_displayed()), None))
+            if listbox.get_attribute('aria-multiselectable') == 'true':
+                _fill_multiple_options(driver, _multiple_values(value))
+                continue
 
             def matching_option(current_driver):
                 expected_value = value.replace('_', ' ').casefold()
@@ -311,6 +381,14 @@ def fill_fields(wait, values):
                 return None
 
             wait.until(matching_option).click()
+        elif (control.get_attribute('type') == 'checkbox' or
+              role == 'checkbox'):
+            if value.lower() not in {'true', 'false'}:
+                raise ValueError('Checkbox value must be true or false')
+            checked = (control.is_selected() if tag_name == 'input' else
+                       control.get_attribute('aria-checked') == 'true')
+            if checked != (value.lower() == 'true'):
+                control.click()
         elif tag_name in {'input', 'textarea'}:
             # send_keys() can interleave with a React controlled-input
             # rerender and silently lose characters.  Invoke the native value

@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 49,
+    "authoritative_task_count": 51,
     "authoritative_task_ids": [
       "visual_admin.column.create",
       "visual_admin.column.drop",
@@ -63,6 +63,8 @@
       "visual_admin.role.alter",
       "visual_admin.role.create",
       "visual_admin.role.drop",
+      "visual_admin.role.grant",
+      "visual_admin.role.revoke",
       "visual_admin.sequence.alter",
       "visual_admin.sequence.create",
       "visual_admin.sequence.drop",
@@ -82,7 +84,7 @@
       "visual_admin.view.create",
       "visual_admin.view.drop"
     ],
-    "implemented_task_count": 49,
+    "implemented_task_count": 51,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8841,6 +8843,7 @@
     "firebird-sql"
   ],
   "live_evidence_ids": [
+    "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-task-live-execution"
   ],
   "profile_id": "firebird-native",
@@ -8907,6 +8910,24 @@
       "format": "Python source",
       "license_id": "MIT",
       "sha256": "3024a04558e70629e7dd7980cde953cc068be751ccbf016193bb0c19b6aa5c1b"
+    },
+    {
+      "artifact": "live-contract.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-role-membership-parser-acceptance",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-role-membership-live.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "67d72717e13d115afd2cf2e514aa49a63dccf20de7bbf27bbcae7c7f94079d0e"
+    },
+    {
+      "artifact": "live-contract.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-role-membership-live-execution",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-role-membership-live.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "67d72717e13d115afd2cf2e514aa49a63dccf20de7bbf27bbcae7c7f94079d0e"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9393,6 +9414,34 @@
         "DROP ROLE \"cde_editor_role\""
       ],
       "task_id": "visual_admin.role.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-role-membership-parser-acceptance",
+        "firebird-5.0.4-role-membership-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "GRANT \"CDE_IX_QA_CB4FC92F7E46_R_O\" TO USER \"CDE_IX_QA_CB4FC92F7E46\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "GRANT \"CDE_IX_QA_CB4FC92F7E46_R_O\" TO USER \"CDE_IX_QA_CB4FC92F7E46\""
+      ],
+      "task_id": "visual_admin.role.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-role-membership-parser-acceptance",
+        "firebird-5.0.4-role-membership-live-execution"
+      ],
+      "required_bindings": [],
+      "source": "REVOKE \"CDE_IX_QA_CB4FC92F7E46_R\" FROM USER \"CDE_IX_QA_CB4FC92F7E46\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "REVOKE \"CDE_IX_QA_CB4FC92F7E46_R\" FROM USER \"CDE_IX_QA_CB4FC92F7E46\""
+      ],
+      "task_id": "visual_admin.role.revoke"
     },
     {
       "binding_style": "positional_question_mark",
