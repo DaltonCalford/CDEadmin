@@ -756,6 +756,40 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             invalid['errors'][0]['code'],
         )
 
+    def test_firebird_service_options_reject_structured_scalar_values(self):
+        cases = (
+            ('restore_logical', 'page_size'),
+            ('backup_logical', 'statistics'),
+            ('repair_database', 'repair_action'),
+            ('shutdown_database', 'mode'),
+            ('shutdown_database', 'method'),
+            ('set_sql_dialect', 'sql_dialect'),
+            ('restore_logical', 'replica_mode'),
+        )
+        validate = FIREBIRD_ADMINISTRATION._validate_firebird_service
+        for operation, field in cases:
+            for value in ([], {}, ['READ_ONLY'], {'value': 'SYNC'}, True, 3):
+                with self.subTest(operation=operation, field=field,
+                                  value=value):
+                    errors = validate(operation, {field: value})
+                    self.assertTrue(any(error['field_id'] == field
+                                        for error in errors))
+
+    def test_firebird_physical_flags_match_forms_before_attachment(self):
+        expected = {
+            'backup_physical': ('backup_flags', {'NO_TRIGGERS'}),
+            'restore_physical': ('restore_flags', {'IN_PLACE', 'SEQUENCE'}),
+            'fixup_database': ('fixup_flags', {'SEQUENCE'}),
+        }
+        validate = FIREBIRD_ADMINISTRATION._validate_firebird_service
+        for operation, (field, allowed) in expected.items():
+            for flag in ('NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE', 'UNKNOWN'):
+                with self.subTest(operation=operation, flag=flag):
+                    errors = validate(operation, {field: [flag]})
+                    flag_errors = [error for error in errors
+                                   if error['field_id'] == field]
+                    self.assertEqual(flag not in allowed, bool(flag_errors))
+
     def test_firebird_database_alter_has_exact_structured_form_and_sql(self):
         database = next(
             item for item in FIREBIRD_ADMINISTRATION.catalog(

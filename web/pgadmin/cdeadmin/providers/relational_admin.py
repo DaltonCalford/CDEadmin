@@ -3524,16 +3524,18 @@ class RelationalAdministration:
                     'message': f'{field_id} is outside its Firebird range.',
                 })
         page_size = draft.get('page_size')
-        if page_size is not None and page_size not in {
-            '4096', '8192', '16384', '32768'
-        }:
+        if page_size is not None and (
+            not isinstance(page_size, str) or page_size not in {
+                '4096', '8192', '16384', '32768'
+            }
+        ):
             errors.append({
                 'field_id': 'page_size',
                 'code': 'invalid_firebird_page_size',
                 'message': 'The restored Firebird page size is invalid.',
             })
         statistics = draft.get('statistics')
-        if statistics not in {None, ''} and (
+        if statistics is not None and statistics != '' and (
             not isinstance(statistics, str) or
             re.fullmatch(r'[TDWR]{1,4}', statistics.upper()) is None or
             len(set(statistics.upper())) != len(statistics)
@@ -3616,10 +3618,10 @@ class RelationalAdministration:
                 'NO_TRIGGERS', 'DIRECT_IO',
             }),
             'backup_physical': ('backup_flags', {
-                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+                'NO_TRIGGERS',
             }),
             'restore_physical': ('restore_flags', {
-                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+                'IN_PLACE', 'SEQUENCE',
             }),
             'database_statistics': ('statistics_flags', {
                 'DATA_PAGES', 'DB_LOG', 'HDR_PAGES', 'IDX_PAGES',
@@ -3627,7 +3629,7 @@ class RelationalAdministration:
                 'ENCRYPTION',
             }),
             'fixup_database': ('fixup_flags', {
-                'NO_TRIGGERS', 'IN_PLACE', 'SEQUENCE',
+                'SEQUENCE',
             }),
         }
         flag_field = flag_fields.get(operation)
@@ -3662,29 +3664,39 @@ class RelationalAdministration:
             'bring_online': ('mode', {'NORMAL', 'MULTI', 'SINGLE'}),
         }
         enum_field = enum_fields.get(operation)
-        if enum_field and draft.get(enum_field[0]) not in enum_field[1]:
+        if enum_field and (
+            not isinstance(draft.get(enum_field[0]), str) or
+            draft[enum_field[0]] not in enum_field[1]
+        ):
             errors.append({
                 'field_id': enum_field[0],
                 'code': 'invalid_firebird_service_option',
                 'message': 'The Firebird service option is invalid.',
             })
-        if operation == 'shutdown_database' and draft.get('method') not in {
-                'FORCED', 'DENY_ATTACHMENTS', 'DENY_TRANSACTIONS'}:
+        if operation == 'shutdown_database' and (
+            not isinstance(draft.get('method'), str) or
+            draft['method'] not in {
+                'FORCED', 'DENY_ATTACHMENTS', 'DENY_TRANSACTIONS'}
+        ):
             errors.append({
                 'field_id': 'method',
                 'code': 'invalid_firebird_shutdown_method',
                 'message': 'The Firebird shutdown method is invalid.',
             })
-        if operation == 'set_sql_dialect' and draft.get(
-                'sql_dialect') not in {'1', '3'}:
+        if operation == 'set_sql_dialect' and (
+            not isinstance(draft.get('sql_dialect'), str) or
+            draft['sql_dialect'] not in {'1', '3'}
+        ):
             errors.append({
                 'field_id': 'sql_dialect',
                 'code': 'invalid_firebird_sql_dialect',
                 'message': 'Firebird database SQL dialect must be 1 or 3.',
             })
-        if operation == 'restore_logical' and draft.get(
-                'replica_mode') not in {
-                    None, '', 'NONE', 'READ_ONLY', 'READ_WRITE'}:
+        replica_mode = draft.get('replica_mode')
+        if operation == 'restore_logical' and replica_mode is not None and (
+            not isinstance(replica_mode, str) or replica_mode not in {
+                '', 'NONE', 'READ_ONLY', 'READ_WRITE'}
+        ):
             errors.append({
                 'field_id': 'replica_mode',
                 'code': 'invalid_firebird_replica_mode',
