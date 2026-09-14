@@ -724,6 +724,144 @@ class ProviderWorkspaceTests(unittest.TestCase):
         self.assertFalse(recovered['live_provider_handle_available'])
         self.assertTrue(recovered['restart_safe_audit'])
 
+    def test_visual_admin_invalidation_uses_execution_database_scope(self):
+        original = self.endpoints.workspace
+        resolved = []
+        invalidated = []
+        invoked = []
+
+        def scoped_workspace(server, database_target_id=Ellipsis):
+            current, endpoint, root = original(server, database_target_id)
+            resolved.append(database_target_id)
+            namespace = str(uuid.uuid5(
+                uuid.UUID(current.cache_namespace), str(database_target_id)
+            ))
+            return replace(current, cache_namespace=namespace), endpoint, root
+
+        self.endpoints.workspace = scoped_workspace
+        self.workspace.resource_service.invalidate = (
+            lambda current: invalidated.append(current.cache_namespace)
+        )
+        methods = {
+            'apply': 'apply_visual_admin',
+            'visual_admin_operation_cancel': 'cancel_visual_admin_operation',
+            'visual_admin_operation_post_state':
+                'validate_visual_admin_post_state',
+        }
+        for action, method in methods.items():
+            for scope in ('explicit', 'resource', 'default'):
+                for fails in (False, True):
+                    with self.subTest(action=action, scope=scope, fails=fails):
+                        resolved.clear()
+                        invalidated.clear()
+                        invoked.clear()
+                        request = {'_provider_route': {'forged': True}}
+                        if scope == 'explicit':
+                            request['database_target_id'] = 'target-two'
+                        elif scope == 'resource':
+                            request['target_resource'] = {
+                                'extensions': {'cdeadmin': {
+                                    'database_target_id': 'target-two',
+                                }},
+                            }
+
+                        def callback(payload):
+                            invoked.append(payload)
+                            if fails:
+                                raise VisualAdminExecutionError('lost', {})
+                            return {}
+
+                        setattr(self.binding.instance, method, callback)
+
+                        def execute():
+                            if action == 'apply':
+                                return self.workspace.apply_visual_admin(
+                                    SimpleNamespace(user_id=7), request
+                                )
+                            operation_action = (
+                                self.workspace.visual_admin_operation_action
+                            )
+                            return operation_action(
+                                SimpleNamespace(user_id=7), action, request
+                            )
+
+                        if fails:
+                            with self.assertRaises(VisualAdminExecutionError):
+                                execute()
+                        else:
+                            execute()
+                        target = (Ellipsis if scope == 'default'
+                                  else 'target-two')
+                        self.assertEqual([target], resolved)
+                        expected = str(uuid.uuid5(
+                            uuid.UUID(self.context.cache_namespace),
+                            str(target),
+                        ))
+                        self.assertEqual([expected], invalidated)
+                        self.assertNotIn(
+                            self.context.cache_namespace, invalidated
+                        )
+                        self.assertEqual(1, len(invoked))
+                        self.assertEqual(
+                            {'route_id': 'route-one'},
+                            invoked[0]['_provider_route'],
+                        )
+
+    def test_invalid_apply_scope_never_executes_or_invalidates(self):
+        calls = []
+        self.binding.instance.apply_visual_admin = lambda payload: (
+            calls.append(payload)
+        )
+        self.workspace.resource_service.invalidate = lambda current: (
+            calls.append(current)
+        )
+        for request in (
+                {'database_target_id': ''},
+                {'database_target_id': None},
+                {'database_target_id': 'one', 'target_resource': {
+                    'extensions': {'cdeadmin': {'database_target_id': 'two'}},
+                }}):
+            with self.subTest(request=request):
+                with self.assertRaises(ProviderWorkspaceError):
+                    self.workspace.apply_visual_admin(
+                        SimpleNamespace(user_id=7), request
+                    )
+        self.assertEqual([], calls)
+
+    def test_apply_preserves_other_database_cache_generations(self):
+        original = self.endpoints.workspace
+        contexts = {}
+        for target in (Ellipsis, 'one', 'two'):
+            contexts[target] = replace(
+                self.context, cache_namespace=str(uuid.uuid5(
+                    uuid.UUID(self.context.cache_namespace), str(target)
+                ))
+            )
+
+        def scoped(server, database_target_id=Ellipsis):
+            _context, endpoint, root = original(server, database_target_id)
+            return contexts[database_target_id], endpoint, root
+
+        self.endpoints.workspace = scoped
+        self.binding.instance.apply_visual_admin = lambda _payload: {}
+        pages = {
+            target: self.workspace.resource_page(SimpleNamespace(), {
+                **({'database_target_id': target}
+                   if target is not Ellipsis else {}),
+            }) for target in contexts
+        }
+        self.workspace.apply_visual_admin(SimpleNamespace(user_id=7), {
+            'database_target_id': 'two',
+        })
+        for target, current in contexts.items():
+            generation = self.workspace.resource_service.cache.generation(
+                current
+            )
+            if target == 'two':
+                self.assertNotEqual(pages[target]['generation'], generation)
+            else:
+                self.assertEqual(pages[target]['generation'], generation)
+
     def test_unknown_apply_outcome_is_durably_audited(self):
         bus = OperationBus()
         self.workspace.operation_bus = bus

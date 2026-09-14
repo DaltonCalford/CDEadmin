@@ -716,11 +716,11 @@ class ProviderWorkspaceService:
         return self._visual_admin_call(server, 'plan_visual_admin', request)
 
     def apply_visual_admin(self, server, request):
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        context, callback, payload = self._prepare_visual_admin_call(
+            server, 'apply_visual_admin', request
+        )
         try:
-            result = self._visual_admin_call(
-                server, 'apply_visual_admin', request
-            )
+            result = callback(payload)
         except VisualAdminExecutionError as exc:
             self._record_visual_admin_audit(
                 server, context, exc.operation
@@ -880,10 +880,12 @@ class ProviderWorkspaceService:
             raise ProviderWorkspaceError(
                 'visual administration operation action is unavailable'
             ) from exc
-        context, _endpoint, _root = self.endpoint_service.workspace(server)
+        context, callback, payload = self._prepare_visual_admin_call(
+            server, method, request or {}
+        )
         principal = self._operation_principal(server)
         if action == 'visual_admin_operation_list':
-            live = self._visual_admin_call(server, method, request or {})
+            live = callback(payload)
             live_items = live.get('items', [])
             for item in live_items:
                 self._record_visual_admin_audit(server, context, item)
@@ -912,7 +914,7 @@ class ProviderWorkspaceService:
                 'restart_safe_audit': self.operation_bus is not None,
             }
         try:
-            result = self._visual_admin_call(server, method, request or {})
+            result = callback(payload)
         except VisualAdminExecutionError as exc:
             self._record_visual_admin_audit(server, context, exc.operation)
             if action in {
@@ -934,6 +936,10 @@ class ProviderWorkspaceService:
                 'live_provider_handle_available': False,
                 'restart_safe_audit': True,
             }
+        if action in {
+                'visual_admin_operation_cancel',
+                'visual_admin_operation_post_state'}:
+            self.resource_service.invalidate(context)
         if isinstance(result, dict) and result.get('operation_id'):
             self._record_visual_admin_audit(server, context, result)
             return {
@@ -1144,6 +1150,13 @@ class ProviderWorkspaceService:
         return self.studio_service.close_session(context, session_id)
 
     def _visual_admin_call(self, server, method_name, request):
+        _context, callback, payload = self._prepare_visual_admin_call(
+            server, method_name, request
+        )
+        return callback(payload)
+
+    def _prepare_visual_admin_call(self, server, method_name, request):
+        """Resolve execution and invalidation against the same scope."""
         if not isinstance(request, dict):
             raise ProviderWorkspaceError(
                 'visual administration request must be an object'
@@ -1201,7 +1214,7 @@ class ProviderWorkspaceService:
         # route, even under the reserved internal key.
         payload.pop('_provider_route', None)
         payload['_provider_route'] = copy.deepcopy(endpoint['route'])
-        return callback(payload)
+        return context, callback, payload
 
     @staticmethod
     def _principal_id(server):
