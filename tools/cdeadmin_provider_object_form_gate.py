@@ -488,6 +488,17 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind in {'authentication-mapping', 'global-authentication-mapping'}:
+            return rendered({
+                'name': str(name) if operation_id == 'create_or_alter' else
+                'CDE_UI_MAPPING_PREVIEW',
+                'using_mode': 'PLUGIN', 'plugin': 'Srp256',
+                'from_type': 'USER', 'from_any': False,
+                'from_name': 'CDE_UI_UNMATCHED', 'to_type': 'ROLE',
+                'to_name': 'CDE_UI_ROLE',
+                'description': 'Browser mapping comment',
+                'confirmation': str(name),
+            })
         if operation_id == 'create':
             object_name = f'cdeadmin_ui_{kind.replace("-", "_")}_probe'
             values = {'name': object_name}

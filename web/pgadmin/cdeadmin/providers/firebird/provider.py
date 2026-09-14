@@ -22,6 +22,7 @@ from ..relational_admin import (
     RelationalAdministration,
     RelationalAdminDialect,
 )
+from . import mappings
 
 
 PROFILE = PilotProfile(
@@ -32,7 +33,7 @@ PROFILE = PilotProfile(
      'constraint', 'domain', 'sequence', 'routine', 'trigger', 'procedure',
      'function', 'package', 'exception', 'user', 'role', 'privilege',
      'character-set', 'collation', 'external-function', 'plugin',
-     'publication',
+     'publication', 'authentication-mapping', 'global-authentication-mapping',
      'service-operation', 'metric'),
     ('isql', 'gbak', 'gfix', 'gstat', 'nbackup', 'user-administration'),
     semantic_sql_dialect={
@@ -120,6 +121,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'configure_admin_mapping',
         }),
         'user': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'authentication-mapping': mappings.OPERATIONS,
+        'global-authentication-mapping': mappings.OPERATIONS,
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
         'character-set': frozenset({'inspect'}),
         'collation': frozenset({'inspect'}),
@@ -748,10 +751,8 @@ def _initialize_connection(connection, route, module):
     connection.main_transaction.default_tpb = value
 
 
-def _catalog_detail(field, value):
-    """Materialize text BLOBs while their attachment/transaction is alive."""
-    if value is None:
-        return None
+def _materialize_catalog_value(value):
+    """Read and close native BLOBs before the catalog cursor is reused."""
     if callable(getattr(value, 'read', None)):
         reader = value
         try:
@@ -759,9 +760,19 @@ def _catalog_detail(field, value):
         finally:
             if callable(getattr(reader, 'close', None)):
                 reader.close()
+    return value
+
+
+def _catalog_detail(field, value):
+    """Preserve native source text, including significant whitespace."""
+    value = _materialize_catalog_value(value)
+    if value is None:
+        return None
     text = str(value)
     return text if field in {
         'description', 'expression_source', 'condition_source',
+        'metadata_source', 'header_source', 'body_source', 'default_source',
+        'validation_source', 'computed_source', 'definition',
     } else text.strip()
 
 
@@ -809,9 +820,22 @@ def _resources(connection, request):
         def optional(source):
             try:
                 cursor.execute(source)
-                return cursor.fetchall()
+                return [tuple(_materialize_catalog_value(value)
+                              for value in row) for row in cursor.fetchall()]
             except Exception:
                 return []
+
+        mapping_catalog = {}
+        for kind in mappings.KINDS:
+            try:
+                rows = list(mappings.catalog_rows(
+                    cursor, global_scope=kind == mappings.KINDS[1]))
+                for row in rows:
+                    add(kind, [], row[0], mappings.metadata(kind, row))
+                mapping_catalog[kind] = {'available': True, 'count': len(rows)}
+            except Exception as error:
+                mapping_catalog[kind] = {
+                    'available': False, 'error_type': type(error).__name__}
 
         info = connection.info
 
@@ -839,6 +863,7 @@ def _resources(connection, request):
         })
         database_native = {
             'scope': 'database',
+            'mapping_catalog': mapping_catalog,
             **{
                 name: info_value(name) for name in (
                     'name', 'creation_date', 'ods', 'page_cache_size',
@@ -926,8 +951,8 @@ def _resources(connection, request):
         add('database', [], database_name, database_native)
         cursor.execute(
             'SELECT TRIM(RDB$RELATION_NAME), RDB$VIEW_BLR, '
-            'CAST(RDB$VIEW_SOURCE AS VARCHAR(8191)), '
-            'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$RELATION_ID, '
+            'RDB$VIEW_SOURCE, '
+            'RDB$DESCRIPTION, RDB$RELATION_ID, '
             'RDB$SYSTEM_FLAG, RDB$RELATION_TYPE, '
             'TRIM(RDB$SECURITY_CLASS), TRIM(RDB$EXTERNAL_FILE), '
             'TRIM(RDB$OWNER_NAME), TRIM(RDB$DEFAULT_CLASS), RDB$FLAGS, '
@@ -942,7 +967,8 @@ def _resources(connection, request):
             4: 'global-temporary-preserve-rows',
             5: 'global-temporary-delete-rows',
         }
-        for row in cursor.fetchall():
+        for row in [tuple(_materialize_catalog_value(value) for value in row)
+                    for row in cursor.fetchall()]:
             (
                 name, view_blr, view_source, description, relation_id,
                 system_flag, relation_type, security_class, external_file,
@@ -982,16 +1008,16 @@ def _resources(connection, request):
             ('column', 'SELECT TRIM(RF.RDB$RELATION_NAME), '
              'TRIM(RF.RDB$FIELD_NAME), TRIM(RF.RDB$FIELD_SOURCE), '
              'RF.RDB$NULL_FLAG, '
-             'CAST(RF.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
+             'RF.RDB$DEFAULT_SOURCE, '
              'F.RDB$FIELD_TYPE, F.RDB$FIELD_SUB_TYPE, '
              'F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
              'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
              'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
              'TRIM(CO.RDB$COLLATION_NAME), RF.RDB$IDENTITY_TYPE, '
              'TRIM(RF.RDB$GENERATOR_NAME), '
-             'CAST(F.RDB$COMPUTED_SOURCE AS VARCHAR(8191)), '
+             'F.RDB$COMPUTED_SOURCE, '
              'RF.RDB$FIELD_POSITION, '
-             'CAST(RF.RDB$DESCRIPTION AS VARCHAR(8191)) '
+             'RF.RDB$DESCRIPTION '
              'FROM RDB$RELATION_FIELDS RF JOIN RDB$RELATIONS R ON '
              'R.RDB$RELATION_NAME = RF.RDB$RELATION_NAME JOIN RDB$FIELDS F '
              'ON F.RDB$FIELD_NAME = RF.RDB$FIELD_SOURCE LEFT JOIN '
@@ -1054,9 +1080,9 @@ def _resources(connection, request):
              'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
              'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
              'TRIM(CO.RDB$COLLATION_NAME), F.RDB$NULL_FLAG, '
-             'CAST(F.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
-             'CAST(F.RDB$VALIDATION_SOURCE AS VARCHAR(8191)), '
-             'CAST(F.RDB$DESCRIPTION AS VARCHAR(8191)), F.RDB$DIMENSIONS '
+             'F.RDB$DEFAULT_SOURCE, '
+             'F.RDB$VALIDATION_SOURCE, '
+             'F.RDB$DESCRIPTION, F.RDB$DIMENSIONS '
              'FROM RDB$FIELDS F LEFT JOIN RDB$CHARACTER_SETS CS ON '
              'CS.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID LEFT JOIN '
              'RDB$COLLATIONS CO ON CO.RDB$CHARACTER_SET_ID = '
@@ -1072,22 +1098,22 @@ def _resources(connection, request):
             ('trigger', 'SELECT TRIM(RDB$TRIGGER_NAME), '
              'TRIM(RDB$RELATION_NAME), RDB$TRIGGER_TYPE, '
              'RDB$TRIGGER_INACTIVE, RDB$TRIGGER_SEQUENCE, '
-             'CAST(RDB$TRIGGER_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$SQL_SECURITY, '
+             'RDB$TRIGGER_SOURCE, '
+             'RDB$DESCRIPTION, RDB$SQL_SECURITY, '
              'TRIM(RDB$ENTRYPOINT), TRIM(RDB$ENGINE_NAME) '
              'FROM RDB$TRIGGERS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('procedure', 'SELECT TRIM(RDB$PROCEDURE_NAME), '
              'TRIM(RDB$PACKAGE_NAME), '
-             'CAST(RDB$PROCEDURE_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$PROCEDURE_TYPE, '
+             'RDB$PROCEDURE_SOURCE, '
+             'RDB$DESCRIPTION, RDB$PROCEDURE_TYPE, '
              'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
              'TRIM(RDB$ENGINE_NAME) FROM RDB$PROCEDURES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
              'TRIM(RDB$PACKAGE_NAME), '
-             'CAST(RDB$FUNCTION_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$FUNCTION_TYPE, '
+             'RDB$FUNCTION_SOURCE, '
+             'RDB$DESCRIPTION, RDB$FUNCTION_TYPE, '
              'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
              'TRIM(RDB$ENGINE_NAME), RDB$DETERMINISTIC_FLAG, '
              'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS WHERE '
@@ -1096,19 +1122,19 @@ def _resources(connection, request):
             ('external-function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
              'TRIM(RDB$MODULE_NAME), TRIM(RDB$ENTRYPOINT), '
              'TRIM(RDB$ENGINE_NAME), TRIM(RDB$PACKAGE_NAME), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), '
+             'RDB$DESCRIPTION, '
              'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS '
              'WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NOT NULL ORDER BY 1'),
             ('package', 'SELECT TRIM(RDB$PACKAGE_NAME), '
-             'CAST(RDB$PACKAGE_HEADER_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$PACKAGE_BODY_SOURCE AS VARCHAR(8191)), '
-             'CAST(RDB$DESCRIPTION AS VARCHAR(8191)), RDB$VALID_BODY_FLAG, '
+             'RDB$PACKAGE_HEADER_SOURCE, '
+             'RDB$PACKAGE_BODY_SOURCE, '
+             'RDB$DESCRIPTION, RDB$VALID_BODY_FLAG, '
              'RDB$SQL_SECURITY FROM RDB$PACKAGES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('exception', 'SELECT TRIM(RDB$EXCEPTION_NAME), '
-             'RDB$MESSAGE, CAST(RDB$DESCRIPTION AS VARCHAR(8191)) '
+             'RDB$MESSAGE, RDB$DESCRIPTION '
              'FROM RDB$EXCEPTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('role', 'SELECT TRIM(RDB$ROLE_NAME), RDB$SYSTEM_PRIVILEGES, '
@@ -1236,8 +1262,8 @@ def _resources(connection, request):
             'TRIM(RDB$PARAMETER_NAME), RDB$PARAMETER_TYPE, '
             'RDB$PARAMETER_NUMBER, TRIM(P.RDB$FIELD_SOURCE), '
             'P.RDB$NULL_FLAG, '
-            'CAST(P.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), '
-            'CAST(P.RDB$DESCRIPTION AS VARCHAR(8191)), '
+            'P.RDB$DEFAULT_SOURCE, '
+            'P.RDB$DESCRIPTION, '
             'P.RDB$PARAMETER_MECHANISM, F.RDB$FIELD_TYPE, '
             'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
             'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
@@ -1289,7 +1315,7 @@ def _resources(connection, request):
             'SELECT TRIM(A.RDB$FUNCTION_NAME), TRIM(A.RDB$PACKAGE_NAME), '
             'TRIM(A.RDB$ARGUMENT_NAME), A.RDB$ARGUMENT_POSITION, '
             'TRIM(A.RDB$FIELD_SOURCE), A.RDB$NULL_FLAG, '
-            'CAST(A.RDB$DEFAULT_SOURCE AS VARCHAR(8191)), A.RDB$MECHANISM, '
+            'A.RDB$DEFAULT_SOURCE, A.RDB$MECHANISM, '
             'A.RDB$ARGUMENT_MECHANISM, '
             'COALESCE(F.RDB$FIELD_TYPE, A.RDB$FIELD_TYPE), '
             'COALESCE(F.RDB$FIELD_SUB_TYPE, A.RDB$FIELD_SUB_TYPE), '
@@ -1503,7 +1529,7 @@ def _resources(connection, request):
 
         for constraint_name, check_source in optional(
             'SELECT TRIM(CC.RDB$CONSTRAINT_NAME), '
-            'CAST(T.RDB$TRIGGER_SOURCE AS VARCHAR(8191)) '
+            'T.RDB$TRIGGER_SOURCE '
             'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$TRIGGERS T ON '
             'T.RDB$TRIGGER_NAME = CC.RDB$TRIGGER_NAME ORDER BY 1'
         ):

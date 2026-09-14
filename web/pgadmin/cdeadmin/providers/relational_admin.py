@@ -31,6 +31,7 @@ from typing import Any, Mapping, Sequence
 from ..sdk.relational import RelationalClientError
 from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
+from .firebird import mappings as firebird_mappings
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -211,6 +212,19 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if (self.dialect.engine_id == 'firebird' and
+                    kind in firebird_mappings.KINDS):
+                resource['operations'] = [
+                    item for item in resource['operations']
+                    if item['operation_id'] not in {'create_or_alter', 'comment'}
+                ] + [{
+                    'operation_id': operation,
+                    'title': title, 'mutation_class': 'admin',
+                    'target_required': True,
+                    'confirmation_required': True,
+                } for operation, title in (
+                    ('create_or_alter', 'Create or alter mapping'),
+                    ('comment', 'Edit mapping comment'))]
             if self.dialect.engine_id == 'firebird' and kind == 'role':
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
@@ -260,6 +274,9 @@ class RelationalAdministration:
                         operation['form'] = copy.deepcopy(database_form)
                     elif operation.get('form_authority') != 'engine-profile':
                         operation['form'] = self._form(kind, operation_id)
+                    if (self.dialect.engine_id == 'firebird' and
+                            kind in firebird_mappings.KINDS):
+                        operation['title'] = operation['form']['title']
                     self._structured_record_controls(operation['form'])
                     self._routine_record_controls(operation['form'])
                     if kind == 'privilege' and operation_id in {
@@ -358,6 +375,17 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind in firebird_mappings.KINDS and
+                operation_id != 'inspect'):
+            try:
+                firebird_mappings.compile_mapping(
+                    resource_kind, operation_id, draft,
+                    request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_mapping',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 operation_id == 'drop' and draft.get('cascade')):
             errors.append({
@@ -2758,6 +2786,18 @@ class RelationalAdministration:
     def _compile(self, request):
         operation = request['operation_id']
         if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] in firebird_mappings.KINDS and
+                operation != 'inspect'):
+            statements = firebird_mappings.compile_mapping(
+                request['resource_kind'], operation, request['draft'],
+                request.get('target_resource'))
+            return {
+                'statements': [{'source': sql, 'parameters': ()}
+                               for sql in statements],
+                'warnings': ['Mapping changes affect authentication on new '
+                             'attachments. Verify native access separately.'],
+            }
+        if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'role' and
                 operation == 'configure_admin_mapping'):
             target = request.get('target_resource') or {}
@@ -3620,6 +3660,9 @@ class RelationalAdministration:
         if not isinstance(draft, Mapping):
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
+        if (self.dialect.engine_id == 'firebird' and
+                kind in firebird_mappings.KINDS):
+            return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
             if kind == 'index' and self.dialect.engine_id == 'firebird':
@@ -3827,6 +3870,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and
+                kind in firebird_mappings.KINDS):
+            return firebird_mappings.form(kind, operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'role' and
                 operation == 'configure_admin_mapping'):
             return {

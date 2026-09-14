@@ -30,8 +30,13 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 52,
+    "authoritative_task_count": 62,
     "authoritative_task_ids": [
+      "visual_admin.authentication-mapping.alter",
+      "visual_admin.authentication-mapping.comment",
+      "visual_admin.authentication-mapping.create",
+      "visual_admin.authentication-mapping.create_or_alter",
+      "visual_admin.authentication-mapping.drop",
       "visual_admin.column.create",
       "visual_admin.column.drop",
       "visual_admin.column.rename",
@@ -48,6 +53,11 @@
       "visual_admin.function.alter",
       "visual_admin.function.create",
       "visual_admin.function.drop",
+      "visual_admin.global-authentication-mapping.alter",
+      "visual_admin.global-authentication-mapping.comment",
+      "visual_admin.global-authentication-mapping.create",
+      "visual_admin.global-authentication-mapping.create_or_alter",
+      "visual_admin.global-authentication-mapping.drop",
       "visual_admin.index.alter",
       "visual_admin.index.create",
       "visual_admin.index.drop",
@@ -85,7 +95,7 @@
       "visual_admin.view.create",
       "visual_admin.view.drop"
     ],
-    "implemented_task_count": 52,
+    "implemented_task_count": 62,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8844,6 +8854,7 @@
     "firebird-sql"
   ],
   "live_evidence_ids": [
+    "firebird-5.0.4-authentication-mappings-live",
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-task-live-execution"
@@ -8948,6 +8959,24 @@
       "format": "cdeadmin.firebird-admin-mapping-live.v1",
       "license_id": "PostgreSQL",
       "sha256": "1757d49b7d26f491172732fa11afb26c51c664e4ccf688803d4b4df53c403d2f"
+    },
+    {
+      "artifact": "live-4.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-authentication-mappings-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-mapping-matrix.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "71dce5bde254bf76f3eca3ea2ae88cc0cf96ad3de1a007358e29317615b862c0"
+    },
+    {
+      "artifact": "live-4.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-authentication-mappings-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-mapping-matrix.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "71dce5bde254bf76f3eca3ea2ae88cc0cf96ad3de1a007358e29317615b862c0"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -8999,6 +9028,81 @@
     }
   },
   "task_templates": [
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "ALTER MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "ALTER MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\""
+      ],
+      "task_id": "visual_admin.authentication-mapping.alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "COMMENT ON MAPPING \"CDE_MAPPING\" IS NULL",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "COMMENT ON MAPPING \"CDE_MAPPING\" IS NULL"
+      ],
+      "task_id": "visual_admin.authentication-mapping.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE MAPPING \"CDE_MAPPING\" USING ANY PLUGIN FROM \"USER\" 'CDE_MAP_USER' TO USER \"CDE_MAPPED_IDENTITY\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE MAPPING \"CDE_MAPPING\" USING ANY PLUGIN FROM \"USER\" 'CDE_MAP_USER' TO USER \"CDE_MAPPED_IDENTITY\""
+      ],
+      "task_id": "visual_admin.authentication-mapping.create"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\""
+      ],
+      "task_id": "visual_admin.authentication-mapping.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP MAPPING \"CDE_MAPPING\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP MAPPING \"CDE_MAPPING\""
+      ],
+      "task_id": "visual_admin.authentication-mapping.drop"
+    },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
@@ -9222,6 +9326,81 @@
         "DROP FUNCTION \"cde_editor_function\""
       ],
       "task_id": "visual_admin.function.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "ALTER GLOBAL MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "ALTER GLOBAL MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\""
+      ],
+      "task_id": "visual_admin.global-authentication-mapping.alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "COMMENT ON GLOBAL MAPPING \"CDE_MAPPING\" IS NULL",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "COMMENT ON GLOBAL MAPPING \"CDE_MAPPING\" IS NULL"
+      ],
+      "task_id": "visual_admin.global-authentication-mapping.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE GLOBAL MAPPING \"CDE_MAPPING\" USING ANY PLUGIN FROM \"USER\" 'CDE_MAP_USER' TO USER \"CDE_MAPPED_IDENTITY\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE GLOBAL MAPPING \"CDE_MAPPING\" USING ANY PLUGIN FROM \"USER\" 'CDE_MAP_USER' TO USER \"CDE_MAPPED_IDENTITY\""
+      ],
+      "task_id": "visual_admin.global-authentication-mapping.create"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER GLOBAL MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER GLOBAL MAPPING \"CDE_MAPPING\" USING * IN \"/srv/Case sensitive \"\"db\"\".fdb\" FROM ANY \"USER\" TO ROLE \"Mapped Identity \u00e9\""
+      ],
+      "task_id": "visual_admin.global-authentication-mapping.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-authentication-mappings-parser",
+        "firebird-5.0.4-authentication-mappings-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP GLOBAL MAPPING \"CDE_MAPPING\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP GLOBAL MAPPING \"CDE_MAPPING\""
+      ],
+      "task_id": "visual_admin.global-authentication-mapping.drop"
     },
     {
       "binding_style": "positional_question_mark",

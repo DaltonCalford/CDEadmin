@@ -1009,6 +1009,8 @@
         {"resource_kind": "exception", "title": "Exception", "operation_profile": "definition", "editor": {"sections": ["properties", "ddl", "dependencies", "dependents", "privileges", "operations"]}},
         {"resource_kind": "user", "title": "User", "operation_profile": "security", "editor": {"sections": ["properties", "privileges", "security", "operations"]}},
         {"resource_kind": "role", "title": "Role", "operation_profile": "security", "editor": {"sections": ["properties", "ddl", "privileges", "security", "operations"]}},
+        {"resource_kind": "authentication-mapping", "title": "Local authentication mapping", "operation_profile": "definition", "editor": {"sections": ["properties", "ddl", "operations"]}},
+        {"resource_kind": "global-authentication-mapping", "title": "Global authentication mapping", "operation_profile": "definition", "editor": {"sections": ["properties", "ddl", "operations"]}},
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security", "editor": {"sections": ["properties", "security", "operations"]}},
         {"resource_kind": "character-set", "title": "Character set", "operation_profile": "read_only", "editor": {"sections": ["properties", "dependencies", "dependents", "operations"]}},
         {"resource_kind": "collation", "title": "Collation", "operation_profile": "definition", "editor": {"sections": ["properties", "dependencies", "dependents", "operations"]}},

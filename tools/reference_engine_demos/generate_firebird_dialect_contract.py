@@ -16,6 +16,7 @@ import argparse
 import csv
 import copy
 import hashlib
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -398,6 +399,63 @@ def supplement_admin_mapping(document, evidence, digest, artifact):
     return value
 
 
+def supplement_mappings(document, evidence, digest, artifact):
+    from pgadmin.cdeadmin.providers.firebird import mappings
+    validate_dialect_contract(document, PROFILE)
+    required = {
+        f'{kind}:{mode}:any={any_name}:to={to_type}'
+        for kind, mode, any_name, to_type in itertools.product(
+            mappings.KINDS, mappings.MODES, (False, True), ('USER', 'ROLE'))
+    } | {'scope-separation'} | {
+        f'{kind}:{case}' for kind in mappings.KINDS for case in (
+            'permission-denial', 'native-user-mapping-authentication')}
+    tasks = {f'visual_admin.{kind}.{operation}' for kind in mappings.KINDS
+             for operation in mappings.OPERATIONS - {'inspect'}}
+    if (evidence.get('status') != 'passed' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('container_removed') is not True or
+            evidence.get('failures') != [] or
+            not required.issubset(evidence.get('checks', [])) or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Authentication mapping evidence is incomplete')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-authentication-mappings-live'
+    parser_id = 'firebird-5.0.4-authentication-mappings-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            'cdeadmin.firebird-mapping-matrix.v1', 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id, record in evidence['task_evidence'].items():
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Authentication mapping task proof is missing')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -425,12 +483,14 @@ def main(argv=None):
     parser.add_argument('--live-evidence', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--task-report', type=Path, required=True)
-    parser.add_argument('--supplement', choices=('roles', 'admin-mapping'),
+    parser.add_argument('--supplement', choices=(
+        'roles', 'admin-mapping', 'mappings'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
-        supplement = (supplement_admin_mapping if options.supplement ==
-                      'admin-mapping' else supplement_roles)
+        supplement = {'admin-mapping': supplement_admin_mapping,
+                      'roles': supplement_roles,
+                      'mappings': supplement_mappings}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),
             json.loads(options.live_evidence.read_text(encoding='utf-8')),

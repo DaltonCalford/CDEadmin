@@ -46,6 +46,8 @@ _KIND_LABELS = {
     'replication-channel': 'Replication objects',
     'resource-group': 'Resource groups',
     'role': 'Roles',
+    'authentication-mapping': 'Local authentication mappings',
+    'global-authentication-mapping': 'Global authentication mappings',
     'schema': 'Schemas',
     'sequence': 'Sequences',
     'server-link': 'Server links',

@@ -43,6 +43,7 @@ else:
 
 GATE_SCRIPTS = {
     'mapping': 'cdeadmin_firebird_admin_mapping_ui_gate.py',
+    'mappings': 'cdeadmin_firebird_mappings_ui_gate.py',
     'role': 'cdeadmin_firebird_role_ui_gate.py',
     'object': 'cdeadmin_provider_object_form_gate.py',
     'grid': 'cdeadmin_firebird_grid_ui_gate.py',
@@ -118,7 +119,7 @@ def gate_command(options, url, database_label, config_database=None):
         '--theme', options.theme,
         '--font-scale', str(options.font_scale),
     ]
-    if options.gate_kind in {'object', 'role', 'mapping'}:
+    if options.gate_kind in {'object', 'role', 'mapping', 'mappings'}:
         command.extend([
             '--engine-id', 'firebird',
             '--interface-id', 'firebird-native',
@@ -129,7 +130,7 @@ def gate_command(options, url, database_label, config_database=None):
             command.extend(['--resource-kind', resource_kind])
         for operation_id in options.operation_ids or ():
             command.extend(['--operation-id', operation_id])
-        if options.gate_kind in {'role', 'mapping'}:
+        if options.gate_kind in {'role', 'mapping', 'mappings'}:
             command.extend(['--profiles', str(options.profiles),
                             '--database-path', options.database])
     elif options.gate_kind in {'grid', 'query'}:
