@@ -110,6 +110,83 @@ def run(profiles):
 
             case('constraint-name-' + constraint, check_constraint)
 
+        def not_null():
+            execute('CREATE TABLE T (V INTEGER '
+                    'CONSTRAINT "Named NN" NOT NULL)')
+            ddl = table()['ddl']
+            replay(ddl)
+            names = rows('SELECT TRIM(TRAILING FROM RDB$CONSTRAINT_NAME) '
+                         'FROM RDB$RELATION_CONSTRAINTS WHERE '
+                         "RDB$RELATION_NAME='T'")
+            assert names == [('Named NN',)], (names, ddl)
+            return {'ddl': ddl, 'not_null_identity_preserved': True}
+
+        case('named-not-null', not_null)
+        execute('CREATE TABLE P (ID INTEGER PRIMARY KEY)')
+
+        def constraint_fingerprint():
+            return rows('SELECT TRIM(TRAILING FROM C.RDB$CONSTRAINT_NAME), '
+                        'TRIM(TRAILING FROM C.RDB$CONSTRAINT_TYPE), '
+                        'TRIM(TRAILING FROM C.RDB$INDEX_NAME), '
+                        'I.RDB$INDEX_TYPE FROM RDB$RELATION_CONSTRAINTS C '
+                        'LEFT JOIN RDB$INDICES I ON '
+                        'I.RDB$INDEX_NAME=C.RDB$INDEX_NAME WHERE '
+                        "C.RDB$RELATION_NAME='T' ORDER BY 1")
+
+        for kind in ('UNIQUE', 'PRIMARY KEY', 'FOREIGN KEY'):
+            for direction in ('ASCENDING', 'DESCENDING'):
+                for named_index in (False, True):
+                    def check_index(kind=kind, direction=direction,
+                                    named_index=named_index):
+                        clause = kind + ' (V)'
+                        if kind == 'FOREIGN KEY':
+                            clause += ' REFERENCES P (ID) ON DELETE CASCADE'
+                        if named_index:
+                            clause += ' USING ' + direction + ' INDEX "Key IX"'
+                        execute('CREATE TABLE T (V INTEGER, CONSTRAINT K ' +
+                                clause + ')')
+                        before = constraint_fingerprint()
+                        ddl = table()['ddl']
+                        replay(ddl)
+                        after = constraint_fingerprint()
+                        assert before == after, (before, after, ddl)
+                        return {'ddl': ddl, 'constraints': after}
+
+                    case(f'backing-index-{kind}-{direction}-{named_index}',
+                         check_index)
+
+        for generation in ('ALWAYS', 'BY DEFAULT'):
+            for explicit in (False, True):
+                def check_identity(generation=generation, explicit=explicit):
+                    suffix = (' CONSTRAINT "Identity NN" NOT NULL' if
+                              explicit else '')
+                    execute('CREATE TABLE T (V BIGINT GENERATED ' +
+                            generation + ' AS IDENTITY' + suffix + ')')
+                    before = constraint_fingerprint()
+                    ddl = table()['ddl']
+                    replay(ddl)
+                    after = constraint_fingerprint()
+                    assert before == after, (before, after, ddl)
+                    return {'ddl': ddl, 'constraints': after}
+
+                case(f'identity-nullability-{generation}-{explicit}',
+                     check_identity)
+
+        def comments():
+            execute('CREATE TABLE T (V INTEGER)')
+            execute("COMMENT ON TABLE T IS '  table ''é''; text  '")
+            execute("COMMENT ON COLUMN T.V IS '  column ''é''; text  '")
+            before = table()
+            ddl = before['ddl']
+            replay(ddl)
+            after = table()
+            assert after.get('description') == before['description'], ddl
+            assert after['columns'][0].get('description') == (
+                before['columns'][0]['description']), ddl
+            return {'ddl': ddl, 'comments_preserved': True}
+
+        case('table-and-column-comments', comments)
+
         for enabled in (False, True):
             def check_publication(enabled=enabled):
                 policy = 'INCLUDE ALL TO' if enabled else 'EXCLUDE ALL FROM'

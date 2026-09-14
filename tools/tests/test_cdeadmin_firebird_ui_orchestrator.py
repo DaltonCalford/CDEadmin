@@ -81,6 +81,7 @@ def options(kind):
     ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),
     ('mappings', 'cdeadmin_firebird_mappings_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
+    ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),
 ])
 def test_mutation_gate_receives_exact_profile_and_database(kind, filename):
     settings = options(kind)

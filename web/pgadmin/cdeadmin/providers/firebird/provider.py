@@ -1589,6 +1589,18 @@ def _resources(connection, request):
                         str(check_source).strip()
                     )
 
+        for constraint_name, column_name in optional(
+            'SELECT TRIM(TRAILING FROM CC.RDB$CONSTRAINT_NAME), '
+            'TRIM(TRAILING FROM CC.RDB$TRIGGER_NAME) '
+            'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$RELATION_CONSTRAINTS RC '
+            'ON RC.RDB$CONSTRAINT_NAME = CC.RDB$CONSTRAINT_NAME '
+            "WHERE RC.RDB$CONSTRAINT_TYPE = 'NOT NULL' ORDER BY 1"
+        ):
+            for constraint in objects_named(constraint_name):
+                if constraint['resource_kind'] == 'constraint':
+                    constraint.setdefault('native', {})['not_null_column'] = (
+                        str(column_name).rstrip(' '))
+
         for item in tuple(resources.values()):
             if item['resource_kind'] != 'privilege':
                 continue
@@ -1847,10 +1859,25 @@ def _resources(connection, request):
             prefix = f'CONSTRAINT {identifier(raw_name)} '
             fields = index_segments(native.get('index_name'))
             field_list = ', '.join(identifier(field) for field in fields)
+            backing = ''
+            if kind in {'PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY'}:
+                index = next((candidate.get('native', {}) for candidate in
+                              objects_named(native.get('index_name')) if
+                              candidate['resource_kind'] == 'index'), None)
+                if index is None or not fields:
+                    return None
+                raw_direction = index.get('index_type')
+                direction = (0 if raw_direction is None else
+                             numeric(raw_direction))
+                if direction not in (0, 1):
+                    return None
+                backing = (' USING ' + ('DESCENDING' if direction else
+                                        'ASCENDING') + ' INDEX ' +
+                           identifier(native['index_name']))
             if kind == 'PRIMARY KEY':
-                return f'{prefix}PRIMARY KEY ({field_list})'
+                return f'{prefix}PRIMARY KEY ({field_list}){backing}'
             if kind == 'UNIQUE':
-                return f'{prefix}UNIQUE ({field_list})'
+                return f'{prefix}UNIQUE ({field_list}){backing}'
             if kind == 'FOREIGN KEY':
                 referenced = index_segments(native.get('referenced_index'))
                 referenced_list = ', '.join(
@@ -1867,7 +1894,7 @@ def _resources(connection, request):
                 if native.get('delete_rule') and str(
                         native['delete_rule']).upper() != 'RESTRICT':
                     value += f' ON DELETE {native["delete_rule"]}'
-                return value
+                return value + backing
             if kind == 'CHECK' and native.get('check_source'):
                 source = str(native['check_source']).strip()
                 if not source.upper().startswith('CHECK'):
@@ -2288,7 +2315,8 @@ def _resources(connection, request):
                     if identity_type is not None:
                         initial = numeric(column.get('identity_initial_value'))
                         increment = numeric(column.get('identity_increment'))
-                        if initial is None or increment in (None, 0):
+                        if identity_type not in (0, 1) or initial is None or (
+                                increment in (None, 0)):
                             lines = None
                             native['ddl_unavailable_reason'] = (
                                 'Exact identity generator metadata is missing '
@@ -2305,7 +2333,33 @@ def _resources(connection, request):
                     if default:
                         definition += f' {default}'
                     if str(column.get('not_null')) == '1':
-                        definition += ' NOT NULL'
+                        not_null = [constraint for constraint in
+                                    native.get('constraints', []) if
+                                    constraint.get('constraint_type') ==
+                                    'NOT NULL' and
+                                    constraint.get('not_null_column') ==
+                                    column['name']]
+                        primary_key_member = any(
+                            constraint.get('constraint_type') == 'PRIMARY KEY'
+                            and column['name'] in index_segments(
+                                constraint.get('index_name'))
+                            for constraint in native.get('constraints', []))
+                        if not not_null and (primary_key_member or
+                                             identity_type in (0, 1)):
+                            # Primary-key and identity fields are implicitly
+                            # NOT NULL. Adding a separate constraint would
+                            # invent an extra catalog object.
+                            pass
+                        elif len(not_null) != 1:
+                            lines = None
+                            native['ddl_unavailable_reason'] = (
+                                'Exact NOT NULL constraint identity is '
+                                'missing or ambiguous.')
+                            break
+                        else:
+                            definition += (
+                                ' CONSTRAINT ' +
+                                identifier(not_null[0]['name']) + ' NOT NULL')
                     collation = str(
                         column.get('collation') or ''
                     ).rstrip(' ')
@@ -2318,13 +2372,22 @@ def _resources(connection, request):
                     'The exact Firebird field type could not be rendered.'
                 ))
                 continue
-            lines.extend(
-                clause for constraint in native.get('constraints', [])
-                if (clause := constraint_clause({
+            for constraint in native.get('constraints', []):
+                if constraint.get('constraint_type') == 'NOT NULL':
+                    continue
+                clause = constraint_clause({
                     'display_name': constraint['name'],
                     'native': constraint,
-                })) is not None
-            )
+                })
+                if clause is None:
+                    native['ddl_available'] = False
+                    native['ddl_unavailable_reason'] = (
+                        'Exact constraint definition or backing-index '
+                        'metadata is missing.')
+                    break
+                lines.append(clause)
+            if native.get('ddl_available') is False:
+                continue
             relation_type = numeric(native.get('relation_type'), 0)
             prefix = 'CREATE TABLE'
             suffix = ''
@@ -2349,22 +2412,32 @@ def _resources(connection, request):
                     f" {identifier(item['display_name'])} EXTERNAL FILE "
                     f"'{external}'"
                 )
-                native['ddl'] = (
-                    f'{prefix} (\n  ' + ',\n  '.join(lines) + f'\n){suffix};'
-                )
-                continue
-            native['ddl'] = (
-                f'{prefix} {identifier(item["display_name"])} (\n  ' +
-                ',\n  '.join(lines) + f'\n){suffix};'
-            )
+            else:
+                prefix += ' ' + identifier(item['display_name'])
+            statements = [prefix + ' (\n  ' + ',\n  '.join(lines) +
+                          f'\n){suffix}']
             if relation_type in {4, 5}:
                 # CREATE GTT has no publication clause. Preserve membership
                 # explicitly even when replay uses a different database policy.
                 publication = ('ENABLE' if native['publication_enabled'] else
                                'DISABLE')
-                native['ddl'] += (
-                    f'\nALTER TABLE {identifier(item["display_name"])} '
-                    f'{publication} PUBLICATION;')
+                statements.append(
+                    f'ALTER TABLE {identifier(item["display_name"])} '
+                    f'{publication} PUBLICATION')
+            if native.get('description') is not None:
+                comment = native['description'].replace("'", "''")
+                statements.append(
+                    f'COMMENT ON TABLE {identifier(item["display_name"])} '
+                    f"IS '{comment}'")
+            for column in native.get('columns', []):
+                if column.get('description') is not None:
+                    comment = column['description'].replace("'", "''")
+                    statements.append(
+                        f'COMMENT ON COLUMN '
+                        f'{identifier(item["display_name"])}.'
+                        f'{identifier(column["name"])} IS \'{comment}\'')
+            native['recreation_statements'] = statements
+            native['ddl'] = ';\n'.join(statements) + ';'
         dependency_capable = {
             'database', 'table', 'view', 'column', 'index', 'constraint',
             'domain', 'sequence', 'trigger', 'procedure', 'function',
