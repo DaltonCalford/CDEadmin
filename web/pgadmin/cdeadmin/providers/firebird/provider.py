@@ -92,7 +92,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'insert', 'update', 'delete',
         }),
         'view': frozenset({'inspect', 'create', 'alter', 'drop'}),
-        'column': frozenset({'inspect', 'create', 'rename', 'drop'}),
+        'column': frozenset({'inspect', 'create', 'alter', 'comment',
+                             'rename', 'drop'}),
         'constraint': frozenset({'inspect', 'create', 'drop'}),
         'index': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'sequence': frozenset({
@@ -773,7 +774,7 @@ def _catalog_detail(field, value):
         'description', 'expression_source', 'condition_source',
         'metadata_source', 'header_source', 'body_source', 'default_source',
         'validation_source', 'computed_source', 'definition',
-    } else text.strip()
+    } else text.rstrip(' ')
 
 
 def _role_privileges(value):
@@ -803,8 +804,8 @@ def _resources(connection, request):
         resources = {}
 
         def add(kind, path, name, native=None):
-            path = [str(item).strip() for item in path]
-            name = str(name).strip()
+            path = [str(item).rstrip(' ') for item in path]
+            name = str(name).rstrip(' ')
             resource_id = ':'.join([kind, *path, name])
             resources[resource_id] = {
                 'resource_id': resource_id,
@@ -905,8 +906,8 @@ def _resources(connection, request):
                 for name, value in zip(names, row)
             })
         database_catalog_rows = optional(
-            'SELECT TRIM(D.RDB$CHARACTER_SET_NAME), '
-            'TRIM(C.RDB$DEFAULT_COLLATE_NAME), D.RDB$LINGER, '
+            'SELECT TRIM(TRAILING FROM D.RDB$CHARACTER_SET_NAME), '
+            'TRIM(TRAILING FROM C.RDB$DEFAULT_COLLATE_NAME), D.RDB$LINGER, '
             'D.RDB$SQL_SECURITY FROM RDB$DATABASE D '
             'LEFT JOIN RDB$CHARACTER_SETS C ON '
             'C.RDB$CHARACTER_SET_NAME = D.RDB$CHARACTER_SET_NAME'
@@ -950,13 +951,19 @@ def _resources(connection, request):
         ).rsplit(':', 1)[-1].rsplit('/', 1)[-1]
         add('database', [], database_name, database_native)
         cursor.execute(
-            'SELECT TRIM(RDB$RELATION_NAME), RDB$VIEW_BLR, '
+            'SELECT TRIM(TRAILING FROM RDB$RELATION_NAME), RDB$VIEW_BLR, '
             'RDB$VIEW_SOURCE, '
             'RDB$DESCRIPTION, RDB$RELATION_ID, '
             'RDB$SYSTEM_FLAG, RDB$RELATION_TYPE, '
-            'TRIM(RDB$SECURITY_CLASS), TRIM(RDB$EXTERNAL_FILE), '
-            'TRIM(RDB$OWNER_NAME), TRIM(RDB$DEFAULT_CLASS), RDB$FLAGS, '
-            'RDB$SQL_SECURITY FROM RDB$RELATIONS '
+            'TRIM(TRAILING FROM RDB$SECURITY_CLASS), TRIM(TRAILING FROM '
+            'RDB$EXTERNAL_FILE), '
+            'TRIM(TRAILING FROM RDB$OWNER_NAME), TRIM(TRAILING FROM '
+            'RDB$DEFAULT_CLASS), RDB$FLAGS, '
+            'RDB$SQL_SECURITY, CASE WHEN EXISTS('
+            'SELECT 1 FROM RDB$PUBLICATION_TABLES P WHERE '
+            "P.RDB$PUBLICATION_NAME = 'RDB$DEFAULT' AND "
+            'P.RDB$TABLE_NAME = R.RDB$RELATION_NAME) THEN 1 ELSE 0 END '
+            'FROM RDB$RELATIONS R '
             'ORDER BY RDB$RELATION_NAME'
         )
         relation_types = {
@@ -972,9 +979,9 @@ def _resources(connection, request):
             (
                 name, view_blr, view_source, description, relation_id,
                 system_flag, relation_type, security_class, external_file,
-                owner, default_class, flags, sql_security,
+                owner, default_class, flags, sql_security, publication_enabled,
             ) = row
-            name = str(name).strip()
+            name = str(name).rstrip(' ')
             kind = 'view' if view_blr is not None else 'table'
             native = {
                 'relation_id': relation_id,
@@ -984,14 +991,14 @@ def _resources(connection, request):
                 ),
                 'system_flag': system_flag,
                 'system_object': bool(system_flag),
-                'owner': None if owner is None else str(owner).strip(),
+                'owner': None if owner is None else str(owner).rstrip(' '),
                 'security_class': (
                     None if security_class is None else
-                    str(security_class).strip()
+                    str(security_class).rstrip(' ')
                 ),
                 'default_security_class': (
                     None if default_class is None else
-                    str(default_class).strip()
+                    str(default_class).rstrip(' ')
                 ),
                 'external_file': (
                     None if external_file is None else
@@ -999,25 +1006,30 @@ def _resources(connection, request):
                 ),
                 'flags': flags,
                 'sql_security': sql_security,
+                'publication_enabled': bool(publication_enabled),
                 'description': description,
             }
             if kind == 'view':
                 native['definition'] = view_source
             add(kind, [], name, native)
         queries = (
-            ('column', 'SELECT TRIM(RF.RDB$RELATION_NAME), '
-             'TRIM(RF.RDB$FIELD_NAME), TRIM(RF.RDB$FIELD_SOURCE), '
+            ('column', 'SELECT TRIM(TRAILING FROM RF.RDB$RELATION_NAME), '
+             'TRIM(TRAILING FROM RF.RDB$FIELD_NAME), TRIM(TRAILING FROM '
+             'RF.RDB$FIELD_SOURCE), '
              'RF.RDB$NULL_FLAG, '
              'RF.RDB$DEFAULT_SOURCE, '
              'F.RDB$FIELD_TYPE, F.RDB$FIELD_SUB_TYPE, '
              'F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
              'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
-             'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
-             'TRIM(CO.RDB$COLLATION_NAME), RF.RDB$IDENTITY_TYPE, '
-             'TRIM(RF.RDB$GENERATOR_NAME), '
+             'F.RDB$SEGMENT_LENGTH, TRIM(TRAILING FROM '
+             'CS.RDB$CHARACTER_SET_NAME), '
+             'TRIM(TRAILING FROM CO.RDB$COLLATION_NAME), '
+             'RF.RDB$IDENTITY_TYPE, '
+             'TRIM(TRAILING FROM RF.RDB$GENERATOR_NAME), '
              'F.RDB$COMPUTED_SOURCE, '
              'RF.RDB$FIELD_POSITION, '
-             'RF.RDB$DESCRIPTION '
+             'RF.RDB$DESCRIPTION, G.RDB$INITIAL_VALUE, '
+             'G.RDB$GENERATOR_INCREMENT '
              'FROM RDB$RELATION_FIELDS RF JOIN RDB$RELATIONS R ON '
              'R.RDB$RELATION_NAME = RF.RDB$RELATION_NAME JOIN RDB$FIELDS F '
              'ON F.RDB$FIELD_NAME = RF.RDB$FIELD_SOURCE LEFT JOIN '
@@ -1025,17 +1037,20 @@ def _resources(connection, request):
              'F.RDB$CHARACTER_SET_ID LEFT JOIN RDB$COLLATIONS CO ON '
              'CO.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID AND '
              'CO.RDB$COLLATION_ID = COALESCE(RF.RDB$COLLATION_ID, '
-             'F.RDB$COLLATION_ID) ORDER BY 1, '
+             'F.RDB$COLLATION_ID) LEFT JOIN RDB$GENERATORS G ON '
+             'G.RDB$GENERATOR_NAME = RF.RDB$GENERATOR_NAME ORDER BY 1, '
              'RF.RDB$FIELD_POSITION'),
-            ('index', 'SELECT TRIM(RDB$RELATION_NAME), '
-             'TRIM(RDB$INDEX_NAME), RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, '
+            ('index', 'SELECT TRIM(TRAILING FROM RDB$RELATION_NAME), '
+             'TRIM(TRAILING FROM RDB$INDEX_NAME), RDB$UNIQUE_FLAG, '
+             'RDB$INDEX_INACTIVE, '
              'RDB$INDEX_TYPE, RDB$STATISTICS, '
              'RDB$EXPRESSION_SOURCE, RDB$DESCRIPTION, RDB$CONDITION_SOURCE '
              'FROM RDB$INDICES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1, 2'),
-            ('constraint', 'SELECT TRIM(C.RDB$RELATION_NAME), '
-             'TRIM(C.RDB$CONSTRAINT_NAME), TRIM(C.RDB$CONSTRAINT_TYPE), '
-             'TRIM(C.RDB$INDEX_NAME) '
+            ('constraint', 'SELECT TRIM(TRAILING FROM C.RDB$RELATION_NAME), '
+             'TRIM(TRAILING FROM C.RDB$CONSTRAINT_NAME), TRIM(TRAILING '
+             'FROM C.RDB$CONSTRAINT_TYPE), '
+             'TRIM(TRAILING FROM C.RDB$INDEX_NAME) '
              'FROM RDB$RELATION_CONSTRAINTS C JOIN RDB$RELATIONS R ON '
              'R.RDB$RELATION_NAME = C.RDB$RELATION_NAME WHERE '
              'COALESCE(R.RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1, 2'),
@@ -1047,7 +1062,7 @@ def _resources(connection, request):
                 'field_precision', 'character_length', 'segment_length',
                 'character_set', 'collation', 'identity_type',
                 'generator_name', 'computed_source', 'position',
-                'description',
+                'description', 'identity_initial_value', 'identity_increment',
             ),
             'index': (
                 'unique', 'inactive', 'index_type', 'statistics',
@@ -1075,11 +1090,13 @@ def _resources(connection, request):
                         'system_object': True,
                     })
         simple_queries = (
-            ('domain', 'SELECT TRIM(F.RDB$FIELD_NAME), F.RDB$FIELD_TYPE, '
+            ('domain', 'SELECT TRIM(TRAILING FROM F.RDB$FIELD_NAME), '
+             'F.RDB$FIELD_TYPE, '
              'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
              'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
-             'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
-             'TRIM(CO.RDB$COLLATION_NAME), F.RDB$NULL_FLAG, '
+             'F.RDB$SEGMENT_LENGTH, TRIM(TRAILING FROM '
+             'CS.RDB$CHARACTER_SET_NAME), '
+             'TRIM(TRAILING FROM CO.RDB$COLLATION_NAME), F.RDB$NULL_FLAG, '
              'F.RDB$DEFAULT_SOURCE, '
              'F.RDB$VALIDATION_SOURCE, '
              'F.RDB$DESCRIPTION, F.RDB$DIMENSIONS '
@@ -1089,73 +1106,84 @@ def _resources(connection, request):
              'F.RDB$CHARACTER_SET_ID AND CO.RDB$COLLATION_ID = '
              'F.RDB$COLLATION_ID WHERE COALESCE(F.RDB$SYSTEM_FLAG, 0) = 0 '
              "AND RDB$FIELD_NAME NOT STARTING WITH 'RDB$' ORDER BY 1"),
-            ('sequence', 'SELECT TRIM(RDB$GENERATOR_NAME), '
+            ('sequence', 'SELECT TRIM(TRAILING FROM RDB$GENERATOR_NAME), '
              'RDB$INITIAL_VALUE, RDB$GENERATOR_INCREMENT, '
-             'TRIM(RDB$OWNER_NAME), '
+             'TRIM(TRAILING FROM RDB$OWNER_NAME), '
              'RDB$DESCRIPTION FROM '
              'RDB$GENERATORS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('trigger', 'SELECT TRIM(RDB$TRIGGER_NAME), '
-             'TRIM(RDB$RELATION_NAME), RDB$TRIGGER_TYPE, '
+            ('trigger', 'SELECT TRIM(TRAILING FROM RDB$TRIGGER_NAME), '
+             'TRIM(TRAILING FROM RDB$RELATION_NAME), RDB$TRIGGER_TYPE, '
              'RDB$TRIGGER_INACTIVE, RDB$TRIGGER_SEQUENCE, '
              'RDB$TRIGGER_SOURCE, '
              'RDB$DESCRIPTION, RDB$SQL_SECURITY, '
-             'TRIM(RDB$ENTRYPOINT), TRIM(RDB$ENGINE_NAME) '
+             'TRIM(TRAILING FROM RDB$ENTRYPOINT), TRIM(TRAILING FROM '
+             'RDB$ENGINE_NAME) '
              'FROM RDB$TRIGGERS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('procedure', 'SELECT TRIM(RDB$PROCEDURE_NAME), '
-             'TRIM(RDB$PACKAGE_NAME), '
+            ('procedure', 'SELECT TRIM(TRAILING FROM RDB$PROCEDURE_NAME), '
+             'TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
              'RDB$PROCEDURE_SOURCE, '
              'RDB$DESCRIPTION, RDB$PROCEDURE_TYPE, '
-             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
-             'TRIM(RDB$ENGINE_NAME) FROM RDB$PROCEDURES WHERE '
+             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(TRAILING FROM '
+             'RDB$ENTRYPOINT), '
+             'TRIM(TRAILING FROM RDB$ENGINE_NAME) FROM RDB$PROCEDURES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
-             'TRIM(RDB$PACKAGE_NAME), '
+            ('function', 'SELECT TRIM(TRAILING FROM RDB$FUNCTION_NAME), '
+             'TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
              'RDB$FUNCTION_SOURCE, '
              'RDB$DESCRIPTION, RDB$FUNCTION_TYPE, '
-             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(RDB$ENTRYPOINT), '
-             'TRIM(RDB$ENGINE_NAME), RDB$DETERMINISTIC_FLAG, '
+             'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(TRAILING FROM '
+             'RDB$ENTRYPOINT), '
+             'TRIM(TRAILING FROM RDB$ENGINE_NAME), RDB$DETERMINISTIC_FLAG, '
              'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NULL ORDER BY 1'),
-            ('external-function', 'SELECT TRIM(RDB$FUNCTION_NAME), '
-             'TRIM(RDB$MODULE_NAME), TRIM(RDB$ENTRYPOINT), '
-             'TRIM(RDB$ENGINE_NAME), TRIM(RDB$PACKAGE_NAME), '
+            ('external-function', 'SELECT TRIM(TRAILING FROM '
+             'RDB$FUNCTION_NAME), '
+             'TRIM(TRAILING FROM RDB$MODULE_NAME), TRIM(TRAILING FROM '
+             'RDB$ENTRYPOINT), '
+             'TRIM(TRAILING FROM RDB$ENGINE_NAME), TRIM(TRAILING FROM '
+             'RDB$PACKAGE_NAME), '
              'RDB$DESCRIPTION, '
              'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS '
              'WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NOT NULL ORDER BY 1'),
-            ('package', 'SELECT TRIM(RDB$PACKAGE_NAME), '
+            ('package', 'SELECT TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
              'RDB$PACKAGE_HEADER_SOURCE, '
              'RDB$PACKAGE_BODY_SOURCE, '
              'RDB$DESCRIPTION, RDB$VALID_BODY_FLAG, '
              'RDB$SQL_SECURITY FROM RDB$PACKAGES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('exception', 'SELECT TRIM(RDB$EXCEPTION_NAME), '
+            ('exception', 'SELECT TRIM(TRAILING FROM RDB$EXCEPTION_NAME), '
              'RDB$MESSAGE, RDB$DESCRIPTION '
              'FROM RDB$EXCEPTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
-            ('role', 'SELECT TRIM(RDB$ROLE_NAME), RDB$SYSTEM_PRIVILEGES, '
-             'TRIM(RDB$OWNER_NAME), RDB$DESCRIPTION '
+            ('role', 'SELECT TRIM(TRAILING FROM RDB$ROLE_NAME), '
+             'RDB$SYSTEM_PRIVILEGES, '
+             'TRIM(TRAILING FROM RDB$OWNER_NAME), RDB$DESCRIPTION '
              'FROM RDB$ROLES WHERE COALESCE(RDB$SYSTEM_FLAG, 0) = 0 '
              'ORDER BY 1'),
-            ('character-set', 'SELECT TRIM(RDB$CHARACTER_SET_NAME), '
-             'RDB$BYTES_PER_CHARACTER, TRIM(RDB$DEFAULT_COLLATE_NAME), '
-             'TRIM(RDB$FORM_OF_USE), RDB$SYSTEM_FLAG '
+            ('character-set', 'SELECT TRIM(TRAILING FROM '
+             'RDB$CHARACTER_SET_NAME), '
+             'RDB$BYTES_PER_CHARACTER, TRIM(TRAILING FROM '
+             'RDB$DEFAULT_COLLATE_NAME), '
+             'TRIM(TRAILING FROM RDB$FORM_OF_USE), RDB$SYSTEM_FLAG '
              'FROM RDB$CHARACTER_SETS ORDER BY 1'),
-            ('collation', 'SELECT TRIM(RDB$COLLATION_NAME), '
+            ('collation', 'SELECT TRIM(TRAILING FROM RDB$COLLATION_NAME), '
              'RDB$CHARACTER_SET_ID, RDB$COLLATION_ATTRIBUTES, '
-             'TRIM(RDB$BASE_COLLATION_NAME), RDB$SPECIFIC_ATTRIBUTES, '
+             'TRIM(TRAILING FROM RDB$BASE_COLLATION_NAME), '
+             'RDB$SPECIFIC_ATTRIBUTES, '
              'RDB$SYSTEM_FLAG '
              'FROM RDB$COLLATIONS ORDER BY 1'),
-            ('user', 'SELECT TRIM(SEC$USER_NAME), TRIM(SEC$PLUGIN) '
+            ('user', 'SELECT TRIM(TRAILING FROM SEC$USER_NAME), '
+             'TRIM(TRAILING FROM SEC$PLUGIN) '
              'FROM SEC$USERS ORDER BY 1'),
-            ('plugin', 'SELECT TRIM(RDB$CONFIG_NAME), '
+            ('plugin', 'SELECT TRIM(TRAILING FROM RDB$CONFIG_NAME), '
              'RDB$CONFIG_VALUE FROM RDB$CONFIG WHERE '
              "UPPER(RDB$CONFIG_NAME) LIKE '%PLUGIN%' ORDER BY 1"),
-            ('publication', 'SELECT TRIM(RDB$PUBLICATION_NAME), '
+            ('publication', 'SELECT TRIM(TRAILING FROM RDB$PUBLICATION_NAME), '
              'RDB$ACTIVE_FLAG FROM RDB$PUBLICATIONS ORDER BY 1'),
         )
         simple_detail_names = {
@@ -1212,7 +1240,7 @@ def _resources(connection, request):
                 return None
             if field == 'description':
                 return _catalog_detail(field, detail)
-            return str(detail).strip()
+            return str(detail).rstrip(' ')
 
         for kind, source in simple_queries:
             for row in optional(source):
@@ -1248,8 +1276,8 @@ def _resources(connection, request):
                 add(kind, [], row[0], native)
 
         def routine_named(kind, name, package):
-            name = str(name or '').strip()
-            package = str(package or '').strip()
+            name = str(name or '').rstrip(' ')
+            package = str(package or '').rstrip(' ')
             return [
                 item for item in resources.values()
                 if item['resource_kind'] == kind and
@@ -1258,18 +1286,22 @@ def _resources(connection, request):
             ]
 
         procedure_parameters = optional(
-            'SELECT TRIM(RDB$PROCEDURE_NAME), TRIM(RDB$PACKAGE_NAME), '
-            'TRIM(RDB$PARAMETER_NAME), RDB$PARAMETER_TYPE, '
-            'RDB$PARAMETER_NUMBER, TRIM(P.RDB$FIELD_SOURCE), '
+            'SELECT TRIM(TRAILING FROM RDB$PROCEDURE_NAME), '
+            'TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
+            'TRIM(TRAILING FROM RDB$PARAMETER_NAME), RDB$PARAMETER_TYPE, '
+            'RDB$PARAMETER_NUMBER, TRIM(TRAILING FROM P.RDB$FIELD_SOURCE), '
             'P.RDB$NULL_FLAG, '
             'P.RDB$DEFAULT_SOURCE, '
             'P.RDB$DESCRIPTION, '
             'P.RDB$PARAMETER_MECHANISM, F.RDB$FIELD_TYPE, '
             'F.RDB$FIELD_SUB_TYPE, F.RDB$FIELD_LENGTH, F.RDB$FIELD_SCALE, '
             'F.RDB$FIELD_PRECISION, F.RDB$CHARACTER_LENGTH, '
-            'F.RDB$SEGMENT_LENGTH, TRIM(CS.RDB$CHARACTER_SET_NAME), '
-            'TRIM(CO.RDB$COLLATION_NAME), TRIM(P.RDB$RELATION_NAME), '
-            'TRIM(P.RDB$FIELD_NAME) FROM RDB$PROCEDURE_PARAMETERS P '
+            'F.RDB$SEGMENT_LENGTH, TRIM(TRAILING FROM '
+            'CS.RDB$CHARACTER_SET_NAME), '
+            'TRIM(TRAILING FROM CO.RDB$COLLATION_NAME), TRIM(TRAILING '
+            'FROM P.RDB$RELATION_NAME), '
+            'TRIM(TRAILING FROM P.RDB$FIELD_NAME) FROM '
+            'RDB$PROCEDURE_PARAMETERS P '
             'JOIN RDB$FIELDS F ON F.RDB$FIELD_NAME = P.RDB$FIELD_SOURCE '
             'LEFT JOIN RDB$CHARACTER_SETS CS ON CS.RDB$CHARACTER_SET_ID = '
             'F.RDB$CHARACTER_SET_ID LEFT JOIN RDB$COLLATIONS CO ON '
@@ -1285,10 +1317,10 @@ def _resources(connection, request):
                 character_length, segment_length, character_set, collation, \
                 relation_name, field_name = row
             parameter = {
-                'name': str(name or '').strip(),
+                'name': str(name or '').rstrip(' '),
                 'mode': 'input' if mode == 0 else 'output',
                 'position': position,
-                'domain': str(domain or '').strip() or None,
+                'domain': str(domain or '').rstrip(' ') or None,
                 'not_null': not_null,
                 'default_source': default_source,
                 'description': description,
@@ -1312,9 +1344,11 @@ def _resources(connection, request):
                 ).append(parameter)
 
         function_arguments = optional(
-            'SELECT TRIM(A.RDB$FUNCTION_NAME), TRIM(A.RDB$PACKAGE_NAME), '
-            'TRIM(A.RDB$ARGUMENT_NAME), A.RDB$ARGUMENT_POSITION, '
-            'TRIM(A.RDB$FIELD_SOURCE), A.RDB$NULL_FLAG, '
+            'SELECT TRIM(TRAILING FROM A.RDB$FUNCTION_NAME), '
+            'TRIM(TRAILING FROM A.RDB$PACKAGE_NAME), '
+            'TRIM(TRAILING FROM A.RDB$ARGUMENT_NAME), '
+            'A.RDB$ARGUMENT_POSITION, '
+            'TRIM(TRAILING FROM A.RDB$FIELD_SOURCE), A.RDB$NULL_FLAG, '
             'A.RDB$DEFAULT_SOURCE, A.RDB$MECHANISM, '
             'A.RDB$ARGUMENT_MECHANISM, '
             'COALESCE(F.RDB$FIELD_TYPE, A.RDB$FIELD_TYPE), '
@@ -1324,9 +1358,11 @@ def _resources(connection, request):
             'COALESCE(F.RDB$FIELD_PRECISION, A.RDB$FIELD_PRECISION), '
             'COALESCE(F.RDB$CHARACTER_LENGTH, A.RDB$CHARACTER_LENGTH), '
             'F.RDB$SEGMENT_LENGTH, '
-            'TRIM(CS.RDB$CHARACTER_SET_NAME), '
-            'TRIM(CO.RDB$COLLATION_NAME), TRIM(A.RDB$RELATION_NAME), '
-            'TRIM(A.RDB$FIELD_NAME) FROM RDB$FUNCTION_ARGUMENTS A '
+            'TRIM(TRAILING FROM CS.RDB$CHARACTER_SET_NAME), '
+            'TRIM(TRAILING FROM CO.RDB$COLLATION_NAME), TRIM(TRAILING '
+            'FROM A.RDB$RELATION_NAME), '
+            'TRIM(TRAILING FROM A.RDB$FIELD_NAME) FROM '
+            'RDB$FUNCTION_ARGUMENTS A '
             'LEFT JOIN RDB$FIELDS F ON F.RDB$FIELD_NAME = '
             'A.RDB$FIELD_SOURCE LEFT JOIN RDB$CHARACTER_SETS CS ON '
             'CS.RDB$CHARACTER_SET_ID = COALESCE(F.RDB$CHARACTER_SET_ID, '
@@ -1343,9 +1379,9 @@ def _resources(connection, request):
                 character_length, segment_length, character_set, collation, \
                 relation_name, field_name = row
             argument = {
-                'name': str(name or '').strip() or None,
+                'name': str(name or '').rstrip(' ') or None,
                 'position': position,
-                'domain': str(domain or '').strip() or None,
+                'domain': str(domain or '').rstrip(' ') or None,
                 'not_null': not_null,
                 'default_source': default_source,
                 'mechanism': mechanism,
@@ -1384,18 +1420,21 @@ def _resources(connection, request):
         for (
                 grantee, relation, field, privilege, grantor, grant_option,
                 user_type, object_type) in optional(
-            'SELECT TRIM(RDB$USER), TRIM(RDB$RELATION_NAME), '
-            'TRIM(RDB$FIELD_NAME), TRIM(RDB$PRIVILEGE), '
-            'TRIM(RDB$GRANTOR), RDB$GRANT_OPTION, RDB$USER_TYPE, '
+            'SELECT TRIM(TRAILING FROM RDB$USER), TRIM(TRAILING FROM '
+            'RDB$RELATION_NAME), '
+            'TRIM(TRAILING FROM RDB$FIELD_NAME), TRIM(TRAILING FROM '
+            'RDB$PRIVILEGE), '
+            'TRIM(TRAILING FROM RDB$GRANTOR), RDB$GRANT_OPTION, '
+            'RDB$USER_TYPE, '
             'RDB$OBJECT_TYPE FROM RDB$USER_PRIVILEGES '
             'ORDER BY 1, 2, 3, 4, 5, 7, 8'
         ):
-            relation = str(relation or '').strip() or 'database'
+            relation = str(relation or '').rstrip(' ') or 'database'
             if relation not in grantable_names:
                 continue
-            grantee = str(grantee).strip()
+            grantee = str(grantee).rstrip(' ')
             privilege = str(privilege).strip()
-            field = str(field or '').strip()
+            field = str(field or '').rstrip(' ')
             membership = privilege == 'M' and object_type == 13
             default_role = bool(field) if membership else False
             if membership:
@@ -1403,7 +1442,7 @@ def _resources(connection, request):
             granted_object = relation + (f'.{field}' if field else '')
             name = f'{grantee}:{privilege} on {granted_object}'
             if membership:
-                name += f' [{user_type}; grantor {str(grantor).strip()}]'
+                name += f' [{user_type}; grantor {str(grantor).rstrip(' ')}]'
             # A granted object is metadata of a Firebird grant, not its
             # navigator parent.  Keeping it in display_path incorrectly
             # nested grants beneath tables, views and sequences and could
@@ -1415,15 +1454,17 @@ def _resources(connection, request):
                 'object_name': relation,
                 'default_role': default_role,
                 'field': field or None,
-                'grantor': str(grantor or '').strip(),
+                'grantor': str(grantor or '').rstrip(' '),
                 'grant_option': grant_option,
                 'user_type': user_type,
                 'object_type': object_type,
             })
         dependency_rows = optional(
-            'SELECT TRIM(RDB$DEPENDENT_NAME), RDB$DEPENDENT_TYPE, '
-            'TRIM(RDB$DEPENDED_ON_NAME), RDB$DEPENDED_ON_TYPE, '
-            'TRIM(RDB$FIELD_NAME), TRIM(RDB$PACKAGE_NAME) '
+            'SELECT TRIM(TRAILING FROM RDB$DEPENDENT_NAME), '
+            'RDB$DEPENDENT_TYPE, '
+            'TRIM(TRAILING FROM RDB$DEPENDED_ON_NAME), RDB$DEPENDED_ON_TYPE, '
+            'TRIM(TRAILING FROM RDB$FIELD_NAME), TRIM(TRAILING FROM '
+            'RDB$PACKAGE_NAME) '
             'FROM RDB$DEPENDENCIES ORDER BY 1, 3, 5'
         )
 
@@ -1449,7 +1490,7 @@ def _resources(connection, request):
         }
 
         def objects_named(name, object_type=None):
-            normalized = str(name or '').strip()
+            normalized = str(name or '').rstrip(' ')
             kinds = dependency_kinds.get(object_type)
             if object_type is not None and kinds is None:
                 return []
@@ -1464,22 +1505,22 @@ def _resources(connection, request):
                 dependent_name, dependent_type, depended_name,
                 depended_type, field_name, package_name) in dependency_rows:
             dependency = {
-                'object_name': str(depended_name or '').strip(),
+                'object_name': str(depended_name or '').rstrip(' '),
                 'object_type_code': depended_type,
                 'object_type': dependency_type_names.get(
                     depended_type, f'object type {depended_type}'
                 ),
-                'field_name': str(field_name or '').strip() or None,
-                'package_name': str(package_name or '').strip() or None,
+                'field_name': str(field_name or '').rstrip(' ') or None,
+                'package_name': str(package_name or '').rstrip(' ') or None,
             }
             dependent = {
-                'object_name': str(dependent_name or '').strip(),
+                'object_name': str(dependent_name or '').rstrip(' '),
                 'object_type_code': dependent_type,
                 'object_type': dependency_type_names.get(
                     dependent_type, f'object type {dependent_type}'
                 ),
-                'field_name': str(field_name or '').strip() or None,
-                'package_name': str(package_name or '').strip() or None,
+                'field_name': str(field_name or '').rstrip(' ') or None,
+                'package_name': str(package_name or '').rstrip(' ') or None,
             }
             for item in objects_named(dependent_name, dependent_type):
                 item.setdefault('native', {}).setdefault(
@@ -1491,7 +1532,8 @@ def _resources(connection, request):
                 ).append(dependent)
 
         for index_name, field_name, position in optional(
-            'SELECT TRIM(RDB$INDEX_NAME), TRIM(RDB$FIELD_NAME), '
+            'SELECT TRIM(TRAILING FROM RDB$INDEX_NAME), TRIM(TRAILING '
+            'FROM RDB$FIELD_NAME), '
             'RDB$FIELD_POSITION FROM RDB$INDEX_SEGMENTS ORDER BY 1, 3'
         ):
             for index in objects_named(index_name):
@@ -1499,17 +1541,18 @@ def _resources(connection, request):
                     index.setdefault('native', {}).setdefault(
                         'segments', []
                     ).append({
-                        'field_name': str(field_name).strip(),
+                        'field_name': str(field_name).rstrip(' '),
                         'position': position,
                     })
 
         for (
                 constraint_name, referenced_relation, update_rule,
                 delete_rule, referenced_index) in optional(
-                    'SELECT TRIM(RC.RDB$CONSTRAINT_NAME), '
-                    'TRIM(UQ.RDB$RELATION_NAME), '
-                    'TRIM(RC.RDB$UPDATE_RULE), '
-                    'TRIM(RC.RDB$DELETE_RULE), TRIM(UQ.RDB$INDEX_NAME) '
+                    'SELECT TRIM(TRAILING FROM RC.RDB$CONSTRAINT_NAME), '
+                    'TRIM(TRAILING FROM UQ.RDB$RELATION_NAME), '
+                    'TRIM(TRAILING FROM RC.RDB$UPDATE_RULE), '
+                    'TRIM(TRAILING FROM RC.RDB$DELETE_RULE), '
+                    'TRIM(TRAILING FROM UQ.RDB$INDEX_NAME) '
                     'FROM RDB$REF_CONSTRAINTS RC JOIN '
                     'RDB$RELATION_CONSTRAINTS UQ ON '
                     'UQ.RDB$CONSTRAINT_NAME = RC.RDB$CONST_NAME_UQ '
@@ -1519,16 +1562,16 @@ def _resources(connection, request):
                     constraint.setdefault('native', {}).update({
                         'referenced_relation': str(
                             referenced_relation or ''
-                        ).strip() or None,
+                        ).rstrip(' ') or None,
                         'referenced_index': str(
                             referenced_index or ''
-                        ).strip() or None,
+                        ).rstrip(' ') or None,
                         'update_rule': str(update_rule or '').strip() or None,
                         'delete_rule': str(delete_rule or '').strip() or None,
                     })
 
         for constraint_name, check_source in optional(
-            'SELECT TRIM(CC.RDB$CONSTRAINT_NAME), '
+            'SELECT TRIM(TRAILING FROM CC.RDB$CONSTRAINT_NAME), '
             'T.RDB$TRIGGER_SOURCE '
             'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$TRIGGERS T ON '
             'T.RDB$TRIGGER_NAME = CC.RDB$TRIGGER_NAME ORDER BY 1'
@@ -1595,12 +1638,12 @@ def _resources(connection, request):
 
         field_dimensions = {}
         for field_name, position, lower, upper in optional(
-            'SELECT TRIM(RDB$FIELD_NAME), RDB$DIMENSION, '
+            'SELECT TRIM(TRAILING FROM RDB$FIELD_NAME), RDB$DIMENSION, '
             'RDB$LOWER_BOUND, RDB$UPPER_BOUND FROM RDB$FIELD_DIMENSIONS '
             'ORDER BY 1, 2'
         ):
             field_dimensions.setdefault(
-                str(field_name).strip(), []
+                str(field_name).rstrip(' '), []
             ).append({
                 'position': position,
                 'lower_bound': lower,
@@ -1609,7 +1652,7 @@ def _resources(connection, request):
 
         def data_type(field, include_domain=True):
             """Render an exact Firebird field type or fail closed."""
-            domain = str(field.get('domain') or '').strip()
+            domain = str(field.get('domain') or '').rstrip(' ')
             if include_domain and domain and not domain.upper().startswith(
                     'RDB$'):
                 return identifier(domain)
@@ -1666,7 +1709,7 @@ def _resources(connection, request):
                 if value is None:
                     return None
 
-            charset = str(field.get('character_set') or '').strip()
+            charset = str(field.get('character_set') or '').rstrip(' ')
             if charset and field_type in {14, 37, 40, 261}:
                 value += f' CHARACTER SET {identifier(charset)}'
             dimensions = field_dimensions.get(domain, [])
@@ -1681,8 +1724,8 @@ def _resources(connection, request):
             return value
 
         def parameter_definition(parameter, include_name=True):
-            relation = str(parameter.get('relation_name') or '').strip()
-            field_name = str(parameter.get('field_name') or '').strip()
+            relation = str(parameter.get('relation_name') or '').rstrip(' ')
+            field_name = str(parameter.get('field_name') or '').rstrip(' ')
             mechanism = numeric(
                 parameter.get('argument_mechanism'),
                 numeric(parameter.get('mechanism'), 0),
@@ -1700,13 +1743,13 @@ def _resources(connection, request):
                 if mechanism == 1:
                     value = f'TYPE OF {value}'
             if include_name:
-                name = str(parameter.get('name') or '').strip()
+                name = str(parameter.get('name') or '').rstrip(' ')
                 if not name:
                     return None
                 value = f'{identifier(name)} {value}'
             if str(parameter.get('not_null')) == '1':
                 value += ' NOT NULL'
-            collation = str(parameter.get('collation') or '').strip()
+            collation = str(parameter.get('collation') or '').rstrip(' ')
             if collation:
                 value += f' COLLATE {identifier(collation)}'
             default = str(parameter.get('default_source') or '').strip()
@@ -1794,7 +1837,7 @@ def _resources(connection, request):
         def constraint_clause(item):
             native = item.get('native', {})
             kind = str(native.get('constraint_type') or '').strip().upper()
-            raw_name = str(item['display_name']).strip()
+            raw_name = str(item['display_name']).rstrip(' ')
             prefix = '' if raw_name.upper().startswith('INTEG_') else (
                 f'CONSTRAINT {identifier(raw_name)} '
             )
@@ -1864,7 +1907,7 @@ def _resources(connection, request):
             return rendered_type + suffix
 
         constraint_indexes = {
-            str(item.get('native', {}).get('index_name') or '').strip()
+            str(item.get('native', {}).get('index_name') or '').rstrip(' ')
             for item in resources.values()
             if item['resource_kind'] == 'constraint'
         }
@@ -1999,7 +2042,7 @@ def _resources(connection, request):
                     ).strip()
                     if validation:
                         definition += f' {validation}'
-                    collation = str(native.get('collation') or '').strip()
+                    collation = str(native.get('collation') or '').rstrip(' ')
                     if collation:
                         definition += f' COLLATE {identifier(collation)}'
                     native['ddl'] = definition + ';'
@@ -2007,7 +2050,7 @@ def _resources(connection, request):
                 action = trigger_action(native.get('trigger_type'))
                 if action:
                     definition = f'CREATE TRIGGER {identifier(name)}'
-                    relation = str(native.get('relation') or '').strip()
+                    relation = str(native.get('relation') or '').rstrip(' ')
                     if relation:
                         definition += f' FOR {identifier(relation)}'
                     definition += (
@@ -2021,7 +2064,7 @@ def _resources(connection, request):
                     if security:
                         definition += f'\n{security}'
                     entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').strip()
+                    engine = str(native.get('engine_name') or '').rstrip(' ')
                     if entrypoint:
                         entrypoint = entrypoint.replace("'", "''")
                         definition += f"\nEXTERNAL NAME '{entrypoint}'"
@@ -2044,7 +2087,7 @@ def _resources(connection, request):
                     if outputs:
                         definition += ' RETURNS (' + ', '.join(outputs) + ')'
                     entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').strip()
+                    engine = str(native.get('engine_name') or '').rstrip(' ')
                     if entrypoint:
                         entrypoint = entrypoint.replace("'", "''")
                         definition += f"\nEXTERNAL NAME '{entrypoint}'"
@@ -2080,7 +2123,7 @@ def _resources(connection, request):
                     if str(native.get('deterministic')) == '1':
                         definition += '\nDETERMINISTIC'
                     entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').strip()
+                    engine = str(native.get('engine_name') or '').rstrip(' ')
                     if entrypoint:
                         entrypoint = entrypoint.replace("'", "''")
                         definition += f"\nEXTERNAL NAME '{entrypoint}'"
@@ -2220,29 +2263,40 @@ def _resources(connection, request):
             lines = []
             for column in native.get('columns', []):
                 computed = str(column.get('computed_source') or '').strip()
+                rendered_type = data_type(column)
+                if rendered_type is None:
+                    lines = None
+                    break
                 if computed:
                     expression = computed if computed.startswith('(') else (
                         f'({computed})'
                     )
                     definition = (
-                        f'{identifier(column["name"])} COMPUTED BY '
+                        f'{identifier(column["name"])} {rendered_type} '
+                        'COMPUTED BY '
                         f'{expression}'
                     )
                 else:
-                    rendered_type = data_type(column)
-                    if rendered_type is None:
-                        lines = None
-                        break
                     definition = (
                         f'{identifier(column["name"])} {rendered_type}'
                     )
                     identity_type = numeric(column.get('identity_type'))
                     if identity_type is not None:
+                        initial = numeric(column.get('identity_initial_value'))
+                        increment = numeric(column.get('identity_increment'))
+                        if initial is None or increment in (None, 0):
+                            lines = None
+                            native['ddl_unavailable_reason'] = (
+                                'Exact identity generator metadata is missing '
+                                'or invalid.')
+                            break
                         definition += (
                             ' GENERATED ALWAYS AS IDENTITY' if
                             identity_type == 0 else
                             ' GENERATED BY DEFAULT AS IDENTITY'
                         )
+                        definition += (f' (START WITH {initial} '
+                                       f'INCREMENT BY {increment})')
                     default = str(column.get('default_source') or '').strip()
                     if default:
                         definition += f' {default}'
@@ -2250,15 +2304,15 @@ def _resources(connection, request):
                         definition += ' NOT NULL'
                     collation = str(
                         column.get('collation') or ''
-                    ).strip()
+                    ).rstrip(' ')
                     if collation:
                         definition += f' COLLATE {identifier(collation)}'
                 lines.append(definition)
             if lines is None:
                 native['ddl_available'] = False
-                native['ddl_unavailable_reason'] = (
+                native.setdefault('ddl_unavailable_reason', (
                     'The exact Firebird field type could not be rendered.'
-                )
+                ))
                 continue
             lines.extend(
                 clause for constraint in native.get('constraints', [])
@@ -2276,7 +2330,16 @@ def _resources(connection, request):
                     ' ON COMMIT PRESERVE ROWS' if relation_type == 4 else
                     ' ON COMMIT DELETE ROWS'
                 )
-            elif relation_type == 2 and native.get('external_file'):
+            security = numeric(native.get('sql_security'))
+            if security is not None:
+                suffix += (', ' if relation_type in {4, 5} else ' ') + (
+                    'SQL SECURITY DEFINER' if security else
+                    'SQL SECURITY INVOKER')
+            if relation_type in {0, 2}:
+                suffix += (' ENABLE PUBLICATION' if
+                           native['publication_enabled'] else
+                           ' DISABLE PUBLICATION')
+            if relation_type == 2 and native.get('external_file'):
                 external = str(native['external_file']).replace("'", "''")
                 prefix += (
                     f" {identifier(item['display_name'])} EXTERNAL FILE "
@@ -2369,9 +2432,12 @@ def _admin_mapping_state(cursor):
     """Inspect the database-local compatibility mapping, not auth success."""
     try:
         cursor.execute(
-            'SELECT TRIM(RDB$MAP_USING), TRIM(RDB$MAP_PLUGIN), '
-            'TRIM(RDB$MAP_DB), TRIM(RDB$MAP_FROM_TYPE), '
-            'TRIM(RDB$MAP_FROM), RDB$MAP_TO_TYPE, TRIM(RDB$MAP_TO) '
+            'SELECT TRIM(TRAILING FROM RDB$MAP_USING), TRIM(TRAILING '
+            'FROM RDB$MAP_PLUGIN), '
+            'TRIM(TRAILING FROM RDB$MAP_DB), TRIM(TRAILING FROM '
+            'RDB$MAP_FROM_TYPE), '
+            'TRIM(TRAILING FROM RDB$MAP_FROM), RDB$MAP_TO_TYPE, '
+            'TRIM(TRAILING FROM RDB$MAP_TO) '
             'FROM RDB$AUTH_MAPPING WHERE RDB$MAP_NAME = '
             "'AutoAdminImplementationMapping'")
         row = cursor.fetchone()
@@ -2395,7 +2461,7 @@ def _security(connection, request):
             'SELECT CURRENT_USER, CURRENT_ROLE FROM RDB$DATABASE'
         )
         current_user, current_role = cursor.fetchone()
-        current_user = str(current_user).strip()
+        current_user = str(current_user).rstrip(' ')
         return {
             'resource_id': f'authorization:{current_user}',
             'display_name': current_user,
@@ -2405,7 +2471,7 @@ def _security(connection, request):
             ),
             'native': {
                 'current_user': current_user,
-                'current_role': str(current_role or '').strip(),
+                'current_role': str(current_role or '').rstrip(' '),
             },
         }
     finally:

@@ -444,6 +444,11 @@ function initialFieldValue(field) {
 function fieldVisible(field, draft) {
   const condition = field.visible_when;
   if (!condition) return true;
+  if (Object.prototype.hasOwnProperty.call(condition, 'all')) {
+    return Array.isArray(condition.all) && condition.all.length > 0 &&
+      condition.all.every((child) => child &&
+        fieldVisible({visible_when: child}, draft));
+  }
   if (Object.prototype.hasOwnProperty.call(condition, 'equals')) {
     return draft[condition.field_id] === condition.equals;
   }
@@ -901,7 +906,9 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   [objectDescriptor, objectEditor, selectedResource]);
   const operation = operations.find((item) => item.operation_id === operationId);
   const allFields = operation?.form?.fields || [];
-  const fields = allFields.filter((field) => fieldVisible(field, draft));
+  const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
+    (field) => field.options ? {...field, options: field.options.filter(
+      (option) => fieldVisible(option, draft))} : field);
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
   const matchingResources = (resources || []).filter(
     (item) => targetKinds.includes(item.resource_kind) &&
@@ -1193,7 +1200,19 @@ export function VisualAdministration({catalog, resources, selectedResource, post
             {fields.map((field) => <VisualAdminField disabled={working || inspecting} key={field.field_id}
               field={field} value={draft[field.field_id]}
               onChange={(value) => {
-                if (!working && !inspecting) setDraft((current) => ({...current, [field.field_id]: value}));
+                if (!working && !inspecting) setDraft((current) => {
+                  const next = {...current, [field.field_id]: value};
+                  for (const dependent of allFields) {
+                    if (dependent.control !== 'select' ||
+                        !dependent.options?.some((option) => option.visible_when)) continue;
+                    const choices = dependent.options.filter((option) => fieldVisible(option, next));
+                    if (!choices.some((option) => option.value === next[dependent.field_id])) {
+                      next[dependent.field_id] = choices.find((option) =>
+                        option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
+                    }
+                  }
+                  return next;
+                });
               }} />)}
           </Box>
           {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>

@@ -349,7 +349,11 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             self.assertTrue(stream.closed)
             self.assertEqual(text, _catalog_detail(field, text))
             self.assertIsNone(_catalog_detail(field, None))
-        self.assertEqual('42', _catalog_detail('index_type', ' 42 '))
+        self.assertEqual('42', _catalog_detail('index_type', '42 '))
+        self.assertEqual(' leading domain',
+                         _catalog_detail('domain', ' leading domain   '))
+        self.assertEqual('\tleading',
+                         _catalog_detail('domain', '\tleading   '))
 
     def test_firebird_catalog_failed_blob_read_closes_stream(self):
         class FailingReader(io.StringIO):

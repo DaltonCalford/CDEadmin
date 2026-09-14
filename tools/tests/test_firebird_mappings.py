@@ -202,7 +202,7 @@ def test_mapping_supplement_preserves_prior_proof_and_is_idempotent():
     result = supplement_mappings(document, mapping_evidence(), 'a' * 64,
                                  'mapping.json')
     assert document == before
-    assert len(result['task_templates']) == 62
+    assert len(result['task_templates']) == 64
     assert supplement_mappings(result, mapping_evidence(), 'a' * 64,
                                'mapping.json') == result
     assert all(item in result['proof_records'] for item in

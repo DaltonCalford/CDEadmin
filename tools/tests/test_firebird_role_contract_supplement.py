@@ -42,7 +42,7 @@ def test_supplement_preserves_prior_evidence_and_is_idempotent():
     before = copy.deepcopy(original)
     result = supplement_roles(original, evidence, 'a' * 64, 'evidence.json')
     assert original == before
-    assert len(result['task_templates']) == 62
+    assert len(result['task_templates']) == 64
     assert result == supplement_roles(
         result, evidence, 'a' * 64, 'evidence.json')
     assert all(record in result['proof_records'] for record in

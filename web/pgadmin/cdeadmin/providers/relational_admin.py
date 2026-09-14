@@ -32,6 +32,7 @@ from ..sdk.relational import RelationalClientError
 from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
+from .firebird import columns as firebird_columns
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -212,6 +213,16 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'column':
+                resource['operations'] = [
+                    item for item in resource['operations']
+                    if item['operation_id'] not in {'alter', 'comment'}
+                ] + [{
+                    'operation_id': operation, 'title': title,
+                    'mutation_class': 'admin', 'target_required': True,
+                    'confirmation_required': True,
+                } for operation, title in (
+                    ('alter', 'Alter column'), ('comment', 'Edit comment'))]
             if (self.dialect.engine_id == 'firebird' and
                     kind in firebird_mappings.KINDS):
                 resource['operations'] = [
@@ -375,6 +386,17 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'column' and
+                operation_id in {'alter', 'comment'}):
+            try:
+                firebird_columns.compile_column(
+                    operation_id, draft,
+                    self._target_path(request.get('target_resource')))
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_column',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind in firebird_mappings.KINDS and
                 operation_id != 'inspect'):
@@ -2786,6 +2808,19 @@ class RelationalAdministration:
     def _compile(self, request):
         operation = request['operation_id']
         if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'column' and
+                operation in {'alter', 'comment'}):
+            sql = firebird_columns.compile_column(
+                operation, request['draft'],
+                self._target_path(request.get('target_resource')))
+            return {'statements': [{'source': sql, 'parameters': ()}],
+                    'warnings': [
+                        'Firebird identity generator state is not ordinary '
+                        'transactional row data. Changing an increment can '
+                        'affect subsequent generated values even after '
+                        'rollback; review concurrent inserts before applying.'
+                    ] if request['draft'].get('action') == 'IDENTITY' else []}
+        if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in firebird_mappings.KINDS and
                 operation != 'inspect'):
             statements = firebird_mappings.compile_mapping(
@@ -3660,6 +3695,9 @@ class RelationalAdministration:
         if not isinstance(draft, Mapping):
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
+        if (self.dialect.engine_id == 'firebird' and kind == 'column' and
+                operation in {'alter', 'comment'}):
+            return value
         if (self.dialect.engine_id == 'firebird' and
                 kind in firebird_mappings.KINDS):
             return value
@@ -3870,6 +3908,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'column' and
+                operation in {'alter', 'comment'}):
+            return firebird_columns.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and
                 kind in firebird_mappings.KINDS):
             return firebird_mappings.form(kind, operation, self._field)
@@ -7104,7 +7145,8 @@ class RelationalAdministration:
         if not isinstance(raw, Sequence) or isinstance(raw, str) or not raw:
             raise RelationalClientError('target resource path is invalid')
         path = tuple(
-            self._identifier(item) for item in raw if item != 'current'
+            self._identifier(item) for item in raw
+            if self.dialect.sql_family == 'firebird' or item != 'current'
         )
         if not path:
             raise RelationalClientError('target resource path is empty')

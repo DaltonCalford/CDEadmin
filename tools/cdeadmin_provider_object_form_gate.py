@@ -488,6 +488,9 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'column' and operation_id in {'alter', 'comment'}:
+            return rendered({'action': 'POSITION', 'position': 1,
+                             'description': 'Column preview comment'})
         if kind in {'authentication-mapping', 'global-authentication-mapping'}:
             return rendered({
                 'name': str(name) if operation_id == 'create_or_alter' else

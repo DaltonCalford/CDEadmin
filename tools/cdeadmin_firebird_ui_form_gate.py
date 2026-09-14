@@ -626,6 +626,21 @@ def completion_values(options, operation_id):
     return values.get(operation_id, {})
 
 
+def click_unobscured(driver, wait, element):
+    """Scroll a real control into view and wait for pointer hit testing."""
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center', behavior:'instant'});",
+        element)
+    wait.until(lambda browser: browser.execute_script("""
+      const element = arguments[0];
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return element === hit || element.contains(hit);
+    """, element))
+    element.click()
+
+
 def plan_preview(driver, wait, operation, values=None):
     values = (
         PREVIEW_VALUES.get(operation['operation_id'], {})
@@ -638,7 +653,7 @@ def plan_preview(driver, wait, operation, values=None):
         lambda value: visible_named_control(value, 'Validate and preview')
     )
     wait.until(lambda _driver: button.is_enabled())
-    button.click()
+    click_unobscured(driver, wait, button)
     preview = wait.until(expected.visibility_of_element_located((
         By.CSS_SELECTOR, '[aria-label="Provider plan preview"]',
     )))

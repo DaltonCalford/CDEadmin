@@ -26,6 +26,42 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('requires both alteration and type selectors before showing a dependent field', async () => {
+    const target = {resource_id: 'column:T.V', resource_kind: 'column', display_name: 'V'};
+    render(<VisualAdministration selectedResource={target} resources={[target]}
+      post={async () => target} setError={jest.fn()} initialResourceKind="column"
+      initialOperationId="alter" catalog={{objects: [{resource_kind: 'column', operations: [
+        {operation_id: 'alter', title: 'Alter', target_required: true, form: {fields: [
+          {field_id: 'action', label: 'Alteration', control: 'select', default: 'POSITION',
+            options: [{value: 'POSITION', label: 'Position'}, {value: 'TYPE', label: 'Type'}]},
+          {field_id: 'data_type', label: 'Data type', control: 'select', default: 'INTEGER',
+            options: [{value: 'INTEGER', label: 'Integer'}, {value: 'VARCHAR', label: 'Varchar'},
+              {value: 'BLOB', label: 'Blob', visible_when: {field_id: 'action', equals: 'TYPE'}}]},
+          {field_id: 'length', label: 'Length', control: 'number', visible_when: {all: [
+            {field_id: 'action', equals: 'TYPE'}, {field_id: 'data_type', in: ['VARCHAR']},
+          ]}},
+        ]}},
+      ]}]}} />);
+    await waitFor(() => expect(screen.getByRole('combobox', {name: 'Alteration'})).not.toHaveAttribute('aria-disabled', 'true'));
+    expect(screen.queryByLabelText('Length')).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: 'Data type'}));
+    expect(screen.queryByRole('option', {name: 'Blob'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', {name: 'Integer'}));
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: 'Alteration'}));
+    fireEvent.click(screen.getByRole('option', {name: 'Type'}));
+    expect(screen.queryByLabelText('Length')).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: 'Data type'}));
+    expect(screen.getByRole('option', {name: 'Blob'})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', {name: 'Varchar'}));
+    expect(screen.getByLabelText('Length')).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: 'Data type'}));
+    fireEvent.click(screen.getByRole('option', {name: 'Blob'}));
+    fireEvent.mouseDown(screen.getByRole('combobox', {name: 'Alteration'}));
+    fireEvent.click(screen.getByRole('option', {name: 'Position'}));
+    expect(screen.queryByLabelText('Length')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', {name: 'Data type'})).toHaveTextContent('Integer');
+  });
+
   it.each(['text', 'multiline', 'code', 'json', 'number', 'password', 'boolean'])('propagates disabled state to %s controls', (control) => {
     render(<VisualAdminField disabled field={{field_id: 'test', label: 'Field', control}}
       value={control === 'boolean' ? false : ''} onChange={jest.fn()} />);

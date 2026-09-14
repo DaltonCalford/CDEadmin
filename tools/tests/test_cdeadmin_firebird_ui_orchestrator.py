@@ -66,6 +66,7 @@ def options(kind):
     ('role', 'cdeadmin_firebird_role_ui_gate.py'),
     ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),
     ('mappings', 'cdeadmin_firebird_mappings_ui_gate.py'),
+    ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
 ])
 def test_mutation_gate_receives_exact_profile_and_database(kind, filename):
     settings = options(kind)
@@ -155,6 +156,7 @@ def test_properties_gate_uses_exact_database_and_native_client_probe():
 
 
 def test_firebird_preview_values_cover_every_required_native_form_field():
+    from pgadmin.cdeadmin.visual_admin import ProviderVisualAdministration
     catalog = ADMINISTRATION.catalog(catalog_for_engine('firebird'))
     target = {
         'display_name': 'CDEADMIN_QA_TARGET',
@@ -180,13 +182,9 @@ def test_firebird_preview_values_cover_every_required_native_form_field():
             draft = {field['field_id']: values.get(
                 field['label'], field.get('default')) for field in fields}
             for field in operation.get('form', {}).get('fields', []):
-                condition = field.get('visible_when')
-                if condition:
-                    actual = draft.get(condition['field_id'])
-                    if 'equals' in condition and actual != condition['equals']:
-                        continue
-                    if 'in' in condition and actual not in condition['in']:
-                        continue
+                if not ProviderVisualAdministration._field_active(
+                        field, draft):
+                    continue
                 if field.get('required') and 'default' not in field and (
                         field['label'] not in values):
                     missing.append(

@@ -906,6 +906,14 @@ class ProviderVisualAdministration:
             raise VisualAdminValidationError(
                 'field visibility condition is invalid'
             )
+        if 'all' in condition:
+            children = condition['all']
+            if (not isinstance(children, list) or not children or
+                    not all(isinstance(child, Mapping) for child in children)):
+                raise VisualAdminValidationError(
+                    'field visibility conjunction is invalid')
+            return all(ProviderVisualAdministration._field_active(
+                {'visible_when': child}, draft) for child in children)
         controller = condition.get('field_id')
         if not isinstance(controller, str) or not controller:
             raise VisualAdminValidationError(
