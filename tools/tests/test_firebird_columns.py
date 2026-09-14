@@ -100,6 +100,56 @@ def test_fixture_cleanup_collects_failures_and_attempts_remaining_objects(
     assert events[-1] == 'close'
 
 
+@pytest.mark.parametrize('relation_type', [0, 2, 4, 5, '0'])
+@pytest.mark.parametrize('mode', ['stored', 'computed', 'identity', 'array',
+                                  'primary', 'default', 'blob'])
+def test_column_actions_follow_native_structural_context(relation_type, mode):
+    detail = {'position': '7'}
+    if mode == 'computed':
+        detail['computed_source'] = 'COMPUTED BY (X + 1)'
+    if mode == 'identity':
+        detail['identity_type'] = '0'
+    if mode == 'default':
+        detail['default_source'] = 'DEFAULT 42'
+    if mode == 'blob':
+        detail['field_type'] = '261'
+    context = columns.alteration_context(
+        detail, {'relation_type': relation_type},
+        primary_key=mode == 'primary', array=mode == 'array')
+    actions = context['allowed_actions']
+    assert context['position'] == 8
+    assert ('COMPUTED' in actions) == (mode == 'computed')
+    assert ('TYPE COMPUTED' in actions) == (mode == 'computed')
+    assert ('TYPE' in actions) == (mode not in {'computed', 'array', 'blob'})
+    assert ('IDENTITY' in actions) == (mode == 'identity')
+    assert ('DROP IDENTITY' in actions) == (mode == 'identity')
+    assert ('DROP NOT NULL' in actions) == (
+        mode not in {'identity', 'primary'})
+    assert ('SET DEFAULT' in actions) == (
+        mode not in {'identity', 'computed', 'array'})
+    assert ('DROP DEFAULT' in actions) == (mode == 'default')
+
+
+@pytest.mark.parametrize('relation', [
+    {}, {'relation_type': 1}, {'relation_type': 3}, {'relation_type': 99},
+    {'relation_type': 0, 'system_object': True},
+])
+def test_readonly_or_unknown_relation_has_no_column_alterations(relation):
+    assert columns.alteration_context({}, relation)['allowed_actions'] == []
+
+
+@pytest.mark.parametrize('wrapped', [True, False])
+def test_planner_rejects_structurally_inapplicable_column_actions(wrapped):
+    value = request({'action': 'DROP NOT NULL'})
+    native = {'alteration': {'allowed_actions': ['POSITION', 'IDENTITY']}}
+    value['target_resource'].update(
+        {'extensions': {'firebird': {'native': native}}} if wrapped else
+        {'native': native})
+    assert ADMINISTRATION.validate(value)['errors']
+    with pytest.raises(RelationalClientError, match='not applicable'):
+        ADMINISTRATION.plan(value)
+
+
 def request(draft, operation='alter'):
     return {'resource_kind': 'column', 'operation_id': operation,
             'draft': draft, '_provider_route': {'database': 'example.fdb'},

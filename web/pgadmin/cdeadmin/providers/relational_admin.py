@@ -401,6 +401,8 @@ class RelationalAdministration:
                 resource_kind == 'column' and
                 operation_id in {'alter', 'comment'}):
             try:
+                firebird_columns.validate_target(
+                    operation_id, draft, request.get('target_resource'))
                 firebird_columns.compile_column(
                     operation_id, draft,
                     self._target_path(request.get('target_resource')))
@@ -2827,6 +2829,8 @@ class RelationalAdministration:
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'column' and
                 operation in {'alter', 'comment'}):
+            firebird_columns.validate_target(
+                operation, request['draft'], request.get('target_resource'))
             sql = firebird_columns.compile_column(
                 operation, request['draft'],
                 self._target_path(request.get('target_resource')))

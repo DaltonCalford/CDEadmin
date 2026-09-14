@@ -329,6 +329,36 @@ def run(options, profiles):
             forms._open_focused_form(browser, operation, target,
                                      probe['database_target_id'])
             forms._wait_for_operation(wait, operation)
+            action_context = None
+            if not creating and kind == 'column' and \
+                    operation['operation_id'] == 'alter':
+                action_context = snapshot(table)['alteration']
+                choice = wait.until(lambda driver: visible_named_control(
+                    driver, 'Alteration'))
+                wait.until(lambda driver: choice.is_enabled() and
+                           choice.get_attribute('aria-disabled') != 'true')
+                result['pending_action_control'] = {
+                    'tag': choice.tag_name,
+                    'role': choice.get_attribute('role'),
+                    'html': choice.get_attribute('outerHTML')}
+                if choice.tag_name.lower() == 'select':
+                    shown = choice.find_elements('tag name', 'option')
+                    values = [item.get_attribute('value') for item in shown]
+                else:
+                    click_unobscured(browser, wait, choice)
+                    shown = wait.until(lambda driver: [
+                        item for item in driver.find_elements(
+                            'css selector', '[role="option"]')
+                        if item.is_displayed()])
+                    values = [item.get_attribute('data-value')
+                              for item in shown]
+                    click_unobscured(browser, wait, shown[0])
+                assert values == action_context['allowed_actions']
+                result.pop('pending_action_control', None)
+                position = wait.until(lambda driver: visible_named_control(
+                    driver, 'Position (one-based)'))
+                assert position.get_attribute('value') == str(
+                    action_context['position'])
             labels = {item['field_id']: item['label']
                       for item in operation['form']['fields']}
             if creating and table_operation:
@@ -430,6 +460,7 @@ def run(options, profiles):
                 'case': label, 'statements': plan['command_preview'][
                     'statements'], 'native_postcondition': observed,
                 'form_geometry': geometry,
+                'verified_action_context': action_context,
                 'screenshot': str(path), 'sha256': screenshot(browser, path)})
             result.pop('pending_case', None)
             close_workspace(browser, wait)

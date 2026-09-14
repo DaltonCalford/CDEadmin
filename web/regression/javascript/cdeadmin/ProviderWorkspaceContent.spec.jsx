@@ -20,12 +20,62 @@ import ProviderWorkspaceContent, {
   inspectorSections,
   initialObjectDraft,
   semanticCrossFilter,
+  visibleFieldOptions,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('filters actions using inspected native context and prefills column position', () => {
+    const action = {field_id: 'action', control: 'select', default: 'COMPUTED',
+      option_values_path: ['alteration', 'allowed_actions'], options:
+        ['POSITION', 'COMPUTED', 'IDENTITY'].map((value) => ({value, label: value}))};
+    const resource = {extensions: {firebird: {native: {alteration: {
+      allowed_actions: ['POSITION', 'IDENTITY', 'UNDECLARED'], position: 8,
+    }}}}};
+    expect(visibleFieldOptions(action, {}, resource).options.map((o) => o.value))
+      .toEqual(['POSITION', 'IDENTITY']);
+    expect(initialObjectDraft([action, {field_id: 'position', control: 'number',
+      initial_value_path: ['alteration', 'position']}], resource))
+      .toEqual({action: 'POSITION', position: 8});
+    for (const missing of [null, {}, {native: {alteration: {allowed_actions: []}}},
+      {native: {alteration: {allowed_actions: 'POSITION'}}}]) {
+      expect(visibleFieldOptions(action, {}, missing).options).toEqual([]);
+      expect(initialObjectDraft([action], missing)).toEqual({action: ''});
+    }
+  });
+
+  it('updates allowed actions when a different column is inspected', async () => {
+    const field = {field_id: 'action', label: 'Alteration', control: 'select',
+      required: true, default: 'POSITION',
+      option_values_path: ['alteration', 'allowed_actions'],
+      options: ['POSITION', 'IDENTITY', 'COMPUTED'].map((value) => ({value, label: value}))};
+    const target = (name, allowed) => ({resource_id: 'column:T.' + name,
+      resource_kind: 'column', display_name: name,
+      extensions: {firebird: {native: {alteration: {allowed_actions: allowed}}}}});
+    const first = target('A', ['POSITION', 'IDENTITY']);
+    const second = target('B', ['COMPUTED']);
+    const view = target('C', []);
+    const resources = [first, second, view];
+    const post = jest.fn(({target: requested}) => Promise.resolve(requested));
+    const props = {resources, post, setError: jest.fn(), initialResourceKind: 'column',
+      initialOperationId: 'alter', catalog: {objects: [{resource_kind: 'column',
+        title: 'Column', operations: [{operation_id: 'alter', title: 'Alter',
+          target_required: true, form: {fields: [field]}}]}]}};
+    // The service returns an independently inspected resource, not the stale
+    // values in a previously rendered draft.
+    post.mockImplementation(() => Promise.resolve(first));
+    const {rerender} = render(<VisualAdministration {...props} selectedResource={first} />);
+    await waitFor(() => expect(screen.getByRole('combobox', {name: /Alteration/})).toHaveTextContent('POSITION'));
+    post.mockImplementation(() => Promise.resolve(second));
+    rerender(<VisualAdministration {...props} selectedResource={second} />);
+    await waitFor(() => expect(screen.getByRole('combobox', {name: /Alteration/})).toHaveTextContent('COMPUTED'));
+    post.mockImplementation(() => Promise.resolve(view));
+    rerender(<VisualAdministration {...props} selectedResource={view} />);
+    await waitFor(() => expect(screen.getByRole('combobox', {name: /Alteration/})).toHaveAttribute('aria-disabled', 'true'));
+  });
+
   it('requires both alteration and type selectors before showing a dependent field', async () => {
     const target = {resource_id: 'column:T.V', resource_kind: 'column', display_name: 'V'};
     render(<VisualAdministration selectedResource={target} resources={[target]}

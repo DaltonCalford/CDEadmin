@@ -32,6 +32,36 @@ REFERENTIAL_ACTIONS = ('UNCHANGED', 'NO ACTION', 'CASCADE', 'SET DEFAULT',
                        'SET NULL')
 
 
+def alteration_context(column, relation, *, primary_key=False, array=False):
+    """Structural admission only; native data/dependency checks still apply."""
+    editable = (not relation.get('system_object') and
+                str(relation.get('relation_type')) in {'0', '2', '4', '5'})
+    computed = column.get('computed_source') is not None
+    identity = str(column.get('identity_type')) in {'0', '1'}
+    allowed = []
+    if editable:
+        allowed = ['POSITION', 'SET NOT NULL']
+        if not identity and not primary_key:
+            allowed.append('DROP NOT NULL')
+        if not computed and not identity and not array:
+            allowed.append('SET DEFAULT')
+        if column.get('default_source') is not None:
+            allowed.append('DROP DEFAULT')
+        if computed:
+            allowed.extend(['COMPUTED', 'TYPE COMPUTED'])
+        elif not array and str(column.get('field_type')) != '261':
+            allowed.append('TYPE')
+        if identity:
+            allowed.extend(['IDENTITY', 'DROP IDENTITY'])
+    result = {'allowed_actions': [item for item in ACTIONS if item in allowed],
+              'primary_key_member': primary_key, 'array': array,
+              'relation_type': relation.get('relation_type')}
+    position = column.get('position')
+    if position is not None and str(position).isdigit():
+        result['position'] = int(position) + 1
+    return result
+
+
 def column_constraint(value):
     if not isinstance(value, dict) or value.get('kind') not in CONSTRAINTS:
         raise RelationalClientError('Choose a native column constraint')
@@ -327,6 +357,18 @@ def default_value(draft):
     return kind
 
 
+def validate_target(operation, draft, target):
+    target = target or {}
+    native = target.get('extensions', {}).get('firebird', {}).get(
+        'native', target.get('native', {}))
+    context = native.get('alteration')
+    if (operation == 'alter' and context is not None and
+            draft.get('action') not in context.get('allowed_actions', [])):
+        raise RelationalClientError(
+            'This alteration is not applicable to the selected '
+            'Firebird column; refresh its metadata.')
+
+
 def compile_column(operation, draft, path):
     if len(path) != 2:
         raise RelationalClientError('A Firebird column belongs to one table')
@@ -400,8 +442,10 @@ def form(operation, field):
     else:
         fields = [field('action', 'Alteration', 'select', True,
                         'Choose one native alteration. Firebird validates '
-                        'existing data and dependent objects.',
+                        'existing data and dependent objects. Dropping a '
+                        'column NOT NULL does not change its domain.',
                         'POSITION', options=ACTIONS)]
+        fields[0]['option_values_path'] = ['alteration', 'allowed_actions']
 
         def add(name, title, kind, actions, required=False, default=None,
                 options=None, help_text=''):
@@ -412,6 +456,7 @@ def form(operation, field):
 
         add('position', 'Position (one-based)', 'number',
             ['POSITION'], True, 1)
+        fields[-1]['initial_value_path'] = ['alteration', 'position']
         add('default_kind', 'Default value type', 'select', ['SET DEFAULT'],
             True, 'TEXT', DEFAULTS)
         add('default_value', 'Default value', 'text',

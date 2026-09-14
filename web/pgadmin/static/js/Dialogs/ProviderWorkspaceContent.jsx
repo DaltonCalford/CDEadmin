@@ -458,17 +458,26 @@ function fieldVisible(field, draft) {
   return false;
 }
 
-function visibleFieldOptions(field, draft) {
-  return field.options ? {...field, options: field.options.filter(
-    (option) => fieldVisible(option, draft))} : field;
+function nativeFieldValue(resource, path) {
+  if (!Array.isArray(path) || !path.length) return undefined;
+  return path.reduce((value, key) => value && typeof value === 'object' &&
+    Object.hasOwn(value, key) ? value[key] : undefined, providerNative(resource));
 }
 
-function changedFieldDraft(fields, current, id, value) {
+export function visibleFieldOptions(field, draft, resource) {
+  const values = nativeFieldValue(resource, field.option_values_path);
+  return field.options ? {...field, options: field.options.filter(
+    (option) => fieldVisible(option, draft) && (!field.option_values_path ||
+      (Array.isArray(values) && values.includes(option.value))))} : field;
+}
+
+function changedFieldDraft(fields, current, id, value, resource) {
   const next = {...current, [id]: value};
   for (const dependent of fields) {
     if (dependent.control !== 'select' ||
-        !dependent.options?.some((option) => option.visible_when)) continue;
-    const choices = dependent.options.filter((option) => fieldVisible(option, next));
+        (!dependent.option_values_path &&
+        !dependent.options?.some((option) => option.visible_when))) continue;
+    const choices = visibleFieldOptions(dependent, next, resource).options || [];
     if (!choices.some((option) => option.value === next[dependent.field_id])) {
       next[dependent.field_id] = choices.find((option) =>
         option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
@@ -524,7 +533,9 @@ export function VisualAdminField({field, value, onChange, disabled=false}) {
     label={field.label} />;
   }
   if (field.control === 'select') {
-    return <TextField disabled={disabled} select fullWidth label={field.label} value={admittedValue}
+    const selectedValue = field.option_values_path && !field.options?.some(
+      (option) => option.value === admittedValue) ? '' : admittedValue;
+    return <TextField disabled={disabled || !field.options?.length} select fullWidth label={field.label} value={selectedValue}
       required={field.required} helperText={field.help || field.help_text || ''}
       onChange={(event) => onChange(event.target.value)}>
       {(field.options || []).map((option) => (
@@ -885,6 +896,12 @@ export function initialObjectDraft(fields, resource) {
         }
       }
     }
+    if (field.option_values_path) {
+      const options = visibleFieldOptions(field, {}, resource).options || [];
+      if (!options.some((option) => option.value === value)) {
+        value = options[0]?.value ?? '';
+      }
+    }
     return [field.field_id, value];
   }));
 }
@@ -928,7 +945,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const operation = operations.find((item) => item.operation_id === operationId);
   const allFields = operation?.form?.fields || [];
   const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
-    (field) => visibleFieldOptions(field, draft));
+    (field) => visibleFieldOptions(field, draft, inspectedResource));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
   const matchingResources = (resources || []).filter(
     (item) => targetKinds.includes(item.resource_kind) &&
@@ -1224,7 +1241,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
               field={field} value={draft[field.field_id]}
               onChange={(value) => {
                 if (!working && !inspecting) setDraft((current) =>
-                  changedFieldDraft(allFields, current, field.field_id, value));
+                  changedFieldDraft(allFields, current, field.field_id, value, inspectedResource));
               }} />)}
           </Box>
           {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>

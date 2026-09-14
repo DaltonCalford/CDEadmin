@@ -22,7 +22,7 @@ from ..relational_admin import (
     RelationalAdministration,
     RelationalAdminDialect,
 )
-from . import mappings
+from . import columns, mappings
 
 
 PROFILE = PilotProfile(
@@ -2262,6 +2262,28 @@ def _resources(connection, request):
                         f'ALTER TABLE {identifier(item["display_path"][-2])} '
                         f'ADD {clause};'
                     )
+        primary_key_columns = {}
+        for candidate in resources.values():
+            detail = candidate.get('native', {})
+            if (candidate['resource_kind'] == 'constraint' and
+                    detail.get('constraint_type') == 'PRIMARY KEY'):
+                primary_key_columns.setdefault(
+                    tuple(candidate['display_path'][:-1]), set()).update(
+                        index_segments(detail.get('index_name')))
+        for item in resources.values():
+            if item['resource_kind'] != 'column':
+                continue
+            path = item['display_path']
+            native = item.setdefault('native', {})
+            parents = [parent for parent in objects_named(path[-2])
+                       if parent['resource_kind'] in {'table', 'view'}]
+            relation = (parents[0].get('native', {})
+                        if len(parents) == 1 else {})
+            primary_key = item['display_name'] in primary_key_columns.get(
+                tuple(path[:-1]), set())
+            native['alteration'] = columns.alteration_context(
+                native, relation, primary_key=primary_key,
+                array=bool(field_dimensions.get(native.get('domain'))))
         plural = {
             'column': 'columns', 'index': 'indexes',
             'constraint': 'constraints',
