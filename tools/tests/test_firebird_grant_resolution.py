@@ -60,3 +60,31 @@ def test_ddl_class_grants_are_not_misidentified_as_missing_objects(code, name):
     assert resolution['ddl_class'] == name
     assert resolution['resource_ids'] == []
     assert 'warning' not in resolution
+
+
+def test_database_creation_authority_is_server_scoped_not_current_database():
+    result = resources([], [('User', 8), ('Role.With.Dot', 13)])
+    creators = [item['native'] for item in result if
+                item['resource_kind'] == 'privilege']
+    assert len(creators) == 2
+    for grant in creators:
+        assert grant['catalog_source'] == 'SEC$DB_CREATORS'
+        assert grant['grant_option_supported'] is False
+        assert grant['explicit_grantor_supported'] is False
+        assert grant['target_resolution']['state'] == 'server-scope'
+        assert grant['target_resolution']['resource_ids'] == []
+        assert 'catalog_warnings' not in grant
+    database = next(item['native'] for item in result if
+                    item['resource_kind'] == 'database')
+    assert database['database_creation_authority']['count'] == 2
+    assert not database.get('privileges')
+
+
+def test_denied_creator_catalog_is_not_an_empty_grant_list():
+    result = resources([], creator_error=True)
+    database = next(item['native'] for item in result if
+                    item['resource_kind'] == 'database')
+    authority = database['database_creation_authority']
+    assert authority['available'] is False
+    assert authority['error_type'] == 'PermissionError'
+    assert 'count' not in authority

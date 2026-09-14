@@ -33,7 +33,10 @@ from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
+from .firebird import privileges as firebird_privileges
+from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
+from .firebird import identity as firebird_identity
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -388,6 +391,15 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'privilege' and
+                operation_id in {'grant', 'revoke'}):
+            try:
+                firebird_privileges.compile_privilege(operation_id, draft)
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_privilege',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'column' and operation_id == 'create' and
                 'column_mode' in draft):
@@ -2554,6 +2566,7 @@ class RelationalAdministration:
         commit_requested = False
         rollback_requested = False
         results = []
+        identity_change = None
         try:
             cursor = (
                 connection if getattr(
@@ -2562,6 +2575,11 @@ class RelationalAdministration:
                 )
                 else connection.cursor()
             )
+            transition = compiled.get('firebird_column_rename') if (
+                self.dialect.engine_id == 'firebird') else None
+            previous_identity = firebird_identity.column_identity(
+                cursor, transition, transition['old_name']
+            ) if transition else None
             for statement in compiled.get('statements', []):
                 parameters = statement.get('parameters', ())
                 if parameters:
@@ -2598,6 +2616,9 @@ class RelationalAdministration:
                     ),
                     'rows': copy.deepcopy(rows),
                 })
+            if transition:
+                identity_change = firebird_identity.verify_column_rename(
+                    cursor, transition, previous_identity)
             if owns_connection:
                 commit = getattr(connection, 'commit', None)
                 if callable(commit):
@@ -2617,9 +2638,13 @@ class RelationalAdministration:
                     rollback()
                 except Exception:
                     pass
+            codes = firebird_status_codes(exc) if (
+                self.dialect.engine_id == 'firebird') else ()
+            detail = ('; Firebird status codes: ' + ', '.join(map(str, codes))
+                      if codes else '')
             raise RelationalClientError(
                 'relational administration execution failed '
-                f'({type(exc).__name__})'
+                f'({type(exc).__name__}){detail}'
             ) from None
         finally:
             if cursor is not None and cursor is not connection:
@@ -2635,6 +2660,12 @@ class RelationalAdministration:
             'transaction_finality_interpreted_by_common_code': False,
             'staged_in_provider_session': not owns_connection,
         }
+        if identity_change is not None:
+            response['resource_identity_change'] = {
+                **identity_change,
+                'committed_by_provider': owns_connection and commit_requested,
+                'staged_in_provider_session': not owns_connection,
+            }
         if isinstance(compiled.get('database_target'), Mapping):
             response['dropped_endpoint_database_target'] = copy.deepcopy(
                 compiled['database_target']
@@ -3084,7 +3115,19 @@ class RelationalAdministration:
         if operation == 'alter':
             return {'statements': self._compile_alter(request)}
         if operation == 'rename':
-            return {'statements': [self._compile_rename(request)]}
+            compiled = {'statements': [self._compile_rename(request)]}
+            if (self.dialect.engine_id == 'firebird' and
+                    request['resource_kind'] == 'column'):
+                compiled['firebird_column_rename'] = (
+                    firebird_identity.column_rename(
+                        self._target_path(request['target_resource']),
+                        request['draft']['new_name']))
+                compiled['warnings'] = [
+                    'Firebird may retain the old column name in privilege '
+                    'catalog rows after a rename. Review grants and effective '
+                    'access; this operation does not rewrite or revoke grants.'
+                ]
+            return compiled
         if operation == 'drop':
             compiled = {'statements': [self._compile_drop(request)]}
             if self.dialect.engine_id == 'firebird':
@@ -4115,6 +4158,8 @@ class RelationalAdministration:
                 'title': f'{title} MariaDB privileges', 'fields': fields,
             }
         if kind == 'privilege' and operation in {'grant', 'revoke'}:
+            if self.dialect.engine_id == 'firebird':
+                return firebird_privileges.form(operation, self._field)
             object_types = (
                 ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'SEQUENCE',
                  'DATABASE')
@@ -4130,34 +4175,6 @@ class RelationalAdministration:
                 self._field('object_name', 'Object name', 'text', True),
                 self._field('privileges', 'Privileges', 'json', True),
             ]
-            if self.dialect.engine_id == 'firebird':
-                for field in fields:
-                    if field['field_id'] != 'principal':
-                        field['visible_when'] = {
-                            'field_id': 'privilege_scope', 'equals': 'object'}
-                fields.insert(0, self._field(
-                    'privilege_scope', 'Privilege scope', 'select',
-                    default='object', options=('object', 'ddl_class')))
-                ddl_fields = [
-                    self._field('ddl_class', 'DDL object class', 'select',
-                                True,
-                                'Class-wide authority, not a single object.',
-                                options=('TABLE', 'VIEW', 'PROCEDURE',
-                                         'FUNCTION', 'PACKAGE', 'SEQUENCE',
-                                         'DOMAIN', 'EXCEPTION', 'ROLE',
-                                         'CHARACTER SET', 'COLLATION',
-                                         'FILTER', 'GENERATOR')),
-                    self._field('ddl_privileges', 'DDL privileges',
-                                'multiselect', True,
-                                options=('CREATE', 'ALTER ANY', 'DROP ANY')),
-                    self._field('ddl_principal_kind', 'Principal kind',
-                                'select', True, default='USER',
-                                options=('USER', 'ROLE')),
-                ]
-                for field in ddl_fields:
-                    field['visible_when'] = {
-                        'field_id': 'privilege_scope', 'equals': 'ddl_class'}
-                fields.extend(ddl_fields)
             if operation == 'grant':
                 fields.append(self._field(
                     'grant_option', 'With grant option', 'boolean', False,
@@ -6299,39 +6316,10 @@ class RelationalAdministration:
     def _compile_privilege(self, request):
         operation = request['operation_id'].upper()
         draft = request['draft']
-        principal = self._quote(draft['principal'])
         if self.dialect.engine_id == 'firebird':
-            scope = draft.get('privilege_scope', 'object')
-            if scope not in ('object', 'ddl_class'):
-                raise RelationalClientError('Invalid Firebird privilege scope')
-            if scope == 'ddl_class':
-                target = draft.get('ddl_class')
-                if target not in (
-                        'TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'PACKAGE',
-                        'SEQUENCE', 'GENERATOR', 'DOMAIN', 'EXCEPTION', 'ROLE',
-                        'CHARACTER SET', 'COLLATION', 'FILTER'):
-                    raise RelationalClientError('Invalid Firebird DDL class')
-                values = draft.get('ddl_privileges')
-                if not isinstance(values, list) or not values or any(
-                        v not in ('CREATE', 'ALTER ANY', 'DROP ANY')
-                        for v in values):
-                    raise RelationalClientError('Invalid DDL privileges')
-                kind = draft.get('ddl_principal_kind', 'USER')
-                if kind not in ('USER', 'ROLE'):
-                    raise RelationalClientError('Invalid DDL principal kind')
-                if any(draft.get(k) for k in (
-                        'object_name', 'object_type', 'privileges')):
-                    raise RelationalClientError(
-                        'Do not combine object and class-wide privileges')
-                if 'grant_option' in draft and not isinstance(
-                        draft['grant_option'], bool):
-                    raise RelationalClientError('Grant option must be boolean')
-                suffix = (' WITH GRANT OPTION' if operation == 'GRANT' and
-                          draft.get('grant_option') else '')
-                prep = 'TO' if operation == 'GRANT' else 'FROM'
-                return {'source': (
-                    f'{operation} {", ".join(dict.fromkeys(values))} {target} '
-                    f'{prep} {kind} {principal}{suffix}'), 'parameters': ()}
+            return {'source': firebird_privileges.compile_privilege(
+                request['operation_id'], draft), 'parameters': ()}
+        principal = self._quote(draft['principal'])
         privileges = draft.get('privileges')
         if not isinstance(privileges, list) or not privileges:
             raise RelationalClientError('privileges must be a non-empty array')

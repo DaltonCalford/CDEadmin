@@ -27,7 +27,7 @@ from pgadmin.cdeadmin.visual_admin.catalog import (  # noqa: E402
 )
 
 
-def resources(grants):
+def resources(grants, creators=(), creator_error=False):
     cursor = Mock()
     rows = []
 
@@ -37,6 +37,10 @@ def resources(grants):
             rows = [('Role.With.Dot', bytes(8), 'OWNER', None)]
         elif 'FROM RDB$USER_PRIVILEGES' in source:
             rows = grants
+        elif 'FROM SEC$DB_CREATORS' in source:
+            if creator_error:
+                raise PermissionError('denied')
+            rows = creators
         else:
             rows = []
 

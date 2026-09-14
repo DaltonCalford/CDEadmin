@@ -22,12 +22,32 @@ import ProviderWorkspaceContent, {
   semanticCrossFilter,
   visibleFieldOptions,
   changedFieldDraft,
+  administrationResourceId,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('uses only a verified provider rename identity', () => {
+    const target = {resource_id: 'column:T:V', resource_kind: 'column'};
+    const receipt = {previous_resource_id: 'column:T:V',
+      resource_id: 'column:T:new%3Aname', resource_kind: 'column',
+      native_identity_verified: true, committed_by_provider: true};
+    expect(administrationResourceId(target, {})).toBe('column:T:V');
+    expect(administrationResourceId(target, {provider_result: {
+      resource_identity_change: receipt,
+    }})).toBe('column:T:new%3Aname');
+    for (const invalid of [
+      {previous_resource_id: 'other'}, {resource_kind: 'table'},
+      {native_identity_verified: false}, {committed_by_provider: false},
+      {resource_id: ''}, {resource_id: null}, {resource_id: 42},
+    ]) {
+      expect(() => administrationResourceId(target, {provider_result: {
+        resource_identity_change: {...receipt, ...invalid},
+      }})).toThrow('identity transition could not be verified');
+    }
+  });
   it('preserves hidden computed result types and never guesses an explicit type choice', () => {
     const field = {field_id: 'data_type', control: 'select',
       require_explicit_choice: true,
@@ -880,6 +900,19 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByRole('alert').querySelector('script')).toBeNull();
   });
 
+  it('removes inapplicable multi-selection privileges after a target change', () => {
+    const fields = [{field_id: 'privileges', control: 'multiselect', options: [
+      {value: 'SELECT', visible_when: {field_id: 'kind', equals: 'TABLE'}},
+      {value: 'EXECUTE', visible_when: {field_id: 'kind', equals: 'PROCEDURE'}},
+    ]}];
+    expect(changedFieldDraft(fields, {kind: 'TABLE', privileges: ['SELECT']},
+      'kind', 'PROCEDURE').privileges).toEqual([]);
+    expect(changedFieldDraft(fields, {kind: 'PROCEDURE', privileges: ['EXECUTE']},
+      'kind', 'PROCEDURE').privileges).toEqual(['EXECUTE']);
+    expect(changedFieldDraft(fields, {kind: 'TABLE', privileges: 'SELECT'},
+      'kind', 'PROCEDURE').privileges).toEqual([]);
+  });
+
   it('opens the selected object browser and its data view without mutations', async () => {
     const table = {resource_id: 'table:assets', resource_kind: 'table',
       display_name: 'ASSETS', authority_path: ['table', 'ASSETS']};
@@ -1033,6 +1066,60 @@ describe('ProviderWorkspaceContent', () => {
       .toBeEnabled();
     expect(screen.getByRole('textbox', {name: 'Comment'})).toHaveValue('updated comment');
     expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+  });
+
+  it.each(['ok', 'reload', 'execute'])('does not replay an edit after %s outcome', async (outcome) => {
+    const object = {resource_id: 'sequence:one', resource_kind: 'sequence',
+      display_name: 'Sequence one'};
+    const applied = {provider_result: {accepted: true}};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return object;
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return {plan_id: 'p', plan_digest: 'd',
+        state: 'ready', execution_available: true};
+      if (action === 'visual_admin_apply') {
+        if (outcome === 'execute') throw new Error('Response lost');
+        return applied;
+      }
+      throw new Error('Unexpected request ' + action);
+    });
+    const reload = jest.fn(async () => {
+      if (outcome === 'reload') throw new Error('Catalog temporarily unavailable');
+    });
+    const setError = jest.fn();
+    render(<VisualAdministration objectEditor selectedResource={object}
+      resources={[object]} initialOperationId="alter" initialResourceKind="sequence"
+      post={post} setError={setError} onMutationApplied={reload}
+      catalog={{objects: [{resource_kind: 'sequence', operations: [{
+        operation_id: 'alter', title: 'Alter', target_required: true,
+        form: {fields: [{field_id: 'increment', label: 'Increment',
+          control: 'number'}]},
+      }]}]}} />);
+    fireEvent.change(await screen.findByRole('spinbutton', {name: 'Increment'}),
+      {target: {value: '3'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'}))
+      .toBeEnabled());
+    fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+    if (outcome === 'execute') {
+      await waitFor(() => expect(setError).toHaveBeenCalledWith('Response lost'));
+      expect(reload).not.toHaveBeenCalled();
+    } else {
+      await waitFor(() => expect(reload).toHaveBeenCalledWith({
+        targetResource: object, operationId: 'alter', result: applied,
+      }));
+    }
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+    expect(post.mock.calls.filter(([payload]) =>
+      payload.action === 'visual_admin_apply')).toHaveLength(1);
+    expect(post.mock.calls.filter(([payload]) =>
+      payload.action === 'resource_inspect')).toHaveLength(1);
+    if (outcome === 'reload') {
+      expect(await screen.findByText(/Do not repeat the operation/))
+        .toHaveTextContent('Catalog temporarily unavailable');
+    } else {
+      expect(screen.queryByText(/Do not repeat the operation/)).not.toBeInTheDocument();
+    }
   });
 
   it.each(['procedure', 'function', 'package', 'collection', 'hash', 'relationship'])(

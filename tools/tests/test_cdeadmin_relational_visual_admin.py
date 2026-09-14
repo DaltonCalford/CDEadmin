@@ -294,7 +294,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertEqual('GRANT ALTER ANY TABLE TO USER "operator"',
                          plan('grant', base))
         self.assertEqual('REVOKE ALTER ANY TABLE FROM USER "operator"',
-                         plan('revoke', base))
+                         plan('revoke', {**base, 'confirmation': 'operator'}))
         self.assertEqual('GRANT CREATE, DROP ANY VIEW TO ROLE "operator" '
                          'WITH GRANT OPTION', plan('grant', {
                              **base, 'ddl_class': 'VIEW',

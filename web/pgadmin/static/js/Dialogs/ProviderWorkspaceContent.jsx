@@ -28,6 +28,9 @@ const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
   'resource_page', 'resource_refresh', 'resource_inspect',
   'visual_admin_validate', 'visual_admin_plan', 'visual_admin_apply',
   'visual_admin_bulk_plan', 'visual_admin_bulk_apply',
+  'visual_admin_operation_list', 'visual_admin_operation_get',
+  'visual_admin_operation_refresh', 'visual_admin_operation_cancel',
+  'visual_admin_operation_post_state',
 ]);
 
 function errorMessage(error) {
@@ -474,10 +477,16 @@ export function visibleFieldOptions(field, draft, resource) {
 export function changedFieldDraft(fields, current, id, value, resource) {
   const next = {...current, [id]: value};
   for (const dependent of fields) {
-    if (!fieldVisible(dependent, next) || dependent.control !== 'select' ||
+    if (!fieldVisible(dependent, next) || !['select', 'multiselect'].includes(dependent.control) ||
         (!dependent.option_values_path &&
         !dependent.options?.some((option) => option.visible_when))) continue;
     const choices = visibleFieldOptions(dependent, next, resource).options || [];
+    if (dependent.control === 'multiselect') {
+      next[dependent.field_id] = (Array.isArray(next[dependent.field_id]) ?
+        next[dependent.field_id] : []).filter((selected) =>
+        choices.some((option) => option.value === selected));
+      continue;
+    }
     if (!choices.some((option) => option.value === next[dependent.field_id])) {
       next[dependent.field_id] = dependent.require_explicit_choice ? '' : choices.find((option) =>
         option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
@@ -910,9 +919,23 @@ export function initialObjectDraft(fields, resource) {
   }));
 }
 
+export function administrationResourceId(targetResource, result) {
+  const transition = result?.provider_result?.resource_identity_change;
+  const resourceId = targetResource?.resource_id;
+  if (!transition) return resourceId;
+  if (transition.previous_resource_id !== resourceId ||
+      transition.resource_kind !== targetResource?.resource_kind ||
+      transition.native_identity_verified !== true ||
+      transition.committed_by_provider !== true ||
+      typeof transition.resource_id !== 'string' || !transition.resource_id) {
+    throw new Error(gettext('The provider identity transition could not be verified.'));
+  }
+  return transition.resource_id;
+}
+
 export function VisualAdministration({catalog, resources, selectedResource, post,
   setError, resourceGeneration, initialOperationId, initialResourceKind,
-  focused=false, objectEditor=false}) {
+  onMutationApplied, focused=false, objectEditor=false}) {
   const objects = useMemo(() => (catalog?.objects || []).map((item) => ({
     ...item,
     operations: (item.operations || []).filter(
@@ -934,6 +957,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [result, setResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
+  const [refreshWarning, setRefreshWarning] = useState(null);
   const [inspectedResource, setInspectedResource] = useState(null);
   const [inspecting, setInspecting] = useState(false);
   const objectDescriptor = objects.find((item) => item.resource_kind === resourceKind);
@@ -951,7 +975,12 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
     (field) => visibleFieldOptions(field, draft, inspectedResource));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
-  const matchingResources = (resources || []).filter(
+  const availableResources = [...(resources || [])];
+  if (selectedResource && !availableResources.some((item) =>
+    item.resource_id === selectedResource.resource_id)) {
+    availableResources.push(selectedResource);
+  }
+  const matchingResources = availableResources.filter(
     (item) => targetKinds.includes(item.resource_kind) &&
     (!operation?.target_resource_names || operation.target_resource_names.includes(item.display_name)) && (!objectEditor ||
       item.resource_id === selectedResource?.resource_id)
@@ -1116,25 +1145,41 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   };
 
   const apply = async () => {
+    const submittedPlan = plan;
+    if (!submittedPlan) return;
     setWorking(true);
     setError(null);
+    setRefreshWarning(null);
+    // A lost response is not evidence of rollback. Retire the submitted plan
+    // before dispatch so neither a refresh failure nor a timeout invites replay.
+    setPlan(null);
     try {
-      const selectedTarget = matchingResources.find((item) =>
-        item.resource_id === targetId);
+      const selectedTarget = operation?.target_required === false ? null :
+        matchingResources.find((item) => item.resource_id === targetId);
       const databaseTargetId = resourceDatabaseTargetId(selectedTarget);
-      setResult(await post({
+      const applied = await post({
         action: 'visual_admin_apply',
         request: {
-          plan_id: plan.plan_id,
-          plan_digest: plan.plan_digest,
+          plan_id: submittedPlan.plan_id,
+          plan_digest: submittedPlan.plan_digest,
           confirmed,
           ...(databaseTargetId ? {
             database_target_id: databaseTargetId,
           } : {}),
         },
-      }));
+      });
+      setResult(applied);
       setPlan(null);
-      setInspectionRevision((revision) => revision + 1);
+      if (onMutationApplied) {
+        try {
+          await onMutationApplied({targetResource: selectedTarget,
+            operationId, result: applied});
+        } catch (refreshError) {
+          setRefreshWarning(gettext('The operation returned successfully, but object metadata could not be reloaded. Do not repeat the operation. ') + errorMessage(refreshError));
+        }
+      } else {
+        setInspectionRevision((revision) => revision + 1);
+      }
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -1144,6 +1189,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1, minWidth: 0}}>
+    {refreshWarning && <Alert severity="warning" sx={{mb: 2}}>
+      {refreshWarning}</Alert>}
     {!focused && !objectEditor && graphicalContract && <Alert severity={
       graphicalContract?.activation_state === 'passed' ? 'info' : 'warning'
     } sx={{mb: 2}} aria-label={gettext('Engine graphical interface status')}>
@@ -1304,6 +1351,7 @@ VisualAdministration.propTypes = {
   resourceGeneration: PropTypes.string,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
+  onMutationApplied: PropTypes.func,
   initialOperationId: PropTypes.string,
   initialResourceKind: PropTypes.string,
   focused: PropTypes.bool,
@@ -5081,7 +5129,7 @@ TopologyView.propTypes = {
 };
 
 function OperationalWorkspace({workspace, endpoint, catalog, resources,
-  resourceGeneration, onRefresh, refreshing, post, setError}) {
+  resourceGeneration, onRefresh, onMutationApplied, refreshing, post, setError}) {
   const facets = workspace?.facets || [];
   const initialFacet = facets.find((item) =>
     item.catalog_state !== 'unavailable') || facets[0];
@@ -5198,7 +5246,8 @@ function OperationalWorkspace({workspace, endpoint, catalog, resources,
           borderColor: 'divider'}}>
           <VisualAdministration catalog={commandCatalog}
             resources={resources} resourceGeneration={resourceGeneration}
-            post={post} setError={setError} />
+            post={post} setError={setError}
+            onMutationApplied={onMutationApplied} />
         </Box>}
       </>}
     </Box>
@@ -5212,6 +5261,7 @@ OperationalWorkspace.propTypes = {
   resources: PropTypes.array,
   resourceGeneration: PropTypes.string,
   onRefresh: PropTypes.func.isRequired,
+  onMutationApplied: PropTypes.func.isRequired,
   refreshing: PropTypes.bool,
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
@@ -6526,6 +6576,34 @@ export default function ProviderWorkspaceContent({
     }
   };
 
+  const reloadAfterAdministration = async ({targetResource, operationId, result}) => {
+    if (targetResource?.extensions?.cdeadmin?.service_scope_only) return;
+    if (result?.provider_result?.staged_in_provider_session === true) return;
+    const resourceId = administrationResourceId(targetResource, result);
+    const refreshed = await post({action: 'resource_page', request: {}});
+    if (!refreshed?.generation || !Array.isArray(refreshed.items)) {
+      throw new Error(gettext('The refreshed provider catalog is unavailable.'));
+    }
+    // Applying invalidates the old generation. Never refresh/inspect against it.
+    let nextSelected = null;
+    try {
+      if (targetResource && operationId !== 'drop') {
+        nextSelected = refreshed.items.find((item) =>
+          item.resource_id === resourceId);
+        if (!nextSelected) {
+          // The provider cache includes objects outside the first visible page.
+          nextSelected = await post({action: 'resource_inspect', request: {
+            resource_id: resourceId,
+            generation: refreshed.generation,
+          }});
+        }
+      }
+    } finally {
+      setResourcePage(refreshed);
+      setSelectedResource(nextSelected);
+    }
+  };
+
   const ensureSession = useCallback(async () => {
     if (sessionId) return sessionId;
     const language = languageProfile;
@@ -6854,6 +6932,7 @@ export default function ProviderWorkspaceContent({
           selectedResource={selectedResource}
           resourceGeneration={resourcePage?.generation}
           post={post} setError={setError}
+          onMutationApplied={reloadAfterAdministration}
           initialOperationId={selectedOperationId}
           initialResourceKind={selectedResourceKind}
           objectEditor={tab === 'object'}
@@ -6866,6 +6945,7 @@ export default function ProviderWorkspaceContent({
           resources={resourcePage?.items || []}
           resourceGeneration={resourcePage?.generation}
           onRefresh={refreshResources} refreshing={loadingMore}
+          onMutationApplied={reloadAfterAdministration}
           post={post} setError={setError} />}
       {workspace && tab === 'semantic' &&
         <SemanticModelWorkspace semantic={workspace.semantic_models}

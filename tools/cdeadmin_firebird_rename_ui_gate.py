@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+##########################################################################
+# CDEadmin - Multi-engine Database Administration
+# Copyright (C) 2013 - 2026, The pgAdmin Development Team
+# This software is released under the PostgreSQL Licence
+##########################################################################
+
+"""Rename and rename back through the same focused native column editor."""
+
+import json
+import sys
+import traceback
+import uuid
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.cdeadmin_firebird_role_ui_gate import (  # noqa: E402
+    arguments, forms, firebird, _route_arguments, create_driver,
+    close_workspace, plan_preview, screenshot, WebDriverWait,
+    visible_named_control,
+)
+from tools.cdeadmin_firebird_columns_ui_gate import (  # noqa: E402
+    cleanup_column_fixtures,
+)
+from tools.cdeadmin_firebird_admin_mapping_gate import (  # noqa: E402
+    _create_client,
+)
+from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
+    _materialize_catalog_value,
+)
+from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
+    click_unobscured, screenshot_form_pages,
+)
+from tools.cdeadmin_ui_evidence import fill_fields  # noqa: E402
+from pgadmin.cdeadmin.providers.firebird.identity import (  # noqa: E402
+    catalog_resource_id,
+)
+from pgadmin.cdeadmin.providers.firebird.mappings import (  # noqa: E402
+    identifier,
+)
+
+
+def run(options, profiles):
+    document = json.loads(profiles.read_text())
+    route = next(dict(item) for item in document['profiles']
+                 if item['engine'] == 'firebird')
+    route.setdefault('host', document.get('host', '127.0.0.1'))
+    assert route['database'] == options.database_path
+    _create_client(SimpleNamespace(acquire_secret=None))
+    native = firebird.connect(password=route['password'],
+                              **_route_arguments(route, firebird))
+    prefix = 'CDE_UI_RENAME_' + uuid.uuid4().hex[:10].upper()
+    tables, browser = [], None
+    cases = [('stored', 'INTEGER', 'W'),
+             ('identity', 'BIGINT GENERATED ALWAYS AS IDENTITY', 'Id New'),
+             ('computed', 'COMPUTED BY (X + 1)', 'Calculated'),
+             ('blob', 'BLOB SUB_TYPE TEXT', 'épreuve:blob%'),
+             ('array', 'INTEGER[1:3]', 'Quote"Name')]
+    result = {'passed': False, 'checks': [], 'failures': [],
+              'fixtures_removed': False, 'credential_values_exported': False}
+
+    def names(table):
+        with native.cursor() as cursor:
+            cursor.execute('SELECT TRIM(TRAILING FROM RDB$FIELD_NAME) '
+                           'FROM RDB$RELATION_FIELDS WHERE '
+                           'RDB$RELATION_NAME = ? ORDER BY RDB$FIELD_POSITION',
+                           (table,))
+            value = [row[0] for row in cursor.fetchall()]
+        native.commit()
+        return value
+
+    def rows(table, column):
+        with native.cursor() as cursor:
+            cursor.execute('SELECT X, ' + identifier(column) + ' FROM ' +
+                           identifier(table) + ' ORDER BY X')
+            value = [[_materialize_catalog_value(item) for item in row]
+                     for row in cursor.fetchall()]
+        native.commit()
+        return value
+
+    try:
+        for index, (_label, definition, _new) in enumerate(cases):
+            table = prefix + '_' + str(index)
+            with native.cursor() as cursor:
+                cursor.execute('CREATE TABLE ' + identifier(table) +
+                               ' (X INTEGER, V ' + definition + ')')
+            native.commit()
+            tables.append(table)
+            with native.cursor() as cursor:
+                for value in (7, 11):
+                    cursor.execute('INSERT INTO ' + identifier(table) +
+                                   ' (X) VALUES (?)', (value,))
+                if _label == 'stored':
+                    cursor.execute('UPDATE ' + identifier(table) +
+                                   ' SET V = X * 3')
+                elif _label == 'blob':
+                    cursor.execute('UPDATE ' + identifier(table) +
+                                   ' SET V = ?', ('  Native é text  ',))
+            native.commit()
+        browser = create_driver(options)
+        browser.set_script_timeout(120)
+        wait = WebDriverWait(browser, options.timeout)
+        forms._prepare_tree(browser, wait, options)
+        probe = forms._workspace_probe(browser, ['column'],
+                                       collect_context_commands=False)
+        operation = next(iter(forms._enumerate_operations(
+            probe['catalog'], ['column'], ['rename'])))
+        for index, (label, _definition, new_name) in enumerate(cases):
+            table = tables[index]
+            try:
+                baseline_rows = rows(table, 'V')
+                target = next(item for item in probe['resources'] if
+                              item['resource_kind'] == 'column' and
+                              item['display_path'] == [table, 'V'])
+                forms._open_focused_form(browser, operation, target,
+                                         probe['database_target_id'])
+                forms._wait_for_operation(wait, operation)
+                for old, new in [('V', new_name), (new_name, 'V')]:
+                    label_now = label + ('-forward' if old == 'V' else '-back')
+                    print('column rename: ' + label_now, flush=True)
+                    fill_fields(wait, ['New name=' + new])
+                    images = screenshot_form_pages(
+                        browser, options.output_root / label_now)
+                    plan = plan_preview(browser, wait, operation, {})
+                    source = plan['command_preview']['statements'][0]['source']
+                    assert source == ('ALTER TABLE ' + identifier(table) +
+                                      ' ALTER COLUMN ' + identifier(old) +
+                                      ' TO ' + identifier(new)), source
+                    confirm = visible_named_control(
+                        browser, 'I confirm this provider-planned operation.')
+                    if confirm is not None and not confirm.is_selected():
+                        click_unobscured(browser, wait, confirm)
+                    button = wait.until(lambda driver: visible_named_control(
+                        driver, 'Apply provider plan'))
+                    wait.until(lambda _driver: button.is_enabled())
+                    click_unobscured(browser, wait, button)
+                    output = wait.until(lambda driver: next((
+                        item for item in driver.find_elements(
+                            'css selector',
+                            '[aria-label="Provider operation result"]')
+                        if item.is_displayed()), None))
+                    response = json.loads(output.text)
+                    receipt = response['resource_identity_change']
+                    assert response['accepted'] is True
+                    assert receipt['native_identity_verified'] is True
+                    assert receipt['committed_by_provider'] is True
+                    assert receipt['resource_id'] == catalog_resource_id(
+                        'column', [table], new)
+                    assert names(table) == ['X', new]
+                    assert rows(table, new) == baseline_rows
+                    wait.until(lambda driver: visible_named_control(
+                        driver, 'Validate and preview').is_enabled())
+                    assert 'Do not repeat the operation' not in (
+                        browser.find_element('tag name', 'body').text)
+                    path = options.output_root / (label_now + '-result.png')
+                    result['checks'].append({
+                        'case': label_now, 'receipt': receipt,
+                        'rows_preserved': baseline_rows,
+                        'form_screenshots': images, 'screenshot': str(path),
+                        'sha256': screenshot(browser, path)})
+                close_workspace(browser, wait)
+            except Exception:
+                result['failures'].append({'case': label,
+                                          'traceback': traceback.format_exc()})
+                path = options.output_root / (label + '-failure.png')
+                screenshot(browser, path)
+                close_workspace(browser, wait)
+        result['passed'] = len(result['checks']) == len(cases) * 2
+    except Exception:
+        result['failures'].append({'traceback': traceback.format_exc()})
+    finally:
+        cleanup = cleanup_column_fixtures(browser, native, tables)
+        result['fixtures_removed'] = cleanup['fixtures_removed']
+        result['failures'].extend(cleanup['errors'])
+        result['passed'] = result['passed'] and not result['failures']
+    return result
+
+
+def main():
+    options, profiles = arguments()
+    result = run(options, profiles)
+    options.summary_output.parent.mkdir(parents=True, exist_ok=True)
+    options.summary_output.write_text(json.dumps(result, indent=2) + '\n')
+    print(json.dumps(result, indent=2))
+    return 0 if result['passed'] else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

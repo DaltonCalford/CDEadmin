@@ -24,6 +24,7 @@ from ..relational_admin import (
 )
 from . import columns, mappings
 from .column_type_metadata import type_editor_values
+from .identity import catalog_resource_id as _catalog_resource_id
 
 
 PROFILE = PilotProfile(
@@ -778,12 +779,6 @@ def _catalog_detail(field, value):
     } else text.rstrip(' ')
 
 
-def _catalog_resource_id(kind, path, name):
-    """Escape delimiters, retaining existing IDs for ordinary identifiers."""
-    return ':'.join(str(value).replace('%', '%25').replace(':', '%3A')
-                    for value in (kind, *path, name))
-
-
 def _role_privileges(value):
     """Decode Firebird's byte-indexed privilege bitmap (bit zero reserved)."""
     if value is None:
@@ -1463,6 +1458,35 @@ def _resources(connection, request):
             }, native_identity=[grantee, relation, field, privilege, grantor,
                                 grant_option, user_type, object_type,
                                 default_role])
+        creation_authority = {
+            'scope': 'server-security-database',
+            'source': 'SEC$DB_CREATORS', 'effective_access_verified': False,
+        }
+        database_native['database_creation_authority'] = creation_authority
+        try:
+            cursor.execute('SELECT TRIM(TRAILING FROM SEC$USER), '
+                           'SEC$USER_TYPE FROM SEC$DB_CREATORS ORDER BY 1, 2')
+            creators = list(cursor.fetchall())
+            creation_authority.update(available=True, count=len(creators))
+            for grantee, user_type in creators:
+                grantee = str(grantee).rstrip(' ')
+                name = f'{grantee}:CREATE DATABASE [{user_type}; '
+                name += 'security database]'
+                add('privilege', [], name, {
+                    'grantee': grantee, 'user_type': user_type,
+                    'privilege': 'C', 'object_type': 21,
+                    'object_name': 'SQL$DATABASE',
+                    'granted_object': 'CREATE DATABASE', 'field': None,
+                    'grantor': None, 'grant_option': None,
+                    'catalog_source': 'SEC$DB_CREATORS',
+                    'scope': 'server-security-database',
+                    'grant_option_supported': False,
+                    'explicit_grantor_supported': False,
+                }, native_identity=['security-database-create', grantee,
+                                    user_type])
+        except Exception as error:
+            creation_authority.update(available=False,
+                                      error_type=type(error).__name__)
         dependency_rows = optional(
             'SELECT TRIM(TRAILING FROM RDB$DEPENDENT_NAME), '
             'RDB$DEPENDENT_TYPE, '
@@ -1623,6 +1647,9 @@ def _resources(connection, request):
                 [target for target in objects_named(object_name)
                  if target['resource_kind'] in target_kinds]
             )
+            server_creation = grant.get('catalog_source') == 'SEC$DB_CREATORS'
+            if server_creation:
+                targets = []
             field_targets = [
                 target for target in objects_named(field_name)
                 if target['resource_kind'] == 'column' and
@@ -1641,7 +1668,10 @@ def _resources(connection, request):
                 'authority': 'native-catalog-name-matching',
                 'effective_access_verified': False,
             }
-            if ddl_class and not field_name:
+            if server_creation:
+                resolution.update(state='server-scope',
+                                  scope='database-creation')
+            elif ddl_class and not field_name:
                 resolution.update(state='class-scope', ddl_class=ddl_class)
             elif resolution['state'] != 'resolved':
                 resolution['warning'] = (
