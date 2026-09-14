@@ -75,6 +75,16 @@ describe('Firebird native service result', () => {
     render(<FirebirdServiceObservation observation={observation} />);
     expect(screen.queryByText('Requested backup selection')).not.toBeInTheDocument();
     expect(screen.queryByText('Requested backup-history retention')).not.toBeInTheDocument();
+    expect(screen.queryByText('Requested backup read I/O')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['NATIVE', 'Native default'], ['ON', 'Direct reads ON'], ['OFF', 'Direct reads OFF'],
+    [null, 'Not reported'], [false, 'Not reported'], ['toString', 'Not reported'],
+    [{toString: null}, 'Not reported'], ['unknown', 'Not reported'],
+  ])('shows requested backup I/O policy without asserting observed OS behavior: %j', (policy, text) => {
+    render(<FirebirdServiceObservation observation={{...observation, backup_io_requested: policy}} />);
+    expect(screen.getByText('Requested backup read I/O').nextElementSibling).toHaveTextContent(text);
   });
 
   it('explicitly reports truncated native output', () => {

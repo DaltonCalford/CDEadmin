@@ -7,6 +7,7 @@ from pathlib import PurePosixPath
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 from cdeadmin_firebird_query_ui_gate import (
     _button, _grid_control_evidence, _load_profile, _write_records,
@@ -76,10 +77,10 @@ def run(options, password):
                 }
                 return {label_and_value_visible: visible};
             ''', term)
-            assert geometry['label_and_value_visible']
             state = prefix + '-readable-result-' + str(index)
             capture(state)
             evidence['controls'][state].append(geometry)
+            assert geometry['label_and_value_visible']
 
     try:
         prepare_tree(driver, wait, options, password)
@@ -88,17 +89,22 @@ def run(options, password):
                       if item['operation_id'] == 'backup_physical')
         latest_guid = None
         for index, unit in enumerate(('ROWS', 'DAYS')):
+            io_mode = 'ON' if unit == 'ROWS' else 'OFF'
             database = wait_for_tree_item(wait, options.database)
             invoke_context_action(wait, driver, database,
                                   ['Backup', 'Physical backup (nbackup)...'],
                                   password, endpoint_prompt_timeout=1)
             complete_endpoint_prompt(driver, password, timeout=1)
+            io_control = visible_named_control(
+                driver, 'Backup read I/O policy')
+            assert 'Native default' in io_control.text
             backup_path = str(root / (options.database + '.' + unit + '.nbk'))
             values = {
                 'Physical backup filename on the Firebird server': backup_path,
                 'Clean backup history after backup': 'true',
                 'Keep backup history by': unit,
                 'History retention count': 0,
+                'Backup read I/O policy': io_mode,
             }
             fill_form_values(driver, wait, fields, values)
             _button(wait, 'Validate and preview').click()
@@ -114,7 +120,8 @@ def run(options, password):
             for label, state in [
                     ('Clean backup history after backup', 'enabled'),
                     ('Keep backup history by', 'unit'),
-                    ('History retention count', 'count')]:
+                    ('History retention count', 'count'),
+                    ('Backup read I/O policy', 'io-policy')]:
                 control = visible_named_control(driver, label)
                 assert control is not None
                 geometry = driver.execute_script('''
@@ -143,23 +150,26 @@ def run(options, password):
                       value_not_clipped: control.scrollWidth <=
                         control.clientWidth + 1};
                 ''', control)
-                assert geometry['label_and_control_visible']
-                assert geometry['value_not_clipped']
                 capture(unit.lower() + '-control-' + state)
                 state_key = unit.lower() + '-control-' + state
                 evidence['controls'][state_key].append(geometry)
+                assert geometry['label_and_control_visible']
+                assert geometry['value_not_clipped']
             _button(wait, 'Validate and preview').click()
             complete_endpoint_prompt(driver, password, timeout=3)
             apply = _button(wait, 'Apply provider plan')
             preview = driver.find_element(
                 By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')
             assert 'backup-history records' in preview.text
+            assert json.loads(preview.text)['command_preview'][
+                'backup_io_requested'] == io_mode
             capture(unit.lower() + '-plan')
             apply.click()
             result = wait.until(lambda value: value.find_element(
                 By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
             assert 'Requested backup selection' in result.text
             assert 'Level: 0' in result.text
+            assert 'Direct reads ' + io_mode in result.text
             assert 'Requested backup-history retention' in result.text
             expected_policy = ('Newest rows (timestamp cutoff): 1'
                                if unit == 'ROWS' else
@@ -172,6 +182,7 @@ def run(options, password):
                 By.CSS_SELECTOR,
                 '[aria-label="Firebird native service receipt"]').text)
             assert observed['server_completed'] is True
+            assert observed['backup_io_requested'] == io_mode
             release = observed['service_release']
             assert release['service_handle_released'] is True
             assert observed['history_retention_requested'] == {
@@ -196,6 +207,11 @@ def run(options, password):
                               ['Backup', 'Physical backup (nbackup)...'],
                               password, endpoint_prompt_timeout=1)
         complete_endpoint_prompt(driver, password, timeout=1)
+        io_control = visible_named_control(driver, 'Backup read I/O policy')
+        assert 'Native default' in io_control.text
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block:"center"})', io_control)
+        capture('native-io-policy-control')
         guid_label = 'Database backup GUID (overrides level)'
         values = {
             'Physical backup filename on the Firebird server': str(
@@ -221,12 +237,14 @@ def run(options, password):
             By.CSS_SELECTOR, '[aria-label="Provider plan preview"]').text)
         assert preview['command_preview']['backup_selection'] == {
             'mode': 'guid', 'guid': latest_guid.upper()}
+        assert preview['command_preview']['backup_io_requested'] == 'NATIVE'
         capture('guid-native-plan')
         apply.click()
         result = wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
         assert 'Requested backup selection' in result.text
         assert 'GUID: ' + latest_guid.upper() in result.text
+        assert 'Native default' in result.text
         assert 'Requested backup-history retention' not in result.text
         readable_result(result, 'guid')
         result.find_element(By.TAG_NAME, 'summary').click()
@@ -234,6 +252,7 @@ def run(options, password):
             By.CSS_SELECTOR,
             '[aria-label="Firebird native service receipt"]').text)
         assert observed['server_completed'] is True
+        assert observed['backup_io_requested'] == 'NATIVE'
         assert observed['service_release']['service_handle_released'] is True
         assert observed['backup_selection_requested'] == {
             'mode': 'guid', 'guid': latest_guid.upper()}
@@ -251,7 +270,37 @@ def run(options, password):
         capture('guid-native-result')
         evidence['cases'].append('bare-guid-native-increment-verified')
         close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 3
+        database = wait_for_tree_item(wait, options.database)
+        invoke_context_action(wait, driver, database,
+                              ['Restore', 'Physical restore (nbackup)...'],
+                              password, endpoint_prompt_timeout=1)
+        confirmation = wait.until(lambda value: value.find_element(
+            By.XPATH, '//*[@role="dialog"]'
+            '[contains(., "Confirm provider action")]'))
+        assert 'Physical restore (nbackup)' in confirmation.text
+        capture('restore-open-confirmation')
+        _button(wait, 'Cancel').click()
+        wait.until(EC.invisibility_of_element(confirmation))
+        assert visible_named_control(driver, (
+            'Restored database filename on the Firebird server')) is None
+        database = wait_for_tree_item(wait, options.database)
+        invoke_context_action(wait, driver, database,
+                              ['Restore', 'Physical restore (nbackup)...'],
+                              password, endpoint_prompt_timeout=1)
+        confirmation = wait.until(lambda value: value.find_element(
+            By.XPATH, '//*[@role="dialog"]'
+            '[contains(., "Confirm provider action")]'))
+        assert 'Physical restore (nbackup)' in confirmation.text
+        _button(wait, 'Continue').click()
+        complete_endpoint_prompt(driver, password, timeout=1)
+        wait.until(lambda _driver: visible_named_control(
+            driver, 'Restored database filename on the Firebird server'))
+        assert visible_named_control(driver, 'Use direct I/O') is None
+        assert visible_named_control(driver, 'Backup read I/O policy') is None
+        capture('restore-no-ineffective-io-control')
+        evidence['cases'].append('restore-form-no-ineffective-io-control')
+        close_workspace(driver, wait)
+        evidence['passed'] = len(evidence['cases']) == 4
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
         capture('failure')

@@ -25,6 +25,17 @@ export default function FirebirdServiceObservation({observation, title}) {
   ];
   const selection = observation.backup_selection_requested;
   const retention = observation.history_retention_requested;
+  if (observation.backup_io_requested !== undefined) {
+    const policies = {
+      NATIVE: gettext('Native default'),
+      ON: gettext('Direct reads ON'),
+      OFF: gettext('Direct reads OFF'),
+    };
+    fields.push([gettext('Requested backup read I/O'),
+      typeof observation.backup_io_requested === 'string' &&
+      Object.hasOwn(policies, observation.backup_io_requested) ?
+        policies[observation.backup_io_requested] : gettext('Not reported')]);
+  }
   if (selection !== undefined) {
     const guid = selection?.mode === 'guid' && typeof selection.guid === 'string';
     const level = selection?.mode === 'level' && Number.isInteger(selection.level) && selection.level >= 0;

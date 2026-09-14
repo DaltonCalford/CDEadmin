@@ -271,7 +271,9 @@ def run(options):
         'isolated_config_clone': True,
         'source_config_sha256': source_hash,
         'source_config_unchanged': source_unchanged,
-        'packaged_sample_database_used': True,
+        # The caller can deliberately supply an owned disposable database.
+        # Record the actual selected target, not an assumed fixture origin.
+        'target_database': options.database,
         'credential_values_exported': False,
         'server_stopped': process is None or process.returncode is not None,
         'browser_summary': str(options.summary_output),

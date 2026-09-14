@@ -471,7 +471,7 @@
         {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
         {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 255},
         {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false, "help": "Enter a hyphenated UUID, with or without braces. The native request always uses braces so it cannot be mistaken for a backup level."},
-        {"field_id": "direct_io", "label": "Use direct I/O", "control": "boolean", "required": false, "default": false},
+        {"field_id": "direct_io_mode", "label": "Backup read I/O policy", "control": "select", "required": true, "default": "NATIVE", "help": "Default: ON on Windows servers, OFF elsewhere. Direct reads require filesystem support.", "options": [{"value": "NATIVE", "label": "Native default"}, {"value": "ON", "label": "Direct reads ON"}, {"value": "OFF", "label": "Direct reads OFF"}]},
         {"field_id": "backup_flags", "label": "Physical backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "NO_TRIGGERS", "label": "Disable database triggers"}]},
         {"field_id": "clean_history", "label": "Clean backup history after backup", "control": "boolean", "required": false, "default": false, "help": "Removes native backup-history records, not backup files. Older level/GUID lookup may no longer be possible; keep an independently verified restore chain."},
         {"field_id": "history_keep_unit", "label": "Keep backup history by", "control": "select", "required": true, "default": "ROWS", "visible_when": {"field_id": "clean_history", "equals": true}, "help": "Pruning can remove level/GUID lookup records. Backup files are kept.", "options": [{"value": "ROWS", "label": "Newest rows (timestamp cutoff)"}, {"value": "DAYS", "label": "Calendar days including today"}]},
@@ -484,7 +484,6 @@
       "fields": [
         {"field_id": "backup_files", "label": "Ordered server backup filenames (JSON array)", "control": "json", "required": true},
         {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
-        {"field_id": "direct_io", "label": "Use direct I/O", "control": "boolean", "required": false, "default": false},
         {"field_id": "restore_flags", "label": "Physical restore options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IN_PLACE", "label": "In-place"}, {"value": "SEQUENCE", "label": "Sequence mode"}]},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
       ]

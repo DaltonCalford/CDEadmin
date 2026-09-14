@@ -40,6 +40,7 @@ def run(profiles, container):
     owned = []
     connection = None
     client = None
+    restored_handles = []
 
     def docker(*args):
         completed = subprocess.run(['docker', *args], capture_output=True,
@@ -69,6 +70,18 @@ def run(profiles, container):
             rows = cursor.fetchall()
         connection.rollback()
         return rows
+
+    def verify_restored(path):
+        handle = connect(path)
+        restored_handles.append(handle)
+        try:
+            with handle.cursor() as cursor:
+                cursor.execute('SELECT ID, V FROM OWNED_PAYLOAD ORDER BY ID')
+                assert cursor.fetchall() == [
+                    (1, 'Restore proof'), (2, 'GUID increment proof')]
+        finally:
+            handle.close()
+            restored_handles.remove(handle)
 
     def operation(name, options):
         request = {'engine_id': 'firebird', 'resource_kind': 'database',
@@ -174,22 +187,40 @@ def run(profiles, container):
         operation('restore_physical', {
             'backup_files': [backups[-1], increment],
             'restore_database': restored, 'restore_flags': []})
-        restored_connection = connect(restored)
-        try:
-            with restored_connection.cursor() as cursor:
-                cursor.execute('SELECT ID, V FROM OWNED_PAYLOAD ORDER BY ID')
-                assert cursor.fetchall() == [
-                    (1, 'Restore proof'), (2, 'GUID increment proof')]
-        finally:
-            restored_connection.close()
+        verify_restored(restored)
         result['cases'].append('restored-payload-verified')
+        for mode in ('NATIVE', 'ON', 'OFF'):
+            for retention in (False, True):
+                case = 'io-' + mode + '-history-' + str(retention)
+                try:
+                    backup = str(root / f'cde_history_{token}_{case}.nbk')
+                    destination = str(root / f'cde_history_{token}_{case}.fdb')
+                    claim(backup)
+                    claim(destination)
+                    options = {'backup_file': backup, 'direct_io_mode': mode,
+                               'backup_level': 0}
+                    if retention:
+                        options.update(clean_history=True,
+                                       history_keep_unit='ROWS',
+                                       history_keep_value=1)
+                    observed = operation('backup_physical', options)
+                    assert observed['backup_io_requested'] == mode
+                    operation('restore_physical', {
+                        'backup_files': [backup],
+                        'restore_database': destination})
+                    verify_restored(destination)
+                    result['cases'].append(case)
+                except Exception as exc:
+                    result['failures'].append({
+                        'case': case, 'error_type': type(exc).__name__,
+                        'message': str(exc).replace(password, '[redacted]')})
     except Exception as exc:
         result['failures'].append({'error_type': type(exc).__name__,
                                    'message': str(exc).replace(
                                        password, '[redacted]')})
     finally:
         released = True
-        for handle in (client, connection):
+        for handle in (client, connection, *restored_handles):
             if handle is not None:
                 try:
                     handle.close()
@@ -208,7 +239,7 @@ def run(profiles, container):
                     result['failures'].append({
                         'case': 'cleanup', 'path': path,
                         'error_type': type(exc).__name__})
-    result['complete'] = (len(result['cases']) == 7 and
+    result['complete'] = (len(result['cases']) == 13 and
                           not result['failures'] and
                           len(result['owned_paths_removed']) == len(owned))
     return result

@@ -34,6 +34,7 @@ from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
 from .firebird.backup_guid import normalize_backup_guid
+from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
@@ -2428,6 +2429,8 @@ class RelationalAdministration:
                 **({'backup_selection': copy.deepcopy(
                     compiled['backup_selection'])}
                    if 'backup_selection' in compiled else {}),
+                **({'backup_io_requested': compiled['backup_io_requested']}
+                   if 'backup_io_requested' in compiled else {}),
             },
             'provider_payload': {
                 'route': copy.deepcopy(dict(route)),
@@ -3034,6 +3037,10 @@ class RelationalAdministration:
                 'database': database.strip(),
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                **({'backup_io_requested': (
+                    'NATIVE' if request['draft']['direct_io'] is None else
+                    'ON' if request['draft']['direct_io'] else 'OFF')}
+                   if operation == 'backup_physical' else {}),
                 **({'backup_selection': ({
                     'mode': 'guid',
                     'guid': request['draft']['database_guid'],
@@ -3503,6 +3510,16 @@ class RelationalAdministration:
 
         if operation in {'backup_logical', 'backup_physical'}:
             path('backup_file')
+        if operation in {'backup_physical', 'restore_physical'}:
+            try:
+                normalize_physical_io(operation, draft)
+            except RelationalClientError as error:
+                errors.append({
+                    'field_id': ('direct_io_mode' if 'direct_io_mode' in draft
+                                 else 'direct_io'),
+                    'code': 'invalid_firebird_physical_io',
+                    'message': str(error),
+                })
         if operation == 'backup_physical':
             try:
                 normalize_backup_guid(draft.get('database_guid'))
@@ -3887,6 +3904,9 @@ class RelationalAdministration:
         if not isinstance(draft, Mapping):
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation in {'backup_physical', 'restore_physical'}):
+            value = normalize_physical_io(operation, value)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation == 'backup_physical' and 'database_guid' in value):
             guid = normalize_backup_guid(value['database_guid'])
