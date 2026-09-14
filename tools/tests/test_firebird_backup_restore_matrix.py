@@ -59,7 +59,8 @@ def test_port_binding_matches_owned_endpoint(monkeypatch, published, valid):
 
 
 @pytest.mark.parametrize('failure', [
-    None, 'exists', 'create', 'browser', 'target', 'configuration', 'drop'])
+    None, 'exists', 'create', 'browser', 'target', 'configuration', 'drop',
+    'orphan-storage'])
 @pytest.mark.parametrize('gate_kind', ['backup-history', 'logical-volumes'])
 def test_fixture_lifecycle_and_failure_barriers(
         tmp_path, monkeypatch, failure, gate_kind):
@@ -110,6 +111,9 @@ def test_fixture_lifecycle_and_failure_barriers(
         path = command[command.index('--database') + 1]
         present.add(path + '.RESTORED.fdb')
         present.add(path + '.RESTORED.PRESERVE.fdb')
+        if gate_kind == 'logical-volumes':
+            present.update(path + '.RESTORED.fdb' + suffix
+                           for suffix in ('.second', '.third', '.last'))
         assert command[command.index('--gate-kind') + 1] == gate_kind
         present.update(
             [path + '.single.fbk', *[
@@ -127,13 +131,18 @@ def test_fixture_lifecycle_and_failure_barriers(
         if failure == 'drop':
             raise RuntimeError('DO-NOT-EXPORT')
         present.remove(path)
+        if failure != 'orphan-storage':
+            present.difference_update(
+                path + suffix for suffix in ('.second', '.third', '.last'))
 
     monkeypatch.setattr(gate, 'docker', docker)
     monkeypatch.setattr(gate, 'database_connection', connection)
     monkeypatch.setattr(gate, 'drop_owned_database', drop)
     monkeypatch.setattr(gate.subprocess, 'run', run)
     result = gate.run_scale(options, object(), profile, 'DO-NOT-EXPORT', 100)
-    assert result['complete'] == (failure is None)
+    assert result['complete'] == (
+        failure is None or (failure == 'orphan-storage' and
+                            gate_kind != 'logical-volumes'))
     assert 'DO-NOT-EXPORT' not in json.dumps(result)
     assert json.loads((tmp_path / 'scale-100/result.json').read_text()) == (
         result)
@@ -141,15 +150,21 @@ def test_fixture_lifecycle_and_failure_barriers(
         assert not created
         assert len(calls) == 1
     elif failure == 'drop':
-        assert len(present) == (7 if gate_kind == 'logical-volumes' else 6)
+        assert len(present) == (10 if gate_kind == 'logical-volumes' else 6)
         assert not any(args[:3] == ('exec', 'rm', '-f') for args in calls)
         assert result['failures'][0]['stage'] == 'cleanup'
+    elif failure == 'orphan-storage' and gate_kind == 'logical-volumes':
+        assert result['failures'][0]['stage'] == 'cleanup'
+        assert len(present) == 7  # Three orphan database files, four backups.
+        assert not any(args[:3] == ('exec', 'rm', '-f') for args in calls)
     else:
         assert not present
         assert len(result['backup_files_absent']) == (
             4 if gate_kind == 'logical-volumes' else 3)
         assert len(result['databases_removed']) == (
             1 if failure == 'create' else 3)
+        assert len(result['secondary_files_absent']) == (
+            3 if gate_kind == 'logical-volumes' else 0)
 
 
 def test_existing_evidence_is_never_overwritten(tmp_path):

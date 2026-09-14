@@ -26,6 +26,9 @@ from . import columns, mappings
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
+from .restore_files import logical_restore_files, start_logical_restore
+from .encryption_info import read_encryption_text
+from .error_diagnostics import status_codes
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
 from .column_type_metadata import type_editor_values
@@ -663,6 +666,8 @@ def _firebird_service_operation(
     """Dispatch one exact Firebird 5 database service-manager task."""
     if operation_id == 'backup_logical':
         logical_backup_volumes(options)
+    if operation_id == 'restore_logical':
+        database_files, database_file_pages = logical_restore_files(options)
     if operation_id in {'backup_physical', 'restore_physical'}:
         options = normalize_physical_io(operation_id, options)
     if operation_id == 'backup_physical':
@@ -732,42 +737,47 @@ def _firebird_service_operation(
         backup_files = [options['backup_file'], *(
             options.get('additional_backup_files') or []
         )]
-        database_files = [options['restore_database'], *(
-            options.get('additional_database_files') or []
-        )]
-        lines, truncated = _service_lines(lambda output: service.restore(
-            backup=(
-                backup_files[0] if len(backup_files) == 1 else backup_files
-            ),
-            database=(
-                database_files[0]
-                if len(database_files) == 1 else database_files
-            ),
-            db_file_pages=options.get('database_file_pages') or (), role=role,
-            flags=_flag_value(module, 'SrvRestoreFlag', restore_flags),
-            verbose=bool(options.get('verbose', True)),
-            stats=options.get('statistics') or None,
-            verbint=options.get('verbose_interval'),
-            skip_data=options.get('skip_data') or None,
-            include_data=options.get('include_data') or None,
-            keyhoder=options.get('key_holder') or None,
-            keyname=options.get('key_name') or None,
-            crypt=options.get('crypt_plugin') or None,
-            replica_mode=(
-                module.ReplicaMode[options['replica_mode']]
-                if options.get('replica_mode') else None
-            ),
-            page_size=(
-                int(options['page_size'])
-                if options.get('page_size') else None
-            ),
-            buffers=options.get('page_buffers'),
-            access_mode=module.DbAccessMode[
-                options.get('access_mode', 'READ_WRITE')
-            ],
-            parallel_workers=options.get('parallel_workers'),
-            callback=output,
-        ))
+        if any(isinstance(options.get(field), str) and
+               not options[field].isascii() for field in (
+                   'key_holder', 'key_name', 'crypt_plugin')):
+            flags = _flag_value(module, 'SrvRestoreFlag', restore_flags)
+            lines, truncated = _service_lines(
+                lambda output: start_logical_restore(
+                    server, options, flags, module, output))
+        else:
+            lines, truncated = _service_lines(lambda output: service.restore(
+                backup=(
+                    backup_files[0] if len(backup_files) == 1 else backup_files
+                ),
+                database=(
+                    database_files[0]
+                    if len(database_files) == 1 else database_files
+                ),
+                db_file_pages=database_file_pages or (), role=role,
+                flags=_flag_value(module, 'SrvRestoreFlag', restore_flags),
+                verbose=bool(options.get('verbose', True)),
+                stats=options.get('statistics') or None,
+                verbint=options.get('verbose_interval'),
+                skip_data=options.get('skip_data') or None,
+                include_data=options.get('include_data') or None,
+                keyhoder=options.get('key_holder') or None,
+                keyname=options.get('key_name') or None,
+                crypt=options.get('crypt_plugin') or None,
+                replica_mode=(
+                    module.ReplicaMode[options['replica_mode']]
+                    if options.get('replica_mode') else None
+                ),
+                page_size=(
+                    int(options['page_size'])
+                    if options.get('page_size') else None
+                ),
+                buffers=options.get('page_buffers'),
+                access_mode=module.DbAccessMode[
+                    options.get('access_mode', 'READ_WRITE')
+                ],
+                parallel_workers=options.get('parallel_workers'),
+                callback=output,
+            ))
         result.update(
             database=options['restore_database'], output=lines,
             output_truncated=truncated,
@@ -1155,6 +1165,16 @@ def _resources(connection, request):
             '0': 'NOT_ENCRYPTED', '1': 'ENCRYPTED',
             '2': 'DECRYPT_IN_PROGRESS', '3': 'ENCRYPT_IN_PROGRESS',
         }.get(database_native.get('encryption_state'))
+        for name in ('encryption_key_name', 'encryption_plugin'):
+            try:
+                database_native[name] = read_encryption_text(info, name)
+                information_observations[name] = {'available': True}
+            except Exception as error:
+                database_native[name] = None
+                information_observations[name] = {
+                    'available': False, 'error_type': type(error).__name__,
+                    'native_status_codes': list(status_codes(error)),
+                }
         database_native['shutdown_mode_name'] = {
             '0': 'ONLINE', '1': 'MULTI_USER_SHUTDOWN',
             '2': 'SINGLE_USER_SHUTDOWN', '3': 'FULL_SHUTDOWN',

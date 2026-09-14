@@ -40,7 +40,8 @@ def remove_owned(container):
     docker('rm', '--force', '--volumes', container)
 
 
-def run(image, *, secondary_files=False):
+def run(image, *, secondary_files=False, initial_pages=256,
+        paired_files=False):
     import firebird.driver as native
     _configure_client_library(native)
     name = 'cdeadmin-gbak-volumes-' + uuid.uuid4().hex[:16]
@@ -137,13 +138,20 @@ def run(image, *, secondary_files=False):
             assert all(size > 0 for size in file_sizes)
             destination = f'/var/lib/firebird/data/{label}.fdb'
             additional_files = [destination + '.second', destination + '.last']
-            allocations = [256, 64]
+            allocations = [initial_pages, 64]
+            storage = ({
+                'multiple_database_files': True,
+                'primary_file_pages': allocations[0],
+                'database_file_volumes': [
+                    {'filename': additional_files[0], 'pages': allocations[1]},
+                    {'filename': additional_files[1]}],
+            } if paired_files else {
+                'additional_database_files': additional_files,
+                'database_file_pages': allocations})
             operation('restore_logical', {
                 'backup_file': files[0], 'additional_backup_files': files[1:],
                 'restore_database': destination, 'verbose': True,
-                **({'additional_database_files': additional_files,
-                    'database_file_pages': allocations}
-                   if secondary_files else {})})
+                **(storage if secondary_files else {})})
             connection = connect(destination)
             with connection.cursor() as cursor:
                 cursor.execute('SELECT ID, V FROM OWNED_VOLUME_PAYLOAD '
@@ -154,8 +162,11 @@ def run(image, *, secondary_files=False):
                                    'FROM RDB$FILES ORDER BY RDB$FILE_START')
                     catalog_files = [(row[0].strip(), row[1])
                                      for row in cursor.fetchall()]
+                    # restore.epp add_files reserves 255 pages in the primary
+                    # file even if the requested initial allocation is lower.
+                    first_start = max(255, initial_pages) + 1
                     assert catalog_files == list(zip(
-                        additional_files, (257, 321)))
+                        additional_files, (first_start, first_start + 64)))
             assert actual == rows
             connection.rollback()
             connection.close()
@@ -171,6 +182,8 @@ def run(image, *, secondary_files=False):
                 'actual_sizes': file_sizes, 'row_count': len(actual),
                 'payload_sha256': expected.hexdigest(),
                 'secondary_file_sizes': secondary_sizes,
+                'database_page_allocations': (
+                    allocations if secondary_files else []),
                 'native_output_returned': bool(observation['output']),
                 'ordered_restore_verified': True})
             for denial, bad_files, expected_code in (
@@ -231,10 +244,15 @@ def main():
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--secondary-files', action='store_true')
+    parser.add_argument('--paired-files', action='store_true')
+    parser.add_argument('--initial-pages', type=int, default=256,
+                        choices=(0, 1, 254, 255, 256))
     options = parser.parse_args()
     if options.output.exists():
         raise SystemExit('Choose a new evidence output file')
-    result = run(options.image, secondary_files=options.secondary_files)
+    result = run(options.image, secondary_files=(
+        options.secondary_files or options.paired_files),
+        initial_pages=options.initial_pages, paired_files=options.paired_files)
     options.output.parent.mkdir(parents=True, exist_ok=True)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     raise SystemExit(0 if result['complete'] else 1)

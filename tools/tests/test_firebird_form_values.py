@@ -32,6 +32,23 @@ def test_explicit_text_is_retained_for_validation_tests(monkeypatch, value):
     assert fill.call_args.args[1] == ['Options=' + value]
 
 
+@pytest.mark.parametrize('enabled', [True, 'true'])
+@pytest.mark.parametrize('value', [0, 1, 256])
+def test_conditional_numeric_edits_include_the_branch_controller(
+        monkeypatch, enabled, value):
+    fill = Mock()
+    monkeypatch.setattr(gate, 'fill_fields', fill)
+    fields = [
+        {'field_id': 'enabled', 'label': 'Multiple files',
+         'control': 'boolean', 'default': False},
+        {'field_id': 'pages', 'label': 'Primary pages', 'control': 'number',
+         'visible_when': {'field_id': 'enabled', 'equals': True}},
+    ]
+    gate.fill_form_values(None, None, fields, {
+        'Multiple files': enabled, 'Primary pages': value})
+    assert fill.call_args.args[1] == [f'Primary pages={value}']
+
+
 @pytest.mark.parametrize('record', [False, True])
 @pytest.mark.parametrize('present', [False, True])
 def test_inactive_field_absence_is_verified_not_silently_skipped(

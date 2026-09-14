@@ -98,14 +98,18 @@ def run_scale(options, native, profile, password, scale):
                if gate_kind == 'logical-volumes' else
                [path + '.' + part + '.nbk'
                 for part in ('ROWS', 'DAYS', 'GUID')])
+    storage_files = ([restored + suffix for suffix in (
+        '.second', '.third', '.last')]
+                     if gate_kind == 'logical-volumes' else [])
     claimed = False
     result = {'scale': scale, 'complete': False, 'target_database': path,
               'restored_database': restored, 'preserved_database': preserved,
               'databases_removed': [],
+              'secondary_files_absent': [],
               'backup_files_absent': [], 'failures': [],
               'credential_values_exported': False}
     try:
-        for candidate in (path, restored, preserved, *backups):
+        for candidate in (path, restored, preserved, *backups, *storage_files):
             docker(options.container, 'exec', 'test', '!', '-e', candidate)
         claimed = True
         connection = database_connection(native, profile, password, path,
@@ -152,6 +156,8 @@ def run_scale(options, native, profile, password, scale):
             raise RuntimeError('Firebird browser evidence target mismatch')
         docker(options.container, 'exec', 'test', '-e', restored)
         docker(options.container, 'exec', 'test', '-e', preserved)
+        for candidate in storage_files:
+            docker(options.container, 'exec', 'test', '-e', candidate)
     except Exception as exc:
         result['failures'].append({'stage': 'run', 'type': type(exc).__name__})
     finally:
@@ -166,6 +172,12 @@ def run_scale(options, native, profile, password, scale):
                         docker(options.container, 'exec', 'test', '!', '-e',
                                candidate)
                         result['databases_removed'].append(candidate)
+                # Secondary storage belongs to the database. Only native
+                # DROP DATABASE may remove it; never unlink it as a backup.
+                for candidate in storage_files:
+                    docker(options.container, 'exec', 'test', '!', '-e',
+                           candidate)
+                    result['secondary_files_absent'].append(candidate)
                 for candidate in backups:
                     docker(options.container, 'exec', 'rm', '-f', candidate)
                     docker(options.container, 'exec', 'test', '!', '-e',

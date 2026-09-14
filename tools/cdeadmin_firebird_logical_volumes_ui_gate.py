@@ -155,7 +155,7 @@ def run(options, password):
             capture(prefix + '-filter-help-end-' + str(index))
 
     try:
-        rows = [(index, secrets.token_hex(1000)) for index in range(100)]
+        rows = [(index, secrets.token_hex(1000)) for index in range(2000)]
         connection = native.connect(password=password,
                                     **_route_arguments(route, native))
         try:
@@ -256,6 +256,11 @@ def run(options, password):
             press('Continue')
             destination = path + ('.RESTORED.fdb' if index == 0 else
                                   '.RESTORED.PRESERVE.fdb')
+            storage = [
+                {'filename': destination + '.second', 'pages': 64},
+                {'filename': destination + '.third', 'pages': 128},
+                {'filename': destination + '.last'},
+            ]
             fill_form_values(driver, wait, fields, {
                 'Backup filename on the Firebird server': files[0],
                 'Additional backup volumes in order': files[1:],
@@ -264,8 +269,15 @@ def run(options, password):
                 'Database access mode': mode,
                 'Include data for tables matching': '%',
                 'Skip data for tables matching': (
-                    '東京%' if index == 0 else 'OWNED%')})
+                    '東京%' if index == 0 else 'OWNED%'),
+                **({'Restore database across multiple files': 'true',
+                    'Primary database file allocation (pages)': 256,
+                    'Secondary database files in order': storage}
+                   if index == 0 else {})})
             capture_filters('restore-' + mode)
+            if index == 0:
+                capture_list('Secondary database files in order',
+                             'restore-database-storage')
             capture_list('Additional backup volumes in order',
                          'restore-' + mode + '-volume')
             capture('restore-' + mode + '-visual-list')
@@ -274,6 +286,30 @@ def run(options, password):
             assert planned['draft']['access_mode'] == mode
             capture('restore-' + mode + '-plan')
             if index == 0:
+                assert planned['draft']['database_file_volumes'] == storage
+                assert planned['draft']['primary_file_pages'] == 256
+                press('Secondary database files in order 2: Move up')
+                assert not visible_named_control(
+                    driver, 'Apply provider plan').is_enabled()
+                capture('restore-storage-reorder-invalidates-plan')
+                reordered = preview()['draft']['database_file_volumes']
+                assert reordered == [storage[1], storage[0], storage[2]]
+                press('Secondary database files in order 1: Move down')
+                fill_form_values(driver, wait, fields, {
+                    'Restore database across multiple files': 'true',
+                    'Primary database file allocation (pages)': 0})
+                press('Validate and preview')
+                expected_error = ('Primary database file allocation (pages) '
+                                  'is below its minimum.')
+                wait.until(lambda value: expected_error in value.find_element(
+                    By.CSS_SELECTOR, '[role="dialog"]').text)
+                assert not visible_named_control(
+                    driver, 'Apply provider plan').is_enabled()
+                capture('restore-zero-pages-denied')
+                fill_form_values(driver, wait, fields, {
+                    'Restore database across multiple files': 'true',
+                    'Primary database file allocation (pages)': 256})
+                preview()
                 press('Additional backup volumes in order 2: Move up')
                 assert not visible_named_control(
                     driver, 'Apply provider plan').is_enabled()
@@ -293,6 +329,13 @@ def run(options, password):
                     assert cursor.fetchall() == ([] if index == 0 else [(1,)])
                     cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
                     assert cursor.fetchone() == (index,)
+                    cursor.execute('SELECT RDB$FILE_NAME, RDB$FILE_START '
+                                   'FROM RDB$FILES ORDER BY RDB$FILE_START')
+                    actual_files = [(row[0].strip(), row[1])
+                                    for row in cursor.fetchall()]
+                    assert actual_files == (
+                        [(item['filename'], start) for item, start in zip(
+                            storage, (257, 321, 449))] if index == 0 else [])
                 connection.rollback()
             finally:
                 connection.close()

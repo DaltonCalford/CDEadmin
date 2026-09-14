@@ -37,6 +37,7 @@ from .firebird.backup_guid import normalize_backup_guid
 from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
 from .firebird.restore_policy import physical_restore_policy
 from .firebird.backup_volumes import logical_backup_volumes
+from .firebird.restore_files import logical_restore_files
 from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
@@ -3532,6 +3533,19 @@ class RelationalAdministration:
                     'code': 'invalid_firebird_backup_volumes',
                     'message': str(error),
                 })
+        if operation == 'restore_logical' and any(
+                key in draft for key in (
+                    'restore_database', 'multiple_database_files',
+                    'database_file_volumes', 'primary_file_pages')):
+            try:
+                logical_restore_files(draft)
+            except RelationalClientError as error:
+                errors.append({
+                    'field_id': ('database_file_volumes' if draft.get(
+                        'multiple_database_files') else 'database_file_pages'),
+                    'code': 'invalid_firebird_restore_files',
+                    'message': str(error),
+                })
         if operation in {'backup_physical', 'restore_physical'}:
             try:
                 normalize_physical_io(operation, draft)
@@ -3671,7 +3685,7 @@ class RelationalAdministration:
         if database_pages is not None and (
             not isinstance(database_pages, list) or any(
                 isinstance(item, bool) or not isinstance(item, int) or
-                item < 0 or item > 2147483647
+                item < 1 or item > 2147483647
                 for item in database_pages
             )
         ):
@@ -3680,7 +3694,7 @@ class RelationalAdministration:
                 'code': 'invalid_firebird_database_file_pages',
                 'message': (
                     'Firebird database file page allocations must be '
-                    'non-negative integers.'
+                    'positive integers.'
                 ),
             })
         elif isinstance(additional_databases, list) and len(
@@ -3689,8 +3703,8 @@ class RelationalAdministration:
                 'field_id': 'database_file_pages',
                 'code': 'invalid_firebird_database_file_page_count',
                 'message': (
-                    'Supply one page allocation for each additional '
-                    'Firebird database file.'
+                    'Supply one page allocation for each non-final '
+                    'Firebird database file, starting with the primary.'
                 ),
             })
         flag_fields = {
