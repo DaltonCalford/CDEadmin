@@ -21,8 +21,9 @@ import uuid
 from contextlib import ExitStack, contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
+from functools import wraps
 
-from pgadmin.cdeadmin.core import EndpointContext
+from pgadmin.cdeadmin.core import EndpointContext, ProviderReleaseError
 from pgadmin.cdeadmin.security import SecretReference
 from pgadmin.cdeadmin.security import (
     credential_from_protected_value,
@@ -57,6 +58,41 @@ EMBEDDED_WORKSPACE_PERMISSIONS = frozenset({
     'backup_admin', 'restore_admin', 'replication_admin',
     'maintenance_admin', 'upgrade_admin',
 })
+
+
+def _connection_change(method):
+    """Admit local configuration changes before altering profile state."""
+    @wraps(method)
+    def guarded(self, server, *args, **kwargs):
+        endpoint = getattr(server, 'endpoint_profile', None)
+        admission = getattr(type(self.provider_registry),
+                            'endpoint_configuration_change', None)
+        if endpoint is None or not callable(admission):
+            return method(self, server, *args, **kwargs)
+        try:
+            with admission(self.provider_registry, endpoint.id):
+                return method(self, server, *args, **kwargs)
+        except ProviderReleaseError as exc:
+            raise EndpointRegistrationError(str(exc)) from None
+    return guarded
+
+
+def _credential_change(method):
+    """Ordinary discovery remains read-only; credential replacement is not."""
+    guarded = _connection_change(method)
+
+    @wraps(method)
+    def verify(self, server, password=None, connect_as=None,
+               database_target_id=None):
+        endpoint = getattr(server, 'endpoint_profile', None)
+        with self._principal_lock:
+            previous_override = (
+                self._principal_overrides.get(endpoint.id)
+                if endpoint is not None else None)
+        callback = (guarded if password or connect_as or previous_override
+                    else method)
+        return callback(self, server, password, connect_as, database_target_id)
+    return verify
 
 
 class ProtectedColumnResolver:
@@ -213,6 +249,7 @@ class EndpointService:
             RESOLVER_ID, self.resolver
         )
 
+    @_credential_change
     def verify_server(self, server, password=None, connect_as=None,
                       database_target_id=None):
         endpoint = getattr(server, 'endpoint_profile', None)
@@ -348,6 +385,7 @@ class EndpointService:
             if model is not None:
                 self.resolver.remember(model.secret_reference, payload)
 
+    @_connection_change
     def forget_server_credentials(self, server):
         """Erase process-retained credentials for one endpoint."""
         endpoint = getattr(server, 'endpoint_profile', None)
@@ -573,6 +611,7 @@ class EndpointService:
             'forms': profile['form_contract']['database'],
         }
 
+    @_connection_change
     def attach_database(self, server, data):
         """Verify, retain and activate one database on an existing server."""
         from pgadmin.model import EndpointDatabaseTarget, db
@@ -609,6 +648,7 @@ class EndpointService:
         db.session.commit()
         return self.database_catalog(server)
 
+    @_connection_change
     def update_database_target(self, server, target_id, data):
         """Edit one provider-owned database connection definition."""
         from pgadmin.model import db
@@ -641,6 +681,7 @@ class EndpointService:
         db.session.commit()
         return self.database_catalog(server)
 
+    @_connection_change
     def activate_database(self, server, target_id, data=None):
         """Verify and select an already retained database target."""
         from pgadmin.model import db
@@ -666,6 +707,7 @@ class EndpointService:
         db.session.commit()
         return self.database_catalog(server)
 
+    @_connection_change
     def disconnect_database(self, server):
         """Return an endpoint to server scope after verifying that scope."""
         from pgadmin.model import db
@@ -686,6 +728,7 @@ class EndpointService:
         db.session.commit()
         return self.database_catalog(server)
 
+    @_connection_change
     def delete_database_target(self, server, target_id, data=None):
         """Forget an attachment; this never drops the provider database."""
         from pgadmin.model import db
@@ -742,6 +785,7 @@ class EndpointService:
         """Make a registration database a first-class endpoint child."""
         return self._retain_database_target(server, target)
 
+    @_connection_change
     def _retain_database_target(self, server, target):
         from pgadmin.model import EndpointDatabaseTarget, db
 
@@ -768,6 +812,7 @@ class EndpointService:
             endpoint.profile_generation = str(uuid.uuid4())
         return self.database_catalog(server)
 
+    @_connection_change
     def create_route(self, server, data):
         """Create a validated alternate route for one network endpoint."""
         from pgadmin.model import EndpointRoute, db
@@ -797,6 +842,7 @@ class EndpointService:
         db.session.commit()
         return self.route_catalog(server)
 
+    @_connection_change
     def update_route(self, server, route_id, data):
         """Replace admitted values on a persistent route."""
         from pgadmin.model import db
@@ -817,6 +863,7 @@ class EndpointService:
         db.session.commit()
         return self.route_catalog(server)
 
+    @_connection_change
     def update_endpoint_profile(self, server, data):
         """Update one endpoint through its exact provider server form."""
         from pgadmin.model import db
@@ -928,6 +975,7 @@ class EndpointService:
             'route_catalog': self.route_catalog(server),
         }
 
+    @_connection_change
     def validate_endpoint_removal(self, server, data):
         """Admit endpoint removal through the provider's exact form."""
         endpoint, profile = self._managed_endpoint(server)
@@ -941,6 +989,7 @@ class EndpointService:
             'display_name': server.name,
         }
 
+    @_connection_change
     def delete_route(self, server, route_id):
         """Delete one alternate route while retaining a usable endpoint."""
         from pgadmin.model import db

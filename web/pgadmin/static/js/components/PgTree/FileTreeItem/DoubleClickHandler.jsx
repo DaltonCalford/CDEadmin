@@ -15,7 +15,8 @@ import { getEnterKeyHandler } from '../../../../js/utils';
 export default function DoubleClickHandler({onSingleClick, onDoubleClick, children}){
   const onClick = useSingleAndDoubleClick(onSingleClick, onDoubleClick) ;
   return(
-    <div onClick={(e)=>onClick(e)} onKeyDown = { getEnterKeyHandler(onClick)}>
+    <div onClick={(e)=>onClick(e)} onKeyDown = { getEnterKeyHandler(onClick)}
+      onContextMenuCapture={()=>onClick.cancel()}>
       {children}
     </div>
   );

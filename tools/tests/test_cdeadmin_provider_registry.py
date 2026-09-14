@@ -43,6 +43,7 @@ from pgadmin.cdeadmin.core import (  # noqa: E402
     EndpointContextError,
     ProviderPermissionError,
     ProviderRegistrationError,
+    ProviderReleaseError,
     ProviderRegistry,
     ProviderUnavailableError,
     current_endpoint_context,
@@ -431,6 +432,95 @@ class ProviderRegistryTests(unittest.TestCase):
             self.registry.resolve(endpoint())
         self.assertEqual('quarantined', registration.state)
         self.assertNotIn('SECRET', repr(self.registry.status()))
+
+    def test_failed_unload_retains_only_unreleased_bindings_and_retries(self):
+        registration = self.register()
+        busy = self.registry.resolve(endpoint('busy'))
+        idle = self.registry.resolve(endpoint('idle'))
+        busy.instance.close = Mock(side_effect=RuntimeError('SECRET NATIVE'))
+        with self.assertRaises(ProviderReleaseError) as error:
+            self.registry.unload(PROVIDER_ID, PROVIDER_VERSION)
+        self.assertNotIn('SECRET', str(error.exception))
+        self.assertNotIn('SECRET', repr(self.registry.status()))
+        self.assertEqual('active', registration.state)
+        self.assertIsNotNone(registration.factory)
+        self.assertEqual([busy], list(registration.bindings.values()))
+        self.assertTrue(idle.instance.closed)
+        self.assertIs(busy, self.registry.resolve(endpoint('busy')))
+        self.assertEqual(1, self.registry.status()[0]['release_failure_count'])
+        busy.instance.close.side_effect = None
+        self.registry.unload(PROVIDER_ID, PROVIDER_VERSION)
+        self.assertEqual('unloaded', registration.state)
+        self.assertFalse(registration.bindings)
+        self.assertEqual(0, self.registry.status()[0]['release_failure_count'])
+        self.registry.close()
+        self.assertEqual(2, busy.instance.close.call_count)
+
+    def test_shutdown_collects_failures_and_closes_other_packages(self):
+        first = self.register()
+        busy = self.registry.resolve(endpoint()).instance
+        busy.close = Mock(side_effect=RuntimeError('SECRET'))
+        other = manifest()
+        other['identity']['provider_version'] = '1.2.4'
+        second = self.register(value=other)
+        idle = self.registry.resolve(endpoint(provider_version='1.2.4'))
+        with self.assertRaises(ProviderReleaseError):
+            self.registry.close()
+        self.assertEqual('active', first.state)
+        self.assertEqual('unloaded', second.state)
+        self.assertTrue(idle.instance.closed)
+        busy.close.side_effect = None
+        self.registry.close()
+        self.assertEqual('unloaded', first.state)
+
+    def test_failed_quarantine_release_never_restores_dispatch_authority(self):
+        registration = self.register()
+        binding = self.registry.resolve(endpoint())
+        binding.instance.close = Mock(side_effect=RuntimeError('SECRET'))
+        with self.assertRaises(ProviderPermissionError):
+            binding.require_permission('filesystem')
+        self.assertEqual('quarantined', registration.state)
+        self.assertEqual([binding], list(registration.bindings.values()))
+        with self.assertRaises(ProviderUnavailableError):
+            self.registry.resolve(endpoint())
+        with self.assertRaises(ProviderUnavailableError):
+            self.registry.admitted_permissions(endpoint())
+        binding.instance.close.side_effect = None
+        self.registry.unload(PROVIDER_ID, PROVIDER_VERSION)
+        self.assertFalse(registration.bindings)
+
+    def test_generation_change_does_not_forget_busy_previous_instance(self):
+        registration = self.register()
+        old_context = endpoint(generation='old')
+        old = self.registry.resolve(old_context)
+        old.instance.close = Mock(side_effect=RuntimeError('SECRET'))
+        for _attempt in range(2):
+            with self.assertRaises(ProviderReleaseError):
+                self.registry.resolve(endpoint(generation='new'))
+            self.assertEqual([old], list(registration.bindings.values()))
+        self.assertIs(old, self.registry.resolve(old_context))
+        old.instance.close.side_effect = None
+        replacement = self.registry.resolve(endpoint(generation='new'))
+        self.assertIsNot(old, replacement)
+        self.assertEqual([replacement], list(registration.bindings.values()))
+        self.assertEqual(0, self.registry.status()[0]['release_failure_count'])
+
+    def test_invalid_instance_failed_release_retains_owner(self):
+        invalid = SimpleNamespace(
+            close=Mock(side_effect=RuntimeError('SECRET')))
+        registration = self.register(module=provider_module(
+            lambda _context, _permissions: invalid))
+        with self.assertRaises(ProviderUnavailableError):
+            self.registry.resolve(endpoint())
+        self.assertEqual('quarantined', registration.state)
+        self.assertFalse(registration.bindings)
+        self.assertEqual([invalid], registration.unreleased_instances)
+        self.assertEqual(
+            1, self.registry.status()[0]['unreleased_instance_count'])
+        self.assertNotIn('SECRET', repr(self.registry.status()))
+        invalid.close.side_effect = None
+        self.registry.unload(PROVIDER_ID, PROVIDER_VERSION)
+        self.assertFalse(registration.unreleased_instances)
 
     def test_missing_declared_interface_quarantines_provider(self):
         registration = self.register(

@@ -7,7 +7,8 @@
 //
 //////////////////////////////////////////////////////////////
 
-import { act, render } from '@testing-library/react';
+import {useState} from 'react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 
 import {
   availableDialogViewport,
@@ -15,10 +16,87 @@ import {
   modalAccessibilityAttributes,
   modalTitleId,
   viewportDialogGeometry,
+  ModalContainer,
+  ModalContext,
 } from '../../pgadmin/static/js/helpers/ModalProvider';
+import {useModalCloseGuard} from '../../pgadmin/static/js/helpers/ModalCloseGuard';
 import { withTheme } from './fake_theme';
 
 const ThemedAlertContent = withTheme(AlertContent);
+const ThemedModalContainer = withTheme(ModalContainer);
+
+function GuardedTask({close}) {
+  const [running, setRunning] = useState(true);
+  useModalCloseGuard(() => !running);
+  return <>
+    <button onClick={() => setRunning(false)}>Finish owned query</button>
+    <button onClick={close}>Task footer close</button>
+  </>;
+}
+
+function AsyncGuardedTask({guard}) {
+  useModalCloseGuard(guard);
+  return <span>Retained task state</span>;
+}
+
+describe('Modal task close guards', () => {
+  it.each(['title', 'escape', 'footer'])('guards %s close until the task finishes', async (route) => {
+    const closeModal = jest.fn();
+    const onClose = jest.fn();
+    await act(async () => render(<ModalContext.Provider value={{closeModal}}>
+      <ThemedModalContainer id="owned-task" title="Owned native query"
+        dialogHeight={500} dialogWidth={800} onClose={onClose}
+        content={(close) => <GuardedTask close={close} />} />
+    </ModalContext.Provider>));
+    const dialog = screen.getByRole('dialog', {name: 'Owned native query'});
+    const attempt = () => {
+      if(route === 'escape') fireEvent.keyDown(dialog, {key: 'Escape', code: 'Escape'});
+      else fireEvent.click(within(dialog).getByRole('button', {
+        name: route === 'footer' ? 'Task footer close' : 'Close', exact: true,
+      }));
+    };
+    await act(async () => attempt());
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', {name: 'Finish owned query'}));
+    await act(async () => attempt());
+    expect(closeModal).toHaveBeenCalledWith('owned-task');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([true, false])('awaits release=%s and ignores duplicate close requests', async (allowed) => {
+    const closeModal = jest.fn();
+    let resolve;
+    const pending = new Promise((done) => { resolve = done; });
+    const guard = jest.fn(() => pending);
+    await act(async () => render(<ModalContext.Provider value={{closeModal}}>
+      <ThemedModalContainer id="owned-release" title="Owned release"
+        dialogHeight={500} dialogWidth={800}
+        content={() => <AsyncGuardedTask guard={guard} />} />
+    </ModalContext.Provider>));
+    const close = screen.getByRole('button', {name: 'Close', exact: true});
+    await act(async () => { fireEvent.click(close); fireEvent.click(close); });
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(screen.getByText('Retained task state')).toBeInTheDocument();
+    await act(async () => resolve(allowed));
+    expect(closeModal).toHaveBeenCalledTimes(allowed ? 1 : 0);
+  });
+
+  it('retains the task if its close guard rejects unexpectedly', async () => {
+    const closeModal = jest.fn();
+    const alert = jest.fn();
+    await act(async () => render(<ModalContext.Provider value={{closeModal, alert}}>
+      <ThemedModalContainer id="failed-release" title="Failed release"
+        dialogHeight={500} dialogWidth={800}
+        content={() => <AsyncGuardedTask guard={() => Promise.reject(new Error('private detail'))} />} />
+    </ModalContext.Provider>));
+    await act(async () => fireEvent.click(screen.getByRole('button', {name: 'Close', exact: true})));
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledWith('Unable to close task',
+      'The task could not confirm that it is safe to close. Its state has been retained.');
+  });
+});
 
 
 // MUI <Button> triggers an async TouchRipple update on mount that

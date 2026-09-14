@@ -137,6 +137,10 @@ class RelationalClientConfig:
     ] | None = field(default=None, repr=False, compare=False)
     query_parameter_normalizer: Callable[[object], object] | None = field(
         default=None, repr=False, compare=False)
+    query_value_normalizer: Callable[[object], object] | None = field(
+        default=None, repr=False, compare=False)
+    query_columns_reader: Callable[[object], list[dict]] | None = field(
+        default=None, repr=False, compare=False)
     session_rollback_needed: Callable[[object], bool] | None = field(
         default=None, repr=False, compare=False)
     transaction_observer: Callable[[object], Mapping[str, Any]] | None = field(
@@ -145,12 +149,21 @@ class RelationalClientConfig:
         default=None, repr=False, compare=False)
 
     def __post_init__(self):
+        if self.query_columns_reader is not None and not callable(
+                self.query_columns_reader):
+            raise RelationalClientError(
+                'query_columns_reader must be callable')
+        if self.query_value_normalizer is not None and not callable(
+                self.query_value_normalizer):
+            raise RelationalClientError(
+                'query_value_normalizer must be callable')
         if self.session_releaser is not None and not callable(
                 self.session_releaser):
             raise RelationalClientError('session_releaser must be callable')
         if self.transaction_observer is not None and not callable(
                 self.transaction_observer):
-            raise RelationalClientError('transaction_observer must be callable')
+            raise RelationalClientError(
+                'transaction_observer must be callable')
         if self.session_rollback_needed is not None and not callable(
                 self.session_rollback_needed):
             raise RelationalClientError(
@@ -616,6 +629,9 @@ class RelationalDBAPIClient:
                 )
             operation()
             dropped = True
+            # Firebird's successful native drop releases its attachment.
+            # Retaining this dead handle would block profile synchronization.
+            self._forget_connection(connection)
         finally:
             if not dropped:
                 self._safe_close(connection)
@@ -994,7 +1010,12 @@ class RelationalDBAPIClient:
                 }
                 for column in description
             )
+            if self.config.query_columns_reader is not None:
+                columns = tuple(self.config.query_columns_reader(cursor))
             rows = list(cursor.fetchall()) if description else []
+            if self.config.query_value_normalizer is not None:
+                rows = [tuple(self.config.query_value_normalizer(value)
+                              for value in row) for row in rows]
             try:
                 rowcount = getattr(cursor, 'rowcount', None)
             except Exception:

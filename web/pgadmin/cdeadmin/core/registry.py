@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any, Callable, Iterable, Mapping
@@ -47,6 +48,10 @@ class ProviderUnavailableError(ProviderRegistryError):
 
 class ProviderPermissionError(ProviderRegistryError):
     """A provider requested authority it was not granted."""
+
+
+class ProviderReleaseError(ProviderRegistryError):
+    """Provider resources remain owned because native release failed."""
 
 
 def _version_key(value: str) -> tuple[int, int, int]:
@@ -172,6 +177,8 @@ class ProviderRegistration:
     bindings: dict[tuple[str, ...], 'ProviderBinding'] = field(
         default_factory=dict
     )
+    unreleased_instances: list[object] = field(default_factory=list)
+    release_failure_count: int = 0
 
     @property
     def identity(self) -> Mapping[str, str]:
@@ -518,13 +525,20 @@ class ProviderRegistry:
                     )
             except Exception as exc:
                 if instance is not None:
-                    self._close_instance(instance)
+                    # Invalid instances must never become dispatchable, but
+                    # still need an owner if their native release fails.
+                    registration.unreleased_instances.append(instance)
                 if registration.state == ACTIVE:
                     self._quarantine_registration(
                         registration,
                         'CDE_PROVIDER_FACTORY_FAILED',
                         type(exc).__name__,
                     )
+                else:
+                    try:
+                        self._close_bindings(registration)
+                    except ProviderReleaseError:
+                        pass
                 raise ProviderUnavailableError(
                     'provider factory failed and was quarantined'
                 ) from None
@@ -557,8 +571,17 @@ class ProviderRegistry:
             binding.context.runtime_identity_generation != current
         ]
         for key in stale_keys:
-            binding = registration.bindings.pop(key)
-            ProviderRegistry._close_instance(binding.instance)
+            binding = registration.bindings[key]
+            try:
+                ProviderRegistry._close_instance(binding.instance)
+            except Exception:
+                registration.release_failure_count = 1
+                raise ProviderReleaseError(
+                    'previous connection generation still owns resources; '
+                    'finish or cancel its operations before replacing it'
+                ) from None
+            del registration.bindings[key]
+        registration.release_failure_count = 0
 
     def _quarantine_permission_violation(
         self, registration, diagnostic_code
@@ -637,6 +660,35 @@ class ProviderRegistry:
                 registration, diagnostic_code, None
             )
 
+    @contextmanager
+    def endpoint_configuration_change(self, endpoint_id):
+        """Serialize configuration changes with provider-owned admission.
+
+        Providers opting into this lifecycle hook must reject release while
+        sessions need the existing credentials/routing. A confirmed release
+        invalidates already acquired instances before metadata can change.
+        """
+        with self._lock:
+            for registration in self._registrations.values():
+                for key, binding in list(registration.bindings.items()):
+                    if binding.context.endpoint_id != endpoint_id:
+                        continue
+                    release = getattr(type(binding.instance),
+                                      'release_for_profile_change', None)
+                    if not callable(release):
+                        continue
+                    try:
+                        release(binding.instance)
+                    except Exception:
+                        registration.release_failure_count = 1
+                        raise ProviderReleaseError(
+                            'close this connection\'s open sessions '
+                            'and finish '
+                            'pending work before changing its configuration'
+                        ) from None
+                    del registration.bindings[key]
+            yield
+
     def unload(self, provider_id: str, provider_version: str) -> None:
         """Close instances and retain an unloaded lifecycle tombstone."""
         with self._lock:
@@ -653,13 +705,23 @@ class ProviderRegistry:
     def close(self) -> None:
         """Unload every active or quarantined package."""
         with self._lock:
+            failed = False
             for registration in self._registrations.values():
-                self._close_bindings(registration)
+                try:
+                    self._close_bindings(registration)
+                except ProviderReleaseError:
+                    failed = True
+                    continue
                 registration.factory = None
                 registration.module = None
                 registration.state = UNLOADED
                 registration.diagnostic_code = 'CDE_PROVIDER_UNLOADED'
                 registration.error_type = None
+            if failed:
+                raise ProviderReleaseError(
+                    'provider shutdown incomplete; unreleased resources '
+                    'remain registered'
+                ) from None
 
     def status(self) -> tuple[dict[str, object], ...]:
         """Return redacted lifecycle status without exception messages."""
@@ -672,6 +734,9 @@ class ProviderRegistry:
                     'diagnostic_code': item.diagnostic_code,
                     'error_type': item.error_type,
                     'endpoint_binding_count': len(item.bindings),
+                    'unreleased_instance_count': len(
+                        item.unreleased_instances),
+                    'release_failure_count': item.release_failure_count,
                 }
                 for item in self._registrations.values()
             )
@@ -692,26 +757,46 @@ class ProviderRegistry:
         diagnostic_code: str,
         error_type: str | None,
     ) -> None:
-        self._close_bindings(registration)
+        # Revoke dispatch authority even if a busy native attachment cannot
+        # yet be released. Keep it owned for a later explicit release retry.
         registration.state = QUARANTINED
         registration.diagnostic_code = diagnostic_code
         registration.error_type = error_type
+        try:
+            self._close_bindings(registration)
+        except ProviderReleaseError:
+            pass
 
     @staticmethod
     def _close_bindings(registration: ProviderRegistration) -> None:
-        bindings = list(registration.bindings.values())
-        registration.bindings.clear()
-        for binding in bindings:
-            ProviderRegistry._close_instance(binding.instance)
+        failed = 0
+        for key, binding in list(registration.bindings.items()):
+            try:
+                ProviderRegistry._close_instance(binding.instance)
+            except Exception:
+                failed += 1
+            else:
+                del registration.bindings[key]
+        retained = []
+        for instance in registration.unreleased_instances:
+            try:
+                ProviderRegistry._close_instance(instance)
+            except Exception:
+                failed += 1
+                retained.append(instance)
+        registration.unreleased_instances = retained
+        registration.release_failure_count = failed
+        if failed:
+            raise ProviderReleaseError(
+                'provider release incomplete; unreleased resources '
+                'remain registered'
+            ) from None
 
     @staticmethod
     def _close_instance(instance: object) -> None:
         close = getattr(instance, 'close', None)
         if callable(close):
-            try:
-                close()
-            except Exception:
-                pass
+            close()
 
 
 def init_app(app, secret_service=None) -> ProviderRegistry:

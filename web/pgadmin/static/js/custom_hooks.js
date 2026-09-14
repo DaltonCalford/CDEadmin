@@ -35,6 +35,13 @@ export function useSingleAndDoubleClick(handleSingleClick, handleDoubleClick, de
   const clickCountRef = useRef(0);
   const timerRef = useRef(null);
 
+  const cancel = useCallback(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+    clickCountRef.current = 0;
+  }, []);
+  useEffect(() => cancel, [cancel]);
+
   const handleClick = (e) => {
     // Handle the logic here, no need to pass the event
     clickCountRef.current += 1;
@@ -44,14 +51,15 @@ export function useSingleAndDoubleClick(handleSingleClick, handleDoubleClick, de
 
     // Set the timeout to handle click logic after the delay
     timerRef.current = setTimeout(() => {
-      if (clickCountRef.current === 1) handleSingleClick(e);
-      else if (clickCountRef.current === 2) handleDoubleClick(e);
-
-      // Reset the click count and props after handling
+      const count = clickCountRef.current;
       clickCountRef.current = 0;
+      timerRef.current = null;
+      if (count === 1) handleSingleClick(e);
+      else if (count === 2) handleDoubleClick(e);
     }, delay);
   };
 
+  handleClick.cancel = cancel;
   return handleClick;
 }
 

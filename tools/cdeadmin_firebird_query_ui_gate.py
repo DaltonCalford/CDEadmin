@@ -28,7 +28,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.cdeadmin_firebird_grid_ui_gate import (  # noqa: E402
-    _button,
     _grid_control_evidence,
 )
 from tools.cdeadmin_firebird_seeded_transaction_gate import (  # noqa: E402
@@ -55,6 +54,12 @@ QUERY = (
     'SELECT FIRST 2 CUSTOMER_ID, NAME FROM CUSTOMERS '
     'ORDER BY CUSTOMER_ID'
 )
+
+
+def _button(wait, name):
+    return wait.until(lambda driver: (
+        control if (control := visible_named_control(driver, name)) is not None
+        and control.is_enabled() else None))
 
 
 def arguments():
@@ -142,6 +147,7 @@ def _capture(driver, options, state, screenshots, controls, reset_scroll=True):
       const d = dialog.getBoundingClientRect();
       return {bodyBottom: b.bottom, bodyHeight: b.height,
         footerTop: f.top, footerBottom: f.bottom, dialogBottom: d.bottom,
+        dialogAriaHidden: Boolean(dialog.closest('[aria-hidden="true"]')),
         overflowY: getComputedStyle(body).overflowY};
     ''')
     controls[state].append({'query_workspace_layout': layout})
@@ -149,6 +155,7 @@ def _capture(driver, options, state, screenshots, controls, reset_scroll=True):
         return
     assert layout is not None, 'Query workspace layout cannot be observed'
     assert layout['overflowY'] == 'auto'
+    assert layout['dialogAriaHidden'] is False
     assert layout['bodyHeight'] > 0
     assert layout['bodyBottom'] <= layout['footerTop'] + 1, (
         'Query workspace extends behind its footer')
@@ -230,6 +237,19 @@ def run(options, password):
              'SELECT CAST(? AS VARCHAR(80) CHARACTER SET UTF8) '
              'AS BINDING_TEXT FROM RDB$DATABASE',
              ["é ' ? ; -- literal-value"], "é ' ? ; -- literal-value"),
+            ('exact-int128-result',
+             'SELECT CAST(? AS INT128) AS EXACT_INTEGER FROM RDB$DATABASE',
+             ['170141183460469231731687303715884105727'],
+             '170141183460469231731687303715884105727'),
+            ('exact-decfloat-result',
+             'SELECT CAST(? AS DECFLOAT(34)) AS EXACT_DECIMAL '
+             'FROM RDB$DATABASE',
+             ['1.234567890123456789012345678901234'],
+             '1.234567890123456789012345678901234'),
+            ('timestamp-zone-result',
+             'SELECT CAST(? AS TIMESTAMP WITH TIME ZONE) AS NATIVE_TIME '
+             'FROM RDB$DATABASE', ['2026-09-14 12:34:56.1234 +02:00'],
+             '2026-09-14 12:34:56.123400+02:00'),
         ):
             _set_text(driver, editor, source)
             _set_text(driver, parameters, json.dumps(values))
@@ -276,6 +296,10 @@ def run(options, password):
                 _button(wait, 'Run').click()
                 wait.until(lambda value: _visible_text(value, expected))
                 _button(wait, 'Provider transaction state').click()
+                transaction_panel = wait.until(
+                    lambda value: value.find_element(
+                        By.CSS_SELECTOR,
+                        '[aria-label="Provider query transaction state"]'))
                 wait.until(lambda _value: 'Active transaction' in
                            transaction_panel.text)
             _button(wait, action).click()
@@ -286,6 +310,90 @@ def run(options, password):
                 transaction_panel)
             _capture(driver, options, 'transaction-' + action + '-idle',
                      screenshots, controls, reset_scroll=False)
+            # A second click has no active native transaction to complete.
+            _button(wait, action).click()
+            _button(wait, action)
+            assert 'Idle — no active transaction' in transaction_panel.text
+            errors = driver.find_elements(
+                By.CSS_SELECTOR,
+                '[role="alert"][class*="MuiAlert-standardError"]')
+            assert not any(item.is_displayed() for item in errors)
+            _capture(driver, options,
+                     'transaction-' + action + '-already-idle',
+                     screenshots, controls, reset_scroll=False)
+        _set_text(driver, parameters, '[]')
+        _set_text(driver, editor, 'SET TRANSACTION READ ONLY NO WAIT SNAPSHOT')
+        _button(wait, 'Run').click()
+        _button(wait, 'Provider transaction state').click()
+        transaction_panel = wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Provider query transaction state"]'))
+        wait.until(lambda _value: all(
+            value in transaction_panel.text for value in (
+                'Active transaction', 'Read only', 'No wait', 'SNAPSHOT')))
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "start"})', transaction_panel)
+        _capture(driver, options, 'native-set-transaction', screenshots,
+                 controls, reset_scroll=False)
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})',
+            transaction_panel.find_elements(By.TAG_NAME, 'dd')[-1])
+        _capture(driver, options, 'native-set-transaction-snapshot-details',
+                 screenshots, controls, reset_scroll=False)
+        _button(wait, 'rollback').click()
+        wait.until(lambda _value: 'Idle — no active transaction' in
+                   transaction_panel.text)
+        # Bound the deliberately costly read even if browser cancellation
+        # fails. SET changes this private query attachment, not the database.
+        _set_text(driver, parameters, '[]')
+        _set_text(driver, editor,
+                  'SET STATEMENT TIMEOUT 15000 MILLISECOND')
+        _button(wait, 'Run').click()
+        _button(wait, 'Run')
+        _set_text(driver, editor,
+                  "SELECT RDB$GET_CONTEXT('SYSTEM', 'STATEMENT_TIMEOUT') "
+                  'AS TIMEOUT_VALUE FROM RDB$DATABASE')
+        _button(wait, 'Run').click()
+        wait.until(lambda value: _visible_text(value, '15000'))
+        _set_text(driver, editor,
+                  'SELECT COUNT(*) FROM RDB$TYPES A CROSS JOIN RDB$TYPES B '
+                  'CROSS JOIN RDB$TYPES C CROSS JOIN RDB$TYPES D')
+        _button(wait, 'Run').click()
+        _button(wait, 'Cancel request')
+        for name in ('Run', 'commit', 'rollback', 'Close query session'):
+            control = visible_named_control(driver, name)
+            assert control is not None and not control.is_enabled()
+        _capture(driver, options, 'query-running', screenshots, controls)
+        dialog = editor.find_element(By.XPATH, './ancestor::*[@role="dialog"]')
+        close_buttons = dialog.find_elements(By.CSS_SELECTOR,
+                                             'button[aria-label="Close"]')
+        assert len(close_buttons) == 1
+        close_buttons[0].click()
+        assert editor.is_displayed(), 'Running workspace was closed'
+        _button(wait, 'Cancel request').click()
+        wait.until(lambda value: any(
+            item.is_displayed() and '335544794' in item.text
+            for item in value.find_elements(By.CSS_SELECTOR, '[role="alert"]')
+        ))
+        cancellation_text = ' '.join(
+            item.text for item in driver.find_elements(
+                By.CSS_SELECTOR, '[role="alert"]') if item.is_displayed())
+        assert all(code not in cancellation_text for code in (
+            '335545127', '335545128', '335545129')), (
+                'Statement timeout must not pass explicit cancellation')
+        _button(wait, 'Run')
+        _capture(driver, options, 'query-cancelled', screenshots, controls)
+        _set_text(driver, editor, 'SELECT 98765 AS AFTER_CANCEL '
+                  'FROM RDB$DATABASE')
+        _button(wait, 'Run').click()
+        wait.until(lambda value: _visible_text(value, '98765'))
+        _capture(driver, options, 'query-after-cancel', screenshots, controls)
+        _button(wait, 'rollback').click()
+        transaction_panel = wait.until(lambda value: value.find_element(
+            By.CSS_SELECTOR,
+            '[aria-label="Provider query transaction state"]'))
+        wait.until(lambda _value: 'Idle — no active transaction' in
+                   transaction_panel.text)
         close_session = _button(wait, 'Close query session')
         close_session.click()
         wait.until(lambda value: (
@@ -309,7 +417,11 @@ def run(options, password):
                 'unicode-bindings'],
             'transaction_state_observed': True,
             'transaction_actions_observed': ['commit', 'rollback'],
+            'idle_transaction_actions_observed': ['commit', 'rollback'],
+            'native_set_transaction_observed': True,
             'provider_session_closed': True,
+            'running_query_cancelled_and_session_reused': True,
+            'running_workspace_close_guarded': True,
             'common_finality_interpreted': False,
             'credential_values_exported': False,
             'screenshots': screenshots,

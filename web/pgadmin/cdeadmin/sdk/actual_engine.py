@@ -1040,13 +1040,16 @@ class ActualEnginePilotProvider:
             'common_finality_interpreted': False,
         }
 
+    def _execute_query_token(self, handle, payload):
+        return self.client.execute(handle, payload)
+
     def execute(self, request):
         self._require('execute')
         payload = _mapping(request)
         session = self._sessions.get(payload.get('session_id'))
         if session is None:
             raise PilotProviderError('provider session is unavailable')
-        token = self.client.execute(session.handle, payload)
+        token = self._execute_query_token(session.handle, payload)
         operation_id = str(uuid.uuid4())
         operation = {
             'identity': self._identity(),
@@ -1203,8 +1206,8 @@ class ActualEnginePilotProvider:
             ) from exc
 
     def close(self):
-        self._sessions.clear()
-        self._operations.clear()
         close = getattr(self.client, 'close', None)
         if callable(close):
             close()
+        self._sessions.clear()
+        self._operations.clear()

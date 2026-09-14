@@ -152,3 +152,44 @@ def test_server_and_database_forms_use_the_native_timeout_limit():
     assert len(fields) >= 4
     assert all(field['minimum'] == -1 and field['maximum'] == 32767
                for field in fields)
+
+
+@pytest.mark.parametrize('option', [
+    'no_auto_undo', 'auto_commit', 'ignore_limbo'])
+@pytest.mark.parametrize('invalid', [None, 0, 1, 'true', [], {}])
+def test_advanced_transaction_flags_require_actual_booleans(option, invalid):
+    module = SimpleNamespace(Isolation={'SNAPSHOT': 2},
+                             TraAccessMode={'WRITE': 9},
+                             tpb=Mock(), TPB=Mock())
+    with patch('pgadmin.cdeadmin.providers.firebird.provider.'
+               '_client_library_identity', return_value={}):
+        with pytest.raises(RelationalClientError, match='must be a boolean'):
+            _initialize_connection(Mock(),
+                                   {'transaction_' + option: invalid}, module)
+    module.tpb.assert_not_called()
+    module.TPB.assert_not_called()
+
+
+@pytest.mark.parametrize('flags', [
+    (True, False, False), (False, True, False), (False, False, True),
+    (True, True, False), (True, False, True), (False, True, True),
+    (True, True, True),
+])
+def test_advanced_flags_reach_native_tpb_builder(flags):
+    names = ('no_auto_undo', 'auto_commit', 'ignore_limbo')
+    options = dict(zip(names, flags))
+    module = SimpleNamespace(Isolation={'SNAPSHOT': 2},
+                             TraAccessMode={'WRITE': 9},
+                             tpb=Mock(), TPB=Mock())
+    module.TPB.return_value.get_buffer.return_value = b'advanced-native-tpb'
+    value = Mock()
+    with patch('pgadmin.cdeadmin.providers.firebird.provider.'
+               '_client_library_identity', return_value={}):
+        _initialize_connection(value, {
+            'transaction_' + name: flag for name, flag in options.items()
+        }, module)
+    module.tpb.assert_not_called()
+    module.TPB.assert_called_once_with(
+        isolation=2, access_mode=9, lock_timeout=-1, **options)
+    assert value.default_tpb == b'advanced-native-tpb'
+    assert value.main_transaction.default_tpb == b'advanced-native-tpb'

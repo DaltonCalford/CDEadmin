@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import { Box, Dialog, DialogContent, DialogTitle, Paper } from '@mui/material';
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { getEpoch } from 'sources/utils';
 import { DefaultButton, PgIconButton, PrimaryButton } from '../components/Buttons';
 import Draggable from 'react-draggable';
@@ -24,6 +24,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { Rnd } from 'react-rnd';
 import { ExpandDialogIcon, MinimizeDialogIcon, DisconnectedIcon } from '../components/ExternalIcon';
 import { styled } from '@mui/material/styles';
+import { ModalCloseGuardContext } from './ModalCloseGuard';
 
 export const ModalContext = React.createContext({});
 const MIN_HEIGHT = 190;
@@ -392,24 +393,47 @@ const StyleDialog = styled(Dialog)(({theme}) => ({
   },
 }));
 
-function ModalContainer({ id, title, content, dialogHeight, dialogWidth, onClose, fullScreen = false, isFullWidth = false, showFullScreen = false, isResizeable = false, minHeight = MIN_HEIGHT, minWidth = MIN_WIDTH, showTitle=true, ...props }) {
+export function ModalContainer({ id, title, content, dialogHeight, dialogWidth, onClose, fullScreen = false, isFullWidth = false, showFullScreen = false, isResizeable = false, minHeight = MIN_HEIGHT, minWidth = MIN_WIDTH, showTitle=true, ...props }) {
   let useModalRef = useModal();
+  const dialogRoot = useRef(null);
+  const dialogContainer = useCallback(() => dialogRoot.current?.parentElement ||
+    document.body, []);
+  const closeGuards = useRef(new Set());
+  const closeInFlight = useRef(false);
+  const registerCloseGuard = useCallback((guard) => {
+    closeGuards.current.add(guard);
+    return () => closeGuards.current.delete(guard);
+  }, []);
   const titleId = modalTitleId(id);
   const accessibilityAttributes = modalAccessibilityAttributes(
     id, title, showTitle);
-  let closeModal = (_e, reason) => {
+  let closeModal = async (_e, reason) => {
     if(reason == 'backdropClick' && showTitle) {
       return;
     }
-    useModalRef.closeModal(id);
-    if(reason == 'escapeKeyDown' || reason == undefined) {
-      onClose?.();
+    if (closeInFlight.current) return;
+    closeInFlight.current = true;
+    try {
+      for (const guard of closeGuards.current) {
+        if (await guard() === false) return;
+      }
+      useModalRef.closeModal(id);
+      if(reason == 'escapeKeyDown' || reason == undefined) {
+        onClose?.();
+      }
+    } catch {
+      useModalRef.alert?.(gettext('Unable to close task'),
+        gettext('The task could not confirm that it is safe to close. Its state has been retained.'));
+    } finally {
+      closeInFlight.current = false;
     }
   };
   const [isFullScreen, setIsFullScreen] = useState(fullScreen);
 
   return (
     <StyleDialog
+      ref={dialogRoot}
+      container={dialogContainer}
       className={isResizeable ? 'Modal-resizeable' : undefined}
       open={true}
       onClose={closeModal}
@@ -449,7 +473,9 @@ function ModalContainer({ id, title, content, dialogHeight, dialogWidth, onClose
         </DialogTitle>
       }
       <DialogContent height="100%">
-        {useMemo(()=>{ return content(closeModal); }, [])}
+        <ModalCloseGuardContext.Provider value={registerCloseGuard}>
+          {useMemo(()=>{ return content(closeModal); }, [])}
+        </ModalCloseGuardContext.Provider>
       </DialogContent>
     </StyleDialog>
   );

@@ -140,6 +140,12 @@ def test_firebird_close_does_not_claim_success_if_state_observation_fails():
         client.close_session(connection)
     connection.rollback.assert_not_called()
     assert connection in client._connections
+    with pytest.raises(RuntimeError, match='closed'):
+        client.close()
+    assert connection in client._connections
+    connection.main_transaction.is_active.side_effect = None
+    connection.main_transaction.is_active.return_value = False
+    connection.is_closed.return_value = True
     client.close()
 
 
@@ -150,6 +156,7 @@ def test_query_failure_retains_status_codes_without_sql_values_or_rollback():
 
     client = _create_client(Mock())
     connection = Mock()
+    client._connections.append(connection)
     cursor = connection.cursor.return_value
     cursor.execute.side_effect = NativeFailure('private SQL/value canary')
     with pytest.raises(RelationalClientError) as caught:

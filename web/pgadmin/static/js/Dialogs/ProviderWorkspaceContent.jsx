@@ -24,6 +24,7 @@ import { ModalContent, ModalFooter } from '../components/ModalContent';
 import ContextMenu from '../components/ContextMenu';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
 import ProviderTransactionObservation from './ProviderTransactionObservation';
+import {useModalCloseGuard} from '../helpers/ModalCloseGuard';
 
 const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
   'resource_page', 'resource_refresh', 'resource_inspect',
@@ -5801,6 +5802,11 @@ export function DatabaseTargetWorkspace({initialCatalog, visualCatalog,
       {result && <Alert severity="success" sx={{mt: 2}}>
         {gettext('The provider completed the native database operation. Refreshing the navigator will show provider-observed state.')}
       </Alert>}
+      {(result?.workspace_follow_up || []).filter((item) =>
+        item.state === 'failed').map((item) => <Alert severity="warning"
+        key={item.action} sx={{mt: 2}}>
+        {item.message}
+      </Alert>)}
       {lifecycleOperation?.confirmation_required && plan?.state === 'ready' &&
         <FormControlLabel control={<Checkbox checked={confirmed}
           onChange={(event) => setConfirmed(event.target.checked)} />}
@@ -6381,6 +6387,8 @@ export default function ProviderWorkspaceContent({
   const [rendered, setRendered] = useState(null);
   const [resultHistory, setResultHistory] = useState([]);
   const [resultPresentation, setResultPresentation] = useState('native');
+  const [queryPollingPaused, setQueryPollingPaused] = useState(false);
+  const [querySessionBlocked, setQuerySessionBlocked] = useState(false);
   const [transaction, setTransaction] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
   // A verified object can be outside the visible page after a mutation.
@@ -6398,6 +6406,28 @@ export default function ProviderWorkspaceContent({
   const [error, setError] = useState(null);
   const [workspaceLoadGeneration, setWorkspaceLoadGeneration] = useState(0);
   const querySessionIdRef = useRef(null);
+  useModalCloseGuard(async () => {
+    if (occurrenceId || (busy && sessionId)) {
+      setError(gettext('Wait for the current query request to finish, or cancel the running query before closing this workspace.'));
+      return false;
+    }
+    const closingSession = querySessionIdRef.current;
+    if (!closingSession) return true;
+    setBusy(true);
+    try {
+      await post({action: 'close_session', session_id: closingSession,
+        database_target_id: queryDatabaseTargetId});
+      querySessionIdRef.current = null;
+      setSessionId(null);
+      setTransaction(null);
+      return true;
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  });
   const queryDatabaseTargetId = initialContext.database_target_id || (
     initialContext.resource_kind &&
     initialContext.resource_kind !== 'database' ? null :
@@ -6642,16 +6672,38 @@ export default function ProviderWorkspaceContent({
         action: 'poll', occurrence_id: id,
         database_target_id: queryDatabaseTargetId,
       });
-      acceptRendered(response.rendered_result);
+      if (response.occurrence?.result?.complete !== false) {
+        acceptRendered(response.rendered_result);
+      }
+      const native = response.occurrence?.result?.extensions?.firebird?.payload;
+      if (native?.error) {
+        const codes = (native.error.native_status_codes || []).join(', ');
+        setError(gettext('Firebird query did not complete.') +
+          (codes ? ' ' + gettext('Native status codes:') + ' ' + codes : ''));
+      }
+      if (native?.session_reuse_blocked) {
+        setQuerySessionBlocked(true);
+        setError(gettext('Firebird cancellation state is unknown. Close this query session and explicitly reconnect.'));
+      }
+      setQueryPollingPaused(false);
       setOccurrenceId(response.occurrence?.operation?.terminal ? null : id);
     } catch (requestError) {
+      setQueryPollingPaused(true);
       setError(errorMessage(requestError));
     } finally {
       setBusy(false);
     }
   }, [acceptRendered, post, queryDatabaseTargetId]);
 
+  useEffect(() => {
+    if (languageProfile !== 'firebird-sql' ||
+        !occurrenceId || busy || queryPollingPaused) return undefined;
+    const timer = setTimeout(() => poll(occurrenceId), 400);
+    return () => clearTimeout(timer);
+  }, [languageProfile, occurrenceId, busy, queryPollingPaused, poll]);
+
   const execute = async (executionSource=source, presentation='native') => {
+    if (querySessionBlocked) return;
     setBusy(true);
     setError(null);
     setRendered(null);
@@ -6667,6 +6719,8 @@ export default function ProviderWorkspaceContent({
           gettext('This provider requires a JSON parameter object.'));
       }
       const activeSession = await ensureSession();
+      // A previous observation is no longer current once execution begins.
+      setTransaction(null);
       const occurrence = await post({
         action: 'execute', session_id: activeSession, source: executionSource,
         parameters,
@@ -6735,6 +6789,7 @@ export default function ProviderWorkspaceContent({
       });
       querySessionIdRef.current = null;
       setSessionId(null);
+      setQuerySessionBlocked(false);
       setTransaction(null);
     } catch (requestError) {
       setError(errorMessage(requestError));
@@ -6743,23 +6798,33 @@ export default function ProviderWorkspaceContent({
     }
   };
 
-  const selectLanguage = (profile) => {
-    if (querySessionIdRef.current) {
-      post({
-        action: 'close_session', session_id: querySessionIdRef.current,
-        database_target_id: queryDatabaseTargetId,
-      }).catch((requestError) => setError(errorMessage(requestError)));
-      querySessionIdRef.current = null;
+  const selectLanguage = async (profile) => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (querySessionIdRef.current) {
+        await post({
+          action: 'close_session', session_id: querySessionIdRef.current,
+          database_target_id: queryDatabaseTargetId,
+        });
+        querySessionIdRef.current = null;
+      }
+      setLanguageProfile(profile);
+      const language = workspace?.languages?.find((item) =>
+        item.language_profile === profile);
+      setSource(defaultSource(language));
+      setParameterSource(defaultParameterSource(language));
+      setSessionId(null);
+      setQuerySessionBlocked(false);
+      setOccurrenceId(null);
+      setRendered(null);
+      setTransaction(null);
+    } catch (requestError) {
+      // The existing language and session remain owned until native release.
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
     }
-    setLanguageProfile(profile);
-    const language = workspace?.languages?.find((item) =>
-      item.language_profile === profile);
-    setSource(defaultSource(language));
-    setParameterSource(defaultParameterSource(language));
-    setSessionId(null);
-    setOccurrenceId(null);
-    setRendered(null);
-    setTransaction(null);
   };
 
   const openResourceAdministration = (resource, operationId='inspect') => {
@@ -6888,6 +6953,7 @@ export default function ProviderWorkspaceContent({
           minHeight: 0, minWidth: 0, overflow: 'auto'}}>
         <TextField select size="small" sx={{mb: 1, maxWidth: 360}}
           label={gettext('Provider language')} value={languageProfile}
+          disabled={busy || !!occurrenceId}
           onChange={(event) => selectLanguage(event.target.value)}>
           {(workspace.languages || []).map((language) => <MenuItem
             key={language.language_profile} value={language.language_profile}>
@@ -6915,10 +6981,10 @@ export default function ProviderWorkspaceContent({
             gettext('Use a JSON object of parameter names and values.')}
           onChange={(event) => setParameterSource(event.target.value)} />
         <Box sx={{display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap'}}>
-          <Button variant="contained" disabled={busy || !source.trim()}
+          <Button variant="contained" disabled={busy || querySessionBlocked || !!occurrenceId || !source.trim()}
             onClick={() => execute()}>{gettext('Run')}</Button>
           {activePlanTemplates.map((template, index) =>
-            <Button key={template.label} disabled={busy || !source.trim()}
+            <Button key={template.label} disabled={busy || querySessionBlocked || !!occurrenceId || !source.trim()}
               onClick={() => execute(
                 template.source_template.replace('{source}', source), 'plan'
               )}>
@@ -6926,16 +6992,19 @@ export default function ProviderWorkspaceContent({
             </Button>)}
           <Button disabled={busy || !occurrenceId} onClick={() => poll(occurrenceId)}>{gettext('Poll')}</Button>
           <Button disabled={busy || !occurrenceId} onClick={cancel}>{gettext('Cancel request')}</Button>
-          <Button disabled={busy} onClick={refreshTransaction}>{gettext('Provider transaction state')}</Button>
+          <Button disabled={busy || querySessionBlocked || !!occurrenceId} onClick={refreshTransaction}>{gettext('Provider transaction state')}</Button>
           {(activeLanguage?.transaction_actions || []).map((action) =>
             <Button key={action} color={action === 'rollback' ? 'warning' : 'primary'}
-              disabled={busy} onClick={() => controlTransaction(action)}>
+              disabled={busy || querySessionBlocked || !!occurrenceId} onClick={() => controlTransaction(action)}>
               {gettext(action)}</Button>)}
-          <Button disabled={busy || !sessionId}
+          <Button disabled={busy || !!occurrenceId || !sessionId}
             onClick={releaseQuerySession}>
             {gettext('Close query session')}</Button>
           {busy && <CircularProgress size={24} />}
         </Box>
+        {occurrenceId && <Alert severity="info" sx={{mt: 1}} role="status">
+          {gettext('Waiting for provider query completion. A cancellation request does not confirm commit or rollback.')}
+        </Alert>}
         {transaction && <ProviderTransactionObservation transaction={transaction}
           label={gettext('Provider query transaction state')} />}
         {rendered && <ResultControls rendered={rendered} history={resultHistory}

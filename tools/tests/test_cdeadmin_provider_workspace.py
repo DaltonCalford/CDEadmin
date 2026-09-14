@@ -18,6 +18,7 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -480,6 +481,21 @@ class ProviderWorkspaceTests(unittest.TestCase):
         self.assertEqual(
             'SchemaView/DataGridView', rendered['component_reference']
         )
+
+    def test_pending_firebird_query_does_not_allocate_rendered_results(self):
+        pending = {
+            'operation': {'terminal': False},
+            'result': {'complete': False, 'extensions': {
+                'firebird': {'payload': {'execution_state': 'running'}}}},
+        }
+        with patch.object(
+            self.workspace.studio_service, 'poll', return_value=pending,
+        ), patch.object(self.workspace.result_service, 'render') as render:
+            for _index in range(5):
+                response = self.workspace.poll(SimpleNamespace(), 'pending')
+                self.assertIsNone(response['rendered_result'])
+                self.assertEqual(pending, response['occurrence'])
+            render.assert_not_called()
 
     def test_transaction_presentation_remains_opaque(self):
         server = SimpleNamespace()

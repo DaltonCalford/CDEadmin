@@ -219,13 +219,23 @@ def _complete_cases(driver, wait, options, module, password,
             'Default transaction isolation': 'SNAPSHOT',
             'Default transaction access': 'WRITE',
             'Transaction lock timeout (seconds)': '7',
+            'Statement timeout (milliseconds; 0 uses database policy)': '1234',
+            'Session idle timeout (seconds; 0 uses database policy)': '60',
+            'Native autocommit (writes cannot be rolled back later)': 'true',
+            'No auto undo (native rollback still applies)': 'true',
+            'Ignore records from limbo transactions': 'true',
         })
         _wait_target(
             wait, options,
             lambda rows: any(
                 item['display_name'] == options.database and item['active']
                 and item['configuration'].get(
-                    'transaction_lock_timeout') == 7
+                    'transaction_lock_timeout') == 7 and
+                item['configuration'].get('statement_timeout_ms') == 1234 and
+                item['configuration'].get('session_idle_timeout_seconds') == 60
+                and all(item['configuration'].get(key) is True for key in (
+                    'transaction_auto_commit', 'transaction_no_auto_undo',
+                    'transaction_ignore_limbo'))
                 for item in rows
             ),
             'connect did not retain active Firebird session defaults',
@@ -246,6 +256,11 @@ def _complete_cases(driver, wait, options, module, password,
                 'READ_COMMITTED_READ_CONSISTENCY',
             'Default transaction access': 'WRITE',
             'Transaction lock timeout (seconds)': '8',
+            'Statement timeout (milliseconds; 0 uses database policy)': '2000',
+            'Session idle timeout (seconds; 0 uses database policy)': '90',
+            'Native autocommit (writes cannot be rolled back later)': 'false',
+            'No auto undo (native rollback still applies)': 'false',
+            'Ignore records from limbo transactions': 'false',
         })
         _wait_target(
             wait, options,
@@ -253,7 +268,12 @@ def _complete_cases(driver, wait, options, module, password,
                 item['display_name'] == options.database and
                 item['configuration'].get('transaction_isolation') ==
                 'READ_COMMITTED_READ_CONSISTENCY' and
-                item['configuration'].get('transaction_lock_timeout') == 8
+                item['configuration'].get('transaction_lock_timeout') == 8 and
+                item['configuration'].get('statement_timeout_ms') == 2000 and
+                item['configuration'].get('session_idle_timeout_seconds') == 90
+                and all(item['configuration'].get(key) is False for key in (
+                    'transaction_auto_commit', 'transaction_no_auto_undo',
+                    'transaction_ignore_limbo'))
                 for item in rows
             ),
             'edit did not persist Firebird connection defaults',
@@ -274,11 +294,16 @@ def _complete_cases(driver, wait, options, module, password,
             'Default transaction isolation': 'SNAPSHOT',
             'Default transaction access': 'WRITE',
             'Transaction lock timeout (seconds)': '9',
+            'Statement timeout (milliseconds; 0 uses database policy)': '3000',
+            'Session idle timeout (seconds; 0 uses database policy)': '120',
         })
         _wait_target(
             wait, options,
             lambda rows: any(
-                item['database'] == registered_path and item['active']
+                item['database'] == registered_path and item['active'] and
+                item['configuration'].get('statement_timeout_ms') == 3000 and
+                item['configuration'].get(
+                    'session_idle_timeout_seconds') == 120
                 for item in rows
             ),
             'register did not retain and activate the Firebird database',
@@ -415,6 +440,48 @@ def _complete_cases(driver, wait, options, module, password,
                 cleanup['unverified_paths'].append(database)
 
 
+def _install_menu_trace(driver):
+    """Capture bounded event/geometry evidence without input values."""
+    driver.execute_script('''
+      const trace = [];
+      window.__cdeFirebirdMenuTrace = trace;
+      const describe = (node) => node instanceof Element ? {
+        tag: node.tagName, role: node.getAttribute('role'),
+        className: String(node.className || '').slice(0, 160),
+        scrollTop: node.scrollTop, scrollLeft: node.scrollLeft,
+      } : {tag: 'document'};
+      const record = (kind, target) => {
+        trace.push({time: performance.now(), kind, target: describe(target),
+          menus: [...document.querySelectorAll('.szh-menu')].map(menu => ({
+            label: menu.getAttribute('aria-label'),
+            className: menu.className, height: menu.offsetHeight,
+          }))});
+        if (trace.length > 200) trace.shift();
+      };
+      for (const kind of ['contextmenu', 'click', 'scroll', 'focusin',
+                          'focusout']) {
+        document.addEventListener(kind, event => record(kind, event.target),
+                                  {capture: true, passive: true});
+      }
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') record('Escape', event.target);
+      }, {capture: true, passive: true});
+      const containsMenu = node => node instanceof Element &&
+        (node.matches('.szh-menu') || node.querySelector('.szh-menu'));
+      new MutationObserver(changes => {
+        if (changes.some(change =>
+          change.target instanceof Element &&
+          (change.target.closest('.szh-menu') ||
+           [...change.addedNodes, ...change.removedNodes]
+             .some(containsMenu)))) {
+          record('menu-mutation', document.activeElement);
+        }
+      }).observe(document.body, {subtree: true, childList: true,
+                                 attributes: true,
+                                 attributeFilter: ['class', 'style']});
+    ''')
+
+
 def run(options):
     password = os.environ.get(options.password_env)
     if not password:
@@ -440,6 +507,8 @@ def run(options):
         try:
             driver.save_screenshot(str(failure_path))
             failure['screenshot'] = str(failure_path)
+            failure['menu_trace'] = driver.execute_script(
+                'return window.__cdeFirebirdMenuTrace || []')
         except Exception as screenshot_error:
             failure['screenshot_error_type'] = type(screenshot_error).__name__
         failures.append(failure)
@@ -447,6 +516,7 @@ def run(options):
     try:
         driver.get(options.url.rstrip('/') + '/browser/')
         shared._prepare_tree(driver, wait, options, options.database)
+        _install_menu_trace(driver)
         forms = shared._catalog_forms(driver)
         if forms.get('__error__'):
             raise RuntimeError(forms['__error__'])

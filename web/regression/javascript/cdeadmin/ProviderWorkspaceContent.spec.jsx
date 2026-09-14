@@ -727,6 +727,13 @@ const bootstrap = {
 };
 
 describe('ProviderWorkspaceContent', () => {
+  let originalViewportHeight;
+  beforeEach(() => {
+    originalViewportHeight = window.innerHeight;
+    // Shared virtual-grid geometry gives every element an 800px height.
+    window.innerHeight = 1200;
+  });
+  afterEach(() => { window.innerHeight = originalViewportHeight; });
   let api;
 
   beforeEach(() => {
@@ -775,6 +782,181 @@ describe('ProviderWorkspaceContent', () => {
     expect(await screen.findByText('This provider requires an ordered JSON parameter array.'))
       .toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('polls a running Firebird query and blocks competing transaction actions', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+      transaction_actions: ['commit', 'rollback'],
+    }]}}});
+    let polls = 0;
+    api.post.mockImplementation((_url, payload) => {
+      if(payload.action === 'open_session') return Promise.resolve({data: {data: {session_id: 'fb-session'}}});
+      if(payload.action === 'execute') return Promise.resolve({data: {data: {occurrence_id: 'fb-query'}}});
+      if(payload.action === 'close_session') return Promise.resolve({data: {data: {provider_closed: true}}});
+      if(payload.action === 'transaction') return Promise.resolve({data: {data: {previous_observation_marker: true}}});
+      if(payload.action === 'poll') {
+        polls += 1;
+        const complete = polls > 1;
+        return Promise.resolve({data: {data: {occurrence: {
+          operation: {terminal: complete}, result: {complete, extensions: {
+            firebird: {payload: complete ? {error: {
+              native_status_codes: [335544665],
+            }} : {execution_state: 'running'}},
+          }},
+        }, rendered_result: null}}});
+      }
+      throw new Error('Unexpected action ' + payload.action);
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Provider transaction state'}));
+    expect(await screen.findByLabelText('Provider query transaction state')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Run', exact: true})).not.toBeDisabled());
+    fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
+    expect(await screen.findByText('Waiting for provider query completion. A cancellation request does not confirm commit or rollback.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Provider query transaction state')).not.toBeInTheDocument();
+    for(const name of ['Run', 'commit', 'rollback', 'Provider transaction state', 'Close query session']) {
+      expect(screen.getByRole('button', {name, exact: true})).toBeDisabled();
+    }
+    expect(await screen.findByText('Firebird query did not complete. Native status codes: 335544665')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Run', exact: true})).not.toBeDisabled();
+    expect(api.post.mock.calls.filter(([, payload]) => payload.action === 'execute')).toHaveLength(1);
+    expect(polls).toBe(2);
+  });
+
+  it('sends cancellation without implicit commit or rollback and observes its result', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+      transaction_actions: ['commit', 'rollback'],
+    }]}}});
+    let cancelled = false;
+    api.post.mockImplementation((_url, payload) => {
+      const responses = {
+        open_session: {session_id: 'fb-session'},
+        execute: {occurrence_id: 'fb-query'},
+        close_session: {provider_closed: true},
+      };
+      if(payload.action === 'cancel') {
+        cancelled = true;
+        return Promise.resolve({data: {data: {cancel_request_accepted: true}}});
+      }
+      if(payload.action === 'poll') return Promise.resolve({data: {data: {
+        occurrence: {operation: {terminal: cancelled}, result: {
+          complete: cancelled, extensions: {firebird: {payload: cancelled ? {
+            execution_state: 'cancelled', error: {native_status_codes: [335544794]},
+          } : {execution_state: 'running'}}},
+        }}, rendered_result: null,
+      }}});
+      if(responses[payload.action]) return Promise.resolve({data: {data: responses[payload.action]}});
+      throw new Error('Unexpected transaction or replay action');
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
+    const cancelButton = await screen.findByRole('button', {name: 'Cancel request'});
+    await waitFor(() => expect(cancelButton).not.toBeDisabled());
+    fireEvent.click(cancelButton);
+    expect(await screen.findByText('Firebird query did not complete. Native status codes: 335544794')).toBeInTheDocument();
+    expect(api.post.mock.calls.filter(([, payload]) => payload.action === 'execute')).toHaveLength(1);
+    expect(api.post.mock.calls.some(([, payload]) => payload.action === 'transaction_control')).toBe(false);
+  });
+
+  it('blocks a poisoned Firebird session until explicit successful release', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+      transaction_actions: ['commit', 'rollback'],
+    }]}}});
+    let releaseFails = true;
+    api.post.mockImplementation((_url, payload) => {
+      if(payload.action === 'close_session' && releaseFails) return Promise.reject(new Error('Release unavailable'));
+      return Promise.resolve({data: {data: {
+        open_session: {session_id: 'fb-session'},
+        execute: {occurrence_id: 'fb-query'},
+        poll: {occurrence: {operation: {terminal: true}, result: {
+          complete: true, extensions: {firebird: {payload: {session_reuse_blocked: true}}},
+        }}, rendered_result: null},
+        close_session: {provider_closed: true},
+      }[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
+    expect(await screen.findByText('Firebird cancellation state is unknown. Close this query session and explicitly reconnect.')).toBeInTheDocument();
+    for(const name of ['Run', 'commit', 'rollback', 'Provider transaction state']) {
+      expect(screen.getByRole('button', {name, exact: true})).toBeDisabled();
+    }
+    fireEvent.click(screen.getByRole('button', {name: 'Close query session'}));
+    expect(await screen.findByText('Release unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Run', exact: true})).toBeDisabled();
+    releaseFails = false;
+    fireEvent.click(screen.getByRole('button', {name: 'Close query session'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Run', exact: true})).not.toBeDisabled());
+    expect(screen.getByRole('button', {name: 'Close query session'})).toBeDisabled();
+    expect(api.post.mock.calls.filter(([, payload]) => payload.action === 'execute')).toHaveLength(1);
+  });
+
+  it('keeps the old language and owned session if language-switch release fails', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }, {language_profile: 'another-language', title: 'Another language',
+      starter_source: 'native command'}]}}});
+    let releaseFails = true;
+    api.post.mockImplementation((_url, payload) => {
+      if(payload.action === 'close_session' && releaseFails) return Promise.reject(new Error('Release unavailable'));
+      return Promise.resolve({data: {data: {
+        open_session: {session_id: 'fb-session'},
+        execute: {occurrence_id: 'fb-query'},
+        poll: {occurrence: {operation: {terminal: true}}, rendered_result: null},
+        close_session: {provider_closed: true},
+      }[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Close query session'})).not.toBeDisabled());
+    fireEvent.mouseDown(screen.getByLabelText('Provider language'));
+    fireEvent.click(await screen.findByRole('option', {name: 'Another language'}));
+    expect(await screen.findByText('Release unavailable')).toBeInTheDocument();
+    expect(screen.getByLabelText('Query source')).toHaveValue('SELECT 1 FROM RDB$DATABASE');
+    expect(screen.getByRole('button', {name: 'Close query session'})).not.toBeDisabled();
+    releaseFails = false;
+    fireEvent.mouseDown(screen.getByLabelText('Provider language'));
+    fireEvent.click(await screen.findByRole('option', {name: 'Another language'}));
+    await waitFor(() => expect(screen.getByLabelText('Query source')).toHaveValue('native command'));
+    expect(screen.getByRole('button', {name: 'Close query session'})).toBeDisabled();
+  });
+
+  it('pauses Firebird automatic polling after transport failure without replaying execution', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    let polls = 0;
+    api.post.mockImplementation((_url, payload) => {
+      if(payload.action === 'poll' && ++polls === 1) return Promise.reject(new Error('offline'));
+      return Promise.resolve({data: {data: {
+        open_session: {session_id: 'fb-session'},
+        execute: {occurrence_id: 'fb-query'},
+        poll: {occurrence: {operation: {terminal: true}}, rendered_result: null},
+        close_session: {provider_closed: true},
+      }[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
+    expect(await screen.findByText('offline')).toBeInTheDocument();
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 650)));
+    expect(polls).toBe(1);
+    expect(screen.getByRole('button', {name: 'Run', exact: true})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', {name: 'Poll', exact: true}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Run', exact: true})).not.toBeDisabled());
+    expect(polls).toBe(2);
+    expect(api.post.mock.calls.filter(([, payload]) => payload.action === 'execute')).toHaveLength(1);
   });
 
   it('shows only provider-evidenced property sections', () => {
@@ -2334,7 +2516,7 @@ describe('ProviderWorkspaceContent', () => {
     expect(result).toHaveTextContent('true');
   });
 
-  it('creates a database from the engine-specific connection form', async () => {
+  it.each([false, true])('shows native completion and registration failure=%s separately', async (registrationFailed) => {
     const createForm = {
       form_id: 'cdeadmin.mysql-native.database.create.v1',
       operation_id: 'create', title: 'Create database', supported: true,
@@ -2392,7 +2574,11 @@ describe('ProviderWorkspaceContent', () => {
         },
         visual_admin_apply: {
           provider_result: {driver_returned: true},
-          database_targets: {
+          workspace_follow_up: registrationFailed ? [{
+            action: 'register_created_database', state: 'failed',
+            message: 'Local registration failed. Do not repeat native creation.',
+          }] : [],
+          database_targets: registrationFailed ? undefined : {
             ...databaseTargets, active_target_id: 'database-one',
             targets: [{
               target_id: 'database-one', active: true,
@@ -2414,6 +2600,11 @@ describe('ProviderWorkspaceContent', () => {
     fireEvent.click(screen.getByRole('button', {name: 'Create database'}));
     expect(await screen.findByText(/completed the native database operation/))
       .toBeInTheDocument();
+    if(registrationFailed) {
+      expect(screen.getByText('Local registration failed. Do not repeat native creation.'))
+        .toBeInTheDocument();
+    }
+    expect(screen.getByRole('button', {name: 'Create database'})).toBeDisabled();
     expect(api.post).toHaveBeenCalledWith('/workspace/1', {
       action: 'visual_admin_apply', request: {
         plan_id: 'database-plan', plan_digest: 'database-digest',

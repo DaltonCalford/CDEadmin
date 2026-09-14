@@ -255,6 +255,9 @@ class ProviderFormContractTests(unittest.TestCase):
             'transaction_access': 'WRITE',
             'transaction_isolation': 'SNAPSHOT',
             'transaction_lock_timeout': -1,
+            'transaction_auto_commit': False,
+            'transaction_no_auto_undo': False,
+            'transaction_ignore_limbo': False,
         }, values)
         with self.assertRaisesRegex(
             EndpointRegistrationError, 'not owned by this provider'

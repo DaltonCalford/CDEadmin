@@ -14,9 +14,9 @@ from pgadmin.cdeadmin.sdk import (
     PilotProfile,
     RelationalClientConfig,
     RelationalClientError,
-    RelationalDBAPIClient,
     load_optional_module,
 )
+from pgadmin.cdeadmin.sdk.actual_engine import _mapping
 from ..relational_admin import (
     FIREBIRD_SYSTEM_PRIVILEGES,
     RelationalAdministration,
@@ -30,6 +30,10 @@ from .connection_strings import (
 )
 from .identity import catalog_resource_id as _catalog_resource_id
 from .query_parameters import normalize_parameters
+from .query_values import normalize_value
+from .query_columns import describe_columns
+from .query_client import FirebirdQueryClient
+from .session_settings import initialize_timeouts
 from .transaction_state import observe_transaction, release_session
 
 
@@ -151,6 +155,40 @@ class FirebirdProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
 
+    def _execute_query_token(self, handle, payload):
+        if isinstance(self.client, FirebirdQueryClient):
+            return self.client.submit_query(handle, payload)
+        return super()._execute_query_token(handle, payload)
+
+    def release_for_profile_change(self):
+        """Do not replace credentials or routing beneath an owned session."""
+        if not isinstance(self.client, FirebirdQueryClient):
+            if self._sessions:
+                raise RelationalClientError(
+                    'Close Firebird sessions before changing this connection')
+            self.close()
+            return
+        with self.client._admission:
+            if self._sessions or self.client._connections:
+                raise RelationalClientError(
+                    'Close Firebird sessions before changing this '
+                    'connection; commit or roll back pending work '
+                    'explicitly first')
+            # Admission stays closed across the check and native teardown.
+            # The client also rejects in-flight connects or temporary work.
+            self.close()
+
+    def control_transaction(self, request):
+        request = _mapping(request)
+        session = self._sessions.get(request.get('session_id'))
+        if (isinstance(self.client, FirebirdQueryClient) and
+                session is not None):
+            # Keep the explicit action and following native observation in
+            # one ownership interval; a new query must not slip between them.
+            with self.client._exclusive(session.handle):
+                return super().control_transaction(request)
+        return super().control_transaction(request)
+
 
 _CONFIG_LOCK = threading.RLock()
 
@@ -257,7 +295,8 @@ def _route_arguments(route, module=None, *, creation=None):
                 config.dsn.value = database
                 options = creation['options']
                 config.page_size.value = options.get('page_size', 8192)
-                config.db_charset.value = options.get('default_charset', 'UTF8')
+                config.db_charset.value = options.get(
+                    'default_charset', 'UTF8')
                 config.db_sql_dialect.value = options.get('sql_dialect', 3)
                 config.forced_writes.value = options.get('forced_writes', True)
                 config.reserve_space.value = options.get('reserve_space', True)
@@ -799,12 +838,20 @@ def _initialize_connection(connection, route, module):
             'Firebird transaction lock timeout must be an integer from '
             '-1 through 32767 seconds'
         )
-    value = module.tpb(
-        isolation=isolation, lock_timeout=lock_timeout,
-        access_mode=access,
-    )
+    advanced = {}
+    for option in ('no_auto_undo', 'auto_commit', 'ignore_limbo'):
+        flag = route.get('transaction_' + option, False)
+        if not isinstance(flag, bool):
+            raise RelationalClientError(
+                'Firebird transaction ' + option + ' must be a boolean')
+        advanced[option] = flag
+    arguments = dict(isolation=isolation, lock_timeout=lock_timeout,
+                     access_mode=access)
+    value = (module.TPB(**arguments, **advanced).get_buffer()
+             if any(advanced.values()) else module.tpb(**arguments))
     connection.default_tpb = value
     connection.main_transaction.default_tpb = value
+    initialize_timeouts(connection, route, module)
 
 
 def _materialize_catalog_value(value):
@@ -2745,9 +2792,11 @@ def _sequence_state(cursor, name):
 
 def _create_client(permissions):
     module = load_optional_module('firebird.driver')
+    core = (load_optional_module('firebird.driver.core')
+            if module is not None else None)
     if module is not None:
         _configure_client_library(module)
-    return RelationalDBAPIClient(RelationalClientConfig(
+    return FirebirdQueryClient(RelationalClientConfig(
         profile=PROFILE,
         module_name='firebird.driver',
         version_query=(
@@ -2758,6 +2807,9 @@ def _create_client(permissions):
         connect_arguments=lambda route: _route_arguments(route, module),
         metadata_reader=_resources,
         query_parameter_normalizer=normalize_parameters,
+        query_value_normalizer=lambda value: normalize_value(
+            value, getattr(core, 'BlobReader', ())),
+        query_columns_reader=describe_columns,
         session_rollback_needed=lambda connection: (
             connection.main_transaction.is_active()),
         transaction_observer=observe_transaction,

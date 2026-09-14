@@ -1021,7 +1021,14 @@ class ProviderWorkspaceService:
         occurrence = self.studio_service.poll(context, occurrence_id)
         response = {'occurrence': occurrence, 'rendered_result': None}
         result = occurrence.get('result')
-        if result is not None:
+        pending_firebird = (
+            result is not None and result.get('complete') is False and
+            result.get('extensions', {}).get('firebird', {}).get(
+                'payload', {}).get('execution_state') == 'running'
+        )
+        # An asynchronous status observation is not a new result set. Do not
+        # allocate/store/render an empty descriptor on every native poll.
+        if result is not None and not pending_firebird:
             binding = self.endpoint_service.provider_registry.resolve(context)
             renderer = binding.instance.select_renderer(
                 copy.deepcopy(result)
