@@ -238,10 +238,53 @@ def run(options, profiles):
         ('table-drop', 'INTEGER', {'drop_columns': ['V']},
          {'column_names': ['X']}),
     ])
+    for security, native_security in (
+            ('INHERIT', None), ('INVOKER', False), ('DEFINER', True)):
+        for publication in ('DEFAULT', 'ENABLE', 'DISABLE'):
+            cases.append((
+                'table-create-persistent-' + security + '-' + publication,
+                None, {'table_type': 'PERSISTENT', 'sql_security': security,
+                       'publication': publication, 'columns': [
+                           {'name': 'V', 'column_mode': 'STORED',
+                            'data_type': 'INTEGER'}]},
+                {'relation_type': 0, 'sql_security': native_security,
+                 'publication_enabled': publication == 'ENABLE'}))
+        for retention in ('DELETE ROWS', 'PRESERVE ROWS'):
+            cases.append((
+                'table-create-temporary-' + security + '-' + retention,
+                None, {'table_type': 'GLOBAL TEMPORARY',
+                       'sql_security': security, 'on_commit': retention,
+                       'columns': [{'name': 'V', 'column_mode': 'STORED',
+                                    'data_type': 'INTEGER'}]},
+                {'relation_type': 5 if retention == 'DELETE ROWS' else 4,
+                 'sql_security': native_security,
+                 'publication_enabled': False}))
+        for publication in ('ENABLE', 'DISABLE'):
+            cases.append((
+                'table-alter-attributes-' + security + '-' + publication,
+                'INTEGER', {'sql_security': security,
+                            'publication': publication},
+                {'sql_security': native_security,
+                 'publication_enabled': publication == 'ENABLE'}))
     scope = os.environ.get('CDEADMIN_FIREBIRD_COLUMNS_SCOPE', 'all')
-    if scope not in ('all', 'create', 'alter', 'table'):
+    if scope not in ('all', 'create', 'alter', 'table', 'external'):
         raise ValueError('Unknown column verification scope')
-    if scope != 'all':
+    if scope == 'external':
+        cases = []
+        for security, native_security in (
+                ('INHERIT', None), ('INVOKER', False), ('DEFINER', True)):
+            for publication in ('DEFAULT', 'ENABLE', 'DISABLE'):
+                cases.append((
+                    f'table-create-external-{security}-{publication}', None,
+                    {'table_type': 'EXTERNAL', 'sql_security': security,
+                     'publication': publication, 'external_file':
+                     '/var/lib/firebird/data/' + prefix + '_' +
+                     security + '_' + publication,
+                     'columns': [{'name': 'V', 'column_mode': 'STORED',
+                                  'data_type': 'INTEGER'}]},
+                    {'relation_type': 2, 'sql_security': native_security,
+                     'publication_enabled': publication == 'ENABLE'}))
+    elif scope != 'all':
         cases = [item for item in cases if (
             item[0].startswith('table-') if scope == 'table' else
             item[0].startswith('create-') if scope == 'create' else
@@ -254,7 +297,7 @@ def run(options, profiles):
         for number, (label, definition, draft, expected) in enumerate(cases):
             table = prefix + '_' + str(number)
             tables.append(table)
-            if label != 'table-create':
+            if not label.startswith('table-create'):
                 sql('CREATE TABLE ' + table + ' (X INTEGER' + (
                     ', V ' + definition if definition is not None else '') +
                     ')')
@@ -271,7 +314,7 @@ def run(options, profiles):
             table = tables[number]
             print(label, flush=True)
             table_operation = label.startswith('table-')
-            creating = label.startswith('create-') or label == 'table-create'
+            creating = label.startswith(('create-', 'table-create'))
             kind = 'table' if table_operation else 'column'
             operation = next(iter(forms._enumerate_operations(
                 probe['catalog'], [kind], [
@@ -329,6 +372,32 @@ def run(options, profiles):
                                        for key, value in values.items()],
                                 control_root=record_box)
             plan = plan_preview(browser, wait, operation, {})
+            result['pending_case'] = {
+                'case': label, 'statements': plan['command_preview'][
+                    'statements']}
+            geometry = browser.execute_script("""
+              const section = [...document.querySelectorAll(
+                'section[aria-label="Engine task form"]')].find(
+                  element => element.getClientRects().length);
+              if (!section) return null;
+              return {width: section.clientWidth,
+                scrollWidth: section.scrollWidth,
+                parentWidth: section.parentElement.clientWidth,
+                parentScrollWidth: section.parentElement.scrollWidth,
+                helpers: [...section.querySelectorAll(
+                  '.MuiFormHelperText-root')]
+                  .filter(element => element.getClientRects().length)
+                  .map(element => ({width: element.clientWidth,
+                    scrollWidth: element.scrollWidth,
+                    whiteSpace: getComputedStyle(element).whiteSpace}))};
+            """)
+            assert geometry and geometry['width'] > 0
+            assert geometry['scrollWidth'] <= geometry['width'] + 1, geometry
+            assert geometry['width'] <= geometry['parentWidth'] + 1, geometry
+            assert (geometry['parentScrollWidth'] <=
+                    geometry['parentWidth'] + 1), geometry
+            assert all(item['scrollWidth'] <= item['width'] + 1
+                       for item in geometry['helpers']), geometry
             confirmation = visible_named_control(
                 browser, 'I confirm this provider-planned operation.')
             if confirmation is not None and not confirmation.is_selected():
@@ -348,7 +417,8 @@ def run(options, profiles):
                 table_metadata = next(item['native'] for item in resources if
                                       item['resource_kind'] == 'table' and
                                       item['display_name'] == table)
-                observed = {'column_names': [item['name'] for item in
+                observed = {**table_metadata,
+                            'column_names': [item['name'] for item in
                                              table_metadata['columns']],
                             'native': table_metadata}
             else:
@@ -359,7 +429,9 @@ def run(options, profiles):
             result['checks'].append({
                 'case': label, 'statements': plan['command_preview'][
                     'statements'], 'native_postcondition': observed,
+                'form_geometry': geometry,
                 'screenshot': str(path), 'sha256': screenshot(browser, path)})
+            result.pop('pending_case', None)
             close_workspace(browser, wait)
         result['passed'] = len(result['checks']) == len(cases)
     except Exception:

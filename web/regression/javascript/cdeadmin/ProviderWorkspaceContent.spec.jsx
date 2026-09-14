@@ -1962,6 +1962,9 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.queryByLabelText('Object type')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Operation')).not.toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    const section = screen.getByRole('region', {name: 'Engine task form'});
+    expect(section).toHaveStyle({minWidth: '0'});
+    expect(section.parentElement).toHaveStyle({gridTemplateColumns: 'minmax(0, 1fr)'});
   });
 
   it('shows provider-owned administration observations', async () => {

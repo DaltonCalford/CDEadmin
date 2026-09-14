@@ -33,6 +33,7 @@ from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
+from .firebird import tables as firebird_tables
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -3071,6 +3072,8 @@ class RelationalAdministration:
             ):
                 return self._compile_database_create(request)
             compiled = {'statements': self._compile_create(request)}
+            if self.dialect.engine_id == 'firebird':
+                compiled['warnings'] = firebird_tables.warnings(request)
             if request['resource_kind'] == 'database':
                 compiled['endpoint_database'] = request['draft']['name']
             return compiled
@@ -3080,13 +3083,18 @@ class RelationalAdministration:
             return {'statements': [self._compile_rename(request)]}
         if operation == 'drop':
             compiled = {'statements': [self._compile_drop(request)]}
+            if self.dialect.engine_id == 'firebird':
+                compiled['warnings'] = firebird_tables.warnings(request)
             if request['resource_kind'] == 'database':
                 database_target = self._database_target_deletion(request)
                 if database_target is not None:
                     compiled['database_target'] = database_target
             return compiled
         if operation == 'insert':
-            return {'statements': [self._compile_insert(request)]}
+            compiled = {'statements': [self._compile_insert(request)]}
+            if self.dialect.engine_id == 'firebird':
+                compiled['warnings'] = firebird_tables.warnings(request)
+            return compiled
         if operation in {'update', 'delete'}:
             return {'statements': [self._compile_identity_dml(request)]}
         if (
@@ -3722,6 +3730,10 @@ class RelationalAdministration:
             return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
+            if kind == 'table' and self.dialect.engine_id == 'firebird':
+                for key in firebird_tables.CREATE_KEYS:
+                    if key in value:
+                        options[key] = value.pop(key)
             if kind == 'index' and self.dialect.engine_id == 'firebird':
                 for key in ('index_kind', 'direction', 'condition'):
                     if key in value:
@@ -3787,11 +3799,12 @@ class RelationalAdministration:
             value['options'] = options
         elif operation == 'alter':
             if kind == 'table':
+                keys = ('add_columns', 'drop_columns', 'rename_columns')
+                if self.dialect.engine_id == 'firebird':
+                    keys += firebird_tables.ALTER_KEYS
                 value['changes'] = {
                     key: value.pop(key)
-                    for key in (
-                        'add_columns', 'drop_columns', 'rename_columns'
-                    ) if key in value
+                    for key in keys if key in value
                 }
             elif kind == 'database' and self.dialect.engine_id == 'firebird':
                 value['changes'] = {
@@ -4170,7 +4183,7 @@ class RelationalAdministration:
                 'domain', 'column',
                 'constraint', 'trigger', 'procedure', 'function', 'package',
                 'event', 'materialization',
-            }:
+            } and self.dialect.engine_id != 'firebird':
                 fields.append(self._field(
                     'parent', 'Parent database/schema', 'text', False,
                     'Use a qualified database or schema name where needed.',
@@ -4204,9 +4217,13 @@ class RelationalAdministration:
                     'role identity through role membership edges.', [],
                 ))
             if kind == 'table':
+                if self.dialect.engine_id == 'firebird':
+                    fields.extend(firebird_tables.fields(self._field, True))
                 fields.extend((
                     self._field(
                         'columns', 'Columns', 'json', True,
+                        'Define each native column and its constraints.' if
+                        self.dialect.engine_id == 'firebird' else
                         'Array of name, type, nullable, default, unique and '
                         'primary_key properties.',
                     ),
@@ -4515,7 +4532,8 @@ class RelationalAdministration:
         if operation == 'alter' and kind == 'table':
             return {
                 'form_id': 'table.alter', 'title': 'Alter table',
-                'fields': [
+                'fields': (firebird_tables.fields(self._field, False) if
+                           self.dialect.engine_id == 'firebird' else []) + [
                     self._field('add_columns', 'Add columns', 'json', False,
                                 default=[]),
                     self._field('drop_columns', 'Drop columns', 'json', False,
@@ -5119,7 +5137,9 @@ class RelationalAdministration:
             definitions = [self._column_definition(item) for item in columns]
             for constraint in options.get('constraints', []):
                 definitions.append(self._constraint_definition(constraint))
-            source = f'CREATE TABLE {qualified} ({", ".join(definitions)})'
+            source = (firebird_tables.create(name, definitions, options) if
+                      self.dialect.engine_id == 'firebird' else
+                      f'CREATE TABLE {qualified} ({", ".join(definitions)})')
         elif kind in {'view', 'materialized-view'}:
             query = self._query_body(draft.get('definition'))
             command = (
@@ -5939,6 +5959,14 @@ class RelationalAdministration:
             }]
         if kind == 'table':
             statements = []
+            if self.dialect.engine_id == 'firebird':
+                path = self._target_path(request['target_resource'])
+                if len(path) != 1:
+                    raise RelationalClientError('Firebird tables have no '
+                                                'schema-qualified name')
+                statements.extend(
+                    {'source': sql, 'parameters': ()} for sql in
+                    firebird_tables.alterations(path[0], changes))
             for item in changes.get('add_columns', []):
                 add_keyword = (
                     'ADD COLUMN'
@@ -7183,6 +7211,13 @@ class RelationalAdministration:
         return path
 
     def _new_object_name(self, name, options):
+        if self.dialect.engine_id == 'firebird':
+            qualifiers = ('parent', 'schema', 'database')
+            if any(options.get(key) for key in qualifiers):
+                raise RelationalClientError(
+                    'Firebird objects belong to the selected database; '
+                    'database/schema qualifiers are not supported')
+            return self._quote(name)
         parent = options.get('parent')
         if parent is None:
             parent = options.get('schema') or options.get('database')

@@ -1122,7 +1122,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   };
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
-  return <Box sx={{p: 2, overflow: 'auto', flex: 1}}>
+  return <Box sx={{p: 2, overflow: 'auto', flex: 1, minWidth: 0}}>
     {!focused && !objectEditor && graphicalContract && <Alert severity={
       graphicalContract?.activation_state === 'passed' ? 'info' : 'warning'
     } sx={{mb: 2}} aria-label={gettext('Engine graphical interface status')}>
@@ -1131,7 +1131,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
       {graphicalContract?.native_operation_count || 0}{' '}
       {gettext('native operations have provider-owned form definitions. Full option coverage and live behavior require separate verification.')}
     </Alert>}
-    <Box sx={{display: 'grid', gridTemplateColumns: focused || objectEditor ? '1fr' :
+    <Box sx={{display: 'grid', gridTemplateColumns: focused || objectEditor ? 'minmax(0, 1fr)' :
       'minmax(240px, 320px) minmax(420px, 1fr)', gap: 2,
     alignItems: 'start'}}>
       {!focused && !objectEditor && <Box component="nav"
@@ -1172,7 +1172,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           </Box>)}
         </Box>)}
       </Box>}
-      <Box component="section" aria-label={gettext('Engine task form')}>
+      <Box component="section" aria-label={gettext('Engine task form')}
+        sx={{minWidth: 0, '& .MuiFormHelperText-root': {
+          whiteSpace: 'normal', overflowWrap: 'anywhere',
+        }}}>
         {objectEditor && <Tabs value={operation?.operation_id || false}
           variant="scrollable" scrollButtons="auto"
           aria-label={gettext('Selected object operations')}
