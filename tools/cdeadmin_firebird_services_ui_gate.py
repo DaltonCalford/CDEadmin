@@ -55,8 +55,66 @@ def run(options, password):
         apply.click()
         complete_endpoint_prompt(driver, password, timeout=3)
         result = wait.until(lambda value: value.find_element(
-            By.CSS_SELECTOR, '[aria-label="Provider operation result"]'))
-        observed = json.loads(result.text)['driver_observation']
+            By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
+        fields = result.find_elements(By.CSS_SELECTOR, 'dl > div')
+        assert len(fields) == 4
+        for index, field in enumerate(fields):
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block:"center"})', field)
+            geometry = driver.execute_script('''
+                const field = arguments[0];
+                let viewport = field.parentElement;
+                while (viewport && !['auto', 'scroll'].includes(
+                    getComputedStyle(viewport).overflowY)) {
+                  viewport = viewport.parentElement;
+                }
+                if (!viewport) return null;
+                const f = field.getBoundingClientRect();
+                const v = viewport.getBoundingClientRect();
+                return {fully_visible: f.top >= v.top - 1 &&
+                    f.bottom <= v.bottom + 1 && f.left >= v.left - 1 &&
+                    f.right <= v.right + 1};
+            ''', field)
+            assert geometry and geometry['fully_visible']
+            state = f'service-field-{index + 1}'
+            capture(state)
+            evidence['controls'][state].append(geometry)
+        output = result.find_element(
+            By.CSS_SELECTOR, '[aria-label="Firebird native service output"]')
+        assert 'Database header page information' in output.text
+        lines = [line for line in output.find_elements(
+            By.CSS_SELECTOR, '[data-firebird-output-line]')
+                 if line.get_attribute('textContent').strip()]
+        assert lines
+        for state, line in [('statistics-native-output-first', lines[0]),
+                            ('statistics-native-output-last', lines[-1])]:
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block:"center"})', line)
+            geometry = driver.execute_script('''
+                const line = arguments[0], r = line.getBoundingClientRect();
+                let parent = line.parentElement, visible = r.height > 0;
+                while (parent) {
+                  const p = parent.getBoundingClientRect();
+                  const css = getComputedStyle(parent);
+                  if (['auto', 'scroll', 'hidden'].includes(css.overflowY))
+                    visible &&= r.top >= p.top - 1 && r.bottom <= p.bottom + 1;
+                  if (['auto', 'scroll', 'hidden'].includes(css.overflowX))
+                    visible &&= r.left >= p.left - 1 && r.right <= p.right + 1;
+                  parent = parent.parentElement;
+                }
+                return {native_line_fully_visible: visible};
+            ''', line)
+            assert geometry['native_line_fully_visible']
+            capture(state)
+            evidence['controls'][state].append(geometry)
+        details = result.find_element(By.TAG_NAME, 'details')
+        assert not details.get_property('open')
+        details.find_element(By.TAG_NAME, 'summary').click()
+        receipt = result.find_element(
+            By.CSS_SELECTOR, '[aria-label="Firebird native service receipt"]')
+        observed = json.loads(receipt.text)
+        assert output.get_attribute('textContent') == ''.join(
+            observed['output'])
         assert observed['schema'] == 'cdeadmin.firebird-service-result.v1'
         assert observed['operation_id'] == 'database_statistics'
         assert observed['server_completed'] is True
@@ -67,9 +125,9 @@ def run(options, password):
                                         '[aria-label="Firebird service '
                                         'cleanup required"]')
         assert not apply.is_enabled(), 'Applied service plan is replayable'
-        driver.execute_script('arguments[0].scrollIntoView({block:"center"})',
-                              result)
-        capture('statistics-native-result')
+        capture('statistics-native-receipt')
+        details.find_element(By.TAG_NAME, 'summary').click()
+        assert not details.get_property('open')
         evidence.update(passed=True, native_result_observed=True,
                         service_handle_release_observed=True,
                         applied_plan_replay_disabled=True)

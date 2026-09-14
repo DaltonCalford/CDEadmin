@@ -1326,6 +1326,7 @@ describe('ProviderWorkspaceContent', () => {
       if (action === 'visual_admin_plan') return {plan_id: 'p', plan_digest: 'd',
         state: 'ready', execution_available: true};
       return {provider_result: {accepted: true, driver_observation: {
+        schema: 'cdeadmin.firebird-service-result.v1',
         server_completed: true, output: ['Native service result'],
         service_release: {service_handle_released: released},
       }}};
@@ -1339,7 +1340,7 @@ describe('ProviderWorkspaceContent', () => {
     await waitFor(() => expect(screen.getByRole('button',
       {name: 'Apply provider plan'})).toBeEnabled());
     fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
-    expect(await screen.findByLabelText('Provider operation result'))
+    expect(await screen.findByLabelText('Firebird native service output'))
       .toHaveTextContent('Native service result');
     if (released) {
       expect(screen.queryByLabelText('Firebird service cleanup required')).not.toBeInTheDocument();
