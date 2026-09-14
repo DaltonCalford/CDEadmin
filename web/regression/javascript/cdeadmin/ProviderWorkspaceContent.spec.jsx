@@ -21,12 +21,40 @@ import ProviderWorkspaceContent, {
   initialObjectDraft,
   semanticCrossFilter,
   visibleFieldOptions,
+  changedFieldDraft,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('preserves hidden computed result types and never guesses an explicit type choice', () => {
+    const field = {field_id: 'data_type', control: 'select',
+      require_explicit_choice: true,
+      visible_when: {field_id: 'action', in: ['TYPE', 'TYPE COMPUTED']},
+      options: [{value: 'INTEGER'}, {value: 'BLOB', visible_when: {
+        field_id: 'action', equals: 'TYPE COMPUTED'}}]};
+    let draft = {action: 'POSITION', data_type: 'BLOB'};
+    draft = changedFieldDraft([field], draft, 'action', 'COMPUTED');
+    expect(draft.data_type).toBe('BLOB');
+    draft = changedFieldDraft([field], draft, 'action', 'TYPE COMPUTED');
+    expect(draft.data_type).toBe('BLOB');
+    draft = changedFieldDraft([field], draft, 'action', 'TYPE');
+    expect(draft.data_type).toBe('');
+    expect(changedFieldDraft([field], draft, 'action', 'TYPE COMPUTED').data_type).toBe('');
+  });
+
+  it('prefills precise provider type attributes without stringifying numbers', () => {
+    const values = {data_type: 'NUMERIC', precision: 38, scale: 21};
+    const fields = Object.keys(values).map((key) => ({field_id: key,
+      initial_value_path: ['type_editor', key], submit_unchanged: true}));
+    expect(initialObjectDraft(fields, {extensions: {firebird: {native: {
+      type_editor: values,
+    }}}})).toEqual(values);
+    expect(initialObjectDraft([{field_id: 'data_type', default: null,
+      initial_value_path: ['type_editor', 'data_type']}], {})).toEqual({data_type: ''});
+  });
+
   it('filters actions using inspected native context and prefills column position', () => {
     const action = {field_id: 'action', control: 'select', default: 'COMPUTED',
       option_values_path: ['alteration', 'allowed_actions'], options:

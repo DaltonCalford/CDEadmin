@@ -13,6 +13,7 @@ import csv
 import json
 import tempfile
 import unittest
+from unittest.mock import Mock
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -27,10 +28,52 @@ from tools.cdeadmin_firebird_ui_form_gate import (
     evidence_variant,
     firebird_service_forms,
     record_screenshot_evidence,
+    screenshot,
+    screenshot_form_pages,
 )
 
 
 class FirebirdUIFormGateTests(unittest.TestCase):
+
+    def test_form_screenshot_sweep_overlaps_and_reaches_the_bottom(self):
+        with tempfile.TemporaryDirectory(prefix='cde-screenshot-test-') as tmp:
+            driver = Mock()
+            driver.execute_script.side_effect = [
+                object(), {'height': 200, 'maximum': 300}, 0, 136, 272, 300]
+            driver.save_screenshot.side_effect = lambda destination: (
+                Path(destination).write_bytes(b'PNG') > 0)
+            images = screenshot_form_pages(driver, Path(tmp) / 'form')
+            self.assertEqual([item['scroll_top'] for item in images],
+                             [0, 136, 272, 300])
+            self.assertTrue(all(item['viewport_height'] == 200
+                                for item in images))
+            self.assertEqual(driver.execute_script.call_count, 6)
+
+    def test_sweep_rejects_missing_unreachable_or_unbounded_viewports(self):
+        for responses in (
+                [None], [object(), {'height': 0, 'maximum': 1}],
+                [object(), {'height': 200, 'maximum': 10000000}],
+                [object(), {'height': 200, 'maximum': 300}, 15]):
+            with self.subTest(responses=responses):
+                driver = Mock()
+                driver.execute_script.side_effect = responses
+                with self.assertRaises(RuntimeError):
+                    screenshot_form_pages(driver, Path('unused'))
+                driver.save_screenshot.assert_not_called()
+
+    def test_screenshots_can_preserve_the_requested_scroll_position(self):
+        with tempfile.TemporaryDirectory(prefix='cde-screenshot-test-') as tmp:
+            for reset in (True, False):
+                with self.subTest(reset_scroll=reset):
+                    driver = Mock()
+                    driver.save_screenshot.side_effect = lambda destination: (
+                        Path(destination).write_bytes(b'PNG') > 0)
+                    path = Path(tmp) / 'shot.png'
+                    digest = screenshot(driver, path, reset_scroll=reset)
+                    self.assertEqual(path.read_bytes(), b'PNG')
+                    self.assertEqual(len(digest), 64)
+                    self.assertEqual(driver.execute_script.call_count,
+                                     int(reset))
 
     def test_gate_covers_every_firebird_database_service_form(self):
         operations = firebird_service_forms()

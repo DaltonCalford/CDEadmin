@@ -23,6 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings
+from .column_type_metadata import type_editor_values
 
 
 PROFILE = PilotProfile(
@@ -1684,7 +1685,10 @@ def _resources(connection, request):
                 length = numeric(field.get('field_length'))
 
             if field_type == 27 and raw_scale < 0:
-                value = f'NUMERIC(15,{scale})'
+                # Legacy scaled-double metadata does not retain a declared
+                # precision. Recreating a guessed NUMERIC under dialect 3
+                # would even change its physical storage type.
+                return None
             elif field_type in {7, 8, 16, 26}:
                 if raw_scale == 0 and subtype == 0:
                     value = {
@@ -1692,20 +1696,20 @@ def _resources(connection, request):
                         26: 'INT128',
                     }[field_type]
                 else:
-                    keyword = 'DECIMAL' if subtype == 2 else 'NUMERIC'
-                    if field_type != 26 and (
-                            precision is None or precision <= 0 or
-                            precision > 18):
-                        precision = 18
-                    if precision is None:
+                    maximum = {7: 4, 8: 9, 16: 18, 26: 38}[field_type]
+                    if (subtype not in {1, 2} or precision is None or
+                            not 1 <= precision <= maximum or raw_scale > 0 or
+                            scale > precision):
                         return None
+                    keyword = 'DECIMAL' if subtype == 2 else 'NUMERIC'
                     value = f'{keyword}({precision},{scale})'
             elif field_type in {14, 37, 40}:
                 if length is None:
                     return None
                 keyword = {
                     14: 'BINARY' if subtype == 1 else 'CHAR',
-                    37: 'VARCHAR', 40: 'CSTRING',
+                    37: 'VARBINARY' if subtype == 1 else 'VARCHAR',
+                    40: 'CSTRING',
                 }[field_type]
                 value = f'{keyword}({length})'
             elif field_type == 261:
@@ -1737,7 +1741,8 @@ def _resources(connection, request):
                     f'{dimension["upper_bound"]}'
                     for dimension in dimensions
                 ) + ']'
-            if charset and field_type in {14, 37, 40, 261}:
+            if (charset and field_type in {14, 37, 40, 261} and
+                    not (field_type in {14, 37} and subtype == 1)):
                 value += f' CHARACTER SET {identifier(charset)}'
             return value
 
@@ -2284,6 +2289,7 @@ def _resources(connection, request):
             native['alteration'] = columns.alteration_context(
                 native, relation, primary_key=primary_key,
                 array=bool(field_dimensions.get(native.get('domain'))))
+            native['type_editor'] = type_editor_values(native)
         plural = {
             'column': 'columns', 'index': 'indexes',
             'constraint': 'constraints',

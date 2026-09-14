@@ -471,15 +471,15 @@ export function visibleFieldOptions(field, draft, resource) {
       (Array.isArray(values) && values.includes(option.value))))} : field;
 }
 
-function changedFieldDraft(fields, current, id, value, resource) {
+export function changedFieldDraft(fields, current, id, value, resource) {
   const next = {...current, [id]: value};
   for (const dependent of fields) {
-    if (dependent.control !== 'select' ||
+    if (!fieldVisible(dependent, next) || dependent.control !== 'select' ||
         (!dependent.option_values_path &&
         !dependent.options?.some((option) => option.visible_when))) continue;
     const choices = visibleFieldOptions(dependent, next, resource).options || [];
     if (!choices.some((option) => option.value === next[dependent.field_id])) {
-      next[dependent.field_id] = choices.find((option) =>
+      next[dependent.field_id] = dependent.require_explicit_choice ? '' : choices.find((option) =>
         option.value === dependent.default)?.value ?? choices[0]?.value ?? '';
     }
   }

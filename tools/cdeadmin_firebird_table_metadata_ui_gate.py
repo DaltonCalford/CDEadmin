@@ -123,7 +123,8 @@ def run(options, profiles):
                     'arguments[0].scrollHeight;', panel, position)
                 path = options.output_root / (name + '-' + position + '.png')
                 paths.append({'path': str(path),
-                              'sha256': screenshot(browser, path)})
+                              'sha256': screenshot(browser, path,
+                                                   reset_scroll=False)})
             fill_fields(wait, ['Object properties task=Columns'])
             columns_panel = wait.until(lambda web: next((
                 node for node in web.find_elements(

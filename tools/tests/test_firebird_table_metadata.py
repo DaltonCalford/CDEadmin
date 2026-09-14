@@ -15,7 +15,8 @@ from tools.cdeadmin_firebird_admin_mapping_gate import _resources
 def catalog(domain='RDB$1', constraint=None, relation_type=0,
             publication=False, not_null_name=None, column_binding=True,
             table_comment=None, column_comment=None, index_direction=0,
-            index_metadata=True, primary=False, identity=False):
+            index_metadata=True, primary=False, identity=False,
+            type_metadata=None):
     cursor = Mock()
     current = []
 
@@ -33,6 +34,15 @@ def catalog(domain='RDB$1', constraint=None, relation_type=0,
                         0 if identity else None, 'G' if identity else None,
                         None, 0, column_comment,
                         1 if identity else None, 1 if identity else None)]
+            if type_metadata:
+                slots = {'field_type': 5, 'field_sub_type': 6,
+                         'field_length': 7, 'field_scale': 8,
+                         'field_precision': 9, 'character_length': 10,
+                         'character_set': 12}
+                row = list(current[0])
+                for key, value in type_metadata.items():
+                    row[slots[key]] = value
+                current = [tuple(row)]
         elif 'FROM RDB$RELATION_CONSTRAINTS C JOIN' in source:
             if 'SYSTEM_FLAG, 0) = 0' in source:
                 if constraint:
@@ -65,6 +75,31 @@ def catalog(domain='RDB$1', constraint=None, relation_type=0,
 @pytest.mark.parametrize('domain', ['rdb$domain', 'RDb$domain', 'rDb$domain'])
 def test_case_sensitive_domain_reference_is_not_an_implicit_domain(domain):
     assert '"V" "' + domain + '"' in catalog(domain=domain)['ddl']
+
+
+@pytest.mark.parametrize('native', [
+    {'field_type': 8, 'field_sub_type': 1, 'field_precision': None},
+    {'field_type': 8, 'field_sub_type': 1, 'field_precision': 18},
+    {'field_type': 7, 'field_sub_type': 1, 'field_precision': 9},
+    {'field_type': 26, 'field_sub_type': 1, 'field_precision': 39},
+    {'field_type': 16, 'field_sub_type': 1, 'field_precision': 18,
+     'field_scale': -19},
+    {'field_type': 27, 'field_scale': -2},
+])
+def test_missing_or_inconsistent_precision_never_generates_guessed_ddl(native):
+    result = catalog(type_metadata=native)
+    assert result['ddl_available'] is False
+    assert 'exact Firebird field type' in result['ddl_unavailable_reason']
+    assert not result.get('ddl')
+
+
+@pytest.mark.parametrize('code,name', [(14, 'BINARY'), (37, 'VARBINARY')])
+def test_binary_ddl_preserves_native_subtype(code, name):
+    result = catalog(type_metadata={
+        'field_type': code, 'field_sub_type': 1, 'field_length': 30,
+        'character_length': 30, 'character_set': 'OCTETS'})
+    assert name + '(30)' in result['ddl']
+    assert 'CHARACTER SET' not in result['ddl']
 
 
 def test_true_implicit_domain_renders_its_native_type():

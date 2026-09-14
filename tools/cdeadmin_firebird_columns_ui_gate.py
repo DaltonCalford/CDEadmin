@@ -26,7 +26,7 @@ from tools.cdeadmin_firebird_admin_mapping_gate import (  # noqa: E402
     _create_client,
 )
 from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
-    click_unobscured, fill_form_values,
+    click_unobscured, fill_form_values, screenshot_form_pages,
 )
 from pgadmin.cdeadmin.providers.firebird import columns  # noqa: E402
 from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
@@ -132,6 +132,16 @@ def run(options, profiles):
           'expression': "CAST('text' AS BLOB SUB_TYPE TEXT)"},
          {'field_type': '261', 'field_sub_type': '1',
           'segment_length': '120'}),
+        ('computed-blob-existing', 'BLOB SUB_TYPE TEXT SEGMENT SIZE 120 '
+         "CHARACTER SET UTF8 COMPUTED BY (CAST('old' AS BLOB SUB_TYPE TEXT))",
+         {'action': 'TYPE COMPUTED', 'data_type': 'BLOB',
+          'blob_subtype': 1, 'segment_size': 120, 'character_set': 'UTF8',
+          'expression': "CAST('new' AS BLOB SUB_TYPE TEXT)"},
+         {'field_type': '261', 'field_sub_type': '1',
+          'segment_length': '120'}),
+        ('type-existing-domain', prefix + '_D',
+         {'action': 'TYPE', 'data_type': 'DOMAIN', 'domain': prefix + '_D'},
+         {'domain': prefix + '_D'}),
         ('type-domain', 'BIGINT',
          {'action': 'TYPE', 'data_type': 'DOMAIN', 'domain': prefix + '_D'},
          {'domain': prefix + '_D'}),
@@ -173,6 +183,13 @@ def run(options, profiles):
             draft['precision'] = 16
         elif name in ('TIME', 'TIMESTAMP'):
             draft['time_zone'] = 'WITH TIME ZONE'
+        cases.append(('type-' + name, columns.data_type(draft), draft, {}))
+    for name, values in (
+            ('NUMERIC38', {'data_type': 'NUMERIC', 'precision': 38,
+                           'scale': 21}),
+            ('UTF8', {'data_type': 'VARCHAR', 'length': 20,
+                      'character_set': 'UTF8'})):
+        draft = {'action': 'TYPE', **values}
         cases.append(('type-' + name, columns.data_type(draft), draft, {}))
     create_cases = [
         ('stored', {}, {'field_type': '8'}),
@@ -267,7 +284,8 @@ def run(options, profiles):
                 {'sql_security': native_security,
                  'publication_enabled': publication == 'ENABLE'}))
     scope = os.environ.get('CDEADMIN_FIREBIRD_COLUMNS_SCOPE', 'all')
-    if scope not in ('all', 'create', 'alter', 'table', 'external'):
+    if scope not in ('all', 'create', 'alter', 'table', 'external', 'prefill',
+                     'prefill-extra'):
         raise ValueError('Unknown column verification scope')
     if scope == 'external':
         cases = []
@@ -284,6 +302,12 @@ def run(options, profiles):
                                   'data_type': 'INTEGER'}]},
                     {'relation_type': 2, 'sql_security': native_security,
                      'publication_enabled': publication == 'ENABLE'}))
+    elif scope == 'prefill-extra':
+        cases = [item for item in cases if item[0] in {
+            'computed-blob-existing', 'type-existing-domain'}]
+    elif scope == 'prefill':
+        cases = [item for item in cases if item[0].startswith(
+            ('type-', 'computed'))]
     elif scope != 'all':
         cases = [item for item in cases if (
             item[0].startswith('table-') if scope == 'table' else
@@ -330,9 +354,12 @@ def run(options, profiles):
                                      probe['database_target_id'])
             forms._wait_for_operation(wait, operation)
             action_context = None
+            prefill_check = None
+            before_column = None
             if not creating and kind == 'column' and \
                     operation['operation_id'] == 'alter':
-                action_context = snapshot(table)['alteration']
+                before_column = snapshot(table)
+                action_context = before_column['alteration']
                 choice = wait.until(lambda driver: visible_named_control(
                     driver, 'Alteration'))
                 wait.until(lambda driver: choice.is_enabled() and
@@ -359,6 +386,38 @@ def run(options, profiles):
                     driver, 'Position (one-based)'))
                 assert position.get_attribute('value') == str(
                     action_context['position'])
+                if label.startswith(('type-', 'computed')):
+                    action = 'TYPE COMPUTED' if before_column.get(
+                        'computed_source') is not None else 'TYPE'
+                    fill_fields(wait, ['Alteration=' + action])
+                    values = before_column['type_editor']
+                    fields = {item['field_id']: item for item in
+                              operation['form']['fields']}
+                    prefill_check = {}
+                    for key, expected_value in values.items():
+                        if not ProviderVisualAdministration._field_active(
+                                fields[key], {'action': action, **values}):
+                            continue
+                        control = wait.until(lambda driver, key=key:
+                                             visible_named_control(
+                                                 driver, fields[key]['label']))
+                        actual = browser.execute_script("""
+                          const element = arguments[0];
+                          if (element.matches('input, textarea, select'))
+                            return element.value;
+                          return element.closest('.MuiFormControl-root')
+                            ?.querySelector('input')?.value;
+                        """, control)
+                        assert actual == str(expected_value), (
+                            label, key, expected_value, actual)
+                        prefill_check[key] = actual
+                    if action == 'TYPE COMPUTED':
+                        control = wait.until(lambda driver:
+                                             visible_named_control(
+                                                 driver,
+                                                 'Computed expression'))
+                        assert control.get_attribute('value') == (
+                            before_column['computed_source'])
             labels = {item['field_id']: item['label']
                       for item in operation['form']['fields']}
             if creating and table_operation:
@@ -401,6 +460,8 @@ def run(options, profiles):
                     fill_fields(wait, [f'{children[key]}={value}'
                                        for key, value in values.items()],
                                 control_root=record_box)
+            form_images = screenshot_form_pages(
+                browser, options.output_root / f'{number:02d}-{label}-form')
             plan = plan_preview(browser, wait, operation, {})
             result['pending_case'] = {
                 'case': label, 'statements': plan['command_preview'][
@@ -453,6 +514,13 @@ def run(options, profiles):
                             'native': table_metadata}
             else:
                 observed = snapshot(table)
+                if label.startswith('type-'):
+                    for key in ('field_type', 'field_sub_type', 'field_scale',
+                                'field_precision', 'field_length',
+                                'character_length', 'character_set'):
+                        assert observed.get(key) == before_column.get(key), (
+                            label, key, observed.get(key),
+                            before_column.get(key))
             for key, value in expected.items():
                 assert observed[key] == value, (key, observed.get(key), value)
             path = options.output_root / f'{number:02d}-{label}.png'
@@ -461,6 +529,8 @@ def run(options, profiles):
                     'statements'], 'native_postcondition': observed,
                 'form_geometry': geometry,
                 'verified_action_context': action_context,
+                'verified_type_prefill': prefill_check,
+                'form_screenshots': form_images,
                 'screenshot': str(path), 'sha256': screenshot(browser, path)})
             result.pop('pending_case', None)
             close_workspace(browser, wait)

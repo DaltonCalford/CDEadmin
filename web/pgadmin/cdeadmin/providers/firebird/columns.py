@@ -465,7 +465,10 @@ def form(operation, field):
             help_text='Optional fractional digits, 0–3; '
             'empty uses the native default.')
         add('data_type', 'Data type', 'select', ['TYPE', 'TYPE COMPUTED'],
-            True, 'INTEGER', TYPES)
+            True, None, TYPES,
+            help_text='Prefilled from native metadata when known. Otherwise '
+            'choose the intended type explicitly; no type is assumed.')
+        fields[-1]['require_explicit_choice'] = True
         for name, title, kind, default, help_text in (
                 ('domain', 'Domain name', 'text', '', 'For DOMAIN only.'),
                 ('length', 'Length', 'number', 1,
@@ -487,6 +490,7 @@ def form(operation, field):
             ('WITHOUT TIME ZONE', 'WITH TIME ZONE'))
         add('expression', 'Computed expression', 'code',
             ['COMPUTED', 'TYPE COMPUTED'], True)
+        fields[-1]['initial_value_path'] = ['computed_source']
         add('generation', 'Identity generation', 'select', ['IDENTITY'],
             False, 'UNCHANGED', ('UNCHANGED', 'ALWAYS', 'BY DEFAULT'))
         add('restart', 'Restart identity', 'select', ['IDENTITY'],
@@ -512,6 +516,12 @@ def form(operation, field):
             'restart_value': ('restart', ['WITH VALUE']),
         }
         for item in fields:
+            if item['field_id'] in {
+                    'data_type', 'domain', 'length', 'precision', 'scale',
+                    'blob_subtype', 'segment_size', 'character_set',
+                    'time_zone'}:
+                item['initial_value_path'] = ['type_editor', item['field_id']]
+                item['submit_unchanged'] = True
             if item['field_id'] in ('length', 'domain'):
                 item['required'] = True
             if item['field_id'] == 'data_type':

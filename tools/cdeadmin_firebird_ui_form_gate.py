@@ -570,19 +570,65 @@ def assert_form_controls(wait, fields):
     return observed
 
 
-def screenshot(driver, path):
+def screenshot(driver, path, *, reset_scroll=True):
     path.parent.mkdir(parents=True, exist_ok=True)
-    driver.execute_script(
-        """
-        const dialog = document.querySelector('[role="dialog"]');
-        const scrollable = dialog && [...dialog.querySelectorAll('*')]
-          .find(element => element.scrollHeight > element.clientHeight + 4);
-        if (scrollable) scrollable.scrollTop = 0;
-        """
-    )
+    if reset_scroll:
+        driver.execute_script(
+            """
+            const dialog = document.querySelector('[role="dialog"]');
+            const scrollable = dialog && [...dialog.querySelectorAll('*')]
+              .find(element =>
+                element.scrollHeight > element.clientHeight + 4);
+            if (scrollable) scrollable.scrollTop = 0;
+            """
+        )
     if not driver.save_screenshot(str(path)):
         raise RuntimeError(f'browser did not save {path}')
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def screenshot_form_pages(driver, prefix):
+    """Capture overlapping viewports of the entire visible engine task form."""
+    region = driver.execute_script("""
+      const section = [...document.querySelectorAll(
+        'section[aria-label="Engine task form"]')].find(
+          element => element.getClientRects().length);
+      if (!section) return null;
+      for (let node = section; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (['auto', 'scroll'].includes(style.overflowY) &&
+            node.scrollHeight > node.clientHeight + 1) return node;
+      }
+      return document.scrollingElement;
+    """)
+    if region is None:
+        raise RuntimeError('The engine task form is not visible')
+    metrics = driver.execute_script(
+        'return {height: arguments[0].clientHeight, '
+        'maximum: arguments[0].scrollHeight - arguments[0].clientHeight};',
+        region)
+    if metrics['height'] <= 0:
+        raise RuntimeError('The task form has no visible viewport')
+    maximum = max(0, metrics['maximum'])
+    step = max(1, metrics['height'] - 64)
+    if maximum > step * 99:
+        raise RuntimeError('Task form exceeds the bounded screenshot sweep')
+    offsets = list(dict.fromkeys([
+        *range(0, maximum + 1, step), maximum]))
+    if len(offsets) > 100:
+        raise RuntimeError('Task form exceeds the bounded screenshot sweep')
+    images = []
+    for number, offset in enumerate(offsets):
+        actual = driver.execute_script(
+            'arguments[0].scrollTop = arguments[1]; '
+            'return arguments[0].scrollTop;', region, offset)
+        if abs(actual - offset) > 1:
+            raise RuntimeError('The task form could not reach its viewport')
+        path = prefix.parent / (prefix.name + f'-page-{number + 1:02d}.png')
+        images.append({'path': str(path), 'scroll_top': actual,
+                       'viewport_height': metrics['height'],
+                       'sha256': screenshot(driver, path, reset_scroll=False)})
+    return images
 
 
 def completion_values(options, operation_id):
