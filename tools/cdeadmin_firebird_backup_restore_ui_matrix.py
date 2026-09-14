@@ -93,7 +93,8 @@ def run_scale(options, native, profile, password, scale):
     gate_kind = getattr(options, 'gate_kind', 'backup-history')
     if gate_kind not in {'backup-history', 'logical-volumes'}:
         raise ValueError('Unsupported owned backup browser gate')
-    backups = ([path + f'.part-{part}.fbk' for part in range(1, 4)]
+    backups = ([path + '.single.fbk', *[
+        path + f'.part-{part}.fbk' for part in range(1, 4)]]
                if gate_kind == 'logical-volumes' else
                [path + '.' + part + '.nbk'
                 for part in ('ROWS', 'DAYS', 'GUID')])

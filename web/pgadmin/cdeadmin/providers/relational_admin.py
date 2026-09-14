@@ -3645,15 +3645,6 @@ class RelationalAdministration:
                     'T, D, W, and R at most once.'
                 ),
             })
-        if draft.get('skip_data') and draft.get('include_data'):
-            errors.append({
-                'field_id': 'include_data',
-                'code': 'conflicting_firebird_data_filters',
-                'message': (
-                    'Firebird backup include-data and skip-data filters '
-                    'cannot be used together.'
-                ),
-            })
         for field_id in (
             'additional_backup_files', 'additional_database_files',
         ):

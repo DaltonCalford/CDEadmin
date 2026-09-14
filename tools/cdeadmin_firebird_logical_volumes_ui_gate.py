@@ -88,18 +88,19 @@ def run(options, password):
         capture(prefix + '-native-receipt')
         return observed
 
-    def capture_list(label, prefix):
-        group = driver.find_element(
-            By.CSS_SELECTOR, '[role="group"][aria-label=' +
-            json.dumps(label) + ']')
-        controls = group.find_elements(By.CSS_SELECTOR, 'input')
+    def capture_list(label, prefix, controls=None, alignment='center'):
+        if controls is None:
+            group = driver.find_element(
+                By.CSS_SELECTOR, '[role="group"][aria-label=' +
+                json.dumps(label) + ']')
+            controls = group.find_elements(By.CSS_SELECTOR, 'input')
         assert controls
         for index, control in enumerate(controls):
             visibility = driver.execute_script('''
                 const input = arguments[0];
                 const field = input.closest('.MuiFormControl-root');
                 if (!field) return {label_and_input_visible: false};
-                field.scrollIntoView({block: 'center'});
+                field.scrollIntoView({block: arguments[1]});
                 const label = field.querySelector('label');
                 let visible = !!label;
                 for (const item of [label, input].filter(Boolean)) {
@@ -119,13 +120,39 @@ def run(options, password):
                   }
                 }
                 return {label_and_input_visible: visible};
-            ''', control)
+            ''', control, alignment)
             geometry = assert_field_label_geometry(driver, control)
             state = prefix + '-control-' + str(index)
             capture(state)
             evidence['controls'][state].append({
                 'label_geometry': geometry, **visibility})
             assert visibility['label_and_input_visible']
+
+    def capture_filters(prefix):
+        controls = []
+        for label, help_text in (
+            ('Skip data for tables matching',
+             'Skip takes precedence over include'),
+            ('Include data for tables matching',
+             'not a Python regular expression'),
+        ):
+            control = visible_named_control(driver, label)
+            assert control is not None
+            description_ids = control.get_attribute('aria-describedby').split()
+            assert help_text in ' '.join(driver.find_element(
+                By.ID, item).text for item in description_ids)
+            controls.append(control)
+        # Long enlarged help paragraphs may exceed the scroll viewport.
+        # Align the label/input at the top instead of centering the entire
+        # paragraph (which can put the label above the viewport).
+        capture_list('', prefix + '-filters', controls=controls,
+                     alignment='start')
+        for index, control in enumerate(controls):
+            description = driver.find_element(
+                By.ID, control.get_attribute('aria-describedby').split()[-1])
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'end'});", description)
+            capture(prefix + '-filter-help-end-' + str(index))
 
     try:
         rows = [(index, secrets.token_hex(1000)) for index in range(100)]
@@ -135,10 +162,12 @@ def run(options, password):
             with connection.cursor() as cursor:
                 cursor.execute('CREATE TABLE OWNED_UI_PAYLOAD '
                                '(ID INTEGER PRIMARY KEY, V VARCHAR(2000))')
+                cursor.execute('CREATE TABLE "東京資料" (ID INTEGER)')
             connection.commit()
             with connection.cursor() as cursor:
                 cursor.executemany(
                     'INSERT INTO OWNED_UI_PAYLOAD VALUES (?, ?)', rows)
+                cursor.execute('INSERT INTO "東京資料" VALUES (1)')
             connection.commit()
         finally:
             connection.close()
@@ -153,6 +182,22 @@ def run(options, password):
                       if item['operation_id'] == 'backup_logical')
         assert visible_named_control(
             driver, 'Backup filename on the Firebird server') is not None
+        fill_form_values(driver, wait, fields, {
+            'Backup filename on the Firebird server': path + '.single.fbk',
+            'Include data for tables matching': '(OWNED%|東京%)',
+            'Skip data for tables matching': 'NEVER%'})
+        capture_filters('backup-single')
+        planned = preview()
+        assert planned['draft']['include_data'] == '(OWNED%|東京%)'
+        assert planned['draft']['skip_data'] == 'NEVER%'
+        capture('backup-single-unicode-filters-plan')
+        apply('backup-single-unicode-filters')
+        evidence['cases'].append('single-backup-unicode-combined-filters')
+        close_workspace(driver, wait)
+        database = wait_for_tree_item(wait, options.database)
+        invoke_context_action(wait, driver, database,
+                              ['Backup', 'Logical backup (gbak)...'],
+                              password, endpoint_prompt_timeout=1)
         files = [path + f'.part-{part}.fbk' for part in range(1, 4)]
         volumes = [{'filename': files[0], 'size_bytes': 2048},
                    {'filename': files[1], 'size_bytes': 4096},
@@ -160,7 +205,10 @@ def run(options, password):
         fill_form_values(driver, wait, fields, {
             'Split backup across volumes': 'true',
             'Ordered backup volumes': volumes,
-            'Backup options': ['ZIP']})
+            'Backup options': ['ZIP'],
+            'Include data for tables matching': '(OWNED%|東京%)',
+            'Skip data for tables matching': 'NEVER%'})
+        capture_filters('backup-split')
         assert visible_named_control(
             driver, 'Backup filename on the Firebird server') is None
         capture_list('Ordered backup volumes', 'backup-volume')
@@ -213,7 +261,11 @@ def run(options, password):
                 'Additional backup volumes in order': files[1:],
                 'Restored database filename on the Firebird server':
                 destination,
-                'Database access mode': mode})
+                'Database access mode': mode,
+                'Include data for tables matching': '%',
+                'Skip data for tables matching': (
+                    '東京%' if index == 0 else 'OWNED%')})
+            capture_filters('restore-' + mode)
             capture_list('Additional backup volumes in order',
                          'restore-' + mode + '-volume')
             capture('restore-' + mode + '-visual-list')
@@ -236,7 +288,9 @@ def run(options, password):
                 with connection.cursor() as cursor:
                     cursor.execute(
                         'SELECT ID, V FROM OWNED_UI_PAYLOAD ORDER BY ID')
-                    assert cursor.fetchall() == rows
+                    assert cursor.fetchall() == (rows if index == 0 else [])
+                    cursor.execute('SELECT ID FROM "東京資料" ORDER BY ID')
+                    assert cursor.fetchall() == ([] if index == 0 else [(1,)])
                     cursor.execute('SELECT MON$READ_ONLY FROM MON$DATABASE')
                     assert cursor.fetchone() == (index,)
                 connection.rollback()
@@ -245,7 +299,7 @@ def run(options, password):
             capture('restore-' + mode + '-native-verified')
             evidence['cases'].append('ordered-restore-payload-' + mode)
             close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 3
+        evidence['passed'] = len(evidence['cases']) == 4
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
         capture(operation + '-failure')

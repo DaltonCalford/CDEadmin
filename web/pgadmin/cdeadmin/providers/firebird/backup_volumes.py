@@ -69,16 +69,17 @@ def logical_backup_volumes(options):
     return files, sizes
 
 
-def start_split_backup(server, database, options, flags, module, callback):
+def start_logical_backup(server, database, options, flags, module, callback):
     """Action-first Firebird 5 SPB, correcting driver 1.10.11's count check.
 
     Do not use that driver's zip_longest path: its reversed assertion rejects
-    N files/N-1 sizes and can encode an extra filename 'None'. Native service
-    completion/release remain the caller's responsibility, as for backup().
+    N files/N-1 sizes and can encode an extra filename 'None'.
+    That driver also omits the service encoding for optional filter/encryption
+    strings. Encode every string using the attached service's encoding for
+    both single-file and split backups. Completion/release remain the caller's
+    responsibility, as for backup().
     """
     files, sizes = logical_backup_volumes(options)
-    if len(files) < 2:
-        raise RelationalClientError('Split backup requires multiple volumes')
     core = module.core
     server._reset_output()
     with module.get_api().util.get_xpb_builder(

@@ -7,7 +7,7 @@ import pytest
 
 from tools.cdeadmin_firebird_admin_mapping_gate import RelationalClientError
 from pgadmin.cdeadmin.providers.firebird.backup_volumes import (
-    logical_backup_volumes, start_split_backup)
+    logical_backup_volumes, start_logical_backup)
 from pgadmin.cdeadmin.providers.firebird.provider import (
     ADMINISTRATION, _firebird_service_operation)
 from pgadmin.cdeadmin.visual_admin import ProviderVisualAdministration
@@ -172,8 +172,8 @@ def test_split_spb_pairs_sizes_without_phantom_final_filename():
         'statistics': 'TDWR', 'verbose': True, 'verbose_interval': 500,
         'parallel_workers': 2}
     output = []
-    start_split_backup(server, '/owned/source.fdb', options, 8, module,
-                       output.append)
+    start_logical_backup(server, '/owned/source.fdb', options, 8, module,
+                         output.append)
     core = module.core
     assert builder.method_calls[:5] == [
         ('insert_tag', (core.ServerAction.BACKUP,), {}),
@@ -205,24 +205,23 @@ def test_split_spb_pairs_sizes_without_phantom_final_filename():
 
 def test_optional_fields_and_silent_mode_do_not_insert_spurious_options():
     module, server, builder = native_fixture()
-    start_split_backup(server, 'owned', {'split_backup': True,
-                       'verbose': False, 'backup_volumes': [
-                           {'filename': 'first', 'size_bytes': 2048},
-                           {'filename': 'last'}]}, 0, module, Mock())
+    options = {'split_backup': True, 'verbose': False, 'backup_volumes': [
+        {'filename': 'first', 'size_bytes': 2048}, {'filename': 'last'}]}
+    start_logical_backup(server, 'owned', options, 0, module, Mock())
     assert builder.insert_tag.call_count == 1
     assert builder.insert_string.call_count == 3
     assert builder.insert_int.call_count == 2
 
 
 @pytest.mark.parametrize('options', [
-    {'backup_file': 'single'}, {'split_backup': True, 'backup_volumes': []},
+    {'backup_file': ''}, {'split_backup': True, 'backup_volumes': []},
     {'split_backup': True, 'backup_volumes': [
         {'filename': 'first', 'size_bytes': True}, {'filename': 'last'}]},
 ])
 def test_bad_volume_shape_cannot_start_or_reset_native_service(options):
     module, server, _builder = native_fixture()
     with pytest.raises(RelationalClientError):
-        start_split_backup(server, 'owned', options, 0, module, Mock())
+        start_logical_backup(server, 'owned', options, 0, module, Mock())
     assert not server.mock_calls
     module.get_api.assert_not_called()
 
@@ -231,11 +230,10 @@ def test_native_start_failure_is_not_swallowed_or_replayed():
     module, server, _builder = native_fixture()
     server._svc.start.side_effect = RuntimeError('native start failed')
     callback = Mock()
+    options = {'split_backup': True, 'backup_volumes': [
+        {'filename': 'first', 'size_bytes': 2048}, {'filename': 'last'}]}
     with pytest.raises(RuntimeError, match='native start failed'):
-        start_split_backup(server, 'owned', {'split_backup': True,
-                           'backup_volumes': [
-                               {'filename': 'first', 'size_bytes': 2048},
-                               {'filename': 'last'}]}, 0, module, callback)
+        start_logical_backup(server, 'owned', options, 0, module, callback)
     server._svc.start.assert_called_once()
     callback.assert_not_called()
 
