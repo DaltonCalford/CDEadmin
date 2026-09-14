@@ -8982,22 +8982,22 @@
       "sha256": "71dce5bde254bf76f3eca3ea2ae88cc0cf96ad3de1a007358e29317615b862c0"
     },
     {
-      "artifact": "quoted-after.json",
+      "artifact": "create-live-4.json",
       "authority": "Firebird 5.0.4 runtime",
       "evidence_id": "firebird-5.0.4-column-alterations-live",
       "evidence_kind": "live_execution",
       "format": "cdeadmin.firebird-columns.v1",
       "license_id": "PostgreSQL",
-      "sha256": "24683baa4b35c891967b685891b4c6972962e6731291dca7b70465fafd0d6f30"
+      "sha256": "c1ef940545d3572536186b7eb1526249a3f3d958b85d6cf1859457f57bce3947"
     },
     {
-      "artifact": "quoted-after.json",
+      "artifact": "create-live-4.json",
       "authority": "Firebird 5.0.4 runtime",
       "evidence_id": "firebird-5.0.4-column-alterations-parser",
       "evidence_kind": "parser_acceptance",
       "format": "cdeadmin.firebird-columns.v1",
       "license_id": "PostgreSQL",
-      "sha256": "24683baa4b35c891967b685891b4c6972962e6731291dca7b70465fafd0d6f30"
+      "sha256": "c1ef940545d3572536186b7eb1526249a3f3d958b85d6cf1859457f57bce3947"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9157,14 +9157,15 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-column-alterations-parser",
+        "firebird-5.0.4-column-alterations-live"
       ],
       "required_bindings": [],
-      "source": "ALTER TABLE \"QUALIFICATION\" ADD \"editor_note\" INTEGER",
+      "source": "ALTER TABLE \"CDE_COLUMN\" ADD \"V\" INTEGER CONSTRAINT \"FK\" REFERENCES \"CDE_PARENT\" (\"ID\") ON UPDATE SET NULL ON DELETE SET NULL USING DESCENDING INDEX \"FI\"",
       "source_format": "ordered_native_statements",
       "statements": [
-        "ALTER TABLE \"QUALIFICATION\" ADD \"editor_note\" INTEGER"
+        "ALTER TABLE \"CDE_COLUMN\" ADD \"V\" INTEGER CONSTRAINT \"FK\" REFERENCES \"CDE_PARENT\" (\"ID\") ON UPDATE SET NULL ON DELETE SET NULL USING DESCENDING INDEX \"FI\""
       ],
       "task_id": "visual_admin.column.create"
     },

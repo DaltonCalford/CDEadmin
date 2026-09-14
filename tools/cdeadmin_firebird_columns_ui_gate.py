@@ -8,18 +8,60 @@
 """Mutate only unique column fixtures through real provider forms."""
 
 import json
+import os
+import sys
 import traceback
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 
-from cdeadmin_firebird_role_ui_gate import (
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from tools.cdeadmin_firebird_role_ui_gate import (  # noqa: E402
     arguments, forms, firebird, _resources, _route_arguments,
     create_driver, close_workspace, plan_preview, screenshot,
     WebDriverWait, visible_named_control,
 )
-from cdeadmin_firebird_admin_mapping_gate import _create_client
-from cdeadmin_firebird_ui_form_gate import click_unobscured
-from pgadmin.cdeadmin.providers.firebird import columns
+from tools.cdeadmin_firebird_admin_mapping_gate import (  # noqa: E402
+    _create_client,
+)
+from tools.cdeadmin_firebird_ui_form_gate import click_unobscured  # noqa: E402
+from pgadmin.cdeadmin.providers.firebird import columns  # noqa: E402
+from pgadmin.cdeadmin.visual_admin import (  # noqa: E402
+    ProviderVisualAdministration,
+)
+from tools.cdeadmin_ui_evidence import fill_fields  # noqa: E402
+
+
+def cleanup_column_fixtures(browser, native, tables, domain=None):
+    """Collect failures without letting browser shutdown skip owned DDL."""
+    errors = []
+
+    def attempt(stage, callback):
+        try:
+            callback()
+            return True
+        except Exception as error:
+            errors.append({'stage': stage, 'error_type': type(error).__name__})
+            return False
+
+    if browser is not None:
+        attempt('browser shutdown', browser.quit)
+    attempt('rollback before cleanup', lambda: native.rollback()
+            if native.main_transaction.is_active() else None)
+    removed = True
+    for kind, name in [('TABLE', table) for table in reversed(tables)] + (
+            [('DOMAIN', domain)] if domain else []):
+        def drop(kind=kind, name=name):
+            with native.cursor() as cursor:
+                cursor.execute('DROP ' + kind + ' ' + columns.identifier(name))
+            native.commit()
+        if not attempt('drop ' + kind + ' ' + name, drop):
+            removed = False
+            attempt('rollback failed drop', lambda: native.rollback()
+                    if native.main_transaction.is_active() else None)
+    attempt('close native attachment', native.close)
+    return {'fixtures_removed': removed, 'errors': errors}
 
 
 def run(options, profiles):
@@ -118,13 +160,60 @@ def run(options, profiles):
         elif name in ('TIME', 'TIMESTAMP'):
             draft['time_zone'] = 'WITH TIME ZONE'
         cases.append(('type-' + name, columns.data_type(draft), draft, {}))
+    create_cases = [
+        ('stored', {}, {'field_type': '8'}),
+        ('identity', {'column_mode': 'IDENTITY', 'generation': 'ALWAYS',
+                      'start_value': '25', 'increment': '5'},
+         {'identity_type': '0', 'identity_initial_value': '25',
+          'identity_increment': '5'}),
+        ('computed', {'column_mode': 'COMPUTED', 'expression': 'X * 2'},
+         {'computed_source': '(X * 2\n)', 'field_type': '8'}),
+        ('computed-inferred', {'column_mode': 'COMPUTED INFERRED',
+                               'expression': 'X * 1.25'},
+         {'computed_source': '(X * 1.25\n)'}),
+        ('array', {'dimensions': [{'lower': -2, 'upper': 3},
+                                  {'lower': 1, 'upper': 2}]},
+         {'field_type': '8'}),
+        ('default', {'has_default': True, 'default_kind': 'TEXT',
+                     'default_value': "O'Connor", 'data_type': 'VARCHAR',
+                     'length': 40}, {'default_source': "DEFAULT 'O''Connor'"}),
+        ('not-null', {'constraints': [{'kind': 'NOT NULL', 'name': 'NN'}]},
+         {'not_null': '1'}),
+        ('check', {'constraints': [{'kind': 'CHECK', 'name': 'CK',
+                                    'expression': 'V > 0'}]}, {}),
+        ('unique', {'constraints': [{'kind': 'UNIQUE', 'name': 'UQ',
+                                     'index_name': 'UI',
+                                     'index_direction': 'DESCENDING'}]}, {}),
+        ('primary', {'constraints': [{'kind': 'PRIMARY KEY', 'name': 'PK'}]},
+         {'not_null': '1'}),
+        ('collation', {'data_type': 'VARCHAR', 'length': 20,
+                       'character_set': 'UTF8', 'collation': 'UNICODE_CI'},
+         {'collation': 'UNICODE_CI'}),
+        ('domain', {'data_type': 'DOMAIN', 'domain': prefix + '_D'},
+         {'domain': prefix + '_D'}),
+        ('blob', {'data_type': 'BLOB', 'blob_subtype': 1,
+                  'segment_size': 120, 'character_set': 'UTF8'},
+         {'field_type': '261', 'segment_length': '120'}),
+    ]
+    for label, draft, expected in create_cases:
+        cases.append(('create-' + label, None,
+                      {'column_mode': 'STORED', 'data_type': 'INTEGER',
+                       **draft}, expected))
+    scope = os.environ.get('CDEADMIN_FIREBIRD_COLUMNS_SCOPE', 'all')
+    if scope not in ('all', 'create', 'alter'):
+        raise ValueError('Unknown column verification scope')
+    if scope != 'all':
+        cases = [item for item in cases if
+                 item[0].startswith('create-') == (scope == 'create')]
+    result['scope'] = scope
     result['expected_mutation_count'] = len(cases)
     try:
         sql('CREATE DOMAIN ' + prefix + '_D AS BIGINT')
         domain_created = True
         for number, (label, definition, draft, expected) in enumerate(cases):
             table = prefix + '_' + str(number)
-            sql('CREATE TABLE ' + table + ' (X INTEGER, V ' + definition + ')')
+            sql('CREATE TABLE ' + table + ' (X INTEGER' + (
+                ', V ' + definition if definition is not None else '') + ')')
             tables.append(table)
             if label == 'comment-clear':
                 sql('COMMENT ON COLUMN ' + table + ".V IS 'previous comment'")
@@ -136,21 +225,55 @@ def run(options, profiles):
         for number, (label, definition, draft, expected) in enumerate(cases):
             table = tables[number]
             print(label, flush=True)
+            creating = label.startswith('create-')
             operation = next(iter(forms._enumerate_operations(
                 probe['catalog'], ['column'], [
-                    'comment' if label.startswith('comment-') else 'alter'])))
-            target = next(item for item in probe['resources'] if
-                          item['resource_kind'] == 'column' and
-                          item['display_path'] == [table, 'V'])
+                    'create' if creating else 'comment' if
+                    label.startswith('comment-') else 'alter'])))
+            target = None if creating else next(
+                item for item in probe['resources'] if
+                item['resource_kind'] == 'column' and
+                item['display_path'] == [table, 'V'])
             assert operation['execution_available'] is True
             forms._open_focused_form(browser, operation, target,
                                      probe['database_target_id'])
             forms._wait_for_operation(wait, operation)
             labels = {item['field_id']: item['label']
                       for item in operation['form']['fields']}
-            plan = plan_preview(browser, wait, operation,
-                                {labels[key]: value for key, value in
-                                 draft.items()})
+            if creating:
+                draft = {'table': table, 'name': 'V', **draft}
+            active_fields = {item['field_id'] for item in
+                             operation['form']['fields'] if
+                             ProviderVisualAdministration._field_active(
+                                 item, draft)}
+            primitives = {labels[key]: value for key, value in draft.items()
+                          if key in active_fields and
+                          not isinstance(value, list)}
+            fill_fields(wait, [f'{key}={value}'
+                               for key, value in primitives.items()])
+            for field_name in ('dimensions', 'constraints'):
+                field = next((item for item in operation['form']['fields']
+                              if item['field_id'] == field_name), None)
+                records = draft.get(field_name, [])
+                for number_in_list, record in enumerate(records):
+                    button = visible_named_control(
+                        browser, 'Add ' + field['label'] + ' item')
+                    click_unobscured(browser, wait, button)
+                    group = browser.find_element(
+                        'css selector', '[role="group"][aria-label="' +
+                        field['label'] + '"]')
+                    boxes = group.find_elements('xpath', './div')
+                    record_box = boxes[number_in_list]
+                    children = {item['field_id']: item['label'] for item in
+                                field['array_editor']['fields']}
+                    values = dict(record)
+                    for key in ('name', 'index_name'):
+                        if values.get(key):
+                            values[key] = table + '_' + values[key]
+                    fill_fields(wait, [f'{children[key]}={value}'
+                                       for key, value in values.items()],
+                                control_root=record_box)
+            plan = plan_preview(browser, wait, operation, {})
             confirmation = visible_named_control(
                 browser, 'I confirm this provider-planned operation.')
             if confirmation is not None and not confirmation.is_selected():
@@ -177,36 +300,35 @@ def run(options, profiles):
     except Exception:
         result['failures'].append({'traceback': traceback.format_exc()})
         if browser is not None:
-            path = options.output_root / 'failure.png'
-            result['failure_screenshot'] = str(path)
-            screenshot(browser, path)
-            result['failure_geometry'] = browser.execute_script("""
-              const button = [...document.querySelectorAll('button')].find(
-                element => element.textContent === 'Validate and preview' &&
-                  element.getClientRects().length);
-              const nodes = [];
-              for (let node = button; node; node = node.parentElement) {
-                const style = getComputedStyle(node);
-                const rect = node.getBoundingClientRect();
-                nodes.push({tag: node.tagName, classes: node.className,
-                  top: rect.top, bottom: rect.bottom, height: rect.height,
-                  overflow: style.overflow, flex: style.flex,
-                  scrollHeight: node.scrollHeight,
-                  clientHeight: node.clientHeight});
-              }
-              return nodes;
-            """)
+            try:
+                path = options.output_root / 'failure.png'
+                result['failure_screenshot'] = str(path)
+                screenshot(browser, path)
+                result['failure_geometry'] = browser.execute_script("""
+                  const button = [...document.querySelectorAll('button')].find(
+                    element =>
+                      element.textContent === 'Validate and preview' &&
+                      element.getClientRects().length);
+                  const nodes = [];
+                  for (let node = button; node; node = node.parentElement) {
+                    const style = getComputedStyle(node);
+                    const rect = node.getBoundingClientRect();
+                    nodes.push({tag: node.tagName, classes: node.className,
+                      top: rect.top, bottom: rect.bottom, height: rect.height,
+                      overflow: style.overflow, flex: style.flex,
+                      scrollHeight: node.scrollHeight,
+                      clientHeight: node.clientHeight});
+                  }
+                  return nodes;
+                """)
+            except Exception as error:
+                result['diagnostic_error_type'] = type(error).__name__
     finally:
-        if browser is not None:
-            browser.quit()
-        if native.main_transaction.is_active():
-            native.rollback()
-        for table in reversed(tables):
-            sql('DROP TABLE ' + table)
-        if domain_created:
-            sql('DROP DOMAIN ' + prefix + '_D')
-        result['fixtures_removed'] = True
-        native.close()
+        cleanup = cleanup_column_fixtures(
+            browser, native, tables, prefix + '_D' if domain_created else None)
+        result['fixtures_removed'] = cleanup['fixtures_removed']
+        result['failures'].extend(cleanup['errors'])
+        result['passed'] = result['passed'] and not cleanup['errors']
     return result
 
 

@@ -6,6 +6,7 @@
 
 import copy
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,45 @@ from pgadmin.cdeadmin.visual_admin.provider import VisualAdminValidationError
 from tools.reference_engine_demos.generate_firebird_dialect_contract import (
     WEB, supplement_columns,
 )
+from tools.cdeadmin_firebird_columns_ui_gate import cleanup_column_fixtures
+
+
+@pytest.mark.parametrize('quit_fails,drop_fails', [
+    (False, False), (True, False), (False, True), (True, True),
+])
+def test_fixture_cleanup_collects_failures_and_attempts_remaining_objects(
+        quit_fails, drop_fails):
+    events = []
+
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            pass
+
+        def execute(self, sql):
+            events.append(sql)
+            if drop_fails and '"T2"' in sql:
+                raise OSError('simulated native failure')
+
+    def quit_browser():
+        events.append('quit')
+        if quit_fails:
+            raise OSError('simulated browser failure')
+
+    native = SimpleNamespace(
+        cursor=Cursor, commit=lambda: events.append('commit'),
+        rollback=lambda: events.append('rollback'),
+        close=lambda: events.append('close'),
+        main_transaction=SimpleNamespace(is_active=lambda: True))
+    result = cleanup_column_fixtures(
+        SimpleNamespace(quit=quit_browser), native, ['T1', 'T2'], 'D')
+    assert result['fixtures_removed'] is (not drop_fails)
+    assert len(result['errors']) == int(quit_fails) + int(drop_fails)
+    assert [item for item in events if item.startswith('DROP')] == [
+        'DROP TABLE "T2"', 'DROP TABLE "T1"', 'DROP DOMAIN "D"']
+    assert events[-1] == 'close'
 
 
 def request(draft, operation='alter'):
@@ -25,6 +65,92 @@ def request(draft, operation='alter'):
             'draft': draft, '_provider_route': {'database': 'example.fdb'},
             'target_resource': {'display_name': 'V',
                                 'display_path': ['T', 'V']}}
+
+
+def create_request(**values):
+    return {'resource_kind': 'column', 'operation_id': 'create',
+            '_provider_route': {'database': 'example.fdb'},
+            'draft': {'table': 'T', 'name': 'V', 'column_mode': 'STORED',
+                      'data_type': 'INTEGER', **values}}
+
+
+@pytest.mark.parametrize('values,expected', [
+    ({}, '"V" INTEGER'),
+    ({'table': 'current', 'name': 'current'}, '"current" INTEGER'),
+    ({'column_mode': 'IDENTITY', 'generation': 'ALWAYS',
+      'start_value': '-9223372036854775808', 'increment': '-3'},
+     '"V" INTEGER GENERATED ALWAYS AS IDENTITY '
+     '(START WITH -9223372036854775808 INCREMENT BY -3)'),
+    ({'column_mode': 'COMPUTED', 'expression': 'X + 1 -- comment'},
+     '"V" INTEGER COMPUTED BY (X + 1 -- comment\n)'),
+    ({'column_mode': 'COMPUTED INFERRED', 'expression': 'X + 1'},
+     '"V" COMPUTED BY (X + 1\n)'),
+    ({'data_type': 'VARCHAR', 'length': 10, 'character_set': 'UTF8',
+      'dimensions': [{'lower': -2, 'upper': 3}, {'lower': 1, 'upper': 2}]},
+     '"V" VARCHAR(10)[-2:3, 1:2] CHARACTER SET "UTF8"'),
+    ({'data_type': 'DOMAIN', 'domain': ' leading domain'},
+     '"V" " leading domain"'),
+    ({'has_default': True, 'default_kind': 'NUMBER', 'default_value': '+42',
+      'constraints': [{'kind': 'NOT NULL', 'name': 'NN'}]},
+     '"V" INTEGER DEFAULT 42 CONSTRAINT "NN" NOT NULL'),
+    ({'constraints': [{'kind': 'REFERENCES', 'name': 'FK',
+                       'reference_table': 'P', 'reference_column': 'ID',
+                       'on_update': 'CASCADE', 'on_delete': 'SET NULL',
+                       'index_name': 'IX', 'index_direction': 'DESCENDING'}]},
+     '"V" INTEGER CONSTRAINT "FK" REFERENCES "P" ("ID") '
+     'ON UPDATE CASCADE ON DELETE SET NULL USING DESCENDING INDEX "IX"'),
+    ({'constraints': [{'kind': 'CHECK', 'expression': 'V > 0 -- valid'}]},
+     '"V" INTEGER CHECK (V > 0 -- valid\n)'),
+])
+def test_structured_create_column(values, expected):
+    value = create_request(**values)
+    assert ADMINISTRATION.validate(value) == {'errors': []}
+    plan = ADMINISTRATION.plan(value)
+    table = '"' + value['draft']['table'].replace('"', '""') + '"'
+    assert plan['command_preview']['statements'][0]['source'] == (
+        'ALTER TABLE ' + table + ' ADD ' + expected)
+
+
+@pytest.mark.parametrize('values', [
+    {'column_mode': 'UNKNOWN'}, {'has_default': 'yes'},
+    {'dimensions': [{'lower': 2, 'upper': 1}]},
+    {'dimensions': [{'lower': 1, 'upper': 2}] * 17},
+    {'data_type': 'BLOB', 'dimensions': [{'lower': 1, 'upper': 2}]},
+    {'column_mode': 'IDENTITY', 'increment': 0},
+    {'column_mode': 'IDENTITY', 'has_default': True},
+    {'column_mode': 'COMPUTED', 'data_type': 'DOMAIN', 'domain': 'D'},
+    {'column_mode': 'COMPUTED', 'expression': '1', 'collation': 'C'},
+    {'column_mode': 'COMPUTED', 'expression': '1',
+     'constraints': [{'kind': 'NOT NULL'}]},
+    {'column_mode': 'COMPUTED', 'expression': '1); DROP TABLE T; --'},
+    {'constraints': [{'kind': 'FOREIGN KEY'}]},
+    {'constraints': [{'kind': 'CHECK', 'expression': '1=1',
+                      'index_name': 'I'}]},
+    {'constraints': [{'kind': 'REFERENCES', 'reference_table': 'T',
+                      'on_delete': 'RESTRICT'}]},
+])
+def test_invalid_create_column_rejected(values):
+    value = create_request(**values)
+    assert ADMINISTRATION.validate(value)['errors']
+    with pytest.raises(RelationalClientError):
+        ADMINISTRATION.plan(value)
+
+
+def test_creation_form_has_native_structured_dimensions_and_constraints():
+    form = ADMINISTRATION._form('column', 'create')
+    assert form['form_id'] == 'firebird.column.create'
+    fields = {item['field_id']: item for item in form['fields']}
+    assert fields['dimensions']['array_editor']['item_kind'] == 'object'
+    assert fields['constraints']['array_editor']['item_kind'] == 'object'
+    for mode in columns.MODES:
+        draft = {'column_mode': mode, 'data_type': 'INTEGER'}
+        active = {name for name, item in fields.items() if
+                  ProviderVisualAdministration._field_active(item, draft)}
+        computed = mode in ('COMPUTED', 'COMPUTED INFERRED')
+        assert ('expression' in active) == computed
+        assert ('constraints' in active) != computed
+        assert ('generation' in active) == (mode == 'IDENTITY')
+        assert ('dimensions' in active) == (mode == 'STORED')
 
 
 @pytest.mark.parametrize('action,values,clause', [
@@ -218,12 +344,21 @@ def proof():
          for precision in range(4)} | {
         'type-' + kind for kind in columns.TYPES} | {
         'identity-state-' + str(number) for number in range(5)}
+    cases |= {'create-type-' + kind for kind in columns.TYPES} | {
+        'create-' + name for name in (
+            'identity-always', 'identity-default', 'computed-explicit',
+            'computed-inferred', 'array-integer', 'array-character',
+            'default-not-null', 'check', 'unique', 'primary-key', 'collation')
+    } | {'create-reference-' + action + '-' + str(explicit)
+         for action in columns.REFERENTIAL_ACTIONS
+         for explicit in (False, True)}
     return {'passed': True, 'engine_version': '5.0.4',
             'fixture_removed': True, 'temporary_user_removed': True,
             'failures': [], 'checks': [{'case': case} for case in cases],
             'task_evidence': {f'visual_admin.column.{operation}': {
                 'live_execution': 'passed', 'statements': [statement]}
                 for operation, statement in (
+                    ('create', 'ALTER TABLE "T" ADD "V" INTEGER'),
                     ('alter', 'ALTER TABLE "T" ALTER COLUMN "V" POSITION 1'),
                     ('comment', 'COMMENT ON COLUMN "T"."V" IS NULL'))}}
 

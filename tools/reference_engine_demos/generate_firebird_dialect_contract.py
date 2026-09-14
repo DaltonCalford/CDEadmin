@@ -470,7 +470,16 @@ def supplement_columns(document, evidence, digest, artifact):
          for precision in range(4)} | {
         'type-' + kind for kind in columns.TYPES} | {
         'identity-state-' + str(number) for number in range(5)}
-    tasks = {'visual_admin.column.alter', 'visual_admin.column.comment'}
+    required |= {'create-type-' + kind for kind in columns.TYPES} | {
+        'create-' + name for name in (
+            'identity-always', 'identity-default', 'computed-explicit',
+            'computed-inferred', 'array-integer', 'array-character',
+            'default-not-null', 'check', 'unique', 'primary-key', 'collation')
+    } | {'create-reference-' + action + '-' + str(explicit)
+         for action in columns.REFERENTIAL_ACTIONS
+         for explicit in (False, True)}
+    tasks = {'visual_admin.column.alter', 'visual_admin.column.comment',
+             'visual_admin.column.create'}
     cases = {item.get('case') for item in evidence.get('checks', [])}
     if (evidence.get('passed') is not True or
             evidence.get('engine_version') != '5.0.4' or
@@ -478,7 +487,7 @@ def supplement_columns(document, evidence, digest, artifact):
             evidence.get('temporary_user_removed') is not True or
             evidence.get('failures') != [] or not required.issubset(cases) or
             set(evidence.get('task_evidence', {})) != tasks):
-        raise ValueError('Column alteration evidence is incomplete')
+        raise ValueError('Column definition/alteration evidence is incomplete')
     value = copy.deepcopy(document)
     proof_id = 'firebird-5.0.4-column-alterations-live'
     parser_id = 'firebird-5.0.4-column-alterations-parser'

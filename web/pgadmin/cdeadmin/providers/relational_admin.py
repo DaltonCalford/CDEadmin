@@ -286,7 +286,7 @@ class RelationalAdministration:
                     elif operation.get('form_authority') != 'engine-profile':
                         operation['form'] = self._form(kind, operation_id)
                     if (self.dialect.engine_id == 'firebird' and
-                            kind in firebird_mappings.KINDS):
+                            kind in (*firebird_mappings.KINDS, 'column')):
                         operation['title'] = operation['form']['title']
                     self._structured_record_controls(operation['form'])
                     self._routine_record_controls(operation['form'])
@@ -386,6 +386,15 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'column' and operation_id == 'create' and
+                'column_mode' in draft):
+            try:
+                firebird_columns.compile_create(draft)
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_column',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'column' and
                 operation_id in {'alter', 'comment'}):
@@ -2809,6 +2818,12 @@ class RelationalAdministration:
         operation = request['operation_id']
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'column' and
+                operation == 'create' and 'column_mode' in request['draft']):
+            return {'statements': [{
+                'source': firebird_columns.compile_create(request['draft']),
+                'parameters': ()}]}
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'column' and
                 operation in {'alter', 'comment'}):
             sql = firebird_columns.compile_column(
                 operation, request['draft'],
@@ -3696,6 +3711,9 @@ class RelationalAdministration:
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
         if (self.dialect.engine_id == 'firebird' and kind == 'column' and
+                operation == 'create' and 'column_mode' in value):
+            return value
+        if (self.dialect.engine_id == 'firebird' and kind == 'column' and
                 operation in {'alter', 'comment'}):
             return value
         if (self.dialect.engine_id == 'firebird' and
@@ -3908,9 +3926,11 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
-        if (self.dialect.engine_id == 'firebird' and kind == 'column' and
-                operation in {'alter', 'comment'}):
-            return firebird_columns.form(operation, self._field)
+        if self.dialect.engine_id == 'firebird' and kind == 'column':
+            if operation == 'create':
+                return firebird_columns.creation_form(self._field)
+            if operation in {'alter', 'comment'}:
+                return firebird_columns.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and
                 kind in firebird_mappings.KINDS):
             return firebird_mappings.form(kind, operation, self._field)

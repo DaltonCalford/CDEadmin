@@ -445,7 +445,7 @@ def _open_focused_form(driver, operation, target, database_target_id):
         node.callbacks.open_cde_workspace.call(node, {item},
           'administration', {
             resource_id: operation.resource_kind === 'database' ?
-              databaseTargetId : target.resource_id,
+              databaseTargetId : target?.resource_id,
             database_target_id: databaseTargetId,
             resource_kind: operation.resource_kind,
             operation_id: operation.operation_id,

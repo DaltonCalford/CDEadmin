@@ -237,12 +237,12 @@ def visible_named_control(driver, name):
         return matches[-1]
     literal = _xpath_literal(name)
     for button in driver.find_elements(
-        By.XPATH, f'//button[normalize-space(.)={literal}]'
+        By.XPATH, f'.//button[normalize-space(.)={literal}]'
     ):
         if button.is_displayed():
             return button
     for label in driver.find_elements(
-        By.XPATH, f'//label[starts-with(normalize-space(.), {literal})]'
+        By.XPATH, f'.//label[starts-with(normalize-space(.), {literal})]'
     ):
         if not label.is_displayed():
             continue
@@ -326,7 +326,7 @@ def ensure_data_explorer(wait):
         wait.until(lambda driver: ready(driver) == 'open')
 
 
-def fill_fields(wait, values):
+def fill_fields(wait, values, control_root=None):
     """Enter non-recorded QA values into explicitly named controls."""
     for assignment in values:
         if '=' not in assignment:
@@ -337,7 +337,9 @@ def fill_fields(wait, values):
         located = {}
 
         def find_control(driver, name=label):
-            control = visible_named_control(driver, name)
+            root = control_root(driver) if callable(control_root) else (
+                control_root or driver)
+            control = visible_named_control(root, name)
             # Native value setters bypass disabled fieldsets. Do not enter
             # values until asynchronous metadata initialization has finished.
             if control is not None and (

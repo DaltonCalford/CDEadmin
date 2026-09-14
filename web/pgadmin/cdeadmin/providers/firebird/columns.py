@@ -26,6 +26,224 @@ DEFAULTS = ('TEXT', 'BINARY', 'NUMBER', 'NULL', 'TRUE', 'FALSE', 'DATE',
             'LOCALTIMESTAMP', 'CURRENT_CONNECTION', 'CURRENT_TRANSACTION')
 TIMED_DEFAULTS = ('CURRENT_TIME', 'CURRENT_TIMESTAMP', 'LOCALTIME',
                   'LOCALTIMESTAMP')
+MODES = ('STORED', 'IDENTITY', 'COMPUTED', 'COMPUTED INFERRED')
+CONSTRAINTS = ('NOT NULL', 'CHECK', 'UNIQUE', 'PRIMARY KEY', 'REFERENCES')
+REFERENTIAL_ACTIONS = ('UNCHANGED', 'NO ACTION', 'CASCADE', 'SET DEFAULT',
+                       'SET NULL')
+
+
+def column_constraint(value):
+    if not isinstance(value, dict) or value.get('kind') not in CONSTRAINTS:
+        raise RelationalClientError('Choose a native column constraint')
+    kind = value['kind']
+    sql = ('CONSTRAINT ' + identifier(value['name']) + ' '
+           if value.get('name') else '')
+    if kind == 'CHECK':
+        sql += 'CHECK (' + index_expression(
+            value.get('expression'), 'Check expression') + '\n)'
+    elif kind == 'REFERENCES':
+        sql += 'REFERENCES ' + identifier(value.get('reference_table'))
+        if value.get('reference_column'):
+            sql += ' (' + identifier(value['reference_column']) + ')'
+        for key, clause in (('on_update', 'ON UPDATE'),
+                            ('on_delete', 'ON DELETE')):
+            action = value.get(key, 'UNCHANGED')
+            if action not in REFERENTIAL_ACTIONS:
+                raise RelationalClientError('Invalid referential action')
+            if action != 'UNCHANGED':
+                sql += f' {clause} {action}'
+    else:
+        sql += kind
+    if value.get('index_name'):
+        if kind not in ('PRIMARY KEY', 'UNIQUE', 'REFERENCES'):
+            raise RelationalClientError('This constraint has no backing index')
+        direction = value.get('index_direction', 'ASCENDING')
+        if direction not in ('ASCENDING', 'DESCENDING'):
+            raise RelationalClientError('Invalid constraint index direction')
+        sql += f' USING {direction} INDEX ' + identifier(value['index_name'])
+    return sql
+
+
+def definition(draft):
+    """One native ADD/CREATE TABLE column, without a statement wrapper."""
+    mode = draft.get('column_mode')
+    if mode not in MODES:
+        raise RelationalClientError('Choose a native column definition mode')
+    sql = identifier(draft.get('name'))
+    dimensions = draft.get('dimensions', [])
+    if not isinstance(dimensions, list) or len(dimensions) > 16:
+        raise RelationalClientError('An array has at most 16 dimensions')
+    if dimensions and (mode != 'STORED' or
+                       draft.get('data_type') in ('DOMAIN', 'BLOB')):
+        raise RelationalClientError('Array dimensions require a stored '
+                                    'non-BLOB base type')
+    if mode != 'COMPUTED INFERRED':
+        if mode == 'COMPUTED' and draft.get('data_type') == 'DOMAIN':
+            raise RelationalClientError('Computed columns require a native '
+                                        'type, not a domain')
+        rendered = data_type(draft)
+        if dimensions:
+            ranges = []
+            for dimension in dimensions:
+                if not isinstance(dimension, dict):
+                    raise RelationalClientError('Invalid array dimension')
+                lower = integer(dimension.get('lower'), -2147483648,
+                                2147483647, 'Lower bound')
+                upper = integer(dimension.get('upper'), -2147483648,
+                                2147483647, 'Upper bound')
+                if int(lower) > int(upper):
+                    raise RelationalClientError('Lower bound exceeds upper '
+                                                'bound')
+                ranges.append(lower + ':' + upper)
+            base, separator, charset = rendered.partition(' CHARACTER SET ')
+            rendered = base + '[' + ', '.join(ranges) + ']' + (
+                separator + charset if separator else '')
+        sql += ' ' + rendered
+    constraints = draft.get('constraints', [])
+    if not isinstance(constraints, list):
+        raise RelationalClientError('Column constraints must be a list')
+    enabled = draft.get('has_default', False)
+    if not isinstance(enabled, bool):
+        raise RelationalClientError('Default enabled must be boolean')
+    if mode in ('COMPUTED', 'COMPUTED INFERRED'):
+        if enabled or constraints or draft.get('collation'):
+            raise RelationalClientError('Computed column grammar has no '
+                                        'default, constraint or '
+                                        'COLLATE clause')
+        return sql + ' COMPUTED BY (' + index_expression(
+            draft.get('expression'), 'Computed expression') + '\n)'
+    if mode == 'IDENTITY':
+        if enabled:
+            raise RelationalClientError('Identity columns cannot have '
+                                        'DEFAULT')
+        generation = draft.get('generation', 'BY DEFAULT')
+        if generation not in ('ALWAYS', 'BY DEFAULT'):
+            raise RelationalClientError('Invalid identity generation mode')
+        sql += ' GENERATED ' + generation + ' AS IDENTITY'
+        settings = []
+        if draft.get('start_value') not in (None, ''):
+            settings.append('START WITH ' + integer(
+                draft['start_value'], -9223372036854775808,
+                9223372036854775807, 'Identity start'))
+        if draft.get('increment') not in (None, ''):
+            increment = integer(draft['increment'], -2147483648,
+                                2147483647, 'Identity increment')
+            if increment == '0':
+                raise RelationalClientError('Identity increment cannot '
+                                            'be zero')
+            settings.append('INCREMENT BY ' + increment)
+        if settings:
+            sql += ' (' + ' '.join(settings) + ')'
+    elif enabled:
+        sql += ' DEFAULT ' + default_value(draft)
+    for constraint in constraints:
+        sql += ' ' + column_constraint(constraint)
+    if draft.get('collation'):
+        sql += ' COLLATE ' + identifier(draft['collation'])
+    return sql
+
+
+def compile_create(draft):
+    return ('ALTER TABLE ' + identifier(draft.get('table')) + ' ADD ' +
+            definition(draft))
+
+
+def creation_form(field):
+    fields = [field('table', 'Table', 'text', True),
+              field('name', 'Column name', 'text', True),
+              field('column_mode', 'Column mode', 'select', True,
+                    default='STORED', options=MODES)]
+    existing = form('alter', field)['fields']
+    type_fields = {'data_type', 'domain', 'length', 'precision', 'scale',
+                   'blob_subtype', 'segment_size', 'character_set',
+                   'time_zone'}
+    default_fields = {'default_kind', 'default_value', 'time_precision'}
+    for item in existing:
+        name = item['field_id']
+        if name not in type_fields | default_fields | {'expression'}:
+            continue
+        if name in type_fields:
+            primary = {'field_id': 'column_mode',
+                       'in': ['STORED', 'IDENTITY', 'COMPUTED']}
+        elif name in default_fields:
+            primary = {'all': [
+                {'field_id': 'column_mode', 'equals': 'STORED'},
+                {'field_id': 'has_default', 'equals': True}]}
+        else:
+            primary = {'field_id': 'column_mode',
+                       'in': ['COMPUTED', 'COMPUTED INFERRED']}
+        old = item.get('visible_when', {})
+        item['visible_when'] = {'all': [primary, old['all'][1]]} if (
+            'all' in old) else primary
+        if name == 'data_type':
+            for option in item['options']:
+                option.pop('visible_when', None)
+                if option['value'] == 'DOMAIN':
+                    option['visible_when'] = {'field_id': 'column_mode',
+                                              'in': ['STORED', 'IDENTITY']}
+                elif option['value'] not in ('SMALLINT', 'INTEGER', 'BIGINT',
+                                             'INT128', 'NUMERIC', 'DECIMAL'):
+                    option['visible_when'] = {'field_id': 'column_mode',
+                                              'in': ['STORED', 'COMPUTED']}
+        if name == 'blob_subtype':
+            item['help'] = '0 binary, 1 text, or a native custom subtype.'
+        fields.append(item)
+    fields.insert(3, {**field('has_default', 'Set column default', 'boolean',
+                              default=False),
+                      'visible_when': {'field_id': 'column_mode',
+                                       'equals': 'STORED'}})
+    identity = {'field_id': 'column_mode', 'equals': 'IDENTITY'}
+    for item in [field('generation', 'Identity generation', 'select', True,
+                       default='BY DEFAULT',
+                       options=('ALWAYS', 'BY DEFAULT')),
+                 field('start_value', 'Identity start (signed 64-bit)',
+                       'text'),
+                 field('increment', 'Identity increment (signed 32-bit)',
+                       'text')]:
+        fields.append({**item, 'visible_when': identity})
+    stored = {'field_id': 'column_mode', 'in': ['STORED', 'IDENTITY']}
+    fields.append({**field('collation', 'Collation', 'text'),
+                   'visible_when': stored})
+    dimensions = field('dimensions', 'Array dimensions', 'json',
+                       default=[])
+    dimensions.update(json_type='array', array_editor={
+        'item_kind': 'object', 'fields': [
+            field('lower', 'Lower bound', 'number', True, default=1),
+            field('upper', 'Upper bound', 'number', True, default=1)]},
+        visible_when={'all': [
+            {'field_id': 'column_mode', 'equals': 'STORED'},
+            {'field_id': 'data_type', 'in': [
+                name for name in TYPES if name not in ('DOMAIN', 'BLOB')]}]})
+    fields.append(dimensions)
+    children = [field('kind', 'Constraint kind', 'select', True,
+                      default='NOT NULL', options=CONSTRAINTS),
+                field('name', 'Constraint name (optional)', 'text')]
+    for name, title, kind, kinds, options, default in (
+            ('expression', 'Check expression', 'code', ['CHECK'], None, None),
+            ('reference_table', 'Referenced table', 'text', ['REFERENCES'],
+             None, None),
+            ('reference_column', 'Referenced column (empty uses primary key)',
+             'text', ['REFERENCES'], None, None),
+            ('on_update', 'On update', 'select', ['REFERENCES'],
+             REFERENTIAL_ACTIONS, 'UNCHANGED'),
+            ('on_delete', 'On delete', 'select', ['REFERENCES'],
+             REFERENTIAL_ACTIONS, 'UNCHANGED'),
+            ('index_name', 'Backing index name (optional)', 'text',
+             ['UNIQUE', 'PRIMARY KEY', 'REFERENCES'], None, None),
+            ('index_direction', 'Backing index direction', 'select',
+             ['UNIQUE', 'PRIMARY KEY', 'REFERENCES'],
+             ('ASCENDING', 'DESCENDING'), 'ASCENDING')):
+        children.append({**field(name, title, kind,
+                                 name in ('expression', 'reference_table'),
+                                 default=default, options=options),
+                         'visible_when': {'field_id': 'kind', 'in': kinds}})
+    constraints = field('constraints', 'Column constraints', 'json',
+                        default=[])
+    constraints.update(json_type='array', array_editor={
+        'item_kind': 'object', 'fields': children}, visible_when=stored)
+    fields.append(constraints)
+    return {'form_id': 'firebird.column.create',
+            'title': 'Create Firebird column', 'fields': fields}
 
 
 def integer(value, minimum, maximum, label):

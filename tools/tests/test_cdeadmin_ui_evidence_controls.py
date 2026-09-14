@@ -85,6 +85,25 @@ def test_field_entry_waits_for_metadata_initialization(monkeypatch):
     control.click.assert_called_once()
 
 
+@pytest.mark.parametrize('dynamic', [False, True])
+def test_record_fields_are_resolved_in_the_requested_row(monkeypatch, dynamic):
+    control = Mock(tag_name='input')
+    control.get_attribute.side_effect = {'type': 'checkbox'}.get
+    control.is_enabled.return_value = True
+    control.is_selected.return_value = False
+    root = SimpleNamespace(row='second dimension')
+    locate = Mock(return_value=control)
+    monkeypatch.setattr('tools.cdeadmin_ui_evidence.visible_named_control',
+                        locate)
+    driver = Mock()
+    wait = Mock()
+    wait.until.side_effect = lambda callback: callback(driver)
+    fill_fields(wait, ['Selected=true'], control_root=(
+        lambda current: root) if dynamic else root)
+    locate.assert_called_once_with(root, 'Selected')
+    control.click.assert_called_once()
+
+
 def test_failed_selection_is_reported():
     existing = option('A', False)
     existing.click.side_effect = None

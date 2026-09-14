@@ -1710,8 +1710,6 @@ def _resources(connection, request):
                     return None
 
             charset = str(field.get('character_set') or '').rstrip(' ')
-            if charset and field_type in {14, 37, 40, 261}:
-                value += f' CHARACTER SET {identifier(charset)}'
             dimensions = field_dimensions.get(domain, [])
             if dimensions and not (
                     include_domain and domain and
@@ -1721,6 +1719,8 @@ def _resources(connection, request):
                     f'{dimension["upper_bound"]}'
                     for dimension in dimensions
                 ) + ']'
+            if charset and field_type in {14, 37, 40, 261}:
+                value += f' CHARACTER SET {identifier(charset)}'
             return value
 
         def parameter_definition(parameter, include_name=True):

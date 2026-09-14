@@ -19,6 +19,9 @@ from cdeadmin_firebird_admin_mapping_gate import (
     ADMINISTRATION, _create_client, _route_arguments, _resources,
 )
 from pgadmin.cdeadmin.providers.firebird import columns
+from pgadmin.cdeadmin.providers.firebird.provider import (
+    _materialize_catalog_value,
+)
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
@@ -301,11 +304,24 @@ def run(profiles):
                 'B BLOB SUB_TYPE TEXT SEGMENT SIZE 120 CHARACTER SET UTF8, '
                 'C2 VARCHAR(20) CHARACTER SET UTF8 '
                 "COMPUTED BY ('abc'), "
-                'S VARCHAR(20) CHARACTER SET UTF8 COLLATE UNICODE_CI) '
+                'S VARCHAR(20) CHARACTER SET UTF8 COLLATE UNICODE_CI, '
+                'CA VARCHAR(5)[1:2] CHARACTER SET UTF8) '
                 'SQL SECURITY INVOKER DISABLE PUBLICATION')
         connection.commit()
 
         def fingerprint():
+            def values(rows):
+                result_rows = []
+                for row in rows:
+                    result_row = []
+                    for value in row:
+                        value = _materialize_catalog_value(value)
+                        if isinstance(value, (bytes, bytearray, memoryview)):
+                            value = bytes(value).hex()
+                        result_row.append(value)
+                    result_rows.append(result_row)
+                return result_rows
+
             with connection.cursor() as cursor:
                 cursor.execute(
                     'SELECT TRIM(RF.RDB$FIELD_NAME), F.RDB$FIELD_TYPE, '
@@ -315,13 +331,14 @@ def run(profiles):
                     'COALESCE(RF.RDB$COLLATION_ID, F.RDB$COLLATION_ID), '
                     'RF.RDB$NULL_FLAG, '
                     'RF.RDB$IDENTITY_TYPE, G.RDB$INITIAL_VALUE, '
-                    'G.RDB$GENERATOR_INCREMENT FROM RDB$RELATION_FIELDS RF '
+                    'G.RDB$GENERATOR_INCREMENT, RF.RDB$DEFAULT_SOURCE, '
+                    'F.RDB$COMPUTED_BLR FROM RDB$RELATION_FIELDS RF '
                     'JOIN RDB$FIELDS F ON '
                     'F.RDB$FIELD_NAME = RF.RDB$FIELD_SOURCE '
                     'LEFT JOIN RDB$GENERATORS G ON '
                     'G.RDB$GENERATOR_NAME = RF.RDB$GENERATOR_NAME '
                     "WHERE RF.RDB$RELATION_NAME = 'CDE_COLUMN' ORDER BY 1")
-                values = [list(row) for row in cursor.fetchall()]
+                column_values = values(cursor.fetchall())
                 cursor.execute('SELECT TRIM(RF.RDB$FIELD_NAME), '
                                'D.RDB$DIMENSION, D.RDB$LOWER_BOUND, '
                                'D.RDB$UPPER_BOUND FROM RDB$RELATION_FIELDS RF '
@@ -330,6 +347,20 @@ def run(profiles):
                                "WHERE RF.RDB$RELATION_NAME = 'CDE_COLUMN' "
                                'ORDER BY 1, 2')
                 dimensions = [list(row) for row in cursor.fetchall()]
+                cursor.execute(
+                    'SELECT TRIM(C.RDB$CONSTRAINT_TYPE), '
+                    'I.RDB$UNIQUE_FLAG, I.RDB$INDEX_TYPE, '
+                    'TRIM(S.RDB$FIELD_NAME), S.RDB$FIELD_POSITION, '
+                    'TRIM(R.RDB$UPDATE_RULE), TRIM(R.RDB$DELETE_RULE) '
+                    'FROM RDB$RELATION_CONSTRAINTS C LEFT JOIN RDB$INDICES I '
+                    'ON I.RDB$INDEX_NAME = C.RDB$INDEX_NAME '
+                    'LEFT JOIN RDB$INDEX_SEGMENTS S ON '
+                    'S.RDB$INDEX_NAME = C.RDB$INDEX_NAME '
+                    'LEFT JOIN RDB$REF_CONSTRAINTS R ON '
+                    'R.RDB$CONSTRAINT_NAME = C.RDB$CONSTRAINT_NAME '
+                    "WHERE C.RDB$RELATION_NAME = 'CDE_COLUMN' "
+                    'ORDER BY 1, 2, 3, 4, 5, 6, 7')
+                constraints = values(cursor.fetchall())
             security = scalar('SELECT RDB$SQL_SECURITY FROM RDB$RELATIONS '
                               "WHERE RDB$RELATION_NAME = 'CDE_COLUMN'")
             relation_type = scalar('SELECT RDB$RELATION_TYPE '
@@ -338,7 +369,8 @@ def run(profiles):
             publication = scalar('SELECT COUNT(*) FROM RDB$PUBLICATION_TABLES '
                                  "WHERE RDB$TABLE_NAME = 'CDE_COLUMN'")
             connection.commit()
-            return {'columns': values, 'sql_security': security,
+            return {'columns': column_values, 'sql_security': security,
+                    'constraints': constraints,
                     'relation_type': relation_type,
                     'array_dimensions': dimensions,
                     'publication_membership': publication}
@@ -411,6 +443,184 @@ def run(profiles):
                 result['checks'].append({'case': label})
             execute('DROP TABLE ' + quote(table_name))
             connection.commit()
+
+        def run_create_case(label, draft, expected_definition):
+            execute('CREATE TABLE CDE_COLUMN (X INTEGER)')
+            connection.commit()
+            before = fingerprint()
+            value = {'table': 'CDE_COLUMN', 'name': 'V',
+                     'column_mode': 'STORED', 'data_type': 'INTEGER', **draft}
+            plan = ADMINISTRATION.plan({
+                '_provider_route': route, 'resource_kind': 'column',
+                'operation_id': 'create', 'draft': value})
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.rollback()
+            assert fingerprint() == before, label + ' rollback'
+            ADMINISTRATION.apply(client, plan, connection=connection)
+            connection.commit()
+            actual = fingerprint()
+            if label in ('create-check', 'create-default-not-null',
+                         'create-primary-key', 'create-unique'):
+                if label in ('create-primary-key', 'create-unique'):
+                    execute('INSERT INTO CDE_COLUMN(V) VALUES (1)')
+                    invalid = 'INSERT INTO CDE_COLUMN(V) VALUES (1)'
+                else:
+                    invalid = ('INSERT INTO CDE_COLUMN(V) VALUES (' +
+                               ('0)' if label == 'create-check' else 'NULL)'))
+                try:
+                    execute(invalid)
+                    connection.commit()
+                except driver.DatabaseError:
+                    connection.rollback()
+                    assert scalar('SELECT COUNT(*) FROM CDE_COLUMN') == 0
+                    connection.commit()
+                else:
+                    raise AssertionError(label + ' invalid row was admitted')
+            if label.startswith('create-reference-'):
+                for verb in ('UPDATE', 'DELETE'):
+                    execute('INSERT INTO CDE_COLUMN(V) VALUES (1)')
+                    action = draft['constraints'][0]['on_' + verb.lower()]
+                    statement = ('UPDATE CDE_PARENT SET ID=2 WHERE ID=1' if
+                                 verb == 'UPDATE' else
+                                 'DELETE FROM CDE_PARENT WHERE ID=1')
+                    try:
+                        execute(statement)
+                    except driver.DatabaseError:
+                        assert action in ('UNCHANGED', 'NO ACTION')
+                        assert scalar('SELECT V FROM CDE_COLUMN') == 1
+                    else:
+                        assert action not in ('UNCHANGED', 'NO ACTION')
+                        if action == 'CASCADE' and verb == 'DELETE':
+                            assert scalar('SELECT COUNT(*) '
+                                          'FROM CDE_COLUMN') == 0
+                        else:
+                            assert scalar('SELECT V FROM CDE_COLUMN') == (
+                                2 if action == 'CASCADE' else None)
+                    connection.rollback()
+                    assert scalar('SELECT COUNT(*) FROM CDE_COLUMN') == 0
+                    assert scalar('SELECT ID FROM CDE_PARENT') == 1
+                    connection.commit()
+            execute('ALTER TABLE CDE_COLUMN DROP V')
+            connection.commit()
+            execute('ALTER TABLE CDE_COLUMN ADD V ' + expected_definition)
+            connection.commit()
+            assert fingerprint() == actual, label + ' native equivalence'
+            result['checks'].append({'case': label,
+                                     'native_fingerprint': actual,
+                                     'rollback_verified': True})
+            result['task_evidence']['visual_admin.column.create'] = {
+                'live_execution': 'passed', 'statements': [
+                    item['source'] for item in
+                    plan['command_preview']['statements']]}
+            execute('DROP TABLE CDE_COLUMN')
+            connection.commit()
+
+        def create_case(label, draft, expected_definition):
+            try:
+                run_create_case(label, draft, expected_definition)
+            except Exception:
+                result['failures'].append({
+                    'case': label, 'traceback': traceback.format_exc()})
+                if connection.main_transaction.is_active():
+                    connection.rollback()
+                exists = scalar('SELECT COUNT(*) FROM RDB$RELATIONS '
+                                "WHERE RDB$RELATION_NAME = 'CDE_COLUMN'")
+                connection.commit()
+                if exists:
+                    execute('DROP TABLE CDE_COLUMN')
+                    connection.commit()
+
+        for name, native_type, extra in (
+                ('SMALLINT', 'SMALLINT', {}),
+                ('INTEGER', 'INTEGER', {}), ('BIGINT', 'BIGINT', {}),
+                ('INT128', 'INT128', {}),
+                ('NUMERIC', 'NUMERIC(38, 12)', {'precision': 38, 'scale': 12}),
+                ('DECIMAL', 'DECIMAL(18, 2)', {'precision': 18, 'scale': 2}),
+                ('FLOAT', 'FLOAT(24)', {'precision': 24}),
+                ('DOUBLE PRECISION', 'DOUBLE PRECISION', {}),
+                ('DECFLOAT', 'DECFLOAT(16)', {'precision': 16}),
+                ('BOOLEAN', 'BOOLEAN', {}), ('DATE', 'DATE', {}),
+                ('TIME', 'TIME WITH TIME ZONE',
+                 {'time_zone': 'WITH TIME ZONE'}),
+                ('TIMESTAMP', 'TIMESTAMP WITHOUT TIME ZONE', {}),
+                ('CHAR', 'CHAR(10)', {'length': 10}),
+                ('VARCHAR', 'VARCHAR(10)', {'length': 10}),
+                ('NCHAR', 'NCHAR(10)', {'length': 10}),
+                ('NCHAR VARYING', 'NCHAR VARYING(10)', {'length': 10}),
+                ('BINARY', 'BINARY(10)', {'length': 10}),
+                ('VARBINARY', 'VARBINARY(10)', {'length': 10}),
+                ('BLOB', 'BLOB SUB_TYPE TEXT SEGMENT SIZE 120 '
+                 'CHARACTER SET UTF8', {'blob_subtype': 1, 'segment_size': 120,
+                                        'character_set': 'UTF8'}),
+                ('DOMAIN', 'CDE_DOMAIN', {'domain': 'CDE_DOMAIN'})):
+            create_case('create-type-' + name,
+                        {'data_type': name, **extra}, native_type)
+        for label, draft, native_type in (
+                ('identity-always', {'column_mode': 'IDENTITY',
+                                     'generation': 'ALWAYS',
+                                     'start_value': '25', 'increment': '5'},
+                 'INTEGER GENERATED ALWAYS AS IDENTITY '
+                 '(START WITH 25 INCREMENT BY 5)'),
+                ('identity-default', {'column_mode': 'IDENTITY'},
+                 'INTEGER GENERATED BY DEFAULT AS IDENTITY'),
+                ('computed-explicit', {'column_mode': 'COMPUTED',
+                                       'expression': 'X * 2'},
+                 'INTEGER COMPUTED BY (X * 2)'),
+                ('computed-inferred', {'column_mode': 'COMPUTED INFERRED',
+                                       'expression': 'X * 1.25'},
+                 'COMPUTED BY (X * 1.25)'),
+                ('array-integer', {'dimensions': [
+                    {'lower': -2, 'upper': 3}, {'lower': 1, 'upper': 2}]},
+                 'INTEGER[-2:3, 1:2]'),
+                ('array-character', {'data_type': 'VARCHAR', 'length': 10,
+                                     'character_set': 'UTF8', 'dimensions': [
+                                         {'lower': 1, 'upper': 3}]},
+                 'VARCHAR(10)[1:3] CHARACTER SET UTF8'),
+                ('default-not-null', {'has_default': True,
+                                      'default_kind': 'NUMBER',
+                                      'default_value': '42', 'constraints': [
+                                          {'kind': 'NOT NULL', 'name': 'NN'}]},
+                 'INTEGER DEFAULT 42 CONSTRAINT NN NOT NULL'),
+                ('check', {'constraints': [{'kind': 'CHECK', 'name': 'CK',
+                                           'expression': 'V > 0'}]},
+                 'INTEGER CONSTRAINT CK CHECK (V > 0)'),
+                ('unique', {'constraints': [{'kind': 'UNIQUE', 'name': 'UQ',
+                                             'index_name': 'UI',
+                                             'index_direction':
+                                             'DESCENDING'}]},
+                 'INTEGER CONSTRAINT UQ UNIQUE USING DESCENDING INDEX UI'),
+                ('primary-key', {'constraints': [
+                    {'kind': 'PRIMARY KEY', 'name': 'PK',
+                     'index_name': 'PI'}]},
+                 'INTEGER CONSTRAINT PK PRIMARY KEY '
+                 'USING ASCENDING INDEX PI'),
+                ('collation', {'data_type': 'VARCHAR', 'length': 20,
+                               'character_set': 'UTF8',
+                               'collation': 'UNICODE_CI'},
+                 'VARCHAR(20) CHARACTER SET UTF8 COLLATE UNICODE_CI')):
+            create_case('create-' + label, draft, native_type)
+        execute('CREATE TABLE CDE_PARENT (ID INTEGER PRIMARY KEY)')
+        connection.commit()
+        execute('INSERT INTO CDE_PARENT VALUES (1)')
+        connection.commit()
+        for action in columns.REFERENTIAL_ACTIONS:
+            for explicit in (False, True):
+                reference = {'kind': 'REFERENCES', 'name': 'FK',
+                             'reference_table': 'CDE_PARENT',
+                             'on_update': action, 'on_delete': action,
+                             'index_name': 'FI',
+                             'index_direction': 'DESCENDING'}
+                if explicit:
+                    reference['reference_column'] = 'ID'
+                native_clause = ('INTEGER CONSTRAINT FK REFERENCES '
+                                 'CDE_PARENT' + (' (ID)' if explicit else ''))
+                if action != 'UNCHANGED':
+                    native_clause += f' ON UPDATE {action} ON DELETE {action}'
+                native_clause += ' USING DESCENDING INDEX FI'
+                create_case('create-reference-' + action + '-' + str(explicit),
+                            {'constraints': [reference]}, native_clause)
+        execute('DROP TABLE CDE_PARENT')
+        connection.commit()
         result['passed'] = not result['failures']
     except Exception:
         result['failures'].append({'case': 'infrastructure',
