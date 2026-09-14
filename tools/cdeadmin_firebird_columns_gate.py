@@ -15,6 +15,8 @@ import uuid
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
+import sqlparse
+
 from cdeadmin_firebird_admin_mapping_gate import (
     ADMINISTRATION, _create_client, _route_arguments, _resources,
 )
@@ -385,8 +387,10 @@ def run(profiles):
             ddl = table['native']['ddl']
             execute('DROP TABLE CDE_COLUMN')
             connection.commit()
-            execute(ddl.rstrip().removesuffix(';'))
-            connection.commit()
+            # These table fixtures contain SQL expressions, not PSQL bodies.
+            for statement in sqlparse.split(ddl):
+                execute(statement.rstrip().removesuffix(';'))
+                connection.commit()
             after = fingerprint()
             if after == before:
                 result['checks'].append({'case': label,

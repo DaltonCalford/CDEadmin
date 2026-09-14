@@ -1659,7 +1659,7 @@ def _resources(connection, request):
         def data_type(field, include_domain=True):
             """Render an exact Firebird field type or fail closed."""
             domain = str(field.get('domain') or '').rstrip(' ')
-            if include_domain and domain and not domain.upper().startswith(
+            if include_domain and domain and not domain.startswith(
                     'RDB$'):
                 return identifier(domain)
             field_type = numeric(field.get('field_type'))
@@ -1719,7 +1719,7 @@ def _resources(connection, request):
             dimensions = field_dimensions.get(domain, [])
             if dimensions and not (
                     include_domain and domain and
-                    not domain.upper().startswith('RDB$')):
+                    not domain.startswith('RDB$')):
                 value += '[' + ', '.join(
                     f'{dimension["lower_bound"]}:'
                     f'{dimension["upper_bound"]}'
@@ -1844,9 +1844,7 @@ def _resources(connection, request):
             native = item.get('native', {})
             kind = str(native.get('constraint_type') or '').strip().upper()
             raw_name = str(item['display_name']).rstrip(' ')
-            prefix = '' if raw_name.upper().startswith('INTEG_') else (
-                f'CONSTRAINT {identifier(raw_name)} '
-            )
+            prefix = f'CONSTRAINT {identifier(raw_name)} '
             fields = index_segments(native.get('index_name'))
             field_list = ', '.join(identifier(field) for field in fields)
             if kind == 'PRIMARY KEY':
@@ -2359,6 +2357,14 @@ def _resources(connection, request):
                 f'{prefix} {identifier(item["display_name"])} (\n  ' +
                 ',\n  '.join(lines) + f'\n){suffix};'
             )
+            if relation_type in {4, 5}:
+                # CREATE GTT has no publication clause. Preserve membership
+                # explicitly even when replay uses a different database policy.
+                publication = ('ENABLE' if native['publication_enabled'] else
+                               'DISABLE')
+                native['ddl'] += (
+                    f'\nALTER TABLE {identifier(item["display_name"])} '
+                    f'{publication} PUBLICATION;')
         dependency_capable = {
             'database', 'table', 'view', 'column', 'index', 'constraint',
             'domain', 'sequence', 'trigger', 'procedure', 'function',
