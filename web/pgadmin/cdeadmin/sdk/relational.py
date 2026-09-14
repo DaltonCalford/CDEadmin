@@ -665,25 +665,34 @@ class RelationalDBAPIClient:
                 'server operation options must be an object'
             )
         server = self._connect_server(request)
+        result = None
+        failure = None
         try:
-            result = runner(
+            observation = runner(
                 server, operation_id, database.strip(),
                 copy.deepcopy(dict(options)),
             )
-            if not isinstance(result, Mapping):
+            if not isinstance(observation, Mapping):
                 raise RelationalClientError(
                     'provider server operation returned an invalid result'
                 )
-            return copy.deepcopy(dict(result))
-        except RelationalClientError:
+            result = copy.deepcopy(dict(observation))
+            return result
+        except RelationalClientError as exc:
+            failure = exc
             raise
         except Exception as exc:
-            raise RelationalClientError(
+            failure = RelationalClientError(
                 'provider server operation failed '
                 f'({type(exc).__name__})'
-            ) from None
+            )
+            raise failure from None
         finally:
-            self._forget_and_close(server)
+            self._finish_server_operation(server, result, failure)
+
+    def _finish_server_operation(self, server, result, failure):
+        """Provider hook separating the returned observation from cleanup."""
+        self._forget_and_close(server)
 
     def run_database_operation(
             self, connection, route, operation_id, options):

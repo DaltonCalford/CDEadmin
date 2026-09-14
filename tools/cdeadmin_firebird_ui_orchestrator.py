@@ -53,6 +53,7 @@ GATE_SCRIPTS = {
     'object': 'cdeadmin_provider_object_form_gate.py',
     'grid': 'cdeadmin_firebird_grid_ui_gate.py',
     'query': 'cdeadmin_firebird_query_ui_gate.py',
+    'services': 'cdeadmin_firebird_services_ui_gate.py',
     'lifecycle': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
@@ -141,7 +142,7 @@ def gate_command(options, url, database_label, config_database=None):
                                  'table-metadata', 'privileges', 'rename'}:
             command.extend(['--profiles', str(options.profiles),
                             '--database-path', options.database])
-    elif options.gate_kind in {'grid', 'query'}:
+    elif options.gate_kind in {'grid', 'query', 'services'}:
         command.extend([
             '--profiles', str(options.profiles),
             '--manifest-output', str(options.manifest_output),

@@ -33,8 +33,12 @@ class _AttachmentState:
 
 
 class FirebirdQueryClient(RelationalDBAPIClient):
-    def __init__(self, config, module=None):
+    def __init__(self, config, module=None, *, service_connector=None,
+                 service_attached=None):
         super().__init__(config, module)
+        if service_connector is not None:
+            self._server_connector = service_connector
+        self._service_attached = service_attached
         self._admission = threading.RLock()
         self._attachment_states = {}
         self._server_handles = set()
@@ -75,6 +79,15 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._connecting():
             handle = super()._connect_server(request)
             self._server_handles.add(id(handle))
+            if self._service_attached is not None:
+                try:
+                    self._service_attached(handle)
+                except Exception as exc:
+                    failure = RelationalClientError(
+                        'Firebird service attachment hook failed (' +
+                        type(exc).__name__ + ')')
+                    self._finish_server_operation(handle, None, failure)
+                    raise failure from None
             return handle
 
     def _forget_connection(self, handle):
@@ -423,6 +436,45 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._temporary_operation():
             return super().run_server_operation(
                 request, operation_id, database, options)
+
+    def plan_admin_operation(self, request):
+        with self._temporary_operation():
+            plan = super().plan_admin_operation(request)
+            payload = plan.get('provider_payload', {})
+            if payload.get('compiled', {}).get('driver_operation') == (
+                    'firebird-service'):
+                # Services credentials may differ from a database attachment.
+                # Obtain them before the visual layer retains the one-shot
+                # plan. A credential refresh can replace the provider binding
+                # and must not strand a reviewed plan during Apply. This only
+                # attaches/detaches: no service action is started here.
+                server = self._connect_server({'route': payload['route']})
+                self._release_server(server)
+            return plan
+
+    def _finish_server_operation(self, server, result, failure):
+        try:
+            receipt = self._release_server(server)
+        except RelationalClientError as exc:
+            receipt = {
+                'connection_released': False,
+                'service_handle_released': False,
+                'driver_observation_only': True,
+                'native_status_codes': list(status_codes(exc)),
+                'message': (
+                    'Firebird service handle release is unconfirmed. '
+                    'Do not replay the operation; its returned outcome '
+                    'is separate from handle cleanup.'),
+            }
+            # Failed attachments remain owned for explicit client release.
+            # Never turn a returned native outcome into an unknown outcome,
+            # or replace the original operation failure with a detach error.
+            if result is None and failure is None:
+                raise
+        if result is not None:
+            result['service_release'] = receipt
+        elif failure is not None:
+            failure.service_release = receipt
 
     def apply_admin_operation(self, request):
         handle = request.get('_provider_session_handle')

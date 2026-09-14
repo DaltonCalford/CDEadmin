@@ -30,6 +30,8 @@ describe('Native Firebird transaction presentation', () => {
     expect(summary.parentElement).toHaveAttribute('open');
     fireEvent.click(summary);
     expect(summary.parentElement).not.toHaveAttribute('open');
+    const grid = screen.getByText('Transaction ID').closest('dl');
+    expect(getComputedStyle(grid).gridTemplateColumns).toContain('16em');
   });
 
   it.each([

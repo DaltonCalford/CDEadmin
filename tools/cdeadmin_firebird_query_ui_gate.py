@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -340,37 +341,86 @@ def run(options, password):
             transaction_panel.find_elements(By.TAG_NAME, 'dd')[-1])
         _capture(driver, options, 'native-set-transaction-snapshot-details',
                  screenshots, controls, reset_scroll=False)
+        transaction_fields = transaction_panel.find_elements(
+            By.CSS_SELECTOR, 'dl > div')
+        assert len(transaction_fields) == 9
+        for index, field in enumerate(transaction_fields):
+            driver.execute_script(
+                'arguments[0].scrollIntoView({block: "center"})', field)
+            observation = driver.execute_script('''
+              const field = arguments[0];
+              const body = document.querySelector(
+                '[aria-label="Provider query workspace"]');
+              const f = field.getBoundingClientRect();
+              const b = body.getBoundingClientRect();
+              return {name: field.querySelector('dt').textContent,
+                value: field.querySelector('dd').textContent,
+                fully_visible: f.top >= b.top - 1 &&
+                  f.bottom <= b.bottom + 1 && f.left >= b.left - 1 &&
+                  f.right <= b.right + 1};
+            ''', field)
+            assert observation['fully_visible'], observation['name']
+            state = 'native-transaction-field-' + str(index + 1)
+            _capture(driver, options, state, screenshots, controls,
+                     reset_scroll=False)
+            controls[state].append({'transaction_field': observation})
         _button(wait, 'rollback').click()
         wait.until(lambda _value: 'Idle — no active transaction' in
                    transaction_panel.text)
         # Bound the deliberately costly read even if browser cancellation
-        # fails. SET changes this private query attachment, not the database.
+        # fails. Allow Selenium's running-state and close-guard checks;
+        # native timeout must not win before the explicit Cancel click. Timeout
+        # behavior has separate native gates. SET affects only this attachment.
         _set_text(driver, parameters, '[]')
         _set_text(driver, editor,
-                  'SET STATEMENT TIMEOUT 15000 MILLISECOND')
+                  'SET STATEMENT TIMEOUT 60000 MILLISECOND')
         _button(wait, 'Run').click()
         _button(wait, 'Run')
         _set_text(driver, editor,
                   "SELECT RDB$GET_CONTEXT('SYSTEM', 'STATEMENT_TIMEOUT') "
                   'AS TIMEOUT_VALUE FROM RDB$DATABASE')
         _button(wait, 'Run').click()
-        wait.until(lambda value: _visible_text(value, '15000'))
+        wait.until(lambda value: _visible_text(value, '60000'))
         _set_text(driver, editor,
                   'SELECT COUNT(*) FROM RDB$TYPES A CROSS JOIN RDB$TYPES B '
                   'CROSS JOIN RDB$TYPES C CROSS JOIN RDB$TYPES D')
-        _button(wait, 'Run').click()
+        run_button = _button(wait, 'Run')
+        driver.execute_script('''
+          window.__cdeFirebirdCancelTiming = {};
+          arguments[0].addEventListener('click', () => {
+            window.__cdeFirebirdCancelTiming.run = performance.now();
+          }, {once: true, capture: true});
+        ''', run_button)
+        run_button.click()
         _button(wait, 'Cancel request')
         for name in ('Run', 'commit', 'rollback', 'Close query session'):
             control = visible_named_control(driver, name)
             assert control is not None and not control.is_enabled()
+        capture_started = time.monotonic()
         _capture(driver, options, 'query-running', screenshots, controls)
+        running_capture_seconds = time.monotonic() - capture_started
         dialog = editor.find_element(By.XPATH, './ancestor::*[@role="dialog"]')
         close_buttons = dialog.find_elements(By.CSS_SELECTOR,
                                              'button[aria-label="Close"]')
         assert len(close_buttons) == 1
         close_buttons[0].click()
         assert editor.is_displayed(), 'Running workspace was closed'
-        _button(wait, 'Cancel request').click()
+        cancel_button = _button(wait, 'Cancel request')
+        driver.execute_script('''
+          arguments[0].addEventListener('click', () => {
+            window.__cdeFirebirdCancelTiming.cancel = performance.now();
+          }, {once: true, capture: true});
+        ''', cancel_button)
+        cancel_started = time.monotonic()
+        cancel_button.click()
+        cancel_timing = driver.execute_script('''
+          const trace = window.__cdeFirebirdCancelTiming;
+          return {run_to_cancel_seconds: (trace.cancel - trace.run) / 1000};
+        ''')
+        cancel_timing['running_capture_seconds'] = running_capture_seconds
+        controls['query-running'].append({'cancel_timing': cancel_timing})
+        print('Firebird cancellation timing ' + json.dumps(cancel_timing),
+              flush=True)
         wait.until(lambda value: any(
             item.is_displayed() and '335544794' in item.text
             for item in value.find_elements(By.CSS_SELECTOR, '[role="alert"]')
@@ -378,6 +428,10 @@ def run(options, password):
         cancellation_text = ' '.join(
             item.text for item in driver.find_elements(
                 By.CSS_SELECTOR, '[role="alert"]') if item.is_displayed())
+        cancel_timing['cancel_to_observation_seconds'] = (
+            time.monotonic() - cancel_started)
+        print('Firebird cancellation observation ' + json.dumps(cancel_timing),
+              flush=True)
         assert all(code not in cancellation_text for code in (
             '335545127', '335545128', '335545129')), (
                 'Statement timeout must not pass explicit cancellation')
@@ -449,7 +503,10 @@ def run(options, password):
         driver.quit()
 
 
-def _write_records(options, evidence):
+def _write_records(options, evidence, *,
+                   command_id='database.firebird.studio',
+                   form_id='firebird_sql_studio',
+                   proof_id='firebird-query-ui-gate'):
     manifest = options.manifest_output
     existing = []
     if manifest.exists():
@@ -473,8 +530,8 @@ def _write_records(options, evidence):
             'reference_version': '5.0.4',
             'server_label': options.server,
             'database_label': options.database,
-            'command_id': 'database.firebird.studio',
-            'form_id': 'firebird_sql_studio',
+            'command_id': command_id,
+            'form_id': form_id,
             'state': state,
             'viewport': viewport,
             'theme': options.theme,
@@ -494,8 +551,8 @@ def _write_records(options, evidence):
             'profile_id': 'firebird-native',
             'server_id': options.server,
             'database_target_id': options.database,
-            'command_id': 'database.firebird.studio',
-            'form_id': 'firebird_sql_studio',
+            'command_id': command_id,
+            'form_id': form_id,
             'resource_kind': 'database',
             'resource_id': options.database,
             'state': state,
@@ -511,10 +568,10 @@ def _write_records(options, evidence):
                 occurrence_path, manifest
             ),
             'interaction_result': (
-                f'Firebird SQL Studio state {state}; '
+                f'{form_id} state {state}; '
                 f'sha256={value["sha256"]}'
             ),
-            'transaction_proof_id': 'firebird-query-ui-gate',
+            'transaction_proof_id': proof_id,
             'captured_at_utc': evidence['captured_at'],
         }
         key = (

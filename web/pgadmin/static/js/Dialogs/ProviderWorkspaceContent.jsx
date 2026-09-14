@@ -46,11 +46,19 @@ function GridActivationStatus({contract}) {
     (gate) => gate.state !== 'passed'
   );
   const runtimeReady = contract.runtime_gate?.state === 'passed';
-  const severity = blocked.length || !runtimeReady ? 'warning' : 'success';
+  if (!blocked.length && runtimeReady) {
+    return <Box component="details" sx={{m: 1, flexShrink: 0}}
+      aria-label={gettext('Provider grid activation status')}>
+      <Box component="summary" sx={{cursor: 'pointer'}}>
+        {gettext('Grid checks passed')}</Box>
+      <Box component="p" sx={{mt: 1, mb: 0}}>
+        {gettext('grid contract checks passed; this is not full engine qualification')}
+      </Box>
+    </Box>;
+  }
   const detail = blocked.length ? blocked.map((gate) => gate.gate_id).join(', ') :
-    (!runtimeReady ? gettext('live provider verification') :
-      gettext('grid contract checks passed; this is not full engine qualification'));
-  return <Alert severity={severity} sx={{m: 1}}
+    gettext('live provider verification');
+  return <Alert severity="warning" sx={{m: 1}}
     aria-label={gettext('Provider grid activation status')}>
     {gettext('Provider grid')}: {detail}
   </Alert>;
@@ -1320,6 +1328,11 @@ export function VisualAdministration({catalog, resources, selectedResource, post
               gettext('Data movement may occur.') : gettext('No data movement is expected.')}
           </Alert>}
           {result && <>
+            {result.provider_result?.driver_observation?.service_release?.service_handle_released === false &&
+              <Alert severity="warning" sx={{mt: 2}}
+                aria-label={gettext('Firebird service cleanup required')}>
+                {gettext('Firebird service handle release is unconfirmed. Do not replay the operation. Review its returned outcome separately from cleanup, then explicitly close the provider connection to retry handle release.')}
+              </Alert>}
             {(result.workspace_follow_up || []).filter((item) =>
               item.state === 'failed' && typeof item.message === 'string'
             ).map((item, index) => <Alert key={`${item.action}-${index}`}

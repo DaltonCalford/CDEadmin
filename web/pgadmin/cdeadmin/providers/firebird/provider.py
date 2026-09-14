@@ -33,6 +33,7 @@ from .query_parameters import normalize_parameters
 from .query_values import normalize_value
 from .query_columns import describe_columns
 from .query_client import FirebirdQueryClient
+from .service_connection import connect_service, notify_attached
 from .session_settings import initialize_timeouts
 from .transaction_state import observe_transaction, release_session
 
@@ -341,6 +342,12 @@ def _server_route(route):
 
 def _server_arguments(route, module):
     """Build a Firebird service-manager attachment without a database."""
+    expected_db = route.get('service_expected_database')
+    if expected_db is not None:
+        if not isinstance(expected_db, str) or '\x00' in expected_db:
+            raise RelationalClientError(
+                'Firebird service authentication database must be text')
+        expected_db = expected_db.strip() or None
     _configure_client_library(module)
     wire_configuration = _wire_configuration(route)
     material = {
@@ -374,6 +381,8 @@ def _server_arguments(route, module):
         result['user'] = route['user']
     if route.get('role'):
         result['role'] = route['role']
+    if expected_db is not None:
+        result['expected_db'] = expected_db
     return result
 
 
@@ -2838,7 +2847,11 @@ def _create_client(permissions):
                 server, operation, database, options, module
             )
         ),
-    ), module)
+    ), module, service_connector=(
+        (lambda **kwargs: connect_service(module, core, **kwargs))
+        if module is not None else None), service_attached=(
+        (lambda connection: notify_attached(core, connection))
+        if core is not None else None))
 
 
 def create_provider(context, permissions, client=None):

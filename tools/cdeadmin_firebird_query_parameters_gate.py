@@ -9,8 +9,9 @@ import subprocess
 import time
 import uuid
 from pathlib import Path, PurePosixPath
+from dataclasses import replace
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from cdeadmin_firebird_admin_mapping_gate import (
     ADMINISTRATION, RelationalClientError, _create_client, _route_arguments,
@@ -18,7 +19,7 @@ from cdeadmin_firebird_admin_mapping_gate import (
 from pgadmin.cdeadmin.security.secrets import SecretLease
 
 
-def run(profiles, container):
+def run(profiles, container, unicode_path=False):
     import firebird.driver as driver
     document = json.loads(profiles.read_text())
     route = next(dict(item) for item in document['profiles']
@@ -27,8 +28,9 @@ def run(profiles, container):
     password = route.pop('password')
     route.update(credential_reference_id='owned-bindings-secret',
                  principal_reference='owned-bindings-principal')
+    suffix = '_é_東京' if unicode_path else ''
     path = str(PurePosixPath(route['database']).parent /
-               ('cde_bindings_' + uuid.uuid4().hex + '.fdb'))
+               ('cde_bindings_' + uuid.uuid4().hex + suffix + '.fdb'))
     result = {'complete': False, 'cases': [], 'failures': [],
               'fixture_database': path, 'fixture_removed': False,
               'driver_version': importlib.metadata.version('firebird-driver'),
@@ -554,7 +556,8 @@ def run(profiles, container):
             service_client = _create_client(SimpleNamespace(
                 acquire_secret=lambda *_args: SecretLease(password)))
             try:
-                server = service_client._connect_server({'route': route})
+                server = service_client._connect_server({'route': {
+                    **route, 'service_expected_database': path}})
                 assert '5.0.4' in server.info.version
                 if release == 'temporary':
                     service_client._forget_and_close(server)
@@ -568,6 +571,52 @@ def run(profiles, container):
                 assert not service_client._connections
                 assert not service_client._server_handles
                 result['cases'].append('native-service-release-' + release)
+            finally:
+                service_client.close()
+        for native_failure, detach_failure in itertools.product(
+                (False, True), repeat=2):
+            service_client = _create_client(SimpleNamespace(
+                acquire_secret=lambda *_args: SecretLease(password)))
+            server = service_client._connect_server({'route': route})
+            runner = Mock(wraps=service_client.config.server_operation_runner)
+            service_client.config = replace(
+                service_client.config, server_operation_runner=runner)
+            database = path + '.nonexistent' if native_failure else path
+            try:
+                with patch.object(service_client, '_connect_server',
+                                  return_value=server), patch.object(
+                                      server, 'close', wraps=server.close
+                                  ) as close:
+                    if detach_failure:
+                        close.side_effect = RuntimeError('owned detach fault')
+                    if native_failure:
+                        try:
+                            service_client.run_server_operation(
+                                {'route': route}, 'database_statistics',
+                                database, {'statistics_flags': ['HDR_PAGES']})
+                        except RelationalClientError as exc:
+                            assert 'operation failed' in str(exc)
+                            receipt = exc.service_release
+                        else:
+                            raise AssertionError('Missing database accepted')
+                    else:
+                        observed = service_client.run_server_operation(
+                            {'route': route}, 'database_statistics', database,
+                            {'statistics_flags': ['HDR_PAGES']})
+                        assert observed['server_completed'] is True
+                        assert observed['output']
+                        receipt = observed['service_release']
+                    close.assert_called_once_with()
+                    assert receipt['service_handle_released'] is (
+                        not detach_failure)
+                    assert (server in service_client._connections) is (
+                        detach_failure)
+                service_client.close()
+                assert server._svc is None
+                runner.assert_called_once()
+                result['cases'].append(
+                    f'native-service-outcome-{native_failure}-'
+                    f'detach-failure-{detach_failure}')
             finally:
                 service_client.close()
     except Exception as exc:
@@ -603,7 +652,11 @@ def run(profiles, container):
             except Exception as exc:
                 result['failures'].append({'case': 'cleanup',
                                            'error_type': type(exc).__name__})
-    result['complete'] = (len(result['cases']) == 109 and
+    if len(result['cases']) != 113:
+        result['failures'].append({'case': 'coverage-count',
+                                   'expected': 113,
+                                   'observed': len(result['cases'])})
+    result['complete'] = (len(result['cases']) == 113 and
                           result['fixture_removed'] and not result['failures'])
     return result
 
@@ -613,8 +666,9 @@ def main():
     parser.add_argument('--profiles', type=Path, required=True)
     parser.add_argument('--container', default='cdeadmin-demo-firebird')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--unicode-path', action='store_true')
     args = parser.parse_args()
-    result = run(args.profiles, args.container)
+    result = run(args.profiles, args.container, args.unicode_path)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))

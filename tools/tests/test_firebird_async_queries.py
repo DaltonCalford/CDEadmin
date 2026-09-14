@@ -1,6 +1,7 @@
 """Firebird query submission, cancellation races and session ownership."""
 
 import threading
+from dataclasses import replace
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
@@ -150,6 +151,122 @@ def test_service_execution_blocks_whole_client_release(rig):
             {'route': {'host': 'test'}}, 'database_statistics', 'owned', {})
     assert result == {'server_completed': True}
     assert rig.client._native_operations == 0
+
+
+@pytest.mark.parametrize('service', [False, True])
+def test_service_plan_authenticates_before_retention_without_starting_task(
+        rig, service):
+    handle = service_handle(rig)
+    plan = {'provider_payload': {'route': {'host': 'exact'}, 'compiled': {
+        'driver_operation': 'firebird-service' if service else None}}}
+    with patch('pgadmin.cdeadmin.sdk.relational.RelationalDBAPIClient.'
+               'plan_admin_operation', return_value=plan), patch.object(
+                   rig.client, '_connect_server',
+                   return_value=handle) as open_:
+        assert rig.client.plan_admin_operation({}) is plan
+    if service:
+        open_.assert_called_once_with({'route': {'host': 'exact'}})
+        handle.close.assert_called_once_with()
+    else:
+        open_.assert_not_called()
+        handle.close.assert_not_called()
+
+
+@pytest.mark.parametrize('failure', ['credentials', 'release'])
+def test_service_preflight_cannot_return_a_plan_after_auth_or_release_failure(
+        rig, failure):
+    handle = service_handle(rig)
+    plan = {'provider_payload': {'route': {}, 'compiled': {
+        'driver_operation': 'firebird-service'}}}
+    if failure == 'release':
+        handle.close.side_effect = RuntimeError('detach-canary')
+    with patch('pgadmin.cdeadmin.sdk.relational.RelationalDBAPIClient.'
+               'plan_admin_operation', return_value=plan), patch.object(
+                   rig.client, '_connect_server', return_value=handle,
+                   side_effect=(RelationalClientError('credentials missing')
+                                if failure == 'credentials' else None)):
+        with pytest.raises(RelationalClientError):
+            rig.client.plan_admin_operation({})
+    assert rig.client._native_operations == 0
+    assert handle in rig.client._connections
+    handle.close.side_effect = lambda: setattr(handle, '_svc', None)
+
+
+@pytest.mark.parametrize('detach_failure', [False, True])
+def test_attachment_hooks_run_after_ownership_and_failure_stays_owned(
+        rig, detach_failure):
+    handle = SimpleNamespace(_svc=object())
+    handle.close = Mock(side_effect=(RuntimeError('detach-canary')
+                        if detach_failure else
+                        lambda: setattr(handle, '_svc', None)))
+
+    def attached(value):
+        assert value in rig.client._connections
+        assert id(value) in rig.client._server_handles
+        raise RuntimeError('hook-credential-canary')
+
+    rig.client._service_attached = attached
+    rig.client._server_connector = Mock()
+    with patch.object(rig.client, '_invoke_connector', return_value=handle):
+        with pytest.raises(RelationalClientError) as caught:
+            rig.client._connect_server({'route': {}})
+    assert 'canary' not in str(caught.value)
+    assert (handle in rig.client._connections) is detach_failure
+    assert caught.value.service_release['service_handle_released'] is (
+        not detach_failure)
+    handle.close.side_effect = lambda: setattr(handle, '_svc', None)
+
+
+@pytest.mark.parametrize('detach_failure', [False, True])
+@pytest.mark.parametrize('outcome', [
+    'returned', 'native_error', 'foreign_error', 'invalid'])
+def test_service_outcome_is_not_replaced_by_detach_failure(
+        rig, detach_failure, outcome):
+    handle = service_handle(rig)
+    observation = {'server_completed': True, 'output': ['native result']}
+    native_error = RelationalClientError('native operation rejected')
+    native_error.gds_codes = (335544344,)
+    runner = Mock(return_value=(observation if outcome == 'returned' else []))
+    if outcome == 'native_error':
+        runner.side_effect = native_error
+    elif outcome == 'foreign_error':
+        runner.side_effect = RuntimeError('credential-canary')
+    rig.client.config = replace(rig.client.config,
+                                server_operation_runner=runner)
+    if detach_failure:
+        handle.close.side_effect = RuntimeError('credential-canary')
+    with patch.object(rig.client, '_connect_server', return_value=handle):
+        if outcome == 'returned':
+            result = rig.client.run_server_operation(
+                {'route': {}}, 'database_statistics', ' owned ', {})
+            assert result['server_completed'] is True
+            assert result['output'] == ['native result']
+            assert 'service_release' not in observation
+            receipt = result['service_release']
+        else:
+            with pytest.raises(RelationalClientError) as caught:
+                rig.client.run_server_operation(
+                    {'route': {}}, 'database_statistics', ' owned ', {})
+            if outcome == 'native_error':
+                assert caught.value is native_error
+                assert caught.value.gds_codes == (335544344,)
+            elif outcome == 'invalid':
+                assert 'invalid result' in str(caught.value)
+            else:
+                assert str(caught.value) == (
+                    'provider server operation failed (RuntimeError)')
+            receipt = caught.value.service_release
+            assert 'credential-canary' not in str(caught.value)
+    runner.assert_called_once_with(handle, 'database_statistics', 'owned', {})
+    handle.close.assert_called_once_with()
+    assert receipt['service_handle_released'] is not detach_failure
+    assert 'credential-canary' not in repr(receipt)
+    assert (handle in rig.client._connections) is detach_failure
+    if detach_failure:
+        assert 'Do not replay' in receipt['message']
+        handle.close.side_effect = lambda: setattr(handle, '_svc', None)
+        rig.client.close()
+        runner.assert_called_once()
 
 
 def complete(rig, query):

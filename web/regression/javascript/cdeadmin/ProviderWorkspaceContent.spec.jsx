@@ -1320,6 +1320,38 @@ describe('ProviderWorkspaceContent', () => {
       body.action === 'visual_admin_apply')).toHaveLength(1);
   });
 
+  it.each([true, false])('preserves service outcome when released=%s', async (released) => {
+    const post = jest.fn(async ({action}) => {
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return {plan_id: 'p', plan_digest: 'd',
+        state: 'ready', execution_available: true};
+      return {provider_result: {accepted: true, driver_observation: {
+        server_completed: true, output: ['Native service result'],
+        service_release: {service_handle_released: released},
+      }}};
+    });
+    render(<VisualAdministration resources={[]} post={post} setError={jest.fn()}
+      initialResourceKind="database" initialOperationId="database_statistics"
+      catalog={{objects: [{resource_kind: 'database', title: 'Database',
+        operations: [{operation_id: 'database_statistics', title: 'Database statistics',
+          target_required: false, form: {fields: []}}]}]}} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button',
+      {name: 'Apply provider plan'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+    expect(await screen.findByLabelText('Provider operation result'))
+      .toHaveTextContent('Native service result');
+    if (released) {
+      expect(screen.queryByLabelText('Firebird service cleanup required')).not.toBeInTheDocument();
+    } else {
+      expect(screen.getByLabelText('Firebird service cleanup required'))
+        .toHaveTextContent('Do not replay the operation.');
+    }
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+    expect(post.mock.calls.filter(([body]) =>
+      body.action === 'visual_admin_apply')).toHaveLength(1);
+  });
+
   it.each(['ok', 'reload', 'execute'])('does not replay an edit after %s outcome', async (outcome) => {
     const object = {resource_id: 'sequence:one', resource_kind: 'sequence',
       display_name: 'Sequence one'};
@@ -2199,6 +2231,13 @@ describe('ProviderWorkspaceContent', () => {
     expect(await screen.findByText('MySQL SQL')).toBeInTheDocument();
     expect(screen.getByLabelText('Provider grid activation status'))
       .toHaveTextContent('grid contract checks passed; this is not full engine qualification');
+    const status = screen.getByLabelText('Provider grid activation status');
+    expect(status.tagName).toBe('DETAILS');
+    expect(status).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Grid checks passed'));
+    expect(status).toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Grid checks passed'));
+    expect(status).not.toHaveAttribute('open');
     fireEvent.click(screen.getByText('Run'));
     expect(await screen.findByText('42')).toBeInTheDocument();
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
@@ -2208,6 +2247,24 @@ describe('ProviderWorkspaceContent', () => {
     expect(api.post.mock.calls.map((call) =>
       call[1].database_target_id
     )).toEqual(['database-one', 'database-one', 'database-one']);
+  });
+
+  it.each(['runtime', 'structural'])('keeps %s grid failures visibly expanded', async (failure) => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap,
+      grid_workspace: {...bootstrap.grid_workspace,
+        ...(failure === 'runtime' ? {runtime_gate: {state: 'failed'}} : {
+          activation_gates: [{gate_id: 'column_contract', state: 'failed'}],
+        }),
+      },
+    }}});
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    await screen.findByText('MySQL SQL');
+    const warning = screen.getByRole('alert', {name: 'Provider grid activation status'});
+    expect(warning).toBeVisible();
+    expect(warning).toHaveTextContent(failure === 'runtime' ?
+      'live provider verification' : 'column_contract');
+    expect(screen.queryByText('Grid checks passed')).not.toBeInTheDocument();
   });
 
   it('uses provider transaction controls without inferring finality', async () => {

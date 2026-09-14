@@ -118,7 +118,7 @@ def test_object_gate_forwards_repeatable_focus_filters():
 
 
 def test_data_gates_use_reference_profile_without_secret_argument():
-    for kind in ('grid', 'query'):
+    for kind in ('grid', 'query', 'services'):
         command = gate_command(
             options(kind), 'http://127.0.0.1:5052', 'sample.fdb'
         )
@@ -126,6 +126,7 @@ def test_data_gates_use_reference_profile_without_secret_argument():
         assert command[command.index('--profiles') + 1] == '/profiles.json'
         assert '--manifest-output' in command
         assert '--endpoint-password-env' not in command
+        assert command[1].endswith(f'cdeadmin_firebird_{kind}_ui_gate.py')
 
 
 @pytest.mark.parametrize('kind', ['lifecycle', 'inspector-tabs'])

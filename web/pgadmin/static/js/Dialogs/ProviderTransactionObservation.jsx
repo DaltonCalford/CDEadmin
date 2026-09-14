@@ -54,7 +54,7 @@ export default function ProviderTransactionObservation({transaction, label}) {
     <Box component="h3" sx={{mt: 0, fontSize: '1em'}}>
       {gettext('Firebird transaction')}</Box>
     <Box component="dl" sx={{display: 'grid', gap: 1, m: 0,
-      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))'}}>
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 16em), 1fr))'}}>
       {entries.map(([name, value]) => <Box key={name} sx={{minWidth: 0}}>
         <Box component="dt" sx={{fontWeight: 600}}>{name}</Box>
         <Box component="dd" sx={{m: 0, overflowWrap: 'anywhere'}}>{value}</Box>
