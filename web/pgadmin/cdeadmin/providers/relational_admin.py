@@ -3806,7 +3806,11 @@ class RelationalAdministration:
             'statements': [],
             'warnings': [
                 'Database creation uses the endpoint-approved creation root.'
-            ],
+            ] + ([
+                'Firebird does not disable cooperative garbage collection '
+                'on the initial creation attachment. The selected setting '
+                'applies to subsequent database attachments.'
+            ] if mode == 'firebird-driver' and route.get('no_gc') else []),
         }
 
     def _normalize_draft(self, kind, operation, draft):

@@ -6,6 +6,7 @@ uniquely named database is created and dropped. Demo data is read-only.
 """
 
 import argparse
+import importlib.metadata
 import ipaddress
 import json
 import select
@@ -84,6 +85,7 @@ def run(profiles, container):
     path = str(PurePosixPath(route['database']).parent /
                ('cde_address_' + uuid.uuid4().hex + '.fdb'))
     result = {'complete': False, 'cases': [], 'failures': [],
+              'driver_version': importlib.metadata.version('firebird-driver'),
               'fixture_database': path, 'fixture_removed': False,
               'relay_stopped': False, 'credential_values_exported': False,
               'windows_server_qualified': False}

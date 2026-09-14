@@ -18,10 +18,7 @@ adapter never decides commit, rollback, retry, or recovery outcomes.
 from __future__ import annotations
 
 import copy
-import hashlib
 import importlib
-import json
-import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -319,7 +316,6 @@ class RelationalDBAPIClient:
         self._connections: list[object] = []
         self._connection_databases: dict[int, object] = {}
         self._tokens: list[_ResultToken] = []
-        self._configuration_lock = threading.RLock()
 
     @staticmethod
     def _route(request: Mapping[str, Any]) -> dict[str, Any]:
@@ -491,46 +487,14 @@ class RelationalDBAPIClient:
                 raise RelationalClientError(
                     'Firebird database creation options are invalid'
                 )
-            supported = {
-                'page_size', 'default_charset', 'sql_dialect',
-                'forced_writes', 'reserve_space',
-            }
-            if set(options).difference(supported):
-                raise RelationalClientError(
-                    'Firebird database creation options are unsupported'
+            if self.config.database_create_arguments is None:
+                raise RelationalDependencyError(
+                    'Firebird provider database creation configuration '
+                    'is unavailable'
                 )
             route = self._route(request)
-            material = {'database': database, 'options': dict(options)}
-            config_name = 'cde_create_' + hashlib.sha256(json.dumps(
-                material, sort_keys=True, separators=(',', ':'),
-            ).encode('utf-8')).hexdigest()[:24]
-            with self._configuration_lock:
-                config = self.module.driver_config.get_database(config_name)
-                if config is None:
-                    config = self.module.driver_config.register_database(
-                        config_name
-                    )
-                config.database.value = database
-                config.page_size.value = options.get('page_size', 8192)
-                config.db_charset.value = options.get(
-                    'default_charset', 'UTF8'
-                )
-                config.db_sql_dialect.value = options.get('sql_dialect', 3)
-                config.forced_writes.value = options.get(
-                    'forced_writes', True
-                )
-                config.reserve_space.value = options.get(
-                    'reserve_space', True
-                )
-            connector_arguments = {
-                'database': config_name,
-                'charset': route.get('charset', 'UTF8'),
-                'role': route.get('role'),
-                'no_gc': route.get('no_gc'),
-                'no_db_triggers': route.get('no_db_triggers'),
-                'session_time_zone': route.get('session_time_zone'),
-                'overwrite': False,
-            }
+            connector_arguments = dict(self.config.database_create_arguments(
+                route, database, copy.deepcopy(dict(options))))
         elif driver_operation == 'embedded-create-database':
             connector = self._connector
         else:
@@ -566,7 +530,10 @@ class RelationalDBAPIClient:
                     'trusted database target'
                 )
         connection = self._invoke_connector(
-            request, connector, connector_arguments
+            request, connector, connector_arguments,
+            connect_arguments=((lambda _route: {}) if
+                               driver_operation == 'firebird-create-database'
+                               else None),
         )
         initialization = {}
         try:

@@ -149,7 +149,28 @@ class FirebirdProvider(ActualEnginePilotProvider):
 _CONFIG_LOCK = threading.RLock()
 
 
-def _route_arguments(route, module=None):
+def _wire_configuration(route):
+    options = []
+    if route.get('wire_config') is not None and not isinstance(
+            route['wire_config'], str):
+        raise RelationalClientError('Firebird wire configuration is invalid')
+    if route.get('wire_crypt'):
+        if route['wire_crypt'] not in {'Disabled', 'Enabled', 'Required'}:
+            raise RelationalClientError(
+                'Firebird wire encryption policy is invalid')
+        options.append(f'WireCrypt={route["wire_crypt"]}')
+    if route.get('wire_compression') is not None:
+        if type(route['wire_compression']) is not bool:
+            raise RelationalClientError(
+                'Firebird wire compression policy is invalid')
+        options.append('WireCompression=' + (
+            'true' if route['wire_compression'] else 'false'))
+    if route.get('wire_config'):
+        options.append(route['wire_config'])
+    return '\n'.join(options) or None
+
+
+def _route_arguments(route, module=None, *, creation=None):
     allowed = {
         'database', 'user', 'role', 'charset', 'auth_plugin_list',
         'session_time_zone', 'no_gc', 'no_db_triggers',
@@ -159,16 +180,20 @@ def _route_arguments(route, module=None):
     # when DDL literals are converted into Firebird's metadata character set.
     # Default to Unicode while preserving an explicitly selected charset.
     result.setdefault('charset', 'UTF8')
-    database = result.get('database')
+    database = creation['database'] if creation is not None else (
+        result.get('database'))
     host = server_host(route.get('host'))
     port = route.get('port')
-    path = target_path(database, host, port) if database else database
-    if database:
+    path = (target_path(database, host, port)
+            if database and creation is None else None)
+    if creation is not None:
+        result['database'] = database
+    elif database:
         protocol = route.get('protocol')
         result['database'] = database_dsn(
             path, host, port,
             protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
-    configured = any(
+    configured = creation is not None or any(
         name in route for name in (
             'trusted_auth', 'timeout', 'protocol',
             'dummy_packet_interval', 'wire_config', 'wire_crypt',
@@ -180,6 +205,7 @@ def _route_arguments(route, module=None):
     database = result.pop('database', None)
     if not database:
         return result
+    wire_configuration = _wire_configuration(route)
     material = {
         name: route.get(name) for name in (
             'host', 'port', 'database', 'user', 'auth_plugin_list',
@@ -188,6 +214,8 @@ def _route_arguments(route, module=None):
             'wire_crypt', 'wire_compression',
         )
     }
+    if creation is not None:
+        material['creation'] = creation
     digest = hashlib.sha256(json.dumps(
         material, sort_keys=True, separators=(',', ':'),
     ).encode('utf-8')).hexdigest()[:24]
@@ -197,24 +225,37 @@ def _route_arguments(route, module=None):
         server = module.driver_config.get_server(server_name)
         if server is None:
             server = module.driver_config.register_server(server_name)
-        # Driver 2.0.3 has no INET6 enum, although Firebird supports it.
+        # Driver 1.10.11 has no INET6 enum, although Firebird supports it.
         # Use its documented DSN configuration with a hostless private server
         # configuration so driver defaults cannot add a second address.
         inet6 = route.get('protocol') == 'INET6'
-        server.host.value = None if inet6 else host
+        explicit_dsn = inet6 or creation is not None
+        server.host.value = None if explicit_dsn else host
         server.port.value = (
             str(route['port'])
-            if route.get('port') is not None and not inet6 else None
+            if route.get('port') is not None and not explicit_dsn else None
         )
-        server.user.value = route.get('user')
+        server.user.value = (
+            None if route.get('trusted_auth') else route.get('user'))
+        server.password.value = None
         server.trusted_auth.value = bool(route.get('trusted_auth'))
         server.auth_plugin_list.value = route.get('auth_plugin_list')
         config = module.driver_config.get_database(database_name)
         if config is None:
             config = module.driver_config.register_database(database_name)
-            config.database.value = None if inet6 else path
+            config.user.value = None
+            config.password.value = None
+            config.database.value = None if explicit_dsn else path
             config.server.value = server_name
-            if inet6:
+            if creation is not None:
+                config.dsn.value = database
+                options = creation['options']
+                config.page_size.value = options.get('page_size', 8192)
+                config.db_charset.value = options.get('default_charset', 'UTF8')
+                config.db_sql_dialect.value = options.get('sql_dialect', 3)
+                config.forced_writes.value = options.get('forced_writes', True)
+                config.reserve_space.value = options.get('reserve_space', True)
+            elif inet6:
                 config.dsn.value = database_dsn(path, host, port, 'INET6')
             elif route.get('protocol'):
                 config.protocol.value = module.NetProtocol[
@@ -225,26 +266,26 @@ def _route_arguments(route, module=None):
             config.dummy_packet_interval.value = route.get(
                 'dummy_packet_interval'
             )
-            wire_options = []
-            if route.get('wire_crypt'):
-                if route['wire_crypt'] not in {
-                    'Disabled', 'Enabled', 'Required'
-                }:
-                    raise RelationalClientError(
-                        'Firebird wire encryption policy is invalid'
-                    )
-                wire_options.append(f'WireCrypt={route["wire_crypt"]}')
-            if route.get('wire_compression'):
-                wire_options.append('WireCompression=true')
-            if route.get('wire_config'):
-                wire_options.append(str(route['wire_config']))
-            config.config.value = '\n'.join(wire_options) or None
+            config.config.value = wire_configuration
     result['database'] = database_name
     if route.get('trusted_auth'):
         result.pop('user', None)
     if route.get('dbkey_scope'):
         result['dbkey_scope'] = module.DBKeyScope[route['dbkey_scope']]
+    if creation is not None:
+        result['overwrite'] = False
     return result
+
+
+def _database_create_arguments(route, database, options, module):
+    """Use the selected connection DPB, never shared driver defaults."""
+    supported = {'page_size', 'default_charset', 'sql_dialect',
+                 'forced_writes', 'reserve_space'}
+    if not isinstance(options, dict) or set(options).difference(supported):
+        raise RelationalClientError(
+            'Firebird database creation options are unsupported')
+    return _route_arguments(route, module, creation={
+        'database': database, 'options': dict(options)})
 
 
 def _server_route(route):
@@ -256,6 +297,7 @@ def _server_route(route):
 def _server_arguments(route, module):
     """Build a Firebird service-manager attachment without a database."""
     _configure_client_library(module)
+    wire_configuration = _wire_configuration(route)
     material = {
         name: route.get(name) for name in (
             'host', 'port', 'user', 'protocol', 'trusted_auth',
@@ -276,23 +318,12 @@ def _server_arguments(route, module):
             route.get('host'), route.get('port'),
             protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
         server.port.value = None
-        server.user.value = route.get('user')
+        server.user.value = (
+            None if route.get('trusted_auth') else route.get('user'))
+        server.password.value = None
         server.trusted_auth.value = bool(route.get('trusted_auth'))
         server.auth_plugin_list.value = route.get('auth_plugin_list')
-        wire_options = []
-        if route.get('wire_crypt'):
-            if route['wire_crypt'] not in {
-                'Disabled', 'Enabled', 'Required'
-            }:
-                raise RelationalClientError(
-                    'Firebird wire encryption policy is invalid'
-                )
-            wire_options.append(f'WireCrypt={route["wire_crypt"]}')
-        if route.get('wire_compression'):
-            wire_options.append('WireCompression=true')
-        if route.get('wire_config'):
-            wire_options.append(str(route['wire_config']))
-        server.config.value = '\n'.join(wire_options) or None
+        server.config.value = wire_configuration
     result = {'server': server_name}
     if not route.get('trusted_auth') and route.get('user'):
         result['user'] = route['user']
@@ -2724,6 +2755,9 @@ def _create_client(permissions):
         secret_acquirer=permissions.acquire_secret,
         connection_initializer=lambda connection, route: (
             _initialize_connection(connection, route, module)
+        ),
+        database_create_arguments=lambda route, database, options: (
+            _database_create_arguments(route, database, options, module)
         ),
         administration=ADMINISTRATION,
         server_route=_server_route,
