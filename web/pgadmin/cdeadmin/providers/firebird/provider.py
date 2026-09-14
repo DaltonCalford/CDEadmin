@@ -25,6 +25,7 @@ from ..relational_admin import (
 from . import columns, mappings
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
+from .backup_volumes import logical_backup_volumes, start_split_backup
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
 from .column_type_metadata import type_editor_values
@@ -660,6 +661,8 @@ def _service_backup_with_history(server, database, options, module):
 def _firebird_service_operation(
         server, operation_id, database, options, module):
     """Dispatch one exact Firebird 5 database service-manager task."""
+    if operation_id == 'backup_logical':
+        logical_backup_volumes(options)
     if operation_id in {'backup_physical', 'restore_physical'}:
         options = normalize_physical_io(operation_id, options)
     if operation_id == 'backup_physical':
@@ -690,7 +693,13 @@ def _firebird_service_operation(
         } if options['database_guid'] is not None else {
             'mode': 'level', 'level': options.get('backup_level', 0),
         })
-    if operation_id == 'backup_logical':
+    if operation_id == 'backup_logical' and options.get('split_backup'):
+        flags = _flag_value(module, 'SrvBackupFlag',
+                            options.get('backup_flags'))
+        lines, truncated = _service_lines(lambda output: start_split_backup(
+            server, database, options, flags, module, output))
+        result.update(output=lines, output_truncated=truncated)
+    elif operation_id == 'backup_logical':
         lines, truncated = _service_lines(lambda output: service.backup(
             database=database, backup=options['backup_file'], role=role,
             flags=_flag_value(

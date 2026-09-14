@@ -90,7 +90,13 @@ def run_scale(options, native, profile, password, scale):
     path = str(root / ('cde_history_ui_' + uuid.uuid4().hex + '.fdb'))
     restored = path + '.RESTORED.fdb'
     preserved = path + '.RESTORED.PRESERVE.fdb'
-    backups = [path + '.' + part + '.nbk' for part in ('ROWS', 'DAYS', 'GUID')]
+    gate_kind = getattr(options, 'gate_kind', 'backup-history')
+    if gate_kind not in {'backup-history', 'logical-volumes'}:
+        raise ValueError('Unsupported owned backup browser gate')
+    backups = ([path + f'.part-{part}.fbk' for part in range(1, 4)]
+               if gate_kind == 'logical-volumes' else
+               [path + '.' + part + '.nbk'
+                for part in ('ROWS', 'DAYS', 'GUID')])
     claimed = False
     result = {'scale': scale, 'complete': False, 'target_database': path,
               'restored_database': restored, 'preserved_database': preserved,
@@ -115,7 +121,7 @@ def run_scale(options, native, profile, password, scale):
             '--firebird-port', str(profile['port']),
             '--client-library', str(options.client_library),
             '--profiles', str(options.profiles),
-            '--gate-kind', 'backup-history',
+            '--gate-kind', gate_kind,
             '--font-scale', str(scale), '--theme',
             'default' if scale == 100 else 'high-contrast',
             '--timeout', str(options.timeout),
@@ -185,6 +191,8 @@ def main():
                         choices=(100, 200, 300))
     parser.add_argument('--timeout', type=int, default=30)
     parser.add_argument('--browser-binary')
+    parser.add_argument('--gate-kind', default='backup-history',
+                        choices=('backup-history', 'logical-volumes'))
     options = parser.parse_args()
     if options.timeout < 1:
         raise SystemExit('Browser timeout must be positive')

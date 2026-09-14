@@ -60,14 +60,16 @@ def test_port_binding_matches_owned_endpoint(monkeypatch, published, valid):
 
 @pytest.mark.parametrize('failure', [
     None, 'exists', 'create', 'browser', 'target', 'configuration', 'drop'])
+@pytest.mark.parametrize('gate_kind', ['backup-history', 'logical-volumes'])
 def test_fixture_lifecycle_and_failure_barriers(
-        tmp_path, monkeypatch, failure):
+        tmp_path, monkeypatch, failure, gate_kind):
     options = SimpleNamespace(container=CID, output_root=tmp_path,
                               source_config_db=tmp_path / 'source.db',
                               desktop_user='test@example.invalid',
                               client_library=tmp_path / 'libfbclient.so',
                               profiles=tmp_path / 'profiles.json',
-                              timeout=30, browser_binary=None)
+                              timeout=30, browser_binary=None,
+                              gate_kind=gate_kind)
     profile = {'database': '/data/sample.fdb', 'port': 53050}
     present = set()
     calls = []
@@ -78,7 +80,8 @@ def test_fixture_lifecycle_and_failure_barriers(
         calls.append(args)
         candidate = args[-1]
         if args[:3] == ('exec', 'rm', '-f'):
-            assert candidate.endswith('.nbk')
+            assert candidate.endswith(
+                '.fbk' if gate_kind == 'logical-volumes' else '.nbk')
             present.discard(candidate)
             return SimpleNamespace(returncode=0)
         exists = candidate in present
@@ -107,8 +110,11 @@ def test_fixture_lifecycle_and_failure_barriers(
         path = command[command.index('--database') + 1]
         present.add(path + '.RESTORED.fdb')
         present.add(path + '.RESTORED.PRESERVE.fdb')
-        present.update(path + '.' + name + '.nbk'
-                       for name in ('ROWS', 'DAYS', 'GUID'))
+        assert command[command.index('--gate-kind') + 1] == gate_kind
+        present.update(
+            [path + f'.part-{part}.fbk' for part in range(1, 4)]
+            if gate_kind == 'logical-volumes' else
+            [path + '.' + name + '.nbk' for name in ('ROWS', 'DAYS', 'GUID')])
         output = command[command.index('--output') + 1]
         gate.Path(output).write_text(json.dumps({
             'complete': True, 'source_config_unchanged':

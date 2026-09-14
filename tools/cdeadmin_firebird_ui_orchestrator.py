@@ -55,6 +55,7 @@ GATE_SCRIPTS = {
     'query': 'cdeadmin_firebird_query_ui_gate.py',
     'services': 'cdeadmin_firebird_services_ui_gate.py',
     'backup-history': 'cdeadmin_firebird_backup_history_ui_gate.py',
+    'logical-volumes': 'cdeadmin_firebird_logical_volumes_ui_gate.py',
     'lifecycle': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
@@ -143,7 +144,8 @@ def gate_command(options, url, database_label, config_database=None):
                                  'table-metadata', 'privileges', 'rename'}:
             command.extend(['--profiles', str(options.profiles),
                             '--database-path', options.database])
-    elif options.gate_kind in {'grid', 'query', 'services', 'backup-history'}:
+    elif options.gate_kind in {
+            'grid', 'query', 'services', 'backup-history', 'logical-volumes'}:
         command.extend([
             '--profiles', str(options.profiles),
             '--manifest-output', str(options.manifest_output),

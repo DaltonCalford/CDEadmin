@@ -118,7 +118,8 @@ def test_object_gate_forwards_repeatable_focus_filters():
 
 
 def test_data_gates_use_reference_profile_without_secret_argument():
-    for kind in ('grid', 'query', 'services', 'backup-history'):
+    for kind in ('grid', 'query', 'services', 'backup-history',
+                 'logical-volumes'):
         command = gate_command(
             options(kind), 'http://127.0.0.1:5052', 'sample.fdb'
         )

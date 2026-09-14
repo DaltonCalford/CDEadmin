@@ -3,11 +3,17 @@ from unittest.mock import Mock
 
 import pytest
 
-from tools import cdeadmin_firebird_restore_identity_gate as gate
+from tools import cdeadmin_firebird_restore_identity_gate as identity_gate
+from tools import cdeadmin_firebird_logical_volumes_gate as volumes_gate
+
+
+@pytest.fixture(params=[identity_gate, volumes_gate])
+def gate(request):
+    return request.param
 
 
 @pytest.mark.parametrize('value', ['', 'demo', 'a' * 63, 'a' * 65, 'G' * 64])
-def test_cleanup_rejects_non_identity_before_docker(monkeypatch, value):
+def test_cleanup_rejects_non_identity_before_docker(monkeypatch, value, gate):
     docker = Mock()
     monkeypatch.setattr(gate, 'docker', docker)
     with pytest.raises(ValueError):
@@ -17,7 +23,7 @@ def test_cleanup_rejects_non_identity_before_docker(monkeypatch, value):
 
 @pytest.mark.parametrize('label', [
     b'', b'other', b'firebird-service-security'])
-def test_cleanup_rejects_other_owners(monkeypatch, label):
+def test_cleanup_rejects_other_owners(monkeypatch, label, gate):
     docker = Mock(return_value=label)
     monkeypatch.setattr(gate, 'docker', docker)
     with pytest.raises(RuntimeError):
@@ -26,7 +32,7 @@ def test_cleanup_rejects_other_owners(monkeypatch, label):
     assert docker.call_args.args[0] == 'inspect'
 
 
-def test_cleanup_uses_immutable_identity(monkeypatch):
+def test_cleanup_uses_immutable_identity(monkeypatch, gate):
     docker = Mock(return_value=(gate.OWNER + '\n').encode())
     monkeypatch.setattr(gate, 'docker', docker)
     gate.remove_owned('b' * 64)
@@ -35,7 +41,7 @@ def test_cleanup_uses_immutable_identity(monkeypatch):
 
 @pytest.mark.parametrize('phase', ['create', 'start'])
 def test_initial_failure_redacts_credentials_and_cleans_only_owned(
-        monkeypatch, phase):
+        monkeypatch, phase, gate):
     monkeypatch.setattr(gate, '_configure_client_library', Mock())
     monkeypatch.setattr(gate.secrets, 'token_urlsafe',
                         Mock(return_value='SECRET'))

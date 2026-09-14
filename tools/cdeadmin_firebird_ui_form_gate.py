@@ -522,11 +522,46 @@ def assert_field_label_geometry(driver, control):
     return geometry
 
 
-def assert_form_controls(wait, fields):
+def assert_form_controls(wait, fields, draft=None):
+    """Verify visible controls and the absence of inactive controls.
+
+    Inactive declarations are recorded explicitly, not counted as rendered
+    controls. Call again with the changed draft to qualify an activated branch.
+    """
     driver = wait._driver
+    values = {}
+    for field in fields:
+        value = field.get('default')
+        if value is None:
+            if field.get('control') == 'boolean':
+                value = False
+            elif field.get('array_editor') or field.get(
+                    'control') == 'multiselect':
+                value = []
+            elif field.get('object_editor'):
+                value = {}
+            else:
+                value = ''
+        values[field['field_id']] = value
+    values.update(draft or {})
     observed = []
     for field in fields:
         label = field['label']
+        if not _draft_field_visible(field, values):
+            if field.get('array_editor') or field.get('object_editor'):
+                selector = ('[role="group"][aria-label=' +
+                            json.dumps(label, ensure_ascii=False) + ']')
+                present = any(item.is_displayed() for item in
+                              driver.find_elements(By.CSS_SELECTOR, selector))
+            else:
+                present = visible_named_control(driver, label) is not None
+            if present:
+                raise RuntimeError(
+                    f'inactive field {field["field_id"]!r} is displayed')
+            observed.append({'field_id': field['field_id'], 'label': label,
+                             'control': field['control'], 'visible': False,
+                             'absence_verified': True})
+            continue
         print(f'  rendered field {field["field_id"]}: {label}', flush=True)
         try:
             if field.get('array_editor') or field.get('object_editor'):
@@ -567,6 +602,7 @@ def assert_form_controls(wait, fields):
             'field_id': field['field_id'],
             'label': label,
             'control': field['control'],
+            'visible': True,
             'tag': control.tag_name,
             'role': control.get_attribute('role') or '',
             'accessible_name': accessible_name,
@@ -884,7 +920,7 @@ def accessibility_observation(driver, wait, operation, controls):
         )
     unnamed = [
         item['field_id'] for item in controls
-        if not item['accessible_name']
+        if item.get('visible', True) and not item.get('accessible_name')
     ]
     if unnamed:
         raise RuntimeError(

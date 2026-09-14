@@ -425,7 +425,9 @@
     "firebird_backup_logical": {
       "title": "Firebird logical backup (gbak)",
       "fields": [
-        {"field_id": "backup_file", "label": "Backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
+        {"field_id": "split_backup", "label": "Split backup across volumes", "control": "boolean", "required": false, "default": false},
+        {"field_id": "backup_file", "label": "Backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096, "visible_when": {"field_id": "split_backup", "equals": false}},
+        {"field_id": "backup_volumes", "label": "Ordered backup volumes", "control": "json", "json_type": "array", "required": true, "default": [], "visible_when": {"field_id": "split_backup", "equals": true}, "help": "Add at least two distinct server filenames in order. Set the byte capacity of every volume except the last; leave the last capacity empty. Moving a volume also moves its capacity. Paths refer to the Firebird server, not this browser.", "array_editor": {"item_kind": "object", "fields": [{"field_id": "filename", "label": "Volume filename", "control": "text", "required": true}, {"field_id": "size_bytes", "label": "Capacity in bytes (empty for last volume)", "control": "number", "required": false, "minimum": 2048, "maximum": 2147483647}]}},
         {"field_id": "backup_flags", "label": "Backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "IGNORE_CHECKSUMS", "label": "Ignore checksums"}, {"value": "IGNORE_LIMBO", "label": "Ignore limbo transactions"}, {"value": "METADATA_ONLY", "label": "Metadata only"}, {"value": "NO_GARBAGE_COLLECT", "label": "No garbage collection"}, {"value": "OLD_DESCRIPTIONS", "label": "Use old metadata descriptions"}, {"value": "NON_TRANSPORTABLE", "label": "Non-transportable"}, {"value": "CONVERT", "label": "Convert external tables to internal tables"}, {"value": "EXPAND", "label": "Create an uncompressed backup"}, {"value": "NO_TRIGGERS", "label": "Disable database triggers"}, {"value": "ZIP", "label": "Compressed backup"}, {"value": "DIRECT_IO", "label": "Direct I/O"}]},
         {"field_id": "skip_data", "label": "Skip data for tables matching", "control": "text", "required": false},
         {"field_id": "include_data", "label": "Include data for tables matching", "control": "text", "required": false},
@@ -443,7 +445,7 @@
       "title": "Firebird logical restore (gbak)",
       "fields": [
         {"field_id": "backup_file", "label": "Backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
-        {"field_id": "additional_backup_files", "label": "Additional backup volume filenames (JSON array)", "control": "json", "required": false, "default": []},
+        {"field_id": "additional_backup_files", "label": "Additional backup volumes in order", "control": "json", "json_type": "array", "array_editor": {"item_kind": "string"}, "required": false, "default": [], "help": "For split backups, add every remaining volume after the first backup filename, in original backup order."},
         {"field_id": "restore_database", "label": "Restored database filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
         {"field_id": "additional_database_files", "label": "Additional database filenames (JSON array)", "control": "json", "required": false, "default": []},
         {"field_id": "database_file_pages", "label": "Database file page allocations (JSON array)", "control": "json", "required": false, "default": []},

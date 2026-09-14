@@ -36,6 +36,7 @@ from .firebird import columns as firebird_columns
 from .firebird.backup_guid import normalize_backup_guid
 from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
 from .firebird.restore_policy import physical_restore_policy
+from .firebird.backup_volumes import logical_backup_volumes
 from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
@@ -3519,6 +3520,18 @@ class RelationalAdministration:
 
         if operation in {'backup_logical', 'backup_physical'}:
             path('backup_file')
+        if operation == 'backup_logical' and any(
+                key in draft for key in (
+                    'backup_file', 'backup_volumes', 'split_backup')):
+            try:
+                logical_backup_volumes(draft)
+            except RelationalClientError as error:
+                errors.append({
+                    'field_id': ('backup_volumes' if draft.get('split_backup')
+                                 else 'backup_file'),
+                    'code': 'invalid_firebird_backup_volumes',
+                    'message': str(error),
+                })
         if operation in {'backup_physical', 'restore_physical'}:
             try:
                 normalize_physical_io(operation, draft)
