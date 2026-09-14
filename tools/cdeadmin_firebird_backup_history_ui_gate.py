@@ -44,6 +44,10 @@ def run(options, password):
                 'reference_version': '5.0.4', 'database': options.database,
                 'passed': False, 'credential_values_exported': False,
                 'screenshots': {}, 'controls': {}, 'cases': []}
+    active_operation = 'backup'
+
+    def press(name):
+        click_unobscured(driver, wait, _button(wait, name))
 
     def capture(state):
         path = options.output_root / (
@@ -114,6 +118,39 @@ def run(options, password):
                 driver, 'Backup read I/O policy')
             assert 'Native default' in io_control.text
             backup_path = str(root / (options.database + '.' + unit + '.nbk'))
+            if index == 0:
+                for level in (256, 32767):
+                    fill_form_values(driver, wait, fields, {
+                        'Physical backup filename on the Firebird server':
+                        backup_path, 'Incremental backup level': level})
+                    control = visible_named_control(
+                        driver, 'Incremental backup level')
+                    assert control.get_attribute('max') == '32767'
+                    driver.execute_script(
+                        'arguments[0].scrollIntoView({block:"center"})',
+                        control)
+                    capture('backup-level-' + str(level) + '-control')
+                    press('Validate and preview')
+                    complete_endpoint_prompt(driver, password, timeout=3)
+                    preview = json.loads(wait.until(
+                        lambda value: value.find_element(
+                            By.CSS_SELECTOR,
+                            '[aria-label="Provider plan preview"]')).text)
+                    assert preview['command_preview']['backup_selection'] == {
+                        'mode': 'level', 'level': level}
+                    capture('backup-level-' + str(level) + '-plan')
+                fill_form_values(driver, wait, fields, {
+                    'Incremental backup level': 32768})
+                press('Validate and preview')
+                wait.until(lambda value: 'Incremental backup level exceeds '
+                           'its maximum.' in value.find_element(
+                               By.CSS_SELECTOR, '[role="dialog"]').text)
+                assert not visible_named_control(
+                    driver, 'Apply provider plan').is_enabled()
+                capture('backup-level-out-of-range-rejected')
+                fill_form_values(driver, wait, fields, {
+                    'Incremental backup level': 0})
+                evidence['cases'].append('numeric-backup-level-plan-bounds')
             values = {
                 'Physical backup filename on the Firebird server': backup_path,
                 'Clean backup history after backup': 'true',
@@ -122,7 +159,7 @@ def run(options, password):
                 'Backup read I/O policy': io_mode,
             }
             fill_form_values(driver, wait, fields, values)
-            _button(wait, 'Validate and preview').click()
+            press('Validate and preview')
             wait.until(lambda value: 'History retention count is below its '
                        'minimum.' in value.find_element(
                            By.CSS_SELECTOR, '[role="dialog"]').text)
@@ -170,7 +207,7 @@ def run(options, password):
                 evidence['controls'][state_key].append(geometry)
                 assert geometry['label_and_control_visible']
                 assert geometry['value_not_clipped']
-            _button(wait, 'Validate and preview').click()
+            press('Validate and preview')
             complete_endpoint_prompt(driver, password, timeout=3)
             apply = _button(wait, 'Apply provider plan')
             preview = driver.find_element(
@@ -179,7 +216,7 @@ def run(options, password):
             assert json.loads(preview.text)['command_preview'][
                 'backup_io_requested'] == io_mode
             capture(unit.lower() + '-plan')
-            apply.click()
+            click_unobscured(driver, wait, apply)
             result = wait.until(lambda value: value.find_element(
                 By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
             assert 'Requested backup selection' in result.text
@@ -192,7 +229,8 @@ def run(options, password):
             assert expected_policy in result.text
             readable_result(result, unit.lower())
             details = result.find_element(By.TAG_NAME, 'details')
-            details.find_element(By.TAG_NAME, 'summary').click()
+            click_unobscured(driver, wait, details.find_element(
+                By.TAG_NAME, 'summary'))
             observed = json.loads(result.find_element(
                 By.CSS_SELECTOR,
                 '[aria-label="Firebird native service receipt"]').text)
@@ -243,7 +281,7 @@ def run(options, password):
             guid_label: 'not-a-guid',
         }
         fill_form_values(driver, wait, fields, values)
-        _button(wait, 'Validate and preview').click()
+        press('Validate and preview')
         wait.until(lambda value: 'Firebird backup GUID must be a hyphenated '
                    'UUID' in value.find_element(
                        By.CSS_SELECTOR, '[role="dialog"]').text)
@@ -254,7 +292,7 @@ def run(options, password):
         driver.execute_script(
             'arguments[0].scrollIntoView({block:"center"})', control)
         capture('guid-control')
-        _button(wait, 'Validate and preview').click()
+        press('Validate and preview')
         complete_endpoint_prompt(driver, password, timeout=3)
         apply = _button(wait, 'Apply provider plan')
         preview = json.loads(driver.find_element(
@@ -263,7 +301,7 @@ def run(options, password):
             'mode': 'guid', 'guid': latest_guid.upper()}
         assert preview['command_preview']['backup_io_requested'] == 'NATIVE'
         capture('guid-native-plan')
-        apply.click()
+        click_unobscured(driver, wait, apply)
         result = wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
         assert 'Requested backup selection' in result.text
@@ -271,7 +309,8 @@ def run(options, password):
         assert 'Native default' in result.text
         assert 'Requested backup-history retention' not in result.text
         readable_result(result, 'guid')
-        result.find_element(By.TAG_NAME, 'summary').click()
+        click_unobscured(driver, wait, result.find_element(
+            By.TAG_NAME, 'summary'))
         observed = json.loads(result.find_element(
             By.CSS_SELECTOR,
             '[aria-label="Firebird native service receipt"]').text)
@@ -294,6 +333,7 @@ def run(options, password):
         capture('guid-native-result')
         evidence['cases'].append('bare-guid-native-increment-verified')
         close_workspace(driver, wait)
+        active_operation = 'restore'
         database = wait_for_tree_item(wait, options.database)
         invoke_context_action(wait, driver, database,
                               ['Restore', 'Physical restore (nbackup)...'],
@@ -303,7 +343,7 @@ def run(options, password):
             '[contains(., "Confirm provider action")]'))
         assert 'Physical restore (nbackup)' in confirmation.text
         capture('restore-open-confirmation')
-        _button(wait, 'Cancel').click()
+        press('Cancel')
         wait.until(EC.invisibility_of_element(confirmation))
         assert visible_named_control(driver, (
             'Restored database filename on the Firebird server')) is None
@@ -315,7 +355,7 @@ def run(options, password):
             By.XPATH, '//*[@role="dialog"]'
             '[contains(., "Confirm provider action")]'))
         assert 'Physical restore (nbackup)' in confirmation.text
-        _button(wait, 'Continue').click()
+        press('Continue')
         complete_endpoint_prompt(driver, password, timeout=1)
         wait.until(lambda _driver: visible_named_control(
             driver, 'Restored database filename on the Firebird server'))
@@ -323,7 +363,7 @@ def run(options, password):
         assert visible_named_control(driver, 'Backup read I/O policy') is None
         capture('restore-no-ineffective-io-control')
         evidence['cases'].append('restore-form-no-ineffective-io-control')
-        _button(wait, 'Validate and preview').click()
+        press('Validate and preview')
         wait.until(lambda value: 'Ordered backup files is required.' in
                    value.find_element(By.CSS_SELECTOR, '[role="dialog"]').text)
         assert not visible_named_control(
@@ -350,7 +390,7 @@ def run(options, password):
         assert visible_named_control(driver, (
             'Ordered backup files 2')).get_attribute('value') == increment
         capture('restore-ordered-visual-list')
-        _button(wait, 'Validate and preview').click()
+        press('Validate and preview')
         complete_endpoint_prompt(driver, password, timeout=3)
         preview = json.loads(wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
@@ -366,7 +406,7 @@ def run(options, password):
         capture('restore-reorder-invalidates-plan')
         click_unobscured(driver, wait, _button(
             wait, 'Ordered backup files 1: Move down'))
-        _button(wait, 'Validate and preview').click()
+        press('Validate and preview')
         complete_endpoint_prompt(driver, password, timeout=3)
         preview = json.loads(wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Provider plan preview"]')).text)
@@ -377,10 +417,11 @@ def run(options, password):
             driver, 'I confirm this provider-planned operation.')
         assert confirmation is not None
         click_unobscured(driver, wait, confirmation)
-        _button(wait, 'Apply provider plan').click()
+        press('Apply provider plan')
         result = wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
-        result.find_element(By.TAG_NAME, 'summary').click()
+        click_unobscured(driver, wait, result.find_element(
+            By.TAG_NAME, 'summary'))
         observed = json.loads(result.find_element(
             By.CSS_SELECTOR,
             '[aria-label="Firebird native service receipt"]').text)
@@ -400,10 +441,10 @@ def run(options, password):
         capture('restore-native-payload-verified')
         evidence['cases'].append('visual-ordered-chain-restored-payload')
         close_workspace(driver, wait)
-        evidence['passed'] = len(evidence['cases']) == 5
+        evidence['passed'] = len(evidence['cases']) == 6
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
-        capture('failure')
+        capture(active_operation + '-failure')
         raise
     finally:
         try:

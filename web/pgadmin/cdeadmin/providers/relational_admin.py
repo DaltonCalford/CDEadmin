@@ -34,6 +34,7 @@ from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
 from .firebird.backup_guid import normalize_backup_guid
+from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
 from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
@@ -3581,7 +3582,7 @@ class RelationalAdministration:
                 })
         for field_id, minimum, maximum in (
             ('parallel_workers', 1, 128),
-            ('backup_level', 0, 255),
+            ('backup_level', 0, MAX_BACKUP_LEVEL),
             ('lock_timeout', -1, 86400),
             ('shutdown_timeout', 0, 86400),
             ('page_buffers', 0, 2147483647),
@@ -3907,6 +3908,10 @@ class RelationalAdministration:
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in {'backup_physical', 'restore_physical'}):
             value = normalize_physical_io(operation, value)
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation == 'backup_physical'):
+            value['backup_level'] = normalize_backup_level(
+                value.get('backup_level'))
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation == 'backup_physical' and 'database_guid' in value):
             guid = normalize_backup_guid(value['database_guid'])

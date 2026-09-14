@@ -8,6 +8,30 @@ import {VisualAdministration} from '../../../pgadmin/static/js/Dialogs/ProviderW
 import catalog from '../../../pgadmin/cdeadmin/visual_admin/portfolio_catalog.json';
 
 describe('Firebird physical backup history controls', () => {
+  it.each([256, 32767])('preserves numeric backup level %s in the visual plan', async (level) => {
+    const post = jest.fn(async ({action}) => action === 'visual_admin_validate' ?
+      {valid: true} : {plan_id: 'owned', plan_digest: 'd', state: 'ready',
+        execution_available: true});
+    render(<VisualAdministration focused resources={[]} post={post}
+      setError={jest.fn()} initialResourceKind="database" initialOperationId="backup_physical"
+      catalog={{objects: [{resource_kind: 'database', title: 'Database', operations: [{
+        operation_id: 'backup_physical', title: 'Physical backup', target_required: false,
+        form: catalog.forms.firebird_backup_physical,
+      }]}]}} />);
+    const input = screen.getByRole('spinbutton', {name: 'Incremental backup level'});
+    expect(input).toHaveAttribute('min', '0');
+    expect(input).toHaveAttribute('max', '32767');
+    expect(screen.getByText(/A positive level requires the preceding level/)).toBeInTheDocument();
+    fireEvent.change(input, {target: {value: String(level)}});
+    fireEvent.change(screen.getByRole('textbox',
+      {name: /Physical backup filename on the Firebird server/}),
+    {target: {value: '/owned/level.nbk'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post.mock.calls.some(([body]) =>
+      body.action === 'visual_admin_plan')).toBe(true));
+    expect(post.mock.calls.find(([body]) => body.action === 'visual_admin_plan')[0]
+      .request.draft.backup_level).toBe(level);
+  });
   let originalHeight;
   beforeEach(() => {
     originalHeight = window.innerHeight;

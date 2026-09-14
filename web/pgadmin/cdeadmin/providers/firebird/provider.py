@@ -24,6 +24,7 @@ from ..relational_admin import (
 )
 from . import columns, mappings
 from .backup_guid import normalize_backup_guid
+from .backup_level import normalize_backup_level
 from .physical_io import normalize_physical_io
 from .column_type_metadata import type_editor_values
 from .catalog_reader import CatalogReader
@@ -622,6 +623,8 @@ def _service_backup_with_history(server, database, options, module):
         raise RelationalClientError(
             'Firebird backup history retention is invalid')
     options = normalize_physical_io('backup_physical', options)
+    options['backup_level'] = normalize_backup_level(
+        options.get('backup_level'))
     guid = normalize_backup_guid(options.get('database_guid'))
     flags = _flag_value(module, 'SrvNBackupFlag', options.get('backup_flags'),
                         allowed={'NO_TRIGGERS'})
@@ -660,7 +663,8 @@ def _firebird_service_operation(
         options = normalize_physical_io(operation_id, options)
     if operation_id == 'backup_physical':
         options = {**options, 'database_guid': normalize_backup_guid(
-            options.get('database_guid'))}
+            options.get('database_guid')), 'backup_level':
+            normalize_backup_level(options.get('backup_level'))}
     service = server.database
     result = {
         'schema': 'cdeadmin.firebird-service-result.v1',

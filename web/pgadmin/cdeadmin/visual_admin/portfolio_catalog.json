@@ -469,7 +469,7 @@
       "title": "Firebird physical backup (nbackup)",
       "fields": [
         {"field_id": "backup_file", "label": "Physical backup filename on the Firebird server", "control": "text", "required": true, "max_length": 4096},
-        {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 255},
+        {"field_id": "backup_level", "label": "Incremental backup level", "control": "number", "required": false, "default": 0, "minimum": 0, "maximum": 32767, "help": "0 creates a full backup. A positive level requires the preceding level in backup history. Restore the complete chain in order."},
         {"field_id": "database_guid", "label": "Database backup GUID (overrides level)", "control": "text", "required": false, "help": "Enter a hyphenated UUID, with or without braces. The native request always uses braces so it cannot be mistaken for a backup level."},
         {"field_id": "direct_io_mode", "label": "Backup read I/O policy", "control": "select", "required": true, "default": "NATIVE", "help": "Default: ON on Windows servers, OFF elsewhere. Direct reads require filesystem support.", "options": [{"value": "NATIVE", "label": "Native default"}, {"value": "ON", "label": "Direct reads ON"}, {"value": "OFF", "label": "Direct reads OFF"}]},
         {"field_id": "backup_flags", "label": "Physical backup options", "control": "multiselect", "required": false, "default": [], "options": [{"value": "NO_TRIGGERS", "label": "Disable database triggers"}]},
