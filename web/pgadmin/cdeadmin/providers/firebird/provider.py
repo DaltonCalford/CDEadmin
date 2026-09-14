@@ -24,6 +24,7 @@ from ..relational_admin import (
 )
 from . import columns, mappings
 from .column_type_metadata import type_editor_values
+from .catalog_reader import CatalogReader
 from .identity import catalog_resource_id as _catalog_resource_id
 
 
@@ -824,13 +825,8 @@ def _resources(connection, request):
             if native:
                 resources[resource_id]['native'] = native
 
-        def optional(source):
-            try:
-                cursor.execute(source)
-                return [tuple(_materialize_catalog_value(value)
-                              for value in row) for row in cursor.fetchall()]
-            except Exception:
-                return []
+        catalog_reader = CatalogReader(cursor, _materialize_catalog_value)
+        catalog_rows = catalog_reader.rows
 
         mapping_catalog = {}
         for kind in mappings.KINDS:
@@ -845,12 +841,16 @@ def _resources(connection, request):
                     'available': False, 'error_type': type(error).__name__}
 
         info = connection.info
+        information_observations = {}
 
         def info_value(name):
             try:
                 value = getattr(info, name)
-            except Exception:
+            except Exception as error:
+                information_observations[name] = {
+                    'available': False, 'error_type': type(error).__name__}
                 return None
+            information_observations[name] = {'available': True}
             if value is None:
                 return None
             if isinstance(value, Enum):
@@ -859,10 +859,12 @@ def _resources(connection, request):
                 return value
             return str(value)
 
+        engine_version = info_value('engine_version')
         add('server', [], 'Firebird', {
             'scope': 'database-attachment',
             'version': info_value('version'),
-            'engine_version': str(info_value('engine_version')),
+            'engine_version': (str(engine_version)
+                               if engine_version is not None else None),
             'server_version': info_value('server_version'),
             'site': info_value('site'),
             'provider': info_value('provider'),
@@ -883,7 +885,7 @@ def _resources(connection, request):
                 )
             },
         }
-        database_rows = optional(
+        database_rows = catalog_rows(
             'SELECT MON$DATABASE_NAME, MON$PAGE_SIZE, MON$ODS_MAJOR, '
             'MON$ODS_MINOR, MON$SQL_DIALECT, '
             'CAST(MON$CREATION_DATE AS VARCHAR(64)), MON$PAGES, '
@@ -893,7 +895,8 @@ def _resources(connection, request):
             'MON$OLDEST_ACTIVE, MON$OLDEST_SNAPSHOT, '
             'MON$NEXT_TRANSACTION, MON$PAGE_BUFFERS, MON$SHUTDOWN_MODE, '
             'MON$CRYPT_PAGE, MON$SEC_DATABASE, MON$FILE_ID, '
-            'MON$NEXT_ATTACHMENT, MON$NEXT_STATEMENT FROM MON$DATABASE'
+            'MON$NEXT_ATTACHMENT, MON$NEXT_STATEMENT FROM MON$DATABASE',
+            'database monitoring', required=False,
         )
         if database_rows:
             row = database_rows[0]
@@ -911,12 +914,13 @@ def _resources(connection, request):
                 name: None if value is None else str(value).strip()
                 for name, value in zip(names, row)
             })
-        database_catalog_rows = optional(
+        database_catalog_rows = catalog_rows(
             'SELECT TRIM(TRAILING FROM D.RDB$CHARACTER_SET_NAME), '
             'TRIM(TRAILING FROM C.RDB$DEFAULT_COLLATE_NAME), D.RDB$LINGER, '
             'D.RDB$SQL_SECURITY FROM RDB$DATABASE D '
             'LEFT JOIN RDB$CHARACTER_SETS C ON '
-            'C.RDB$CHARACTER_SET_NAME = D.RDB$CHARACTER_SET_NAME'
+            'C.RDB$CHARACTER_SET_NAME = D.RDB$CHARACTER_SET_NAME',
+            'database defaults',
         )
         if database_catalog_rows:
             charset, collation, linger, sql_security = database_catalog_rows[0]
@@ -929,15 +933,15 @@ def _resources(connection, request):
                     'DEFINER' if bool(sql_security) else 'INVOKER'
                 ),
             })
-        timezone_rows = optional(
+        timezone_rows = catalog_rows(
             "SELECT RDB$GET_CONTEXT('SYSTEM', 'SESSION_TIMEZONE') "
-            'FROM RDB$DATABASE'
+            'FROM RDB$DATABASE', 'session time zone', required=False,
         )
         if timezone_rows:
             database_native['session_time_zone'] = timezone_rows[0][0]
-        replica_rows = optional(
+        replica_rows = catalog_rows(
             "SELECT RDB$GET_CONTEXT('SYSTEM', 'REPLICA_MODE') "
-            'FROM RDB$DATABASE'
+            'FROM RDB$DATABASE', 'database replica mode', required=False,
         )
         if replica_rows:
             database_native['replica_mode'] = replica_rows[0][0]
@@ -1077,15 +1081,16 @@ def _resources(connection, request):
             'constraint': ('constraint_type', 'index_name'),
         }
         for kind, source in queries:
-            for row in optional(source):
+            for row in catalog_rows(source, kind + ' objects'):
                 parent, name, *details = row
                 add(kind, [parent], name, {
                     field: _catalog_detail(field, detail)
                     for field, detail in zip(query_detail_names[kind], details)
                 })
             if 'SYSTEM_FLAG, 0) = 0' in source:
-                for row in optional(source.replace(
-                        'SYSTEM_FLAG, 0) = 0', 'SYSTEM_FLAG, 0) > 0')):
+                for row in catalog_rows(source.replace(
+                        'SYSTEM_FLAG, 0) = 0', 'SYSTEM_FLAG, 0) > 0'),
+                        'system ' + kind + ' objects'):
                     parent, name, *details = row
                     add(kind, [parent], name, {
                         **{
@@ -1249,7 +1254,8 @@ def _resources(connection, request):
             return str(detail).rstrip(' ')
 
         for kind, source in simple_queries:
-            for row in optional(source):
+            for row in catalog_rows(source, kind + ' objects',
+                                    required=kind not in {'user', 'plugin'}):
                 native = {
                     field: detail_value(field, detail)
                     for field, detail in zip(
@@ -1269,7 +1275,8 @@ def _resources(connection, request):
             system_source = source.replace(
                 'SYSTEM_FLAG, 0) = 0', 'SYSTEM_FLAG, 0) > 0'
             ).replace("AND RDB$FIELD_NAME NOT STARTING WITH 'RDB$' ", '')
-            for row in optional(system_source):
+            for row in catalog_rows(system_source,
+                                    'system ' + kind + ' objects'):
                 native = {
                     field: detail_value(field, detail)
                     for field, detail in zip(
@@ -1291,7 +1298,7 @@ def _resources(connection, request):
                 str(item.get('native', {}).get('package') or '') == package
             ]
 
-        procedure_parameters = optional(
+        procedure_parameters = catalog_rows(
             'SELECT TRIM(TRAILING FROM RDB$PROCEDURE_NAME), '
             'TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
             'TRIM(TRAILING FROM RDB$PARAMETER_NAME), RDB$PARAMETER_TYPE, '
@@ -1314,7 +1321,7 @@ def _resources(connection, request):
             'CO.RDB$CHARACTER_SET_ID = F.RDB$CHARACTER_SET_ID AND '
             'CO.RDB$COLLATION_ID = COALESCE(P.RDB$COLLATION_ID, '
             'F.RDB$COLLATION_ID) '
-            'ORDER BY 1, 2, 4, 5'
+            'ORDER BY 1, 2, 4, 5', 'procedure parameters',
         )
         for row in procedure_parameters:
             procedure, package, name, mode, position, domain, not_null, \
@@ -1349,7 +1356,7 @@ def _resources(connection, request):
                     'parameters', []
                 ).append(parameter)
 
-        function_arguments = optional(
+        function_arguments = catalog_rows(
             'SELECT TRIM(TRAILING FROM A.RDB$FUNCTION_NAME), '
             'TRIM(TRAILING FROM A.RDB$PACKAGE_NAME), '
             'TRIM(TRAILING FROM A.RDB$ARGUMENT_NAME), '
@@ -1376,7 +1383,7 @@ def _resources(connection, request):
             'CO.RDB$CHARACTER_SET_ID = COALESCE(F.RDB$CHARACTER_SET_ID, '
             'A.RDB$CHARACTER_SET_ID) AND CO.RDB$COLLATION_ID = '
             'COALESCE(A.RDB$COLLATION_ID, F.RDB$COLLATION_ID) '
-            'ORDER BY 1, 2, 4'
+            'ORDER BY 1, 2, 4', 'function arguments',
         )
         for row in function_arguments:
             function, package, name, position, domain, not_null, \
@@ -1419,7 +1426,7 @@ def _resources(connection, request):
         }
         for (
                 grantee, relation, field, privilege, grantor, grant_option,
-                user_type, object_type) in optional(
+                user_type, object_type) in catalog_rows(
             'SELECT TRIM(TRAILING FROM RDB$USER), TRIM(TRAILING FROM '
             'RDB$RELATION_NAME), '
             'TRIM(TRAILING FROM RDB$FIELD_NAME), TRIM(TRAILING FROM '
@@ -1427,7 +1434,7 @@ def _resources(connection, request):
             'TRIM(TRAILING FROM RDB$GRANTOR), RDB$GRANT_OPTION, '
             'RDB$USER_TYPE, '
             'RDB$OBJECT_TYPE FROM RDB$USER_PRIVILEGES '
-            'ORDER BY 1, 2, 3, 4, 5, 7, 8'
+            'ORDER BY 1, 2, 3, 4, 5, 7, 8', 'object privileges',
         ):
             relation = str(relation or '').rstrip(' ') or 'database'
             grantee = str(grantee).rstrip(' ')
@@ -1487,13 +1494,13 @@ def _resources(connection, request):
         except Exception as error:
             creation_authority.update(available=False,
                                       error_type=type(error).__name__)
-        dependency_rows = optional(
+        dependency_rows = catalog_rows(
             'SELECT TRIM(TRAILING FROM RDB$DEPENDENT_NAME), '
             'RDB$DEPENDENT_TYPE, '
             'TRIM(TRAILING FROM RDB$DEPENDED_ON_NAME), RDB$DEPENDED_ON_TYPE, '
             'TRIM(TRAILING FROM RDB$FIELD_NAME), TRIM(TRAILING FROM '
             'RDB$PACKAGE_NAME) '
-            'FROM RDB$DEPENDENCIES ORDER BY 1, 3, 5'
+            'FROM RDB$DEPENDENCIES ORDER BY 1, 3, 5', 'object dependencies',
         )
 
         dependency_kinds = {
@@ -1559,10 +1566,11 @@ def _resources(connection, request):
                     'dependents', []
                 ).append(dependent)
 
-        for index_name, field_name, position in optional(
+        for index_name, field_name, position in catalog_rows(
             'SELECT TRIM(TRAILING FROM RDB$INDEX_NAME), TRIM(TRAILING '
             'FROM RDB$FIELD_NAME), '
-            'RDB$FIELD_POSITION FROM RDB$INDEX_SEGMENTS ORDER BY 1, 3'
+            'RDB$FIELD_POSITION FROM RDB$INDEX_SEGMENTS ORDER BY 1, 3',
+            'index segments',
         ):
             for index in objects_named(index_name):
                 if index['resource_kind'] == 'index':
@@ -1575,7 +1583,7 @@ def _resources(connection, request):
 
         for (
                 constraint_name, referenced_relation, update_rule,
-                delete_rule, referenced_index) in optional(
+                delete_rule, referenced_index) in catalog_rows(
                     'SELECT TRIM(TRAILING FROM RC.RDB$CONSTRAINT_NAME), '
                     'TRIM(TRAILING FROM UQ.RDB$RELATION_NAME), '
                     'TRIM(TRAILING FROM RC.RDB$UPDATE_RULE), '
@@ -1584,7 +1592,7 @@ def _resources(connection, request):
                     'FROM RDB$REF_CONSTRAINTS RC JOIN '
                     'RDB$RELATION_CONSTRAINTS UQ ON '
                     'UQ.RDB$CONSTRAINT_NAME = RC.RDB$CONST_NAME_UQ '
-                    'ORDER BY 1'):
+                    'ORDER BY 1', 'referential constraints'):
             for constraint in objects_named(constraint_name):
                 if constraint['resource_kind'] == 'constraint':
                     constraint.setdefault('native', {}).update({
@@ -1598,11 +1606,12 @@ def _resources(connection, request):
                         'delete_rule': str(delete_rule or '').strip() or None,
                     })
 
-        for constraint_name, check_source in optional(
+        for constraint_name, check_source in catalog_rows(
             'SELECT TRIM(TRAILING FROM CC.RDB$CONSTRAINT_NAME), '
             'T.RDB$TRIGGER_SOURCE '
             'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$TRIGGERS T ON '
-            'T.RDB$TRIGGER_NAME = CC.RDB$TRIGGER_NAME ORDER BY 1'
+            'T.RDB$TRIGGER_NAME = CC.RDB$TRIGGER_NAME ORDER BY 1',
+            'check constraint definitions',
         ):
             for constraint in objects_named(constraint_name):
                 if constraint['resource_kind'] == 'constraint':
@@ -1611,12 +1620,13 @@ def _resources(connection, request):
                         str(check_source).strip()
                     )
 
-        for constraint_name, column_name in optional(
+        for constraint_name, column_name in catalog_rows(
             'SELECT TRIM(TRAILING FROM CC.RDB$CONSTRAINT_NAME), '
             'TRIM(TRAILING FROM CC.RDB$TRIGGER_NAME) '
             'FROM RDB$CHECK_CONSTRAINTS CC JOIN RDB$RELATION_CONSTRAINTS RC '
             'ON RC.RDB$CONSTRAINT_NAME = CC.RDB$CONSTRAINT_NAME '
-            "WHERE RC.RDB$CONSTRAINT_TYPE = 'NOT NULL' ORDER BY 1"
+            "WHERE RC.RDB$CONSTRAINT_TYPE = 'NOT NULL' ORDER BY 1",
+            'not-null constraint columns',
         ):
             for constraint in objects_named(constraint_name):
                 if constraint['resource_kind'] == 'constraint':
@@ -1716,10 +1726,10 @@ def _resources(connection, request):
                 return default
 
         field_dimensions = {}
-        for field_name, position, lower, upper in optional(
+        for field_name, position, lower, upper in catalog_rows(
             'SELECT TRIM(TRAILING FROM RDB$FIELD_NAME), RDB$DIMENSION, '
             'RDB$LOWER_BOUND, RDB$UPPER_BOUND FROM RDB$FIELD_DIMENSIONS '
-            'ORDER BY 1, 2'
+            'ORDER BY 1, 2', 'array dimensions',
         ):
             field_dimensions.setdefault(
                 str(field_name).rstrip(' '), []
@@ -2596,6 +2606,18 @@ def _resources(connection, request):
                             'resource_id']
             if any(path[:len(parent)] == parent for parent in system_paths):
                 item.setdefault('native', {})['system_object'] = True
+        for item in resources.values():
+            if item['resource_kind'] == 'database':
+                native = item.setdefault('native', {})
+                native['catalog_observations'] = catalog_reader.observations
+                native['information_observations'] = information_observations
+                native['catalog_visibility'] = 'current_attachment'
+                native.setdefault('catalog_warnings', []).extend(
+                    catalog_reader.warnings)
+                native['catalog_warnings'].extend(
+                    f'Firebird driver information lookup for {name} failed.'
+                    for name, observed in information_observations.items()
+                    if not observed['available'])
         return list(resources.values())
     finally:
         cursor.close()
