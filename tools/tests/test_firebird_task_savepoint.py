@@ -100,6 +100,7 @@ def test_executor_never_ends_caller_transaction_on_task_failure(failure):
     assert 'sensitive-native-message' not in str(raised.value)
     if failure in {'rollback', 'release', 'verification-cleanup'}:
         assert 'transaction remains caller-owned' in str(raised.value)
+        assert raised.value.task_rollback_unconfirmed is True
     connection.rollback.assert_not_called()
     connection.commit.assert_not_called()
     client._forget_and_close.assert_not_called()
@@ -107,3 +108,39 @@ def test_executor_never_ends_caller_transaction_on_task_failure(failure):
     if failure in {'cursor', 'begin'}:
         assert not any(call.args[0].startswith('INSERT ')
                        for call in cursor.execute.call_args_list)
+
+
+@pytest.mark.parametrize('native_error', [True, False])
+@pytest.mark.parametrize('rollback_fails', [True, False])
+def test_execution_and_task_rollback_preserve_structured_status_codes(
+        native_error, rollback_fails):
+    error = (RuntimeError('private driver text') if native_error else
+             RelationalClientError('safe verification failure'))
+    error.gds_codes = (335544351, 336068830)
+    cursor = Mock(description=None, rowcount=1)
+
+    def execute(source):
+        if source.startswith('CREATE COLLATION '):
+            raise error
+        if rollback_fails and source.startswith('ROLLBACK TO '):
+            raise RuntimeError('private rollback text')
+
+    cursor.execute.side_effect = execute
+    connection = Mock()
+    connection.cursor.return_value = cursor
+    client = SimpleNamespace(config=SimpleNamespace(
+        execute_on_connection=False), _safe_close=Mock(),
+        _forget_and_close=Mock(), _connect=Mock())
+    with pytest.raises(RelationalClientError) as caught:
+        ADMINISTRATION.apply(client, {'provider_payload': {
+            'route': {'database': 'owned'}, 'compiled': {'statements': [{
+                'source': 'CREATE COLLATION "C" FOR UTF8 FROM UNICODE',
+                'parameters': (),
+            }]}}}, connection=connection)
+    assert caught.value.gds_codes == error.gds_codes
+    assert getattr(caught.value, 'task_rollback_unconfirmed', False) is (
+        rollback_fails)
+    assert 'private' not in str(caught.value)
+    connection.commit.assert_not_called()
+    connection.rollback.assert_not_called()
+    client._forget_and_close.assert_not_called()

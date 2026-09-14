@@ -8,6 +8,7 @@
 ##########################################################################
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -31,6 +32,27 @@ def test_focused_role_probe_traverses_organizational_system_branch():
     assert _workspace_probe(Driver(), ['role']) == {'probe': 'recorded'}
 
 
+def test_context_selection_uses_hit_tested_visible_pixels(monkeypatch):
+    from tools import cdeadmin_provider_object_form_gate as forms
+    driver = Mock()
+    driver.execute_script.side_effect = [None, {'x': 149, 'y': 276}]
+    wait = SimpleNamespace(until=lambda callback: callback(driver))
+    actions = Mock()
+    factory = Mock(return_value=actions)
+    monkeypatch.setattr(forms, 'ActionBuilder', factory)
+    label = object()
+    forms._context_click_visible_label(driver, wait, label)
+    scripts = [call.args[0] for call in driver.execute_script.call_args_list]
+    assert 'scrollIntoView' in scripts[0]
+    assert 'overflowX' in scripts[1] and 'overflowY' in scripts[1]
+    assert 'elementFromPoint' in scripts[1]
+    factory.assert_called_once_with(driver)
+    actions.pointer_action.move_to_location.assert_called_once_with(149, 276)
+    actions.pointer_action.pointer_down.assert_called_once_with(button=2)
+    actions.pointer_action.pointer_up.assert_called_once_with(button=2)
+    actions.perform.assert_called_once_with()
+
+
 def test_form_probe_explicitly_excludes_recursive_context_qualification():
     class Driver:
         def execute_async_script(self, source, kinds, collect_commands):
@@ -38,7 +60,8 @@ def test_form_probe_explicitly_excludes_recursive_context_qualification():
             assert collect_commands is False
             assert ('context_commands_collected: arguments[1] !== false'
                     in source)
-            assert 'Promise.resolve() : walk(database.children_url)' in source
+            assert 'Promise.resolve() : walk(database.children_url)' in (
+                ' '.join(source.split()))
             return {'context_commands_collected': False}
     assert _workspace_probe(Driver(), ['table'], False) == {
         'context_commands_collected': False}
@@ -80,6 +103,7 @@ def options(kind):
     ('role', 'cdeadmin_firebird_role_ui_gate.py'),
     ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),
     ('mappings', 'cdeadmin_firebird_mappings_ui_gate.py'),
+    ('character-metadata', 'cdeadmin_firebird_character_metadata_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
     ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),
 ])

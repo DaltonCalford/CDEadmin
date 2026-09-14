@@ -22,7 +22,7 @@ from ..relational_admin import (
     RelationalAdministration,
     RelationalAdminDialect,
 )
-from . import columns, mappings
+from . import columns, mappings, character_metadata
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -150,8 +150,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'authentication-mapping': mappings.OPERATIONS,
         'global-authentication-mapping': mappings.OPERATIONS,
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
-        'character-set': frozenset({'inspect'}),
-        'collation': frozenset({'inspect'}),
+        **character_metadata.OPERATIONS,
         'external-function': frozenset({'inspect'}),
         'plugin': frozenset({'inspect'}),
         'publication': frozenset({'inspect', 'alter'}),
@@ -1403,14 +1402,19 @@ def _resources(connection, request):
              'RDB$CHARACTER_SET_NAME), '
              'RDB$BYTES_PER_CHARACTER, TRIM(TRAILING FROM '
              'RDB$DEFAULT_COLLATE_NAME), '
-             'TRIM(TRAILING FROM RDB$FORM_OF_USE), RDB$SYSTEM_FLAG '
+             'TRIM(TRAILING FROM RDB$FORM_OF_USE), RDB$SYSTEM_FLAG, '
+             'TRIM(TRAILING FROM RDB$OWNER_NAME), RDB$DESCRIPTION, '
+             'RDB$CHARACTER_SET_ID '
              'FROM RDB$CHARACTER_SETS ORDER BY 1'),
             ('collation', 'SELECT TRIM(TRAILING FROM RDB$COLLATION_NAME), '
              'RDB$CHARACTER_SET_ID, RDB$COLLATION_ATTRIBUTES, '
              'TRIM(TRAILING FROM RDB$BASE_COLLATION_NAME), '
              'RDB$SPECIFIC_ATTRIBUTES, '
-             'RDB$SYSTEM_FLAG '
-             'FROM RDB$COLLATIONS ORDER BY 1'),
+             'RDB$SYSTEM_FLAG, TRIM(TRAILING FROM RDB$OWNER_NAME), '
+             'RDB$DESCRIPTION, (SELECT TRIM(TRAILING FROM '
+             'CS.RDB$CHARACTER_SET_NAME) FROM RDB$CHARACTER_SETS CS '
+             'WHERE CS.RDB$CHARACTER_SET_ID = C.RDB$CHARACTER_SET_ID) '
+             'FROM RDB$COLLATIONS C ORDER BY 1'),
             ('user', 'SELECT TRIM(TRAILING FROM SEC$USER_NAME), '
              'TRIM(TRAILING FROM SEC$PLUGIN) '
              'FROM SEC$USERS ORDER BY 1'),
@@ -1457,12 +1461,12 @@ def _resources(connection, request):
             'role': ('system_privileges', 'owner', 'description'),
             'character-set': (
                 'bytes_per_character', 'default_collation', 'form_of_use',
-                'system_flag',
+                'system_flag', 'owner', 'description', 'character_set_id',
             ),
             'collation': (
                 'character_set_id', 'attributes', 'base_collation',
                 'specific_attributes',
-                'system_flag',
+                'system_flag', 'owner', 'description', 'character_set',
             ),
             'user': ('plugin',),
             'plugin': ('value',),
@@ -1489,6 +1493,18 @@ def _resources(connection, request):
                     native['system_object'] = True
                 if kind == 'role':
                     native.update(_role_privileges(row[1]))
+                if kind in character_metadata.OPERATIONS:
+                    try:
+                        statements = character_metadata.recreation(
+                            kind, row[0], native)
+                        native['recreation_statements'] = statements
+                        native['ddl'] = ';\n'.join(statements) + ';'
+                        if kind == 'character-set':
+                            native['recreation_prerequisite'] = (
+                                'The character set must already exist; '
+                                'this script restores its database settings.')
+                    except RelationalClientError as error:
+                        native['ddl_unavailable_reason'] = str(error)
                 add(kind, [], row[0], native)
 
             # System objects are real catalog objects; "sys" is solely a
@@ -2765,7 +2781,11 @@ def _resources(connection, request):
             'package', 'exception', 'role', 'character-set', 'collation',
             'external-function', 'publication',
         }
-        privilege_capable = grantable_kinds | {'user'}
+        # Native ownership/privilege rows are inspectable even where Firebird
+        # 5 does not expose SQL GRANT USAGE ON this object class. Do not add
+        # these kinds to grantable_kinds or fabricate executable grants.
+        privilege_capable = grantable_kinds | {
+            'user', 'character-set', 'collation'}
         for item in resources.values():
             kind = item['resource_kind']
             native = item.setdefault('native', {})

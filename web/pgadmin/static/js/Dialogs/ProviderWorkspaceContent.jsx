@@ -991,7 +991,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const operations = useMemo(() => (objectDescriptor?.operations || []).filter((item) =>
     (!item.target_resource_names || item.target_resource_names.includes(selectedResource?.display_name)) &&
     (!providerNative(selectedResource)?.system_object ||
-      (item.allow_system_target === true && item.target_resource_names?.includes(selectedResource?.display_name)) ||
+      item.allow_system_target === true ||
       item.operation_id === 'inspect') &&
     (!objectEditor || (item.target_required !== false &&
       (!item.target_resource_kinds || item.target_resource_kinds.includes(
@@ -1145,7 +1145,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           JSON.stringify(value) === JSON.stringify(baselineDraft[field.field_id])) {
         return false;
       }
-      return field.required || (value !== '' &&
+      return field.required || field.submit_unchanged || (value !== '' &&
         !(Array.isArray(value) && value.length === 0));
     }).map((field) => [field.field_id, draft[field.field_id]])),
   });
@@ -6726,7 +6726,14 @@ export default function ProviderWorkspaceContent({
       }
       if (native?.session_reuse_blocked) {
         setQuerySessionBlocked(true);
-        setError(gettext('Firebird cancellation state is unknown. Close this query session and explicitly reconnect.'));
+        const reason = native.session_reuse_blocked_reason;
+        if (reason === 'result_cleanup_failed') {
+          setError(gettext('Firebird result cleanup failed. Do not replay the statement. Close this query session and explicitly reconnect.'));
+        } else if (reason === 'cancellation_state_unknown' || native.cancel_cleanup_error_type) {
+          setError(gettext('Firebird cancellation state is unknown. Close this query session and explicitly reconnect.'));
+        } else {
+          setError(gettext('This Firebird query session cannot be reused. Close it and explicitly reconnect.'));
+        }
       }
       setQueryPollingPaused(false);
       setOccurrenceId(response.occurrence?.operation?.terminal ? null : id);

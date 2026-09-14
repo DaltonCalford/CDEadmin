@@ -526,7 +526,7 @@ def test_column_supplement_preserves_other_tasks_and_is_idempotent():
     before = copy.deepcopy(original)
     result = supplement_columns(original, proof(), 'a' * 64, 'test.json')
     assert original == before
-    assert len(result['task_templates']) == 64
+    assert len(result['task_templates']) == len(original['task_templates'])
     assert supplement_columns(result, proof(), 'a' * 64, 'test.json') == result
 
 

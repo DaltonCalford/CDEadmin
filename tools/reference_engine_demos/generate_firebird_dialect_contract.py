@@ -535,6 +535,82 @@ def supplement_columns(document, evidence, digest, artifact):
     return value
 
 
+def supplement_character_metadata(document, evidence, digest, artifact):
+    validate_dialect_contract(document, PROFILE)
+    required = {f'flags-create-drop-rollback-recreation-{mask}'
+                for mask in range(8)} | {
+        'collation-comment-set-clear-rollback',
+        'character-set-comment-set-clear-rollback',
+        'charset-default-commit-rollback', 'inherited-flags',
+        'external-implementation', 'numeric-sort', 'inherited-numeric-sort',
+        'duplicate-last-wins', 'empty-removes-inherited',
+        'invalid-numeric-sort', 'mismatched-character-set',
+        'missing-external-implementation', 'missing-same-name-implementation',
+        'dependent-column-drop-denied', 'unprivileged-create-denied',
+        'unprivileged-default-change-denied',
+        'unprivileged-charset-comment-denied',
+        'unprivileged-collation-comment-denied', 'unprivileged-drop-denied',
+        'granted-create-owner-comment-drop', 'revoked-create-denied',
+        'same-name-installed-implementation',
+        'default-applies-only-new-columns',
+        'invalid-default-preserves-current-ASCII',
+        'invalid-default-preserves-current-OWNED_ABSENT'}
+    tasks = {f'visual_admin.{kind}.{action}' for kind, actions in (
+        ('collation', ('create', 'drop', 'comment')),
+        ('character-set', ('alter', 'comment'))) for action in actions}
+    if (evidence.get('complete') is not True or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('schema') != 'cdeadmin.firebird-character-metadata.v1'
+            or evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or
+            set(evidence.get('task_evidence', {})) != tasks or
+            not required.issubset({item.get('case') for item in
+                                   evidence.get('checks', [])})):
+        raise ValueError('Character metadata native evidence is incomplete')
+    by_case = {item['case']: item for item in evidence['checks']}
+    for mask in (4, 5):
+        rejection = by_case[f'flags-create-drop-rollback-recreation-{mask}']
+        if (rejection.get('expected_native_rejection') != 336068830 or
+                rejection.get('created') is not False):
+            raise ValueError('Character metadata native evidence is incomplete')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-character-metadata-live'
+    parser_id = 'firebird-5.0.4-character-metadata-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id, record in evidence['task_evidence'].items():
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Character metadata task has no native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -563,13 +639,14 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
-        'roles', 'admin-mapping', 'mappings', 'columns'),
+        'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
         supplement = {'admin-mapping': supplement_admin_mapping,
                       'roles': supplement_roles,
                       'mappings': supplement_mappings,
+                      'character-metadata': supplement_character_metadata,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

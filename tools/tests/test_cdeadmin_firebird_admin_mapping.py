@@ -147,7 +147,7 @@ def test_valid_evidence_preserves_prior_tasks_and_is_idempotent():
     document = contract()
     result = supplement_admin_mapping(document, evidence(), 'a' * 64,
                                       'live.json')
-    assert len(result['task_templates']) == 64
+    assert len(result['task_templates']) == len(document['task_templates'])
     assert all(task in result['task_templates'] for task in
                document['task_templates'] if not task['task_id'].endswith(
                    'configure_admin_mapping'))

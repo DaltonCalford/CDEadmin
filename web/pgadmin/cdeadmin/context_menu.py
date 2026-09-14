@@ -1134,9 +1134,7 @@ def resource_context_actions(
          resource.get('display_name') in
          operation['target_resource_names']) and
         (not resource_native(resource).get('system_object') or
-         (operation.get('allow_system_target') is True and
-          resource.get('display_name') in
-          (operation.get('target_resource_names') or [])) or
+         operation.get('allow_system_target') is True or
          operation.get('operation_id') == 'inspect')
     ]
     inspect = next((

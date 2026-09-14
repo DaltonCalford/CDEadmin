@@ -198,17 +198,28 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                             'failed. Do not replay the statement.'
                             if getattr(exc, 'native_execution_completed',
                                        False)
-                            else 'Firebird query did not complete.'),
+                            else ('Firebird query failed and cursor cleanup '
+                                  'did not complete. Do not replay the '
+                                  'statement; close this session.'
+                                  if getattr(exc, 'cursor_cleanup_failed',
+                                             False)
+                                  else 'Firebird query did not complete.')),
                         'error_type': type(exc).__name__,
                         'native_status_codes': list(codes),
                         'native_execution_completed': bool(getattr(
                             exc, 'native_execution_completed', False)),
+                        'cursor_cleanup_failed': bool(getattr(
+                            exc, 'cursor_cleanup_failed', False)),
+                        'cleanup_status_codes': list(getattr(
+                            exc, 'cleanup_gds_codes', ())),
                     },
                 },
             }
         with state.lock:
             if state.result_cleanup_failed:
                 native['payload']['session_reuse_blocked'] = True
+                native['payload']['session_reuse_blocked_reason'] = (
+                    'result_cleanup_failed')
             if query.cancellation_attempted:
                 # A request can finish just before RAISE reaches the server.
                 # Clear a late pending signal before another command is
@@ -221,6 +232,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                 except Exception as exc:
                     state.cancellation_state_unknown = True
                     native['payload']['session_reuse_blocked'] = True
+                    native['payload']['session_reuse_blocked_reason'] = (
+                        'cancellation_state_unknown')
                     native['payload']['cancel_cleanup_error_type'] = (
                         type(exc).__name__)
             query.result = native
@@ -303,6 +316,22 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         # Do not fetch a look-ahead row: selectable PSQL may have side effects.
         # Reaching the bound does not establish whether another row exists.
         return list(cursor.fetchmany(limit))
+
+    def _close_failed_query_cursor(self, handle, cursor, original_error):
+        try:
+            cursor.close()
+        except Exception as cleanup_error:
+            state = self._state(handle)
+            with state.lock:
+                state.result_cleanup_failed = True
+            error = RelationalClientError(
+                'Firebird query failed and result cursor cleanup failed; '
+                'do not replay the statement. Close this session and '
+                'explicitly reconnect')
+            error.gds_codes = status_codes(original_error)
+            error.cleanup_gds_codes = status_codes(cleanup_error)
+            error.cursor_cleanup_failed = True
+            raise error from None
 
     def _start_transaction_sql(self, handle, request):
         if normalize_parameters(request.get('parameters')):

@@ -995,6 +995,10 @@ class RelationalDBAPIClient:
         """Provider override point; ordinary DB-API behavior is unchanged."""
         return list(cursor.fetchall())
 
+    def _close_failed_query_cursor(self, handle, cursor, error):
+        """Keep default cleanup policy overridable by native session owners."""
+        self._safe_close(cursor)
+
     def execute(self, handle, request):
         source = request.get('source')
         if not isinstance(source, str) or not source.strip():
@@ -1045,13 +1049,13 @@ class RelationalDBAPIClient:
             )
             self._tokens.append(token)
             return token
-        except RelationalClientError:
+        except RelationalClientError as exc:
             if cursor is not None and cursor is not handle:
-                self._safe_close(cursor)
+                self._close_failed_query_cursor(handle, cursor, exc)
             raise
         except Exception as exc:
             if cursor is not None and cursor is not handle:
-                self._safe_close(cursor)
+                self._close_failed_query_cursor(handle, cursor, exc)
             native_identity = []
             for attribute in ('errno', 'sqlstate'):
                 value = getattr(exc, attribute, None)

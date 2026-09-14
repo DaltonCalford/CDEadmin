@@ -91,13 +91,16 @@ def run_scale(options, native, profile, password, scale):
     restored = path + '.RESTORED.fdb'
     preserved = path + '.RESTORED.PRESERVE.fdb'
     gate_kind = getattr(options, 'gate_kind', 'backup-history')
-    if gate_kind not in {'backup-history', 'logical-volumes'}:
+    if gate_kind not in {'backup-history', 'logical-volumes',
+                         'character-metadata'}:
         raise ValueError('Unsupported owned backup browser gate')
     backups = ([path + '.single.fbk', *[
         path + f'.part-{part}.fbk' for part in range(1, 4)]]
                if gate_kind == 'logical-volumes' else
                [path + '.' + part + '.nbk'
                 for part in ('ROWS', 'DAYS', 'GUID')])
+    if gate_kind == 'character-metadata':
+        backups = []
     storage_files = ([restored + suffix for suffix in (
         '.second', '.third', '.last')]
                      if gate_kind == 'logical-volumes' else [])
@@ -154,8 +157,9 @@ def run_scale(options, native, profile, password, scale):
                 observed.get('source_config_unchanged') is not True or
                 observed.get('target_database') != path):
             raise RuntimeError('Firebird browser evidence target mismatch')
-        docker(options.container, 'exec', 'test', '-e', restored)
-        docker(options.container, 'exec', 'test', '-e', preserved)
+        if gate_kind != 'character-metadata':
+            docker(options.container, 'exec', 'test', '-e', restored)
+            docker(options.container, 'exec', 'test', '-e', preserved)
         for candidate in storage_files:
             docker(options.container, 'exec', 'test', '-e', candidate)
     except Exception as exc:
@@ -205,7 +209,8 @@ def main():
     parser.add_argument('--timeout', type=int, default=30)
     parser.add_argument('--browser-binary')
     parser.add_argument('--gate-kind', default='backup-history',
-                        choices=('backup-history', 'logical-volumes'))
+                        choices=('backup-history', 'logical-volumes',
+                                 'character-metadata'))
     options = parser.parse_args()
     if options.timeout < 1:
         raise SystemExit('Browser timeout must be positive')

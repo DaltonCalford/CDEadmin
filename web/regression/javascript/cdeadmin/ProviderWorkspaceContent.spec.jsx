@@ -903,7 +903,12 @@ describe('ProviderWorkspaceContent', () => {
     expect(api.post.mock.calls.some(([, payload]) => payload.action === 'transaction_control')).toBe(false);
   });
 
-  it('blocks a poisoned Firebird session until explicit successful release', async () => {
+  it.each([
+    [{}, 'This Firebird query session cannot be reused. Close it and explicitly reconnect.'],
+    [{session_reuse_blocked_reason: 'result_cleanup_failed'}, 'Firebird result cleanup failed. Do not replay the statement. Close this query session and explicitly reconnect.'],
+    [{session_reuse_blocked_reason: 'cancellation_state_unknown'}, 'Firebird cancellation state is unknown. Close this query session and explicitly reconnect.'],
+    [{cancel_cleanup_error_type: 'RuntimeError'}, 'Firebird cancellation state is unknown. Close this query session and explicitly reconnect.'],
+  ])('blocks a poisoned Firebird session until successful release: %j', async (reason, message) => {
     api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
       language_profile: 'firebird-sql', title: 'Firebird SQL',
       starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
@@ -916,7 +921,7 @@ describe('ProviderWorkspaceContent', () => {
         open_session: {session_id: 'fb-session'},
         execute: {occurrence_id: 'fb-query'},
         poll: {occurrence: {operation: {terminal: true}, result: {
-          complete: true, extensions: {firebird: {payload: {session_reuse_blocked: true}}},
+          complete: true, extensions: {firebird: {payload: {session_reuse_blocked: true, ...reason}}},
         }}, rendered_result: null},
         close_session: {provider_closed: true},
       }[payload.action]}});
@@ -924,7 +929,7 @@ describe('ProviderWorkspaceContent', () => {
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/1" initialTab="studio" />);
     fireEvent.click(await screen.findByRole('button', {name: 'Run', exact: true}));
-    expect(await screen.findByText('Firebird cancellation state is unknown. Close this query session and explicitly reconnect.')).toBeInTheDocument();
+    expect(await screen.findByText(message)).toBeInTheDocument();
     for(const name of ['Run', 'commit', 'rollback', 'Provider transaction state']) {
       expect(screen.getByRole('button', {name, exact: true})).toBeDisabled();
     }

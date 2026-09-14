@@ -33,6 +33,7 @@ from ..visual_admin.requirements import EXPERIENCE_REQUIREMENTS
 from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
+from .firebird import character_metadata as firebird_character_metadata
 from .firebird.backup_guid import normalize_backup_guid
 from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
 from .firebird.restore_policy import physical_restore_policy
@@ -224,6 +225,20 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if (self.dialect.engine_id == 'firebird' and
+                    kind in firebird_character_metadata.OPERATIONS):
+                additions = {'comment'}
+                if kind == 'character-set':
+                    additions.add('alter')
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] not in additions
+                ] + [{
+                    'operation_id': operation,
+                    'title': operation.title(), 'mutation_class': 'admin',
+                    'target_required': True, 'confirmation_required': True,
+                    'allow_system_target': True,
+                } for operation in sorted(additions)]
             if self.dialect.engine_id == 'firebird' and kind == 'column':
                 resource['operations'] = [
                     item for item in resource['operations']
@@ -398,6 +413,18 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind in firebird_character_metadata.OPERATIONS and
+                operation_id != 'inspect'):
+            try:
+                firebird_character_metadata.compile_operation(
+                    resource_kind, operation_id, draft,
+                    request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_character_metadata',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'privilege' and
                 operation_id in {'grant', 'revoke'}):
@@ -2654,10 +2681,13 @@ class RelationalAdministration:
                     if task_savepoint is not None:
                         task_savepoint.rollback()
                 except Exception:
-                    raise RelationalClientError(
+                    failure = RelationalClientError(
                         str(exc) + '; Firebird task rollback could not be '
                         'verified; the transaction remains caller-owned'
-                    ) from None
+                    )
+                    failure.gds_codes = firebird_status_codes(exc)
+                    failure.task_rollback_unconfirmed = True
+                    raise failure from None
             else:
                 rollback = getattr(connection, 'rollback', None)
                 if callable(rollback):
@@ -2687,10 +2717,13 @@ class RelationalAdministration:
             if task_rollback_failed:
                 detail += ('; Firebird task rollback could not be verified; '
                            'the transaction remains caller-owned')
-            raise RelationalClientError(
+            failure = RelationalClientError(
                 'relational administration execution failed '
                 f'({type(exc).__name__}){detail}'
-            ) from None
+            )
+            failure.gds_codes = codes
+            failure.task_rollback_unconfirmed = task_rollback_failed
+            raise failure from None
         finally:
             if cursor is not None and cursor is not connection:
                 client._safe_close(cursor)
@@ -2924,6 +2957,15 @@ class RelationalAdministration:
                         'affect subsequent generated values even after '
                         'rollback; review concurrent inserts before applying.'
                     ] if request['draft'].get('action') == 'IDENTITY' else []}
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] in
+                firebird_character_metadata.OPERATIONS and
+                operation != 'inspect'):
+            statements = firebird_character_metadata.compile_operation(
+                request['resource_kind'], operation, request['draft'],
+                request.get('target_resource'))
+            return {'statements': [{'source': sql, 'parameters': ()}
+                                   for sql in statements]}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in firebird_mappings.KINDS and
                 operation != 'inspect'):
@@ -3954,6 +3996,9 @@ class RelationalAdministration:
         if (self.dialect.engine_id == 'firebird' and
                 kind in firebird_mappings.KINDS):
             return value
+        if (self.dialect.engine_id == 'firebird' and
+                kind in firebird_character_metadata.OPERATIONS):
+            return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
             if kind == 'table' and self.dialect.engine_id == 'firebird':
@@ -4166,6 +4211,11 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and
+                kind in firebird_character_metadata.OPERATIONS and
+                operation != 'inspect'):
+            return firebird_character_metadata.form(kind, operation,
+                                                   self._field)
         if self.dialect.engine_id == 'firebird' and kind == 'column':
             if operation == 'create':
                 return firebird_columns.creation_form(self._field)

@@ -61,7 +61,8 @@ def test_port_binding_matches_owned_endpoint(monkeypatch, published, valid):
 @pytest.mark.parametrize('failure', [
     None, 'exists', 'create', 'browser', 'target', 'configuration', 'drop',
     'orphan-storage'])
-@pytest.mark.parametrize('gate_kind', ['backup-history', 'logical-volumes'])
+@pytest.mark.parametrize('gate_kind', ['backup-history', 'logical-volumes',
+                                      'character-metadata'])
 def test_fixture_lifecycle_and_failure_barriers(
         tmp_path, monkeypatch, failure, gate_kind):
     options = SimpleNamespace(container=CID, output_root=tmp_path,
@@ -109,17 +110,20 @@ def test_fixture_lifecycle_and_failure_barriers(
         assert kwargs['env']['CDEADMIN_FIREBIRD_DEMO_PASSWORD'] == (
             'DO-NOT-EXPORT')
         path = command[command.index('--database') + 1]
-        present.add(path + '.RESTORED.fdb')
-        present.add(path + '.RESTORED.PRESERVE.fdb')
+        if gate_kind != 'character-metadata':
+            present.add(path + '.RESTORED.fdb')
+            present.add(path + '.RESTORED.PRESERVE.fdb')
         if gate_kind == 'logical-volumes':
             present.update(path + '.RESTORED.fdb' + suffix
                            for suffix in ('.second', '.third', '.last'))
         assert command[command.index('--gate-kind') + 1] == gate_kind
-        present.update(
+        artifacts = (
             [path + '.single.fbk', *[
                 path + f'.part-{part}.fbk' for part in range(1, 4)]]
             if gate_kind == 'logical-volumes' else
             [path + '.' + name + '.nbk' for name in ('ROWS', 'DAYS', 'GUID')])
+        if gate_kind != 'character-metadata':
+            present.update(artifacts)
         output = command[command.index('--output') + 1]
         gate.Path(output).write_text(json.dumps({
             'complete': True, 'source_config_unchanged':
@@ -150,7 +154,8 @@ def test_fixture_lifecycle_and_failure_barriers(
         assert not created
         assert len(calls) == 1
     elif failure == 'drop':
-        assert len(present) == (10 if gate_kind == 'logical-volumes' else 6)
+        assert len(present) == {'logical-volumes': 10, 'backup-history': 6,
+                                'character-metadata': 1}[gate_kind]
         assert not any(args[:3] == ('exec', 'rm', '-f') for args in calls)
         assert result['failures'][0]['stage'] == 'cleanup'
     elif failure == 'orphan-storage' and gate_kind == 'logical-volumes':
@@ -160,9 +165,11 @@ def test_fixture_lifecycle_and_failure_barriers(
     else:
         assert not present
         assert len(result['backup_files_absent']) == (
-            4 if gate_kind == 'logical-volumes' else 3)
+            {'logical-volumes': 4, 'backup-history': 3,
+             'character-metadata': 0}[gate_kind])
         assert len(result['databases_removed']) == (
-            1 if failure == 'create' else 3)
+            1 if failure == 'create' or gate_kind == 'character-metadata'
+            else 3)
         assert len(result['secondary_files_absent']) == (
             3 if gate_kind == 'logical-volumes' else 0)
 

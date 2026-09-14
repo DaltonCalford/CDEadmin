@@ -30,13 +30,18 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 64,
+    "authoritative_task_count": 69,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
       "visual_admin.authentication-mapping.create",
       "visual_admin.authentication-mapping.create_or_alter",
       "visual_admin.authentication-mapping.drop",
+      "visual_admin.character-set.alter",
+      "visual_admin.character-set.comment",
+      "visual_admin.collation.comment",
+      "visual_admin.collation.create",
+      "visual_admin.collation.drop",
       "visual_admin.column.alter",
       "visual_admin.column.comment",
       "visual_admin.column.create",
@@ -97,7 +102,7 @@
       "visual_admin.view.create",
       "visual_admin.view.drop"
     ],
-    "implemented_task_count": 64,
+    "implemented_task_count": 69,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8857,6 +8862,7 @@
   ],
   "live_evidence_ids": [
     "firebird-5.0.4-authentication-mappings-live",
+    "firebird-5.0.4-character-metadata-live",
     "firebird-5.0.4-column-alterations-live",
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-role-membership-live-execution",
@@ -8998,6 +9004,24 @@
       "format": "cdeadmin.firebird-columns.v1",
       "license_id": "PostgreSQL",
       "sha256": "6598e7bafcf3272c7e8e0e8f4050dd61fbbfb7bfadd529a746e93b9dbc366da0"
+    },
+    {
+      "artifact": "character-metadata-native-14.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-character-metadata-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-character-metadata.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "87a1b614140dc4cb3a0b526e447e04ba5436553c75992da1da2321ab133f924e"
+    },
+    {
+      "artifact": "character-metadata-native-14.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-character-metadata-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-character-metadata.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "87a1b614140dc4cb3a0b526e447e04ba5436553c75992da1da2321ab133f924e"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9123,6 +9147,82 @@
         "DROP MAPPING \"CDE_MAPPING\""
       ],
       "task_id": "visual_admin.authentication-mapping.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-character-metadata-parser",
+        "firebird-5.0.4-character-metadata-live"
+      ],
+      "required_bindings": [],
+      "source": "ALTER CHARACTER SET \"UTF8\" SET DEFAULT COLLATION \"OWNED_\u6771\u4eac_0\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "ALTER CHARACTER SET \"UTF8\" SET DEFAULT COLLATION \"OWNED_\u6771\u4eac_0\""
+      ],
+      "task_id": "visual_admin.character-set.alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-character-metadata-parser",
+        "firebird-5.0.4-character-metadata-live"
+      ],
+      "required_bindings": [],
+      "source": "COMMENT ON CHARACTER SET \"UTF8\" IS '\u6771\u4eac \u00e9 '' comment  '",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "COMMENT ON CHARACTER SET \"UTF8\" IS '\u6771\u4eac \u00e9 '' comment  '"
+      ],
+      "task_id": "visual_admin.character-set.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-character-metadata-parser",
+        "firebird-5.0.4-character-metadata-live"
+      ],
+      "required_bindings": [],
+      "source": "COMMENT ON COLLATION \"OWNED_\u6771\u4eac_0\" IS '\u6771\u4eac \u00e9 '' comment  '",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "COMMENT ON COLLATION \"OWNED_\u6771\u4eac_0\" IS '\u6771\u4eac \u00e9 '' comment  '"
+      ],
+      "task_id": "visual_admin.collation.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-character-metadata-parser",
+        "firebird-5.0.4-character-metadata-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE COLLATION \"OWNED_\u6771\u4eac_7\" FOR \"UTF8\" FROM \"UNICODE\" PAD SPACE CASE INSENSITIVE ACCENT INSENSITIVE\n;\nCOMMENT ON COLLATION \"OWNED_\u6771\u4eac_7\" IS 'Owned \u00e9 '' metadata\nline two  '",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE COLLATION \"OWNED_\u6771\u4eac_7\" FOR \"UTF8\" FROM \"UNICODE\" PAD SPACE CASE INSENSITIVE ACCENT INSENSITIVE",
+        "COMMENT ON COLLATION \"OWNED_\u6771\u4eac_7\" IS 'Owned \u00e9 '' metadata\nline two  '"
+      ],
+      "task_id": "visual_admin.collation.create"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-character-metadata-parser",
+        "firebird-5.0.4-character-metadata-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP COLLATION \"OWNED_\u6771\u4eac_7\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP COLLATION \"OWNED_\u6771\u4eac_7\""
+      ],
+      "task_id": "visual_admin.collation.drop"
     },
     {
       "binding_style": "positional_question_mark",

@@ -35,6 +35,7 @@ from pathlib import Path
 
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import ActionChains
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -152,6 +153,43 @@ def arguments(argv=None):
     return parser.parse_args(argv)
 
 
+def _context_click_visible_label(driver, wait, element):
+    """Right-click the visible label, not its clipped geometric centre."""
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center', inline:'nearest', "
+        "behavior:'instant'});", element)
+    point = wait.until(lambda browser: browser.execute_script("""
+      const element = arguments[0];
+      const rect = element.getBoundingClientRect();
+      let left = Math.max(0, rect.left), top = Math.max(0, rect.top);
+      let right = Math.min(innerWidth, rect.right);
+      let bottom = Math.min(innerHeight, rect.bottom);
+      for (let parent = element.parentElement; parent;
+           parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        const bounds = parent.getBoundingClientRect();
+        if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+          left = Math.max(left, bounds.left);
+          right = Math.min(right, bounds.right);
+        }
+        if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+          top = Math.max(top, bounds.top);
+          bottom = Math.min(bottom, bounds.bottom);
+        }
+      }
+      if (right - left < 2 || bottom - top < 2) return null;
+      const x = Math.floor((left + right) / 2);
+      const y = Math.floor((top + bottom) / 2);
+      const hit = document.elementFromPoint(x, y);
+      return element === hit || element.contains(hit) ? {x, y} : null;
+    """, element))
+    actions = ActionBuilder(driver)
+    actions.pointer_action.move_to_location(point['x'], point['y'])
+    actions.pointer_action.pointer_down(button=2)
+    actions.pointer_action.pointer_up(button=2)
+    actions.perform()
+
+
 def _prepare_tree(driver, wait, options):
     driver.get(options.url.rstrip('/') + '/browser/')
     wait.until(lambda value: '/browser/' in value.current_url)
@@ -178,7 +216,7 @@ def _prepare_tree(driver, wait, options):
                 json.dumps(timings, indent=2) + '\n')
             raise
     database = wait_for_tree_item(wait, options.database)
-    ActionChains(driver).move_to_element(database).context_click().perform()
+    _context_click_visible_label(driver, wait, database)
     try:
         wait.until(lambda value: value.execute_script(
             """
@@ -310,7 +348,8 @@ def _prepare_tree(driver, wait, options):
     return database
 
 
-def _workspace_probe(driver, resource_kinds=None, collect_context_commands=True):
+def _workspace_probe(driver, resource_kinds=None,
+                     collect_context_commands=True):
     """Return provider catalog plus recursively resolved context commands."""
     return driver.execute_async_script(
         """
@@ -391,7 +430,8 @@ def _workspace_probe(driver, resource_kinds=None, collect_context_commands=True)
             }
           }
         };
-        (arguments[1] === false ? Promise.resolve() : walk(database.children_url))
+        (arguments[1] === false ? Promise.resolve() :
+          walk(database.children_url))
           .then(() => request(endpointUrl))
           .then(async (workspace) => {
             const value = workspace.body?.data || {};
@@ -537,6 +577,9 @@ def _preview_values(kind, operation, target, engine_id):
                 })
             elif kind == 'domain':
                 values['data_type'] = 'VARCHAR(80)'
+            elif kind == 'collation':
+                values.update({'character_set': 'UTF8',
+                               'base_collation': 'UNICODE'})
             elif kind == 'trigger':
                 values.update({
                     'table': 'CUSTOMERS', 'timing': 'BEFORE',
@@ -565,6 +608,7 @@ def _preview_values(kind, operation, target, engine_id):
             return rendered(values)
         if operation_id == 'alter':
             values_by_kind = {
+                'character-set': {'default_collation': 'UTF8'},
                 'view': {
                     'query': 'SELECT CUSTOMER_ID, NAME FROM CUSTOMERS',
                 },
