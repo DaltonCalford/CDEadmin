@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 from cdeadmin_firebird_query_ui_gate import (
@@ -52,7 +53,56 @@ def run(options, password):
             By.CSS_SELECTOR, '[aria-label="Provider plan preview"]'))
         assert 'database_statistics' in plan.text
         capture('statistics-plan')
+        # Hold only this read-only Apply dispatch in the isolated browser.
+        # This proves pending-request close safety, not native cancellation.
+        driver.execute_script('''
+            const original = XMLHttpRequest.prototype.send;
+            const gate = {original, held: null, admitted: 0};
+            XMLHttpRequest.prototype.send = function(body) {
+              let request;
+              try { request = JSON.parse(body); } catch { /* non-JSON */ }
+              if (request?.action === 'visual_admin_apply') {
+                gate.admitted++;
+                if (gate.held) throw new Error('Duplicate gate dispatch');
+                gate.held = {xhr: this, body};
+                return;
+              }
+              return original.call(this, body);
+            };
+            window.__cdeServiceCloseGate = gate;
+        ''')
         apply.click()
+        wait.until(lambda value: value.execute_script(
+            'return !!window.__cdeServiceCloseGate.held'))
+        dialog = apply.find_element(
+            By.XPATH, './ancestor::*[@role="dialog"][1]')
+        closes = dialog.find_elements(
+            By.XPATH, './/button[@aria-label="Close" or normalize-space()='
+            '"Close"]')
+        assert len(closes) >= 2, 'Title and footer close controls are required'
+        for route, control in [('title', closes[0]), ('footer', closes[-1]),
+                               ('escape', None)]:
+            if control is None:
+                # The Dialog paper is not an editable/focusable element.
+                # Send an actual key to its enabled footer button instead.
+                closes[-1].send_keys(Keys.ESCAPE)
+            else:
+                driver.execute_script(
+                    'arguments[0].scrollIntoView({block:"center"})', control)
+                control.click()
+            wait.until(lambda value: 'Closing a task does not cancel or '
+                       'roll back a native operation.' in dialog.text)
+            assert dialog.is_displayed()
+            assert not apply.is_enabled()
+            capture('pending-service-close-' + route)
+        assert driver.execute_script(
+            'return window.__cdeServiceCloseGate.admitted') == 1
+        driver.execute_script('''
+            const gate = window.__cdeServiceCloseGate;
+            XMLHttpRequest.prototype.send = gate.original;
+            delete window.__cdeServiceCloseGate;
+            gate.original.call(gate.held.xhr, gate.held.body);
+        ''')
         complete_endpoint_prompt(driver, password, timeout=3)
         result = wait.until(lambda value: value.find_element(
             By.CSS_SELECTOR, '[aria-label="Firebird service result"]'))
@@ -130,6 +180,8 @@ def run(options, password):
         assert not details.get_property('open')
         evidence.update(passed=True, native_result_observed=True,
                         service_handle_release_observed=True,
+                        pending_dispatch_close_veto=['title', 'footer',
+                                                     'escape'],
                         applied_plan_replay_disabled=True)
     except Exception as exc:
         evidence['error_type'] = type(exc).__name__
@@ -137,6 +189,13 @@ def run(options, password):
         raise
     finally:
         try:
+            driver.execute_script('''
+                const gate = window.__cdeServiceCloseGate;
+                if (gate) {
+                  XMLHttpRequest.prototype.send = gate.original;
+                  delete window.__cdeServiceCloseGate;
+                }
+            ''')
             options.summary_output.parent.mkdir(parents=True, exist_ok=True)
             options.summary_output.write_text(
                 json.dumps(evidence, indent=2) + '\n')

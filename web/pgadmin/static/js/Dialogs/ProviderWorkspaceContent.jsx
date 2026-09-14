@@ -972,6 +972,15 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [result, setResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
+  const [closeBlocked, setCloseBlocked] = useState(false);
+  // Set synchronously at admission, before React renders disabled controls.
+  // Closing a service task is not a native cancellation or rollback request.
+  const operationInFlight = useRef(false);
+  useModalCloseGuard(() => {
+    if (!operationInFlight.current) return true;
+    setCloseBlocked(true);
+    return false;
+  });
   const [refreshWarning, setRefreshWarning] = useState(null);
   const [inspectedResource, setInspectedResource] = useState(null);
   const [inspecting, setInspecting] = useState(false);
@@ -1139,6 +1148,9 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   });
 
   const preview = async () => {
+    if (operationInFlight.current) return;
+    operationInFlight.current = true;
+    setCloseBlocked(false);
     setWorking(true);
     setError(null);
     setPlan(null);
@@ -1155,13 +1167,16 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
+      operationInFlight.current = false;
       setWorking(false);
     }
   };
 
   const apply = async () => {
     const submittedPlan = plan;
-    if (!submittedPlan) return;
+    if (!submittedPlan || operationInFlight.current) return;
+    operationInFlight.current = true;
+    setCloseBlocked(false);
     setWorking(true);
     setError(null);
     setRefreshWarning(null);
@@ -1198,12 +1213,17 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
+      operationInFlight.current = false;
       setWorking(false);
     }
   };
 
   if (!catalog) return <Alert severity="info">{gettext('This provider does not publish a visual administration catalog.')}</Alert>;
   return <Box sx={{p: 2, overflow: 'auto', flex: 1, minWidth: 0}}>
+    {working && closeBlocked && <Alert severity="warning" sx={{mb: 2}}
+      aria-label={gettext('Provider task close deferred')}>
+      {gettext('Wait for the provider operation and its follow-up checks to finish before closing this task. Closing a task does not cancel or roll back a native operation.')}
+    </Alert>}
     {refreshWarning && <Alert severity="warning" sx={{mb: 2}}>
       {refreshWarning}</Alert>}
     {!focused && !objectEditor && graphicalContract && <Alert severity={
@@ -1229,7 +1249,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           </Box>
           {group.objects.map((item) => <Box key={item.resource_kind}
             sx={{mb: 1}}>
-            <Button fullWidth size="small" variant={
+            <Button fullWidth size="small" disabled={working} variant={
               resourceKind === item.resource_kind ? 'contained' : 'text'
             } sx={{justifyContent: 'flex-start'}} onClick={() => {
               setResourceKind(item.resource_kind);
@@ -1240,7 +1260,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
             {resourceKind === item.resource_kind && <Box sx={{display: 'flex',
               flexWrap: 'wrap', gap: 0.5, pl: 1, pt: 0.5}}>
               {(item.operations || []).map((itemOperation) => <Button
-                key={itemOperation.operation_id} size="small"
+                key={itemOperation.operation_id} size="small" disabled={working}
                 variant={operationId === itemOperation.operation_id ?
                   'outlined' : 'text'}
                 color={itemOperation.graphical_ready !== false ?
