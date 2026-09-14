@@ -724,6 +724,48 @@ class ProviderWorkspaceTests(unittest.TestCase):
         self.assertFalse(recovered['live_provider_handle_available'])
         self.assertTrue(recovered['restart_safe_audit'])
 
+    def test_registration_failure_keeps_receipt_and_invalidates(self):
+        from unittest.mock import Mock
+        for action, field, method in (
+                ('register_created_database', 'endpoint_database_target',
+                 'retain_created_database'),
+                ('remove_dropped_database_registration',
+                 'dropped_endpoint_database_target',
+                 'delete_database_target')):
+            for fails in (False, True):
+                with self.subTest(action=action, fails=fails):
+                    native = {'accepted': True, field: {
+                        'database': '/owned/test.fdb',
+                        'target_id': 'target-one',
+                        'confirmation': '/owned/test.fdb'}}
+                    self.binding.instance.apply_visual_admin = Mock(
+                        return_value={'provider_result': native})
+                    callback = Mock(return_value={'targets': []})
+                    if fails:
+                        callback.side_effect = RuntimeError('secret detail')
+                    setattr(self.endpoints, method, callback)
+                    invalidate = Mock()
+                    self.workspace.resource_service.invalidate = invalidate
+                    result = self.workspace.apply_visual_admin(
+                        SimpleNamespace(user_id=7), {})
+                    self.assertEqual(native, result['provider_result'])
+                    callback.assert_called_once()
+                    invalidate.assert_called_once_with(self.context)
+                    self.assertEqual(
+                        1,
+                        self.binding.instance.apply_visual_admin.call_count)
+                    if fails:
+                        follow_up = result['workspace_follow_up'][0]
+                        self.assertEqual(action, follow_up['action'])
+                        self.assertEqual('failed', follow_up['state'])
+                        self.assertFalse(follow_up['automatic_mutation_retry'])
+                        self.assertNotIn('secret detail', repr(result))
+                        self.assertNotIn('database_targets', result)
+                    else:
+                        self.assertNotIn('workspace_follow_up', result)
+                        self.assertEqual({'targets': []},
+                                         result['database_targets'])
+
     def test_visual_admin_invalidation_uses_execution_database_scope(self):
         original = self.endpoints.workspace
         resolved = []

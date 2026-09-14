@@ -1314,6 +1314,13 @@ export function VisualAdministration({catalog, resources, selectedResource, post
               gettext('Data movement may occur.') : gettext('No data movement is expected.')}
           </Alert>}
           {result && <>
+            {(result.workspace_follow_up || []).filter((item) =>
+              item.state === 'failed' && typeof item.message === 'string'
+            ).map((item, index) => <Alert key={`${item.action}-${index}`}
+              severity="warning" sx={{mt: 2}}
+              aria-label={gettext('Connection registration follow-up required')}>
+              {item.message}
+            </Alert>)}
             <Alert severity="info" sx={{mt: 2}}>
               {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
             </Alert>

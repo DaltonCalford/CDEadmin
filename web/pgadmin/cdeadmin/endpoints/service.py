@@ -706,16 +706,29 @@ class EndpointService:
         remaining = [
             item for item in endpoint.database_targets if item.id != target.id
         ]
-        db.session.delete(target)
-        if was_active:
-            if remaining:
-                min(
-                    remaining,
-                    key=lambda item: (item.display_name, item.id),
-                ).active = True
-            endpoint.profile_generation = str(uuid.uuid4())
-        db.session.commit()
+        with self._database_catalog_transaction():
+            db.session.delete(target)
+            if was_active:
+                if remaining:
+                    min(
+                        remaining,
+                        key=lambda item: (item.display_name, item.id),
+                    ).active = True
+                endpoint.profile_generation = str(uuid.uuid4())
         return self.database_catalog(server)
+
+    @staticmethod
+    @contextmanager
+    def _database_catalog_transaction():
+        """Persist local connection metadata; never touch native sessions."""
+        from pgadmin.model import db
+
+        try:
+            yield
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
 
     def retain_created_database(self, server, target):
         """Activate a provider-created database after its driver succeeds."""
@@ -734,25 +747,25 @@ class EndpointService:
 
         endpoint, _profile = self._managed_endpoint(server)
         database, display_name = self._database_target_input(target)
-        for item in endpoint.database_targets:
-            item.active = False
-        model = next((
-            item for item in endpoint.database_targets
-            if item.database == database
-        ), None)
-        if model is None:
-            model = EndpointDatabaseTarget(
-                id=str(uuid.uuid4()), endpoint_id=endpoint.id,
-                display_name=display_name, database=database,
-                configuration='{}', active=True,
-            )
-            db.session.add(model)
-        else:
-            model.display_name = display_name
-            model.active = True
-        self._remove_route_databases(endpoint)
-        endpoint.profile_generation = str(uuid.uuid4())
-        db.session.commit()
+        with self._database_catalog_transaction():
+            for item in endpoint.database_targets:
+                item.active = False
+            model = next((
+                item for item in endpoint.database_targets
+                if item.database == database
+            ), None)
+            if model is None:
+                model = EndpointDatabaseTarget(
+                    id=str(uuid.uuid4()), endpoint_id=endpoint.id,
+                    display_name=display_name, database=database,
+                    configuration='{}', active=True,
+                )
+                db.session.add(model)
+            else:
+                model.display_name = display_name
+                model.active = True
+            self._remove_route_databases(endpoint)
+            endpoint.profile_generation = str(uuid.uuid4())
         return self.database_catalog(server)
 
     def create_route(self, server, data):

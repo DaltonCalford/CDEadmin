@@ -198,18 +198,20 @@ def _wait_target(wait, options, predicate, message):
     )
 
 
-def _complete_cases(driver, wait, options, module, password):
+def _complete_cases(driver, wait, options, module, password,
+                    evidence, cleanup):
     suffix = uuid.uuid4().hex
     root = PurePosixPath(options.database_root)
     registered_path = str(root / f'cdeadmin_ui_registered_{suffix}.fdb')
     created_path = str(root / f'cdeadmin_ui_created_{suffix}.fdb')
     _create(module, options, password, registered_path)
-    evidence = []
-    cleanup = {
+    cleanup.update({
         'registered_database': registered_path,
         'created_database': created_path,
         'database_files_removed': [],
-    }
+        'unverified_paths': [],
+        'native_create_requested': False,
+    })
     try:
         shared._open_form(driver, wait, 'connect', options.database)
         shared._submit_target_form(driver, wait, 'connect', {
@@ -317,6 +319,7 @@ def _complete_cases(driver, wait, options, module, password):
 
         shared._refresh_tree(driver, wait, options, options.database)
         shared._open_form(driver, wait, 'create')
+        cleanup['native_create_requested'] = True
         lifecycle = shared._submit_lifecycle(
             driver, wait, options, 'create', {
                 'Absolute database filename on the Firebird server':
@@ -400,9 +403,16 @@ def _complete_cases(driver, wait, options, module, password):
         cleanup['database_files_removed'].append(created_path)
         return evidence, cleanup
     finally:
-        for database in (created_path, registered_path):
+        candidates = [registered_path]
+        if cleanup['native_create_requested']:
+            candidates.append(created_path)
+        for database in candidates:
+            if database in cleanup['database_files_removed']:
+                continue
             if _drop(module, options, password, database):
                 cleanup['database_files_removed'].append(database)
+            else:
+                cleanup['unverified_paths'].append(database)
 
 
 def run(options):
@@ -421,34 +431,47 @@ def run(options):
     completed = []
     cleanup = {}
     failures = []
+
+    def record_failure(phase, exc):
+        failure_path = options.output_root / (phase + '-failure.png')
+        failure_path.parent.mkdir(parents=True, exist_ok=True)
+        failure = {'phase': phase, 'error_type': type(exc).__name__,
+                   'error': str(exc), 'traceback': traceback.format_exc()}
+        try:
+            driver.save_screenshot(str(failure_path))
+            failure['screenshot'] = str(failure_path)
+        except Exception as screenshot_error:
+            failure['screenshot_error_type'] = type(screenshot_error).__name__
+        failures.append(failure)
+
     try:
         driver.get(options.url.rstrip('/') + '/browser/')
         shared._prepare_tree(driver, wait, options, options.database)
         forms = shared._catalog_forms(driver)
         if forms.get('__error__'):
             raise RuntimeError(forms['__error__'])
-        completed, cleanup = _complete_cases(
-            driver, wait, options, module, password
-        )
-        shared._refresh_tree(driver, wait, options, options.database)
+        try:
+            _complete_cases(driver, wait, options, module, password,
+                            completed, cleanup)
+        except Exception as exc:
+            record_failure('execution', exc)
         for mode in RENDER_ORDER:
-            database_label = (
-                options.database if mode not in {'define', 'create'} else None
-            )
-            rendered.append(shared._render_case(
-                driver, wait, options, forms, mode, database_label
-            ))
+            try:
+                shared._refresh_tree(driver, wait, options, options.database)
+                database_label = (
+                    options.database if mode not in {'define', 'create'}
+                    else None)
+                rendered.append(shared._render_case(
+                    driver, wait, options, forms, mode, database_label))
+            except Exception as exc:
+                record_failure('render-' + mode, exc)
     except Exception as exc:
-        failure_path = options.output_root / 'failure.png'
-        failure_path.parent.mkdir(parents=True, exist_ok=True)
-        driver.save_screenshot(str(failure_path))
-        failures.append({
-            'error_type': type(exc).__name__, 'error': str(exc),
-            'traceback': traceback.format_exc(),
-            'screenshot': str(failure_path),
-        })
+        record_failure('setup', exc)
     finally:
-        driver.quit()
+        try:
+            driver.quit()
+        except Exception as exc:
+            record_failure('browser-cleanup', exc)
     passed_modes = {item['mode'] for item in rendered}
     completed_modes = {item['mode'] for item in completed}
     return {
@@ -484,7 +507,8 @@ def run(options):
         'provider_values_recorded': False,
         'complete': (
             passed_modes == set(COMPLETION_ORDER) and
-            completed_modes == set(COMPLETION_ORDER) and not failures
+            completed_modes == set(COMPLETION_ORDER) and not failures and
+            not cleanup.get('unverified_paths')
         ),
     }
 

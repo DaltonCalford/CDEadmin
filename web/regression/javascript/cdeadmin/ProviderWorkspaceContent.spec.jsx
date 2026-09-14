@@ -1068,6 +1068,34 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
   });
 
+  it('shows local registration failure without discarding or replaying native success', async () => {
+    const post = jest.fn(async ({action}) => {
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return {plan_id: 'p', plan_digest: 'd',
+        state: 'ready', execution_available: true};
+      return {provider_result: {accepted: true, native_database_created: true},
+        workspace_follow_up: [{action: 'register_created_database',
+          state: 'failed', automatic_mutation_retry: false,
+          message: 'Registration unavailable. Do not repeat the native operation.'}]};
+    });
+    render(<VisualAdministration resources={[]} post={post} setError={jest.fn()}
+      initialResourceKind="database" initialOperationId="create"
+      catalog={{objects: [{resource_kind: 'database', title: 'Database',
+        operations: [{operation_id: 'create', title: 'Create database',
+          target_required: false, form: {fields: []}}]}]}} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button',
+      {name: 'Apply provider plan'})).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+    expect(await screen.findByLabelText('Connection registration follow-up required'))
+      .toHaveTextContent('Do not repeat the native operation.');
+    expect(screen.getByLabelText('Provider operation result'))
+      .toHaveTextContent('"native_database_created": true');
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+    expect(post.mock.calls.filter(([body]) =>
+      body.action === 'visual_admin_apply')).toHaveLength(1);
+  });
+
   it.each(['ok', 'reload', 'execute'])('does not replay an edit after %s outcome', async (outcome) => {
     const object = {resource_id: 'sequence:one', resource_kind: 'sequence',
       display_name: 'Sequence one'};

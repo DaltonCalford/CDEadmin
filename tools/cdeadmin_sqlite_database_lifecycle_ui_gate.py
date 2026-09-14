@@ -51,6 +51,7 @@ if __package__:
     )
     from .cdeadmin_ui_evidence import (
         complete_endpoint_prompt,
+        ensure_data_explorer,
         expand,
         fill_fields,
         invoke_context_action,
@@ -69,6 +70,7 @@ else:
     )
     from cdeadmin_ui_evidence import (
         complete_endpoint_prompt,
+        ensure_data_explorer,
         expand,
         fill_fields,
         invoke_context_action,
@@ -146,6 +148,7 @@ def _prepare_tree(driver, wait, options, database_label):
                driver.current_url.rstrip('/') + '/browser/')
     wait.until(lambda value: '/browser/' in value.current_url)
     apply_presentation(driver, wait, options)
+    ensure_data_explorer(wait)
     for label, child in (
         ('Connectors', ENGINE_NAME),
         (ENGINE_NAME, 'localhost'),
@@ -154,11 +157,22 @@ def _prepare_tree(driver, wait, options, database_label):
         wait_for_tree_item(wait, child)
     server = wait_for_tree_item(wait, 'localhost')
     driver.execute_script('arguments[0].click()', server)
+    wait.until(lambda value: value.execute_script(
+        """
+        const tree = window.pgAdmin?.Browser?.tree;
+        const item = tree?.selected?.();
+        const data = item ? tree.itemData(item) : null;
+        return data?._type === 'server' &&
+          (data.label || data._label) === 'localhost';
+        """))
     driver.execute_script(
         """
         const tree = window.pgAdmin.Browser.tree;
         const item = tree.selected();
         const node = window.pgAdmin.Browser.Nodes.server;
+        if (!tree.itemData(item)?.cde_endpoint) {
+          throw new Error('Selected server is not a provider endpoint');
+        }
         window.__cdeadminSqliteLifecycleVerified = false;
         node.callbacks.verify_cde_endpoint.call(node, {
           item,
@@ -663,6 +677,7 @@ def _refresh_tree(driver, wait, options, database_label):
             driver.get(options.url.rstrip('/') + '/browser/')
             wait.until(lambda value: '/browser/' in value.current_url)
             apply_presentation(driver, wait, options)
+            ensure_data_explorer(wait)
             for label, child in (
                 ('Connectors', ENGINE_NAME),
                 (ENGINE_NAME, 'localhost'),

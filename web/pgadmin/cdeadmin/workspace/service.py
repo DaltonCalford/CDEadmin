@@ -737,24 +737,44 @@ class ProviderWorkspaceService:
             'endpoint_database_target'
         ) if isinstance(result.get('provider_result'), dict) else None
         if isinstance(created_target, dict):
-            result['database_targets'] = (
-                self.endpoint_service.retain_created_database(
-                    server, created_target
-                )
+            self._database_target_follow_up(
+                result, 'register_created_database',
+                lambda: self.endpoint_service.retain_created_database(
+                    server, created_target),
             )
         dropped_target = result.get('provider_result', {}).get(
             'dropped_endpoint_database_target'
         ) if isinstance(result.get('provider_result'), dict) else None
         if isinstance(dropped_target, dict):
-            result['database_targets'] = (
-                self.endpoint_service.delete_database_target(
+            self._database_target_follow_up(
+                result, 'remove_dropped_database_registration',
+                lambda: self.endpoint_service.delete_database_target(
                     server, dropped_target.get('target_id'), {
                         'confirmation': dropped_target.get('confirmation'),
-                    }
-                )
+                    }),
             )
         self.resource_service.invalidate(context)
         return result
+
+    @staticmethod
+    def _database_target_follow_up(result, action, callback):
+        """Keep native execution and local registration outcomes distinct."""
+        try:
+            result['database_targets'] = callback()
+        except Exception as error:
+            # The native operation already returned. Do not hide that receipt,
+            # suggest replay, or compensate by dropping/recreating a database.
+            result.setdefault('workspace_follow_up', []).append({
+                'action': action, 'state': 'failed',
+                'error_type': type(error).__name__,
+                'automatic_mutation_retry': False,
+                'message': (
+                    'The provider response was recorded, but the local '
+                    'database registration could not be synchronized. '
+                    'Do not repeat the native operation. Refresh and review '
+                    'the database and its connection registration separately.'
+                ),
+            })
 
     def plan_visual_admin_bulk(self, server, request):
         """Create bounded, provider-native previews for an ordered batch."""
