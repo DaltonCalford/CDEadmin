@@ -117,6 +117,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'role': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
+            'configure_admin_mapping',
         }),
         'user': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
@@ -1852,6 +1853,8 @@ def _resources(connection, request):
                     f'{str(native["definition"]).strip()};'
                 )
             elif kind == 'role':
+                if name == 'RDB$ADMIN':
+                    native['auto_admin_mapping'] = _admin_mapping_state(cursor)
                 memberships = [grant for grant in native.get('privileges', [])
                                if grant.get('privilege') == 'M']
                 native['memberships'] = memberships
@@ -1888,7 +1891,11 @@ def _resources(connection, request):
                     'creating user. Recreate through that user to preserve '
                     'ownership; ALTER ROLE has no OWNER TO clause.',
                 }
-                if native.get('unknown_system_privilege_bits'):
+                if native.get('system_object'):
+                    native['ddl_unavailable_reason'] = (
+                        'Firebird creates this built-in role with the '
+                        'database; it cannot be recreated with CREATE ROLE.')
+                elif native.get('unknown_system_privilege_bits'):
                     native['ddl_unavailable_reason'] = (
                         'Unknown native system privilege bits; recreation '
                         'would lose privileges.')
@@ -2330,6 +2337,29 @@ def _resources(connection, request):
         return list(resources.values())
     finally:
         cursor.close()
+
+
+def _admin_mapping_state(cursor):
+    """Inspect the database-local compatibility mapping, not auth success."""
+    try:
+        cursor.execute(
+            'SELECT TRIM(RDB$MAP_USING), TRIM(RDB$MAP_PLUGIN), '
+            'TRIM(RDB$MAP_DB), TRIM(RDB$MAP_FROM_TYPE), '
+            'TRIM(RDB$MAP_FROM), RDB$MAP_TO_TYPE, TRIM(RDB$MAP_TO) '
+            'FROM RDB$AUTH_MAPPING WHERE RDB$MAP_NAME = '
+            "'AutoAdminImplementationMapping'")
+        row = cursor.fetchone()
+    except Exception as error:
+        return {'available': False, 'error_type': type(error).__name__}
+    expected = ('P', 'Win_Sspi', None, 'Predefined_Group',
+                'DOMAIN_ANY_RID_ADMINS', 1, 'RDB$ADMIN')
+    return {
+        'available': True, 'present': row is not None,
+        'canonical': tuple(row) == expected if row is not None else False,
+        'definition': dict(zip(('using', 'plugin', 'database', 'from_type',
+                                'from', 'to_type', 'to'), row or ())),
+        'scope': 'database', 'windows_authentication_verified': False,
+    }
 
 
 def _security(connection, request):

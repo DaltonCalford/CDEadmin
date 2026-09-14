@@ -164,7 +164,19 @@ def _prepare_tree(driver, wait, options):
     ):
         print(f'expand {label} -> {child}', flush=True)
         expand(wait, label)
-        wait_for_tree_item(wait, child)
+        try:
+            wait_for_tree_item(wait, child)
+        except Exception:
+            timings = driver.execute_script("""
+              return performance.getEntriesByType('resource').slice(-60)
+                .map(item => ({path: new URL(item.name).pathname,
+                  duration_ms: item.duration,
+                  status: item.responseStatus || null}));
+            """)
+            options.output_root.mkdir(parents=True, exist_ok=True)
+            (options.output_root / 'navigation-timing.json').write_text(
+                json.dumps(timings, indent=2) + '\n')
+            raise
     database = wait_for_tree_item(wait, options.database)
     ActionChains(driver).move_to_element(database).context_click().perform()
     try:
@@ -305,7 +317,7 @@ def _workspace_probe(driver, resource_kinds=None):
         const done = arguments[arguments.length - 1];
         const selectedKinds = new Set(arguments[0] || []);
         const containers = new Set(['database', 'schema', 'namespace',
-          'system', 'catalog']);
+          'system', 'system-objects', 'catalog']);
         const app = window.pgAdmin;
         const tree = app?.Browser?.tree;
         const databaseItem = window.__cdeadminQaDatabaseItem ||
@@ -945,7 +957,10 @@ def run(options):
                 })
                 continue
             target = next((item for item in resources if
-                           item.get('resource_kind') == kind), None)
+                           item.get('resource_kind') == kind and
+                           (not operation.get('target_resource_names') or
+                            item.get('display_name') in operation[
+                                'target_resource_names'])), None)
             if (
                 options.engine_id == 'mariadb' and
                 kind == 'system-variable' and

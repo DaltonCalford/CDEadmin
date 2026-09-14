@@ -343,6 +343,61 @@ def supplement_roles(document, evidence, digest, artifact):
     return value
 
 
+def supplement_admin_mapping(document, evidence, digest, artifact):
+    """Admit the local mapping task only after exact clean native evidence."""
+    validate_dialect_contract(document, PROFILE)
+    required = {
+        'set-rollback-restores-absence', 'set-commit-and-replace-idempotent',
+        'system-role-inspector-no-fabricated-create',
+        'drop-rollback-restores-mapping', 'drop-commit-removes-mapping',
+        'absent-drop-native-error-no-state-change',
+        'uncommitted-close-discards-mapping',
+        'unprivileged-SET-denied', 'unprivileged-DROP-denied',
+    }
+    statements = {action: f'ALTER ROLE "RDB$ADMIN" {action} AUTO ADMIN MAPPING'
+                  for action in ('SET', 'DROP')}
+    if (evidence.get('status') != 'passed' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('fixture_removed') is not True or
+            evidence.get('temporary_user_removed') is not True or
+            evidence.get('failures') != [] or
+            not required.issubset(evidence.get('checks', [])) or
+            evidence.get('statements') != statements):
+        raise ValueError('Admin mapping evidence is incomplete or unclean')
+    value = copy.deepcopy(document)
+    task_id = 'visual_admin.role.configure_admin_mapping'
+    proof_id = 'firebird-5.0.4-local-admin-mapping-live'
+    parser_id = 'firebird-5.0.4-local-admin-mapping-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    value['proof_records'].append(_evidence(
+        proof_id, 'live_execution', 'Firebird 5.0.4 runtime', artifact, digest,
+        'cdeadmin.firebird-admin-mapping-live.v1', 'PostgreSQL'))
+    value['proof_records'].append(_evidence(
+        parser_id, 'parser_acceptance', 'Firebird 5.0.4 runtime', artifact,
+        digest, 'cdeadmin.firebird-admin-mapping-live.v1', 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] != task_id]
+    value['task_templates'].append({
+        'task_id': task_id, 'source': '\n;\n'.join(statements.values()),
+        'source_format': 'ordered_native_statements',
+        'statements': list(statements.values()), 'required_bindings': [],
+        'binding_style': 'positional_question_mark',
+        'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+    })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -370,9 +425,13 @@ def main(argv=None):
     parser.add_argument('--live-evidence', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--task-report', type=Path, required=True)
+    parser.add_argument('--supplement', choices=('roles', 'admin-mapping'),
+                        default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
-        document = supplement_roles(
+        supplement = (supplement_admin_mapping if options.supplement ==
+                      'admin-mapping' else supplement_roles)
+        document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),
             json.loads(options.live_evidence.read_text(encoding='utf-8')),
             _sha256(options.live_evidence), options.live_evidence.name,

@@ -453,14 +453,14 @@ function fieldVisible(field, draft) {
   return false;
 }
 
-function PasswordAdminField({field, value, onChange}) {
+function PasswordAdminField({field, value, onChange, disabled=false}) {
   const [visible, setVisible] = useState(false);
-  return <TextField fullWidth label={field.label} value={value}
+  return <TextField disabled={disabled} fullWidth label={field.label} value={value}
     required={field.required} type={visible ? 'text' : 'password'}
     helperText={field.help || ''} onChange={(event) =>
       onChange(event.target.value)}
     InputProps={{endAdornment: <InputAdornment position="end">
-      <IconButton edge="end" onClick={() => setVisible(!visible)}
+      <IconButton disabled={disabled} edge="end" onClick={() => setVisible(!visible)}
         aria-label={visible ? gettext('Hide password') :
           gettext('Show password')}>
         {visible ? <VisibilityOffRoundedIcon /> : <VisibilityRoundedIcon />}
@@ -469,38 +469,39 @@ function PasswordAdminField({field, value, onChange}) {
 }
 
 PasswordAdminField.propTypes = {
+  disabled: PropTypes.bool,
   field: PropTypes.object.isRequired,
   value: PropTypes.any,
   onChange: PropTypes.func.isRequired,
 };
 
-export function VisualAdminField({field, value, onChange}) {
+export function VisualAdminField({field, value, onChange, disabled=false}) {
   if (field.object_editor) {
     let record = value ?? initialFieldValue(field);
     if (typeof record === 'string') {
       try { record = JSON.parse(record); } catch { record = null; }
     }
-    return <RecordListAdminField singleRecord field={{...field,
+    return <RecordListAdminField disabled={disabled} singleRecord field={{...field,
       array_editor: {item_kind: 'object', ...field.object_editor}}}
     value={[record]} onChange={(records) => onChange(records[0])} />;
   }
   const admittedValue = value ?? initialFieldValue(field);
   if (field.array_editor) {
-    return <RecordListAdminField field={field} value={admittedValue}
+    return <RecordListAdminField disabled={disabled} field={field} value={admittedValue}
       onChange={onChange} />;
   }
   if (field.control === 'password') {
-    return <PasswordAdminField field={field} value={admittedValue}
+    return <PasswordAdminField disabled={disabled} field={field} value={admittedValue}
       onChange={onChange} />;
   }
   if (field.control === 'boolean') {
-    return <FormControlLabel control={<Checkbox checked={Boolean(admittedValue)}
+    return <FormControlLabel disabled={disabled} control={<Checkbox checked={Boolean(admittedValue)}
       onChange={(event) => onChange(event.target.checked)} />}
     label={field.label} />;
   }
   if (field.control === 'select') {
-    return <TextField select fullWidth label={field.label} value={admittedValue}
-      required={field.required}
+    return <TextField disabled={disabled} select fullWidth label={field.label} value={admittedValue}
+      required={field.required} helperText={field.help || field.help_text || ''}
       onChange={(event) => onChange(event.target.value)}>
       {(field.options || []).map((option) => (
         <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
@@ -508,8 +509,8 @@ export function VisualAdminField({field, value, onChange}) {
     </TextField>;
   }
   if (field.control === 'multiselect') {
-    return <TextField select fullWidth label={field.label}
-      helperText={field.help_text}
+    return <TextField disabled={disabled} select fullWidth label={field.label}
+      helperText={field.help || field.help_text || ''}
       value={Array.isArray(admittedValue) ? admittedValue : []}
       required={field.required} SelectProps={{
         multiple: true,
@@ -534,7 +535,7 @@ export function VisualAdminField({field, value, onChange}) {
     </TextField>;
   }
   const multiline = ['multiline', 'code', 'json'].includes(field.control);
-  return <TextField fullWidth label={field.label} value={admittedValue}
+  return <TextField disabled={disabled} fullWidth label={field.label} value={admittedValue}
     required={field.required} multiline={multiline}
     minRows={multiline ? 3 : undefined} maxRows={multiline ? 12 : undefined}
     type={field.control === 'number' ? 'number' : 'text'}
@@ -549,12 +550,13 @@ export function VisualAdminField({field, value, onChange}) {
 }
 
 VisualAdminField.propTypes = {
+  disabled: PropTypes.bool,
   field: PropTypes.object.isRequired,
   value: PropTypes.any,
   onChange: PropTypes.func.isRequired,
 };
 
-export function RecordListAdminField({field, value, onChange, singleRecord = false}) {
+export function RecordListAdminField({field, value, onChange, singleRecord = false, disabled=false}) {
   let items = value;
   if (typeof items === 'string') {
     try { items = JSON.parse(items); } catch { items = null; }
@@ -586,29 +588,29 @@ export function RecordListAdminField({field, value, onChange, singleRecord = fal
       border: 1, borderColor: 'divider'}}>
       {!singleRecord && <Box sx={{display: 'flex', gap: 1, mb: 1}}>
         <Box>{index + 1}</Box>
-        <Button size="small" disabled={index === 0}
+        <Button size="small" disabled={disabled || index === 0}
           aria-label={`${field.label} ${index + 1}: ${gettext('Move up')}`}
           onClick={() => move(index, -1)}>{gettext('Move up')}</Button>
-        <Button size="small" disabled={index === items.length - 1}
+        <Button size="small" disabled={disabled || index === items.length - 1}
           aria-label={`${field.label} ${index + 1}: ${gettext('Move down')}`}
           onClick={() => move(index, 1)}>{gettext('Move down')}</Button>
-        <Button size="small" color="warning"
+        <Button size="small" color="warning" disabled={disabled}
           aria-label={`${field.label} ${index + 1}: ${gettext('Remove')}`}
           onClick={() => onChange(items.filter((_, current) => current !== index))}>
           {gettext('Remove')}</Button>
       </Box>}
-      {schema.item_kind === 'string' ? <TextField fullWidth
+      {schema.item_kind === 'string' ? <TextField disabled={disabled} fullWidth
         label={`${field.label} ${index + 1}`} value={item}
         onChange={(event) => setItem(index, event.target.value)} /> :
         <Box sx={{display: 'grid', gridTemplateColumns: {
           xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'}, gap: 2}}>
           {children.filter((child) => fieldVisible(child, item)).map((child) =>
-            <VisualAdminField key={child.field_id} field={child}
+            <VisualAdminField disabled={disabled} key={child.field_id} field={child}
               value={item?.[child.field_id] ?? initialFieldValue(child)}
               onChange={(next) => setItem(index, {...item, [child.field_id]: next})} />)}
         </Box>}
     </Box>)}
-    {!singleRecord && <Button onClick={() => onChange([...items, schema.item_kind === 'string' ? '' :
+    {!singleRecord && <Button disabled={disabled} onClick={() => onChange([...items, schema.item_kind === 'string' ? '' :
       Object.fromEntries(children.map((child) =>
         [child.field_id, initialFieldValue(child)]))])}>
       {gettext('Add %s item', field.label)}</Button>}
@@ -616,6 +618,7 @@ export function RecordListAdminField({field, value, onChange, singleRecord = fal
 }
 
 RecordListAdminField.propTypes = {
+  disabled: PropTypes.bool,
   singleRecord: PropTypes.bool,
   field: PropTypes.object.isRequired,
   value: PropTypes.any,
@@ -888,7 +891,9 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [inspecting, setInspecting] = useState(false);
   const objectDescriptor = objects.find((item) => item.resource_kind === resourceKind);
   const operations = useMemo(() => (objectDescriptor?.operations || []).filter((item) =>
+    (!item.target_resource_names || item.target_resource_names.includes(selectedResource?.display_name)) &&
     (!providerNative(selectedResource)?.system_object ||
+      (item.allow_system_target === true && item.target_resource_names?.includes(selectedResource?.display_name)) ||
       item.operation_id === 'inspect') &&
     (!objectEditor || (item.target_required !== false &&
       (!item.target_resource_kinds || item.target_resource_kinds.includes(
@@ -899,7 +904,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const fields = allFields.filter((field) => fieldVisible(field, draft));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
   const matchingResources = (resources || []).filter(
-    (item) => targetKinds.includes(item.resource_kind) && (!objectEditor ||
+    (item) => targetKinds.includes(item.resource_kind) &&
+    (!operation?.target_resource_names || operation.target_resource_names.includes(item.display_name)) && (!objectEditor ||
       item.resource_id === selectedResource?.resource_id)
   );
   const graphicalContract = catalog?.graphical_interface;
@@ -1184,9 +1190,11 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           <Box component="fieldset" disabled={working || inspecting}
             sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2,
               p: 0, border: 0, minWidth: 0}}>
-            {fields.map((field) => <VisualAdminField key={field.field_id}
+            {fields.map((field) => <VisualAdminField disabled={working || inspecting} key={field.field_id}
               field={field} value={draft[field.field_id]}
-              onChange={(value) => setDraft((current) => ({...current, [field.field_id]: value}))} />)}
+              onChange={(value) => {
+                if (!working && !inspecting) setDraft((current) => ({...current, [field.field_id]: value}));
+              }} />)}
           </Box>
           {(operation?.blockers || []).length > 0 && <Alert severity="info" sx={{mt: 2}}>
             {gettext('Execution readiness')}: {operation.blockers.join(', ')}

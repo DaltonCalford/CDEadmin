@@ -9,12 +9,25 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from tools.cdeadmin_firebird_ui_orchestrator import gate_command
 from pgadmin.cdeadmin.providers.firebird.provider import ADMINISTRATION
 from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
 from tools.cdeadmin_provider_object_form_gate import (
-    _enumerate_operations, _preview_values,
+    _enumerate_operations, _preview_values, _workspace_probe,
 )
+
+
+def test_focused_role_probe_traverses_organizational_system_branch():
+    class Driver:
+        def execute_async_script(self, source, kinds):
+            assert "'system-objects'" in source
+            assert 'containers.has(kind)' in source
+            assert kinds == ['role']
+            return {'probe': 'recorded'}
+
+    assert _workspace_probe(Driver(), ['role']) == {'probe': 'recorded'}
 
 
 def test_native_blocked_forms_cannot_disappear_from_qualification_count():
@@ -49,11 +62,15 @@ def options(kind):
     )
 
 
-def test_role_mutation_gate_receives_exact_profile_and_database():
-    settings = options('role')
+@pytest.mark.parametrize('kind,filename', [
+    ('role', 'cdeadmin_firebird_role_ui_gate.py'),
+    ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),
+])
+def test_mutation_gate_receives_exact_profile_and_database(kind, filename):
+    settings = options(kind)
     settings.database = '/var/lib/firebird/data/sample.fdb'
     command = gate_command(settings, 'http://127.0.0.1:5052', 'sample.fdb')
-    assert command[1].endswith('cdeadmin_firebird_role_ui_gate.py')
+    assert command[1].endswith(filename)
     assert command[command.index('--profiles') + 1] == '/profiles.json'
     assert command[command.index('--database-path') + 1] == settings.database
     assert command[command.index('--reference-version') + 1] == '5.0.4'

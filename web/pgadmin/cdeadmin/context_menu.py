@@ -1130,7 +1130,13 @@ def resource_context_actions(
     operations = [
         operation for operation in descriptor.get('operations', [])
         if operation.get('native_supported') is not False and
+        (not operation.get('target_resource_names') or
+         resource.get('display_name') in
+         operation['target_resource_names']) and
         (not resource_native(resource).get('system_object') or
+         (operation.get('allow_system_target') is True and
+          resource.get('display_name') in
+          (operation.get('target_resource_names') or [])) or
          operation.get('operation_id') == 'inspect')
     ]
     inspect = next((

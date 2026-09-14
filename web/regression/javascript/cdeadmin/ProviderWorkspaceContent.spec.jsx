@@ -26,6 +26,70 @@ import getApiInstance from '../../../pgadmin/static/js/api_instance';
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it.each(['text', 'multiline', 'code', 'json', 'number', 'password', 'boolean'])('propagates disabled state to %s controls', (control) => {
+    render(<VisualAdminField disabled field={{field_id: 'test', label: 'Field', control}}
+      value={control === 'boolean' ? false : ''} onChange={jest.fn()} />);
+    expect(screen.getByLabelText('Field')).toBeDisabled();
+    if (control === 'password') expect(screen.getByRole('button', {name: 'Show password'})).toBeDisabled();
+  });
+
+  it('propagates disabled state through structured record controls', () => {
+    render(<VisualAdminField disabled field={{field_id: 'items', label: 'Items',
+      control: 'json', array_editor: {item_kind: 'object', fields: [
+        {field_id: 'name', label: 'Name', control: 'text'},
+        {field_id: 'choice', label: 'Choice', control: 'select', options: [{value: 'A', label: 'A'}]},
+      ]}}} value={[{name: 'first', choice: 'A'}, {name: 'second', choice: 'A'}]} onChange={jest.fn()} />);
+    for (const input of screen.getAllByRole('textbox')) expect(input).toBeDisabled();
+    for (const button of screen.getAllByRole('button')) expect(button).toBeDisabled();
+    for (const choice of screen.getAllByRole('combobox')) expect(choice).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it.each(['select', 'multiselect'])('disables %s during metadata loading and renders provider guidance', async (control) => {
+    const target = {resource_id: 'role:RDB$ADMIN', resource_kind: 'role', display_name: 'RDB$ADMIN'};
+    let finish;
+    const pending = new Promise((resolve) => { finish = resolve; });
+    render(<VisualAdministration selectedResource={target} resources={[target]}
+      post={() => pending} setError={jest.fn()} initialResourceKind="role"
+      initialOperationId="alter" catalog={{objects: [{resource_kind: 'role', operations: [
+        {operation_id: 'alter', title: 'Alter', target_required: true, form: {fields: [
+          {field_id: 'choice', label: 'Mapping choice', control, help: 'Replaces the reserved mapping.',
+            default: control === 'select' ? 'SET' : [], options: [{value: 'SET', label: 'SET'}, {value: 'DROP', label: 'DROP'}]},
+        ]}},
+      ]}]}} />);
+    const choice = screen.getByRole('combobox', {name: 'Mapping choice'});
+    expect(choice).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByText('Replaces the reserved mapping.')).toBeInTheDocument();
+    fireEvent.mouseDown(choice);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await act(async () => { finish(target); });
+    await waitFor(() => expect(choice).not.toHaveAttribute('aria-disabled', 'true'));
+    fireEvent.mouseDown(choice);
+    expect(screen.getByRole('option', {name: /DROP/})).toBeInTheDocument();
+  });
+
+  it.each(['RDB$ADMIN', 'OTHER_SYSTEM', 'READER'])('limits named system-role operations for %s', async (name) => {
+    const target = {resource_id: 'role:' + name, resource_kind: 'role', display_name: name,
+      extensions: {firebird: {native: {system_object: name !== 'READER'}}}};
+    const post = jest.fn(async () => target);
+    render(<VisualAdministration selectedResource={target} resources={[target]}
+      post={post} setError={jest.fn()} initialResourceKind="role"
+      initialOperationId="configure_admin_mapping" catalog={{objects: [{resource_kind: 'role',
+        operations: [
+          {operation_id: 'inspect', title: 'Inspect', form: {fields: []}},
+          {operation_id: 'configure_admin_mapping', title: 'Configure Windows administrator mapping',
+            target_required: true, allow_system_target: true, target_resource_names: ['RDB$ADMIN'],
+            form: {fields: [{field_id: 'mapping_action', label: 'Windows administrator mapping',
+              control: 'select', default: 'SET', options: [{value: 'SET', label: 'SET'}, {value: 'DROP', label: 'DROP'}]}]}},
+        ]}]}} />);
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    if (name === 'RDB$ADMIN') {
+      await waitFor(() => expect(screen.getByRole('combobox', {name: 'Windows administrator mapping'})).toBeInTheDocument());
+    } else {
+      expect(screen.queryByRole('combobox', {name: 'Windows administrator mapping'})).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', {name: 'Configure Windows administrator mapping'})).not.toBeInTheDocument();
+    }
+  });
+
   it('blocks role confirmation until asynchronous inspection is complete', async () => {
     const target = {resource_id: 'role:reader', resource_kind: 'role', display_name: 'reader'};
     let finishInspection;

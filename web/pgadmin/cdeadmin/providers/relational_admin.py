@@ -211,6 +211,19 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'role':
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] != 'configure_admin_mapping'
+                ] + [{
+                        'operation_id': 'configure_admin_mapping',
+                        'title': 'Configure Windows administrator mapping',
+                        'mutation_class': 'admin',
+                        'target_required': True,
+                        'confirmation_required': True,
+                        'target_resource_names': ['RDB$ADMIN'],
+                        'allow_system_target': True,
+                    }]
             resource['operations'] = [
                 operation for operation in resource.get('operations', [])
                 if self.supports(kind, operation['operation_id'])
@@ -2744,6 +2757,21 @@ class RelationalAdministration:
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'role' and
+                operation == 'configure_admin_mapping'):
+            target = request.get('target_resource') or {}
+            if target.get('display_name') != 'RDB$ADMIN':
+                raise RelationalClientError(
+                    'AUTO ADMIN MAPPING applies only to RDB$ADMIN')
+            action = request.get('draft', {}).get('mapping_action')
+            if action not in ('SET', 'DROP'):
+                raise RelationalClientError('Choose SET or DROP admin mapping')
+            return {'statements': [{
+                'source': (f'ALTER ROLE "RDB$ADMIN" '
+                           f'{action} AUTO ADMIN MAPPING'),
+                'parameters': (),
+            }]}
         if (
             self.dialect.engine_id == 'mariadb' and
             request['resource_kind'] == 'system-variable' and
@@ -3799,6 +3827,21 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'role' and
+                operation == 'configure_admin_mapping'):
+            return {
+                'form_id': 'firebird.role.configure_admin_mapping',
+                'title': 'Configure Windows administrator mapping',
+                'fields': [self._field(
+                    'mapping_action', 'Windows administrator mapping',
+                    'select', True,
+                    'RDB$ADMIN only. SET creates or replaces the reserved '
+                    'AutoAdminImplementationMapping using Win_Sspi in this '
+                    'database; DROP removes that mapping. '
+                    'This does not enable the authentication plugin or '
+                    'verify Windows login. No global mapping is changed.',
+                    'SET', options=('SET', 'DROP'))],
+            }
         if operation == 'inspect':
             return {'form_id': f'{kind}.inspect', 'title': title, 'fields': []}
         if self.dialect.engine_id == 'mariadb' and (

@@ -218,6 +218,13 @@ class ProviderVisualAdministration:
         known = {field['field_id'] for field in fields}
         unknown = sorted(set(draft).difference(known))
         errors = []
+        if operation.get('target_resource_names') and (
+                not isinstance(target, Mapping) or target.get('display_name')
+                not in operation['target_resource_names']):
+            errors.append({
+                'field_id': None, 'code': 'operation_target_not_supported',
+                'message': 'This operation is not supported for that object.',
+            })
         if unknown:
             errors.append({
                 'field_id': None,
