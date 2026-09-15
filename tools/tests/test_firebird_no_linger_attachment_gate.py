@@ -10,8 +10,9 @@ from tools import cdeadmin_firebird_no_linger_attachment_gate as gate
 
 
 @pytest.mark.parametrize('cleanup_fails', [False, True])
+@pytest.mark.parametrize('server_mode', gate.SERVER_MODES)
 def test_setup_failure_is_redacted_and_owned_cleanup_is_attempted(
-        monkeypatch, cleanup_fails):
+        monkeypatch, cleanup_fails, server_mode):
     secret = 'owned-linger-credential-canary'
     monkeypatch.setattr(gate.secrets, 'token_urlsafe', lambda _size: secret)
     monkeypatch.setattr(gate, '_configure_client_library', Mock())
@@ -21,7 +22,7 @@ def test_setup_failure_is_redacted_and_owned_cleanup_is_attempted(
                         Mock(side_effect=RuntimeError(secret)))
     cleanup = Mock(side_effect=RuntimeError(secret) if cleanup_fails else None)
     monkeypatch.setattr(gate, 'remove_owned', cleanup)
-    result = gate.run('owned-test-image')
+    result = gate.run('owned-test-image', server_mode)
     assert not result['complete']
     assert len(result['failures']) == (2 if cleanup_fails else 1)
     assert result['owned_container_removed'] is not cleanup_fails
@@ -33,8 +34,19 @@ def test_setup_failure_is_redacted_and_owned_cleanup_is_attempted(
     assert args[args.index('--memory-swap') + 1] == '512m'
     assert args[args.index('--label') + 1] == (
         'cdeadmin-owned-gate=' + gate.OWNER)
-    assert start.call_args.kwargs['env']['FIREBIRD_CONF_ServerMode'] == 'Super'
+    assert start.call_args.kwargs['env']['FIREBIRD_CONF_ServerMode'] == (
+        server_mode)
     assert secret not in args
+
+
+@pytest.mark.parametrize('mode', [None, '', 'super', 'Unknown'])
+def test_invalid_server_mode_is_rejected_before_fixture_creation(
+        monkeypatch, mode):
+    start = Mock()
+    monkeypatch.setattr(gate, 'docker', start)
+    with pytest.raises(ValueError, match='exact Firebird server mode'):
+        gate.run('owned-test-image', mode)
+    start.assert_not_called()
 
 
 def test_all_twelve_cases_run_after_individual_setup_failures(monkeypatch):

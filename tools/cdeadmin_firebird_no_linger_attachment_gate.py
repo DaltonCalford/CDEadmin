@@ -25,13 +25,19 @@ else:
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
 
 
-def run(image):
+SERVER_MODES = ('Super', 'SuperClassic', 'Classic')
+
+
+def run(image, server_mode='Super'):
+    if server_mode not in SERVER_MODES:
+        raise ValueError('Choose an exact Firebird server mode')
     import firebird.driver as native
     _configure_client_library(native)
     result = {'complete': False, 'checks': [], 'failures': [],
               'owned_container_removed': False,
               'provider_forms_qualified': False,
-              'fixture_scope': 'ordinary attachments; SuperServer only'}
+              'fixture_scope': 'ordinary attachments',
+              'server_mode': server_mode}
     container = None
     password = secrets.token_urlsafe(24)
     limited_password = secrets.token_urlsafe(24)
@@ -55,7 +61,7 @@ def run(image):
             '--env', 'FIREBIRD_CONF_DefaultDbCachePages', image,
             env=dict(os.environ, FIREBIRD_ROOT_PASSWORD=password,
                      FIREBIRD_DATABASE=bootstrap,
-                     FIREBIRD_CONF_ServerMode='Super',
+                     FIREBIRD_CONF_ServerMode=server_mode,
                      FIREBIRD_CONF_DefaultDbCachePages='128')
         ).decode().strip()
         if not re.fullmatch('[0-9a-f]{64}', container):
@@ -114,7 +120,8 @@ def run(image):
                     with setup.cursor() as cursor:
                         cursor.execute('INSERT INTO LINGER_MARKER VALUES (1)')
                     setup.commit()
-                assert owned_database_open_files(container, path) > 0
+                assert (owned_database_open_files(container, path) > 0) is (
+                    server_mode == 'Super')
                 if peer:
                     held = connect(path)
                     with held.cursor() as cursor:
@@ -150,11 +157,12 @@ def run(image):
                     record['peer_transaction_preserved'] = True
                 deadline = time.monotonic() + 5
                 count = owned_database_open_files(container, path)
-                while (requested is True and count and
+                expect_closed = requested is True or server_mode != 'Super'
+                while (expect_closed and count and
                        time.monotonic() < deadline):
                     time.sleep(0.1)
                     count = owned_database_open_files(container, path)
-                assert (count == 0) is (requested is True)
+                assert (count == 0) is expect_closed
                 record['open_files_after_final_detach'] = count
                 with connect(path) as observer:
                     with observer.cursor() as cursor:
@@ -162,9 +170,10 @@ def run(image):
                         assert cursor.fetchone() == (600,)
                         cursor.execute('SELECT ID FROM LINGER_MARKER')
                         assert cursor.fetchall() == [(1,)]
-                assert owned_database_open_files(container, path) > 0
+                assert (owned_database_open_files(container, path) > 0) is (
+                    server_mode == 'Super')
                 record.update(stored_linger_unchanged=True,
-                              reopening_restores_stored_linger=True,
+                              reopening_cache_lingers=server_mode == 'Super',
                               rolled_back_peer_row_absent=True, passed=True)
             except Exception as error:
                 failure(phase, error)
@@ -193,11 +202,12 @@ def run(image):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
+    parser.add_argument('--server-mode', choices=SERVER_MODES, default='Super')
     parser.add_argument('--output', type=Path, required=True)
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    result = run(options.image, options.server_mode)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1
