@@ -2077,7 +2077,9 @@ describe('ProviderWorkspaceContent', () => {
     });
   });
 
-  it('opens and applies server-only recovery without a fabricated database target', async () => {
+  it.each([false, true])('opens server-only recovery and handles failed response %s without replay', async (failed) => {
+    const onCredentialRequired = jest.fn();
+    const failureMessage = 'The provider operation outcome is unknown. Inspect native state. The plan will not be automatically retried. Native status codes: 335544788, 335545112';
     const operation = {
       operation_id: 'activate_shadow', title: 'Activate a Firebird database shadow',
       mutation_class: 'destructive', target_required: false,
@@ -2100,6 +2102,15 @@ describe('ProviderWorkspaceContent', () => {
       }]},
     }}});
     api.post.mockImplementation((_url, payload) => {
+      if (failed && payload.action === 'visual_admin_apply') {
+        return Promise.reject({response: {status: 502, data: {
+          errormsg: failureMessage,
+          info: 'PROVIDER_OPERATION_RESPONSE_UNAVAILABLE',
+          data: {control_operation: {unknown_outcome: true,
+            native_status_codes: [335544788, 335545112],
+            automatic_mutation_retry: false}},
+        }}});
+      }
       const responses = {
         visual_admin_validate: {valid: true, errors: []},
         visual_admin_plan: {state: 'ready', execution_available: true,
@@ -2111,6 +2122,7 @@ describe('ProviderWorkspaceContent', () => {
     });
     render(<ProviderWorkspaceContent closeModal={jest.fn()}
       endpointUrl="/workspace/server?focused_operation_id=activate_shadow"
+      onCredentialRequired={onCredentialRequired}
       initialTab="administration" initialContext={{
         database_target_id: null, resource_kind: 'database',
         operation_id: 'activate_shadow',
@@ -2143,7 +2155,17 @@ describe('ProviderWorkspaceContent', () => {
       name: 'I confirm this provider-planned operation.',
     }));
     fireEvent.click(screen.getByText('Apply provider plan'));
-    await screen.findByLabelText('Provider operation result');
+    if (failed) {
+      expect(await screen.findByText(failureMessage)).toBeInTheDocument();
+      expect(screen.queryByLabelText('Provider operation result')).toBeNull();
+    } else {
+      await screen.findByLabelText('Provider operation result');
+    }
+    expect(screen.getByText('Apply provider plan').closest('button')).toBeDisabled();
+    fireEvent.click(screen.getByText('Apply provider plan'));
+    expect(api.post.mock.calls.filter(([, payload]) =>
+      payload.action === 'visual_admin_apply')).toHaveLength(1);
+    expect(onCredentialRequired).not.toHaveBeenCalled();
     expect(api.post).toHaveBeenCalledWith(
       '/workspace/server?focused_operation_id=activate_shadow', {
         action: 'visual_admin_apply', request: {

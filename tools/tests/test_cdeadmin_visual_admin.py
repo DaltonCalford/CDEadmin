@@ -974,7 +974,9 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
 
             def apply_admin_operation(self, _request):
                 self.attempts += 1
-                raise TimeoutError('simulated response loss')
+                error = TimeoutError('credential-canary response loss')
+                error.native_status_codes = (335544788, 335545112)
+                raise error
 
         adapter = FailedAdapter()
         provider = ProviderVisualAdministration(
@@ -992,6 +994,9 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
         operation = raised.exception.operation
         self.assertEqual('provider_response_unavailable', operation['stage'])
         self.assertTrue(operation['unknown_outcome'])
+        self.assertEqual([335544788, 335545112],
+                         operation['native_status_codes'])
+        self.assertNotIn('credential-canary', repr(operation))
         self.assertEqual(1, adapter.attempts)
         self.assertEqual([
             'dispatch_started', 'provider_response_unavailable',
@@ -1002,6 +1007,59 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
                 'plan_digest': plan['plan_digest'],
             })
         self.assertEqual(1, adapter.attempts)
+
+    def test_followup_failures_preserve_codes_without_replay(self):
+        class Adapter(NativeAdapter):
+            @staticmethod
+            def visual_admin_catalog(catalog):
+                value = NativeAdapter.visual_admin_catalog(catalog)
+                for item in value['objects']:
+                    if item['resource_kind'] == 'database':
+                        for operation in item['operations']:
+                            if operation['operation_id'] == 'create':
+                                operation['cancellable'] = True
+                return value
+
+            @staticmethod
+            def fail(_request):
+                error = RuntimeError('credential-canary')
+                error.native_status_codes = (335544788,)
+                raise error
+
+            inspect_admin_operation = fail
+            cancel_admin_operation = fail
+            validate_admin_post_state = fail
+
+        for method, stage in (
+                ('refresh_operation', 'observation_response_unavailable'),
+                ('cancel_operation', 'cancel_response_unavailable'),
+                ('validate_operation_post_state',
+                 'post_state_response_unavailable')):
+            with self.subTest(method=method):
+                adapter = Adapter()
+                provider = ProviderVisualAdministration(
+                    context(), Permissions(), 'mysql', '9.7.0', adapter)
+                plan = provider.plan({
+                    'resource_kind': 'database', 'operation_id': 'create',
+                    'draft': {'name': 'owned', 'options': {}},
+                })
+                result = provider.apply({
+                    'plan_id': plan['plan_id'],
+                    'plan_digest': plan['plan_digest'],
+                })
+                request = {'operation_id': result[
+                    'control_operation']['operation_id']}
+                with self.assertRaises(VisualAdminExecutionError) as raised:
+                    getattr(provider, method)(request)
+                failed = raised.exception.operation
+                self.assertEqual(stage, failed['stage'])
+                self.assertEqual([335544788], failed['native_status_codes'])
+                self.assertNotIn('credential-canary', repr(failed))
+                self.assertEqual(failed, provider.get_operation(request))
+                self.assertEqual(1, len(adapter.applied))
+                if method == 'cancel_operation':
+                    self.assertEqual(
+                        failed, provider.cancel_operation(request))
 
     def test_pre_dispatch_credential_failure_restores_exact_plan(self):
         class CredentialRequired(RuntimeError):

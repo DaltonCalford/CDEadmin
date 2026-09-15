@@ -89,7 +89,12 @@ from pgadmin.cdeadmin.results import ResultRegistryError
 from pgadmin.cdeadmin.report_delivery import ReportDeliveryError
 from pgadmin.cdeadmin.report_scheduler import ReportSchedulerError
 from pgadmin.cdeadmin.semantic_models import SemanticModelError
-from pgadmin.cdeadmin.visual_admin import VisualAdminError
+from pgadmin.cdeadmin.visual_admin import (
+    VisualAdminError, VisualAdminExecutionError,
+)
+from pgadmin.cdeadmin.visual_admin.execution_errors import (
+    execution_failure_response,
+)
 from pgadmin.cdeadmin.sdk import RelationalCredentialError
 from pgadmin.cdeadmin.workspace import (
     ProviderWorkspaceError,
@@ -2763,6 +2768,9 @@ class ServerNode(PGChildNodeView):
                 ),
                 info='CREDENTIAL_REQUIRED',
             )
+        except VisualAdminExecutionError as exc:
+            return make_json_response(**execution_failure_response(
+                exc, gettext))
         except (
             ProviderWorkspaceError,
             ProviderPermissionError,

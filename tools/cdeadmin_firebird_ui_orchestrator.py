@@ -223,6 +223,7 @@ def run(options):
         _retarget_config(
             config_database, options.desktop_user, options.database,
             database_label, options.firebird_port,
+            endpoint_user=options.user,
         )
         port = _free_port()
         config_file = temporary_root / 'qa_config.py'

@@ -492,8 +492,12 @@ class FirebirdQueryClient(RelationalDBAPIClient):
     def run_server_operation(self, request, operation_id, database, options):
         with self._temporary_operation():
             request, options = self._service_role_scope(request, options)
-            return super().run_server_operation(
-                request, operation_id, database, options)
+            try:
+                return super().run_server_operation(
+                    request, operation_id, database, options)
+            except RelationalClientError as exc:
+                exc.native_status_codes = status_codes(exc)
+                raise
 
     @staticmethod
     def _service_role_scope(request, options):
@@ -529,6 +533,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             'state before deciding what to do. Do not automatically replay '
             'the operation.')
         failure.gds_codes = codes
+        failure.native_status_codes = codes
         return failure
 
     def plan_admin_operation(self, request):

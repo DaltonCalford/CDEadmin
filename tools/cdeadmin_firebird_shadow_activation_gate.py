@@ -328,6 +328,19 @@ def run(image, build_root, browser_options=None):
                     password=password,
                     **_route_arguments(browser_route, native))
                 sql('CREATE TABLE RECOVERY_MARKER (ID INTEGER)')
+                denied = getattr(browser_options, 'browser_denial', False)
+                browser_password = password
+                if denied:
+                    browser_password = secrets.token_urlsafe(24)
+                    username = 'OWNED_UI_RECOVERY_' + str(scale)
+                    sql('CREATE USER ' + username + " PASSWORD '" +
+                        browser_password + "' USING PLUGIN Srp")
+                    sql('CREATE ROLE RECOVERY_OBSERVER')
+                    sql('GRANT RECOVERY_OBSERVER TO USER ' + username)
+                    browser_route.update({
+                        'user': username, 'expected_privilege_denial': True,
+                        'oracle_password': password,
+                    })
                 sql('INSERT INTO RECOVERY_MARKER VALUES (1)')
                 for statement in shadows.compile_operation('create', {
                         'number': 1, 'mode': 'AUTO', 'filename': shadow}):
@@ -342,8 +355,8 @@ def run(image, build_root, browser_options=None):
                 selected_options = SimpleNamespace(
                     **{**vars(browser_options), 'font_scale': [scale]})
                 checks = browser_checks(
-                    selected_options, browser_route, password, container,
-                    build_root, gate_kind='shadow-activation',
+                    selected_options, browser_route, browser_password,
+                    container, build_root, gate_kind='shadow-activation',
                     fixture_kind='firebird-shadow-activation-qualification')
                 unchanged = docker('exec', container, 'sha256sum',
                                    retained).split()[0] == fingerprint
@@ -384,12 +397,16 @@ def main():
     parser.add_argument('--build-root', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--browser-denial', action='store_true',
+                        help='Qualify native post-dispatch privilege denial')
     parser.add_argument('--source-config-db', type=Path,
                         default=Path('/var/lib/cdeadmin/cdeadmin.db'))
     parser.add_argument('--desktop-user', default='dalton.calford@gmail.com')
     parser.add_argument('--font-scale', type=int, action='append',
                         choices=(100, 200, 300))
     options = parser.parse_args()
+    if options.browser_denial and not options.browser:
+        parser.error('--browser-denial requires --browser')
     if options.output.exists():
         raise SystemExit('Use a new evidence file')
     result = run(options.image, options.build_root,

@@ -306,6 +306,9 @@ def test_service_outcome_is_not_replaced_by_detach_failure(
                 if outcome == 'driver_error':
                     assert 'native status 337117261' in str(caught.value)
             receipt = caught.value.service_release
+            assert caught.value.native_status_codes == (
+                (335544344,) if outcome == 'native_error' else
+                (337117261,) if outcome == 'driver_error' else ())
             assert 'credential-canary' not in str(caught.value)
     runner.assert_called_once_with(handle, 'database_statistics', 'owned', {})
     handle.close.assert_called_once_with()

@@ -27,6 +27,7 @@ def run(options, profiles):
     database = ('/var/lib/firebird/data/'
                 f'owned_activation_browser_{options.font_scale}.fdb')
     shadow = database + "_影's.shd"
+    denied = route.get('expected_privilege_denial') is True
     if (route.get('fixture_kind') !=
             'firebird-shadow-activation-qualification' or
             route['host'] != '127.0.0.1' or route['database'] != database or
@@ -133,7 +134,7 @@ def run(options, profiles):
         base = {'First shadow filename': shadow,
                 'Confirm shadow filename': shadow,
                 'The original database is stopped or isolated': True,
-                'SQL role': ''}
+                'SQL role': 'RECOVERY_OBSERVER' if denied else ''}
         for label, changed, message in (
                 ('wrong-confirmation', {'Confirm shadow filename': 'wrong'},
                  'Confirm the exact shadow filename'),
@@ -162,21 +163,86 @@ def run(options, profiles):
             click_unobscured(browser, wait, checkbox)
         button = visible_named_control(browser, 'Apply provider plan')
         wait.until(lambda _driver: button.is_enabled())
+        # Count only the reviewed action name, never capture request bodies or
+        # credentials. This instrumentation lives in the owned browser page.
+        browser.execute_script('''
+          window.__ownedRecoveryDispatches = 0;
+          const send = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.send = function(body) {
+            try {
+              if (JSON.parse(body)?.action === 'visual_admin_apply')
+                window.__ownedRecoveryDispatches++;
+            } catch (_) { /* Non-JSON requests are outside this counter. */ }
+            return send.apply(this, arguments);
+          };
+        ''')
         click_unobscured(browser, wait, button)
-        receipt = ready_or_credentials(lambda driver: driver.find_element(
-            'css selector', '[aria-label="Firebird native service receipt"]'))
-        observed = json.loads(receipt.get_attribute('textContent'))
-        assert observed['server_completed'] is True
-        assert observed['shadow_header_verification'] == {
-            'first_file_verified': True, 'active_shadow_verified': True}
-        assert observed['service_release'][
-            'service_handle_released'] is True
-        with firebird.connect(password=route['password'], **_route_arguments(
-                {**route, 'database': shadow}, firebird)) as native:
+        if denied:
+            ready_or_credentials(lambda driver: 'outcome is unknown' in
+                                 driver.find_element('tag name', 'body').text)
+            text = browser.find_element('tag name', 'body').text
+            assert '335544788' in text and '335545112' in text
+            assert 'plan is retired' in text
+            assert 'will not be automatically retried' in text
+            assert not browser.find_elements(
+                'css selector', '[aria-label="Provider operation result"]')
+            result['native_denial_visible'] = True
+        else:
+            receipt = ready_or_credentials(lambda driver: driver.find_element(
+                'css selector',
+                '[aria-label="Firebird native service receipt"]'))
+            observed = json.loads(receipt.get_attribute('textContent'))
+            assert observed['server_completed'] is True
+            assert observed['shadow_header_verification'] == {
+                'first_file_verified': True, 'active_shadow_verified': True}
+            assert observed['service_release'][
+                'service_handle_released'] is True
+        assert not visible_named_control(
+            browser, 'Apply provider plan').is_enabled()
+        result['submitted_plan_retired'] = True
+        oracle_route = {**route, 'database': shadow,
+                        'user': 'SYSDBA' if denied else route.get('user')}
+        with firebird.connect(password=route.get(
+                'oracle_password', route['password']), **_route_arguments(
+                    oracle_route, firebird)) as native:
             with native.cursor() as cursor:
                 cursor.execute('SELECT ID FROM RECOVERY_MARKER ORDER BY ID')
                 assert cursor.fetchall() == [(1,), (2,)]
         result['native_recovered_rows_verified'] = True
+        if denied:
+            status = browser.find_element(
+                'css selector', '[aria-label="Provider workspace status"]')
+            geometry = browser.execute_script('''
+                const node = arguments[0];
+                return {height: node.clientHeight,
+                  maximum: node.scrollHeight - node.clientHeight,
+                  tabIndex: node.tabIndex};
+            ''', status)
+            assert geometry['height'] > 0 and geometry['tabIndex'] == 0
+            status.send_keys(forms.Keys.END)
+            if geometry['maximum'] > 0:
+                wait.until(lambda driver: driver.execute_script(
+                    'return arguments[0].scrollTop > 0', status))
+            result['status_screenshots'] = []
+            step = max(1, geometry['height'] - 64)
+            offsets = list(dict.fromkeys([
+                *range(0, geometry['maximum'] + 1, step),
+                geometry['maximum']]))
+            assert len(offsets) <= 100
+            for index, offset in enumerate(offsets):
+                actual = browser.execute_script(
+                    'arguments[0].scrollTop = arguments[1]; '
+                    'return arguments[0].scrollTop;', status, offset)
+                assert abs(actual - offset) <= 1
+                path = options.output_root / (
+                    f'recovery-error-page-{index + 1:02d}.png')
+                result['status_screenshots'].append({
+                    'path': str(path), 'scroll_top': actual,
+                    'sha256': screenshot(browser, path, reset_scroll=False)})
+            result['status_keyboard_scroll_verified'] = True
+        result['apply_dispatches'] = browser.execute_script(
+            'return window.__ownedRecoveryDispatches')
+        assert result['apply_dispatches'] == 1
         result['result_screenshots'] = screenshot_form_pages(
             browser, options.output_root / 'recovery-completed')
         close_workspace(browser, wait)

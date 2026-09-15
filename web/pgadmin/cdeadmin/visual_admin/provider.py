@@ -52,6 +52,20 @@ class VisualAdminExecutionError(VisualAdminError):
         self.operation = copy.deepcopy(operation)
 
 
+def _native_status_codes(error):
+    """Accept only the adapter's bounded numeric public diagnostic contract."""
+    try:
+        values = getattr(error, 'native_status_codes', ())
+    except Exception:
+        return []
+    if not isinstance(values, (list, tuple)) or len(values) > 32:
+        return []
+    if any(type(value) is not int or not 0 < value <= 2147483647
+           for value in values):
+        return []
+    return list(values)
+
+
 @dataclass(frozen=True)
 class _StoredPlan:
     digest: str
@@ -528,6 +542,8 @@ class ProviderVisualAdministration:
             with self._lock:
                 operation.public['unknown_outcome'] = True
                 operation.public['stage'] = 'provider_response_unavailable'
+                operation.public['native_status_codes'] = (
+                    _native_status_codes(exc))
                 self._record_admin_event(
                     operation.public, 'provider_response_unavailable', {
                         'error_type': type(exc).__name__,
@@ -616,6 +632,8 @@ class ProviderVisualAdministration:
             with self._lock:
                 stored.public['unknown_outcome'] = True
                 stored.public['stage'] = 'observation_response_unavailable'
+                stored.public['native_status_codes'] = _native_status_codes(
+                    exc)
                 self._record_admin_event(
                     stored.public, 'observation_response_unavailable',
                     {
@@ -673,6 +691,8 @@ class ProviderVisualAdministration:
             with self._lock:
                 stored.public['unknown_outcome'] = True
                 stored.public['stage'] = 'cancel_response_unavailable'
+                stored.public['native_status_codes'] = _native_status_codes(
+                    exc)
                 self._record_admin_event(
                     stored.public, 'cancel_response_unavailable',
                     {
@@ -716,6 +736,8 @@ class ProviderVisualAdministration:
                     stored.public['stage'] = (
                         'post_state_response_unavailable'
                     )
+                    stored.public['native_status_codes'] = (
+                        _native_status_codes(exc))
                     self._record_admin_event(
                         stored.public, 'post_state_response_unavailable', {
                             'error_type': type(exc).__name__,
