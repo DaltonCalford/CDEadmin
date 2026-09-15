@@ -684,8 +684,12 @@ class ActualEnginePilotProvider:
             raise PilotProviderError(
                 f'client returned unadmitted resource kind {kind!r}'
             )
-        resource_id = _required(native.get('resource_id'), 'resource_id')
-        name = _required(native.get('display_name'), 'display_name')
+        _required(native.get('resource_id'), 'resource_id')
+        _required(native.get('display_name'), 'display_name')
+        # Provider identities and names are opaque. Whitespace can be part
+        # of a real filename or quoted identifier, not transport padding.
+        resource_id = native['resource_id']
+        name = native['display_name']
         authority = native.get('authority_path')
         if not isinstance(authority, list) or not authority:
             raise PilotProviderError(

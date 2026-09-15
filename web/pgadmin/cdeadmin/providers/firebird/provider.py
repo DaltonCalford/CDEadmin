@@ -23,7 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
-from . import blob_filters, object_privileges
+from . import blob_filters, object_privileges, shadows
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -55,7 +55,7 @@ PROFILE = PilotProfile(
      'constraint', 'domain', 'sequence', 'routine', 'trigger', 'procedure',
      'function', 'package', 'exception', 'user', 'role', 'privilege',
      'character-set', 'collation', 'external-function', 'blob-filter',
-     'plugin',
+     'plugin', 'shadow', 'storage-file',
      'publication', 'authentication-mapping', 'global-authentication-mapping',
      'service-operation', 'metric'),
     ('isql', 'gbak', 'gfix', 'gstat', 'nbackup', 'user-administration'),
@@ -104,6 +104,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
     }),
     supported={
         'server': frozenset({'inspect'}),
+        'shadow': shadows.OPERATIONS,
+        'storage-file': frozenset({'inspect'}),
         'database': frozenset({
             'inspect', 'create', 'alter', 'drop',
             'backup_logical', 'restore_logical', 'backup_physical',
@@ -1028,7 +1030,8 @@ def _resources(connection, request):
 
         def add(kind, path, name, native=None, *, native_identity=None):
             path = [str(item).rstrip(' ') for item in path]
-            name = str(name).rstrip(' ')
+            name = (str(name) if kind == 'storage-file'
+                    else str(name).rstrip(' '))
             resource_id = _catalog_resource_id(kind, path, name)
             if native_identity is not None:
                 resource_id = _catalog_resource_id(kind, [], json.dumps(
@@ -1190,6 +1193,52 @@ def _resources(connection, request):
             database_native.get('database_name') or 'current'
         ).rsplit(':', 1)[-1].rsplit('/', 1)[-1]
         add('database', [], database_name, database_native)
+        storage_rows = catalog_rows(
+            'SELECT RDB$SHADOW_NUMBER, RDB$FILE_NAME, '
+            'RDB$FILE_SEQUENCE, RDB$FILE_START, RDB$FILE_LENGTH, '
+            'RDB$FILE_FLAGS FROM RDB$FILES ORDER BY '
+            'RDB$SHADOW_NUMBER, RDB$FILE_SEQUENCE', 'storage files')
+        shadow_rows = {}
+        database_files = []
+        for number, filename, sequence, start, length, flags in storage_rows:
+            if number is not None and number > 0:
+                shadow_rows.setdefault(number, []).append(
+                    (filename, sequence, start, length, flags))
+            else:
+                native_flags = shadows.file_flags(flags or 0, shadow=False)
+                metadata = {
+                    'filename': filename, 'sequence': sequence,
+                    'start': start, 'length': length, 'flags_raw': flags,
+                    **native_flags,
+                    'file_kind': ('difference' if native_flags[
+                        'difference_file'] else 'secondary-database'),
+                    'catalog_authority': 'RDB$FILES',
+                }
+                display_name = filename
+                if filename is None and native_flags['difference_file']:
+                    display_name = 'Default difference file (server-selected)'
+                    metadata['filename_source'] = 'Firebird default'
+                database_files.append(metadata)
+                add('storage-file', [], display_name, metadata)
+        primary = database_native.get('database_name')
+        if primary:
+            primary_file = {
+                'filename': primary, 'file_kind': 'primary-database',
+                'catalog_authority': 'MON$DATABASE.MON$DATABASE_NAME'}
+            database_files.insert(0, primary_file)
+            add('storage-file', [], primary, primary_file)
+        database_native['files'] = database_files
+        for number, rows in shadow_rows.items():
+            metadata = shadows.metadata(number, rows)
+            name = str(number)
+            add('shadow', [], name, metadata)
+            owner_id = _catalog_resource_id('shadow', [], name)
+            for file in metadata['files']:
+                add('storage-file', [name], file['filename'], {
+                    **file, 'file_kind': 'shadow', 'shadow_number': number,
+                    'catalog_authority': 'RDB$FILES',
+                    'navigator_parent_resource_id': owner_id,
+                })
         cursor.execute(
             'SELECT TRIM(TRAILING FROM RDB$RELATION_NAME), RDB$VIEW_BLR, '
             'RDB$VIEW_SOURCE, '
@@ -2914,6 +2963,8 @@ def _resources(connection, request):
                 sections.append('statistics')
             if 'state' in native:
                 sections.append('state')
+            if 'files' in native:
+                sections.append('files')
             sections.append('operations')
             native['property_sections'] = sections
         for name in PROFILE.admin_tools:

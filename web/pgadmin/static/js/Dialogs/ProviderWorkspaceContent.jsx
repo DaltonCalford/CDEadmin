@@ -746,6 +746,7 @@ function sectionPayload(section, resource, descriptor) {
   if (section === 'triggers') return native.triggers ?? [];
   if (section === 'columns') return native.columns ?? [];
   if (section === 'parameters') return native.parameters ?? [];
+  if (section === 'files') return native.files ?? [];
   if (section === 'statistics') {
     return native.statistics ?? native.stats ?? native.metrics ?? {};
   }
@@ -781,6 +782,7 @@ const INSPECTOR_SECTION_TITLES = {
   triggers: gettext('Triggers'),
   columns: gettext('Columns'),
   parameters: gettext('Parameters'),
+  files: gettext('Storage files'),
   statistics: gettext('Statistics'),
   state: gettext('State'),
   data: gettext('Data'),
@@ -799,6 +801,7 @@ const INFERRED_PROPERTY_KEYS = {
   triggers: ['triggers'],
   columns: ['columns'],
   parameters: ['parameters'],
+  files: ['files'],
   statistics: ['statistics', 'stats', 'metrics'],
   state: ['state'],
   data: ['data'],

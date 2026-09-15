@@ -42,7 +42,7 @@ GENERIC_OPERATION_PROFILES = frozenset({
 PROPERTY_SECTIONS = frozenset({
     'properties', 'definition', 'ddl', 'dependencies', 'dependents',
     'privileges', 'security', 'constraints', 'indexes', 'triggers',
-    'columns', 'parameters', 'statistics', 'state', 'data', 'operations',
+    'columns', 'parameters', 'statistics', 'state', 'data', 'operations', 'files',
 })
 
 

@@ -1046,6 +1046,106 @@ def supplement_sequences(document, evidence, digest, artifact):
     return value
 
 
+def supplement_shadows(document, evidence, digest, artifact):
+    """Require native file lifecycle, catalog, replay and permission proof."""
+    validate_dialect_contract(document, PROFILE)
+    lifecycle = {f'{mode}-{conditional}-{multiple}-{preserve}'
+                 for mode in ('AUTO', 'MANUAL')
+                 for conditional in (False, True)
+                 for multiple in (False, True)
+                 for preserve in (False, True)}
+    required = lifecycle | {
+        'maximum-shadow-number', 'duplicate-number',
+        'conflicting-server-paths', 'native-parser-boundaries',
+        'database-alter-permission'}
+    tasks = {'visual_admin.shadow.create', 'visual_admin.shadow.drop'}
+    checks = evidence.get('checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-shadows.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(required) or
+            {item.get('case') for item in checks} != required or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Shadow native evidence is incomplete')
+    for record in checks:
+        if record['case'] in lifecycle and not all(
+                record.get(key) is True for key in (
+                    'create_rollback', 'drop_rollback', 'filesystem_verified',
+                    'metadata_replay_verified', 'provider_catalog_verified')):
+            raise ValueError(
+                'Shadow filesystem/catalog transaction proof missing')
+    expected_codes = {
+        'duplicate-number': 336068773, 'same-database': 336068774,
+        'existing-shadow-file': 336068774, 'zero-number': 335544712,
+        'large-number': 335544699, 'negative-length': 335544634,
+        'large-length': 335544634, 'missing-file-start': 335544632,
+    }
+    denials = evidence.get('native_denials', [])
+    if (len(denials) != len(expected_codes) or
+            {item.get('case') for item in denials} != set(expected_codes) or
+            any(expected_codes[item['case']] not in item.get(
+                'native_status_codes', []) for item in denials)):
+        raise ValueError('Shadow native rejection proof missing')
+    permissions = evidence.get('permission_denials', [])
+    if (len(permissions) != 2 or
+            {item.get('operation') for item in permissions} != {
+                'create', 'drop'}
+            or any(335544352 not in item.get('native_status_codes', [])
+                   for item in permissions) or
+            sorted(evidence.get('permission_admissions', [])) != [
+                'create', 'drop']):
+        raise ValueError('Shadow database permission proof missing')
+    storage = evidence.get('storage_catalog', {})
+    if not all(storage.get(key) is True for key in (
+            'backup_transition_verified', 'rollback_verified',
+            'workspace_normalization_verified')):
+        raise ValueError('Storage catalog workspace proof missing')
+    safety = evidence.get('filename_safety', {})
+    if not all(safety.get(key) is True for key in (
+            'exact_catalog_path', 'provider_delete_blocked',
+            'preserve_file_verified', 'native_trimmed_path_deleted',
+            'native_exact_path_retained')):
+        raise ValueError('Shadow filename safety proof missing')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-shadows-live'
+    parser_id = 'firebird-5.0.4-shadows-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Shadow task lacks native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -1076,7 +1176,7 @@ def main(argv=None):
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
-        'sequences'),
+        'sequences', 'shadows'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1089,6 +1189,7 @@ def main(argv=None):
                       'object-privileges': supplement_object_privileges,
                       'packages': supplement_packages,
                       'sequences': supplement_sequences,
+                      'shadows': supplement_shadows,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

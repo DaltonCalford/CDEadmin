@@ -46,6 +46,7 @@ from .firebird import privileges as firebird_privileges
 from .firebird import object_privileges as firebird_object_privileges
 from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
+from .firebird import shadows as firebird_shadows
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
@@ -230,6 +231,19 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'shadow':
+                resource['operations'] = [{
+                    'operation_id': operation,
+                    'title': ('Inspect' if operation == 'inspect' else
+                              firebird_shadows.form(
+                                  operation, self._field)['title']),
+                    'mutation_class': ('read' if operation == 'inspect'
+                                       else 'destructive'
+                                       if operation == 'drop'
+                                       else 'admin'),
+                    'target_required': operation != 'create',
+                    'confirmation_required': operation != 'inspect',
+                } for operation in sorted(firebird_shadows.OPERATIONS)]
             if (self.dialect.engine_id == 'firebird' and
                     kind in {'external-function', 'blob-filter'}):
                 module = (firebird_blob_filters if kind == 'blob-filter'
@@ -466,6 +480,15 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'shadow' and operation_id != 'inspect'):
+            try:
+                firebird_shadows.compile_operation(
+                    operation_id, draft, request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_shadow',
+                               'message': str(error)})
+            return {'errors': errors}
         if self.dialect.engine_id == 'firebird':
             try:
                 firebird_packages.validate_member_operation(
@@ -2737,6 +2760,10 @@ class RelationalAdministration:
             if borrowed_firebird:
                 task_savepoint = NativeTaskSavepoint(cursor)
                 task_savepoint.begin()
+            shadow_drop = compiled.get('firebird_shadow_drop')
+            if self.dialect.engine_id == 'firebird' and shadow_drop:
+                firebird_shadows.verify_drop(
+                    cursor, shadow_drop['number'], shadow_drop['preserve'])
             transition = (compiled.get('firebird_column_rename') or
                           compiled.get('firebird_domain_rename')) if (
                 self.dialect.engine_id == 'firebird') else None
@@ -3050,6 +3077,25 @@ class RelationalAdministration:
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'shadow' and
+                operation in {'create', 'drop'}):
+            statements = firebird_shadows.compile_operation(
+                operation, request['draft'], request.get('target_resource'))
+            return {'statements': [{'source': sql, 'parameters': ()}
+                                   for sql in statements],
+                    **({'firebird_shadow_drop': {
+                        'number': int(firebird_shadows.numeric(
+                            request['target_resource']['display_name'],
+                            'Shadow number', 1, firebird_shadows.MAX_NUMBER)),
+                        'preserve': request['draft'].get(
+                            'preserve_files', True),
+                    }} if operation == 'drop' else {}),
+                    'warnings': [
+                        'Shadow paths belong to the Firebird server. '
+                        'File creation or deletion takes effect through '
+                        'native transaction completion; files preserved '
+                        'by DROP remain on the server.']}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'sequence' and
                 operation in firebird_sequences.OPERATIONS - {'inspect'}):
@@ -4165,7 +4211,7 @@ class RelationalAdministration:
         if (self.dialect.engine_id == 'firebird' and
                 kind in (*firebird_character_metadata.OPERATIONS,
                          'external-function', 'blob-filter', 'package',
-                         'sequence')):
+                         'sequence', 'shadow')):
             return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
@@ -4379,6 +4425,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'shadow' and
+                operation in {'create', 'drop'}):
+            return firebird_shadows.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'sequence' and
                 operation in firebird_sequences.OPERATIONS - {'inspect'}):
             return firebird_sequences.form(operation, self._field)

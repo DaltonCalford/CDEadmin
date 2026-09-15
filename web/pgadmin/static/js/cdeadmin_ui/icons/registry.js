@@ -337,6 +337,12 @@ const BUILTIN_DEFINITIONS = [
     'object.blob_filter', ICON_CATEGORIES.OBJECT, FilterIcon, 'BLOB Filter'
   ),
   componentDefinition(
+    'object.shadow', ICON_CATEGORIES.OBJECT, CopyIcon, 'Database Shadow'
+  ),
+  componentDefinition(
+    'object.storage_file', ICON_CATEGORIES.OBJECT, SaveIcon, 'Storage File'
+  ),
+  componentDefinition(
     'command.default', ICON_CATEGORIES.ACTION, MenuCircleIcon, 'Command'
   ),
   componentDefinition(

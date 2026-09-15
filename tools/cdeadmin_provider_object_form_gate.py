@@ -529,6 +529,12 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'shadow':
+            return rendered({
+                'number': 7, 'mode': 'AUTO', 'conditional': False,
+                'filename': '/var/lib/firebird/data/cde_ui_preview.shd',
+                'confirmation': str(name), 'preserve_files': True,
+            })
         if operation_id in {'grant', 'revoke'} and kind in {
                 'table', 'view', 'column', 'procedure', 'function',
                 'external-function', 'package', 'sequence', 'exception'}:

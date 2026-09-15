@@ -18,7 +18,8 @@ from collections.abc import Mapping, Sequence
 PROPERTY_SECTION_ORDER = (
     'properties', 'definition', 'ddl', 'dependencies', 'dependents',
     'privileges', 'security', 'columns', 'constraints', 'indexes',
-    'triggers', 'parameters', 'statistics', 'state', 'data', 'operations',
+    'triggers', 'parameters', 'files', 'statistics', 'state', 'data',
+    'operations',
 )
 
 # A key being present, including an empty list returned by an exact catalog
@@ -37,6 +38,7 @@ PROPERTY_SECTION_KEYS = {
     'indexes': ('indexes',),
     'triggers': ('triggers',),
     'parameters': ('parameters',),
+    'files': ('files',),
     'statistics': ('statistics', 'stats', 'metrics'),
     'state': ('state',),
     'data': ('data',),

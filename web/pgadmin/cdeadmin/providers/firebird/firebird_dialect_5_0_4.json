@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 104,
+    "authoritative_task_count": 106,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -117,6 +117,8 @@
       "visual_admin.sequence.recreate",
       "visual_admin.sequence.revoke",
       "visual_admin.sequence.set_current",
+      "visual_admin.shadow.create",
+      "visual_admin.shadow.drop",
       "visual_admin.table.alter",
       "visual_admin.table.create",
       "visual_admin.table.delete",
@@ -137,7 +139,7 @@
       "visual_admin.view.grant",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 104,
+    "implemented_task_count": 106,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8906,6 +8908,7 @@
     "firebird-5.0.4-packages-live",
     "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-sequences-live",
+    "firebird-5.0.4-shadows-live",
     "firebird-5.0.4-task-live-execution"
   ],
   "profile_id": "firebird-native",
@@ -9152,6 +9155,24 @@
       "format": "cdeadmin.firebird-sequences.v1",
       "license_id": "PostgreSQL",
       "sha256": "f82fd4dc50d9e01dd657ff8c6deb55948c0cb883854e6d00dad908733a8f93ae"
+    },
+    {
+      "artifact": "shadows-native-9.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-shadows-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-shadows.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "30665247019aed8166fe119eb0e56b1c930a4352375a0adf733a28c0f6afda84"
+    },
+    {
+      "artifact": "shadows-native-9.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-shadows-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-shadows.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "30665247019aed8166fe119eb0e56b1c930a4352375a0adf733a28c0f6afda84"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -10451,6 +10472,36 @@
         "SET GENERATOR \"S_ROLLBACK_SET_CURRENT\" TO 100"
       ],
       "task_id": "visual_admin.sequence.set_current"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-shadows-parser",
+        "firebird-5.0.4-shadows-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE SHADOW 32767 AUTO '/var/lib/firebird/data/owned_shadow_32767_\u5f71''s.shd'",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE SHADOW 32767 AUTO '/var/lib/firebird/data/owned_shadow_32767_\u5f71''s.shd'"
+      ],
+      "task_id": "visual_admin.shadow.create"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-shadows-parser",
+        "firebird-5.0.4-shadows-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP SHADOW 32767 DELETE FILE",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP SHADOW 32767 DELETE FILE"
+      ],
+      "task_id": "visual_admin.shadow.drop"
     },
     {
       "binding_style": "positional_question_mark",

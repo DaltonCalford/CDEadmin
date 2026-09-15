@@ -21,6 +21,14 @@ import {
 } from 'sources/cdeadmin_ui/icons/registry';
 
 describe('CDEadmin semantic icon registry', () => {
+  it.each(['shadow', 'storage-file'])('resolves the native %s object icon', (kind) => {
+    const canonical = 'object.' + kind.replaceAll('-', '_');
+    expect(resolveIconDefinition('object.' + kind)).toEqual(
+      expect.objectContaining({key: canonical, kind: 'component'}));
+    expect(resolveIconDefinition('object.' + kind, {assignments: {
+      [canonical]: 'action.search',
+    }}).key).toBe('action.search');
+  });
   it('normalizes provider object kinds while honoring icon customization', () => {
     expect(resolveIconDefinition('object.blob-filter').key).toBe('object.blob_filter');
     expect(resolveIconDefinition('object.blob-filter', {assignments: {
