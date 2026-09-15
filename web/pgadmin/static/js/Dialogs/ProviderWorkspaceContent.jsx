@@ -25,6 +25,7 @@ import ContextMenu from '../components/ContextMenu';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
 import ProviderTransactionObservation from './ProviderTransactionObservation';
 import FirebirdServiceObservation from './FirebirdServiceObservation';
+import FirebirdLimboObservation from './FirebirdLimboObservation';
 import {useModalCloseGuard} from '../helpers/ModalCloseGuard';
 
 const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
@@ -1443,14 +1444,16 @@ export function VisualAdministration({catalog, resources, selectedResource, post
             <Alert severity="info" sx={{mt: 2}}>
               {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
             </Alert>
-            {result.provider_result?.driver_observation?.schema === 'cdeadmin.firebird-service-result.v1' ?
-              <FirebirdServiceObservation title={operation?.title}
-                observation={result.provider_result.driver_observation} /> :
-              <Box component="pre" aria-label={gettext('Provider operation result')}
-                sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
-                  bgcolor: 'background.default'}}>
-                {JSON.stringify(result.provider_result ?? result, null, 2)}
-              </Box>}
+            {result.provider_result?.driver_observation?.schema === 'cdeadmin.firebird-limbo-result.v1' ?
+              <FirebirdLimboObservation observation={result.provider_result.driver_observation} /> :
+              result.provider_result?.driver_observation?.schema === 'cdeadmin.firebird-service-result.v1' ?
+                <FirebirdServiceObservation title={operation?.title}
+                  observation={result.provider_result.driver_observation} /> :
+                <Box component="pre" aria-label={gettext('Provider operation result')}
+                  sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
+                    bgcolor: 'background.default'}}>
+                  {JSON.stringify(result.provider_result ?? result, null, 2)}
+                </Box>}
           </>}
           {operation?.confirmation_required && plan?.state === 'ready' &&
       <FormControlLabel control={<Checkbox checked={confirmed}

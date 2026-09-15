@@ -28,6 +28,7 @@ export function PgMenu({open, className='', label, menuButton=null, ...props}) {
 
   if(menuButton) {
     return <Menu
+      overflow="auto"
       {...props}
       menuButton={menuButton}
       className={className}
@@ -39,6 +40,7 @@ export function PgMenu({open, className='', label, menuButton=null, ...props}) {
   return (
     <ControlledMenu
       state={state}
+      overflow="auto"
       {...props}
       className={className}
       aria-label={label || 'Menu'}
@@ -62,7 +64,8 @@ export const PgSubMenu = (({label, alignCheck, ...props})=>{
     label = <><CheckIcon style={{visibility: 'hidden', width: '1.3rem'}} data-label="CheckIcon"/>{label}</>;
   }
   return (
-    <SubMenu label={label}  itemProps={{'data-label': label}} {...props} />
+    <SubMenu overflow="auto" label={label}
+      itemProps={{'data-label': label}} {...props} />
   );
 });
 

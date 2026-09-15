@@ -925,6 +925,13 @@ def database_target_context_actions(
              'action.backup', 'admin', 'backup'),
             ('end_backup', 'End physical backup mode...',
              'action.backup', 'admin', 'backup'),
+            ('inspect_limbo', 'Inspect prepared transactions...',
+             'action.check', 'read', 'maintenance'),
+            ('commit_limbo_local', 'Commit a local prepared transaction...',
+             'action.settings', 'destructive', 'maintenance'),
+            ('rollback_limbo_local',
+             'Roll back a local prepared transaction...',
+             'action.settings', 'destructive', 'maintenance'),
         )
         for offset, (operation_id, label, icon, mutation, group) in enumerate(
                 tasks):

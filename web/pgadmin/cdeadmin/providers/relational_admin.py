@@ -48,6 +48,7 @@ from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
+from .firebird import limbo as firebird_limbo
 from .firebird import shadow_activation as firebird_shadow_activation
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
@@ -186,6 +187,10 @@ class RelationalAdministration:
         """
         if operation_id == 'inspect':
             return False
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'database' and
+                operation_id in firebird_limbo.ATTACHMENT_OPERATIONS):
+            return False
         if self.dialect.engine_id == 'firebird' and (
                 resource_kind == 'database' and operation_id == 'drop'):
             return False
@@ -234,6 +239,22 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'database':
+                additions = firebird_limbo.ATTACHMENT_OPERATIONS & (
+                    self.dialect.supported.get(kind, frozenset()))
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] not in additions
+                ] + [{
+                    'operation_id': operation,
+                    'title': firebird_limbo.form(
+                        operation, self._field)['title'],
+                    'mutation_class': ('read' if operation == 'inspect_limbo'
+                                       else 'destructive'),
+                    'target_required': True,
+                    'confirmation_required': operation != 'inspect_limbo',
+                    'required_permissions': ['maintenance_admin'],
+                } for operation in sorted(additions)]
             if self.dialect.engine_id == 'firebird' and kind == 'database':
                 additions = firebird_database_storage.OPERATIONS & (
                     self.dialect.supported.get(kind, frozenset()))
@@ -504,6 +525,19 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'database' and
+                operation_id in firebird_limbo.ATTACHMENT_OPERATIONS):
+            try:
+                route = request.get('_provider_route')
+                firebird_limbo.validate(operation_id, draft,
+                                       route.get('database') if isinstance(
+                                           route, Mapping) else None)
+            except (ValueError, RelationalClientError) as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_limbo_recovery',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'database' and
                 operation_id == 'activate_shadow'):
@@ -2645,6 +2679,9 @@ class RelationalAdministration:
                 'statements': preview,
                 'provider_constructed': True,
                 'driver_operation': compiled.get('driver_operation'),
+                **({'recovery_selection': copy.deepcopy(
+                    compiled['recovery_selection'])}
+                   if 'recovery_selection' in compiled else {}),
                 **({'backup_selection': copy.deepcopy(
                     compiled['backup_selection'])}
                    if 'backup_selection' in compiled else {}),
@@ -2687,6 +2724,18 @@ class RelationalAdministration:
                 'driver_observation_only': True,
             }
         driver_operation = compiled.get('driver_operation')
+        if driver_operation == 'firebird-limbo':
+            observation = client.run_limbo_operation(
+                {'route': route}, compiled['operation_id'],
+                compiled['options'])
+            return {
+                'accepted': True,
+                'commit_requested': False,
+                'rollback_requested': False,
+                'driver_observation_only': True,
+                'driver_observation': observation,
+                'transaction_finality_interpreted_by_common_code': False,
+            }
         if driver_operation == 'firebird-service':
             observation = client.run_server_operation(
                 {'route': route}, compiled['operation_id'],
@@ -3132,6 +3181,26 @@ class RelationalAdministration:
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'database' and
+                operation in firebird_limbo.ATTACHMENT_OPERATIONS):
+            database = request['_provider_route'].get('database')
+            values = firebird_limbo.validate(
+                operation, request['draft'], database)
+            return {'driver_operation': 'firebird-limbo',
+                    'operation_id': operation,
+                    'options': copy.deepcopy(request['draft']),
+                    'recovery_selection': {
+                        'database': database,
+                        'scope': 'selected_database_only',
+                        'transaction_id': values.get('transaction_id'),
+                        'requested_decision': {
+                            'commit_limbo_local': 'commit',
+                            'rollback_limbo_local': 'rollback',
+                        }.get(operation),
+                        'global_outcome_inferred': False,
+                    },
+                    'statements': [], 'warnings': [firebird_limbo.WARNING]}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'database' and
                 operation == 'activate_shadow'):
@@ -4281,6 +4350,9 @@ class RelationalAdministration:
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation in firebird_limbo.ATTACHMENT_OPERATIONS):
+            return value
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation == 'activate_shadow'):
             return value
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
@@ -4526,6 +4598,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation in firebird_limbo.ATTACHMENT_OPERATIONS):
+            return firebird_limbo.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation == 'activate_shadow'):
             return firebird_shadow_activation.form(self._field)

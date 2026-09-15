@@ -109,6 +109,7 @@ def options(kind):
     ('packages', 'cdeadmin_firebird_packages_ui_gate.py'),
     ('sequences', 'cdeadmin_firebird_sequences_ui_gate.py'),
     ('shadows', 'cdeadmin_firebird_shadows_ui_gate.py'),
+    ('limbo', 'cdeadmin_firebird_limbo_ui_gate.py'),
     ('object-privileges', 'cdeadmin_firebird_object_privileges_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
     ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),

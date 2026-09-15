@@ -9,8 +9,8 @@
 
 
 import { withTheme } from '../fake_theme';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { PgMenu, PgMenuItem } from '../../../pgadmin/static/js/components/Menu';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { PgMenu, PgMenuItem, PgSubMenu } from '../../../pgadmin/static/js/components/Menu';
 
 describe('Menu', ()=>{
   const ThemedPgMenu = withTheme(PgMenu);
@@ -44,6 +44,57 @@ describe('Menu', ()=>{
       />);
       const menu = screen.getByRole('menu');
       expect(menu.getAttribute('data-state')).toBe('open');
+    });
+  });
+
+  describe('viewport-bounded menu lists', () => {
+    let geometry;
+    beforeEach(() => {
+      geometry = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function() {
+          const height = this.getAttribute('role') === 'menu' ? 2000 : 20;
+          return {left: 0, top: 0, right: 220, bottom: height,
+            width: 220, height, x: 0, y: 0};
+        });
+    });
+    afterEach(() => geometry.mockRestore());
+
+    it.each([false, true])('makes oversized menus scrollable (button=%s)', async (buttonMenu) => {
+      render(<ThemedPgMenu open={!buttonMenu}
+        anchorPoint={{x: 10, y: 10}}
+        menuButton={buttonMenu ? <button>Open bounded menu</button> : null}>
+        <PgMenuItem>Last command</PgMenuItem>
+      </ThemedPgMenu>);
+      if (buttonMenu) fireEvent.click(screen.getByText('Open bounded menu'));
+      const menu = await screen.findByRole('menu');
+      await waitFor(() => expect(menu.style.overflow).toBe('auto'));
+      expect(Number.parseFloat(menu.style.maxHeight)).toBeGreaterThan(0);
+      expect(Number.parseFloat(menu.style.maxHeight)).toBeLessThanOrEqual(window.innerHeight);
+    });
+
+    it('bounds nested menus independently and retains keyboard activation', async () => {
+      const execute = jest.fn();
+      render(<ThemedPgMenu open anchorPoint={{x: 10, y: 10}}>
+        <PgSubMenu label="Maintenance">
+          <PgMenuItem onClick={execute}>First command</PgMenuItem>
+          <PgMenuItem disabled>Unavailable command</PgMenuItem>
+          <PgMenuItem onClick={execute}>Last command</PgMenuItem>
+        </PgSubMenu>
+      </ThemedPgMenu>);
+      const parent = screen.getByRole('menuitem', {name: /Maintenance/});
+      fireEvent.keyDown(screen.getByRole('menu'), {key: 'Home'});
+      await waitFor(() => expect(parent).toHaveFocus());
+      fireEvent.keyDown(parent, {key: 'ArrowRight'});
+      const last = await screen.findByRole('menuitem', {name: 'Last command'});
+      const childMenu = last.closest('[role="menu"]');
+      await waitFor(() => expect(childMenu.style.overflow).toBe('auto'));
+      expect(Number.parseFloat(childMenu.style.maxHeight)).toBeLessThanOrEqual(window.innerHeight);
+      // The library portals submenus out of a scrollable parent list.
+      expect(parent.contains(childMenu)).toBe(false);
+      fireEvent.keyDown(childMenu, {key: 'End'});
+      await waitFor(() => expect(last).toHaveFocus());
+      fireEvent.keyDown(last, {key: 'Enter'});
+      expect(execute).toHaveBeenCalledTimes(1);
     });
   });
 

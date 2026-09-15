@@ -15,6 +15,42 @@ from tools.cdeadmin_ui_evidence import (
 )
 
 
+@pytest.mark.parametrize('obscured', [False, True])
+def test_context_command_scrolls_menu_and_requires_pointer_hit(
+        monkeypatch, obscured):
+    from tools import cdeadmin_ui_evidence as evidence
+    from selenium.common.exceptions import TimeoutException
+
+    item = Mock()
+    item.is_enabled.return_value = True
+    driver = Mock()
+    driver.execute_script.side_effect = [
+        None, {'commands': []}, item, None, not obscured]
+    monkeypatch.setattr(evidence, 'complete_endpoint_prompt',
+                        Mock(return_value=False))
+    monkeypatch.setattr(evidence, 'visible_menu_label',
+                        Mock(return_value=item))
+
+    def until(callback):
+        value = callback(driver)
+        if not value:
+            raise TimeoutException()
+        return value
+
+    wait = SimpleNamespace(until=until)
+    if obscured:
+        with pytest.raises(TimeoutException):
+            evidence.invoke_context_action(wait, driver, object(), ['Task'])
+        item.click.assert_not_called()
+    else:
+        evidence.invoke_context_action(wait, driver, object(), ['Task'])
+        item.click.assert_called_once_with()
+    scripts = [call.args[0] for call in driver.execute_script.call_args_list]
+    assert 'menu.scrollTop' in scripts[-2]
+    assert 'scrollIntoView' not in scripts[-2]
+    assert 'elementFromPoint' in scripts[-1]
+
+
 @pytest.mark.parametrize('value', ['{}', 'null', '[1]', '["A", "A"]'])
 def test_multiple_values_reject_invalid_requests(value):
     with pytest.raises(ValueError):

@@ -10,6 +10,7 @@ from pgadmin.cdeadmin.sdk.relational import (
     RelationalClientError, RelationalDBAPIClient, _ResultToken,
 )
 from .error_diagnostics import status_codes
+from . import limbo
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
 from .service_connection import validate_service_role
@@ -49,6 +50,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         self._closed = False
         self._opening = 0
         self._native_operations = 0
+        self._recoveries = []
 
     @contextmanager
     def _temporary_operation(self):
@@ -500,6 +502,90 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                 raise
 
     @staticmethod
+    def _limbo_scope(request, operation, draft):
+        if (not isinstance(operation, str) or
+                operation not in limbo.ATTACHMENT_OPERATIONS):
+            raise RelationalClientError(
+                'Unknown Firebird attachment recovery operation')
+        if not isinstance(request, Mapping) or not isinstance(
+                request.get('route'), Mapping):
+            raise RelationalClientError('Firebird recovery route is invalid')
+        route = copy.deepcopy(dict(request['route']))
+        values = limbo.validate(operation, draft, route.get('database'))
+        if values['role']:
+            route['role'] = values['role']
+        # Always open a fresh owned attachment, never borrow a query session.
+        return {'route': route}, values
+
+    def _release_recovery(self, recovery):
+        recovery.close()
+        if any(connection.is_closed() is not True
+               for connection, _ in recovery.participants):
+            raise RelationalClientError(
+                'Recovery cannot release a borrowed active attachment')
+        for connection, _identifier in recovery.participants:
+            self._forget_connection(connection)
+        self._recoveries.remove(recovery)
+
+    def run_limbo_operation(self, request, operation, draft):
+        with self._temporary_operation():
+            scoped, values = self._limbo_scope(request, operation, draft)
+            connection = self._connect(scoped)
+            recovery = None
+            observation = failure = None
+            try:
+                if operation == 'inspect_limbo':
+                    observation = {
+                        'transactions': limbo.inspect_attachment(
+                            connection, self.module),
+                        'inventory_complete': True,
+                        'peer_states_observed': False,
+                    }
+                else:
+                    recovery = limbo.NativeRecovery(
+                        [(connection, values['transaction_id'])],
+                        'commit' if operation == 'commit_limbo_local'
+                        else 'rollback', self.module)
+                    # Retain before dispatch: a failed detach must not let
+                    # garbage collection release prepared native handles.
+                    self._recoveries.append(recovery)
+                    observation = recovery.run()
+                observation.update({
+                    'schema': 'cdeadmin.firebird-limbo-result.v1',
+                    'operation_id': operation,
+                    'database': scoped['route']['database'],
+                    'scope': 'selected_database_only',
+                    'global_outcome_inferred': False,
+                    'automatic_mutation_retry': False,
+                })
+            except Exception as error:
+                failure = RelationalClientError(
+                    'Firebird prepared transaction operation failed (' +
+                    type(error).__name__ + '). Inspect native state before '
+                    'any further recovery decision; do not replay this task.')
+                failure.native_status_codes = status_codes(error)
+            finally:
+                try:
+                    if recovery is not None:
+                        self._release_recovery(recovery)
+                    else:
+                        self._release_attachment(connection)
+                    released = True
+                except Exception as error:
+                    released = False
+                    if observation is None and failure is None:
+                        failure = RelationalClientError(
+                            'Firebird recovery attachment release unconfirmed')
+                        failure.native_status_codes = status_codes(error)
+                if observation is not None:
+                    observation['attachment_released'] = released
+                if failure is not None:
+                    failure.attachment_released = released
+            if failure is not None:
+                raise failure from None
+            return observation
+
+    @staticmethod
     def _service_role_scope(request, options):
         # Firebird 5.0.4's database service start SPBs reject SQL_ROLE_NAME.
         # Service::start forwards the attachment role to the native utility.
@@ -540,6 +626,14 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._temporary_operation():
             plan = super().plan_admin_operation(request)
             payload = plan.get('provider_payload', {})
+            if payload.get('compiled', {}).get('driver_operation') == (
+                    'firebird-limbo'):
+                compiled = payload['compiled']
+                scoped, _values = self._limbo_scope(
+                    {'route': payload['route']}, compiled['operation_id'],
+                    compiled['options'])
+                connection = self._connect(scoped)
+                self._release_attachment(connection)
             if payload.get('compiled', {}).get('driver_operation') == (
                     'firebird-service'):
                 # Services credentials may differ from a database attachment.
@@ -614,7 +708,17 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                         raise RelationalClientError(
                             'Firebird queries must finish before closing')
                 failures = []
+                protected = set()
+                for recovery in tuple(self._recoveries):
+                    try:
+                        self._release_recovery(recovery)
+                    except Exception as exc:
+                        failures.append(exc)
+                        protected.update(id(connection) for connection, _ in
+                                         recovery.participants)
                 for handle in tuple(self._connections):
+                    if id(handle) in protected:
+                        continue
                     try:
                         self._release_attachment(handle)
                     except Exception as exc:

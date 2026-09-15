@@ -518,7 +518,27 @@ def invoke_context_action(
                 element,
             )
             wait.until(lambda _driver: clickable.is_enabled())
-            ActionChains(driver).move_to_element(clickable).click().perform()
+            # WebDriver pointer moves can target an item outside a scrollable
+            # popup and click the page underneath it. Scroll only the menu,
+            # not the document (which legitimately dismisses context menus).
+            driver.execute_script('''
+                const item = arguments[0];
+                const menu = item.closest('[role="menu"]');
+                if (!menu) throw new Error('menu item has no menu');
+                const row = item.getBoundingClientRect();
+                const bounds = menu.getBoundingClientRect();
+                menu.scrollTop += row.top - bounds.top -
+                  (menu.clientHeight - row.height) / 2;
+            ''', clickable)
+            wait.until(lambda browser: browser.execute_script('''
+                const item = arguments[0];
+                const bounds = item.getBoundingClientRect();
+                const hit = document.elementFromPoint(
+                  bounds.left + bounds.width / 2,
+                  bounds.top + bounds.height / 2);
+                return item === hit || item.contains(hit);
+            ''', clickable))
+            clickable.click()
             complete_endpoint_prompt(
                 driver, endpoint_password, timeout=endpoint_prompt_timeout
             )

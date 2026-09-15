@@ -25,7 +25,7 @@ from ..relational_admin import (
 from . import columns, mappings, character_metadata, external_functions
 from . import (
     blob_filters, object_privileges, shadows, database_storage,
-    shadow_activation,
+    shadow_activation, limbo,
 )
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
@@ -118,7 +118,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'set_space_reservation', 'set_write_mode', 'set_access_mode',
             'set_sql_dialect', 'activate_shadow', 'remove_linger',
             'fixup_database', 'set_replica_mode', 'upgrade_database',
-        }) | database_storage.OPERATIONS,
+        }) | database_storage.OPERATIONS | limbo.ATTACHMENT_OPERATIONS,
         'table': frozenset({
             'inspect', 'create', 'alter', 'drop',
             'insert', 'update', 'delete', 'grant', 'revoke',
