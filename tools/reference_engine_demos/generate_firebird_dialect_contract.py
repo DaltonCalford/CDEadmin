@@ -951,6 +951,101 @@ def supplement_packages(document, evidence, digest, artifact):
     return value
 
 
+def supplement_sequences(document, evidence, digest, artifact):
+    """Admit sequence tasks after exact native boundary/lifecycle proof."""
+    from pgadmin.cdeadmin.providers.firebird import sequences
+    validate_dialect_contract(document, PROFILE)
+    required = {f'lifecycle-{step}-{quoted}'
+                for step in (1, -1, -2147483647, 2147483647)
+                for quoted in (False, True)} | {
+        'int64-minimum', 'int64-maximum',
+        'create-or-alter-versus-recreate', 'set-current-rollback',
+        'restart-next-rollback', 'dependency-drop', 'dependency-recreate',
+        'concurrent-consumers', 'parser-increment-boundaries',
+        'usage-does-not-authorize-administration'}
+    tasks = {'visual_admin.sequence.' + operation for operation in
+             sequences.OPERATIONS - {'inspect'}}
+    checks = evidence.get('checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-sequences.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(required) or
+            {item.get('case') for item in checks} != required or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Sequence native evidence is incomplete')
+    for key, field, expected, code in (
+            ('dependency_denials', 'operation', {'drop', 'recreate'},
+             335544630),
+            ('parser_denials', 'increment', {'-2147483648', '2147483648'},
+             335544634)):
+        records = evidence.get(key, [])
+        if (len(records) != 2 or
+                {item.get(field) for item in records} != expected or
+                any(code not in item.get('native_status_codes', [])
+                    for item in records)):
+            raise ValueError('Sequence native denial proof missing')
+    observations = evidence.get('rollback_observations', [])
+    denials = evidence.get('permission_denials', [])
+    if (len(denials) != 4 or
+            {item.get('operation') for item in denials} != {
+                'alter', 'set_current', 'drop', 'recreate'} or
+            any(335544352 not in item.get('native_status_codes', [])
+                for item in denials)):
+        raise ValueError('Sequence USAGE permission proof missing')
+    if (len(observations) != 2 or
+            {item.get('operation') for item in observations} != {
+                'set_current', 'alter'} or
+            any(item.get('before') != '10' or
+                item.get('after_rollback') != '10' or
+                item.get('pending_consumption_rollback') is not True or
+                item.get('pending_consumption_commit') != (
+                    '102' if item.get('operation') == 'set_current' else '100')
+                for item in observations)):
+        raise ValueError('Sequence assignment rollback proof missing')
+    if evidence.get('concurrent_consumption') != {
+            'attachments': 4, 'unique_values': 200,
+            'rolled_back_consumption_retained': True}:
+        raise ValueError('Sequence concurrent consumption proof missing')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-sequences-live'
+    parser_id = 'firebird-5.0.4-sequences-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Sequence task lacks native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -980,7 +1075,8 @@ def main(argv=None):
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
-        'external-functions', 'blob-filters', 'object-privileges', 'packages'),
+        'external-functions', 'blob-filters', 'object-privileges', 'packages',
+        'sequences'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -992,6 +1088,7 @@ def main(argv=None):
                       'blob-filters': supplement_blob_filters,
                       'object-privileges': supplement_object_privileges,
                       'packages': supplement_packages,
+                      'sequences': supplement_sequences,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

@@ -126,6 +126,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'index': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'sequence': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
+            'create_or_alter', 'recreate', 'set_current', 'comment',
         }),
         'domain': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',

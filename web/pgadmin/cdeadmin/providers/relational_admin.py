@@ -45,6 +45,7 @@ from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
 from .firebird import object_privileges as firebird_object_privileges
 from .firebird import packages as firebird_packages
+from .firebird import sequences as firebird_sequences
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
@@ -295,20 +296,24 @@ class RelationalAdministration:
                         'target_resource_names': ['RDB$ADMIN'],
                         'allow_system_target': True,
                     }]
-            if self.dialect.engine_id == 'firebird' and kind == 'package':
+            if (self.dialect.engine_id == 'firebird' and
+                    kind in {'package', 'sequence'}):
+                module = (firebird_packages if kind == 'package' else
+                          firebird_sequences)
                 resource['operations'] = [{
                     'operation_id': operation,
                     'title': ('Inspect' if operation == 'inspect' else
-                              firebird_packages.form(
+                              module.form(
                                   operation, self._field)['title']),
                     'mutation_class': ('read' if operation == 'inspect'
                                        else 'destructive' if operation in {
-                                           'drop', 'drop_body', 'recreate'}
+                                           'drop', 'drop_body', 'recreate',
+                                           'set_current'}
                                        else 'admin'),
                     'target_required': operation not in {
                         'create', 'create_or_alter'},
                     'confirmation_required': operation != 'inspect',
-                } for operation in sorted(firebird_packages.OPERATIONS)]
+                } for operation in sorted(module.OPERATIONS)]
             if (self.dialect.engine_id == 'firebird' and
                     kind in firebird_object_privileges.KINDS):
                 resource['operations'] = [
@@ -470,6 +475,16 @@ class RelationalAdministration:
                 return {'errors': [{'field_id': None,
                                     'code': 'package_member_requires_owner',
                                     'message': str(error)}]}
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'sequence' and
+                operation_id in firebird_sequences.OPERATIONS - {'inspect'}):
+            try:
+                firebird_sequences.compile_operation(
+                    operation_id, draft, request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_sequence',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'package' and
                 operation_id in firebird_packages.OPERATIONS - {'inspect'}):
@@ -3035,6 +3050,16 @@ class RelationalAdministration:
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'sequence' and
+                operation in firebird_sequences.OPERATIONS - {'inspect'}):
+            statements = firebird_sequences.compile_operation(
+                operation, request['draft'], request.get('target_resource'))
+            return {'statements': [{'source': sql, 'parameters': ()}
+                                   for sql in statements],
+                    'warnings': [firebird_sequences.WARNING]
+                    if operation in {'alter', 'set_current',
+                                     'create_or_alter', 'recreate'} else []}
         if self.dialect.engine_id == 'firebird':
             firebird_packages.validate_member_operation(
                 request['resource_kind'], operation,
@@ -4139,7 +4164,8 @@ class RelationalAdministration:
             return value
         if (self.dialect.engine_id == 'firebird' and
                 kind in (*firebird_character_metadata.OPERATIONS,
-                         'external-function', 'blob-filter', 'package')):
+                         'external-function', 'blob-filter', 'package',
+                         'sequence')):
             return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
@@ -4353,6 +4379,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'sequence' and
+                operation in firebird_sequences.OPERATIONS - {'inspect'}):
+            return firebird_sequences.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'package' and
                 operation in firebird_packages.OPERATIONS - {'inspect'}):
             return firebird_packages.form(operation, self._field)

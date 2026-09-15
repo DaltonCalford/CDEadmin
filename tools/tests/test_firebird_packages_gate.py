@@ -1,16 +1,23 @@
-"""Package qualification failures retain evidence and owned cleanup."""
+"""Lifecycle qualification failures retain evidence and owned cleanup."""
 
 import json
 
 import pytest
 
-from tools import cdeadmin_firebird_packages_gate as gate
+from tools import cdeadmin_firebird_packages_gate
+from tools import cdeadmin_firebird_sequences_gate
+
+
+@pytest.fixture(params=[cdeadmin_firebird_packages_gate,
+                        cdeadmin_firebird_sequences_gate])
+def gate(request):
+    return request.param
 
 
 @pytest.mark.parametrize('phase', ['create', 'start', 'port'])
 @pytest.mark.parametrize('cleanup_failure', [False, True])
 def test_fixture_failure_is_collected_and_only_owned_identity_is_removed(
-        tmp_path, monkeypatch, phase, cleanup_failure):
+        tmp_path, monkeypatch, phase, cleanup_failure, gate):
     monkeypatch.setattr(gate, '_configure_client_library',
                         lambda _native: None)
     removed = []
@@ -51,7 +58,8 @@ def test_fixture_failure_is_collected_and_only_owned_identity_is_removed(
         2 if phase != 'create' and cleanup_failure else 1)
 
 
-def test_existing_evidence_directory_is_not_reused(tmp_path, monkeypatch):
+def test_existing_evidence_directory_is_not_reused(
+        tmp_path, monkeypatch, gate):
     monkeypatch.setattr(gate, '_configure_client_library',
                         lambda _native: None)
     monkeypatch.setattr(gate, 'docker', lambda *_args, **_kwargs:

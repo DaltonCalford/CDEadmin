@@ -540,6 +540,13 @@ def _preview_values(kind, operation, target, engine_id):
                 'privileges': json.dumps([allowed_privileges(kind)[0]]),
                 'confirmation': 'CDE_UI_READER',
             })
+        if kind == 'sequence':
+            return rendered({
+                'name': 'CDE_UI_SEQUENCE', 'start': '10', 'restart': '10',
+                'increment': '1', 'current': '10',
+                'description': 'Sequence preview comment',
+                'confirmation': str(name),
+            })
         if kind == 'package':
             return rendered({
                 'name': 'CDE_UI_PACKAGE',

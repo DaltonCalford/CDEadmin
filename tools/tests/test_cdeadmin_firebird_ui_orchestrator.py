@@ -107,6 +107,7 @@ def options(kind):
     ('external-functions', 'cdeadmin_firebird_external_functions_ui_gate.py'),
     ('blob-filters', 'cdeadmin_firebird_blob_filters_ui_gate.py'),
     ('packages', 'cdeadmin_firebird_packages_ui_gate.py'),
+    ('sequences', 'cdeadmin_firebird_sequences_ui_gate.py'),
     ('object-privileges', 'cdeadmin_firebird_object_privileges_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
     ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),

@@ -53,6 +53,7 @@ GATE_SCRIPTS = {
     'external-functions': 'cdeadmin_firebird_external_functions_ui_gate.py',
     'blob-filters': 'cdeadmin_firebird_blob_filters_ui_gate.py',
     'packages': 'cdeadmin_firebird_packages_ui_gate.py',
+    'sequences': 'cdeadmin_firebird_sequences_ui_gate.py',
     'object-privileges': 'cdeadmin_firebird_object_privileges_ui_gate.py',
     'role': 'cdeadmin_firebird_role_ui_gate.py',
     'object': 'cdeadmin_provider_object_form_gate.py',
@@ -135,7 +136,7 @@ def gate_command(options, url, database_label, config_database=None):
     if options.gate_kind in {
             'object', 'role', 'mapping', 'mappings', 'columns',
             'character-metadata', 'external-functions', 'blob-filters',
-            'packages',
+            'packages', 'sequences',
             'object-privileges',
             'table-metadata', 'privileges', 'rename'}:
         command.extend([
@@ -150,7 +151,7 @@ def gate_command(options, url, database_label, config_database=None):
             command.extend(['--operation-id', operation_id])
         if options.gate_kind in {'role', 'mapping', 'mappings', 'columns',
                                  'character-metadata', 'external-functions',
-                                 'blob-filters', 'packages',
+                                 'blob-filters', 'packages', 'sequences',
                                  'object-privileges',
                                  'table-metadata', 'privileges', 'rename'}:
             command.extend(['--profiles', str(options.profiles),

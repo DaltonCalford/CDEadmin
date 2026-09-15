@@ -119,7 +119,7 @@ def run(profiles_path):
         connection.rollback()
         try:
             if created:
-                apply('drop', {})
+                apply('drop', {'confirmation': name})
                 cursor = connection.cursor()
                 try:
                     cursor.execute('SELECT COUNT(*) FROM RDB$GENERATORS '

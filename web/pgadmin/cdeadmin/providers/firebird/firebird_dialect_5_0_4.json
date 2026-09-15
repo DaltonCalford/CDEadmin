@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 100,
+    "authoritative_task_count": 104,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -109,10 +109,14 @@
       "visual_admin.role.grant",
       "visual_admin.role.revoke",
       "visual_admin.sequence.alter",
+      "visual_admin.sequence.comment",
       "visual_admin.sequence.create",
+      "visual_admin.sequence.create_or_alter",
       "visual_admin.sequence.drop",
       "visual_admin.sequence.grant",
+      "visual_admin.sequence.recreate",
       "visual_admin.sequence.revoke",
+      "visual_admin.sequence.set_current",
       "visual_admin.table.alter",
       "visual_admin.table.create",
       "visual_admin.table.delete",
@@ -133,7 +137,7 @@
       "visual_admin.view.grant",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 100,
+    "implemented_task_count": 104,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8901,6 +8905,7 @@
     "firebird-5.0.4-object-privileges-live",
     "firebird-5.0.4-packages-live",
     "firebird-5.0.4-role-membership-live-execution",
+    "firebird-5.0.4-sequences-live",
     "firebird-5.0.4-task-live-execution"
   ],
   "profile_id": "firebird-native",
@@ -9129,6 +9134,24 @@
       "format": "cdeadmin.firebird-packages.v1",
       "license_id": "PostgreSQL",
       "sha256": "3925b2686e7e0c1b52072cdd9ed00eef8bb401ea250bdf2a53d1c352942b518f"
+    },
+    {
+      "artifact": "sequences-native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-sequences-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-sequences.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "f82fd4dc50d9e01dd657ff8c6deb55948c0cb883854e6d00dad908733a8f93ae"
+    },
+    {
+      "artifact": "sequences-native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-sequences-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-sequences.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "f82fd4dc50d9e01dd657ff8c6deb55948c0cb883854e6d00dad908733a8f93ae"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -10297,42 +10320,75 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
       ],
       "required_bindings": [],
-      "source": "ALTER SEQUENCE \"cde_editor_sequence\" RESTART WITH 10 INCREMENT BY 2",
+      "source": "ALTER SEQUENCE \"S_ROLLBACK_ALTER\" RESTART WITH 100",
       "source_format": "ordered_native_statements",
       "statements": [
-        "ALTER SEQUENCE \"cde_editor_sequence\" RESTART WITH 10 INCREMENT BY 2"
+        "ALTER SEQUENCE \"S_ROLLBACK_ALTER\" RESTART WITH 100"
       ],
       "task_id": "visual_admin.sequence.alter"
     },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
       ],
       "required_bindings": [],
-      "source": "CREATE SEQUENCE \"cde_editor_sequence\" START WITH 1 INCREMENT BY 1",
+      "source": "COMMENT ON SEQUENCE \"S\"\"\u6771\u4eac2147483647\" IS NULL",
       "source_format": "ordered_native_statements",
       "statements": [
-        "CREATE SEQUENCE \"cde_editor_sequence\" START WITH 1 INCREMENT BY 1"
+        "COMMENT ON SEQUENCE \"S\"\"\u6771\u4eac2147483647\" IS NULL"
+      ],
+      "task_id": "visual_admin.sequence.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE SEQUENCE \"S_PERMISSIONS\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE SEQUENCE \"S_PERMISSIONS\""
       ],
       "task_id": "visual_admin.sequence.create"
     },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
       ],
       "required_bindings": [],
-      "source": "DROP SEQUENCE \"cde_editor_sequence\"",
+      "source": "CREATE OR ALTER SEQUENCE \"S_REPLACE\" RESTART",
       "source_format": "ordered_native_statements",
       "statements": [
-        "DROP SEQUENCE \"cde_editor_sequence\""
+        "CREATE OR ALTER SEQUENCE \"S_REPLACE\" RESTART"
+      ],
+      "task_id": "visual_admin.sequence.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP SEQUENCE \"S_PERMISSIONS\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP SEQUENCE \"S_PERMISSIONS\""
       ],
       "task_id": "visual_admin.sequence.drop"
     },
@@ -10355,6 +10411,21 @@
       "binding_style": "positional_question_mark",
       "proof_ids": [
         "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE SEQUENCE \"S_REPLACE\" START WITH 70 INCREMENT BY -2",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE SEQUENCE \"S_REPLACE\" START WITH 70 INCREMENT BY -2"
+      ],
+      "task_id": "visual_admin.sequence.recreate"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
         "firebird-5.0.4-object-privileges-parser",
         "firebird-5.0.4-object-privileges-live"
       ],
@@ -10365,6 +10436,21 @@
         "REVOKE USAGE ON SEQUENCE \"S\" FROM USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.sequence.revoke"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-sequences-parser",
+        "firebird-5.0.4-sequences-live"
+      ],
+      "required_bindings": [],
+      "source": "SET GENERATOR \"S_ROLLBACK_SET_CURRENT\" TO 100",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "SET GENERATOR \"S_ROLLBACK_SET_CURRENT\" TO 100"
+      ],
+      "task_id": "visual_admin.sequence.set_current"
     },
     {
       "binding_style": "positional_question_mark",
