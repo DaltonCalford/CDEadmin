@@ -524,7 +524,7 @@
       "title": "Shut down Firebird database", "fields": [
         {"field_id": "mode", "label": "Shutdown mode", "control": "select", "required": true, "default": "FULL", "options": [{"value": "MULTI", "label": "Multi-user maintenance"}, {"value": "SINGLE", "label": "Single-user maintenance"}, {"value": "FULL", "label": "Full shutdown"}]},
         {"field_id": "method", "label": "Shutdown method", "control": "select", "required": true, "default": "DENY_ATTACHMENTS", "options": [{"value": "FORCED", "label": "Force shutdown"}, {"value": "DENY_ATTACHMENTS", "label": "Deny new attachments"}, {"value": "DENY_TRANSACTIONS", "label": "Deny new transactions"}]},
-        {"field_id": "shutdown_timeout", "label": "Timeout in seconds", "control": "number", "required": true, "default": 0, "minimum": 0, "maximum": 86400},
+        {"field_id": "shutdown_timeout", "label": "Timeout in seconds", "control": "number", "required": true, "default": 0, "minimum": 0, "maximum": 32767, "help": "Firebird accepts 0 through 32767 seconds. Attachment/transaction denial can fail when existing work does not finish before the timeout. Forced shutdown terminates affected attachments and pending work."},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
       ]
     },

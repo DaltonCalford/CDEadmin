@@ -58,6 +58,7 @@ GATE_SCRIPTS = {
     'database-storage': 'cdeadmin_firebird_database_storage_ui_gate.py',
     'shadow-activation': 'cdeadmin_firebird_shadow_activation_ui_gate.py',
     'limbo': 'cdeadmin_firebird_limbo_ui_gate.py',
+    'availability': 'cdeadmin_firebird_availability_ui_gate.py',
     'object-privileges': 'cdeadmin_firebird_object_privileges_ui_gate.py',
     'role': 'cdeadmin_firebird_role_ui_gate.py',
     'object': 'cdeadmin_provider_object_form_gate.py',
@@ -141,7 +142,7 @@ def gate_command(options, url, database_label, config_database=None):
             'object', 'role', 'mapping', 'mappings', 'columns',
             'character-metadata', 'external-functions', 'blob-filters',
             'packages', 'sequences', 'shadows', 'database-storage',
-            'shadow-activation', 'limbo',
+            'shadow-activation', 'limbo', 'availability',
             'object-privileges',
             'table-metadata', 'privileges', 'rename'}:
         command.extend([
@@ -158,7 +159,7 @@ def gate_command(options, url, database_label, config_database=None):
                                  'character-metadata', 'external-functions',
                                  'blob-filters', 'packages', 'sequences',
                                  'shadows', 'database-storage',
-                                 'shadow-activation', 'limbo',
+                                 'shadow-activation', 'limbo', 'availability',
                                  'object-privileges',
                                  'table-metadata', 'privileges', 'rename'}:
             command.extend(['--profiles', str(options.profiles),

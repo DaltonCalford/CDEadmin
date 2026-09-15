@@ -49,6 +49,7 @@ from .firebird import sequences as firebird_sequences
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
+from .firebird import availability as firebird_availability
 from .firebird import shadow_activation as firebird_shadow_activation
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
@@ -530,9 +531,10 @@ class RelationalAdministration:
                 operation_id in firebird_limbo.ATTACHMENT_OPERATIONS):
             try:
                 route = request.get('_provider_route')
-                firebird_limbo.validate(operation_id, draft,
-                                       route.get('database') if isinstance(
-                                           route, Mapping) else None)
+                firebird_limbo.validate(
+                    operation_id, draft,
+                    route.get('database') if isinstance(route, Mapping)
+                    else None)
             except (ValueError, RelationalClientError) as error:
                 errors.append({'field_id': None,
                                'code': 'invalid_limbo_recovery',
@@ -3446,7 +3448,7 @@ class RelationalAdministration:
             return {
                 'driver_operation': 'firebird-service',
                 'operation_id': operation,
-                'database': database.strip(),
+                'database': database,
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
                 **({'restore_policy_requested': physical_restore_policy(
@@ -3464,7 +3466,8 @@ class RelationalAdministration:
                     'mode': 'level',
                     'level': request.get('draft', {}).get('backup_level', 0),
                 })} if operation == 'backup_physical' else {}),
-                'warnings': [
+                'warnings': [firebird_availability.WARNING]
+                if operation in firebird_availability.OPERATIONS else [
                     'Firebird will remove backup-history records after the '
                     'physical backup. This does not delete backup files. '
                     'Older level/GUID lookup can become unavailable; '
@@ -3907,6 +3910,13 @@ class RelationalAdministration:
     @staticmethod
     def _validate_firebird_service(operation, draft):
         errors = []
+        if operation in firebird_availability.OPERATIONS:
+            try:
+                firebird_availability.validate(operation, draft)
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_firebird_availability',
+                               'message': str(error)})
         try:
             validate_service_role(draft.get('role'))
         except RelationalClientError as error:
@@ -4037,7 +4047,8 @@ class RelationalAdministration:
             ('parallel_workers', 1, 128),
             ('backup_level', 0, MAX_BACKUP_LEVEL),
             ('lock_timeout', -1, 86400),
-            ('shutdown_timeout', 0, 86400),
+            ('shutdown_timeout', 0,
+             firebird_availability.MAX_SHUTDOWN_SECONDS),
             ('page_buffers', 0, 2147483647),
             ('sweep_interval', 0, 2147483647),
             ('verbose_interval', 1, 2147483647),

@@ -48,6 +48,7 @@ from .query_client import FirebirdQueryClient
 from .service_connection import connect_service, notify_attached
 from .session_settings import initialize_timeouts
 from .transaction_state import observe_transaction, release_session
+from . import availability
 
 
 PROFILE = PilotProfile(
@@ -676,6 +677,8 @@ def _service_backup_with_history(server, database, options, module):
 def _firebird_service_operation(
         server, operation_id, database, options, module):
     """Dispatch one exact Firebird 5 database service-manager task."""
+    if operation_id in availability.OPERATIONS:
+        availability.validate(operation_id, options)
     if operation_id == 'backup_logical':
         logical_backup_volumes(options)
     if operation_id == 'restore_logical':
@@ -863,7 +866,7 @@ def _firebird_service_operation(
     elif operation_id == 'shutdown_database':
         service.shutdown(
             database=database, role=role,
-            mode=module.ShutdownMode[options.get('mode', 'NORMAL')],
+            mode=module.ShutdownMode[options.get('mode', 'FULL')],
             method=module.ShutdownMethod[
                 options.get('method', 'DENY_ATTACHMENTS')
             ],
