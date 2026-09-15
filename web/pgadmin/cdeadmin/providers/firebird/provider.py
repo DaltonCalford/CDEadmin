@@ -22,7 +22,7 @@ from ..relational_admin import (
     RelationalAdministration,
     RelationalAdminDialect,
 )
-from . import columns, mappings, character_metadata
+from . import columns, mappings, character_metadata, external_functions
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -151,7 +151,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'global-authentication-mapping': mappings.OPERATIONS,
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
         **character_metadata.OPERATIONS,
-        'external-function': frozenset({'inspect'}),
+        'external-function': external_functions.OPERATIONS,
         'plugin': frozenset({'inspect'}),
         'publication': frozenset({'inspect', 'alter'}),
         'service-operation': frozenset({'inspect'}),
@@ -2236,14 +2236,19 @@ def _resources(connection, request):
             )
 
         def udf_parameter(parameter):
-            rendered_type = data_type(parameter)
+            # Legacy UDF grammar accepts only bare BLOB, not the table-field
+            # SUB_TYPE / SEGMENT SIZE / CHARACTER SET clauses.
+            rendered_type = ('BLOB' if numeric(parameter.get('field_type')) ==
+                             261 else data_type(parameter))
             if rendered_type is None:
                 return None
-            mechanism = numeric(parameter.get('mechanism'), 1)
+            mechanism = numeric(parameter.get('mechanism'))
+            if mechanism not in {-2, -1, 0, 1, 2, 3, 4, 5}:
+                return None
             absolute = abs(mechanism)
             suffix = {
                 0: ' BY VALUE', 1: '', 2: ' BY DESCRIPTOR',
-                3: '', 4: ' BY SCALAR ARRAY', 5: ' NULL',
+                3: '', 4: ' BY SCALAR_ARRAY', 5: ' NULL',
             }.get(absolute)
             if suffix is None:
                 return None
@@ -2509,12 +2514,21 @@ def _resources(connection, request):
                         "'", "''"
                     )
                     if module and entrypoint:
-                        native['ddl'] = (
+                        declaration = (
                             f'DECLARE EXTERNAL FUNCTION {identifier(name)} '
                             f'{", ".join(arguments)} RETURNS '
                             f'{return_definition}\nENTRY_POINT '
-                            f"'{entrypoint}' MODULE_NAME '{module}';"
+                            f"'{entrypoint}' MODULE_NAME '{module}'"
                         )
+                        statements = [declaration]
+                        if native.get('description') is not None:
+                            statements.extend(
+                                external_functions.compile_operation(
+                                    'comment', {
+                                        'description': native['description']},
+                                    {'display_name': name}))
+                        native['recreation_statements'] = statements
+                        native['ddl'] = ';\n'.join(statements) + ';'
             elif kind == 'index':
                 relation = item['display_path'][-2] if len(
                     item['display_path']

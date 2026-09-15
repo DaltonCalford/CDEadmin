@@ -459,6 +459,25 @@ function initialFieldValue(field) {
   return field.default;
 }
 
+export function submittedFieldValue(field, value) {
+  const schema = field.object_editor || field.array_editor;
+  if (!schema || schema.item_kind === 'string') return value;
+  const fields = schema.fields || [];
+  const record = (item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+    return Object.fromEntries(Object.entries(item).flatMap(([key, entry]) => {
+      const child = fields.find((candidate) => candidate.field_id === key);
+      // Keep unknown data for provider validation rather than silently losing
+      // it. Only known, presently hidden controls are omitted from a request;
+      // the user's editable draft retains them when switching modes back.
+      if (!child) return [[key, entry]];
+      return fieldVisible(child, item) ? [[key, submittedFieldValue(child, entry)]] : [];
+    }));
+  };
+  return field.object_editor ? record(value) :
+    Array.isArray(value) ? value.map(record) : value;
+}
+
 function fieldVisible(field, draft) {
   const condition = field.visible_when;
   if (!condition) return true;
@@ -1147,7 +1166,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
       }
       return field.required || field.submit_unchanged || (value !== '' &&
         !(Array.isArray(value) && value.length === 0));
-    }).map((field) => [field.field_id, draft[field.field_id]])),
+    }).map((field) => [field.field_id,
+      submittedFieldValue(field, draft[field.field_id])])),
   });
 
   const preview = async () => {

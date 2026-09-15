@@ -104,6 +104,7 @@ def options(kind):
     ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),
     ('mappings', 'cdeadmin_firebird_mappings_ui_gate.py'),
     ('character-metadata', 'cdeadmin_firebird_character_metadata_ui_gate.py'),
+    ('external-functions', 'cdeadmin_firebird_external_functions_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
     ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),
 ])

@@ -600,6 +600,9 @@ def _preview_values(kind, operation, target, engine_id):
                 values['message'] = 'CDEadmin browser preview exception'
             elif kind == 'user':
                 values['password'] = 'ui-preview-only'
+            elif kind == 'external-function':
+                values.update({'entrypoint': 'owned_value',
+                               'module_name': 'cde_owned_udf'})
             elif kind == 'role':
                 values.update({
                     'description': 'Browser role creation preview',
@@ -609,6 +612,8 @@ def _preview_values(kind, operation, target, engine_id):
         if operation_id == 'alter':
             values_by_kind = {
                 'character-set': {'default_collation': 'UTF8'},
+                'external-function': {'entrypoint': 'owned_other',
+                                      'module_name': 'cde_owned_udf'},
                 'view': {
                     'query': 'SELECT CUSTOMER_ID, NAME FROM CUSTOMERS',
                 },

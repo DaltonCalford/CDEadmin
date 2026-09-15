@@ -34,6 +34,7 @@ from .firebird_expressions import index_expression
 from .firebird import mappings as firebird_mappings
 from .firebird import columns as firebird_columns
 from .firebird import character_metadata as firebird_character_metadata
+from .firebird import external_functions as firebird_external_functions
 from .firebird.backup_guid import normalize_backup_guid
 from .firebird.backup_level import MAX_BACKUP_LEVEL, normalize_backup_level
 from .firebird.restore_policy import physical_restore_policy
@@ -226,6 +227,18 @@ class RelationalAdministration:
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
             if (self.dialect.engine_id == 'firebird' and
+                    kind == 'external-function'):
+                resource['title'] = 'Legacy external function'
+                resource['operations'] = [{
+                    'operation_id': operation,
+                    'title': operation.title(),
+                    'mutation_class': ('read' if operation == 'inspect'
+                                       else 'admin'),
+                    'target_required': operation != 'create',
+                    'confirmation_required': operation != 'inspect',
+                } for operation in sorted(
+                    firebird_external_functions.OPERATIONS)]
+            if (self.dialect.engine_id == 'firebird' and
                     kind in firebird_character_metadata.OPERATIONS):
                 additions = {'comment'}
                 if kind == 'character-set':
@@ -313,7 +326,8 @@ class RelationalAdministration:
                     elif operation.get('form_authority') != 'engine-profile':
                         operation['form'] = self._form(kind, operation_id)
                     if (self.dialect.engine_id == 'firebird' and
-                            kind in (*firebird_mappings.KINDS, 'column')):
+                            kind in (*firebird_mappings.KINDS, 'column',
+                                     'external-function')):
                         operation['title'] = operation['form']['title']
                     self._structured_record_controls(operation['form'])
                     self._routine_record_controls(operation['form'])
@@ -413,6 +427,17 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'external-function' and
+                operation_id != 'inspect'):
+            try:
+                firebird_external_functions.compile_operation(
+                    operation_id, draft, request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_external_function',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind in firebird_character_metadata.OPERATIONS and
                 operation_id != 'inspect'):
@@ -2958,6 +2983,15 @@ class RelationalAdministration:
                         'rollback; review concurrent inserts before applying.'
                     ] if request['draft'].get('action') == 'IDENTITY' else []}
         if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'external-function' and
+                operation != 'inspect'):
+            statements = firebird_external_functions.compile_operation(
+                operation, request['draft'], request.get('target_resource'))
+            return {'statements': [{'source': sql, 'parameters': ()}
+                                   for sql in statements],
+                    'warnings': [firebird_external_functions.WARNING]
+                    if operation in ('create', 'alter') else []}
+        if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in
                 firebird_character_metadata.OPERATIONS and
                 operation != 'inspect'):
@@ -3997,7 +4031,8 @@ class RelationalAdministration:
                 kind in firebird_mappings.KINDS):
             return value
         if (self.dialect.engine_id == 'firebird' and
-                kind in firebird_character_metadata.OPERATIONS):
+                kind in (*firebird_character_metadata.OPERATIONS,
+                         'external-function')):
             return value
         if operation == 'create':
             options = copy.deepcopy(value.pop('options', {}) or {})
@@ -4212,10 +4247,13 @@ class RelationalAdministration:
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
         if (self.dialect.engine_id == 'firebird' and
+                kind == 'external-function' and operation != 'inspect'):
+            return firebird_external_functions.form(operation, self._field)
+        if (self.dialect.engine_id == 'firebird' and
                 kind in firebird_character_metadata.OPERATIONS and
                 operation != 'inspect'):
             return firebird_character_metadata.form(kind, operation,
-                                                   self._field)
+                                                    self._field)
         if self.dialect.engine_id == 'firebird' and kind == 'column':
             if operation == 'create':
                 return firebird_columns.creation_form(self._field)

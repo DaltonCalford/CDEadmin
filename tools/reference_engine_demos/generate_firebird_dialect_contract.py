@@ -572,7 +572,8 @@ def supplement_character_metadata(document, evidence, digest, artifact):
         rejection = by_case[f'flags-create-drop-rollback-recreation-{mask}']
         if (rejection.get('expected_native_rejection') != 336068830 or
                 rejection.get('created') is not False):
-            raise ValueError('Character metadata native evidence is incomplete')
+            raise ValueError(
+                'Character metadata native evidence is incomplete')
     value = copy.deepcopy(document)
     proof_id = 'firebird-5.0.4-character-metadata-live'
     parser_id = 'firebird-5.0.4-character-metadata-parser'
@@ -591,7 +592,72 @@ def supplement_character_metadata(document, evidence, digest, artifact):
         if (record.get('live_execution') != 'passed' or
                 not isinstance(statements, list) or not statements or
                 not all(isinstance(sql, str) and sql for sql in statements)):
-            raise ValueError('Character metadata task has no native statements')
+            raise ValueError(
+                'Character metadata task has no native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
+def supplement_external_functions(document, evidence, digest, artifact):
+    validate_dialect_contract(document, PROFILE)
+    required = {'create-alter-comment-drop-rollback-recreation',
+                'dependent-view-drop-denied',
+                'restricted-lifecycle-execute-grant-revoke',
+                'argument-boundary-0', 'argument-boundary-15',
+                'blob-return-argument-boundary',
+                'missing-module_name', 'missing-entrypoint'}
+    required.update('declaration-recreation-' + str(index)
+                    for index in range(25))
+    required.update('native-mechanism-' + name for name in (
+        'REFERENCE', 'NULL', 'DESCRIPTOR', 'RETURN_DESCRIPTOR', 'FREE_IT',
+        'DESCRIPTOR_FREE_IT', 'PARAMETER', 'PARAMETER_REFERENCE_NATIVE_LIMIT',
+        'CSTRING', 'SCALAR_ARRAY'))
+    tasks = {'visual_admin.external-function.' + action
+             for action in ('create', 'alter', 'comment', 'drop')}
+    if (evidence.get('complete') is not True or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('schema') != 'cdeadmin.firebird-external-functions.v1'
+            or evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or
+            not tasks.issubset(evidence.get('task_evidence', {})) or
+            not required.issubset({item.get('case') for item in
+                                   evidence.get('checks', [])})):
+        raise ValueError('External function native evidence is incomplete')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-external-functions-live'
+    parser_id = 'firebird-5.0.4-external-functions-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('External function task has no native statements')
         value['task_templates'].append({
             'task_id': task_id, 'source': '\n;\n'.join(statements),
             'source_format': 'ordered_native_statements',
@@ -639,7 +705,8 @@ def main(argv=None):
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
-        'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata'),
+        'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
+        'external-functions'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -647,6 +714,7 @@ def main(argv=None):
                       'roles': supplement_roles,
                       'mappings': supplement_mappings,
                       'character-metadata': supplement_character_metadata,
+                      'external-functions': supplement_external_functions,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),
