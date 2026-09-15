@@ -26,6 +26,7 @@ from typing import Any, Mapping
 from .catalog import catalog_for_engine
 from .experience import enrich_engine_experience
 from pgadmin.cdeadmin.grid_contract import normalize_admin_page
+from pgadmin.cdeadmin.navigator import resource_operation_allowed
 
 
 LOGGER = logging.getLogger(__name__)
@@ -218,6 +219,11 @@ class ProviderVisualAdministration:
         known = {field['field_id'] for field in fields}
         unknown = sorted(set(draft).difference(known))
         errors = []
+        if not resource_operation_allowed(target, operation['operation_id']):
+            errors.append({
+                'field_id': None, 'code': 'operation_target_not_supported',
+                'message': 'This operation is not supported for that object.',
+            })
         if operation.get('target_resource_names') and (
                 not isinstance(target, Mapping) or target.get('display_name')
                 not in operation['target_resource_names']):

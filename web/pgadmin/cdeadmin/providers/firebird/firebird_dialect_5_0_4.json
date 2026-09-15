@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 94,
+    "authoritative_task_count": 100,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -84,9 +84,15 @@
       "visual_admin.index.create",
       "visual_admin.index.drop",
       "visual_admin.package.alter",
+      "visual_admin.package.comment",
       "visual_admin.package.create",
+      "visual_admin.package.create_body",
+      "visual_admin.package.create_or_alter",
       "visual_admin.package.drop",
+      "visual_admin.package.drop_body",
       "visual_admin.package.grant",
+      "visual_admin.package.recreate",
+      "visual_admin.package.replace_body",
       "visual_admin.package.revoke",
       "visual_admin.privilege.grant",
       "visual_admin.privilege.revoke",
@@ -127,7 +133,7 @@
       "visual_admin.view.grant",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 94,
+    "implemented_task_count": 100,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8893,6 +8899,7 @@
     "firebird-5.0.4-external-functions-live",
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-object-privileges-live",
+    "firebird-5.0.4-packages-live",
     "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-task-live-execution"
   ],
@@ -9104,6 +9111,24 @@
       "format": "cdeadmin.firebird-object-privileges.v1",
       "license_id": "PostgreSQL",
       "sha256": "0fd9cc0874fdeae6c9db5ae240b83f923c51142d5ff14aececaeb78516084cca"
+    },
+    {
+      "artifact": "packages-native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-packages-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-packages.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "3925b2686e7e0c1b52072cdd9ed00eef8bb401ea250bdf2a53d1c352942b518f"
+    },
+    {
+      "artifact": "packages-native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-packages-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-packages.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "3925b2686e7e0c1b52072cdd9ed00eef8bb401ea250bdf2a53d1c352942b518f"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9906,46 +9931,108 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
       ],
       "required_bindings": [],
-      "source": "ALTER PACKAGE \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER; END\n;\nRECREATE PACKAGE BODY \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER AS BEGIN RETURN 2; END END",
+      "source": "ALTER PACKAGE \"PK_DEP_ALTER\" AS BEGIN END",
       "source_format": "ordered_native_statements",
       "statements": [
-        "ALTER PACKAGE \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER; END",
-        "RECREATE PACKAGE BODY \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER AS BEGIN RETURN 2; END END"
+        "ALTER PACKAGE \"PK_DEP_ALTER\" AS BEGIN END"
       ],
       "task_id": "visual_admin.package.alter"
     },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
       ],
       "required_bindings": [],
-      "source": "CREATE PACKAGE \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER; END\n;\nCREATE PACKAGE BODY \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER AS BEGIN RETURN 1; END END",
+      "source": "COMMENT ON PACKAGE \"PK\"\"\u6771\u4eac_DEFINER\" IS 'Owner''s \u6771\u4eac notes'",
       "source_format": "ordered_native_statements",
       "statements": [
-        "CREATE PACKAGE \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER; END",
-        "CREATE PACKAGE BODY \"cde_editor_package\" AS BEGIN FUNCTION VALUE_ONE RETURNS INTEGER AS BEGIN RETURN 1; END END"
+        "COMMENT ON PACKAGE \"PK\"\"\u6771\u4eac_DEFINER\" IS 'Owner''s \u6771\u4eac notes'"
+      ],
+      "task_id": "visual_admin.package.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE PACKAGE \"PK_DEP_RECREATE\" AS BEGIN FUNCTION F RETURNS INTEGER; END\n;\nCREATE PACKAGE BODY \"PK_DEP_RECREATE\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 9; END END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE PACKAGE \"PK_DEP_RECREATE\" AS BEGIN FUNCTION F RETURNS INTEGER; END",
+        "CREATE PACKAGE BODY \"PK_DEP_RECREATE\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 9; END END"
       ],
       "task_id": "visual_admin.package.create"
     },
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
-        "firebird-5.0.4-task-parser-acceptance",
-        "firebird-5.0.4-task-live-execution"
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
       ],
       "required_bindings": [],
-      "source": "DROP PACKAGE \"cde_editor_package\"",
+      "source": "CREATE PACKAGE BODY \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 7; END END",
       "source_format": "ordered_native_statements",
       "statements": [
-        "DROP PACKAGE \"cde_editor_package\""
+        "CREATE PACKAGE BODY \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 7; END END"
+      ],
+      "task_id": "visual_admin.package.create_body"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER PACKAGE \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER; END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER PACKAGE \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER; END"
+      ],
+      "task_id": "visual_admin.package.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP PACKAGE \"PK_DEP_RECREATE\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP PACKAGE \"PK_DEP_RECREATE\""
       ],
       "task_id": "visual_admin.package.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP PACKAGE BODY \"PK\"\"\u6771\u4eac_DEFINER\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP PACKAGE BODY \"PK\"\"\u6771\u4eac_DEFINER\""
+      ],
+      "task_id": "visual_admin.package.drop_body"
     },
     {
       "binding_style": "positional_question_mark",
@@ -9961,6 +10048,36 @@
         "GRANT EXECUTE ON PACKAGE \"PK\" TO USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.package.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE PACKAGE \"PK_DEP_RECREATE\" AS BEGIN END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE PACKAGE \"PK_DEP_RECREATE\" AS BEGIN END"
+      ],
+      "task_id": "visual_admin.package.recreate"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-packages-parser",
+        "firebird-5.0.4-packages-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE PACKAGE BODY \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 7; END END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE PACKAGE BODY \"PK_UPSERT\" AS BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 7; END END"
+      ],
+      "task_id": "visual_admin.package.replace_body"
     },
     {
       "binding_style": "positional_question_mark",

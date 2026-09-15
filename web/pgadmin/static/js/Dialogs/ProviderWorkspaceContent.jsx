@@ -989,7 +989,7 @@ export function administrationResourceId(targetResource, result) {
 
 export function VisualAdministration({catalog, resources, selectedResource, post,
   setError, resourceGeneration, initialOperationId, initialResourceKind,
-  onMutationApplied, focused=false, objectEditor=false}) {
+  onMutationApplied, onOpenDefinitionOwner, focused=false, objectEditor=false}) {
   const objects = useMemo(() => (catalog?.objects || []).map((item) => ({
     ...item,
     operations: (item.operations || []).filter(
@@ -1023,8 +1023,16 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [refreshWarning, setRefreshWarning] = useState(null);
   const [inspectedResource, setInspectedResource] = useState(null);
   const [inspecting, setInspecting] = useState(false);
+  const [openingOwner, setOpeningOwner] = useState(false);
+  const nativeAdministration = providerNative(
+    inspectedResource?.resource_id === selectedResource?.resource_id ?
+      inspectedResource : selectedResource)?.administration;
+  const definitionOwner = nativeAdministration?.definition_owner;
   const objectDescriptor = objects.find((item) => item.resource_kind === resourceKind);
   const operations = useMemo(() => (objectDescriptor?.operations || []).filter((item) =>
+    (nativeAdministration?.allowed_operations === undefined ||
+      Array.isArray(nativeAdministration.allowed_operations) &&
+      nativeAdministration.allowed_operations.includes(item.operation_id)) &&
     (!item.target_resource_names || item.target_resource_names.includes(selectedResource?.display_name)) &&
     (!providerNative(selectedResource)?.system_object ||
       item.allow_system_target === true ||
@@ -1032,7 +1040,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     (!objectEditor || (item.target_required !== false &&
       (!item.target_resource_kinds || item.target_resource_kinds.includes(
         selectedResource?.resource_kind))))),
-  [objectDescriptor, objectEditor, selectedResource]);
+  [objectDescriptor, objectEditor, selectedResource, nativeAdministration]);
   const operation = operations.find((item) => item.operation_id === operationId);
   const allFields = operation?.form?.fields || [];
   const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
@@ -1319,6 +1327,24 @@ export function VisualAdministration({catalog, resources, selectedResource, post
         sx={{minWidth: 0, '& .MuiFormHelperText-root': {
           whiteSpace: 'normal', overflowWrap: 'anywhere',
         }}}>
+        {objectEditor && definitionOwner?.resource_id &&
+          typeof onOpenDefinitionOwner === 'function' &&
+          operationId === 'inspect' && <Box sx={{mb: 1}}>
+          <Box>{nativeAdministration?.reason}</Box>
+          <Button disabled={working || inspecting || openingOwner}
+            onClick={async () => {
+              setOpeningOwner(true);
+              try {
+                await onOpenDefinitionOwner(definitionOwner);
+              } catch (ownerError) {
+                setError(errorMessage(ownerError));
+              } finally {
+                setOpeningOwner(false);
+              }
+            }}>{gettext('Open owning %s: %s',
+              definitionOwner.resource_kind, definitionOwner.display_name)}
+          </Button>
+        </Box>}
         {objectEditor && operationId !== 'inspect' && <Box
           aria-label={gettext('Selected administration object')}
           sx={{p: 1, mb: 1, border: 1, borderColor: 'divider',
@@ -1452,6 +1478,7 @@ VisualAdministration.propTypes = {
   post: PropTypes.func.isRequired,
   setError: PropTypes.func.isRequired,
   onMutationApplied: PropTypes.func,
+  onOpenDefinitionOwner: PropTypes.func,
   initialOperationId: PropTypes.string,
   initialResourceKind: PropTypes.string,
   focused: PropTypes.bool,
@@ -6943,6 +6970,22 @@ export default function ProviderWorkspaceContent({
     setTab('administration');
   };
 
+  const openDefinitionOwner = async (owner) => {
+    const resource = await post({action: 'resource_inspect', request: {
+      resource_id: owner.resource_id, generation: resourcePage?.generation,
+    }});
+    if (resource?.resource_id !== owner.resource_id ||
+      resource?.resource_kind !== owner.resource_kind) {
+      throw new Error(gettext('The owning object is unavailable in this catalog.'));
+    }
+    selectedObservationRef.current = {resourceId: resource.resource_id,
+      generation: resourcePage?.generation};
+    setSelectedResource(resource);
+    setSelectedResourceKind(resource.resource_kind);
+    setSelectedOperationId('inspect');
+    setTab('object');
+  };
+
   const openResourceData = (resource) => {
     if (resource) setSelectedResource(resource);
     setTab('data');
@@ -7163,6 +7206,7 @@ export default function ProviderWorkspaceContent({
           resourceGeneration={resourcePage?.generation}
           post={post} setError={setError}
           onMutationApplied={reloadAfterAdministration}
+          onOpenDefinitionOwner={openDefinitionOwner}
           initialOperationId={selectedOperationId}
           initialResourceKind={selectedResourceKind}
           objectEditor={tab === 'object'}

@@ -1659,7 +1659,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             'resource_kind': 'package', 'operation_id': 'create',
             'target_resource': None,
             'draft': {
-                'name': 'WIDGET_API', 'parent': '',
+                'name': 'WIDGET_API',
                 'header': 'BEGIN PROCEDURE P; END',
                 'body': 'BEGIN PROCEDURE P AS BEGIN END END',
             },

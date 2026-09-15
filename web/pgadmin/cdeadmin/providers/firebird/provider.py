@@ -141,6 +141,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'package': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
+            'comment', 'create_or_alter', 'recreate', 'create_body',
+            'replace_body', 'drop_body',
         }),
         'exception': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
@@ -2442,6 +2444,13 @@ def _resources(connection, request):
                 )
             elif kind == 'package' and native.get('header_source'):
                 security = sql_security(native.get('sql_security'))
+                native['package_sql_security'] = (
+                    'INHERIT' if native.get('sql_security') is None else
+                    'DEFINER' if native['sql_security'] else 'INVOKER')
+                native['child_definition_tasks'] = {
+                    member: {'operation_id': 'alter',
+                             'label': f'New {member} in package header'}
+                    for member in ('function', 'procedure')}
                 header = f'CREATE PACKAGE {identifier(name)}'
                 if security:
                     header += f' {security}'
@@ -2942,6 +2951,19 @@ def _resources(connection, request):
                     item.setdefault('native', {})[
                         'navigator_parent_resource_id'] = owners[0][
                             'resource_id']
+                    if owner_kinds == {'package'}:
+                        item['native']['administration'] = {
+                            'allowed_operations': [
+                                'inspect', 'comment', 'grant', 'revoke'],
+                            'definition_owner': {
+                                'resource_id': owners[0]['resource_id'],
+                                'resource_kind': 'package',
+                                'display_name': owners[0]['display_name'],
+                            },
+                            'reason': (
+                                'Package members are defined in their '
+                                'owning package header and body.'),
+                        }
             if any(path[:len(parent)] == parent for parent in system_paths):
                 item.setdefault('native', {})['system_object'] = True
         for item in resources.values():

@@ -540,6 +540,15 @@ def _preview_values(kind, operation, target, engine_id):
                 'privileges': json.dumps([allowed_privileges(kind)[0]]),
                 'confirmation': 'CDE_UI_READER',
             })
+        if kind == 'package':
+            return rendered({
+                'name': 'CDE_UI_PACKAGE',
+                'header': 'BEGIN PROCEDURE UI_PROBE; END',
+                'body': 'BEGIN PROCEDURE UI_PROBE AS BEGIN END END',
+                'sql_security': 'INHERIT',
+                'description': 'Package preview comment',
+                'confirmation': str(name),
+            })
         if kind == 'column' and operation_id in {'alter', 'comment'}:
             return rendered({'action': 'POSITION', 'position': 1,
                              'description': 'Column preview comment'})
@@ -604,8 +613,8 @@ def _preview_values(kind, operation, target, engine_id):
                 })
             elif kind == 'package':
                 values.update({
-                    'header': 'PROCEDURE UI_PROBE;',
-                    'body': 'PROCEDURE UI_PROBE AS BEGIN END',
+                    'header': 'BEGIN PROCEDURE UI_PROBE; END',
+                    'body': 'BEGIN PROCEDURE UI_PROBE AS BEGIN END END',
                 })
             elif kind == 'exception':
                 values['message'] = 'CDEadmin browser preview exception'

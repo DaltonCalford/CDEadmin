@@ -70,6 +70,14 @@ def test_standalone_and_packaged_routines_do_not_overwrite_each_other():
                               item['display_name'] == package)
                 assert routine['native']['navigator_parent_resource_id'] == (
                     parent['resource_id'])
+                administration = routine['native']['administration']
+                assert administration['definition_owner'] == {
+                    'resource_id': parent['resource_id'],
+                    'resource_kind': 'package', 'display_name': package}
+                assert set(administration['allowed_operations']) == {
+                    'inspect', 'comment', 'grant', 'revoke'}
+            else:
+                assert 'administration' not in routine['native']
 
 
 def test_dependencies_select_the_exact_package_not_every_same_named_function():

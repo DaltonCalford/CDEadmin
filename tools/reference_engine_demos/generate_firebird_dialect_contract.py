@@ -870,6 +870,87 @@ def supplement_object_privileges(document, evidence, digest, artifact):
     return value
 
 
+def supplement_packages(document, evidence, digest, artifact):
+    """Require native header/body, transaction and dependency evidence."""
+    from pgadmin.cdeadmin.providers.firebird import packages
+    validate_dialect_contract(document, PROFILE)
+    lifecycle = {'lifecycle-' + prefix + security
+                 for prefix in ('PK_', 'PK"東京_')
+                 for security in ('INHERIT', 'INVOKER', 'DEFINER')}
+    required = lifecycle | {
+        'create-or-alter-versus-recreate',
+        'failed-body-borrowed-task-savepoint', 'failed-body-owned-transaction',
+    } | {
+        'dependency-denial-' + operation for operation in
+        ('alter', 'drop', 'recreate')}
+    tasks = {'visual_admin.package.' + operation for operation in
+             packages.OPERATIONS - {'inspect'}}
+    checks = evidence.get('checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-packages.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(required) or
+            {item.get('case') for item in checks} != required or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Package native evidence is incomplete')
+    for item in checks:
+        if item['case'] in lifecycle and (
+                item.get('header_body_separation') is not True or
+                item.get('rollback_commit_verified') is not True):
+            raise ValueError('Package header/body transaction proof missing')
+    atomicity = evidence.get('atomicity_checks', [])
+    owners = {item.get('borrowed') for item in atomicity}
+    if len(atomicity) != 2 or owners != {True, False} or any(
+                item.get('pending_work_preserved') is not True or
+                335544569 not in item.get('native_status_codes', [])
+                for item in atomicity):
+        raise ValueError('Package failed-body atomicity proof missing')
+    denials = evidence.get('native_denials', [])
+    if len(denials) != 3 or {item.get('operation') for item in denials} != {
+            'alter', 'drop', 'recreate'} or any(
+                335544630 not in item.get('native_status_codes', [])
+                for item in denials):
+        raise ValueError('Package native dependency proof missing')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-packages-live'
+    parser_id = 'firebird-5.0.4-packages-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Package task lacks native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -899,7 +980,7 @@ def main(argv=None):
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
-        'external-functions', 'blob-filters', 'object-privileges'),
+        'external-functions', 'blob-filters', 'object-privileges', 'packages'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -910,6 +991,7 @@ def main(argv=None):
                       'external-functions': supplement_external_functions,
                       'blob-filters': supplement_blob_filters,
                       'object-privileges': supplement_object_privileges,
+                      'packages': supplement_packages,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

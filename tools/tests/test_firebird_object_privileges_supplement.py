@@ -72,7 +72,7 @@ def test_complete_native_evidence_is_idempotent_and_preserves_other_tasks():
     value = supplement_object_privileges(document, evidence, 'a' * 64,
                                          'owned.json')
     assert original == document
-    assert len(value['task_templates']) == 94
+    assert len(value['task_templates']) == len(document['task_templates'])
     assert all(item in value['task_templates'] for item in
                document['task_templates'] if item['task_id'] not in
                evidence['task_evidence'])

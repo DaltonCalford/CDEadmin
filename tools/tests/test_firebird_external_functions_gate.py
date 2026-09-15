@@ -25,7 +25,7 @@ def route():
 
 @pytest.mark.parametrize('failed_scale', [None, 100, 200, 300])
 @pytest.mark.parametrize('kind', ['external-functions', 'blob-filters',
-                                  'object-privileges'])
+                                  'object-privileges', 'packages'])
 def test_private_credentials_cleanup_and_all_scale_failure_collection(
         tmp_path, monkeypatch, failed_scale, kind):
     monkeypatch.setenv('CDEADMIN_FIREBIRD_CLIENT_LIBRARY',

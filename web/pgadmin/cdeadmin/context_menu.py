@@ -1049,6 +1049,39 @@ def resource_group_context_actions(profile, resource_kind, visual_catalog,
     """Creation belongs to a presentation group, never a fabricated object."""
     if system:
         return []
+    from pgadmin.cdeadmin.navigator import resource_native
+    if parent_resource:
+        member_task = resource_native(parent_resource).get(
+            'child_definition_tasks', {}).get(resource_kind)
+        if isinstance(member_task, Mapping):
+            parent_descriptor = next((item for item in
+                                      (visual_catalog or {}).get('objects', [])
+                                      if item.get('resource_kind') ==
+                                      parent_resource.get('resource_kind')),
+                                     None)
+            task = next((item for item in
+                         (parent_descriptor or {}).get('operations', [])
+                         if item.get('operation_id') ==
+                         member_task.get('operation_id') and
+                         item.get('native_supported') is not False), None)
+            if not task:
+                return []
+            enabled = task.get('execution_available') is True
+            arguments = {'tab': 'object',
+                         'resource_id': parent_resource['resource_id'],
+                         'resource_kind': parent_resource['resource_kind'],
+                         'operation_id': task['operation_id']}
+            if database_target_id:
+                arguments['database_target_id'] = database_target_id
+            return [_action(
+                f"resource.{profile['engine_id']}.{resource_kind}.create",
+                member_task['label'], 'open_workspace', icon='action.create',
+                group='common', priority=10, arguments=arguments,
+                mutation=task.get('mutation_class', 'admin'), enabled=enabled,
+                disabled_reason=', '.join(task.get('blockers') or []) or (
+                    '' if enabled else
+                    'Owning definition editor unavailable.'),
+            )]
     descriptor = next((item for item in
                        (visual_catalog or {}).get('objects', [])
                        if item.get('resource_kind') == resource_kind), None)
@@ -1082,7 +1115,9 @@ def resource_context_actions(
         visual_catalog: Mapping[str, Any] | None, *,
         database_target_id: str | None = None) -> list[dict[str, Any]]:
     """Resolve provider catalog operations for a discovered resource."""
-    from pgadmin.cdeadmin.navigator import resource_native
+    from pgadmin.cdeadmin.navigator import (
+        resource_native, resource_operation_allowed,
+    )
     engine_id = _required(profile.get('engine_id'), 'engine_id')
     resource_id = _required(resource.get('resource_id'), 'resource_id')
     resource_kind = _required(
@@ -1130,6 +1165,7 @@ def resource_context_actions(
     operations = [
         operation for operation in descriptor.get('operations', [])
         if operation.get('native_supported') is not False and
+        resource_operation_allowed(resource, operation.get('operation_id')) and
         (not operation.get('target_resource_names') or
          resource.get('display_name') in
          operation['target_resource_names']) and
@@ -1137,6 +1173,32 @@ def resource_context_actions(
          operation.get('allow_system_target') is True or
          operation.get('operation_id') == 'inspect')
     ]
+    administration = resource_native(resource).get('administration')
+    owner = (administration.get('definition_owner')
+             if isinstance(administration, Mapping) else None)
+    if isinstance(owner, Mapping) and owner.get('resource_id'):
+        owner_descriptor = next((item for item in
+                                 (visual_catalog or {}).get('objects', [])
+                                 if item.get('resource_kind') ==
+                                 owner.get('resource_kind')), None)
+        owner_inspect = next((item for item in
+                              (owner_descriptor or {}).get('operations', [])
+                              if item.get('operation_id') == 'inspect' and
+                              item.get('native_supported') is not False), None)
+        if owner_inspect:
+            enabled = owner_inspect.get('execution_available') is True
+            actions.append(_action(
+                f'resource.{engine_id}.{resource_kind}.definition_owner',
+                'Edit owning ' + str(owner.get('resource_kind')) + ' ' +
+                str(owner.get('display_name') or ''),
+                'open_workspace', icon='action.edit', group='object',
+                priority=3, arguments={
+                    **base, 'tab': 'object', 'operation_id': 'inspect',
+                    'resource_id': owner['resource_id'],
+                    'resource_kind': owner['resource_kind'],
+                }, enabled=enabled,
+                disabled_reason=', '.join(owner_inspect.get('blockers') or [])
+                or ('' if enabled else 'Owning object editor unavailable.')))
     inspect = next((
         operation for operation in operations
         if operation.get('operation_id') == 'inspect'

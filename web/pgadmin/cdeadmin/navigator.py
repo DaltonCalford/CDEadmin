@@ -19,6 +19,7 @@ from __future__ import annotations
 import base64
 import ipaddress
 import json
+from collections.abc import Mapping
 from pathlib import PurePath
 
 
@@ -327,6 +328,20 @@ def resource_native(resource):
         if isinstance(value, dict) and isinstance(value.get('native'), dict):
             return value['native']
     return {}
+
+
+def resource_operation_allowed(resource, operation_id):
+    """Honor an explicit provider-owned operation subset for this object."""
+    if not isinstance(resource, Mapping):
+        return True
+    administration = resource_native(resource).get('administration')
+    if administration is None:
+        return True
+    if not isinstance(administration, Mapping):
+        return False
+    allowed = administration.get('allowed_operations')
+    return allowed is None or (
+        isinstance(allowed, (list, tuple)) and operation_id in allowed)
 
 
 def _prepared_resources(resources, state):
