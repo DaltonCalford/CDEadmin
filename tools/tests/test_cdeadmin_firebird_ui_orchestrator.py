@@ -167,6 +167,7 @@ def options(kind):
     ('limbo', 'cdeadmin_firebird_limbo_ui_gate.py'),
     ('availability', 'cdeadmin_firebird_availability_ui_gate.py'),
     ('repair', 'cdeadmin_firebird_repair_ui_gate.py'),
+    ('repair-damage', 'cdeadmin_firebird_repair_damage_ui_gate.py'),
     ('object-privileges', 'cdeadmin_firebird_object_privileges_ui_gate.py'),
     ('columns', 'cdeadmin_firebird_columns_ui_gate.py'),
     ('table-metadata', 'cdeadmin_firebird_table_metadata_ui_gate.py'),

@@ -64,13 +64,15 @@ def run(options, profiles):
               return send.apply(this, arguments);
             };
         ''')
-        for action, modifiers in (
+        cases = [(action, modifiers, None) for action, modifiers in (
                 ('VALIDATE_DB', []),
                 ('VALIDATE_DB', ['FULL', 'CHECK_DB']),
                 ('VALIDATE_DB', ['IGNORE_CHECKSUM']),
                 ('MEND_DB', ['CHECK_DB']),
                 ('CORRUPTION_CHECK', []), ('REPAIR', []),
-                ('KILL_SHADOWS', []), ('ICU', []), ('UPGRADE_DB', [])):
+                ('KILL_SHADOWS', []), ('ICU', []), ('UPGRADE_DB', []))]
+        cases.extend(('ICU', [], count) for count in (0, 2, 32767))
+        for action, modifiers, workers in cases:
             item = forms.wait_for_tree_item(wait, options.database)
             forms._context_click_visible_label(browser, wait, item)
             command = wait.until(lambda driver: driver.execute_script('''
@@ -121,17 +123,45 @@ def run(options, profiles):
                 assert not browser.find_elements(
                     'css selector', '[aria-label="Provider plan preview"]')
                 result['invalid_forms'].append(invalid_action)
+            worker_errors = (
+                ('VALIDATE_DB', 1, 'require the ICU action'),
+                ('ICU', -1, 'below its minimum'),
+                ('ICU', 32768, 'exceeds its maximum'),
+            ) if not result['checks'] else ()
+            for invalid_action, count, expected_error in worker_errors:
+                fill_form_values(browser, wait, fields, {
+                    'Repair action': invalid_action,
+                    'Native validation modifiers': [],
+                    'ICU parallel workers requested': count})
+                click_unobscured(browser, wait, visible_named_control(
+                    browser, 'Validate and preview'))
+                rejection = wait.until(lambda driver: next((
+                    item for item in driver.find_elements(
+                        'css selector', '[role="alert"]')
+                    if expected_error in item.text), None))
+                browser.execute_script(
+                    'arguments[0].scrollIntoView({block:"center"});',
+                    rejection)
+                screenshot_form_pages(browser, options.output_root / (
+                    'invalid-workers-' + invalid_action + '-' + str(count)))
+                assert not browser.find_elements(
+                    'css selector', '[aria-label="Provider plan preview"]')
+                result['invalid_forms'].append(
+                    'workers-' + invalid_action + '-' + str(count))
             task_role = ('CDE_OWNED_TASK_ROLE'
                          if route.get('role') and len(result['checks']) == 1
                          else '')
             values = {
                 'Repair action': action,
                 'Native validation modifiers': modifiers,
+                'ICU parallel workers requested': (
+                    workers if workers is not None else ''),
                 'SQL role': task_role}
             plan = plan_preview(browser, wait, operation, values)
             selection = repair.selection(database, {
                 'repair_action': action, 'repair_modifiers': modifiers,
-                'role': task_role}, route.get('role'))
+                'role': task_role, 'parallel_workers': workers},
+                route.get('role'))
             assert plan['command_preview']['repair_selection'] == selection
             assert browser.execute_script(
                 'return window.__ownedRepairDispatches') == len(
@@ -176,8 +206,8 @@ def run(options, profiles):
                 driver, 'Validate and preview')) is not None and
                 button.is_enabled())
             close_workspace(browser, wait)
-        result['passed'] = (len(result['checks']) == 9 and
-                            len(result['invalid_forms']) == 3)
+        result['passed'] = (len(result['checks']) == len(cases) and
+                            len(result['invalid_forms']) == 6)
     except Exception as error:
         result['failures'].append({'type': type(error).__name__})
         if browser is not None:

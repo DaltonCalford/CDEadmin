@@ -60,6 +60,7 @@ GATE_SCRIPTS = {
     'limbo': 'cdeadmin_firebird_limbo_ui_gate.py',
     'availability': 'cdeadmin_firebird_availability_ui_gate.py',
     'repair': 'cdeadmin_firebird_repair_ui_gate.py',
+    'repair-damage': 'cdeadmin_firebird_repair_damage_ui_gate.py',
     'object-privileges': 'cdeadmin_firebird_object_privileges_ui_gate.py',
     'role': 'cdeadmin_firebird_role_ui_gate.py',
     'object': 'cdeadmin_provider_object_form_gate.py',
@@ -145,6 +146,7 @@ def gate_command(options, url, database_label, config_database=None):
             'character-metadata', 'external-functions', 'blob-filters',
             'packages', 'sequences', 'shadows', 'database-storage',
             'shadow-activation', 'limbo', 'availability', 'repair',
+            'repair-damage',
             'object-privileges',
             'table-metadata', 'privileges', 'rename'}:
         command.extend([
@@ -162,7 +164,7 @@ def gate_command(options, url, database_label, config_database=None):
                                  'blob-filters', 'packages', 'sequences',
                                  'shadows', 'database-storage',
                                  'shadow-activation', 'limbo', 'availability',
-                                 'repair',
+                                 'repair', 'repair-damage',
                                  'object-privileges',
                                  'table-metadata', 'privileges', 'rename'}:
             command.extend(['--profiles', str(options.profiles),

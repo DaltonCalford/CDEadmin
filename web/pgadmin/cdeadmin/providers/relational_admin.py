@@ -4060,7 +4060,9 @@ class RelationalAdministration:
                     ),
                 })
         for field_id, minimum, maximum in (
-            ('parallel_workers', 1, 128),
+            ('parallel_workers', 0 if operation == 'repair_database' else 1,
+             firebird_repair.MAX_PARALLEL_WORKERS
+             if operation == 'repair_database' else 128),
             ('backup_level', 0, MAX_BACKUP_LEVEL),
             ('lock_timeout', -1, 86400),
             ('shutdown_timeout', 0,

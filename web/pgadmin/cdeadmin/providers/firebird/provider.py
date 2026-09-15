@@ -579,6 +579,13 @@ def _service_lines(callback):
 def _service_parallel_sweep(
         service, database, parallel_workers, role, module):
     """Issue sweep before its worker count as required by Firebird 5.0.4."""
+    _service_parallel_repair(service, database, parallel_workers, role, module,
+                             module.SrvRepairFlag.SWEEP_DB)
+
+
+def _service_parallel_repair(
+        service, database, parallel_workers, role, module, flags):
+    """Send the repair action before the action-dependent worker option."""
     server = service._srv()
     core = module.core
     server._reset_output()
@@ -592,7 +599,7 @@ def _service_parallel_sweep(
             spb.insert_string(
                 core.SPBItem.SQL_ROLE_NAME, role, encoding=server.encoding
             )
-        spb.insert_int(core.SPBItem.OPTIONS, module.SrvRepairFlag.SWEEP_DB)
+        spb.insert_int(core.SPBItem.OPTIONS, flags)
         spb.insert_int(
             core.SrvRepairOption.PARALLEL_WORKERS, parallel_workers
         )
@@ -840,11 +847,14 @@ def _firebird_service_operation(
         ))
         result.update(output=lines, output_truncated=truncated)
     elif operation_id == 'repair_database':
-        service.repair(
-            database=database, role=role,
-            flags=_flag_value(module, 'SrvRepairFlag',
-                              repair_selection['native_flags']),
-        )
+        flags = _flag_value(module, 'SrvRepairFlag',
+                            repair_selection['native_flags'])
+        workers = repair_selection['parallel_workers_requested']
+        if workers is not None:
+            _service_parallel_repair(
+                service, database, workers, role, module, flags)
+        else:
+            service.repair(database=database, role=role, flags=flags)
         result['repair_selection_requested'] = repair_selection
     elif operation_id == 'sweep_database':
         parallel_workers = options.get('parallel_workers')

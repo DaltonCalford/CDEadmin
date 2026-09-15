@@ -19,6 +19,9 @@ ACTIONS = {
     'UPGRADE_DB': ('UPGRADE_DB',),
 }
 MODIFIERS = ('FULL', 'CHECK_DB', 'IGNORE_CHECKSUM')
+# alice.h stores ua_parallel_workers in SSHORT. Reject wrapping values;
+# zero is passed explicitly and native exe.cpp omits its worker DPB item.
+MAX_PARALLEL_WORKERS = 32767
 
 
 def flags(options):
@@ -27,6 +30,16 @@ def flags(options):
     action = options.get('repair_action')
     if not isinstance(action, str) or action not in ACTIONS:
         raise RelationalClientError('Invalid Firebird repair action')
+    workers = options.get('parallel_workers')
+    if workers is not None:
+        if action != 'ICU':
+            raise RelationalClientError(
+                'Parallel workers on a repair task require the ICU action')
+        if (type(workers) is not int or
+                not 0 <= workers <= MAX_PARALLEL_WORKERS):
+            raise RelationalClientError(
+                'Firebird ICU parallel workers must be an integer '
+                'from 0 through 32767')
     modifiers = options.get('repair_modifiers', [])
     if (not isinstance(modifiers, list) or
             any(not isinstance(item, str) or item not in MODIFIERS
@@ -66,6 +79,7 @@ def selection(database, options, default_role=None):
         'no_update': 'CHECK_DB' in selected,
         'ignore_checksums': 'IGNORE_CHECKSUM' in selected,
         'mend_requested': 'MEND_DB' in selected,
+        'parallel_workers_requested': options.get('parallel_workers'),
     }
 
 
@@ -79,6 +93,13 @@ def warnings(options):
         'A native error is not proof that the database was unchanged. '
         'Inspect the outcome independently and do not automatically replay '
         'the maintenance task.']
+    if options.get('parallel_workers') is not None:
+        result.append(
+            'The ICU worker count is a request, not an observed worker count. '
+            'Zero leaves the worker DPB setting to native defaults; positive '
+            'counts are subject to Firebird MaxParallelWorkers. '
+            'Success does not prove that an index needed rebuilding or that '
+            'the requested number of workers ran.')
     if 'IGNORE_CHECKSUM' in selected:
         result.append('Checksum errors will be ignored by explicit request.')
     if 'MEND_DB' in selected:

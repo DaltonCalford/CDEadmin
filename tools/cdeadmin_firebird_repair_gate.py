@@ -101,13 +101,20 @@ def run(image, browser_options=None):
         modifiers = [list(items) for count in range(4)
                      for items in itertools.combinations(
                          repair.MODIFIERS, count)]
-        for action, selected in itertools.product(repair.ACTIONS, modifiers):
+        cases = [(action, selected, None) for action, selected
+                 in itertools.product(repair.ACTIONS, modifiers)]
+        cases.extend(('ICU', [], count) for count in (0, 1, 2, 128, 32767))
+        for action, selected, workers in cases:
             phase = action + '-' + ('-'.join(selected) or 'default')
+            if workers is not None:
+                phase += '-workers-' + str(workers)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
             path = '/var/lib/firebird/data/owned_repair_' + str(
                 len(result['checks'])) + '.fdb'
             draft = {'repair_action': action, 'repair_modifiers': selected}
+            if workers is not None:
+                draft['parallel_workers'] = workers
             request = {'resource_kind': 'database',
                        'operation_id': 'repair_database', 'draft': draft,
                        '_provider_route': {**route, 'database': path}}
@@ -149,7 +156,10 @@ def run(image, browser_options=None):
                                    'MON$BACKUP_STATE FROM MON$DATABASE')
                     assert cursor.fetchone() == (0, 0)
                 observer.close()
-                check.update(native_flags=flags, healthy_rows_preserved=True,
+                check.update(native_flags=flags,
+                             parallel_workers_requested=workers,
+                             actual_worker_count_observed=False,
+                             healthy_rows_preserved=True,
                              passed=True)
             except Exception as error:
                 failure(phase, error)
@@ -188,6 +198,8 @@ def run(image, browser_options=None):
                     acquire_secret=lambda *_args: SecretLease(
                         operator_password)))
                 draft = {'repair_action': action}
+                if action == 'ICU':
+                    draft['parallel_workers'] = 2
                 if mask not in ('inactive', 'default'):
                     draft['role'] = 'CDE_REPAIR_ROLE'
                 request = {
@@ -257,7 +269,9 @@ def run(image, browser_options=None):
                 plan = client.plan_admin_operation({
                     'resource_kind': 'database',
                     'operation_id': 'repair_database',
-                    'draft': {'repair_action': action},
+                    'draft': {'repair_action': action,
+                              **({'parallel_workers': 2}
+                                 if action == 'ICU' else {})},
                     '_provider_route': {**route, 'database': path}})
                 try:
                     client.apply_admin_operation(plan)
@@ -355,7 +369,9 @@ def run(image, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    result['complete'] = (len(result['checks']) == 112 and
+    # 56 modifier combinations + 5 ICU worker requests + 42 role cases
+    # + 14 raw/provider-owned pending-transaction cases.
+    result['complete'] = (len(result['checks']) == 117 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
