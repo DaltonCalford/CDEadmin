@@ -23,6 +23,7 @@ import ProviderWorkspaceContent, {
   visibleFieldOptions,
   changedFieldDraft,
   administrationResourceId,
+  administrationOutcomeValue,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 import firebirdManifest from '../../../pgadmin/cdeadmin/providers/firebird/provider_manifest.json';
@@ -30,6 +31,39 @@ import firebirdManifest from '../../../pgadmin/cdeadmin/providers/firebird/provi
 jest.mock('../../../pgadmin/static/js/api_instance');
 
 describe('provider structured record controls', () => {
+  it('retains a receipt only for its original or verified renamed object in the same scope', () => {
+    const original = {resource_id: 'column:T:A', resource_kind: 'column'};
+    const renamed = {...original, resource_id: 'column:T:B'};
+    const post = jest.fn();
+    const transition = {resource_kind: 'column', previous_resource_id: original.resource_id,
+      resource_id: renamed.resource_id, native_identity_verified: true, committed_by_provider: true};
+    const value = {provider_result: {resource_identity_change: transition}};
+    const outcome = {post, operationId: 'rename', resourceKind: 'column', targetResource: original, value};
+    const context = {...outcome, targetResource: renamed};
+    expect(administrationOutcomeValue(outcome, context)).toBe(value);
+    expect(administrationOutcomeValue(outcome, {...context, targetResource: original})).toBe(value);
+    for (const scope of [{post: jest.fn()}, {operationId: 'drop'}, {resourceKind: 'domain'},
+      {targetResource: null}, {targetResource: {...renamed, resource_kind: 'domain'}},
+      {targetResource: {...renamed, resource_id: 'column:T:C'}},
+      {targetResource: {...renamed, resource_id: ''}}]) {
+      expect(administrationOutcomeValue(outcome, {...context, ...scope})).toBeNull();
+    }
+    for (const invalid of [null, {native_identity_verified: false},
+      {committed_by_provider: false}, {previous_resource_id: 'other'},
+      {resource_kind: 'domain'}, {resource_id: ''}]) {
+      const badValue = {provider_result: {resource_identity_change: invalid && {...transition, ...invalid}}};
+      const badOutcome = {...outcome, value: badValue};
+      expect(administrationOutcomeValue(badOutcome, context)).toBeNull();
+      expect(administrationOutcomeValue(badOutcome, {...context, targetResource: original})).toBe(badValue);
+    }
+    expect(administrationOutcomeValue(null, context)).toBeNull();
+    expect(administrationOutcomeValue({...outcome, targetResource: {}},
+      {...context, targetResource: {}})).toBeNull();
+    const creation = {...outcome, operationId: 'create', targetResource: null};
+    expect(administrationOutcomeValue(creation, creation)).toBe(value);
+    expect(administrationOutcomeValue(creation, {...creation, targetResource: renamed})).toBeNull();
+  });
+
   it('uses only a verified provider rename identity', () => {
     const target = {resource_id: 'column:T:V', resource_kind: 'column'};
     const receipt = {previous_resource_id: 'column:T:V',
@@ -1928,6 +1962,9 @@ describe('ProviderWorkspaceContent', () => {
       fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
       await waitFor(() => expect(screen.getByRole('button',
         {name: 'Validate and preview'})).toBeEnabled());
+      expect(screen.getByLabelText('Provider operation result')).toHaveTextContent('domain:E');
+      expect(screen.queryByLabelText('Provider plan preview')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
       fireEvent.change(screen.getByRole('textbox', {name: 'New name'}),
         {target: {value: 'D'}});
       fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
@@ -1976,6 +2013,47 @@ describe('ProviderWorkspaceContent', () => {
       fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
       fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
       expect(post).toHaveBeenCalledTimes(calls);
+    });
+
+  it.each(['unrelated', 'unverified', 'different-operation', 'different-connection'])(
+    'does not present a completed receipt under %s context', async (change) => {
+      const original = {resource_id: 'domain:D', resource_kind: 'domain', display_name: 'D'};
+      const renamed = {...original, resource_id: 'domain:E', display_name: 'E'};
+      const unrelated = {...original, resource_id: 'domain:F', display_name: 'F'};
+      const resources = [original, renamed, unrelated];
+      const catalog = {objects: [{resource_kind: 'domain', title: 'Domain',
+        operations: ['rename', 'alter'].map(operation_id => ({operation_id,
+          title: operation_id, target_required: true, form: {fields: []}}))}]};
+      const post = jest.fn(async ({action, request}) => {
+        if (action === 'resource_inspect') return resources.find(item => item.resource_id === request.resource_id);
+        if (action === 'visual_admin_validate') return {valid: true};
+        if (action === 'visual_admin_plan') return {plan_id: 'plan', plan_digest: 'digest',
+          state: 'ready', execution_available: true};
+        return {provider_result: {accepted: true, resource_identity_change: {
+          resource_kind: 'domain', previous_resource_id: original.resource_id,
+          resource_id: renamed.resource_id, committed_by_provider: true,
+          native_identity_verified: change !== 'unverified',
+        }}};
+      });
+      const props = {catalog, resources, post, setError: jest.fn(),
+        onMutationApplied: jest.fn(), initialOperationId: 'rename'};
+      const {rerender} = render(<VisualAdministration {...props} selectedResource={original} />);
+      await act(async () => {});
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeEnabled());
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      expect(await screen.findByLabelText('Provider operation result')).toHaveTextContent('"accepted": true');
+      await act(async () => {
+        rerender(<VisualAdministration {...props}
+          initialOperationId={change === 'different-operation' ? 'alter' : 'rename'}
+          post={change === 'different-connection' ? (body) => post(body) : post}
+          selectedResource={change === 'unrelated' ? unrelated :
+            change === 'unverified' ? renamed : original} />);
+      });
+      expect(screen.queryByLabelText('Provider operation result')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      expect(post.mock.calls.filter(([body]) => body.action === 'visual_admin_apply')).toHaveLength(1);
     });
 
   it.each([

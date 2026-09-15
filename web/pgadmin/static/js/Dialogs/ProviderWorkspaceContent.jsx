@@ -993,6 +993,28 @@ export function administrationResourceId(targetResource, result) {
   return transition.resource_id;
 }
 
+export function administrationOutcomeValue(outcome, context) {
+  if (!outcome || outcome.post !== context.post ||
+      outcome.operationId !== context.operationId ||
+      outcome.resourceKind !== context.resourceKind) return null;
+  const original = outcome.targetResource;
+  const current = context.targetResource;
+  if (!original) return current ? null : outcome.value;
+  if (!current || typeof original.resource_id !== 'string' || !original.resource_id ||
+      typeof current.resource_id !== 'string' || !current.resource_id ||
+      typeof original.resource_kind !== 'string' || !original.resource_kind ||
+      original.resource_kind !== current.resource_kind) return null;
+  // The original object may still show the raw provider response, even when
+  // its identity claim is invalid. Only a verified transition follows a rename.
+  if (original.resource_id === current.resource_id) return outcome.value;
+  try {
+    return administrationResourceId(original, outcome.value) ===
+      current.resource_id ? outcome.value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function VisualAdministration({catalog, resources, selectedResource, post,
   setError, resourceGeneration, initialOperationId, initialResourceKind,
   onMutationApplied, onOpenDefinitionOwner, focused=false, objectEditor=false}) {
@@ -1014,7 +1036,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [inspectionRevision, setInspectionRevision] = useState(0);
   const [planned, setPlanned] = useState(null);
   const [validated, setValidated] = useState(null);
-  const [result, setResult] = useState(null);
+  const [outcome, setOutcome] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
   const [closeBlocked, setCloseBlocked] = useState(false);
@@ -1067,6 +1089,13 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const targetResource = matchingResources.find(
     (item) => item.resource_id === targetId);
   const targetUnavailable = Boolean(operation?.target_required && !targetResource);
+  const outcomeContext = {post, operationId, resourceKind,
+    targetResource: operation?.target_required === false ? null : targetResource};
+  const result = administrationOutcomeValue(outcome, outcomeContext);
+  const setResult = (value) => setOutcome(value ? {...outcomeContext, value,
+    targetResource: outcomeContext.targetResource ? {
+      ...outcomeContext.targetResource,
+    } : null} : null);
   // A response belongs to the exact editor context that requested it. Hide
   // obsolete previews during render, not only after a passive reset effect.
   // Prefill can replace a draft with an equivalent object. That is not an
@@ -1186,7 +1215,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
 
   useEffect(() => {
     setResult(null);
-  }, [operationId, resourceKind, selectedResource?.resource_id]);
+  }, [operationId, resourceKind, post]);
 
   // A preview authorizes one exact draft and target, never later edits.
   useEffect(() => {

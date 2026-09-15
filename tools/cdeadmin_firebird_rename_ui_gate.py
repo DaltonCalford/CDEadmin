@@ -43,6 +43,14 @@ from pgadmin.cdeadmin.providers.firebird.mappings import (  # noqa: E402
 )
 
 
+def array_seed(domain_mode, row):
+    """Distinct owned values for INTEGER[1:3] or INTEGER[-2:3,1:2]."""
+    if not domain_mode:
+        return [-2147483648, row, 2147483647]
+    return [[row * 100 + outer * 10 + inner for inner in (1, 2)]
+            for outer in range(-2, 4)]
+
+
 def run(options, profiles):
     document = json.loads(profiles.read_text())
     route = next(dict(item) for item in document['profiles']
@@ -122,6 +130,11 @@ def run(options, profiles):
                 elif _label == 'blob':
                     cursor.execute('UPDATE ' + identifier(table) +
                                    ' SET V = ?', ('  Native é text  ',))
+                elif _label == 'array':
+                    for value in (7, 11):
+                        cursor.execute('UPDATE ' + identifier(table) +
+                                       ' SET V = ? WHERE X = ?',
+                                       (array_seed(domain_mode, value), value))
             native.commit()
         browser = create_driver(options)
         browser.set_script_timeout(120)
@@ -135,6 +148,10 @@ def run(options, profiles):
             table = tables[index]
             try:
                 baseline_rows = rows(table, 'V')
+                if label == 'array':
+                    assert baseline_rows == [
+                        [value, array_seed(domain_mode, value)]
+                        for value in (7, 11)]
                 original = table + '_D' if domain_mode else 'V'
                 if domain_mode:
                     new_name = table + '_' + new_name
@@ -189,11 +206,29 @@ def run(options, profiles):
                         baseline_rows)
                     wait.until(lambda driver: visible_named_control(
                         driver, 'Validate and preview').is_enabled())
+                    # A rename changes the resource ID, not the identity of
+                    # the completed operation. Its receipt must survive the
+                    # automatic catalog/selection refresh, with no old plan
+                    # left executable.
+                    wait.until(lambda driver: next((
+                        json.loads(item.text) == response
+                        for item in driver.find_elements(
+                            'css selector',
+                            '[aria-label="Provider operation result"]')
+                        if item.is_displayed()), False))
+                    assert not visible_named_control(
+                        browser, 'Apply provider plan').is_enabled()
+                    assert not any(item.is_displayed() for item in
+                                   browser.find_elements(
+                                       'css selector',
+                                       '[aria-label="Provider plan preview"]'))
                     assert 'Do not repeat the operation' not in (
                         browser.find_element('tag name', 'body').text)
                     path = options.output_root / (label_now + '-result.png')
                     result['checks'].append({
                         'case': label_now, 'receipt': receipt,
+                        'receipt_visible_after_refresh': True,
+                        'submitted_plan_retired': True,
                         'rows_preserved': baseline_rows,
                         'form_screenshots': images, 'screenshot': str(path),
                         'sha256': screenshot(browser, path)})
