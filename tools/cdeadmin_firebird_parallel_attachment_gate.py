@@ -11,7 +11,7 @@ import re
 import secrets
 import time
 import uuid
-from importlib.metadata import version
+from importlib.metadata import version as distribution_version
 from pathlib import Path
 
 if __package__:
@@ -37,7 +37,7 @@ def run(image):
     _configure_client_library(native)
     result = {'complete': False, 'checks': [], 'failures': [],
               'removed_policies': [], 'provider_forms_qualified': False,
-              'driver_version': version('firebird-driver'),
+              'driver_version': distribution_version('firebird-driver'),
               'actual_task_worker_counts_qualified': False}
 
     def failure(case, error):
