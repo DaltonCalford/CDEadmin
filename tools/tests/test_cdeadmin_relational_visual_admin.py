@@ -743,7 +743,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertEqual('repair_action', field['field_id'])
         self.assertEqual('select', field['control'])
         self.assertEqual({
-            'VALIDATE_DB', 'CORRUPTION_CHECK', 'REPAIR',
+            'VALIDATE_DB', 'MEND_DB', 'CORRUPTION_CHECK', 'REPAIR',
             'KILL_SHADOWS', 'ICU', 'UPGRADE_DB',
         }, {item['value'] for item in field['options']})
         invalid = FIREBIRD_ADMINISTRATION.validate({

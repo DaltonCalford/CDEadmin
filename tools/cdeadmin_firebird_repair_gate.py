@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+"""Qualify native gfix flags on healthy disposable Firebird databases."""
+
+import argparse
+import itertools
+import json
+import os
+import re
+import secrets
+import time
+import traceback
+import uuid
+from pathlib import Path
+from types import SimpleNamespace
+
+if __package__:
+    from .cdeadmin_firebird_external_functions_gate import browser_checks
+    from .cdeadmin_firebird_logical_volumes_gate import (
+        docker, published_port, remove_owned, OWNER, _route_arguments,
+        _create_client, _configure_client_library, SecretLease,
+    )
+else:
+    from cdeadmin_firebird_external_functions_gate import browser_checks
+    from cdeadmin_firebird_logical_volumes_gate import (
+        docker, published_port, remove_owned, OWNER, _route_arguments,
+        _create_client, _configure_client_library, SecretLease,
+    )
+
+from pgadmin.cdeadmin.providers.firebird import repair
+from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+
+
+def run(image, browser_options=None):
+    import firebird.driver as native
+    _configure_client_library(native)
+    password = secrets.token_urlsafe(24)
+    operator_password = secrets.token_urlsafe(24)
+    container = client = None
+    connections = []
+    result = {'complete': False, 'checks': [], 'failures': [],
+              'fixture_scope': 'healthy disposable databases only',
+              'damaged_database_recovery_qualified': False,
+              'owned_container_removed': False,
+              'credential_values_exported': False}
+    bootstrap = '/var/lib/firebird/data/owned_repair_bootstrap.fdb'
+
+    def failure(case, error):
+        result['failures'].append({
+            'case': case, 'error_type': type(error).__name__,
+            'native_status_codes': list(status_codes(error)),
+            'frames': [{'file': Path(frame.filename).name,
+                        'line': frame.lineno, 'function': frame.name}
+                       for frame in traceback.extract_tb(
+                           error.__traceback__)]})
+
+    def connect(path, create=False):
+        method = native.create_database if create else native.connect
+        handle = method(password=password, **_route_arguments(
+            {**route, 'database': path}, native))
+        connections.append(handle)
+        return handle
+
+    phase = 'create-owned-server'
+    try:
+        container = docker(
+            'run', '--detach', '--name',
+            'cdeadmin-repair-' + uuid.uuid4().hex[:16],
+            '--label', 'cdeadmin-owned-gate=' + OWNER,
+            '--publish', '127.0.0.1::3050', '--env', 'FIREBIRD_ROOT_PASSWORD',
+            '--env', 'FIREBIRD_DATABASE', image,
+            env=dict(os.environ, FIREBIRD_ROOT_PASSWORD=password,
+                     FIREBIRD_DATABASE=bootstrap)).decode().strip()
+        if not re.fullmatch('[0-9a-f]{64}', container):
+            raise ValueError('Owned container identity is invalid')
+        route = {'host': '127.0.0.1', 'port': published_port(container),
+                 'user': 'SYSDBA', 'timeout': 2,
+                 'auth_plugin_list': 'Srp256',
+                 'credential_reference_id': 'owned-repair',
+                 'principal_reference': 'owned-qa'}
+        phase = 'readiness'
+        deadline = time.monotonic() + 45
+        ready = None
+        while time.monotonic() < deadline:
+            try:
+                ready = connect(bootstrap)
+                break
+            except native.Error:
+                time.sleep(0.25)
+        if ready is None:
+            raise RuntimeError('Owned Firebird did not become ready')
+        with ready.cursor() as cursor:
+            cursor.execute(
+                "SELECT RDB$GET_CONTEXT('SYSTEM', 'ENGINE_VERSION') "
+                'FROM RDB$DATABASE')
+            result['engine_version'] = cursor.fetchone()[0]
+        assert result['engine_version'] == '5.0.4'
+        ready.close()
+        client = _create_client(SimpleNamespace(
+            acquire_secret=lambda *_args: SecretLease(password)))
+        modifiers = [list(items) for count in range(4)
+                     for items in itertools.combinations(
+                         repair.MODIFIERS, count)]
+        for action, selected in itertools.product(repair.ACTIONS, modifiers):
+            phase = action + '-' + ('-'.join(selected) or 'default')
+            check = {'case': phase, 'passed': False}
+            result['checks'].append(check)
+            path = '/var/lib/firebird/data/owned_repair_' + str(
+                len(result['checks'])) + '.fdb'
+            draft = {'repair_action': action, 'repair_modifiers': selected}
+            request = {'resource_kind': 'database',
+                       'operation_id': 'repair_database', 'draft': draft,
+                       '_provider_route': {**route, 'database': path}}
+            try:
+                try:
+                    flags = repair.flags(draft)
+                except RelationalClientError:
+                    assert client.config.administration.validate(
+                        request)['errors']
+                    check.update(incompatible_modifiers_rejected=True,
+                                 passed=True)
+                    continue
+                setup = connect(path, create=True)
+                with setup.cursor() as cursor:
+                    cursor.execute(
+                        'CREATE TABLE REPAIR_MARKER '
+                        '(ID INTEGER PRIMARY KEY, NOTE VARCHAR(32))')
+                    setup.commit()
+                    cursor.execute("INSERT INTO REPAIR_MARKER "
+                                   "VALUES (1, 'preserve healthy data')")
+                setup.commit()
+                setup.close()
+                assert not client.config.administration.validate(
+                    request)['errors']
+                plan = client.plan_admin_operation(request)
+                assert plan['command_preview']['repair_selection'] == (
+                    repair.selection(path, draft))
+                before = {id(handle) for handle in client._connections}
+                client.apply_admin_operation(plan)
+                assert {id(handle) for handle in client._connections} == before
+                observer = connect(path)
+                with observer.cursor() as cursor:
+                    cursor.execute('SELECT ID, NOTE FROM REPAIR_MARKER')
+                    assert cursor.fetchall() == [(1, 'preserve healthy data')]
+                    cursor.execute('SELECT MON$SHUTDOWN_MODE, '
+                                   'MON$BACKUP_STATE FROM MON$DATABASE')
+                    assert cursor.fetchone() == (0, 0)
+                observer.close()
+                check.update(native_flags=flags, healthy_rows_preserved=True,
+                             passed=True)
+            except Exception as error:
+                failure(phase, error)
+        administrator = connect(bootstrap)
+        with administrator.cursor() as cursor:
+            cursor.execute("CREATE USER CDE_REPAIR_OPERATOR PASSWORD '" +
+                           operator_password.replace("'", "''") + "'")
+        administrator.commit()
+        administrator.close()
+        for action, mask in itertools.product(
+                repair.ACTIONS, ('inactive', 0, 1, 2, 3)):
+            phase = 'authorization-' + action + '-' + str(mask)
+            check = {'case': phase, 'passed': False}
+            result['checks'].append(check)
+            path = '/var/lib/firebird/data/owned_repair_auth_' + str(
+                len(result['checks'])) + '.fdb'
+            limited = None
+            try:
+                bits = 3 if mask == 'inactive' else mask
+                privileges = [privilege for bit, privilege in enumerate((
+                    'USE_GFIX_UTILITY', 'IGNORE_DB_TRIGGERS'))
+                    if bits & (1 << bit)]
+                administrator = connect(path, create=True)
+                with administrator.cursor() as cursor:
+                    cursor.execute('CREATE TABLE AUTH_MARKER (ID INTEGER)')
+                    cursor.execute('CREATE ROLE CDE_REPAIR_ROLE' + (
+                        ' SET SYSTEM PRIVILEGES TO ' + ', '.join(privileges)
+                        if privileges else ''))
+                    cursor.execute('GRANT CDE_REPAIR_ROLE TO '
+                                   'USER CDE_REPAIR_OPERATOR')
+                    administrator.commit()
+                    cursor.execute('INSERT INTO AUTH_MARKER VALUES (1)')
+                administrator.commit()
+                administrator.close()
+                limited = _create_client(SimpleNamespace(
+                    acquire_secret=lambda *_args: SecretLease(
+                        operator_password)))
+                draft = {'repair_action': action}
+                if mask != 'inactive':
+                    draft['role'] = 'CDE_REPAIR_ROLE'
+                request = {
+                    'resource_kind': 'database',
+                    'operation_id': 'repair_database', 'draft': draft,
+                    '_provider_route': {
+                        **route, 'database': path,
+                        'user': 'CDE_REPAIR_OPERATOR'}}
+                assert not limited.config.administration.validate(
+                    request)['errors']
+                plan = limited.plan_admin_operation(request)
+                try:
+                    limited.apply_admin_operation(plan)
+                except RelationalClientError as error:
+                    assert mask != 3
+                    check['denial_codes'] = list(status_codes(error))
+                    assert 335544788 in check['denial_codes']
+                    assert 335545112 in check['denial_codes']
+                else:
+                    assert mask == 3
+                    check['privileged_operation_returned'] = True
+                observer = connect(path)
+                with observer.cursor() as cursor:
+                    cursor.execute('SELECT ID FROM AUTH_MARKER')
+                    assert cursor.fetchall() == [(1,)]
+                observer.close()
+                check.update(role_privileges=privileges,
+                             role_active=mask != 'inactive',
+                             healthy_rows_preserved=True, passed=True)
+            except Exception as error:
+                failure(phase, error)
+            finally:
+                if limited is not None:
+                    try:
+                        limited.close()
+                    except Exception as error:
+                        failure('close-limited-repair-client', error)
+        for action, provider_owned in itertools.product(
+                repair.ACTIONS, (False, True)):
+            phase = 'busy-' + action + '-' + str(provider_owned)
+            check = {'case': phase, 'passed': False}
+            result['checks'].append(check)
+            path = '/var/lib/firebird/data/owned_repair_busy_' + str(
+                len(result['checks'])) + '.fdb'
+            held = None
+            try:
+                setup = connect(path, create=True)
+                with setup.cursor() as cursor:
+                    cursor.execute('CREATE TABLE BUSY_MARKER (ID INTEGER)')
+                setup.commit()
+                setup.close()
+                held = (client._connect({'route': {**route, 'database': path}})
+                        if provider_owned else connect(path))
+                with held.cursor() as cursor:
+                    cursor.execute('INSERT INTO BUSY_MARKER VALUES (1)')
+                    cursor.execute('SELECT CURRENT_TRANSACTION '
+                                   'FROM RDB$DATABASE')
+                    transaction = cursor.fetchone()[0]
+                plan = client.plan_admin_operation({
+                    'resource_kind': 'database',
+                    'operation_id': 'repair_database',
+                    'draft': {'repair_action': action},
+                    '_provider_route': {**route, 'database': path}})
+                try:
+                    client.apply_admin_operation(plan)
+                except RelationalClientError as error:
+                    assert action not in ('ICU', 'KILL_SHADOWS')
+                    check['exclusive_access_denial_codes'] = list(
+                        status_codes(error))
+                    expected_code = (
+                        335544510 if action == 'UPGRADE_DB' else
+                        335545085 if action in ('CORRUPTION_CHECK', 'REPAIR')
+                        else 335544461)
+                    assert expected_code in check[
+                        'exclusive_access_denial_codes']
+                else:
+                    assert action in ('ICU', 'KILL_SHADOWS')
+                    check['nonexclusive_operation_returned'] = True
+                with held.cursor() as cursor:
+                    cursor.execute('SELECT CURRENT_TRANSACTION '
+                                   'FROM RDB$DATABASE')
+                    assert cursor.fetchone()[0] == transaction
+                    cursor.execute('SELECT ID FROM BUSY_MARKER')
+                    assert cursor.fetchall() == [(1,)]
+                held.rollback()
+                if provider_owned:
+                    receipt = client.close_session(held)
+                    assert receipt['connection_released'] is True
+                    assert held not in client._connections
+                    check['provider_session_release'] = receipt
+                else:
+                    held.close()
+                observer = connect(path)
+                with observer.cursor() as cursor:
+                    cursor.execute('SELECT ID FROM BUSY_MARKER')
+                    assert cursor.fetchall() == []
+                observer.close()
+                check.update(existing_transaction_preserved=True,
+                             explicit_rollback_verified=True, passed=True)
+            except Exception as error:
+                failure(phase, error)
+        if browser_options is not None:
+            result['browser_checks'] = []
+            for scale in browser_options.font_scale or (100, 200, 300):
+                phase = 'browser-' + str(scale)
+                folder = browser_options.build_root / phase
+                folder.mkdir(parents=True, exist_ok=False)
+                path = ('/var/lib/firebird/data/owned_repair_browser_' +
+                        str(scale) + '.fdb')
+                try:
+                    setup = connect(path, create=True)
+                    with setup.cursor() as cursor:
+                        cursor.execute('CREATE TABLE REPAIR_MARKER '
+                                       '(ID INTEGER, NOTE VARCHAR(32))')
+                        setup.commit()
+                        cursor.execute("INSERT INTO REPAIR_MARKER "
+                                       "VALUES (1, 'preserve healthy data')")
+                    setup.commit()
+                    setup.close()
+                    selected = SimpleNamespace(**{
+                        **vars(browser_options), 'font_scale': [scale]})
+                    result['browser_checks'].extend(browser_checks(
+                        selected, {**route, 'database': path}, password,
+                        container, folder, gate_kind='repair',
+                        fixture_kind='firebird-repair-qualification'))
+                except Exception as error:
+                    failure(phase, error)
+            if not result['browser_checks'] or not all(
+                    item['passed'] for item in result['browser_checks']):
+                result['failures'].append({'case': 'browser-qualification',
+                                           'error_type': 'FailedBrowserGate'})
+    except Exception as error:
+        failure(phase, error)
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception as error:
+                failure('close-owned-client', error)
+        for handle in connections:
+            try:
+                handle.close()
+            except Exception as error:
+                failure('close-owned-attachment', error)
+        if container is not None:
+            try:
+                remove_owned(container)
+                result['owned_container_removed'] = True
+            except Exception as error:
+                failure('remove-owned-server', error)
+    result['complete'] = (len(result['checks']) == 105 and
+                          not result['failures'] and
+                          result['owned_container_removed'])
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--build-root', type=Path)
+    parser.add_argument('--source-config-db', type=Path,
+                        default=Path('/var/lib/cdeadmin/cdeadmin.db'))
+    parser.add_argument('--desktop-user', default='dalton.calford@gmail.com')
+    parser.add_argument('--font-scale', type=int, action='append',
+                        choices=(100, 200, 300))
+    options = parser.parse_args()
+    if options.output.exists():
+        parser.error('Use a new evidence file')
+    if options.browser:
+        if options.build_root is None or options.build_root.exists():
+            parser.error('Browser tests require a new --build-root directory')
+        options.build_root.mkdir(parents=True, exist_ok=False)
+    result = run(options.image, options if options.browser else None)
+    options.output.write_text(json.dumps(result, indent=2) + '\n')
+    print(json.dumps(result))
+    return 0 if result['complete'] else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -155,7 +155,8 @@ def test_service_execution_blocks_whole_client_release(rig):
 
 @pytest.mark.parametrize('operation', [
     'activate_shadow', 'database_statistics', 'backup_logical',
-    'restore_logical', 'validate_database', 'bring_online', 'set_write_mode'])
+    'restore_logical', 'validate_database', 'bring_online', 'set_write_mode',
+    'repair_database', 'shutdown_database'])
 def test_task_role_is_attached_without_unsupported_start_spb_role(
         rig, operation):
     request = {'route': {'host': 'exact', 'role': 'DEFAULT_ROLE'}}

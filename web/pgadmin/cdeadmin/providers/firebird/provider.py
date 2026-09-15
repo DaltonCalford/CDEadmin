@@ -49,6 +49,7 @@ from .service_connection import connect_service, notify_attached
 from .session_settings import initialize_timeouts
 from .transaction_state import observe_transaction, release_session
 from . import availability
+from . import repair
 
 
 PROFILE = PilotProfile(
@@ -679,6 +680,8 @@ def _firebird_service_operation(
     """Dispatch one exact Firebird 5 database service-manager task."""
     if operation_id in availability.OPERATIONS:
         availability.validate(operation_id, options)
+    if operation_id == 'repair_database':
+        repair_selection = repair.selection(database, options)
     if operation_id == 'backup_logical':
         logical_backup_volumes(options)
     if operation_id == 'restore_logical':
@@ -839,8 +842,10 @@ def _firebird_service_operation(
     elif operation_id == 'repair_database':
         service.repair(
             database=database, role=role,
-            flags=module.SrvRepairFlag[options['repair_action']],
+            flags=_flag_value(module, 'SrvRepairFlag',
+                              repair_selection['native_flags']),
         )
+        result['repair_selection_requested'] = repair_selection
     elif operation_id == 'sweep_database':
         parallel_workers = options.get('parallel_workers')
         if parallel_workers is not None and hasattr(service, '_srv'):

@@ -50,6 +50,7 @@ from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
 from .firebird import availability as firebird_availability
+from .firebird import repair as firebird_repair
 from .firebird import shadow_activation as firebird_shadow_activation
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
@@ -2681,6 +2682,9 @@ class RelationalAdministration:
                 'statements': preview,
                 'provider_constructed': True,
                 'driver_operation': compiled.get('driver_operation'),
+                **({'repair_selection': copy.deepcopy(
+                    compiled['repair_selection'])}
+                   if 'repair_selection' in compiled else {}),
                 **({'availability_selection': copy.deepcopy(
                     compiled['availability_selection'])}
                    if 'availability_selection' in compiled else {}),
@@ -3454,6 +3458,9 @@ class RelationalAdministration:
                 'database': database,
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                **({'repair_selection': firebird_repair.selection(
+                    database, request.get('draft', {}))}
+                   if operation == 'repair_database' else {}),
                 **({'availability_selection': firebird_availability.selection(
                     operation, database, request.get('draft', {}))}
                    if operation in firebird_availability.OPERATIONS else {}),
@@ -3473,7 +3480,9 @@ class RelationalAdministration:
                     'level': request.get('draft', {}).get('backup_level', 0),
                 })} if operation == 'backup_physical' else {}),
                 'warnings': [firebird_availability.WARNING]
-                if operation in firebird_availability.OPERATIONS else [
+                if operation in firebird_availability.OPERATIONS else
+                firebird_repair.warnings(request.get('draft', {}))
+                if operation == 'repair_database' else [
                     'Firebird will remove backup-history records after the '
                     'physical backup. This does not delete backup files. '
                     'Older level/GUID lookup can become unavailable; '
@@ -4191,7 +4200,7 @@ class RelationalAdministration:
             ),
             'repair_database': (
                 'repair_action', {
-                    'VALIDATE_DB', 'CORRUPTION_CHECK', 'REPAIR',
+                    'VALIDATE_DB', 'MEND_DB', 'CORRUPTION_CHECK', 'REPAIR',
                     'KILL_SHADOWS', 'ICU', 'UPGRADE_DB',
                 },
             ),
@@ -4220,6 +4229,13 @@ class RelationalAdministration:
                 'code': 'invalid_firebird_shutdown_method',
                 'message': 'The Firebird shutdown method is invalid.',
             })
+        if operation == 'repair_database':
+            try:
+                firebird_repair.flags(draft)
+            except RelationalClientError as error:
+                errors.append({'field_id': 'repair_modifiers',
+                               'code': 'invalid_firebird_repair_options',
+                               'message': str(error)})
         if operation == 'set_sql_dialect' and (
             not isinstance(draft.get('sql_dialect'), str) or
             draft['sql_dialect'] not in {'1', '3'}
