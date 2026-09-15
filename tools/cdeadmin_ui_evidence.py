@@ -426,16 +426,40 @@ def fill_fields(wait, values, control_root=None):
             control.send_keys(value)
 
 
+def _endpoint_prompt_controls(driver):
+    """Recognize connection dialogs, never credential fields in editors."""
+    controls = []
+    for title in driver.find_elements(By.CSS_SELECTOR, (
+            '#cdeadmin-modal-title-id-verify-endpoint, '
+            '#cdeadmin-modal-title-id-connect-server')):
+        try:
+            dialog = title.find_element(
+                By.XPATH, 'ancestor::*[@role="dialog"][1]')
+            if not dialog.is_displayed():
+                continue
+            passwords = [item for item in dialog.find_elements(
+                By.CSS_SELECTOR,
+                'input[type="password"][autocomplete="current-password"]')
+                if item.is_displayed() and item.is_enabled()]
+            buttons = [item for item in dialog.find_elements(
+                By.CSS_SELECTOR, 'button[data-test="save"]')
+                if item.is_displayed() and item.is_enabled()]
+            if len(passwords) == 1 and len(buttons) == 1:
+                controls.append((passwords[0], buttons[0]))
+            elif len(passwords) > 1 or len(buttons) > 1:
+                raise RuntimeError('Ambiguous endpoint verification controls')
+        except StaleElementReferenceException:
+            continue
+    if len(controls) > 1:
+        raise RuntimeError('Multiple endpoint verification dialogs are open')
+    return controls[0] if controls else False
+
+
 def complete_endpoint_prompt(driver, password, timeout=5):
     """Complete endpoint verification if the selected node opens its dialog."""
     try:
-        password_input = WebDriverWait(driver, timeout).until(
-            expected.visibility_of_element_located((
-                By.CSS_SELECTOR,
-                '[role=dialog] input[type=password], '
-                '.MuiDialog-root input[type=password]',
-            ))
-        )
+        password_input, confirm = WebDriverWait(driver, timeout).until(
+            _endpoint_prompt_controls)
     except TimeoutException:
         return False
     if not password:
@@ -443,10 +467,8 @@ def complete_endpoint_prompt(driver, password, timeout=5):
             'database requested a password; provide '
             '--endpoint-password-env'
         )
+    password_input.clear()
     password_input.send_keys(password)
-    confirm = WebDriverWait(driver, timeout).until(
-        lambda value: visible_named_control(value, 'OK')
-    )
     confirm.click()
     WebDriverWait(driver, timeout).until(
         expected.invisibility_of_element(password_input)
