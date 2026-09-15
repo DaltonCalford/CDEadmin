@@ -70,6 +70,7 @@ GATE_SCRIPTS = {
     'backup-history': 'cdeadmin_firebird_backup_history_ui_gate.py',
     'logical-volumes': 'cdeadmin_firebird_logical_volumes_ui_gate.py',
     'lifecycle': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
+    'rounding-inheritance': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
 
@@ -175,7 +176,8 @@ def gate_command(options, url, database_label, config_database=None):
             '--profiles', str(options.profiles),
             '--manifest-output', str(options.manifest_output),
         ])
-    elif options.gate_kind in {'lifecycle', 'inspector-tabs'}:
+    elif options.gate_kind in {
+            'lifecycle', 'inspector-tabs', 'rounding-inheritance'}:
         if config_database is None:
             raise RuntimeError(
                 'lifecycle gate requires an isolated configuration database'
@@ -189,6 +191,8 @@ def gate_command(options, url, database_label, config_database=None):
             '--password-env', options.password_env,
             '--client-library', str(options.client_library),
         ])
+        if options.gate_kind == 'rounding-inheritance':
+            command.extend(['--scope', 'inheritance'])
     elif options.gate_kind == 'properties':
         command.extend([
             '--database-path', options.database,

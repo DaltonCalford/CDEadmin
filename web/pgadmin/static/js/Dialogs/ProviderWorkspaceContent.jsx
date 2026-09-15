@@ -5593,7 +5593,7 @@ function serverFormDraft(registration, form) {
 }
 
 export function ServerProfileWorkspace({registration, post, setError,
-  initialMode='edit', onRemoved}) {
+  initialMode='edit', onRemoved, onSaved}) {
   const form = registration?.forms?.forms?.[initialMode];
   const [draft, setDraft] = useState(() => serverFormDraft(
     registration, form
@@ -5618,6 +5618,7 @@ export function ServerProfileWorkspace({registration, post, setError,
       });
       setSaved(true);
       if(removing) onRemoved?.(result);
+      else onSaved?.(result);
     } catch (requestError) {
       setError(errorMessage(requestError));
     } finally {
@@ -5664,6 +5665,7 @@ ServerProfileWorkspace.propTypes = {
   setError: PropTypes.func.isRequired,
   initialMode: PropTypes.string,
   onRemoved: PropTypes.func,
+  onSaved: PropTypes.func,
 };
 
 function databaseFormRequest(form, draft) {
@@ -5863,8 +5865,10 @@ export function DatabaseTargetWorkspace({initialCatalog, visualCatalog,
   const targetSubmitDisabled = working || !activeForm ||
     (activeForm.fields || []).some((field) => field.required &&
       (draft[field.field_id] === '' || draft[field.field_id] === undefined));
-  return <Box sx={{p: 2, borderBottom: focused ? 0 : 1,
-    borderColor: 'divider'}}>
+  return <Box component="section" aria-label={gettext('Engine database form')}
+    data-form-id={activeForm?.form_id}
+    sx={{p: 2, borderBottom: focused ? 0 : 1,
+      borderColor: 'divider'}}>
     <Box component="h2" sx={{mt: 0}}>
       {activeForm?.title || databaseContract.form_set_id}
     </Box>
@@ -6083,7 +6087,7 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
         database?.display_name || gettext('Database'))}
     </Box>
     <Alert severity="info" sx={{mb: 2}}>
-      {gettext('These are live Firebird database, attachment, and service-manager observations. Values unavailable from Firebird are omitted rather than inferred.')}
+      {gettext('This page combines live Firebird database, attachment, and service-manager observations with saved connection defaults. Saved defaults are not the current state of an already-open query session. Values unavailable from Firebird are omitted rather than inferred.')}
     </Alert>
     <Box sx={{display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
@@ -6151,7 +6155,8 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
           ['charset', gettext('Connection character set')],
           ['session_time_zone', gettext('Session time zone')],
           ['decfloat_round', gettext('Initial DECFLOAT rounding mode'),
-            (value) => value === 'NATIVE_DEFAULT' ? gettext('Native default') : value],
+            (value) => ({NATIVE_DEFAULT: gettext('Native default'),
+              SERVER_DEFAULT: gettext('Use server preference')})[value] || value],
           ['no_gc', gettext('Disable cooperative garbage collection'),
             firebirdBoolean],
           ['no_db_triggers', gettext('Disable database triggers'),
@@ -6496,7 +6501,7 @@ DataMovementWorkspace.propTypes = {
 
 export default function ProviderWorkspaceContent({
   closeModal, endpointUrl, initialTab='resources', initialContext={},
-  onEndpointRemoved, onCredentialRequired,
+  onEndpointRemoved, onEndpointProfileSaved, onCredentialRequired,
 }) {
   const api = useMemo(() => getApiInstance(), []);
   const [tab, setTab] = useState(initialTab);
@@ -7019,6 +7024,7 @@ export default function ProviderWorkspaceContent({
         registration={workspace.endpoint_registration}
         post={post} setError={setError}
         initialMode={initialContext.server_mode}
+        onSaved={onEndpointProfileSaved}
         onRemoved={(result) => {
           onEndpointRemoved?.(result);
           closeModal();
@@ -7310,5 +7316,6 @@ ProviderWorkspaceContent.propTypes = {
   ]),
   initialContext: PropTypes.object,
   onEndpointRemoved: PropTypes.func,
+  onEndpointProfileSaved: PropTypes.func,
   onCredentialRequired: PropTypes.func,
 };

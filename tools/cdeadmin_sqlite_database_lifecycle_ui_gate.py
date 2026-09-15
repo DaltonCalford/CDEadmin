@@ -82,6 +82,7 @@ else:
 MENU_GROUPS = {
     'database': 'Database workspace',
     'database-lifecycle': 'Definition and lifecycle',
+    'endpoint': 'Endpoint registration',
 }
 COMMANDS = {
     'define': 'endpoint.sqlite.register_database',
@@ -250,7 +251,7 @@ def _tree_context(driver, database_label=None):
 
 def _action(driver, mode, database_label=None):
     context = _tree_context(driver, database_label)
-    if mode in {'define', 'create'}:
+    if mode in {'define', 'create', 'server_edit'}:
         selected = driver.execute_async_script(
             """
             const done = arguments[arguments.length - 1];
@@ -278,7 +279,8 @@ def _action(driver, mode, database_label=None):
             """
         ))
         context = _tree_context(driver)
-    actions = (context['endpoint_actions'] if mode in {'define', 'create'}
+    actions = (context['endpoint_actions'] if mode in {
+        'define', 'create', 'server_edit'}
                else context['selected_actions'])
     command_id = COMMANDS[mode]
     action = next((item for item in actions

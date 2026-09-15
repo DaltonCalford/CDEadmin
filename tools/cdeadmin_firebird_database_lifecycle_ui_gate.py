@@ -19,8 +19,10 @@ independent Firebird 5 driver connection.  No packaged sample is mutated.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import sqlite3
 import sys
 import traceback
 import uuid
@@ -29,6 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,10 +42,15 @@ from tools import cdeadmin_sqlite_database_lifecycle_ui_gate as shared  # noqa: 
 from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
     create_driver,
     evidence_variant,
+    screenshot, screenshot_form_pages,
 )
 from tools.cdeadmin_firebird_decfloat_attachment_gate import (  # noqa: E402
     CONNECTION_ROUND_RESULTS,
 )
+from tools.cdeadmin_firebird_rounding_oracle import (  # noqa: E402
+    expected_rounding, observe_rounding,
+)
+from pgadmin.cdeadmin.endpoints import EndpointService  # noqa: E402
 from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
     _route_arguments, _initialize_connection,
 )
@@ -89,6 +97,8 @@ def arguments(argv=None):
         '--font-scale', type=int, choices=(100, 150, 200, 300), default=100,
     )
     parser.add_argument('--timeout', type=int, default=90)
+    parser.add_argument('--scope', choices=('full', 'inheritance'),
+                        default='full')
     return parser.parse_args(argv)
 
 
@@ -100,6 +110,7 @@ def _configure_shared(password):
     shared.COMMANDS = {
         'define': 'endpoint.firebird.register_database',
         'create': 'endpoint.firebird.create_database',
+        'server_edit': 'endpoint.firebird.properties',
         **{
             mode: f'database.firebird.{mode}'
             for mode in ('connect', 'edit', 'alter', 'drop', 'remove')
@@ -205,16 +216,85 @@ def _wait_target(wait, options, predicate, message):
     )
 
 
-def _rounding_case(driver, wait, options, module, password, mode):
-    shared._refresh_tree(driver, wait, options, options.database)
+def _rounding_label(mode):
+    return {'NATIVE_DEFAULT': 'Native default',
+            'SERVER_DEFAULT': 'Use server preference'}.get(mode, mode)
+
+
+def _rounding_capture(driver, wait, folder, evidence, *, server=False):
+    field = wait.until(lambda value: shared.visible_named_control(
+        value, 'Initial DECFLOAT rounding mode'))
+    driver.execute_script(
+        'arguments[0].scrollIntoView({block:"center",inline:"nearest"})',
+        field)
+    crop = folder / 'rounding-control.png'
+    if not field.screenshot(str(crop)):
+        raise RuntimeError('The rounding control screenshot was not saved')
+    evidence['rounding_control_crop'] = {
+        'path': str(crop),
+        'sha256': hashlib.sha256(crop.read_bytes()).hexdigest()}
+    path = folder / 'rounding-control-context.png'
+    evidence['rounding_control_screenshot'] = {
+        'path': str(path), 'sha256': screenshot(
+            driver, path, reset_scroll=False)}
+    selector = ('[role="dialog"] [data-form-id]' if server else
+                '[role="dialog"] section[aria-label="Engine database form"]')
+    evidence['form_pages'] = screenshot_form_pages(
+        driver, folder / 'full-form', selector=selector)
+
+
+def _saved_route(options, target_id):
+    with sqlite3.connect(options.config_db) as connection:
+        rows = connection.execute(
+            'SELECT r.id, r.priority, r.configuration '
+            'FROM cde_endpoint_route r JOIN cde_endpoint_database_target t '
+            'ON t.endpoint_id = r.endpoint_id WHERE t.id = ? '
+            'ORDER BY r.priority, r.id', (target_id,)).fetchall()
+    if not rows:
+        raise RuntimeError('Owned target has no saved route')
+    return [SimpleNamespace(id=row[0], priority=row[1], configuration=row[2])
+            for row in rows]
+
+
+def _native_saved_rounding(options, module, password, selected):
+    routes = _saved_route(options, selected['target_id'])
+    profile = {'requires_secret': False, 'form_contract': {
+        'database': {'forms': options.database_forms}}}
+    service = EndpointService(SimpleNamespace(), SimpleNamespace(
+        secrets=SimpleNamespace(register_resolver=lambda *_args: None)))
+    endpoint = SimpleNamespace(routes=routes, secret_references=[])
+    route, _reference = service._route_and_reference(
+        SimpleNamespace(user_id=0), endpoint, profile,
+        database_override=selected['database'],
+        database_options=selected['configuration'])
+    if (route['host'] != options.host or
+            int(route['port']) != options.firebird_port):
+        raise RuntimeError('Saved route escaped the owned Firebird endpoint')
+    with module.connect(password=password,
+                        **_route_arguments(route, module)) as connection:
+        _initialize_connection(connection, route, module)
+        return observe_rounding(connection)
+
+
+def _rounding_case(driver, wait, options, module, password, mode, *,
+                   refresh=True, previous=None, effective_mode=None,
+                   variant=None):
+    if refresh:
+        shared._refresh_tree(driver, wait, options, options.database)
     shared._open_form(driver, wait, 'edit', options.database)
-    label = 'Native default' if mode == 'NATIVE_DEFAULT' else mode
+    if previous is not None:
+        field = wait.until(lambda value: shared.visible_named_control(
+            value, 'Initial DECFLOAT rounding mode'))
+        if ' '.join(field.text.split()) != _rounding_label(previous):
+            raise RuntimeError('Reopened rounding choice differs from saved')
+    label = _rounding_label(mode)
     shared.fill_fields(wait, ['Initial DECFLOAT rounding mode=' + label])
     evidence = {'mode': mode}
     capture = SimpleNamespace(**{
         **vars(options),
-        'output_root': options.output_root / ('round-' + mode)})
+        'output_root': options.output_root / ('round-' + (variant or mode))})
     shared._capture_completed(driver, capture, 'edit', evidence)
+    _rounding_capture(driver, wait, capture.output_root, evidence)
     shared._submit_target_form(driver, wait, 'edit', {})
     _wait_target(wait, options, lambda rows: any(
         item['display_name'] == options.database and
@@ -222,26 +302,91 @@ def _rounding_case(driver, wait, options, module, password, mode):
     ), 'DECFLOAT rounding edit did not persist')
     selected = next(item for item in shared._target_rows(options.config_db)
                     if item['display_name'] == options.database)
-    route = {**selected['configuration'], 'host': options.host,
-             'port': options.firebird_port, 'user': options.user,
-             'database': selected['database']}
-    with module.connect(password=password,
-                        **_route_arguments(route, module)) as connection:
-        _initialize_connection(connection, route, module)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
-                "CAST('0.1' AS DECFLOAT(16))), "
-                "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
-                "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
-            observed = tuple(str(value) for value in cursor.fetchone())
-        if observed != CONNECTION_ROUND_RESULTS[mode]:
-            raise RuntimeError(
-                'Saved rounding did not reach native attachment')
+    observed = _native_saved_rounding(options, module, password, selected)
+    if observed != expected_rounding(effective_mode or mode):
+        raise RuntimeError('Saved rounding did not reach native attachment')
     evidence.update(saved_configuration_verified=True,
-                    native_rounding_values=observed)
+                    native_rounding_observation=observed,
+                    previous_choice_verified=previous is not None,
+                    application_reloaded=refresh)
     shared._close(driver, wait)
     return evidence
+
+
+def _server_rounding_case(driver, wait, options, mode, *, variant=None):
+    shared._open_form(driver, wait, 'server_edit')
+    shared.fill_fields(wait, [
+        'Initial DECFLOAT rounding mode=' + _rounding_label(mode)])
+    button = wait.until(lambda value: shared.visible_named_control(
+        value, 'Save endpoint profile'))
+    wait.until(lambda _driver: button.is_enabled())
+    button.click()
+    wait.until(lambda value: any(
+        element.is_displayed() and
+        'Endpoint profile saved.' in element.text
+        for element in value.find_elements(By.CSS_SELECTOR, '[role="alert"]')))
+    selected = next(item for item in shared._target_rows(options.config_db)
+                    if item['display_name'] == options.database)
+    route = _saved_route(options, selected['target_id'])[0]
+    saved = json.loads(route.configuration)
+    if saved.get('decfloat_round') != mode:
+        raise RuntimeError('Server rounding preference did not persist')
+    wait.until(lambda value: value.execute_script('''
+        const tree=window.pgAdmin?.Browser?.tree;
+        const item=tree?.selected?.();
+        const data=item ? tree.itemData(item) : null;
+        return data?._type === 'server' &&
+          data.runtime_verification_state === 'stale' &&
+          data.cde_session_authenticated === false;
+    '''))
+    evidence = {'server_preference': mode,
+                'saved_configuration_verified': True,
+                'navigator_requires_new_verification': True}
+    folder = options.output_root / ('server-round-' + (variant or mode))
+    folder.mkdir(parents=True, exist_ok=False)
+    _rounding_capture(driver, wait, folder, evidence, server=True)
+    shared._close(driver, wait)
+    return evidence
+
+
+def _inheritance_cases(driver, wait, options, module, password, results):
+    shared._refresh_tree(driver, wait, options, options.database)
+    results['initial_server'] = _server_rounding_case(
+        driver, wait, options, 'NATIVE_DEFAULT', variant='initialize')
+    results['target_setups'] = []
+    results['cases'] = []
+    for mode in ('SERVER_DEFAULT', 'NATIVE_DEFAULT', 'HALF_EVEN'):
+        results['target_setups'].append(_rounding_case(
+            driver, wait, options, module, password, mode, refresh=False,
+            effective_mode='NATIVE_DEFAULT' if mode == 'SERVER_DEFAULT'
+            else mode, variant='inheritance-setup-' + mode))
+        for parent in ('FLOOR', 'UP', 'NATIVE_DEFAULT'):
+            variant = mode + '-parent-' + parent
+            server = _server_rounding_case(
+                driver, wait, options, parent, variant=variant)
+            selected = next(
+                item for item in shared._target_rows(options.config_db)
+                if item['display_name'] == options.database)
+            if selected['configuration'].get('decfloat_round') != mode:
+                raise RuntimeError('Parent edit changed the saved target mode')
+            effective = parent if mode == 'SERVER_DEFAULT' else mode
+            observed = _native_saved_rounding(
+                options, module, password, selected)
+            if observed != expected_rounding(effective):
+                raise RuntimeError('Parent edit resolved the wrong mode')
+            shared._open_form(driver, wait, 'edit', options.database)
+            field = wait.until(lambda value: shared.visible_named_control(
+                value, 'Initial DECFLOAT rounding mode'))
+            if ' '.join(field.text.split()) != _rounding_label(mode):
+                raise RuntimeError('Reopened inherited choice is stale')
+            record = {'server': server, 'target_mode': mode,
+                      'target_not_rewritten': True,
+                      'native_rounding_observation': observed}
+            folder = options.output_root / ('inheritance-' + variant)
+            folder.mkdir(parents=True, exist_ok=False)
+            _rounding_capture(driver, wait, folder, record)
+            shared._close(driver, wait)
+            results['cases'].append(record)
 
 
 def _complete_cases(driver, wait, options, module, password,
@@ -529,6 +674,9 @@ def _install_menu_trace(driver):
 
 
 def run(options):
+    full_scope = getattr(options, 'scope', 'full') == 'full'
+    expected_modes = set(COMPLETION_ORDER) if full_scope else set()
+    rounding_modes = CONNECTION_ROUND_RESULTS if full_scope else {}
     password = os.environ.get(options.password_env)
     if not password:
         raise RuntimeError(
@@ -543,6 +691,7 @@ def run(options):
     rendered = []
     completed = []
     rounding = []
+    inheritance = {}
     cleanup = {}
     failures = []
 
@@ -559,6 +708,13 @@ def run(options):
         except Exception as screenshot_error:
             failure['screenshot_error_type'] = type(screenshot_error).__name__
         failures.append(failure)
+        print(json.dumps({
+            'failed_phase': phase, 'error_type': type(exc).__name__,
+            'locations': [
+                {'file': Path(frame.filename).name, 'line': frame.lineno,
+                 'function': frame.name}
+                for frame in traceback.extract_tb(exc.__traceback__)[-5:]],
+        }), flush=True)
 
     try:
         driver.get(options.url.rstrip('/') + '/browser/')
@@ -567,18 +723,30 @@ def run(options):
         forms = shared._catalog_forms(driver)
         if forms.get('__error__'):
             raise RuntimeError(forms['__error__'])
-        try:
-            _complete_cases(driver, wait, options, module, password,
-                            completed, cleanup)
-        except Exception as exc:
-            record_failure('execution', exc)
-        for mode in CONNECTION_ROUND_RESULTS:
+        options.database_forms = forms
+        if full_scope:
+            try:
+                _complete_cases(driver, wait, options, module, password,
+                                completed, cleanup)
+            except Exception as exc:
+                record_failure('execution', exc)
+        previous = None
+        for index, mode in enumerate(rounding_modes):
             try:
                 rounding.append(_rounding_case(
-                    driver, wait, options, module, password, mode))
+                    driver, wait, options, module, password, mode,
+                    refresh=index == 0 or previous is None,
+                    previous=previous))
+                previous = mode
             except Exception as exc:
                 record_failure('rounding-' + mode, exc)
-        for mode in RENDER_ORDER:
+                previous = None
+        try:
+            _inheritance_cases(
+                driver, wait, options, module, password, inheritance)
+        except Exception as exc:
+            record_failure('inheritance', exc)
+        for mode in (RENDER_ORDER if full_scope else ()):
             try:
                 shared._refresh_tree(driver, wait, options, options.database)
                 database_label = (
@@ -598,7 +766,10 @@ def run(options):
     passed_modes = {item['mode'] for item in rendered}
     completed_modes = {item['mode'] for item in completed}
     return {
-        'schema': 'cdeadmin.firebird-database-lifecycle-ui-gate.v1',
+        'schema': ('cdeadmin.firebird-database-lifecycle-ui-gate.v1'
+                   if full_scope else
+                   'cdeadmin.firebird-rounding-inheritance-ui-gate.v1'),
+        'scope': 'full' if full_scope else 'inheritance',
         'captured_at': datetime.now(timezone.utc).isoformat(),
         'engine_id': ENGINE_ID, 'interface_id': PROFILE_ID,
         'reference_version': REFERENCE_VERSION,
@@ -606,9 +777,10 @@ def run(options):
         'theme': options.theme,
         'font_scale': options.font_scale,
         'evidence_variant': evidence_variant(options),
-        'expected_modes': list(COMPLETION_ORDER),
+        'expected_modes': list(COMPLETION_ORDER) if full_scope else [],
         'rendered': rendered, 'completed': completed,
         'rounding': rounding,
+        'inheritance': inheritance,
         'cleanup': cleanup,
         'cancelled_form_count': sum(
             item['cancellation']['dialog_dismissed'] for item in rendered
@@ -630,10 +802,12 @@ def run(options):
         'credential_values_exported': False,
         'provider_values_recorded': False,
         'complete': (
-            passed_modes == set(COMPLETION_ORDER) and
-            completed_modes == set(COMPLETION_ORDER) and not failures and
+            passed_modes == expected_modes and
+            completed_modes == expected_modes and not failures and
+            len(inheritance.get('cases', [])) == 9 and
+            len(inheritance.get('target_setups', [])) == 3 and
             {item['mode'] for item in rounding} ==
-            set(CONNECTION_ROUND_RESULTS) and
+            set(rounding_modes) and
             not cleanup.get('unverified_paths')
         ),
     }

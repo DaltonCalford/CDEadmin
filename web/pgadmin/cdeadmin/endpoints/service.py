@@ -1482,6 +1482,25 @@ class EndpointService:
         }
         return context, endpoint_payload, root_resource
 
+    @staticmethod
+    def _database_route_options(profile, configuration):
+        """Resolve only inheritance choices declared by this provider's form.
+
+        Keep the saved choice intact so future attachments can follow changes
+        to the parent profile. Native-default overrides are not inheritance.
+        """
+        fields = (profile.get('form_contract', {}).get('database', {}).get(
+            'forms', {}).get('connect', {}).get('fields', [])
+            if isinstance(profile, dict) else [])
+        inherited = {
+            field['field_id']: field['inherit_server_value']
+            for field in fields if field.get('inherit_server_value')
+        }
+        return {
+            key: value for key, value in configuration.items()
+            if key not in inherited or value != inherited[key]
+        }
+
     def _route_and_reference(
         self, server, endpoint, profile=True, requires_secret=None,
         route_model=None, database_override=Ellipsis,
@@ -1509,7 +1528,8 @@ class EndpointService:
                 route.pop('database', None)
             else:
                 route['database'] = database_override
-                route.update(database_options or {})
+                route.update(self._database_route_options(
+                    profile, database_options or {}))
         elif isinstance(profile, dict):
             active = next((
                 item for item in getattr(endpoint, 'database_targets', [])
@@ -1518,7 +1538,8 @@ class EndpointService:
             if active is not None:
                 route['database'] = active.database
                 route['database_target_id'] = active.id
-                route.update(self._database_target_configuration(active))
+                route.update(self._database_route_options(
+                    profile, self._database_target_configuration(active)))
             # Older CDEadmin demo/profile registrations can retain their
             # database directly on the route.  Preserve that value until the
             # user explicitly disconnects it or converts it to a retained

@@ -64,4 +64,33 @@ describe('provider endpoint verification', () => {
         .toBe('activate_shadow');
       expect(url.searchParams.get('database_target_id')).toBe(targetId);
     });
+
+  it('wires committed profile changes to only the owning navigator endpoint', () => {
+    const item = {id: 'owned-endpoint'};
+    const data = {cde_endpoint: true, runtime_verification_state: 'verified',
+      cde_session_authenticated: true, is_password_saved: true};
+    const other = {cde_endpoint: true, runtime_verification_state: 'verified'};
+    const previousTree = pgAdmin.Browser.tree;
+    pgAdmin.Browser.tree = {
+      itemData: jest.fn((value) => value === item ? data : other),
+      addIcon: jest.fn(), setLabel: jest.fn(),
+    };
+    try {
+      showProviderWorkspace('Edit endpoint', node, data, item, 'connections', {
+        server_mode: 'edit',
+      });
+      const content = pgAdmin.Browser.notifier.showModal.mock.calls[0][1](
+        jest.fn());
+      expect(data.runtime_verification_state).toBe('verified');
+      content.props.onEndpointProfileSaved({display_name: 'Owned Firebird'});
+      expect(data.runtime_verification_state).toBe('stale');
+      expect(data.cde_session_authenticated).toBe(false);
+      expect(data.is_password_saved).toBe(true);
+      expect(other.runtime_verification_state).toBe('verified');
+      expect(pgAdmin.Browser.tree.addIcon).toHaveBeenCalledWith(item, {
+        icon: 'icon-server-not-connected'});
+    } finally {
+      pgAdmin.Browser.tree = previousTree;
+    }
+  });
 });

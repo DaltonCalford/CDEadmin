@@ -61,6 +61,20 @@ class FirebirdUIFormGateTests(unittest.TestCase):
                     screenshot_form_pages(driver, Path('unused'))
                 driver.save_screenshot.assert_not_called()
 
+    def test_sweep_supports_the_exact_server_form_selector(self):
+        with tempfile.TemporaryDirectory(prefix='cde-screenshot-test-') as tmp:
+            driver = Mock()
+            driver.execute_script.side_effect = [
+                object(), {'height': 200, 'maximum': 0}, 0]
+            driver.save_screenshot.side_effect = lambda destination: (
+                Path(destination).write_bytes(b'PNG') > 0)
+            selector = '[role="dialog"] [data-form-id]'
+            images = screenshot_form_pages(
+                driver, Path(tmp) / 'server', selector=selector)
+            self.assertEqual(len(images), 1)
+            self.assertEqual(
+                driver.execute_script.call_args_list[0].args[1], selector)
+
     def test_screenshots_can_preserve_the_requested_scroll_position(self):
         with tempfile.TemporaryDirectory(prefix='cde-screenshot-test-') as tmp:
             for reset in (True, False):

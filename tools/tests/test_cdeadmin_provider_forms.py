@@ -249,7 +249,7 @@ class ProviderFormContractTests(unittest.TestCase):
         })
         self.assertEqual({
             'charset': 'UTF8',
-            'decfloat_round': 'NATIVE_DEFAULT',
+            'decfloat_round': 'SERVER_DEFAULT',
             'dbkey_scope': 'TRANSACTION',
             'no_db_triggers': False,
             'no_gc': False,

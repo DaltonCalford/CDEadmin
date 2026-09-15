@@ -634,11 +634,11 @@ def screenshot(driver, path, *, reset_scroll=True):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def screenshot_form_pages(driver, prefix):
+def screenshot_form_pages(
+        driver, prefix, *, selector='section[aria-label="Engine task form"]'):
     """Capture overlapping viewports of the entire visible engine task form."""
     region = driver.execute_script("""
-      const section = [...document.querySelectorAll(
-        'section[aria-label="Engine task form"]')].find(
+      const section = [...document.querySelectorAll(arguments[0])].find(
           element => element.getClientRects().length);
       if (!section) return null;
       for (let node = section; node; node = node.parentElement) {
@@ -647,7 +647,7 @@ def screenshot_form_pages(driver, prefix):
             node.scrollHeight > node.clientHeight + 1) return node;
       }
       return document.scrollingElement;
-    """)
+    """, selector)
     if region is None:
         raise RuntimeError('The engine task form is not visible')
     metrics = driver.execute_script(

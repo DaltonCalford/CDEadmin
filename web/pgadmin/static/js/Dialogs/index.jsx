@@ -25,6 +25,8 @@ import ErrorBoundary from '../helpers/ErrorBoundary';
 import QuickSearch from '../QuickSearch';
 import ProviderWorkspaceContent from './ProviderWorkspaceContent';
 import endpointProfiles from 'pgadmin.cdeadmin.endpoint_profiles';
+import {invalidateProviderEndpointProfile} from
+  'sources/cdeadmin_ui/navigation/providerDatabaseTree';
 
 // This functions is used to show the connect server password dialog.
 export function showServerPassword() {
@@ -158,6 +160,9 @@ export function showProviderWorkspace(
       initialTab={initialTab}
       initialContext={initialContext}
       onEndpointRemoved={onEndpointRemoved}
+      onEndpointProfileSaved={(result) => invalidateProviderEndpointProfile(
+        pgAdmin.Browser.tree, itemNodeData, result
+      )}
       onCredentialRequired={(retry)=>{
         nodeObj.callbacks.verify_cde_endpoint.call(nodeObj, {
           item: itemNodeData,

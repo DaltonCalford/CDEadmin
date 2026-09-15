@@ -15,13 +15,16 @@ from pgadmin.cdeadmin.providers.firebird.provider import _route_arguments
 from pgadmin.cdeadmin.providers.firebird.provider import (
     _database_create_arguments,
 )
+from pgadmin.cdeadmin.providers.form_contracts import (
+    _database_contract, _DATABASE_SPECS,
+)
 
 
 MODES = [None, *CONNECTION_ROUND_RESULTS]
 
 
 @pytest.mark.parametrize('server_mode', MODES)
-@pytest.mark.parametrize('database_mode', MODES)
+@pytest.mark.parametrize('database_mode', [*MODES, 'SERVER_DEFAULT'])
 @pytest.mark.parametrize('explicit_target', [False, True])
 def test_rounding_precedence_preserves_saved_profile_identity(
         server_mode, database_mode, explicit_target):
@@ -40,14 +43,17 @@ def test_rounding_precedence_preserves_saved_profile_identity(
     service = EndpointService(SimpleNamespace(), SimpleNamespace(
         secrets=SimpleNamespace(register_resolver=lambda *_args: None)))
     profile = {'profile_id': 'firebird-native', 'requires_secret': False,
-               'database_targeting': {'multiple': True}}
+               'database_targeting': {'multiple': True},
+               'form_contract': {'database': _database_contract(
+                   'firebird-native', _DATABASE_SPECS['firebird-native'])}}
     before = (route.configuration, target.configuration)
     options = ({'database_override': target.database,
                 'database_options': database_options} if explicit_target
                else {})
     composed, reference = service._route_and_reference(
         SimpleNamespace(user_id=7), endpoint, profile, **options)
-    expected = database_mode if database_mode is not None else server_mode
+    expected = (server_mode if database_mode in (None, 'SERVER_DEFAULT')
+                else database_mode)
     assert composed.get('decfloat_round') == expected
     assert composed['database'] == target.database
     assert composed['route_id'] == route.id
@@ -91,3 +97,44 @@ def test_concurrent_rounding_profiles_do_not_overwrite_each_other(creating):
     # Every saved preference has a stable private configuration; no mode
     # accidentally reuses a different mode's mutable driver configuration.
     assert len(set(identities.values())) == len(MODES)
+
+
+def test_inheritance_is_owned_by_the_exact_provider_field():
+    configuration = {'decfloat_round': 'SERVER_DEFAULT',
+                     'other_native_value': 'SERVER_DEFAULT'}
+    profile = {'form_contract': {'database': _database_contract(
+        'firebird-native', _DATABASE_SPECS['firebird-native'])}}
+    composed = EndpointService._database_route_options(profile, configuration)
+    assert composed == {'other_native_value': 'SERVER_DEFAULT'}
+    assert configuration['decfloat_round'] == 'SERVER_DEFAULT'
+    for unrelated in (True, False, {}, {'profile_id': 'mysql-native'}):
+        assert EndpointService._database_route_options(
+            unrelated, configuration) == configuration
+    assert EndpointService._database_route_options(
+        profile, {'decfloat_round': 'NATIVE_DEFAULT'}) == {
+            'decfloat_round': 'NATIVE_DEFAULT'}
+
+
+@pytest.mark.parametrize('target_mode', [
+    'SERVER_DEFAULT', 'NATIVE_DEFAULT', 'HALF_EVEN',
+])
+def test_parent_changes_apply_only_to_inheriting_targets(target_mode):
+    profile = {'form_contract': {'database': _database_contract(
+        'firebird-native', _DATABASE_SPECS['firebird-native'])}}
+    original = {'decfloat_round': target_mode}
+    for parent in ('UP', 'FLOOR', 'NATIVE_DEFAULT'):
+        route = {'decfloat_round': parent}
+        route.update(EndpointService._database_route_options(
+            profile, original))
+        assert route['decfloat_round'] == (
+            parent if target_mode == 'SERVER_DEFAULT' else target_mode)
+        assert original == {'decfloat_round': target_mode}
+
+
+@pytest.mark.parametrize('action', ['define', 'connect', 'edit'])
+def test_inheritance_survives_exact_database_form_validation(action):
+    profile = {'form_contract': {'database': _database_contract(
+        'firebird-native', _DATABASE_SPECS['firebird-native'])}}
+    for data in ({}, {'decfloat_round': 'SERVER_DEFAULT'}):
+        result = EndpointService._database_form_values(profile, action, data)
+        assert result['decfloat_round'] == 'SERVER_DEFAULT'

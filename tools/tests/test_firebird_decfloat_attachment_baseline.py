@@ -73,7 +73,9 @@ def test_provider_rounding_config_is_isolated_and_not_a_connect_kwarg(mode):
         created['database']).decfloat_round.value is native.DecfloatRound[mode]
 
 
-@pytest.mark.parametrize('value', ['', 'half_even', 'NONE', 0, True, [], {}])
+@pytest.mark.parametrize('value', [
+    '', 'half_even', 'NONE', 'SERVER_DEFAULT', 0, True, [], {},
+])
 @pytest.mark.parametrize('module', [None, native])
 def test_invalid_rounding_rejected_before_driver_configuration(value, module):
     route = {'host': 'localhost', 'database': 'owned', 'decfloat_round': value}
@@ -92,7 +94,7 @@ def test_explicit_native_default_removes_the_driver_override():
     assert 'decfloat_round' not in args
 
 
-def test_all_connection_forms_share_exact_native_rounding_choices():
+def test_native_rounding_choices_and_database_inheritance_are_explicit():
     root = Path(__file__).resolve().parents[2]
     manifest = json.loads((root / 'web/pgadmin/cdeadmin/providers/firebird/'
                            'provider_manifest.json').read_text())
@@ -109,5 +111,7 @@ def test_all_connection_forms_share_exact_native_rounding_choices():
         field = next(f for f in contract['forms'][action]['fields']
                      if f['field_id'] == 'decfloat_round')
         assert field['control'] == 'select'
-        assert field['default'] == 'NATIVE_DEFAULT'
-        assert {o['value'] for o in field['options']} == expected
+        assert field['default'] == 'SERVER_DEFAULT'
+        assert field['inherit_server_value'] == 'SERVER_DEFAULT'
+        assert {o['value'] for o in field['options']} == (
+            expected | {'SERVER_DEFAULT'})

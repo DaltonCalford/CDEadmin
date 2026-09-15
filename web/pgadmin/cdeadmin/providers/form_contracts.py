@@ -230,14 +230,19 @@ _DATABASE_SPECS = {
             _field('charset', 'Connection character set', default='UTF8'),
             _field('session_time_zone', 'Session time zone'),
             _field('decfloat_round', 'Initial DECFLOAT rounding mode',
-                   'select', default='NATIVE_DEFAULT', options=(
+                   'select', default='SERVER_DEFAULT',
+                   inherit_server_value='SERVER_DEFAULT', options=(
+                       {'value': 'SERVER_DEFAULT',
+                        'label': 'Use server preference'},
                        {'value': 'NATIVE_DEFAULT', 'label': 'Native default'},
                        'CEILING', 'UP', 'HALF_UP', 'HALF_EVEN', 'HALF_DOWN',
                        'DOWN', 'FLOOR', 'REROUND',
                    ), help=(
-                       'Native default sends no rounding override. Applies '
-                       'to this '
-                       'attachment, including after ALTER SESSION RESET. '
+                       'Use server preference follows the server profile '
+                       'for new attachments. Native default ignores that '
+                       'preference and sends no rounding override. Applies '
+                       'to this attachment, including after '
+                       'ALTER SESSION RESET. '
                        'It does not alter stored database values.')),
             _field('no_gc', 'Disable cooperative garbage collection',
                    'boolean', default=False),

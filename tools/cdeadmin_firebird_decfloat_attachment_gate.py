@@ -15,12 +15,18 @@ import uuid
 from pathlib import Path
 
 if __package__:
+    from .cdeadmin_firebird_rounding_oracle import (
+        expected_rounding, observe_rounding,
+    )
     from .cdeadmin_firebird_external_functions_gate import browser_checks
     from .cdeadmin_firebird_logical_volumes_gate import (
         docker, published_port, remove_owned, OWNER,
         _configure_client_library, _route_arguments,
     )
 else:
+    from cdeadmin_firebird_rounding_oracle import (
+        expected_rounding, observe_rounding,
+    )
     from cdeadmin_firebird_external_functions_gate import browser_checks
     from cdeadmin_firebird_logical_volumes_gate import (
         docker, published_port, remove_owned, OWNER,
@@ -156,6 +162,8 @@ def run(image, provider_rounding=False, browser_options=None):
                         observed = tuple(str(value)
                                          for value in cursor.fetchone())
                     assert observed == expected
+                    initial_mode = observe_rounding(handle)
+                    assert initial_mode == expected_rounding(mode)
                     handle.rollback()
                     changed_mode = 'UP' if mode != 'UP' else 'DOWN'
                     handle.execute_immediate(
@@ -164,20 +172,32 @@ def run(image, provider_rounding=False, browser_options=None):
                         cursor.execute(expression)
                         changed = tuple(str(v) for v in cursor.fetchone())
                     assert changed == ROUND_RESULTS[changed_mode]
+                    changed_observation = observe_rounding(handle)
+                    assert changed_observation == expected_rounding(
+                        changed_mode)
                     handle.rollback()
                     handle.execute_immediate('ALTER SESSION RESET')
                     with handle.cursor() as cursor:
                         cursor.execute(expression)
                         reset = tuple(str(v) for v in cursor.fetchone())
                     assert reset == expected
+                    reset_observation = observe_rounding(handle)
+                    assert reset_observation == expected_rounding(mode)
                 with connect(selected_rounding) as reopened:
                     with reopened.cursor() as cursor:
                         cursor.execute(expression)
                         restored = tuple(str(v) for v in cursor.fetchone())
                     assert restored == expected
+                    reopened_observation = observe_rounding(reopened)
+                    assert reopened_observation == expected_rounding(mode)
                 result['checks'].append({
                     'case': phase, 'values': observed, 'changed': changed,
-                    'reset': reset, 'reopened': restored})
+                    'reset': reset, 'reopened': restored,
+                    'distinguishing_observations': {
+                        'initial': initial_mode,
+                        'changed': changed_observation,
+                        'reset': reset_observation,
+                        'reopened': reopened_observation}})
             except Exception as error:
                 failure(phase, error)
         traps = list(native.DecfloatTraps)
@@ -249,6 +269,8 @@ def run(image, provider_rounding=False, browser_options=None):
                             cursor.execute(expression)
                             observed = tuple(str(v) for v in cursor.fetchone())
                         assert observed == expected
+                        creation_observation = observe_rounding(created)
+                        assert creation_observation == expected_rounding(mode)
                     with native.connect(
                             target_dsn, user='SYSDBA', password=password,
                             charset='UTF8') as unconfigured:
@@ -257,16 +279,50 @@ def run(image, provider_rounding=False, browser_options=None):
                             default = tuple(str(v) for v in cursor.fetchone())
                         assert default == CONNECTION_ROUND_RESULTS[
                             'NATIVE_DEFAULT']
+                        default_observation = observe_rounding(unconfigured)
+                        assert default_observation == expected_rounding(
+                            'NATIVE_DEFAULT')
                     result['checks'].append({
                         'case': phase, 'creation_attachment': observed,
                         'unconfigured_attachment': default,
+                        'creation_observation': creation_observation,
+                        'unconfigured_observation': default_observation,
                         'stored_database_setting_changed': False})
                 except Exception as error:
                     failure(phase, error)
+        for mode in CONNECTION_ROUND_RESULTS:
+            phase = 'round-session-isolation-' + mode
+            try:
+                selected = (mode if mode == 'NATIVE_DEFAULT'
+                            else native.DecfloatRound[mode])
+                with connect(selected) as changing, connect(selected) as peer:
+                    expected_mode = expected_rounding(mode)
+                    assert observe_rounding(changing) == expected_mode
+                    before = observe_rounding(peer)
+                    assert before == expected_rounding(mode)
+                    alternate = 'UP' if mode != 'UP' else 'DOWN'
+                    changing.execute_immediate(
+                        'SET DECFLOAT ROUND ' + alternate)
+                    assert observe_rounding(changing) == expected_rounding(
+                        alternate)
+                    assert observe_rounding(peer) == before
+                    changing.rollback()
+                    changing.execute_immediate('ALTER SESSION RESET')
+                    assert observe_rounding(changing) == expected_mode
+                    assert observe_rounding(peer) == before
+                result['checks'].append({
+                    'case': phase, 'simultaneous_attachments': 2,
+                    'peer_unchanged': True, 'reset_restored_mode': True})
+            except Exception as error:
+                failure(phase, error)
         if browser_options is not None:
+            browser_scope = getattr(browser_options, 'browser_scope', 'full')
+            result['browser_scope'] = browser_scope
             result['browser_checks'] = browser_checks(
                 browser_options, route, password, container,
-                browser_options.build_root, gate_kind='lifecycle',
+                browser_options.build_root, gate_kind=(
+                    'lifecycle' if browser_scope == 'full' else
+                    'rounding-inheritance'),
                 fixture_kind='firebird-decfloat-qualification')
             if not result['browser_checks'] or not all(
                     item['passed'] for item in result['browser_checks']):
@@ -281,7 +337,7 @@ def run(image, provider_rounding=False, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    expected_count = 55 if provider_rounding else 46
+    expected_count = 64 if provider_rounding else 55
     result['complete'] = (len(result['checks']) == expected_count and
                           not result['failures'] and
                           result['owned_container_removed'])
@@ -294,6 +350,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--provider-rounding', action='store_true')
     parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--browser-scope', choices=('full', 'inheritance'),
+                        default='full')
     parser.add_argument('--build-root', type=Path)
     parser.add_argument('--source-config-db', type=Path,
                         default=Path('/var/lib/cdeadmin/cdeadmin.db'))

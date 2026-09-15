@@ -154,6 +154,28 @@ def options(kind):
     )
 
 
+@pytest.mark.parametrize('kind,scope', [
+    ('lifecycle', None), ('rounding-inheritance', 'inheritance'),
+])
+def test_inheritance_scope_requires_isolated_config_and_is_explicit(
+        kind, scope):
+    selected = options(kind)
+    selected.database = '/owned/fixture.fdb'
+    selected.host = '127.0.0.1'
+    selected.firebird_port = 53051
+    selected.user = 'SYSDBA'
+    selected.client_library = '/owned/libfbclient.so'
+    with pytest.raises(RuntimeError, match='isolated configuration'):
+        gate_command(selected, 'http://localhost', 'fixture.fdb')
+    command = gate_command(selected, 'http://localhost', 'fixture.fdb',
+                           '/owned/isolated.db')
+    assert command[command.index('--config-db') + 1] == '/owned/isolated.db'
+    if scope is None:
+        assert '--scope' not in command
+    else:
+        assert command[command.index('--scope') + 1] == scope
+
+
 @pytest.mark.parametrize('kind,filename', [
     ('role', 'cdeadmin_firebird_role_ui_gate.py'),
     ('mapping', 'cdeadmin_firebird_admin_mapping_ui_gate.py'),

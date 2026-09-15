@@ -1053,6 +1053,7 @@ describe('ProviderWorkspaceContent', () => {
 
   it('renders and submits an exact provider-owned endpoint form', async () => {
     const post = jest.fn().mockResolvedValue({display_name: 'SQLite local'});
+    const onSaved = jest.fn();
     render(<ServerProfileWorkspace registration={{
       display_name: 'localhost',
       primary_route: {route_id: 'route-one', configuration: {timeout: 5}},
@@ -1065,7 +1066,7 @@ describe('ProviderWorkspaceContent', () => {
             label: 'Busy timeout (seconds)', control: 'number',
             required: false, default: 5},
         ],
-      }}}}} post={post} setError={jest.fn()} />);
+      }}}}} post={post} setError={jest.fn()} onSaved={onSaved} />);
     expect(screen.getByText('Edit SQLite 3.53 server')).toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', {
       name: 'Connection profile name',
@@ -1078,6 +1079,44 @@ describe('ProviderWorkspaceContent', () => {
         name: 'SQLite local', timeout: 5,
       },
     }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith({
+      display_name: 'SQLite local'}));
+    expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invalidate a profile when saving is rejected', async () => {
+    const post = jest.fn().mockRejectedValue(new Error('Open sessions'));
+    const onSaved = jest.fn();
+    const setError = jest.fn();
+    render(<ServerProfileWorkspace registration={{forms: {forms: {edit: {
+      form_id: 'firebird-profile-edit', title: 'Edit Firebird profile', fields: [],
+    }}}}} post={post} setError={setError} onSaved={onSaved} />);
+    fireEvent.click(screen.getByRole('button', {name: 'Save endpoint profile'}));
+    await waitFor(() => expect(setError).toHaveBeenCalledWith('Open sessions'));
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards a successful focused endpoint edit through the workspace boundary', async () => {
+    const result = {display_name: 'Owned Firebird'};
+    const onEndpointProfileSaved = jest.fn();
+    api.get.mockResolvedValue({data: {data: {...bootstrap,
+      endpoint_registration: {forms: {forms: {edit: {
+        form_id: 'owned-firebird-edit', title: 'Owned Firebird editor', fields: [],
+      }}}},
+    }}});
+    api.post.mockResolvedValue({data: {data: result}});
+    render(<ProviderWorkspaceContent endpointUrl="/workspace/1"
+      initialTab="connections" initialContext={{server_mode: 'edit'}}
+      onEndpointProfileSaved={onEndpointProfileSaved} />);
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Save endpoint profile',
+    }));
+    await waitFor(() => expect(onEndpointProfileSaved).toHaveBeenCalledWith(result));
+    expect(onEndpointProfileSaved).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'endpoint_profile_update', request: {},
+    });
   });
 
   it.each(firebirdManifest.registration.connection_fields.find(
@@ -1559,7 +1598,7 @@ describe('ProviderWorkspaceContent', () => {
     });
 
   it.each(['CEILING', 'UP', 'HALF_UP', 'HALF_EVEN', 'HALF_DOWN', 'DOWN',
-    'FLOOR', 'REROUND', 'NATIVE_DEFAULT'])(
+    'FLOOR', 'REROUND', 'NATIVE_DEFAULT', 'SERVER_DEFAULT'])(
     'renders database and server observations with rounding %s', async (rounding) => {
       api.get.mockResolvedValue({data: {data: {
         ...bootstrap,
@@ -1598,7 +1637,8 @@ describe('ProviderWorkspaceContent', () => {
       expect(screen.getByText('Firebird storage and durability')).toBeInTheDocument();
       expect(screen.getByText('Firebird connection defaults')).toBeInTheDocument();
       expect(screen.getByText('Initial DECFLOAT rounding mode')).toBeInTheDocument();
-      expect(screen.getByText(rounding === 'NATIVE_DEFAULT' ? 'Native default' : rounding))
+      expect(screen.getByText(({NATIVE_DEFAULT: 'Native default',
+        SERVER_DEFAULT: 'Use server preference'})[rounding] || rounding))
         .toBeInTheDocument();
       expect(screen.getByText('Database filename or alias')).toBeInTheDocument();
       expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
