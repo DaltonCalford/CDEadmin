@@ -1062,6 +1062,11 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     (!operation?.target_resource_names || operation.target_resource_names.includes(item.display_name)) && (!objectEditor ||
       item.resource_id === selectedResource?.resource_id)
   );
+  // A refreshed page can remove a renamed target before the selection effect
+  // reconciles its identity. Never display or submit that obsolete selection.
+  const targetResource = matchingResources.find(
+    (item) => item.resource_id === targetId);
+  const targetUnavailable = Boolean(operation?.target_required && !targetResource);
   const graphicalContract = catalog?.graphical_interface;
   const groupedObjects = useMemo(() => {
     const declaredGroups = catalog?.navigator?.groups || [];
@@ -1188,7 +1193,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     resource_kind: resourceKind,
     operation_id: operationId,
     target_resource: operation?.target_required === false ? null :
-      matchingResources.find((item) => item.resource_id === targetId) || null,
+      targetResource || null,
     draft: Object.fromEntries(fields.filter((field) => {
       const value = draft[field.field_id];
       if (!field.required && !field.submit_unchanged && field.initial_value_path &&
@@ -1202,7 +1207,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   });
 
   const preview = async () => {
-    if (operationInFlight.current) return;
+    if (operationInFlight.current || !operation || inspecting || targetUnavailable) return;
     operationInFlight.current = true;
     setCloseBlocked(false);
     setWorking(true);
@@ -1228,7 +1233,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
 
   const apply = async () => {
     const submittedPlan = plan;
-    if (!submittedPlan || operationInFlight.current) return;
+    if (!submittedPlan || operationInFlight.current || inspecting || targetUnavailable) return;
     operationInFlight.current = true;
     setCloseBlocked(false);
     setWorking(true);
@@ -1239,7 +1244,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     setPlan(null);
     try {
       const selectedTarget = operation?.target_required === false ? null :
-        matchingResources.find((item) => item.resource_id === targetId);
+        targetResource;
       const databaseTargetId = resourceDatabaseTargetId(selectedTarget);
       const applied = await post({
         action: 'visual_admin_apply',
@@ -1395,7 +1400,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           </Alert>}
           {!objectEditor && operation?.target_required && <TextField select fullWidth sx={{mt: 2}}
             disabled={working}
-            label={gettext('Target resource')} value={targetId}
+            label={gettext('Target resource')} value={targetResource?.resource_id || ''}
             onChange={(event) => setTargetId(event.target.value)}>
             {matchingResources.map((item) => <MenuItem key={item.resource_id}
               value={item.resource_id}>{item.display_name}</MenuItem>)}
@@ -1464,10 +1469,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           <Box sx={{display: 'flex', gap: 1, mt: 2}}>
             <Button variant="contained" disabled={working || inspecting || !operation ||
         operation.graphical_ready === false ||
-        (operation.target_required && !targetId)} onClick={preview}>
+        targetUnavailable} onClick={preview}>
               {gettext('Validate and preview')}
             </Button>
-            <Button color="warning" disabled={working || plan?.state !== 'ready' ||
+            <Button color="warning" disabled={working || inspecting || targetUnavailable || plan?.state !== 'ready' ||
         !plan?.execution_available || (operation?.confirmation_required && !confirmed)}
             onClick={apply}>{gettext('Apply provider plan')}</Button>
             {working && <CircularProgress size={24} />}

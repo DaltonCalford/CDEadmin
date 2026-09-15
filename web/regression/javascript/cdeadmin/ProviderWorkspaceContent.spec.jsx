@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {useState} from 'react';
+import {useLayoutEffect, useState} from 'react';
 import ProviderWorkspaceContent, {
   DatabaseTargetWorkspace,
   ObjectInspectorSection,
@@ -734,7 +734,10 @@ describe('ProviderWorkspaceContent', () => {
     // Shared virtual-grid geometry gives every element an 800px height.
     window.innerHeight = 1200;
   });
-  afterEach(() => { window.innerHeight = originalViewportHeight; });
+  afterEach(() => {
+    window.innerHeight = originalViewportHeight;
+    if(jest.isMockFunction(console.warn)) console.warn.mockRestore();
+  });
   let api;
 
   beforeEach(() => {
@@ -1879,6 +1882,7 @@ describe('ProviderWorkspaceContent', () => {
 
   it.each(['first-page', 'outside-page'])(
     'retains the natively renamed domain on the %s for the next edit', async (location) => {
+      const warnings = jest.spyOn(console, 'warn');
       const original = {resource_id: 'domain:D', resource_kind: 'domain',
         display_name: 'D', display_path: ['D']};
       const renamed = {...original, resource_id: 'domain:E',
@@ -1934,6 +1938,44 @@ describe('ProviderWorkspaceContent', () => {
         },
       }));
       expect(screen.queryByText(/No discovered resource of this type/)).toBeNull();
+      expect(warnings.mock.calls.filter(args =>
+        String(args[0]).includes('out-of-range value'))).toHaveLength(0);
+    });
+
+  it.each(['domain', 'column', 'role'])(
+    'blocks %s actions in the render where a selected target disappears', async (kind) => {
+      const catalog = {objects: [{resource_kind: kind, title: kind,
+        operations: [{operation_id: 'rename', title: 'Rename', target_required: true,
+          form: {fields: [{field_id: 'new_name', label: 'New name', control: 'text'}]}}]}]};
+      const post = jest.fn().mockImplementation(async ({action}) =>
+        action === 'visual_admin_validate' ? {valid: true} :
+          {plan_id: 'owned-plan', plan_digest: 'owned-digest', state: 'ready', execution_available: true});
+      const snapshots = [];
+      function Observe({resources}) {
+        useLayoutEffect(() => {
+          snapshots.push({
+            target: screen.getByRole('combobox', {name: 'Target resource'}).textContent,
+            previewDisabled: screen.getByRole('button', {name: 'Validate and preview'}).disabled,
+            applyDisabled: screen.getByRole('button', {name: 'Apply provider plan'}).disabled,
+          });
+        }, [resources]);
+        return <VisualAdministration catalog={catalog} resources={resources}
+          post={post} setError={jest.fn()} />;
+      }
+      const {rerender} = render(<Observe resources={[{resource_id: kind + ':D',
+        resource_kind: kind, display_name: 'D'}]} />);
+      fireEvent.change(screen.getByRole('textbox', {name: 'New name'}),
+        {target: {value: 'E'}});
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeEnabled());
+      const calls = post.mock.calls.length;
+      rerender(<Observe resources={[]} />);
+      expect(snapshots.at(-1).target).not.toContain('D');
+      expect(snapshots.at(-1).previewDisabled).toBe(true);
+      expect(snapshots.at(-1).applyDisabled).toBe(true);
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      expect(post).toHaveBeenCalledTimes(calls);
     });
 
   it('requests credentials and reloads after a workspace 401', async () => {
