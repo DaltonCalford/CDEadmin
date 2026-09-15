@@ -121,11 +121,17 @@ def run(options, profiles):
                 assert not browser.find_elements(
                     'css selector', '[aria-label="Provider plan preview"]')
                 result['invalid_forms'].append(invalid_action)
-            plan = plan_preview(browser, wait, operation, {
+            task_role = ('CDE_OWNED_TASK_ROLE'
+                         if route.get('role') and len(result['checks']) == 1
+                         else '')
+            values = {
                 'Repair action': action,
-                'Native validation modifiers': modifiers})
+                'Native validation modifiers': modifiers,
+                'SQL role': task_role}
+            plan = plan_preview(browser, wait, operation, values)
             selection = repair.selection(database, {
-                'repair_action': action, 'repair_modifiers': modifiers})
+                'repair_action': action, 'repair_modifiers': modifiers,
+                'role': task_role}, route.get('role'))
             assert plan['command_preview']['repair_selection'] == selection
             assert browser.execute_script(
                 'return window.__ownedRepairDispatches') == len(

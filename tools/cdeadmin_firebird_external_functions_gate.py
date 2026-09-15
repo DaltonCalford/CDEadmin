@@ -97,6 +97,8 @@ def browser_checks(options, route, password, container, build_root, *,
                     ('output', 'result.json'), ('server-log', 'server.log'),
                     ('browser-log', 'browser.log')):
                 command.extend(['--' + option, str(folder / filename)])
+            if route.get('role') is not None:
+                command.extend(['--role', route['role']])
             try:
                 with (folder / 'orchestrator.log').open('w') as log:
                     process = subprocess.run(

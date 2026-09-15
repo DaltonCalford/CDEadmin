@@ -574,6 +574,43 @@ def run(image, browser_options=None):
             check['passed'] = True
         except Exception as error:
             failure(phase, error)
+        phase = 'native-leading-space-canonicalization'
+        check = {'case': phase, 'passed': False}
+        result['checks'].append(check)
+        service = None
+        try:
+            path = '/var/lib/firebird/data/owned_leading_target.fdb'
+            connect(path, create=True).close()
+            service = client._connect_server({'route': {
+                **route, 'credential_reference_id': 'owned-availability',
+                'principal_reference': 'owned-qa'}})
+            # common/db_alias.cpp::expandDatabaseName trims the native name.
+            # This is native alias identity, not an application rewrite.
+            service.database.shutdown(
+                database=' ' + path, mode=native.ShutdownMode.MULTI,
+                method=native.ShutdownMethod.DENY_ATTACHMENTS, timeout=0)
+            check['native_canonical_target_mode'] = state(path)
+            assert check['native_canonical_target_mode'] == 1
+            client._release_server(service)
+            service = None
+            task(path, 'bring_online', {'mode': 'NORMAL'})
+            task(' ' + path, 'shutdown_database', {
+                'mode': 'MULTI', 'method': 'DENY_ATTACHMENTS',
+                'shutdown_timeout': 0})
+            check['provider_canonical_target_mode'] = state(path)
+            assert check['provider_canonical_target_mode'] == 1
+            task(path, 'bring_online', {'mode': 'NORMAL'})
+            assert state(path) == 0
+            check.update(distinct_leading_space_database_supported=False,
+                         passed=True)
+        except Exception as error:
+            failure(phase, error)
+        finally:
+            if service is not None:
+                try:
+                    client._release_server(service)
+                except Exception as error:
+                    failure('close-leading-target-service', error)
         for timeout in (-1, 32767, 32768, 86400):
             phase = 'native-timeout-' + str(timeout)
             check = {'case': phase, 'passed': False}
@@ -659,7 +696,7 @@ def run(image, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    result['complete'] = (len(result['checks']) == 54 and
+    result['complete'] = (len(result['checks']) == 55 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result

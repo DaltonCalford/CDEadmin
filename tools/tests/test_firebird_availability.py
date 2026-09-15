@@ -112,6 +112,19 @@ def test_online_selection_has_no_shutdown_parameters():
         'mode': 'NORMAL', 'sql_role': None}
 
 
+@pytest.mark.parametrize('operation', ['shutdown_database', 'bring_online'])
+@pytest.mark.parametrize('task_role', [None, '', 'TASK_ROLE'])
+def test_availability_preview_inherits_or_overrides_default_role(
+        operation, task_role):
+    planned = ADMINISTRATION.plan({
+        'resource_kind': 'database', 'operation_id': operation,
+        'draft': {'role': task_role}, '_provider_route': {
+            'database': '/data/exact.fdb', 'role': 'DEFAULT_ROLE'}})
+    selection = planned['command_preview']['availability_selection']
+    assert selection['sql_role'] == (
+        task_role or 'DEFAULT_ROLE')
+
+
 @pytest.mark.parametrize('database', [None, '', ' ', [], 42])
 def test_availability_selection_requires_database(database):
     with pytest.raises(RelationalClientError):

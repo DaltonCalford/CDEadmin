@@ -642,6 +642,10 @@ class RelationalDBAPIClient:
             'transaction_finality_interpreted_by_common_code': False,
         }
 
+    def _server_operation_database(self, database):
+        """Provider hook for the native service target's spelling."""
+        return database.strip()
+
     def run_server_operation(self, request, operation_id, database, options):
         """Run one provider-owned server service against an exact database.
 
@@ -669,7 +673,8 @@ class RelationalDBAPIClient:
         failure = None
         try:
             observation = runner(
-                server, operation_id, database.strip(),
+                server, operation_id,
+                self._server_operation_database(database),
                 copy.deepcopy(dict(options)),
             )
             if not isinstance(observation, Mapping):

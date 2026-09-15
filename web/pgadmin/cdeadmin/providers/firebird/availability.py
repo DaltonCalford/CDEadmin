@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from .service_connection import effective_service_role
 
 
 # alice.cpp validates 0..32767; jrd.cpp stores the DPB delay as SSHORT.
@@ -49,7 +50,7 @@ def validate(operation, options):
                 'through 32767 seconds')
 
 
-def selection(operation, database, options):
+def selection(operation, database, options, default_role=None):
     """Public, credential-free description of the exact native task."""
     validate(operation, options)
     if not isinstance(database, str) or not database.strip():
@@ -60,7 +61,7 @@ def selection(operation, database, options):
         'operation': operation,
         'mode': options.get('mode', 'FULL' if operation == 'shutdown_database'
                             else 'NORMAL'),
-        'sql_role': options.get('role') or None,
+        'sql_role': effective_service_role(options.get('role'), default_role),
     }
     if operation == 'shutdown_database':
         result.update(

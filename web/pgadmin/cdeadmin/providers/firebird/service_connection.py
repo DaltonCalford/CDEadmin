@@ -23,6 +23,19 @@ def validate_service_role(role):
     return role
 
 
+def effective_service_role(task_role, default_role=None):
+    """Resolve a task override without mutating the saved endpoint role."""
+    if task_role is not None and (
+            not isinstance(task_role, str) or '\x00' in task_role):
+        raise RelationalClientError('Firebird service role is invalid')
+    validate_service_role(task_role)
+    role = task_role or default_role
+    if role is not None and (not isinstance(role, str) or '\x00' in role):
+        raise RelationalClientError('Firebird service role is invalid')
+    validate_service_role(role)
+    return role or None
+
+
 def connect_service(module, core, *, server, user=None, password=None,
                     expected_db=None, role=None, crypt_callback=None):
     validate_service_role(role)

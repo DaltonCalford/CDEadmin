@@ -25,7 +25,7 @@ from pgadmin.cdeadmin.providers.firebird.query_parameters import (  # noqa: E402
     normalize_parameters,
 )
 from pgadmin.cdeadmin.sdk.relational import (  # noqa: E402
-    RelationalClientConfig, RelationalClientError,
+    RelationalClientConfig, RelationalClientError, RelationalDBAPIClient,
 )
 
 
@@ -195,6 +195,45 @@ def test_invalid_service_role_fails_before_attachment(rig, role):
     open_.assert_not_called()
 
 
+@pytest.mark.parametrize('default,task,expected', [
+    ('DEFAULT_ROLE', None, 'DEFAULT_ROLE'),
+    ('DEFAULT_ROLE', '', 'DEFAULT_ROLE'),
+    ('DEFAULT_ROLE', 'TASK_ROLE', 'TASK_ROLE'),
+    (None, None, None), ('', '', None), (None, 'TASK_ROLE', 'TASK_ROLE'),
+])
+def test_effective_role_receipt_and_input_preservation(
+        rig, default, task, expected):
+    request = {'route': {'host': 'exact', 'role': default}}
+    options = {'role': task}
+    with patch('pgadmin.cdeadmin.sdk.relational.RelationalDBAPIClient.'
+               'run_server_operation', return_value={
+                   'repair_selection_requested': {
+                       'sql_role': None}}) as native:
+        result = rig.client.run_server_operation(
+            request, 'repair_database', ' exact ', options)
+    assert result['repair_selection_requested']['sql_role'] == expected
+    scoped = native.call_args.args[0]
+    assert (scoped['route'].get('role') or None) == expected
+    assert native.call_args.args[2:] == (' exact ', {})
+    assert request == {'route': {'host': 'exact', 'role': default}}
+    assert options == {'role': task}
+
+
+@pytest.mark.parametrize('role', [1, False, [], {}, 'bad\x00role', 'bad role'])
+def test_invalid_default_service_role_never_attaches(rig, role):
+    with patch.object(rig.client, '_connect_server') as open_:
+        with pytest.raises(RelationalClientError):
+            rig.client.run_server_operation(
+                {'route': {'role': role}}, 'repair_database', 'owned', {})
+    open_.assert_not_called()
+
+
+def test_provider_owns_service_target_normalization(rig):
+    assert rig.client._server_operation_database(' owned ') == ' owned '
+    assert RelationalDBAPIClient._server_operation_database(
+        rig.client, ' owned ') == 'owned'
+
+
 @pytest.mark.parametrize('service', [False, True])
 def test_service_plan_authenticates_before_retention_without_starting_task(
         rig, service):
@@ -311,7 +350,8 @@ def test_service_outcome_is_not_replaced_by_detach_failure(
                 (335544344,) if outcome == 'native_error' else
                 (337117261,) if outcome == 'driver_error' else ())
             assert 'credential-canary' not in str(caught.value)
-    runner.assert_called_once_with(handle, 'database_statistics', 'owned', {})
+    runner.assert_called_once_with(
+        handle, 'database_statistics', ' owned ', {})
     handle.close.assert_called_once_with()
     assert receipt['service_handle_released'] is not detach_failure
     assert 'credential-canary' not in repr(receipt)

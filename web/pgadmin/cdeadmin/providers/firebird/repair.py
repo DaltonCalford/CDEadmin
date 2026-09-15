@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from .service_connection import effective_service_role
 
 
 # Native aliceswi.h: MEND implies VALIDATE and FULL. The public driver
@@ -51,7 +52,7 @@ def flags(options):
     return selected
 
 
-def selection(database, options):
+def selection(database, options, default_role=None):
     selected = flags(options)
     if not isinstance(database, str) or not database.strip():
         raise RelationalClientError(
@@ -60,7 +61,7 @@ def selection(database, options):
         'database': database,
         'action': options['repair_action'],
         'native_flags': selected,
-        'sql_role': options.get('role') or None,
+        'sql_role': effective_service_role(options.get('role'), default_role),
         'full_validation': 'FULL' in selected or 'MEND_DB' in selected,
         'no_update': 'CHECK_DB' in selected,
         'ignore_checksums': 'IGNORE_CHECKSUM' in selected,

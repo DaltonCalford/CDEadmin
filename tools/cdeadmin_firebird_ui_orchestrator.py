@@ -81,6 +81,7 @@ def arguments(argv=None):
     parser.add_argument('--firebird-port', type=int, default=53050)
     parser.add_argument('--database', required=True)
     parser.add_argument('--user', default='SYSDBA')
+    parser.add_argument('--role')
     parser.add_argument(
         '--password-env', default='CDEADMIN_FIREBIRD_DEMO_PASSWORD'
     )
@@ -228,6 +229,7 @@ def run(options):
             config_database, options.desktop_user, options.database,
             database_label, options.firebird_port,
             endpoint_user=options.user,
+            endpoint_role=options.role,
         )
         port = _free_port()
         config_file = temporary_root / 'qa_config.py'

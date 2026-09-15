@@ -3459,10 +3459,11 @@ class RelationalAdministration:
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
                 **({'repair_selection': firebird_repair.selection(
-                    database, request.get('draft', {}))}
+                    database, request.get('draft', {}), route.get('role'))}
                    if operation == 'repair_database' else {}),
                 **({'availability_selection': firebird_availability.selection(
-                    operation, database, request.get('draft', {}))}
+                    operation, database, request.get('draft', {}),
+                    route.get('role'))}
                    if operation in firebird_availability.OPERATIONS else {}),
                 **({'restore_policy_requested': physical_restore_policy(
                     operation, request.get('draft', {}))}

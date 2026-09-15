@@ -136,7 +136,10 @@ def run(image, browser_options=None):
                 assert plan['command_preview']['repair_selection'] == (
                     repair.selection(path, draft))
                 before = {id(handle) for handle in client._connections}
-                client.apply_admin_operation(plan)
+                response = client.apply_admin_operation(plan)
+                assert response['driver_observation'][
+                    'repair_selection_requested'] == repair.selection(
+                        path, draft)
                 assert {id(handle) for handle in client._connections} == before
                 observer = connect(path)
                 with observer.cursor() as cursor:
@@ -157,7 +160,7 @@ def run(image, browser_options=None):
         administrator.commit()
         administrator.close()
         for action, mask in itertools.product(
-                repair.ACTIONS, ('inactive', 0, 1, 2, 3)):
+                repair.ACTIONS, ('inactive', 'default', 0, 1, 2, 3)):
             phase = 'authorization-' + action + '-' + str(mask)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
@@ -165,7 +168,7 @@ def run(image, browser_options=None):
                 len(result['checks'])) + '.fdb'
             limited = None
             try:
-                bits = 3 if mask == 'inactive' else mask
+                bits = 3 if mask in ('inactive', 'default') else mask
                 privileges = [privilege for bit, privilege in enumerate((
                     'USE_GFIX_UTILITY', 'IGNORE_DB_TRIGGERS'))
                     if bits & (1 << bit)]
@@ -185,26 +188,34 @@ def run(image, browser_options=None):
                     acquire_secret=lambda *_args: SecretLease(
                         operator_password)))
                 draft = {'repair_action': action}
-                if mask != 'inactive':
+                if mask not in ('inactive', 'default'):
                     draft['role'] = 'CDE_REPAIR_ROLE'
                 request = {
                     'resource_kind': 'database',
                     'operation_id': 'repair_database', 'draft': draft,
                     '_provider_route': {
                         **route, 'database': path,
-                        'user': 'CDE_REPAIR_OPERATOR'}}
+                        'user': 'CDE_REPAIR_OPERATOR',
+                        **({'role': 'CDE_REPAIR_ROLE'}
+                           if mask == 'default' else {})}}
                 assert not limited.config.administration.validate(
                     request)['errors']
                 plan = limited.plan_admin_operation(request)
                 try:
-                    limited.apply_admin_operation(plan)
+                    response = limited.apply_admin_operation(plan)
                 except RelationalClientError as error:
-                    assert mask != 3
+                    assert mask not in (3, 'default')
                     check['denial_codes'] = list(status_codes(error))
                     assert 335544788 in check['denial_codes']
                     assert 335545112 in check['denial_codes']
                 else:
-                    assert mask == 3
+                    assert mask in (3, 'default')
+                    assert plan['command_preview']['repair_selection'][
+                        'sql_role'] == 'CDE_REPAIR_ROLE'
+                    assert response['driver_observation'][
+                        'repair_selection_requested']['sql_role'] == (
+                            'CDE_REPAIR_ROLE')
+                    check['requested_role_receipt_verified'] = True
                     check['privileged_operation_returned'] = True
                 observer = connect(path)
                 with observer.cursor() as cursor:
@@ -302,12 +313,21 @@ def run(image, browser_options=None):
                         setup.commit()
                         cursor.execute("INSERT INTO REPAIR_MARKER "
                                        "VALUES (1, 'preserve healthy data')")
+                        if browser_options.browser_role:
+                            for name in ('CDE_OWNED_DEFAULT_ROLE',
+                                         'CDE_OWNED_TASK_ROLE'):
+                                cursor.execute('CREATE ROLE ' + name)
+                                cursor.execute('GRANT ' + name +
+                                               ' TO USER SYSDBA')
                     setup.commit()
                     setup.close()
                     selected = SimpleNamespace(**{
                         **vars(browser_options), 'font_scale': [scale]})
+                    browser_route = {**route, 'database': path}
+                    if browser_options.browser_role:
+                        browser_route['role'] = 'CDE_OWNED_DEFAULT_ROLE'
                     result['browser_checks'].extend(browser_checks(
-                        selected, {**route, 'database': path}, password,
+                        selected, browser_route, password,
                         container, folder, gate_kind='repair',
                         fixture_kind='firebird-repair-qualification'))
                 except Exception as error:
@@ -335,7 +355,7 @@ def run(image, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    result['complete'] = (len(result['checks']) == 105 and
+    result['complete'] = (len(result['checks']) == 112 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
@@ -346,6 +366,8 @@ def main():
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--browser-role', action='store_true',
+                        help='Qualify an inherited and overridden task role')
     parser.add_argument('--build-root', type=Path)
     parser.add_argument('--source-config-db', type=Path,
                         default=Path('/var/lib/cdeadmin/cdeadmin.db'))

@@ -116,7 +116,7 @@ def _wait_for_server(process, port, timeout=45.0):
 
 
 def _retarget_config(database, desktop_user, target_database, target_label,
-                     firebird_port, endpoint_user=None):
+                     firebird_port, endpoint_user=None, endpoint_role=None):
     with sqlite3.connect(database) as connection:
         row = connection.execute(
             """
@@ -144,6 +144,10 @@ def _retarget_config(database, desktop_user, target_database, target_label,
             'database_create_root': str(Path(target_database).parent),
         })
         route.pop('database', None)
+        if endpoint_role is not None:
+            route['role'] = endpoint_role
+            connection.execute('UPDATE server SET role = ? WHERE id = ?',
+                               (endpoint_role, server_id))
         if endpoint_user is not None:
             route['user'] = endpoint_user
             connection.execute('UPDATE server SET username = ? WHERE id = ?',

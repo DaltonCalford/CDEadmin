@@ -107,6 +107,17 @@ def test_repair_preview_never_contains_credentials():
     assert 'do-not-export' not in str(selected)
 
 
+@pytest.mark.parametrize('task_role', [None, '', 'TASK_ROLE'])
+def test_repair_preview_inherits_or_overrides_default_role(task_role):
+    planned = ADMINISTRATION.plan({
+        'resource_kind': 'database', 'operation_id': 'repair_database',
+        'draft': {'repair_action': 'VALIDATE_DB', 'role': task_role},
+        '_provider_route': {'database': '/data/exact.fdb',
+                            'role': 'DEFAULT_ROLE'}})
+    assert planned['command_preview']['repair_selection']['sql_role'] == (
+        task_role or 'DEFAULT_ROLE')
+
+
 @pytest.mark.parametrize('draft', [
     {'repair_action': 'ICU', 'repair_modifiers': ['FULL']},
     {'repair_action': 'ICU', 'repair_modifiers': ['IGNORE_CHECKSUM']},

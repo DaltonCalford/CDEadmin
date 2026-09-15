@@ -7,17 +7,72 @@
 #
 ##########################################################################
 
+import json
+import shutil
+import sqlite3
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from tools.cdeadmin_firebird_ui_orchestrator import gate_command
+from tools.cdeadmin_firebird_ui_completed_orchestrator import _retarget_config
 from pgadmin.cdeadmin.providers.firebird.provider import ADMINISTRATION
 from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
 from tools.cdeadmin_provider_object_form_gate import (
     _enumerate_operations, _preview_values, _workspace_probe,
 )
+
+
+@pytest.mark.parametrize('role', [None, '', 'CDE_OWNED_DEFAULT_ROLE'])
+def test_role_retarget_changes_only_isolated_configuration(tmp_path, role):
+    source = tmp_path / 'source.db'
+    isolated = tmp_path / 'isolated.db'
+    with sqlite3.connect(source) as connection:
+        connection.executescript('''
+            CREATE TABLE user (id INTEGER, email TEXT);
+            CREATE TABLE server (id INTEGER, user_id INTEGER, name TEXT,
+                host TEXT, port INTEGER, username TEXT, role TEXT);
+            CREATE TABLE cde_endpoint (id INTEGER, legacy_server_id INTEGER,
+                profile_id TEXT);
+            CREATE TABLE cde_endpoint_database_target (id INTEGER,
+                endpoint_id INTEGER, active INTEGER, display_name TEXT,
+                database TEXT, updated_at TEXT);
+            CREATE TABLE cde_endpoint_route (id INTEGER, endpoint_id INTEGER,
+                priority INTEGER, configuration TEXT);
+            CREATE TABLE cde_endpoint_runtime_identity (endpoint_id INTEGER,
+                verification_state TEXT, verified_runtime_family TEXT,
+                verified_runtime_version TEXT);
+            INSERT INTO user VALUES (1, 'qa@example.invalid');
+            INSERT INTO server VALUES (1, 1, 'original', 'original', 3050,
+                'ORIGINAL_USER', 'ORIGINAL_ROLE');
+            INSERT INTO cde_endpoint VALUES (2, 1, 'firebird-native');
+            INSERT INTO cde_endpoint_database_target VALUES (
+                3, 2, 1, 'original', '/data/original.fdb', NULL);
+            INSERT INTO cde_endpoint_runtime_identity
+                VALUES (2, NULL,NULL,NULL);
+        ''')
+        connection.execute('INSERT INTO cde_endpoint_route VALUES (4,2,0,?)', (
+            json.dumps({'host': 'original', 'role': 'ORIGINAL_ROLE'}),))
+    original = source.read_bytes()
+    shutil.copy2(source, isolated)
+    _retarget_config(isolated, 'qa@example.invalid', '/data/owned.fdb',
+                     'owned.fdb', 53051, endpoint_user='SYSDBA',
+                     endpoint_role=role)
+    assert source.read_bytes() == original
+    expected = 'ORIGINAL_ROLE' if role is None else role
+    with sqlite3.connect(isolated) as connection:
+        route = json.loads(connection.execute(
+            'SELECT configuration FROM cde_endpoint_route').fetchone()[0])
+        assert route['role'] == expected
+        assert route['host'] == '127.0.0.1'
+        assert route['port'] == 53051
+        assert route['user'] == 'SYSDBA'
+        assert connection.execute('SELECT role FROM server').fetchone() == (
+            expected,)
+        target = connection.execute(
+            'SELECT database FROM cde_endpoint_database_target').fetchone()
+        assert target == ('/data/owned.fdb',)
 
 
 def test_focused_role_probe_traverses_organizational_system_branch():

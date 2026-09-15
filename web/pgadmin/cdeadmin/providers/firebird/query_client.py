@@ -13,7 +13,7 @@ from .error_diagnostics import status_codes
 from . import limbo
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
-from .service_connection import validate_service_role
+from .service_connection import effective_service_role
 from .transaction_sql import (
     start_native_transaction, starts_transaction, transaction_command,
 )
@@ -491,12 +491,27 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._exclusive(handle):
             return super().list_resources(request)
 
+    def _server_operation_database(self, database):
+        # Native Firebird owns filename/alias canonicalization. Forward the
+        # reviewed spelling; the application does not infer name equivalence.
+        return database
+
     def run_server_operation(self, request, operation_id, database, options):
         with self._temporary_operation():
             request, options = self._service_role_scope(request, options)
             try:
-                return super().run_server_operation(
+                result = super().run_server_operation(
                     request, operation_id, database, options)
+                if (operation_id == 'repair_database' and
+                        isinstance(result.get('repair_selection_requested'),
+                                   Mapping)):
+                    # The task role is deliberately absent from start options:
+                    # it was moved to this owned Services API attachment.
+                    result['repair_selection_requested'] = {
+                        **result['repair_selection_requested'],
+                        'sql_role': (
+                            request.get('route', {}).get('role') or None)}
+                return result
             except RelationalClientError as exc:
                 exc.native_status_codes = status_codes(exc)
                 raise
@@ -596,15 +611,12 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             raise RelationalClientError('Firebird service request is invalid')
         scoped_request = copy.deepcopy(dict(request))
         scoped_options = copy.deepcopy(dict(options))
-        role = scoped_options.pop('role', None)
-        if role is not None and (not isinstance(role, str) or '\x00' in role):
-            raise RelationalClientError('Firebird service role is invalid')
-        validate_service_role(role)
+        route = scoped_request.get('route', {})
+        if not isinstance(route, Mapping):
+            raise RelationalClientError('Firebird service route is invalid')
+        role = effective_service_role(
+            scoped_options.pop('role', None), route.get('role'))
         if role:
-            route = scoped_request.get('route', {})
-            if not isinstance(route, Mapping):
-                raise RelationalClientError(
-                    'Firebird service route is invalid')
             scoped_request['route'] = {
                 **route, 'role': role}
         return scoped_request, scoped_options
