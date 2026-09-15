@@ -2077,6 +2077,83 @@ describe('ProviderWorkspaceContent', () => {
     });
   });
 
+  it('opens and applies server-only recovery without a fabricated database target', async () => {
+    const operation = {
+      operation_id: 'activate_shadow', title: 'Activate a Firebird database shadow',
+      mutation_class: 'destructive', target_required: false,
+      confirmation_required: true, execution_available: true,
+      graphical_ready: true, blockers: [], workspace_scope: 'server_service',
+      form: {form_id: 'firebird_activate_shadow', fields: [
+        {field_id: 'shadow_filename', label: 'First shadow filename',
+          control: 'text', required: true},
+        {field_id: 'confirmation', label: 'Confirm shadow filename',
+          control: 'text', required: true},
+        {field_id: 'original_isolated', label: 'Original is isolated',
+          control: 'boolean', required: true, default: false},
+        {field_id: 'role', label: 'SQL role', control: 'text'},
+      ]},
+    };
+    api.get.mockResolvedValue({data: {data: {
+      ...bootstrap, resource_page: {items: []},
+      visual_admin: {engine_id: 'firebird', engine_name: 'Firebird', objects: [{
+        resource_kind: 'database', title: 'Database', operations: [operation],
+      }]},
+    }}});
+    api.post.mockImplementation((_url, payload) => {
+      const responses = {
+        visual_admin_validate: {valid: true, errors: []},
+        visual_admin_plan: {state: 'ready', execution_available: true,
+          plan_id: 'shadow-plan', plan_digest: 'shadow-digest'},
+        visual_admin_apply: {accepted: true,
+          driver_observation: {server_completed: true}},
+      };
+      return Promise.resolve({data: {data: responses[payload.action]}});
+    });
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/server?focused_operation_id=activate_shadow"
+      initialTab="administration" initialContext={{
+        database_target_id: null, resource_kind: 'database',
+        operation_id: 'activate_shadow',
+      }} />);
+    const filename = '/owned/影\'s.shd';
+    fireEvent.change(await screen.findByRole('textbox', {
+      name: /First shadow filename/,
+    }), {target: {value: filename}});
+    fireEvent.change(screen.getByRole('textbox', {
+      name: /Confirm shadow filename/,
+    }), {target: {value: filename}});
+    fireEvent.click(screen.getByRole('checkbox', {name: /Original is isolated/}));
+    fireEvent.change(screen.getByRole('textbox', {name: 'SQL role'}),
+      {target: {value: 'RECOVERY_OPERATOR'}});
+    expect(screen.queryByRole('combobox', {name: 'Target resource'})).toBeNull();
+    expect(api.post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Validate and preview'));
+    await screen.findByLabelText('Provider plan preview');
+    expect(api.post).toHaveBeenCalledWith(
+      '/workspace/server?focused_operation_id=activate_shadow', {
+        action: 'visual_admin_plan', request: {
+          resource_kind: 'database', operation_id: 'activate_shadow',
+          target_resource: null, draft: {shadow_filename: filename,
+            confirmation: filename, original_isolated: true,
+            role: 'RECOVERY_OPERATOR'},
+        },
+      });
+    expect(screen.getByText('Apply provider plan').closest('button')).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I confirm this provider-planned operation.',
+    }));
+    fireEvent.click(screen.getByText('Apply provider plan'));
+    await screen.findByLabelText('Provider operation result');
+    expect(api.post).toHaveBeenCalledWith(
+      '/workspace/server?focused_operation_id=activate_shadow', {
+        action: 'visual_admin_apply', request: {
+          plan_id: 'shadow-plan', plan_digest: 'shadow-digest', confirmed: true,
+        },
+      });
+    expect(api.post.mock.calls.some(([, payload]) =>
+      payload.action === 'resource_inspect')).toBe(false);
+  });
+
   it('does not inspect an attachment-free service-operation target', async () => {
     const onCredentialRequired = jest.fn((retry) => retry());
     let applyAttempts = 0;

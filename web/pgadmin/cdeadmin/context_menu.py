@@ -697,6 +697,19 @@ def endpoint_context_actions(
                 'operation_id': 'check_upgrade_required',
             }, enabled=ready, disabled_reason=blocked,
         ))
+    if engine_id == 'firebird':
+        actions.append(_action(
+            'endpoint.firebird.activate_shadow',
+            'Recover a Firebird shadow...', 'open_workspace',
+            icon='action.restore', group='availability', priority=72,
+            mutation='destructive', confirmation=True, macro=False,
+            arguments={'tab': 'administration', 'resource_kind': 'database',
+                       'operation_id': 'activate_shadow',
+                       'database_target_id': None},
+            enabled=ready and can_manage,
+            disabled_reason=(blocked if not ready else '' if can_manage else
+                             'Endpoint management permission is required.'),
+        ))
     if can_manage:
         server_forms = profile['form_contract']['server']['forms']
         actions.append(_action(

@@ -153,6 +153,47 @@ def test_service_execution_blocks_whole_client_release(rig):
     assert rig.client._native_operations == 0
 
 
+@pytest.mark.parametrize('operation', [
+    'activate_shadow', 'database_statistics', 'backup_logical',
+    'restore_logical', 'validate_database', 'bring_online', 'set_write_mode'])
+def test_task_role_is_attached_without_unsupported_start_spb_role(
+        rig, operation):
+    request = {'route': {'host': 'exact', 'role': 'DEFAULT_ROLE'}}
+    options = {'role': 'RECOVERY_OPERATOR', 'mode': 'owned'}
+    with patch('pgadmin.cdeadmin.sdk.relational.RelationalDBAPIClient.'
+               'run_server_operation', return_value={}) as native:
+        rig.client.run_server_operation(request, operation, 'owned', options)
+    native.assert_called_once_with(
+        {'route': {'host': 'exact', 'role': 'RECOVERY_OPERATOR'}},
+        operation, 'owned', {'mode': 'owned'})
+    assert request['route']['role'] == 'DEFAULT_ROLE'
+    assert options['role'] == 'RECOVERY_OPERATOR'
+
+
+def test_service_preflight_uses_the_reviewed_task_role(rig):
+    handle = service_handle(rig)
+    plan = {'provider_payload': {'route': {'host': 'exact'}, 'compiled': {
+        'driver_operation': 'firebird-service',
+        'options': {'role': 'RECOVERY_OPERATOR'}}}}
+    with patch('pgadmin.cdeadmin.sdk.relational.RelationalDBAPIClient.'
+               'plan_admin_operation', return_value=plan), patch.object(
+                   rig.client, '_connect_server',
+                   return_value=handle) as open_:
+        assert rig.client.plan_admin_operation({}) is plan
+    open_.assert_called_once_with({'route': {'host': 'exact',
+                                             'role': 'RECOVERY_OPERATOR'}})
+    assert plan['provider_payload']['route'] == {'host': 'exact'}
+
+
+@pytest.mark.parametrize('role', [1, False, [], {}, 'bad\x00role'])
+def test_invalid_service_role_fails_before_attachment(rig, role):
+    with patch.object(rig.client, '_connect_server') as open_:
+        with pytest.raises(RelationalClientError, match='role is invalid'):
+            rig.client.run_server_operation(
+                {'route': {}}, 'activate_shadow', 'owned', {'role': role})
+    open_.assert_not_called()
+
+
 @pytest.mark.parametrize('service', [False, True])
 def test_service_plan_authenticates_before_retention_without_starting_task(
         rig, service):

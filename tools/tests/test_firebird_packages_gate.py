@@ -8,12 +8,14 @@ from tools import cdeadmin_firebird_packages_gate
 from tools import cdeadmin_firebird_sequences_gate
 from tools import cdeadmin_firebird_shadows_gate
 from tools import cdeadmin_firebird_database_storage_gate
+from tools import cdeadmin_firebird_shadow_activation_gate
 
 
 @pytest.fixture(params=[cdeadmin_firebird_packages_gate,
                         cdeadmin_firebird_sequences_gate,
                         cdeadmin_firebird_shadows_gate,
-                        cdeadmin_firebird_database_storage_gate])
+                        cdeadmin_firebird_database_storage_gate,
+                        cdeadmin_firebird_shadow_activation_gate])
 def gate(request):
     return request.param
 

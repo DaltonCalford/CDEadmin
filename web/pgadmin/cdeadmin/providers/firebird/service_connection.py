@@ -9,8 +9,23 @@ does not emit that marker. Do not patch driver globals or its installation.
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
+def validate_service_role(role):
+    """Reject roles that native service argv construction cannot preserve."""
+    if role is not None:
+        if not isinstance(role, str) or any(ord(char) <= 32 for char in role):
+            # Service::start concatenates this attachment value into utility
+            # switches; parseSwitches does not recognize shell/SQL quoting.
+            # Do not let a role become another utility argument or silently
+            # change a delimited role name. SQL database roles are unaffected.
+            raise RelationalClientError(
+                'Firebird service role transport cannot safely preserve '
+                'whitespace or control characters in a role name')
+    return role
+
+
 def connect_service(module, core, *, server, user=None, password=None,
                     expected_db=None, role=None, crypt_callback=None):
+    validate_service_role(role)
     config = module.driver_config.get_server(server)
     if config is None:
         raise RelationalClientError(

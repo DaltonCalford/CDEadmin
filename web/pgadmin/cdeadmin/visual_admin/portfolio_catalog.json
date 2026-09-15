@@ -572,6 +572,9 @@
     },
     "firebird_activate_shadow": {
       "title": "Activate a Firebird database shadow", "fields": [
+        {"field_id": "shadow_filename", "label": "First shadow filename", "control": "text", "required": true, "help": "Promote the first active shadow file in place, not the original database. Native header verification is required before activation."},
+        {"field_id": "confirmation", "label": "Confirm shadow filename", "control": "text", "required": true, "help": "Repeat the exact recovery target, not the original database filename."},
+        {"field_id": "original_isolated", "label": "The original database is stopped or isolated", "control": "boolean", "required": true, "default": false, "help": "Coordinate exclusive control of the recovery files. Do not operate both copies as the same database."},
         {"field_id": "role", "label": "SQL role", "control": "text", "required": false}
       ]
     },
@@ -835,7 +838,7 @@
       {"operation_id": "set_write_mode", "title": "Set write mode", "mutation_class": "admin", "form_id": "firebird_set_write_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},
       {"operation_id": "set_access_mode", "title": "Set access mode", "mutation_class": "admin", "form_id": "firebird_set_access_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},
       {"operation_id": "set_sql_dialect", "title": "Set SQL dialect", "mutation_class": "admin", "form_id": "firebird_set_sql_dialect", "target_required": true, "required_permissions": ["maintenance_admin"]},
-      {"operation_id": "activate_shadow", "title": "Activate database shadow", "mutation_class": "destructive", "form_id": "firebird_activate_shadow", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
+      {"operation_id": "activate_shadow", "title": "Activate database shadow", "mutation_class": "destructive", "form_id": "firebird_activate_shadow", "target_required": false, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
       {"operation_id": "remove_linger", "title": "Remove linger for next attachment", "mutation_class": "admin", "form_id": "firebird_remove_linger", "target_required": true, "required_permissions": ["maintenance_admin"]},
       {"operation_id": "fixup_database", "title": "Fix up after filesystem copy", "mutation_class": "destructive", "form_id": "firebird_fixup_database", "target_required": true, "confirmation_required": true, "required_permissions": ["maintenance_admin"]},
       {"operation_id": "set_replica_mode", "title": "Set replica mode", "mutation_class": "admin", "form_id": "firebird_set_replica_mode", "target_required": true, "required_permissions": ["maintenance_admin"]},

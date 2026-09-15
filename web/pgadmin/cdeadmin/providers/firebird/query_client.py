@@ -2,6 +2,7 @@
 
 import copy
 import threading
+from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
@@ -11,6 +12,7 @@ from pgadmin.cdeadmin.sdk.relational import (
 from .error_diagnostics import status_codes
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
+from .service_connection import validate_service_role
 from .transaction_sql import (
     start_native_transaction, starts_transaction, transaction_command,
 )
@@ -489,8 +491,33 @@ class FirebirdQueryClient(RelationalDBAPIClient):
 
     def run_server_operation(self, request, operation_id, database, options):
         with self._temporary_operation():
+            request, options = self._service_role_scope(request, options)
             return super().run_server_operation(
                 request, operation_id, database, options)
+
+    @staticmethod
+    def _service_role_scope(request, options):
+        # Firebird 5.0.4's database service start SPBs reject SQL_ROLE_NAME.
+        # Service::start forwards the attachment role to the native utility.
+        # Bind the reviewed task role to this one owned service attachment;
+        # never change the saved endpoint or shared driver configuration.
+        if (not isinstance(options, Mapping) or
+                not isinstance(request, Mapping)):
+            raise RelationalClientError('Firebird service request is invalid')
+        scoped_request = copy.deepcopy(dict(request))
+        scoped_options = copy.deepcopy(dict(options))
+        role = scoped_options.pop('role', None)
+        if role is not None and (not isinstance(role, str) or '\x00' in role):
+            raise RelationalClientError('Firebird service role is invalid')
+        validate_service_role(role)
+        if role:
+            route = scoped_request.get('route', {})
+            if not isinstance(route, Mapping):
+                raise RelationalClientError(
+                    'Firebird service route is invalid')
+            scoped_request['route'] = {
+                **route, 'role': role}
+        return scoped_request, scoped_options
 
     def _server_operation_error(self, error):
         codes = status_codes(error)
@@ -515,7 +542,10 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                 # plan. A credential refresh can replace the provider binding
                 # and must not strand a reviewed plan during Apply. This only
                 # attaches/detaches: no service action is started here.
-                server = self._connect_server({'route': payload['route']})
+                request, _options = self._service_role_scope(
+                    {'route': payload['route']},
+                    payload['compiled'].get('options', {}))
+                server = self._connect_server(request)
                 self._release_server(server)
             return plan
 

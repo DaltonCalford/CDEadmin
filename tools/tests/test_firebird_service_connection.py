@@ -65,6 +65,18 @@ def test_native_attach_is_not_attempted_when_text_cannot_be_encoded():
     dispatcher.attach_service_manager.assert_not_called()
 
 
+@pytest.mark.parametrize('role', [
+    'ROLE -shut full', '"Role with spaces"', 'ROLE\x00extra',
+    'ROLE\nextra', 'ROLE\textra', False, 12,
+])
+def test_service_role_cannot_split_into_utility_switches(role):
+    module, core, _config, _builder, dispatcher = setup_connector()
+    with pytest.raises(RelationalClientError, match='role transport'):
+        connect_service(module, core, server='private', role=role)
+    core.SPB_ATTACH.assert_not_called()
+    dispatcher.attach_service_manager.assert_not_called()
+
+
 @pytest.mark.parametrize('bad', ['missing', 'address'])
 def test_unconfigured_service_target_is_rejected(bad):
     module, core, config, _builder, dispatcher = setup_connector()

@@ -23,7 +23,10 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
-from . import blob_filters, object_privileges, shadows, database_storage
+from . import (
+    blob_filters, object_privileges, shadows, database_storage,
+    shadow_activation,
+)
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -901,7 +904,20 @@ def _firebird_service_operation(
             role=role,
         )
     elif operation_id == 'activate_shadow':
-        service.activate_shadow(database=database, role=role)
+        activation = shadow_activation.validate(options)
+        if database != activation['shadow_filename']:
+            raise RelationalClientError(
+                'The compiled shadow recovery target changed')
+        # HDR_PAGES reads physical headers without a database attachment.
+        # Firebird 5.0.4 rejects SQL_ROLE_NAME in a DB_STATS start SPB.
+        # The owned Services API attachment carries the reviewed task role.
+        lines, truncated = _service_lines(
+            lambda output: service.get_statistics(
+                database=database,
+                flags=module.SrvStatFlag.HDR_PAGES, callback=output))
+        result['shadow_header_verification'] = shadow_activation.verify_header(
+            lines, truncated=truncated)
+        service.activate_shadow(database=database, role=activation['role'])
     elif operation_id == 'remove_linger':
         service.no_linger(database=database, role=role)
     elif operation_id == 'fixup_database':

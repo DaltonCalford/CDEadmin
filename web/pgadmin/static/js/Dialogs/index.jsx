@@ -143,10 +143,10 @@ export function showProviderWorkspace(
   );
   if (databaseTargetId) {
     parameters.set('database_target_id', databaseTargetId);
-    if (initialContext.resource_kind === 'database' &&
-        initialContext.operation_id) {
-      parameters.set('focused_operation_id', initialContext.operation_id);
-    }
+  }
+  if (initialContext.resource_kind === 'database' &&
+      initialContext.operation_id) {
+    parameters.set('focused_operation_id', initialContext.operation_id);
   }
   const endpointUrl = parameters.size ?
     `${generatedUrl}${generatedUrl.includes('?') ? '&' : '?'}${parameters}` :

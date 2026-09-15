@@ -10,7 +10,7 @@
 import {waitFor} from '@testing-library/react';
 import pgAdmin from 'sources/pgadmin';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
-import {showEndpointVerification} from
+import {showEndpointVerification, showProviderWorkspace} from
   '../../../pgadmin/static/js/Dialogs/index';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
@@ -49,5 +49,19 @@ describe('provider endpoint verification', () => {
       );
       expect(pgAdmin.Browser.notifier.showModal).toHaveBeenCalledTimes(1);
       expect(api.post).not.toHaveBeenCalled();
+    });
+
+  it.each([null, 'database-one'])(
+    'retains the focused service task with database scope %s', (targetId) => {
+      showProviderWorkspace('Recover shadow', node, {}, {}, 'administration', {
+        resource_kind: 'database', operation_id: 'activate_shadow',
+        database_target_id: targetId,
+      });
+      const content = pgAdmin.Browser.notifier.showModal.mock.calls[0][1](
+        jest.fn());
+      const url = new URL(content.props.endpointUrl, 'http://localhost');
+      expect(url.searchParams.get('focused_operation_id'))
+        .toBe('activate_shadow');
+      expect(url.searchParams.get('database_target_id')).toBe(targetId);
     });
 });

@@ -48,10 +48,12 @@ from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
+from .firebird import shadow_activation as firebird_shadow_activation
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
 from .firebird.task_savepoint import NativeTaskSavepoint
+from .firebird.service_connection import validate_service_role
 
 
 _FRAGMENT = re.compile(r'^[\w\s(),.+*/%<>=\'"-]+$', re.UNICODE)
@@ -375,6 +377,8 @@ class RelationalAdministration:
                         # (most importantly after shutdown, so Bring online
                         # is not stranded behind a database connection).
                         operation['workspace_scope'] = 'server_service'
+                        if operation_id == 'activate_shadow':
+                            operation['target_required'] = False
                     database_form = (
                         self.dialect.database_forms.get(operation_id)
                         if kind == 'database' else None
@@ -389,6 +393,11 @@ class RelationalAdministration:
                         # one-field portfolio layout is not executable
                         # replication administration.
                         operation['form'] = self._form(kind, operation_id)
+                    elif (self.dialect.engine_id == 'firebird' and
+                          kind == 'database' and
+                          operation_id == 'activate_shadow'):
+                        operation['form'] = firebird_shadow_activation.form(
+                            self._field)
                     elif database_form is not None:
                         operation['form'] = copy.deepcopy(database_form)
                     elif operation.get('form_authority') != 'engine-profile':
@@ -495,6 +504,19 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'database' and
+                operation_id == 'activate_shadow'):
+            try:
+                route = request.get('_provider_route')
+                firebird_shadow_activation.validate(
+                    draft, route.get('database') if isinstance(route, Mapping)
+                    else None)
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_shadow_activation',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'database' and
                 operation_id in firebird_database_storage.OPERATIONS):
@@ -3112,6 +3134,18 @@ class RelationalAdministration:
         operation = request['operation_id']
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'database' and
+                operation == 'activate_shadow'):
+            route = request['_provider_route']
+            values = firebird_shadow_activation.validate(
+                request['draft'], route.get('database'))
+            return {'driver_operation': 'firebird-service',
+                    'operation_id': operation,
+                    'database': values['shadow_filename'],
+                    'options': copy.deepcopy(request['draft']),
+                    'statements': [],
+                    'warnings': [firebird_shadow_activation.WARNING]}
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'database' and
                 operation in firebird_database_storage.OPERATIONS):
             statements = firebird_database_storage.compile_operation(
                 operation, request['draft'],
@@ -3804,6 +3838,19 @@ class RelationalAdministration:
     @staticmethod
     def _validate_firebird_service(operation, draft):
         errors = []
+        try:
+            validate_service_role(draft.get('role'))
+        except RelationalClientError as error:
+            errors.append({'field_id': 'role', 'code': 'invalid_service_role',
+                           'message': str(error)})
+        if operation == 'activate_shadow':
+            try:
+                firebird_shadow_activation.validate(draft)
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_shadow_activation',
+                               'message': str(error)})
+            return errors
 
         def path(field_id):
             value = draft.get(field_id)
@@ -4234,6 +4281,9 @@ class RelationalAdministration:
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation == 'activate_shadow'):
+            return value
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_database_storage.OPERATIONS):
             return value
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
@@ -4476,6 +4526,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation == 'activate_shadow'):
+            return firebird_shadow_activation.form(self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_database_storage.OPERATIONS):
             return firebird_database_storage.form(operation, self._field)

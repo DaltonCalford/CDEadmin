@@ -89,6 +89,11 @@ NORMAL_COMPLETION_ORDER = (
     'shutdown_database', 'bring_online',
 )
 PREVIEW_VALUES = {
+    'activate_shadow': {
+        'First shadow filename': '/var/lib/firebird/data/cde-preview.shd',
+        'Confirm shadow filename': '/var/lib/firebird/data/cde-preview.shd',
+        'The original database is stopped or isolated': True,
+    },
     'backup_logical': {
         'Backup filename on the Firebird server': (
             '/var/lib/firebird/data/cdeadmin-ui-form-gate.fbk'

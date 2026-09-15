@@ -398,6 +398,32 @@ class ProviderWorkspaceTests(unittest.TestCase):
                 focused_operation_id='invented-operation',
             )
 
+    def test_targetless_service_form_does_not_invent_a_database(self):
+        descriptor = self.provider.visual_admin_descriptor()
+        database = next(item for item in descriptor['objects']
+                        if item['resource_kind'] == 'database')
+        operation = database['operations'][0]
+        operation.update({'operation_id': 'recover',
+                          'workspace_scope': 'server_service',
+                          'target_required': False})
+        self.provider.visual_admin_descriptor = lambda: descriptor
+        self.endpoints.database_catalog = lambda _server: {'targets': []}
+        self.workspace.resource_service = SimpleNamespace(
+            list_page=lambda *_args, **_kwargs: self.fail(
+                'A targetless service task must not attach to a database'))
+        for target_id in (None, '', Ellipsis):
+            payload = self.workspace.bootstrap(
+                SimpleNamespace(name='localhost'),
+                database_target_id=target_id, focused_operation_id='recover')
+            self.assertEqual([], payload['resource_page']['items'])
+            self.assertEqual(0, payload['resource_page']['total_count'])
+        operation['target_required'] = True
+        with self.assertRaisesRegex(ProviderWorkspaceError,
+                                    'requires a database target'):
+            self.workspace.bootstrap(SimpleNamespace(name='localhost'),
+                                     database_target_id=None,
+                                     focused_operation_id='recover')
+
     def test_provider_session_is_explicitly_closed_in_database_scope(self):
         server = SimpleNamespace()
         opened = self.workspace.open_session(

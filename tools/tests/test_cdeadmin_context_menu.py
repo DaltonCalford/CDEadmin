@@ -75,6 +75,21 @@ def profile(engine_id, *, route_kind='network', multiple=False):
 
 class ContextMenuTests(unittest.TestCase):
 
+    def test_firebird_shadow_recovery_is_an_explicit_server_service_task(self):
+        for state, can_manage in (('verified', True), ('unverified', True),
+                                  ('verified', False)):
+            actions = endpoint_context_actions(
+                profile('firebird'), state, can_manage=can_manage)
+            action = next(item for item in actions if item['command_id'] ==
+                          'endpoint.firebird.activate_shadow')
+            self.assertEqual(state == 'verified' and can_manage,
+                             action['enabled'])
+            self.assertTrue(action['requires_confirmation'])
+            self.assertFalse(action['macro_callable'])
+            self.assertIsNone(action['arguments']['database_target_id'])
+            self.assertEqual('activate_shadow',
+                             action['arguments']['operation_id'])
+
     def test_group_create_retains_scope_without_fabricating_target(self):
         catalog = {'objects': [{'resource_kind': 'table', 'title': 'Table',
                                 'operations': [{

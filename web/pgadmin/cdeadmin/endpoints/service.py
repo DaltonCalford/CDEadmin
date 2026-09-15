@@ -258,7 +258,13 @@ class EndpointService:
                 'server is not a provider-managed endpoint'
             )
         profile = registration_profile(endpoint.profile_id)
-        database_override = Ellipsis
+        # Firebird endpoint verification is a Services API attachment. A
+        # retained active database may be offline or missing during recovery;
+        # it must not turn server authentication into a database attachment.
+        # Explicit database verification still uses that selected target.
+        database_override = (
+            None if endpoint.profile_id == 'firebird-native' and
+            database_target_id is None else Ellipsis)
         database_options = None
         if database_target_id is not None:
             target = self._owned_database_target(endpoint, database_target_id)

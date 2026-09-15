@@ -1397,7 +1397,6 @@ class RelationalInventoryTests(unittest.TestCase):
             ('set_write_mode', {'mode': 'SYNC'}, 'set_write_mode'),
             ('set_access_mode', {'mode': 'READ_WRITE'}, 'set_access_mode'),
             ('set_sql_dialect', {'sql_dialect': '3'}, 'set_sql_dialect'),
-            ('activate_shadow', {}, 'activate_shadow'),
             ('remove_linger', {}, 'no_linger'),
             ('fixup_database', {'fixup_flags': ['SEQUENCE']},
              'nfix_database'),

@@ -71,11 +71,11 @@ class ProviderWorkspaceService:
             binding.instance, 'visual_admin_descriptor', None
         )
         visual_admin = describe_admin() if callable(describe_admin) else None
-        service_target = self._service_workspace_target(
+        service_targets = self._service_workspace_targets(
             context, root, visual_admin, server, database_target_id,
             focused_operation_id,
         )
-        if service_target is None:
+        if service_targets is None:
             page = self.resource_service.list_page(
                 context, root, page_size=500,
                 provider_route=endpoint['route'],
@@ -86,9 +86,9 @@ class ProviderWorkspaceService:
                     context.endpoint_id, root['resource_id']
                 ),
                 generation=root['generation'],
-                items=(service_target,),
+                items=service_targets,
                 next_cursor=None,
-                total_count=1,
+                total_count=len(service_targets),
             ).to_dict()
         describe_engine_contract = getattr(
             binding.instance, 'engine_contract_descriptor', None
@@ -190,11 +190,11 @@ class ProviderWorkspaceService:
             ),
         }
 
-    def _service_workspace_target(
+    def _service_workspace_targets(
         self, context, root, visual_admin, server, database_target_id,
         focused_operation_id,
     ):
-        """Build one attachment-free target for provider service forms."""
+        """Build attachment-free targets for provider service tasks."""
         if focused_operation_id is None:
             return None
         if not isinstance(focused_operation_id, str) or not (
@@ -220,6 +220,12 @@ class ProviderWorkspaceService:
             )
         if operation.get('workspace_scope') != 'server_service':
             return None
+        if (operation.get('target_required') is False and
+                database_target_id in (Ellipsis, None, '')):
+            # The task owns its explicit server-side target field (for
+            # example a recovery shadow). Do not fabricate or attach to a
+            # registered database just to render that form.
+            return ()
         if not isinstance(database_target_id, str) or not database_target_id:
             raise ProviderWorkspaceError(
                 'provider service operation requires a database target'
@@ -237,7 +243,7 @@ class ProviderWorkspaceService:
                 'provider service database target is unavailable'
             )
         display_name = target['display_name']
-        return {
+        return ({
             'identity': copy.deepcopy(root['identity']),
             'endpoint_id': context.endpoint_id,
             'resource_id': f'database-service-target:{database_target_id}',
@@ -256,7 +262,7 @@ class ProviderWorkspaceService:
                 'service_scope_only': True,
                 'focused_operation_id': operation_id,
             }},
-        }
+        },)
 
     def database_target_action(self, server, action, request):
         """Manage server-owned database attachments and refresh resources."""
@@ -1010,10 +1016,12 @@ class ProviderWorkspaceService:
         if max_rows is not None:
             if context.provider_id != 'org.cdeadmin.firebird':
                 raise ProviderWorkspaceError(
-                    'this provider has not admitted a maximum-row fetch policy')
+                    'this provider has not admitted a maximum-row fetch '
+                    'policy')
             if type(max_rows) is not int or not 1 <= max_rows <= 1_000_000:
                 raise ProviderWorkspaceError(
-                    'maximum fetched rows must be an integer from 1 to 1000000')
+                    'maximum fetched rows must be an integer from 1 to '
+                    '1000000')
             policy['max_rows'] = max_rows
         return self.studio_service.execute(
             context,

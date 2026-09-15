@@ -992,6 +992,66 @@ class EndpointVerificationTests(unittest.TestCase):
         self.assertIn('default-secret-canary', server.password)
         self.assertEqual('Firebird lab', result['display_name'])
 
+    def test_firebird_server_verification_does_not_open_active_database(self):
+        for profile_id, target_id, expected in (
+                ('firebird-native', None, None),
+                ('firebird-native', 'selected', '/owned/selected.fdb'),
+                ('example-native', None, '/owned/missing.fdb')):
+            with self.subTest(profile=profile_id, target=target_id):
+                endpoint = SimpleNamespace(
+                    id=str(uuid.uuid4()), endpoint_mode='legacy_native',
+                    experience_family='firebird', provider_id='org.example',
+                    provider_version='1.0', profile_id=profile_id,
+                    profile_version='1.0', target_adapter_id='example',
+                    target_adapter_version='1.0',
+                    pool_namespace=str(uuid.uuid4()),
+                    session_namespace=str(uuid.uuid4()),
+                    cache_namespace=str(uuid.uuid4()),
+                    diagnostic_namespace=str(uuid.uuid4()),
+                    runtime_identity=SimpleNamespace(
+                        declared_runtime_family='firebird',
+                        verification_state='unverified'),
+                    secret_references=[], routes=[SimpleNamespace(
+                        id='owned-route', priority=0,
+                        configuration=json.dumps({'host': 'localhost'}))],
+                    database_targets=[SimpleNamespace(
+                        id='active-target', active=True,
+                        database='/owned/missing.fdb', configuration='{}')])
+                server = SimpleNamespace(id=10, user_id=7,
+                                         endpoint_profile=endpoint)
+                observed = []
+
+                def discover(request):
+                    observed.append(request['route'])
+                    return {'verified_runtime': {
+                        'engine_id': 'firebird', 'version': '5.0.4',
+                        'evidence_reference': 'owned-service'}}
+
+                security = SimpleNamespace(secrets=SimpleNamespace(
+                    register_resolver=lambda *_args: None,
+                    register_reference=lambda *_args: None))
+                service = EndpointService(SimpleNamespace(
+                    resolve=lambda _context: SimpleNamespace(
+                        instance=SimpleNamespace(discover_endpoint=discover))),
+                    security)
+                with (patch(
+                        'pgadmin.cdeadmin.endpoints.service.'
+                        'registration_profile', return_value={
+                            'route_kind': 'network',
+                            'requires_secret': False}), patch.object(
+                        service, '_record_verification'), patch.object(
+                        service, '_owned_database_target',
+                        return_value=SimpleNamespace(
+                            database='/owned/selected.fdb')),
+                        patch.object(service, '_database_target_configuration',
+                                     return_value={})):
+                    service.verify_server(server, database_target_id=target_id)
+                self.assertEqual(expected, observed[0].get('database'))
+                if expected is None:
+                    self.assertNotIn('database', observed[0])
+                self.assertEqual('/owned/missing.fdb',
+                                 endpoint.database_targets[0].database)
+
     def test_verification_fails_over_before_session_establishment(self):
         endpoint_id = str(uuid.uuid4())
         runtime = SimpleNamespace(
@@ -1263,8 +1323,9 @@ class EndpointVerificationTests(unittest.TestCase):
                 'route_kind': 'network', 'requires_secret': True,
             },
         ), patch.object(service, '_record_verification') as record, \
-                patch.object(service, '_owned_database_target', return_value=
-                             SimpleNamespace(database='selected_database')) \
+                patch.object(service, '_owned_database_target',
+                             return_value=SimpleNamespace(
+                                 database='selected_database')) \
                 as owned_target, \
                 patch.object(service, '_database_target_configuration',
                              return_value={}):
