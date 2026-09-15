@@ -27,6 +27,8 @@ import ProviderTransactionObservation from './ProviderTransactionObservation';
 import FirebirdServiceObservation from './FirebirdServiceObservation';
 import FirebirdLimboObservation from './FirebirdLimboObservation';
 import {useModalCloseGuard} from '../helpers/ModalCloseGuard';
+import {providerConnectionFieldGridSx} from
+  'sources/cdeadmin_ui/foundations/providerConnectionLayout';
 
 const DATABASE_SCOPED_REQUEST_ACTIONS = new Set([
   'resource_page', 'resource_refresh', 'resource_inspect',
@@ -5635,8 +5637,8 @@ export function ServerProfileWorkspace({registration, post, setError,
     <Alert severity="info" sx={{mb: 2}}>
       {gettext('This endpoint form, its fields, and its validation are owned by the selected engine profile.')}
     </Alert>
-    <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))', gap: 2}}>
+    <Box data-cde-connection-fields="server"
+      sx={providerConnectionFieldGridSx}>
       {(form.fields || []).filter((field) => fieldVisible(field, draft))
         .map((field) => <VisualAdminField key={field.field_id} field={field}
           value={draft[field.field_id]} onChange={(value) => {
@@ -5885,8 +5887,8 @@ export function DatabaseTargetWorkspace({initialCatalog, visualCatalog,
       {managementModes.map((operationId) => <MenuItem key={operationId}
         value={operationId}>{forms[operationId].title}</MenuItem>)}
     </TextField>}
-    {activeForm && <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 2}}>
+    {activeForm && <Box data-cde-connection-fields="database"
+      sx={providerConnectionFieldGridSx}>
       {(activeForm.fields || []).filter((field) =>
         fieldVisible(field, draft)).map(
         (field) => <Box key={field.field_id} sx={{minWidth: 0,

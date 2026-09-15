@@ -221,12 +221,39 @@ def _rounding_label(mode):
             'SERVER_DEFAULT': 'Use server preference'}.get(mode, mode)
 
 
+def _validate_selected_value_layout(layout):
+    if not layout or not layout.get('controls') or any(
+            item['width'] <= 0 or item['height'] <= 0 or
+            item['content_width'] > item['width'] + 1 or
+            item['content_height'] > item['height'] + 1 or
+            item['white_space'] != 'normal' for item in layout['controls']):
+        raise RuntimeError('Connection form selected values are clipped')
+
+
 def _rounding_capture(driver, wait, folder, evidence, *, server=False):
     field = wait.until(lambda value: shared.visible_named_control(
         value, 'Initial DECFLOAT rounding mode'))
     driver.execute_script(
         'arguments[0].scrollIntoView({block:"center",inline:"nearest"})',
         field)
+    layout = driver.execute_script('''
+        const grid=arguments[0].closest('[data-cde-connection-fields]');
+        if (!grid) return null;
+        return {
+          columns:getComputedStyle(grid).gridTemplateColumns,
+          root_font_pixels:parseFloat(getComputedStyle(
+            document.documentElement).fontSize),
+          controls:[...grid.querySelectorAll('[role="combobox"]')].map(
+            item => ({width:item.clientWidth, content_width:item.scrollWidth,
+              height:item.clientHeight, content_height:item.scrollHeight,
+              white_space:getComputedStyle(item).whiteSpace}))
+        };
+    ''', field)
+    # Preserve measurements on failure too; never record field values here.
+    (folder / 'selected-value-layout.json').write_text(
+        json.dumps(layout, indent=2) + '\n', encoding='utf-8')
+    _validate_selected_value_layout(layout)
+    evidence['selected_value_layout'] = layout
     crop = folder / 'rounding-control.png'
     if not field.screenshot(str(crop)):
         raise RuntimeError('The rounding control screenshot was not saved')
