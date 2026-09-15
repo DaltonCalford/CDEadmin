@@ -135,7 +135,7 @@ def test_catalog_and_planner_use_only_native_udf_lifecycle_operations():
                  if item['resource_kind'] == 'external-function')
     assert entry['title'] == 'Legacy external function'
     assert {item['operation_id'] for item in entry['operations']} == (
-        udf.OPERATIONS)
+        udf.OPERATIONS | {'grant', 'revoke'})
     for action, values in (
             ('create', draft()),
             ('alter', {'alter_target': 'ENTRY_POINT', 'entrypoint': 'other'}),

@@ -27,7 +27,9 @@ def inputs():
     tasks = {item['task_id']: {'live_execution': 'passed',
                                'statements': item['statements']}
              for item in document['task_templates']
-             if item['task_id'].startswith('visual_admin.external-function.')}
+             if item['task_id'] in {
+                 'visual_admin.external-function.' + action for action in
+                 ('create', 'alter', 'comment', 'drop')}}
     assert len(tasks) == 4
     return document, {
         'schema': 'cdeadmin.firebird-external-functions.v1',

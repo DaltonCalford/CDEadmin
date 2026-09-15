@@ -763,6 +763,113 @@ def supplement_blob_filters(document, evidence, digest, artifact):
     return value
 
 
+def supplement_object_privileges(document, evidence, digest, artifact):
+    """Admit object-bound rights only after scoped native and access proofs."""
+    from pgadmin.cdeadmin.providers.firebird import object_privileges as bound
+    validate_dialect_contract(document, PROFILE)
+    names = {'table': 'T', 'view': 'VW', 'procedure': 'P', 'function': 'F',
+             'package': 'PK', 'sequence': 'S', 'exception': 'E',
+             'external-function': 'EF', 'column': 'C'}
+    required = {kind + '-' + names[kind] + '-' + value
+                for kind in names for value in bound.allowed_privileges(kind)}
+    required |= {
+        'table-T-UPDATE,REFERENCES-column-list',
+        'view-VW-UPDATE,REFERENCES-column-list', 'table-T"東京-SELECT',
+        'column-C.with.dot-UPDATE,REFERENCES',
+    } | {f'{kind}-{names[kind]}-EXECUTE-package-{package}'
+         for kind in ('function', 'procedure') for package in ('PK', 'PK2')}
+    checks = evidence.get('checks', [])
+    tasks = {f'visual_admin.{kind}.{operation}' for kind in names
+             for operation in ('grant', 'revoke')}
+    if (evidence.get('schema') != 'cdeadmin.firebird-object-privileges.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or
+            evidence.get('catalog_namespaces_verified') is not True or
+            len(checks) != len(required) or
+            {item.get('case') for item in checks} != required or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Object privilege native evidence is incomplete')
+    for item in checks:
+        if any(item.get(key) is not True for key in (
+                'grant_rollback_verified', 'revoke_rollback_verified',
+                'committed_roundtrip_verified',
+                'native_target_resolution_verified')):
+            raise ValueError('Object privilege transaction/target '
+                             'proof missing')
+    permissions = evidence.get('permission_checks', [])
+    labels = {f'effective-{kind}-{state}' for kind in (
+        'table', 'view', 'procedure', 'function', 'package', 'sequence',
+        'column') for state in ('before', 'granted', 'revoked')}
+    if len(permissions) != 21 or {
+            item.get('case') for item in permissions} != labels:
+        raise ValueError('Object privilege access checks are incomplete')
+    for item in permissions:
+        allowed = item['case'].endswith('-granted')
+        if (item.get('fresh_attachment') is not True or
+                item.get('accepted') is not allowed or
+                not allowed and 335544352 not in item.get(
+                    'native_status_codes', [])):
+            raise ValueError('Object privilege native access was not verified')
+    namespaces = evidence.get('catalog_namespaces', [])
+    namespace_ids = {(item.get('kind'), item.get('package'))
+                     for item in namespaces}
+    if len(namespaces) != 6 or namespace_ids != {
+            (kind, package) for kind in ('function', 'procedure')
+            for package in (None, 'PK', 'PK2')}:
+        raise ValueError('Routine namespace evidence is incomplete')
+    for item in namespaces:
+        kind, package = item['kind'], item['package']
+        prefix = 'V_' if kind == 'function' else 'CALL_'
+        caller = prefix + {None: 'GLOBAL', 'PK': 'PACKAGE',
+                           'PK2': 'PACKAGE2'}[package]
+        name = 'F' if kind == 'function' else 'P'
+        if (item.get('observed_callers') != [caller] or
+                item.get('expected_caller') != caller or
+                item.get('name') != name or
+                item.get('authority_path') != (
+                    [package, kind, name] if package else [kind, name])):
+            raise ValueError('Routine dependencies crossed native namespaces')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-object-privileges-live'
+    parser_id = 'firebird-5.0.4-object-privileges-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Object privilege task lacks native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -792,7 +899,7 @@ def main(argv=None):
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
-        'external-functions', 'blob-filters'),
+        'external-functions', 'blob-filters', 'object-privileges'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -802,6 +909,7 @@ def main(argv=None):
                       'character-metadata': supplement_character_metadata,
                       'external-functions': supplement_external_functions,
                       'blob-filters': supplement_blob_filters,
+                      'object-privileges': supplement_object_privileges,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

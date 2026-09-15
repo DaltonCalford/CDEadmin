@@ -43,6 +43,7 @@ from .firebird.backup_volumes import logical_backup_volumes
 from .firebird.restore_files import logical_restore_files
 from .firebird.physical_io import normalize_physical_io
 from .firebird import privileges as firebird_privileges
+from .firebird import object_privileges as firebird_object_privileges
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
@@ -293,6 +294,20 @@ class RelationalAdministration:
                         'target_resource_names': ['RDB$ADMIN'],
                         'allow_system_target': True,
                     }]
+            if (self.dialect.engine_id == 'firebird' and
+                    kind in firebird_object_privileges.KINDS):
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] not in
+                    firebird_object_privileges.OPERATIONS
+                ] + [{
+                    'operation_id': operation,
+                    'title': operation.title() + ' ' +
+                    kind.replace('-', ' ') + ' privileges',
+                    'mutation_class': 'admin', 'target_required': True,
+                    'confirmation_required': True,
+                } for operation in sorted(
+                    firebird_object_privileges.OPERATIONS)]
             resource['operations'] = [
                 operation for operation in resource.get('operations', [])
                 if self.supports(kind, operation['operation_id'])
@@ -431,6 +446,18 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind in firebird_object_privileges.KINDS and
+                operation_id in firebird_object_privileges.OPERATIONS):
+            try:
+                firebird_object_privileges.compile_operation(
+                    resource_kind, operation_id, draft,
+                    request.get('target_resource'))
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_object_privilege',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'blob-filter' and operation_id != 'inspect'):
             try:
@@ -2975,6 +3002,13 @@ class RelationalAdministration:
     def _compile(self, request):
         operation = request['operation_id']
         if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] in firebird_object_privileges.KINDS
+                and operation in firebird_object_privileges.OPERATIONS):
+            source = firebird_object_privileges.compile_operation(
+                request['resource_kind'], operation, request['draft'],
+                request.get('target_resource'))
+            return {'statements': [{'source': source, 'parameters': ()}]}
+        if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'blob-filter' and
                 operation != 'inspect'):
             statements = firebird_blob_filters.compile_operation(
@@ -4268,6 +4302,11 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and
+                kind in firebird_object_privileges.KINDS and
+                operation in firebird_object_privileges.OPERATIONS):
+            return firebird_object_privileges.form(
+                kind, operation, self._field)
         if (self.dialect.engine_id == 'firebird' and
                 kind == 'external-function' and operation != 'inspect'):
             return firebird_external_functions.form(operation, self._field)

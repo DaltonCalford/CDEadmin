@@ -734,7 +734,10 @@ function sectionPayload(section, resource, descriptor) {
     return native.dependencies ?? [];
   }
   if (section === 'dependents') return native.dependents ?? [];
-  if (section === 'privileges') return native.privileges ?? [];
+  if (section === 'privileges') return native.package_privileges ? {
+    object_privileges: native.privileges ?? [],
+    package_privileges: native.package_privileges,
+  } : native.privileges ?? [];
   if (section === 'security') {
     return native.security ?? native.privileges ?? native.grants ?? [];
   }
@@ -872,7 +875,7 @@ NativePropertyValue.propTypes = {
 };
 
 export function ObjectInspectorSection({resource, descriptor, loading,
-  tabbed=false, onRefresh}) {
+  tabbed=false, onRefresh, onOperation}) {
   const sections = inspectorSections(resource, descriptor);
   const coverage = providerNative(resource)?.catalog_coverage;
   const [section, setSection] = useState(sections[0]);
@@ -911,6 +914,19 @@ export function ObjectInspectorSection({resource, descriptor, loading,
     <Box role="tabpanel" aria-label={`${section} ${gettext('object section')}`}
       sx={{m: 0, p: 1, overflow: 'auto', maxHeight: 320,
         bgcolor: 'background.default'}}>
+      {onOperation && ['privileges', 'security'].includes(section) &&
+        <Box role="group" aria-label={gettext('Object permission tasks')}
+          sx={{display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1}}>
+          {(descriptor?.operations || []).filter((item) =>
+            ['grant', 'revoke'].includes(item.operation_id) &&
+            item.native_supported !== false).map((item) =>
+            <Button key={item.operation_id} disabled={loading ||
+              item.execution_available !== true}
+            title={(item.blockers || []).join(', ')}
+            onClick={() => onOperation(item.operation_id)}>
+              {item.title}
+            </Button>)}
+        </Box>}
       <NativePropertyValue value={sectionPayload(
         section, resource, descriptor
       )} />
@@ -924,6 +940,7 @@ ObjectInspectorSection.propTypes = {
   loading: PropTypes.bool,
   tabbed: PropTypes.bool,
   onRefresh: PropTypes.func,
+  onOperation: PropTypes.func,
 };
 
 export function initialObjectDraft(fields, resource) {
@@ -1302,6 +1319,14 @@ export function VisualAdministration({catalog, resources, selectedResource, post
         sx={{minWidth: 0, '& .MuiFormHelperText-root': {
           whiteSpace: 'normal', overflowWrap: 'anywhere',
         }}}>
+        {objectEditor && operationId !== 'inspect' && <Box
+          aria-label={gettext('Selected administration object')}
+          sx={{p: 1, mb: 1, border: 1, borderColor: 'divider',
+            overflowWrap: 'anywhere'}}>
+          <Box component="strong">{objectDescriptor?.title || resourceKind}</Box>
+          {' · '}{selectedResource?.display_path?.join(' › ') ||
+            selectedResource?.display_name}
+        </Box>}
         {objectEditor && <Tabs value={operation?.operation_id || false}
           variant="scrollable" scrollButtons="auto"
           aria-label={gettext('Selected object operations')}
@@ -1312,8 +1337,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
         {(!objectEditor && (!focused || operationId === 'inspect') ||
           objectEditor && operationId === 'inspect') && <ObjectInspectorSection
           resource={inspectedResource || selectedResource}
-          descriptor={objectDescriptor} loading={inspecting}
+          descriptor={objectEditor ? {...objectDescriptor, operations} :
+            objectDescriptor} loading={inspecting}
           tabbed={objectEditor}
+          onOperation={objectEditor ? setOperationId : undefined}
           onRefresh={objectEditor && !working &&
             JSON.stringify(draft) === JSON.stringify(baselineDraft) ?
             () => setInspectionRevision((revision) => revision + 1) : undefined} />}

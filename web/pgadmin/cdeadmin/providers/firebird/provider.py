@@ -23,7 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
-from . import blob_filters
+from . import blob_filters, object_privileges
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -116,15 +116,16 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'table': frozenset({
             'inspect', 'create', 'alter', 'drop',
-            'insert', 'update', 'delete',
+            'insert', 'update', 'delete', 'grant', 'revoke',
         }),
-        'view': frozenset({'inspect', 'create', 'alter', 'drop'}),
+        'view': frozenset({'inspect', 'create', 'alter', 'drop',
+                           'grant', 'revoke'}),
         'column': frozenset({'inspect', 'create', 'alter', 'comment',
-                             'rename', 'drop'}),
+                             'rename', 'drop', 'grant', 'revoke'}),
         'constraint': frozenset({'inspect', 'create', 'drop'}),
         'index': frozenset({'inspect', 'create', 'alter', 'drop'}),
         'sequence': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'domain': frozenset({
             'inspect', 'create', 'alter', 'rename', 'drop',
@@ -133,16 +134,16 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'inspect', 'create', 'alter', 'drop',
         }),
         'procedure': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'function': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'package': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'exception': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
         }),
         'role': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
@@ -153,7 +154,8 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'global-authentication-mapping': mappings.OPERATIONS,
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
         **character_metadata.OPERATIONS,
-        'external-function': external_functions.OPERATIONS,
+        'external-function': (external_functions.OPERATIONS |
+                              object_privileges.OPERATIONS),
         'blob-filter': blob_filters.OPERATIONS,
         'plugin': frozenset({'inspect'}),
         'publication': frozenset({'inspect', 'alter'}),
@@ -1531,7 +1533,9 @@ def _resources(connection, request):
                                 'this script restores its database settings.')
                     except RelationalClientError as error:
                         native['ddl_unavailable_reason'] = str(error)
-                add(kind, [], row[0], native)
+                package = native.get('package') if kind in {
+                    'procedure', 'function', 'external-function'} else None
+                add(kind, [package] if package else [], row[0], native)
 
             # System objects are real catalog objects; "sys" is solely a
             # navigator folder. Keep identities and authority paths intact.
@@ -1551,7 +1555,9 @@ def _resources(connection, request):
                 native['system_object'] = True
                 if kind == 'role':
                     native.update(_role_privileges(row[1]))
-                add(kind, [], row[0], native)
+                package = native.get('package') if kind in {
+                    'procedure', 'function', 'external-function'} else None
+                add(kind, [package] if package else [], row[0], native)
 
         def routine_named(kind, name, package):
             name = str(name or '').rstrip(' ')
@@ -1789,7 +1795,7 @@ def _resources(connection, request):
             35: 'tablespace', 37: 'partial index condition',
         }
 
-        def objects_named(name, object_type=None):
+        def objects_named(name, object_type=None, package=None):
             normalized = str(name or '').rstrip(' ')
             kinds = dependency_kinds.get(object_type)
             if object_type is not None and kinds is None:
@@ -1798,7 +1804,9 @@ def _resources(connection, request):
                 item for item in resources.values()
                 if item['display_name'] == normalized and (
                     kinds is None or item['resource_kind'] in kinds
-                )
+                ) and (object_type not in {5, 15} or
+                       str(item.get('native', {}).get('package') or '') ==
+                       str(package or '').rstrip(' '))
             ]
 
         for (
@@ -1822,11 +1830,38 @@ def _resources(connection, request):
                 'field_name': str(field_name or '').rstrip(' ') or None,
                 'package_name': str(package_name or '').rstrip(' ') or None,
             }
-            for item in objects_named(dependent_name, dependent_type):
+            dependent_targets = objects_named(dependent_name, dependent_type)
+            if dependent_type == 3:
+                # Computed view/table expressions depend through an implicit
+                # RDB$FIELDS record, not the relation's display name. Preserve
+                # that native record and resolve its real column/owner links.
+                computed_columns = [item for item in resources.values() if
+                                    item['resource_kind'] == 'column' and
+                                    item.get('native', {}).get('domain') ==
+                                    str(dependent_name or '').rstrip(' ')]
+                dependent_targets = list(computed_columns)
+                for column in computed_columns:
+                    for owner in resources.values():
+                        if (owner['resource_kind'] in {'table', 'view'} and
+                                owner['display_path'] ==
+                                column['display_path'][:-1] and
+                                owner not in dependent_targets):
+                            dependent_targets.append(owner)
+                dependent['dependent_resolution'] = {
+                    'state': 'resolved' if computed_columns else 'unresolved',
+                    'authority': 'RDB$RELATION_FIELDS.RDB$FIELD_SOURCE',
+                    'resources': [{key: item[key] for key in (
+                        'resource_id', 'resource_kind', 'display_name',
+                        'display_path')} for item in dependent_targets],
+                }
+                dependency['via_computed_field'] = str(
+                    dependent_name or '').rstrip(' ')
+            for item in dependent_targets:
                 item.setdefault('native', {}).setdefault(
                     'dependencies', []
                 ).append(dependency)
-            for item in objects_named(depended_name, depended_type):
+            for item in objects_named(depended_name, depended_type,
+                                      package_name):
                 item.setdefault('native', {}).setdefault(
                     'dependents', []
                 ).append(dependent)
@@ -1921,7 +1956,9 @@ def _resources(connection, request):
                  if target['resource_kind'] == 'database']
                 if grant.get('object_type') == 21 else
                 [target for target in objects_named(object_name)
-                 if target['resource_kind'] in target_kinds]
+                 if target['resource_kind'] in target_kinds and
+                 not (grant.get('object_type') in {5, 15} and
+                      target.get('native', {}).get('package'))]
             )
             server_creation = grant.get('catalog_source') == 'SEC$DB_CREATORS'
             if server_creation:
@@ -1981,6 +2018,23 @@ def _resources(connection, request):
                     principal.setdefault('native', {}).setdefault(
                         'privileges', []
                     ).append(grant)
+
+        for item in resources.values():
+            native = item.setdefault('native', {})
+            package = native.get('package')
+            if item['resource_kind'] not in {'procedure', 'function'} or (
+                    not package):
+                continue
+            owners = [value for value in objects_named(package)
+                      if value['resource_kind'] == 'package']
+            if len(owners) == 1:
+                native['package_privileges'] = {
+                    'package': package,
+                    'scope': 'Entire package, not an individual routine',
+                    'privileges': list(owners[0].get('native', {}).get(
+                        'privileges', [])),
+                    'effective_access_verified': False,
+                }
 
         def identifier(value):
             return '"' + str(value).replace('"', '""') + '"'
@@ -2826,7 +2880,7 @@ def _resources(connection, request):
         # 5 does not expose SQL GRANT USAGE ON this object class. Do not add
         # these kinds to grantable_kinds or fabricate executable grants.
         privilege_capable = grantable_kinds | {
-            'user', 'character-set', 'collation', 'blob-filter'}
+            'user', 'column', 'character-set', 'collation', 'blob-filter'}
         for item in resources.values():
             kind = item['resource_kind']
             native = item.setdefault('native', {})

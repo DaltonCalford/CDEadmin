@@ -529,6 +529,17 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if operation_id in {'grant', 'revoke'} and kind in {
+                'table', 'view', 'column', 'procedure', 'function',
+                'external-function', 'package', 'sequence', 'exception'}:
+            from pgadmin.cdeadmin.providers.firebird.object_privileges import (
+                allowed_privileges,
+            )
+            return rendered({
+                'principal_kind': 'USER', 'principal': 'CDE_UI_READER',
+                'privileges': json.dumps([allowed_privileges(kind)[0]]),
+                'confirmation': 'CDE_UI_READER',
+            })
         if kind == 'column' and operation_id in {'alter', 'comment'}:
             return rendered({'action': 'POSITION', 'position': 1,
                              'description': 'Column preview comment'})
