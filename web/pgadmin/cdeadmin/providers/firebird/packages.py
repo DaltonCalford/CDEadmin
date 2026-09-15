@@ -131,7 +131,8 @@ def form(operation, field):
                 'create', 'recreate'},
             BODY_WARNING + (' Leave empty to create only the header.'
                             if operation in {'create', 'recreate'} else '')),
-                       'initial_value_path': ['body_source']})
+                       'initial_value_path': ['body_source'],
+                       'submit_unchanged': operation == 'recreate'})
     if operation in {'create', 'recreate', 'comment'}:
         fields.append({**field('description', 'Comment', 'multiline', False,
                                'Empty removes the comment.', ''),

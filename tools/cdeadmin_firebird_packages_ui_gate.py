@@ -38,7 +38,7 @@ def run(options, profiles):
                               **_route_arguments(route, firebird))
     browser = None
     result = {'passed': False, 'checks': [], 'failures': [],
-              'owner_navigation': [], 'expected_mutation_count': 14,
+              'owner_navigation': [], 'expected_mutation_count': 15,
               'credential_values_exported': False,
               'target_database': options.database_path}
 
@@ -173,14 +173,19 @@ def run(options, profiles):
             lambda driver: visible_named_control(driver, title))
         wait.until(lambda _driver: button.is_enabled())
         selector = '[aria-label="Selected object operations"] [role="tab"]'
-        tabs = browser.find_elements('css selector', selector)
-        assert not any(item.text.lower() in {'alter', 'drop'} for item in tabs)
+        tabs = browser.execute_script("""
+            return Array.from(document.querySelectorAll(arguments[0]))
+              .map(item => item.textContent.trim().toLowerCase());
+            """, selector)
+        assert not {'alter', 'drop'} & set(tabs)
         before = screenshot_form_pages(browser, options.output_root /
                                        'member-owning-package')
         click_unobscured(browser, wait, button)
-        wait.until(lambda driver: any(
-            'Alter package header' == item.text for item in
-            driver.find_elements('css selector', selector)))
+        wait.until(lambda driver: driver.execute_script("""
+            return Array.from(document.querySelectorAll(arguments[0])).some(
+              item => item.textContent.trim() === 'Alter package header' &&
+                item.getClientRects().length);
+            """, selector))
         wait.until(idle)
         after = screenshot_form_pages(browser, options.output_root /
                                       'owning-package-editor')
@@ -199,7 +204,7 @@ def run(options, profiles):
         header = 'BEGIN FUNCTION F RETURNS INTEGER; END'
         body1 = 'BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 1; END END'
         body2 = body1.replace('RETURN 1', 'RETURN 2')
-        name = 'UI_HEADER'
+        name = 'UI_HEADER_' + str(options.font_scale)
         apply('create', name, {'name': name, 'header': header, 'body': ''},
               body=False)
         apply('create_body', name, {'body': body1}, body=True, invocation=1)
@@ -211,7 +216,7 @@ def run(options, profiles):
         apply('comment', name, {'description': "Owner's 東京 notes"},
               body=True, security=True)
         owner_navigation(name)
-        name2 = 'UI_UPSERT'
+        name2 = 'UI_UPSERT_' + str(options.font_scale)
         apply('create_or_alter', name2, {'name': name2, 'header': 'BEGIN END'},
               body=False)
         apply('create_or_alter', name2, {'name': name2, 'header': header},
@@ -219,15 +224,17 @@ def run(options, profiles):
         apply('recreate', name2, {
             'header': header, 'body': body2, 'confirmation': name2},
             body=True, invocation=2)
+        apply('recreate', name2, {'confirmation': name2},
+              body=True, invocation=2)
         apply('drop_body', name2, {'confirmation': name2}, body=False)
         apply('drop', name2, {'confirmation': name2}, present=False)
         apply('drop', name, {'confirmation': name}, present=False)
-        quoted = 'UI"東京'
+        quoted = 'UI"東京_' + str(options.font_scale)
         apply('create', quoted, {'name': quoted, 'header': header,
                                  'body': body1, 'sql_security': 'INVOKER'},
               body=True, security=False, invocation=1)
         apply('drop', quoted, {'confirmation': quoted}, present=False)
-        result['passed'] = (len(result['checks']) == 14 and
+        result['passed'] = (len(result['checks']) == 15 and
                             len(result['owner_navigation']) == 1)
     except Exception as error:
         result['failures'].append({'type': type(error).__name__})

@@ -35,6 +35,45 @@ async function memberEditor(onOpenDefinitionOwner) {
 }
 
 describe('Firebird package definitions', () => {
+  it('submits an unchanged displayed body when recreating the package', async () => {
+    const header = 'BEGIN FUNCTION F RETURNS INTEGER; END';
+    const body = 'BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 1; END END';
+    const selected = {...owner, display_path: ['PK'], extensions: {firebird: {native: {
+      package_sql_security: 'INVOKER', header_source: header, body_source: body,
+    }}}};
+    const post = jest.fn(async ({action}) => {
+      if (action === 'resource_inspect') return selected;
+      if (action === 'visual_admin_validate') return {valid: true};
+      return {plan_id: 'owned', plan_digest: 'd', state: 'ready', execution_available: true};
+    });
+    await act(async () => render(<VisualAdministration focused resources={[selected]}
+      selectedResource={selected} post={post} setError={jest.fn()}
+      initialResourceKind="package" initialOperationId="recreate"
+      catalog={{objects: [{resource_kind: 'package', title: 'Package', operations: [{
+        operation_id: 'recreate', title: forms.recreate.title, target_required: true,
+        form: forms.recreate,
+      }]}]}} />));
+    await waitFor(() => expect(screen.getByLabelText(/Public header/)).toHaveValue(header));
+    expect(screen.getByLabelText(/Package body/)).toHaveValue(body);
+    fireEvent.change(screen.getByLabelText(/Confirm package name/), {target: {value: 'PK'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(post.mock.calls.some(([request]) => request.action === 'visual_admin_plan')).toBe(true));
+    const request = post.mock.calls.find(([value]) => value.action === 'visual_admin_plan')[0].request;
+    expect(request.draft.body).toBe(body);
+    expect(request.draft.header).toBe(header);
+    expect(request.draft.sql_security).toBe('INVOKER');
+    const sql = JSON.parse(execFileSync('python3', ['-c',
+      'import json,sys; from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION; ' +
+      'from pgadmin.cdeadmin.providers.firebird.packages import compile_operation; ' +
+      'r=json.load(sys.stdin); print(json.dumps(compile_operation(' +
+      'r["operation_id"], r["draft"], r.get("target_resource"))))',
+    ], {cwd, input: JSON.stringify(request), encoding: 'utf8'}));
+    expect(sql.slice(0, 2)).toEqual([
+      'RECREATE PACKAGE "PK" SQL SECURITY INVOKER AS ' + header,
+      'CREATE PACKAGE BODY "PK" AS ' + body,
+    ]);
+  });
+
   it('hides invalid standalone DDL and opens the exact owning package', async () => {
     const open = jest.fn(async () => {});
     await memberEditor(open);

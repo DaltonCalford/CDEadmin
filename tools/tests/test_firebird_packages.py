@@ -115,6 +115,8 @@ def test_forms_have_exact_task_identity_and_no_compound_mutation(operation):
         assert fields['body']['required'] is False
     if operation in {'create_body', 'replace_body'}:
         assert set(fields) == {'body'}
+    if operation == 'recreate':
+        assert fields['body']['submit_unchanged'] is True
     if operation in {'create', 'alter'}:
         assert fields['sql_security']['initial_value_path'] == [
             'package_sql_security']
