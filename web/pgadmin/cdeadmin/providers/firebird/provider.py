@@ -848,7 +848,12 @@ def _firebird_service_operation(
         result.update(output=lines, output_truncated=truncated)
     elif operation_id == 'repair_database':
         flags = _flag_value(module, 'SrvRepairFlag',
-                            repair_selection['native_flags'])
+                            [name for name in repair_selection['native_flags']
+                             if name != 'NOLINGER'])
+        if repair_selection['no_linger_requested']:
+            # The native gfix bitmask includes this property flag, although
+            # firebird-driver declares it outside SrvRepairFlag.
+            flags |= module.core.SrvPropertiesFlag.NOLINGER
         workers = repair_selection['parallel_workers_requested']
         if workers is not None:
             _service_parallel_repair(

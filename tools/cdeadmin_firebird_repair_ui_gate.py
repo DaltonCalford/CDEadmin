@@ -64,15 +64,17 @@ def run(options, profiles):
               return send.apply(this, arguments);
             };
         ''')
-        cases = [(action, modifiers, None) for action, modifiers in (
+        cases = [(action, modifiers, None, False) for action, modifiers in (
                 ('VALIDATE_DB', []),
                 ('VALIDATE_DB', ['FULL', 'CHECK_DB']),
                 ('VALIDATE_DB', ['IGNORE_CHECKSUM']),
                 ('MEND_DB', ['CHECK_DB']),
                 ('CORRUPTION_CHECK', []), ('REPAIR', []),
                 ('KILL_SHADOWS', []), ('ICU', []), ('UPGRADE_DB', []))]
-        cases.extend(('ICU', [], count) for count in (0, 2, 32767))
-        for action, modifiers, workers in cases:
+        cases.extend(('ICU', [], count, False) for count in (0, 2, 32767))
+        cases.extend((action, [], None, True) for action in repair.ACTIONS)
+        cases.append(('ICU', [], 2, True))
+        for action, modifiers, workers, no_linger in cases:
             item = forms.wait_for_tree_item(wait, options.database)
             forms._context_click_visible_label(browser, wait, item)
             command = wait.until(lambda driver: driver.execute_script('''
@@ -156,11 +158,13 @@ def run(options, profiles):
                 'Native validation modifiers': modifiers,
                 'ICU parallel workers requested': (
                     workers if workers is not None else ''),
+                'Do not linger after this maintenance task': no_linger,
                 'SQL role': task_role}
             plan = plan_preview(browser, wait, operation, values)
             selection = repair.selection(database, {
                 'repair_action': action, 'repair_modifiers': modifiers,
-                'role': task_role, 'parallel_workers': workers},
+                'role': task_role, 'parallel_workers': workers,
+                'no_linger': no_linger},
                 route.get('role'))
             assert plan['command_preview']['repair_selection'] == selection
             assert browser.execute_script(

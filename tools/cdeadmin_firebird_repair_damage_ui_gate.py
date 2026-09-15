@@ -62,9 +62,13 @@ def run(options, profiles):
               return send.apply(this, arguments);
             };
         ''')
-        cases = (('VALIDATE_DB', ['FULL', 'CHECK_DB']),
-                 ('MEND_DB', ['CHECK_DB']), ('CORRUPTION_CHECK', []))
-        for action, modifiers in cases:
+        cases = [(action, modifiers, no_linger)
+                 for action, modifiers in (
+                     ('VALIDATE_DB', ['FULL', 'CHECK_DB']),
+                     ('MEND_DB', ['CHECK_DB']), ('CORRUPTION_CHECK', []))
+                 for no_linger in (False, True)]
+        for action, modifiers, no_linger in cases:
+            prefix = action + '-no-linger-' + str(no_linger)
             item = forms.wait_for_tree_item(wait, options.database)
             forms._context_click_visible_label(browser, wait, item)
             command = wait.until(lambda driver: driver.execute_script('''
@@ -93,12 +97,13 @@ def run(options, profiles):
             plan_preview(browser, wait, operation, {
                 'Repair action': action,
                 'Native validation modifiers': modifiers,
+                'Do not linger after this maintenance task': no_linger,
                 'ICU parallel workers requested': '', 'SQL role': ''})
             assert browser.execute_script(
                 'return window.__ownedDamageDispatches') == len(
                     result['checks'])
             pages = screenshot_form_pages(
-                browser, options.output_root / (action + '-plan'))
+                browser, options.output_root / (prefix + '-plan'))
             confirmation = visible_named_control(
                 browser, 'I confirm this provider-planned operation.')
             assert confirmation is not None
@@ -122,7 +127,7 @@ def run(options, profiles):
                 'css selector', '[aria-label="Provider workspace status"]')
             status.send_keys(forms.Keys.END)
             error_pages = screenshot_form_pages(
-                browser, options.output_root / (action + '-native-findings'))
+                browser, options.output_root / (prefix + '-native-findings'))
             connection = firebird.connect(
                 password=route['password'],
                 **_route_arguments(route, firebird))
@@ -138,6 +143,7 @@ def run(options, profiles):
                     len(result['checks']) + 1)
             result['checks'].append({
                 'action': action,
+                'no_linger_requested': no_linger,
                 'native_status_codes': [335740952, 335740986],
                 'apply_dispatch_count': 1, 'submitted_plan_retired': True,
                 'native_findings_visible': True, 'no_false_success': True,

@@ -29,11 +29,15 @@ MODIFIERS = [list(items) for count in range(4)
 
 @pytest.mark.parametrize('action', list(repair.ACTIONS))
 @pytest.mark.parametrize('modifiers', MODIFIERS)
-def test_repair_modifier_combinations(action, modifiers):
-    draft = {'repair_action': action, 'repair_modifiers': modifiers}
+@pytest.mark.parametrize('no_linger', [False, True])
+def test_repair_modifier_combinations(action, modifiers, no_linger):
+    draft = {'repair_action': action, 'repair_modifiers': modifiers,
+             'no_linger': no_linger}
     expected = list(repair.ACTIONS[action])
     expected.extend(item for item in repair.MODIFIERS
                     if item in modifiers and item not in expected)
+    if no_linger:
+        expected.append('NOLINGER')
     if action in ('KILL_SHADOWS', 'ICU', 'UPGRADE_DB') and modifiers:
         with pytest.raises(RelationalClientError):
             repair.flags(draft)
@@ -42,6 +46,7 @@ def test_repair_modifier_combinations(action, modifiers):
         selected = repair.selection('/data/exact.fdb ', draft)
         assert selected['database'] == '/data/exact.fdb '
         assert selected['native_flags'] == expected
+        assert selected['no_linger_requested'] is no_linger
         assert selected['ignore_checksums'] == ('IGNORE_CHECKSUM' in expected)
         assert selected['no_update'] == ('CHECK_DB' in expected)
         assert selected['mend_requested'] == ('MEND_DB' in expected)
@@ -209,3 +214,68 @@ def test_invalid_icu_worker_request_never_dispatches(workers):
 def test_worker_option_is_not_invented_for_other_repair_actions(action):
     test_invalid_repair_never_dispatches_a_native_service({
         'repair_action': action, 'parallel_workers': 1})
+
+
+@pytest.mark.parametrize('value', [None, 0, 1, 'true', 'false', [], {}])
+def test_no_linger_requires_an_explicit_boolean(value):
+    test_invalid_repair_never_dispatches_a_native_service({
+        'repair_action': 'ICU', 'no_linger': value})
+
+
+@pytest.mark.parametrize('draft,field', [
+    ({'repair_action': 'ICU', 'no_linger': 1}, 'no_linger'),
+    ({'repair_action': 'VALIDATE_DB', 'parallel_workers': 1},
+     'parallel_workers'),
+    ({'repair_action': 'ICU', 'parallel_workers': 32768}, 'parallel_workers'),
+])
+def test_repair_option_errors_identify_the_correct_visual_field(draft, field):
+    errors = ADMINISTRATION.validate({
+        'resource_kind': 'database', 'operation_id': 'repair_database',
+        'draft': draft})['errors']
+    assert errors and all(item['field_id'] == field for item in errors)
+
+
+@pytest.mark.parametrize('action', list(repair.ACTIONS))
+def test_no_linger_is_part_of_one_native_repair_request(action):
+    import firebird.driver as driver
+    server = Mock()
+    response = _firebird_service_operation(
+        server, 'repair_database', '/owned/exact.fdb',
+        {'repair_action': action, 'no_linger': True}, driver)
+    server.database.repair.assert_called_once()
+    flags = server.database.repair.call_args.kwargs['flags']
+    assert int(flags) & int(driver.core.SrvPropertiesFlag.NOLINGER)
+    assert response['repair_selection_requested']['native_flags'][-1] == (
+        'NOLINGER')
+    server.database.no_linger.assert_not_called()
+    warning = ' '.join(repair.warnings({
+        'repair_action': action, 'no_linger': True}))
+    assert 'does not permanently change' in warning
+    assert 'does not disconnect' in warning
+
+
+@pytest.mark.parametrize('container,database', [
+    ('other', '/var/lib/firebird/data/owned_repair_linger_1.fdb'),
+    ('a' * 64, '/var/lib/firebird/data/user.fdb'),
+    ('a' * 64, '/etc/passwd'),
+    ('a' * 64, '/var/lib/firebird/data/owned_repair_linger_1.fdb\n'),
+])
+def test_linger_descriptor_probe_rejects_nonfixture_targets(
+        monkeypatch, container, database):
+    from tools import cdeadmin_firebird_repair_gate as gate
+    native = Mock()
+    monkeypatch.setattr(gate, 'docker', native)
+    with pytest.raises(ValueError):
+        gate.owned_database_open_files(container, database)
+    native.assert_not_called()
+
+
+def test_linger_descriptor_probe_requires_matching_ownership(monkeypatch):
+    from tools import cdeadmin_firebird_repair_gate as gate
+    native = Mock(return_value=b'another-owner')
+    monkeypatch.setattr(gate, 'docker', native)
+    with pytest.raises(ValueError):
+        gate.owned_database_open_files(
+            'a' * 64, '/var/lib/firebird/data/owned_repair_linger_1.fdb')
+    assert native.call_count == 1
+    assert native.call_args.args[0] == 'inspect'

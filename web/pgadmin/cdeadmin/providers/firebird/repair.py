@@ -24,22 +24,35 @@ MODIFIERS = ('FULL', 'CHECK_DB', 'IGNORE_CHECKSUM')
 MAX_PARALLEL_WORKERS = 32767
 
 
+class RepairOptionError(RelationalClientError):
+    """Associate a rejected provider option with its actual visual field."""
+
+    def __init__(self, message, field_id):
+        super().__init__(message)
+        self.field_id = field_id
+
+
 def flags(options):
     if not isinstance(options, Mapping):
         raise RelationalClientError('Firebird repair options are invalid')
     action = options.get('repair_action')
     if not isinstance(action, str) or action not in ACTIONS:
         raise RelationalClientError('Invalid Firebird repair action')
+    no_linger = options.get('no_linger', False)
+    if type(no_linger) is not bool:
+        raise RepairOptionError(
+            'Firebird no-linger must be enabled or disabled', 'no_linger')
     workers = options.get('parallel_workers')
     if workers is not None:
         if action != 'ICU':
-            raise RelationalClientError(
-                'Parallel workers on a repair task require the ICU action')
+            raise RepairOptionError(
+                'Parallel workers on a repair task require the ICU action',
+                'parallel_workers')
         if (type(workers) is not int or
                 not 0 <= workers <= MAX_PARALLEL_WORKERS):
-            raise RelationalClientError(
+            raise RepairOptionError(
                 'Firebird ICU parallel workers must be an integer '
-                'from 0 through 32767')
+                'from 0 through 32767', 'parallel_workers')
     modifiers = options.get('repair_modifiers', [])
     if (not isinstance(modifiers, list) or
             any(not isinstance(item, str) or item not in MODIFIERS
@@ -62,6 +75,8 @@ def flags(options):
         raise RelationalClientError(
             action + ' does not apply checksum-ignore; '
             'it only affects validation or mend')
+    if no_linger:
+        selected.append('NOLINGER')
     return selected
 
 
@@ -80,6 +95,7 @@ def selection(database, options, default_role=None):
         'ignore_checksums': 'IGNORE_CHECKSUM' in selected,
         'mend_requested': 'MEND_DB' in selected,
         'parallel_workers_requested': options.get('parallel_workers'),
+        'no_linger_requested': options.get('no_linger', False),
     }
 
 
@@ -100,6 +116,12 @@ def warnings(options):
             'counts are subject to Firebird MaxParallelWorkers. '
             'Success does not prove that an index needed rebuilding or that '
             'the requested number of workers ran.')
+    if 'NOLINGER' in selected:
+        result.append(
+            'No linger is requested for this maintenance attachment. '
+            'It does not permanently change the database LINGER setting '
+            'and does not disconnect other active attachments. '
+            'Native cache-lifetime effects can occur before a later error.')
     if 'IGNORE_CHECKSUM' in selected:
         result.append('Checksum errors will be ignored by explicit request.')
     if 'MEND_DB' in selected:

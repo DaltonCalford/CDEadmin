@@ -31,6 +31,29 @@ from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
+def owned_database_open_files(container, database):
+    """Read the selected file's descriptor count inside an owned server."""
+    if (not re.fullmatch('[0-9a-f]{64}', container) or
+            not re.fullmatch(
+                r'/var/lib/firebird/data/owned_repair_linger_\d+\.fdb',
+                database)):
+        raise ValueError('Linger probe target is not an owned fixture')
+    if docker('inspect', '--format',
+              '{{index .Config.Labels "cdeadmin-owned-gate"}}',
+              container).decode().strip() != OWNER:
+        raise ValueError('Linger probe ownership differs')
+    script = '''
+count=0
+for candidate in /proc/[0-9]*/fd/*; do
+    target=$(readlink "$candidate" 2>/dev/null) || continue
+    if [ "$target" = "$1" ]; then count=$((count + 1)); fi
+done
+printf '%s\\n' "$count"
+'''
+    return int(docker('exec', container, 'sh', '-c', script,
+                      'owned-linger-probe', database).decode().strip())
+
+
 def run(image, browser_options=None):
     import firebird.driver as native
     _configure_client_library(native)
@@ -101,18 +124,23 @@ def run(image, browser_options=None):
         modifiers = [list(items) for count in range(4)
                      for items in itertools.combinations(
                          repair.MODIFIERS, count)]
-        cases = [(action, selected, None) for action, selected
-                 in itertools.product(repair.ACTIONS, modifiers)]
-        cases.extend(('ICU', [], count) for count in (0, 1, 2, 128, 32767))
-        for action, selected, workers in cases:
+        cases = [(action, selected, None, no_linger)
+                 for action, selected, no_linger in itertools.product(
+                     repair.ACTIONS, modifiers, (False, True))]
+        cases.extend(('ICU', [], count, no_linger)
+                     for count, no_linger in itertools.product(
+                         (0, 1, 2, 128, 32767), (False, True)))
+        for action, selected, workers, no_linger in cases:
             phase = action + '-' + ('-'.join(selected) or 'default')
+            phase += '-no-linger-' + str(no_linger)
             if workers is not None:
                 phase += '-workers-' + str(workers)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
             path = '/var/lib/firebird/data/owned_repair_' + str(
                 len(result['checks'])) + '.fdb'
-            draft = {'repair_action': action, 'repair_modifiers': selected}
+            draft = {'repair_action': action, 'repair_modifiers': selected,
+                     'no_linger': no_linger}
             if workers is not None:
                 draft['parallel_workers'] = workers
             request = {'resource_kind': 'database',
@@ -169,9 +197,11 @@ def run(image, browser_options=None):
                            operator_password.replace("'", "''") + "'")
         administrator.commit()
         administrator.close()
-        for action, mask in itertools.product(
-                repair.ACTIONS, ('inactive', 'default', 0, 1, 2, 3)):
+        for action, mask, no_linger in itertools.product(
+                repair.ACTIONS, ('inactive', 'default', 0, 1, 2, 3),
+                (False, True)):
             phase = 'authorization-' + action + '-' + str(mask)
+            phase += '-no-linger-' + str(no_linger)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
             path = '/var/lib/firebird/data/owned_repair_auth_' + str(
@@ -197,7 +227,7 @@ def run(image, browser_options=None):
                 limited = _create_client(SimpleNamespace(
                     acquire_secret=lambda *_args: SecretLease(
                         operator_password)))
-                draft = {'repair_action': action}
+                draft = {'repair_action': action, 'no_linger': no_linger}
                 if action == 'ICU':
                     draft['parallel_workers'] = 2
                 if mask not in ('inactive', 'default'):
@@ -245,9 +275,10 @@ def run(image, browser_options=None):
                         limited.close()
                     except Exception as error:
                         failure('close-limited-repair-client', error)
-        for action, provider_owned in itertools.product(
-                repair.ACTIONS, (False, True)):
+        for action, provider_owned, no_linger in itertools.product(
+                repair.ACTIONS, (False, True), (False, True)):
             phase = 'busy-' + action + '-' + str(provider_owned)
+            phase += '-no-linger-' + str(no_linger)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
             path = '/var/lib/firebird/data/owned_repair_busy_' + str(
@@ -269,7 +300,7 @@ def run(image, browser_options=None):
                 plan = client.plan_admin_operation({
                     'resource_kind': 'database',
                     'operation_id': 'repair_database',
-                    'draft': {'repair_action': action,
+                    'draft': {'repair_action': action, 'no_linger': no_linger,
                               **({'parallel_workers': 2}
                                  if action == 'ICU' else {})},
                     '_provider_route': {**route, 'database': path}})
@@ -311,6 +342,109 @@ def run(image, browser_options=None):
                              explicit_rollback_verified=True, passed=True)
             except Exception as error:
                 failure(phase, error)
+        linger_cases = [
+            (action, 'normal', enabled)
+            for action, enabled in itertools.product(
+                ('ICU', 'KILL_SHADOWS'), (False, True))]
+        linger_cases.extend((action, 'active', True)
+                            for action in ('ICU', 'KILL_SHADOWS'))
+        linger_cases.extend(('ICU', 'denied', enabled)
+                            for enabled in (False, True))
+        for action, mode, no_linger in linger_cases:
+            phase = 'cache-lifetime-' + action + '-' + mode + '-' + str(
+                no_linger)
+            check = {'case': phase, 'passed': False}
+            result['checks'].append(check)
+            path = '/var/lib/firebird/data/owned_repair_linger_' + str(
+                len(result['checks'])) + '.fdb'
+            held = limited = None
+            try:
+                setup = connect(path, create=True)
+                with setup.cursor() as cursor:
+                    cursor.execute('ALTER DATABASE SET LINGER TO 600')
+                    cursor.execute('CREATE TABLE LINGER_MARKER (ID INTEGER)')
+                    setup.commit()
+                    cursor.execute('INSERT INTO LINGER_MARKER VALUES (1)')
+                setup.commit()
+                setup.close()
+                assert owned_database_open_files(container, path) > 0
+                selected_client = client
+                selected_route = route
+                if mode == 'active':
+                    held = connect(path)
+                    with held.cursor() as cursor:
+                        cursor.execute('INSERT INTO LINGER_MARKER VALUES (2)')
+                        cursor.execute('SELECT CURRENT_TRANSACTION '
+                                       'FROM RDB$DATABASE')
+                        transaction = cursor.fetchone()[0]
+                elif mode == 'denied':
+                    limited = _create_client(SimpleNamespace(
+                        acquire_secret=lambda *_args: SecretLease(
+                            operator_password)))
+                    selected_client = limited
+                    selected_route = {**route, 'user': 'CDE_REPAIR_OPERATOR'}
+                plan = selected_client.plan_admin_operation({
+                    'resource_kind': 'database',
+                    'operation_id': 'repair_database',
+                    'draft': {'repair_action': action, 'no_linger': no_linger},
+                    '_provider_route': {**selected_route, 'database': path}})
+                try:
+                    selected_client.apply_admin_operation(plan)
+                except RelationalClientError as error:
+                    assert mode == 'denied'
+                    assert 335545112 in status_codes(error)
+                    check['denial_codes'] = list(status_codes(error))
+                else:
+                    assert mode != 'denied'
+                if held is not None:
+                    assert owned_database_open_files(container, path) > 0
+                    with held.cursor() as cursor:
+                        cursor.execute('SELECT CURRENT_TRANSACTION '
+                                       'FROM RDB$DATABASE')
+                        assert cursor.fetchone()[0] == transaction
+                        cursor.execute('SELECT ID FROM LINGER_MARKER '
+                                       'ORDER BY ID')
+                        assert cursor.fetchall() == [(1,), (2,)]
+                    held.rollback()
+                    held.close()
+                    held = None
+                    check['active_transaction_preserved'] = True
+                deadline = time.monotonic() + 5
+                count = owned_database_open_files(container, path)
+                expect_closed = no_linger or mode == 'denied'
+                while expect_closed and count and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                    count = owned_database_open_files(container, path)
+                check['open_database_files_after_task'] = count
+                # Native failed-attachment cleanup also closes an otherwise
+                # lingering cache. Absence of -nolinger is not a guarantee
+                # that a denied maintenance attachment leaves it resident.
+                assert (count == 0) is expect_closed
+                observer = connect(path)
+                with observer.cursor() as cursor:
+                    cursor.execute('SELECT RDB$LINGER FROM RDB$DATABASE')
+                    assert cursor.fetchone() == (600,)
+                    cursor.execute('SELECT ID FROM LINGER_MARKER')
+                    assert cursor.fetchall() == [(1,)]
+                observer.close()
+                check.update(persisted_linger_unchanged=True,
+                             committed_rows_preserved=True, passed=True)
+            except Exception as error:
+                failure(phase, error)
+            finally:
+                for handle in (held, limited):
+                    if handle is not None:
+                        try:
+                            handle.close()
+                        except Exception as error:
+                            failure('close-linger-fixture-handle', error)
+                try:
+                    # Separate explicit fixture cleanup, never a replay of
+                    # the tested repair request or a persistent DDL change.
+                    client.run_server_operation(
+                        {'route': route}, 'remove_linger', path, {})
+                except Exception as error:
+                    failure('release-owned-linger-cache', error)
         if browser_options is not None:
             result['browser_checks'] = []
             for scale in browser_options.font_scale or (100, 200, 300):
@@ -369,9 +503,10 @@ def run(image, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    # 56 modifier combinations + 5 ICU worker requests + 42 role cases
-    # + 14 raw/provider-owned pending-transaction cases.
-    result['complete'] = (len(result['checks']) == 117 and
+    # Both no-linger states across 56 modifier combinations, 5 ICU worker
+    # counts, 42 role cases and 14 pending-transaction cases; plus eight
+    # nonzero-linger cache-lifetime/active-session/denial observations.
+    result['complete'] = (len(result['checks']) == 242 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result

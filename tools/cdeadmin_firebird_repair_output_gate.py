@@ -236,18 +236,21 @@ def run(image, browser_options=None):
             finally:
                 if server is not None:
                     client.close_session(server)
-        for action, modifiers in (
+        provider_cases = [(action, modifiers, no_linger)
+                          for action, modifiers in (
                 ('VALIDATE_DB', []), ('VALIDATE_DB', ['FULL', 'CHECK_DB']),
                 ('MEND_DB', ['CHECK_DB']), ('CORRUPTION_CHECK', []),
-                ('REPAIR', [])):
+                ('REPAIR', [])) for no_linger in (False, True)]
+        for action, modifiers, no_linger in provider_cases:
             phase = 'provider-damaged-' + action + '-'.join(modifiers)
+            phase += '-no-linger-' + str(no_linger)
             check = {'case': phase, 'passed': False}
             result['checks'].append(check)
             try:
                 try:
                     apply('repair_database', {
                         'repair_action': action,
-                        'repair_modifiers': modifiers})
+                        'repair_modifiers': modifiers, 'no_linger': no_linger})
                 except RelationalClientError as error:
                     assert error.native_status_codes == (335740952, 335740986)
                     assert error.service_release['service_handle_released']
@@ -384,7 +387,7 @@ def run(image, browser_options=None):
                     'type': type(error).__name__})
     browser_count = (len(browser_options.font_scale or (100, 200, 300))
                      if browser_options is not None else 0)
-    result['complete'] = (len(result['checks']) == 16 and
+    result['complete'] = (len(result['checks']) == 21 and
                           len(result.get('browser_checks', [])) ==
                           browser_count and
                           all(item['passed'] for item in result['checks']) and

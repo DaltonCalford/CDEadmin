@@ -4236,9 +4236,10 @@ class RelationalAdministration:
             try:
                 firebird_repair.flags(draft)
             except RelationalClientError as error:
-                errors.append({'field_id': 'repair_modifiers',
-                               'code': 'invalid_firebird_repair_options',
-                               'message': str(error)})
+                errors.append({
+                    'field_id': getattr(error, 'field_id', 'repair_modifiers'),
+                    'code': 'invalid_firebird_repair_options',
+                    'message': str(error)})
         if operation == 'set_sql_dialect' and (
             not isinstance(draft.get('sql_dialect'), str) or
             draft['sql_dialect'] not in {'1', '3'}
