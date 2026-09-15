@@ -238,6 +238,13 @@ def _wire_configuration(route):
 
 
 def _route_arguments(route, module=None, *, creation=None):
+    linger_policy = route.get('no_linger')
+    if linger_policy is not None and (
+        not isinstance(linger_policy, str) or
+        linger_policy not in {'NATIVE_DEFAULT', 'SUPPRESS'}
+    ):
+        raise RelationalClientError(
+            'Firebird attachment linger policy is invalid')
     rounding = route.get('decfloat_round')
     if rounding == 'NATIVE_DEFAULT':
         rounding = None
@@ -274,7 +281,7 @@ def _route_arguments(route, module=None, *, creation=None):
         name in route for name in (
             'trusted_auth', 'timeout', 'protocol',
             'dummy_packet_interval', 'wire_config', 'wire_crypt',
-            'wire_compression', 'dbkey_scope', 'decfloat_round',
+            'wire_compression', 'dbkey_scope', 'decfloat_round', 'no_linger',
         )
     )
     if not configured or module is None:
@@ -288,7 +295,7 @@ def _route_arguments(route, module=None, *, creation=None):
             'host', 'port', 'database', 'user', 'auth_plugin_list',
             'trusted_auth', 'timeout',
             'protocol', 'dummy_packet_interval', 'wire_config',
-            'wire_crypt', 'wire_compression', 'decfloat_round',
+            'wire_crypt', 'wire_compression', 'decfloat_round', 'no_linger',
         )
     }
     if creation is not None:
@@ -347,6 +354,12 @@ def _route_arguments(route, module=None, *, creation=None):
             config.config.value = wire_configuration
             config.decfloat_round.value = (
                 module.DecfloatRound[rounding] if rounding is not None
+                else None)
+            # jrd.cpp applies this DPB only when attaching to an existing
+            # database, not to the initial creation attachment. Suppression
+            # affects a shared live cache, never the stored LINGER setting.
+            config.no_linger.value = (
+                True if creation is None and linger_policy == 'SUPPRESS'
                 else None)
     result['database'] = database_name
     if route.get('trusted_auth'):

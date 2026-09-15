@@ -11,8 +11,9 @@ from tools import cdeadmin_firebird_no_linger_attachment_gate as gate
 
 @pytest.mark.parametrize('cleanup_fails', [False, True])
 @pytest.mark.parametrize('server_mode', gate.SERVER_MODES)
+@pytest.mark.parametrize('provider_policy', [False, True])
 def test_setup_failure_is_redacted_and_owned_cleanup_is_attempted(
-        monkeypatch, cleanup_fails, server_mode):
+        monkeypatch, cleanup_fails, server_mode, provider_policy):
     secret = 'owned-linger-credential-canary'
     monkeypatch.setattr(gate.secrets, 'token_urlsafe', lambda _size: secret)
     monkeypatch.setattr(gate, '_configure_client_library', Mock())
@@ -22,8 +23,10 @@ def test_setup_failure_is_redacted_and_owned_cleanup_is_attempted(
                         Mock(side_effect=RuntimeError(secret)))
     cleanup = Mock(side_effect=RuntimeError(secret) if cleanup_fails else None)
     monkeypatch.setattr(gate, 'remove_owned', cleanup)
-    result = gate.run('owned-test-image', server_mode)
+    result = gate.run('owned-test-image', server_mode,
+                      provider_policy=provider_policy)
     assert not result['complete']
+    assert result['provider_policy_mapping'] is provider_policy
     assert len(result['failures']) == (2 if cleanup_fails else 1)
     assert result['owned_container_removed'] is not cleanup_fails
     assert secret not in json.dumps(result)
@@ -49,7 +52,25 @@ def test_invalid_server_mode_is_rejected_before_fixture_creation(
     start.assert_not_called()
 
 
-def test_all_twelve_cases_run_after_individual_setup_failures(monkeypatch):
+@pytest.mark.parametrize('server_mode,provider_policy,has_root', [
+    ('SuperClassic', True, True), ('Classic', True, True),
+    ('Super', False, True), ('Super', True, False),
+])
+def test_browser_requires_an_effective_owned_provider_fixture(
+        monkeypatch, tmp_path, server_mode, provider_policy, has_root):
+    start = Mock()
+    monkeypatch.setattr(gate, 'docker', start)
+    with pytest.raises(ValueError, match='provider SuperServer fixture'):
+        gate.run('owned-image', server_mode, provider_policy=provider_policy,
+                 browser_options=Mock(),
+                 build_root=tmp_path / 'new-evidence' if has_root else None)
+    start.assert_not_called()
+    assert not (tmp_path / 'new-evidence').exists()
+
+
+@pytest.mark.parametrize('provider_policy', [False, True])
+def test_all_twelve_cases_run_after_individual_setup_failures(
+        monkeypatch, provider_policy):
     secret = 'owned-linger-failure-canary'
     monkeypatch.setattr(gate, '_configure_client_library', Mock())
     monkeypatch.setattr(gate, 'docker',
@@ -64,7 +85,7 @@ def test_all_twelve_cases_run_after_individual_setup_failures(monkeypatch):
     create = Mock(side_effect=RuntimeError(secret))
     monkeypatch.setattr(native, 'create_database', create)
     monkeypatch.setattr(native, 'driver_config', Mock())
-    result = gate.run('owned-test-image')
+    result = gate.run('owned-test-image', provider_policy=provider_policy)
     assert not result['complete']
     assert len(result['checks']) == len(result['failures']) == 12
     assert create.call_count == 12

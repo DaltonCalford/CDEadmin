@@ -244,6 +244,22 @@ _DATABASE_SPECS = {
                        'to this attachment, including after '
                        'ALTER SESSION RESET. '
                        'It does not alter stored database values.')),
+            _field('no_linger', 'Attachment linger policy', 'select',
+                   default='SERVER_DEFAULT',
+                   inherit_server_value='SERVER_DEFAULT', options=(
+                       {'value': 'SERVER_DEFAULT',
+                        'label': 'Use server preference'},
+                       {'value': 'NATIVE_DEFAULT', 'label': 'Native default'},
+                       {'value': 'SUPPRESS', 'label':
+                        'Suppress current cache linger (SuperServer)'},
+                   ), help=(
+                       'Use server preference follows the parent for new '
+                       'existing-database attachments. Suppress clears the '
+                       'current shared SuperServer cache\'s linger timer, '
+                       'not the stored LINGER setting. No effect in '
+                       'SuperClassic or Classic. Native default sends no '
+                       'override and does not restore a timer already '
+                       'suppressed.')),
             _field('no_gc', 'Disable cooperative garbage collection',
                    'boolean', default=False),
             _field('no_db_triggers', 'Disable database triggers', 'boolean',

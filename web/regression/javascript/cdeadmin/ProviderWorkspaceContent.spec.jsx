@@ -1598,8 +1598,10 @@ describe('ProviderWorkspaceContent', () => {
     });
 
   it.each(['CEILING', 'UP', 'HALF_UP', 'HALF_EVEN', 'HALF_DOWN', 'DOWN',
-    'FLOOR', 'REROUND', 'NATIVE_DEFAULT', 'SERVER_DEFAULT'])(
-    'renders database and server observations with rounding %s', async (rounding) => {
+    'FLOOR', 'REROUND', 'NATIVE_DEFAULT', 'SERVER_DEFAULT'].flatMap(rounding =>
+    [undefined, 'NATIVE_DEFAULT', 'SERVER_DEFAULT', 'SUPPRESS'].map(linger =>
+      [rounding, linger])))(
+    'renders saved rounding %s and linger %s separately from native observations', async (rounding, linger) => {
       api.get.mockResolvedValue({data: {data: {
         ...bootstrap,
         endpoint: {
@@ -1612,7 +1614,7 @@ describe('ProviderWorkspaceContent', () => {
           targets: [{target_id: 'database-one', display_name: 'example.fdb',
             database: '/firebird/data/example.fdb', active: true,
             configuration: {charset: 'UTF8', transaction_isolation: 'SNAPSHOT',
-              decfloat_round: rounding}}],
+              decfloat_round: rounding, no_linger: linger}}],
         },
         resource_page: {items: [{
           resource_id: 'server:Firebird', resource_kind: 'server',
@@ -1637,9 +1639,17 @@ describe('ProviderWorkspaceContent', () => {
       expect(screen.getByText('Firebird storage and durability')).toBeInTheDocument();
       expect(screen.getByText('Firebird connection defaults')).toBeInTheDocument();
       expect(screen.getByText('Initial DECFLOAT rounding mode')).toBeInTheDocument();
-      expect(screen.getByText(({NATIVE_DEFAULT: 'Native default',
-        SERVER_DEFAULT: 'Use server preference'})[rounding] || rounding))
-        .toBeInTheDocument();
+      expect(screen.getByText('Initial DECFLOAT rounding mode').nextElementSibling)
+        .toHaveTextContent(({NATIVE_DEFAULT: 'Native default',
+          SERVER_DEFAULT: 'Use server preference'})[rounding] || rounding);
+      if(linger === undefined) {
+        expect(screen.queryByText('Attachment linger policy')).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText('Attachment linger policy').nextElementSibling)
+          .toHaveTextContent(({NATIVE_DEFAULT: 'Native default',
+            SERVER_DEFAULT: 'Use server preference',
+            SUPPRESS: 'Suppress current cache linger (SuperServer)'})[linger]);
+      }
       expect(screen.getByText('Database filename or alias')).toBeInTheDocument();
       expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
       expect(screen.getByText('8192')).toBeInTheDocument();

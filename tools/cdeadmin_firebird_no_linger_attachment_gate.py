@@ -23,19 +23,35 @@ else:
     from cdeadmin_firebird_repair_gate import owned_database_open_files
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.provider import (
+    _route_arguments, _database_create_arguments,
+)
+if __package__:
+    from .cdeadmin_firebird_external_functions_gate import browser_checks
+else:
+    from cdeadmin_firebird_external_functions_gate import browser_checks
 
 
 SERVER_MODES = ('Super', 'SuperClassic', 'Classic')
 
 
-def run(image, server_mode='Super'):
+def run(image, server_mode='Super', *, provider_policy=False,
+        browser_options=None, build_root=None):
     if server_mode not in SERVER_MODES:
         raise ValueError('Choose an exact Firebird server mode')
+    if browser_options is not None:
+        if (server_mode != 'Super' or not provider_policy or
+                build_root is None):
+            raise ValueError(
+                'Browser gate needs a provider SuperServer fixture')
+        build_root.mkdir(parents=True, exist_ok=False)
     import firebird.driver as native
     _configure_client_library(native)
     result = {'complete': False, 'checks': [], 'failures': [],
               'owned_container_removed': False,
               'provider_forms_qualified': False,
+              'provider_policy_mapping': provider_policy,
+              'browser_checks': [],
               'fixture_scope': 'ordinary attachments',
               'server_mode': server_mode}
     container = None
@@ -69,6 +85,18 @@ def run(image, server_mode='Super'):
         port = published_port(container)
 
         def connect(path, *, requested=None, limited=False, create=False):
+            user = 'CDE_LINGER_USER' if limited else 'SYSDBA'
+            secret = limited_password if limited else password
+            if provider_policy:
+                policy = (None if requested is None else
+                          'SUPPRESS' if requested else 'NATIVE_DEFAULT')
+                route = {'host': '127.0.0.1', 'port': port, 'database': path,
+                         'user': user, 'no_linger': policy}
+                args = (_database_create_arguments(
+                    route, f'127.0.0.1/{port}:{path}', {}, native)
+                    if create else _route_arguments(route, native))
+                method = native.create_database if create else native.connect
+                return method(password=secret, **args)
             name = 'owned_linger_' + uuid.uuid4().hex
             config = native.driver_config.register_database(name)
             config.dsn.value = f'127.0.0.1/{port}:{path}'
@@ -76,9 +104,7 @@ def run(image, server_mode='Super'):
             config.password.value = None
             config.no_linger.value = requested
             method = native.create_database if create else native.connect
-            return method(name,
-                          user='CDE_LINGER_USER' if limited else 'SYSDBA',
-                          password=limited_password if limited else password)
+            return method(name, user=user, password=secret)
 
         phase = 'readiness'
         deadline = time.monotonic() + 45
@@ -183,6 +209,22 @@ def run(image, server_mode='Super'):
                         held.close()
                     except Exception as error:
                         failure(phase + '-peer-cleanup', error)
+        if browser_options is not None:
+            phase = 'browser-qualification'
+            path = '/var/lib/firebird/data/owned_repair_linger_13.fdb'
+            with connect(path, create=True) as setup:
+                with setup.cursor() as cursor:
+                    cursor.execute('ALTER DATABASE SET LINGER TO 600')
+                setup.commit()
+            result['browser_checks'] = browser_checks(
+                browser_options,
+                {'host': '127.0.0.1', 'port': port, 'database': path,
+                 'user': 'SYSDBA'}, password, container, build_root,
+                gate_kind='linger-preferences',
+                fixture_kind='firebird-no-linger-qualification')
+            if not result['browser_checks'] or not all(
+                    item['passed'] for item in result['browser_checks']):
+                raise RuntimeError('Browser linger qualification failed')
     except Exception as error:
         failure(phase, error)
     finally:
@@ -203,11 +245,27 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--server-mode', choices=SERVER_MODES, default='Super')
+    parser.add_argument('--provider-policy', action='store_true',
+                        help='Qualify provider route-to-driver policy mapping')
+    parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--build-root', type=Path)
+    parser.add_argument('--source-config-db', type=Path,
+                        default=Path('/var/lib/cdeadmin/cdeadmin.db'))
+    parser.add_argument('--desktop-user')
+    parser.add_argument('--font-scale', type=int, action='append',
+                        choices=(100, 200, 300))
     parser.add_argument('--output', type=Path, required=True)
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image, options.server_mode)
+    if options.browser and (
+            not options.build_root or not options.desktop_user or
+            not options.provider_policy or options.server_mode != 'Super'):
+        parser.error('Browser needs build root, user and provider Super mode')
+    result = run(options.image, options.server_mode,
+                 provider_policy=options.provider_policy,
+                 browser_options=options if options.browser else None,
+                 build_root=options.build_root)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1

@@ -71,6 +71,7 @@ GATE_SCRIPTS = {
     'logical-volumes': 'cdeadmin_firebird_logical_volumes_ui_gate.py',
     'lifecycle': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'rounding-inheritance': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
+    'linger-preferences': 'cdeadmin_firebird_linger_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
 
@@ -177,7 +178,8 @@ def gate_command(options, url, database_label, config_database=None):
             '--manifest-output', str(options.manifest_output),
         ])
     elif options.gate_kind in {
-            'lifecycle', 'inspector-tabs', 'rounding-inheritance'}:
+            'lifecycle', 'inspector-tabs', 'rounding-inheritance',
+            'linger-preferences'}:
         if config_database is None:
             raise RuntimeError(
                 'lifecycle gate requires an isolated configuration database'
@@ -193,6 +195,8 @@ def gate_command(options, url, database_label, config_database=None):
         ])
         if options.gate_kind == 'rounding-inheritance':
             command.extend(['--scope', 'inheritance'])
+        if options.gate_kind == 'linger-preferences':
+            command.extend(['--profiles', str(options.profiles)])
     elif options.gate_kind == 'properties':
         command.extend([
             '--database-path', options.database,
