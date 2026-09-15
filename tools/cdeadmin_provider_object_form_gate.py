@@ -603,6 +603,10 @@ def _preview_values(kind, operation, target, engine_id):
             elif kind == 'external-function':
                 values.update({'entrypoint': 'owned_value',
                                'module_name': 'cde_owned_udf'})
+            elif kind == 'blob-filter':
+                values.update({'input_subtype': -81, 'output_subtype': 1,
+                               'entrypoint': 'owned_uppercase',
+                               'module_name': 'owned_filter'})
             elif kind == 'role':
                 values.update({
                     'description': 'Browser role creation preview',

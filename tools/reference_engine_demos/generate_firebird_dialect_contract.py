@@ -677,6 +677,92 @@ def supplement_external_functions(document, evidence, digest, artifact):
     return value
 
 
+def supplement_blob_filters(document, evidence, digest, artifact):
+    validate_dialect_contract(document, PROFILE)
+    required = {
+        'declaration-comment-drop-commit-rollback', 'registered-mnemonic',
+        'registered-custom-mnemonic',
+        'catalog-recreation-round-trip', 'unknown-mnemonic',
+        'below-subtype-range', 'above-subtype-range', 'unsupported-alter',
+        'unsupported-execute-grant', 'duplicate-name',
+        'duplicate-subtype-pair',
+        'native-filter-read', 'native-filter-write', 'missing-entrypoint',
+        'missing-module_name', 'loaded-filter-survives-declaration-drop',
+        'restricted-grant-owner-revoke',
+    } | {'numeric-subtype-' + str(number)
+         for number in (-32768, -1, 0, 1, 32767)}
+    tasks = {'visual_admin.blob-filter.' + action
+             for action in ('create', 'comment', 'drop')}
+    if (evidence.get('complete') is not True or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('schema') != 'cdeadmin.firebird-blob-filters.v1' or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or
+            not tasks.issubset(evidence.get('task_evidence', {})) or
+            not required.issubset({item.get('case') for item in
+                                   evidence.get('checks', [])})):
+        raise ValueError('BLOB filter native evidence is incomplete')
+    observations = {item['case']: item for item in evidence['checks']}
+    for direction in ('read', 'write'):
+        item = observations['native-filter-' + direction]
+        if (item.get('bytes_verified') != 148 or
+                item.get('small_buffer_segment_continuation') is not True):
+            raise ValueError('BLOB filter native invocation was not verified')
+    permissions = observations['restricted-grant-owner-revoke']
+    if (permissions.get('denied_without_grant') !=
+            ['create', 'comment', 'drop']
+            or permissions.get('granted_owner_comment_drop') is not True or
+            permissions.get('revoke_fresh_attachment_denied') is not True):
+        raise ValueError('BLOB filter native permissions were not verified')
+    cached = observations['loaded-filter-survives-declaration-drop']
+    if (cached.get('catalog_declaration_removed') is not True or
+            cached.get('database_filter_cache_retains_loaded_code')
+            is not True):
+        raise ValueError('BLOB filter native cache behavior was not verified')
+    custom = observations['registered-custom-mnemonic']
+    if (custom.get('registered_custom_subtype') != -79 or
+            custom.get('quoted_unicode_mnemonic') is not True or
+            custom.get('native_invocation_verified') is not True):
+        raise ValueError('BLOB filter custom mnemonic was not verified')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-blob-filters-live'
+    parser_id = 'firebird-5.0.4-blob-filters-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('BLOB filter task has no native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -706,7 +792,7 @@ def main(argv=None):
     parser.add_argument('--task-report', type=Path, required=True)
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
-        'external-functions'),
+        'external-functions', 'blob-filters'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -715,6 +801,7 @@ def main(argv=None):
                       'mappings': supplement_mappings,
                       'character-metadata': supplement_character_metadata,
                       'external-functions': supplement_external_functions,
+                      'blob-filters': supplement_blob_filters,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

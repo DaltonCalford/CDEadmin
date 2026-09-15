@@ -23,6 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
+from . import blob_filters
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -53,7 +54,8 @@ PROFILE = PilotProfile(
     ('server', 'database', 'schema', 'table', 'column', 'view', 'index',
      'constraint', 'domain', 'sequence', 'routine', 'trigger', 'procedure',
      'function', 'package', 'exception', 'user', 'role', 'privilege',
-     'character-set', 'collation', 'external-function', 'plugin',
+     'character-set', 'collation', 'external-function', 'blob-filter',
+     'plugin',
      'publication', 'authentication-mapping', 'global-authentication-mapping',
      'service-operation', 'metric'),
     ('isql', 'gbak', 'gfix', 'gstat', 'nbackup', 'user-administration'),
@@ -152,6 +154,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         'privilege': frozenset({'inspect', 'grant', 'revoke'}),
         **character_metadata.OPERATIONS,
         'external-function': external_functions.OPERATIONS,
+        'blob-filter': blob_filters.OPERATIONS,
         'plugin': frozenset({'inspect'}),
         'publication': frozenset({'inspect', 'alter'}),
         'service-operation': frozenset({'inspect'}),
@@ -1383,6 +1386,13 @@ def _resources(connection, request):
              'WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NOT NULL ORDER BY 1'),
+            ('blob-filter', 'SELECT TRIM(TRAILING FROM RDB$FUNCTION_NAME), '
+             'RDB$INPUT_SUB_TYPE, RDB$OUTPUT_SUB_TYPE, '
+             'TRIM(TRAILING FROM RDB$ENTRYPOINT), '
+             'TRIM(TRAILING FROM RDB$MODULE_NAME), '
+             'TRIM(TRAILING FROM RDB$OWNER_NAME), RDB$DESCRIPTION, '
+             'TRIM(TRAILING FROM RDB$SECURITY_CLASS), RDB$SYSTEM_FLAG '
+             'FROM RDB$FILTERS ORDER BY 1'),
             ('package', 'SELECT TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
              'RDB$PACKAGE_HEADER_SOURCE, '
              'RDB$PACKAGE_BODY_SOURCE, '
@@ -1453,6 +1463,9 @@ def _resources(connection, request):
                 'module_name', 'entrypoint', 'engine_name', 'package',
                 'description', 'return_argument', 'legacy',
             ),
+            'blob-filter': ('input_subtype', 'output_subtype', 'entrypoint',
+                            'module_name', 'owner', 'description',
+                            'security_class', 'system_flag'),
             'package': (
                 'header_source', 'body_source', 'description',
                 'valid_body', 'sql_security',
@@ -1493,6 +1506,19 @@ def _resources(connection, request):
                     native['system_object'] = True
                 if kind == 'role':
                     native.update(_role_privileges(row[1]))
+                if kind == 'blob-filter':
+                    try:
+                        statements = blob_filters.compile_operation('create', {
+                            'name': row[0], **{key: native[key] for key in (
+                                'input_subtype', 'output_subtype',
+                                'entrypoint',
+                                'module_name', 'description')}})
+                        native['recreation_statements'] = statements
+                        native['ddl'] = ';\n'.join(statements) + ';'
+                        native['recreation_prerequisite'] = (
+                            blob_filters.WARNING)
+                    except RelationalClientError as error:
+                        native['ddl_unavailable_reason'] = str(error)
                 if kind in character_metadata.OPERATIONS:
                     try:
                         statements = character_metadata.recreation(
@@ -1748,7 +1774,7 @@ def _resources(connection, request):
             6: {'index'}, 7: {'exception'}, 8: {'user'},
             9: {'domain'}, 10: {'index'}, 11: {'character-set'},
             12: set(), 13: {'role'}, 14: {'sequence'},
-            15: {'function', 'external-function'}, 16: set(),
+            15: {'function', 'external-function'}, 16: {'blob-filter'},
             17: {'collation'}, 18: {'package'}, 19: {'package'},
             20: {'privilege'}, 21: {'database'},
         }
@@ -1883,7 +1909,8 @@ def _resources(connection, request):
             privilege_target_kinds = {
                 0: {'table', 'view'}, 5: {'procedure'}, 7: {'exception'},
                 9: {'domain'}, 13: {'role'}, 14: {'sequence'},
-                15: {'function', 'external-function'}, 17: {'collation'},
+                15: {'function', 'external-function'}, 16: {'blob-filter'},
+                17: {'collation'},
                 18: {'package'}, 21: {'database'},
             }
             target_kinds = privilege_target_kinds.get(
@@ -2793,13 +2820,13 @@ def _resources(connection, request):
             'database', 'table', 'view', 'column', 'index', 'constraint',
             'domain', 'sequence', 'trigger', 'procedure', 'function',
             'package', 'exception', 'role', 'character-set', 'collation',
-            'external-function', 'publication',
+            'external-function', 'blob-filter', 'publication',
         }
         # Native ownership/privilege rows are inspectable even where Firebird
         # 5 does not expose SQL GRANT USAGE ON this object class. Do not add
         # these kinds to grantable_kinds or fabricate executable grants.
         privilege_capable = grantable_kinds | {
-            'user', 'character-set', 'collation'}
+            'user', 'character-set', 'collation', 'blob-filter'}
         for item in resources.values():
             kind = item['resource_kind']
             native = item.setdefault('native', {})

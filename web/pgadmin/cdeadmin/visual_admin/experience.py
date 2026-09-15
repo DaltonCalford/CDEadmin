@@ -62,7 +62,7 @@ GROUP_KINDS = {
     'programmable': {
         'function', 'procedure', 'package', 'macro', 'trigger',
         'event-trigger', 'aggregate', 'external-function', 'script',
-        'function-library', 'exception',
+        'function-library', 'exception', 'blob-filter',
     },
     'documents': {
         'collection', 'document', 'entity', 'validator', 'validation-rule',

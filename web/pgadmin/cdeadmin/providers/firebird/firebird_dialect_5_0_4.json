@@ -30,13 +30,16 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 73,
+    "authoritative_task_count": 76,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
       "visual_admin.authentication-mapping.create",
       "visual_admin.authentication-mapping.create_or_alter",
       "visual_admin.authentication-mapping.drop",
+      "visual_admin.blob-filter.comment",
+      "visual_admin.blob-filter.create",
+      "visual_admin.blob-filter.drop",
       "visual_admin.character-set.alter",
       "visual_admin.character-set.comment",
       "visual_admin.collation.comment",
@@ -106,7 +109,7 @@
       "visual_admin.view.create",
       "visual_admin.view.drop"
     ],
-    "implemented_task_count": 73,
+    "implemented_task_count": 76,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8866,6 +8869,7 @@
   ],
   "live_evidence_ids": [
     "firebird-5.0.4-authentication-mappings-live",
+    "firebird-5.0.4-blob-filters-live",
     "firebird-5.0.4-character-metadata-live",
     "firebird-5.0.4-column-alterations-live",
     "firebird-5.0.4-external-functions-live",
@@ -9045,6 +9049,24 @@
       "format": "cdeadmin.firebird-external-functions.v1",
       "license_id": "PostgreSQL",
       "sha256": "402a2a135383e01c066bce0c8f16b8dbc8ee15f9990c5c0bcab1fbd482e735ff"
+    },
+    {
+      "artifact": "blob-filters-native-12.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-blob-filters-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-blob-filters.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "a72256445d0e35855437dfcc0afe276dface8d218b05e0804de688d2f8b746fd"
+    },
+    {
+      "artifact": "blob-filters-native-12.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-blob-filters-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-blob-filters.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "a72256445d0e35855437dfcc0afe276dface8d218b05e0804de688d2f8b746fd"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9170,6 +9192,51 @@
         "DROP MAPPING \"CDE_MAPPING\""
       ],
       "task_id": "visual_admin.authentication-mapping.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-blob-filters-parser",
+        "firebird-5.0.4-blob-filters-live"
+      ],
+      "required_bindings": [],
+      "source": "COMMENT ON FILTER \"CDE_USER_FILTER\" IS 'owner'",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "COMMENT ON FILTER \"CDE_USER_FILTER\" IS 'owner'"
+      ],
+      "task_id": "visual_admin.blob-filter.comment"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-blob-filters-parser",
+        "firebird-5.0.4-blob-filters-live"
+      ],
+      "required_bindings": [],
+      "source": "DECLARE FILTER \"CDE_USER_FILTER\" INPUT_TYPE -74 OUTPUT_TYPE 1 ENTRY_POINT 'owned_uppercase' MODULE_NAME 'owned_filter'",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DECLARE FILTER \"CDE_USER_FILTER\" INPUT_TYPE -74 OUTPUT_TYPE 1 ENTRY_POINT 'owned_uppercase' MODULE_NAME 'owned_filter'"
+      ],
+      "task_id": "visual_admin.blob-filter.create"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-blob-filters-parser",
+        "firebird-5.0.4-blob-filters-live"
+      ],
+      "required_bindings": [],
+      "source": "DROP FILTER \"CDE_ADMIN_FILTER\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DROP FILTER \"CDE_ADMIN_FILTER\""
+      ],
+      "task_id": "visual_admin.blob-filter.drop"
     },
     {
       "binding_style": "positional_question_mark",

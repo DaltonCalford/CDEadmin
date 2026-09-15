@@ -24,8 +24,9 @@ def route():
 
 
 @pytest.mark.parametrize('failed_scale', [None, 100, 200, 300])
+@pytest.mark.parametrize('kind', ['external-functions', 'blob-filters'])
 def test_private_credentials_cleanup_and_all_scale_failure_collection(
-        tmp_path, monkeypatch, failed_scale):
+        tmp_path, monkeypatch, failed_scale, kind):
     monkeypatch.setenv('CDEADMIN_FIREBIRD_CLIENT_LIBRARY',
                        '/owned/libfbclient.so')
     password = 'owned-test-secret-not-a-real-credential'
@@ -38,6 +39,8 @@ def test_private_credentials_cleanup_and_all_scale_failure_collection(
         document = json.loads(profile.read_text())
         assert document['profiles'][0]['password'] == password
         assert document['profiles'][0]['owned_container_id'] == 'a' * 64
+        assert document['profiles'][0]['fixture_kind'] == kind + '-owned-test'
+        assert command[command.index('--gate-kind') + 1] == kind
         assert kwargs['env']['CDEADMIN_FIREBIRD_DEMO_PASSWORD'] == password
         scale = int(command[command.index('--font-scale') + 1])
         calls.append(scale)
@@ -49,7 +52,8 @@ def test_private_credentials_cleanup_and_all_scale_failure_collection(
 
     monkeypatch.setattr(gate.subprocess, 'run', execute)
     result = gate.browser_checks(options(tmp_path), route(), password,
-                                 'a' * 64, tmp_path)
+                                 'a' * 64, tmp_path, gate_kind=kind,
+                                 fixture_kind=kind + '-owned-test')
     assert calls == [100, 200, 300]
     assert [item['scale'] for item in result if not item['passed']] == (
         [] if failed_scale is None else [failed_scale])

@@ -35,6 +35,7 @@ _KIND_LABELS = {
     'exception': 'Exceptions',
     'extension': 'Extensions',
     'external-function': 'External functions',
+    'blob-filter': 'BLOB filters',
     'function': 'Functions',
     'index': 'Indexes',
     'package': 'Packages',

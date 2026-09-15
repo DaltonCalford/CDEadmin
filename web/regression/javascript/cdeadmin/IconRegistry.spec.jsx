@@ -21,6 +21,34 @@ import {
 } from 'sources/cdeadmin_ui/icons/registry';
 
 describe('CDEadmin semantic icon registry', () => {
+  it('normalizes provider object kinds while honoring icon customization', () => {
+    expect(resolveIconDefinition('object.blob-filter').key).toBe('object.blob_filter');
+    expect(resolveIconDefinition('object.blob-filter', {assignments: {
+      'object.blob_filter': 'action.search',
+    }}).key).toBe('action.search');
+    expect(resolveIconDefinition('object.blob-filter', {assignments: {
+      'object.blob-filter': 'action.refresh', 'object.blob_filter': 'action.search',
+    }}).key).toBe('action.refresh');
+    expect(resolveIconDefinition('object.blob-filter', {assignments: {
+      'object.blob_filter': 'object.blob-filter',
+    }}).key).toBe('object.blob_filter');
+  });
+
+  it('preserves exact provider registrations before object-kind normalization', () => {
+    const removeCanonical = registerIconDefinition({key: 'object.owned_filter',
+      category: ICON_CATEGORIES.OBJECT, kind: 'class', className: 'owned-canonical'});
+    const removeExact = registerIconDefinition({key: 'object.owned-filter',
+      category: ICON_CATEGORIES.OBJECT, kind: 'class', className: 'owned-exact'});
+    try {
+      expect(resolveIconDefinition('object.owned-filter').className).toBe('owned-exact');
+      removeExact();
+      expect(resolveIconDefinition('object.owned-filter').className).toBe('owned-canonical');
+    } finally {
+      removeExact();
+      removeCanonical();
+    }
+  });
+
   it('maps engine and object keys onto replaceable presentation assets', () => {
     expect(resolveIconDefinition('engine.firebird').className)
       .toBe('icon-engine-type-firebird');

@@ -1019,7 +1019,8 @@
         {"resource_kind": "privilege", "title": "Privilege", "operation_profile": "security", "editor": {"sections": ["properties", "security", "operations"]}},
         {"resource_kind": "character-set", "title": "Character set", "operation_profile": "read_only", "editor": {"sections": ["properties", "dependencies", "dependents", "operations"]}},
         {"resource_kind": "collation", "title": "Collation", "operation_profile": "definition", "editor": {"sections": ["properties", "dependencies", "dependents", "operations"]}},
-        {"resource_kind": "external-function", "title": "External function/filter", "operation_profile": "definition", "editor": {"sections": ["properties", "ddl", "parameters", "dependencies", "dependents", "privileges", "operations"]}},
+        {"resource_kind": "external-function", "title": "Legacy external function", "parent_kinds": ["database"], "operation_profile": "definition", "editor": {"sections": ["properties", "ddl", "parameters", "dependencies", "dependents", "privileges", "operations"]}},
+        {"resource_kind": "blob-filter", "title": "BLOB filter", "parent_kinds": ["database"], "operation_profile": "read_only", "editor": {"sections": ["properties", "ddl", "dependencies", "dependents", "privileges", "operations"]}},
         {"resource_kind": "plugin", "title": "Configured plugin", "operation_profile": "read_only", "editor": {"sections": ["properties", "operations"]}},
         {"resource_kind": "publication", "title": "Publication", "operation_profile": "definition", "editor": {"sections": ["properties", "dependencies", "dependents", "privileges", "operations"]}},
         {"resource_kind": "service-operation", "title": "Service operation", "operation_profile": "operational", "editor": {"sections": ["properties", "state", "operations"]}}

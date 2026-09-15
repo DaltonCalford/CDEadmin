@@ -60,9 +60,11 @@ def archive_files(files):
     return buffer.getvalue()
 
 
-def browser_checks(options, route, password, container, build_root):
+def browser_checks(options, route, password, container, build_root, *,
+                   gate_kind='external-functions',
+                   fixture_kind='firebird-udf-qualification'):
     profile = {**route, 'engine': 'firebird', 'password': password,
-               'fixture_kind': 'firebird-udf-qualification',
+               'fixture_kind': fixture_kind,
                'owned_container_id': container}
     private_profile = build_root / 'private-browser-profile.json'
     descriptor = os.open(private_profile, os.O_WRONLY | os.O_CREAT | os.O_EXCL,
@@ -84,7 +86,7 @@ def browser_checks(options, route, password, container, build_root):
                 '--client-library',
                 os.environ['CDEADMIN_FIREBIRD_CLIENT_LIBRARY'],
                 '--profiles', str(private_profile),
-                '--gate-kind', 'external-functions',
+                '--gate-kind', gate_kind,
                 '--font-scale', str(scale), '--theme', 'high-contrast',
                 '--timeout', '60', '--evidence-root',
                 str(folder / 'screenshots')]

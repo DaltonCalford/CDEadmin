@@ -334,6 +334,9 @@ const BUILTIN_DEFINITIONS = [
     `object.${name}`, ICON_CATEGORIES.OBJECT, className
   )),
   componentDefinition(
+    'object.blob_filter', ICON_CATEGORIES.OBJECT, FilterIcon, 'BLOB Filter'
+  ),
+  componentDefinition(
     'command.default', ICON_CATEGORIES.ACTION, MenuCircleIcon, 'Command'
   ),
   componentDefinition(
@@ -510,6 +513,18 @@ export function resolveIconDefinition(iconKey, options={}) {
   let key = assignedIconKey(iconKey, options.assignments);
   if(providerDefinitions.has(key)) return providerDefinitions.get(key);
   if(builtins.has(key)) return builtins.get(key);
+
+  // Provider object kinds use hyphens; the semantic icon registry uses
+  // underscores. Preserve exact registered overrides before normalizing.
+  if(key.startsWith('object.')) {
+    const semanticKey = `object.${key.slice(7).replace(/-/g, '_')}`;
+    const assignedSemanticKey = assignedIconKey(semanticKey, options.assignments);
+    if(assignedSemanticKey !== semanticKey && assignedSemanticKey !== key) {
+      return resolveIconDefinition(assignedSemanticKey, {...options, assignments: undefined});
+    }
+    if(providerDefinitions.has(semanticKey)) return providerDefinitions.get(semanticKey);
+    if(builtins.has(semanticKey)) return builtins.get(semanticKey);
+  }
 
   if(SAFE_CLASS.test(key) && (key.startsWith('icon-') || key.startsWith('fa '))) {
     return Object.freeze({
