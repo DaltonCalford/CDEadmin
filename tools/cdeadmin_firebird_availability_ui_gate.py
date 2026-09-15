@@ -66,6 +66,17 @@ def run(options, profiles):
         wait = WebDriverWait(browser, options.timeout)
         forms._prepare_tree(browser, wait, options)
         probe = forms._workspace_probe(browser, ['database'], False)
+        browser.execute_script('''
+            window.__ownedAvailabilityDispatches = 0;
+            const send = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.send = function(body) {
+              try {
+                if (JSON.parse(body)?.action === 'visual_admin_apply')
+                  window.__ownedAvailabilityDispatches++;
+              } catch (_) { /* Count only the exact JSON apply action. */ }
+              return send.apply(this, arguments);
+            };
+        ''')
         descriptor = next(item for item in probe['catalog']['objects']
                           if item['resource_kind'] == 'database')
         for operation_id, values, expected in (
@@ -137,6 +148,17 @@ def run(options, profiles):
             plan = plan_preview(browser, wait, operation, values)
             assert 'before returning a later access error' in str(
                 plan['warnings'])
+            selection = {
+                'database': database, 'operation': operation_id,
+                'mode': expected, 'sql_role': None}
+            if operation_id == 'shutdown_database':
+                selection.update(method=values['Shutdown method'],
+                                 timeout_seconds=values['Timeout in seconds'])
+            assert plan['command_preview']['availability_selection'] == (
+                selection)
+            assert browser.execute_script(
+                'return window.__ownedAvailabilityDispatches') == len(
+                    result['checks'])
             prefix = str(len(result['checks'])) + '-' + operation_id
             pages = screenshot_form_pages(browser, options.output_root / (
                 prefix + '-plan'))
@@ -157,8 +179,12 @@ def run(options, profiles):
             observation = native_state(expected)
             result_pages = screenshot_form_pages(
                 browser, options.output_root / (prefix + '-result'))
+            assert browser.execute_script(
+                'return window.__ownedAvailabilityDispatches') == len(
+                    result['checks']) + 1
             result['checks'].append({
                 'operation': operation_id, 'expected_mode': expected,
+                'reviewed_selection': selection, 'apply_dispatch_count': 1,
                 'native_post_state': observation,
                 'database_popup_verified': True,
                 'accessibility': accessibility, 'plan_screenshots': pages,

@@ -84,6 +84,38 @@ def test_availability_plan_keeps_exact_target_and_warns_about_native_errors(
     assert compiled['warnings'] == [availability.WARNING]
     assert 'before returning a later access error' in compiled['warnings'][0]
     assert 'IGNORE_DB_TRIGGERS' in compiled['warnings'][0]
+    assert compiled['availability_selection']['database'] == path
+    planned = ADMINISTRATION.plan({
+        'resource_kind': 'database', 'operation_id': operation,
+        'draft': {}, '_provider_route': {
+            'database': path, 'password': 'must-not-appear-in-preview'}})
+    assert planned['command_preview']['availability_selection'] == (
+        compiled['availability_selection'])
+    assert 'must-not-appear-in-preview' not in str(planned['command_preview'])
+
+
+@pytest.mark.parametrize('timeout', [0, 5, 30, 32767])
+def test_reviewed_selection_does_not_adjust_native_timeout(timeout):
+    selected = availability.selection(
+        'shutdown_database', '/data/exact.fdb ', {
+            'shutdown_timeout': timeout, 'role': 'MAINTENANCE',
+            'password': 'not-a-preview-field'})
+    assert selected == {
+        'database': '/data/exact.fdb ', 'operation': 'shutdown_database',
+        'mode': 'FULL', 'method': 'DENY_ATTACHMENTS',
+        'timeout_seconds': timeout, 'sql_role': 'MAINTENANCE'}
+
+
+def test_online_selection_has_no_shutdown_parameters():
+    assert availability.selection('bring_online', '/data/exact.fdb', {}) == {
+        'database': '/data/exact.fdb', 'operation': 'bring_online',
+        'mode': 'NORMAL', 'sql_role': None}
+
+
+@pytest.mark.parametrize('database', [None, '', ' ', [], 42])
+def test_availability_selection_requires_database(database):
+    with pytest.raises(RelationalClientError):
+        availability.selection('bring_online', database, {})
 
 
 def test_privilege_evidence_never_exports_arbitrary_native_message():

@@ -2681,6 +2681,9 @@ class RelationalAdministration:
                 'statements': preview,
                 'provider_constructed': True,
                 'driver_operation': compiled.get('driver_operation'),
+                **({'availability_selection': copy.deepcopy(
+                    compiled['availability_selection'])}
+                   if 'availability_selection' in compiled else {}),
                 **({'recovery_selection': copy.deepcopy(
                     compiled['recovery_selection'])}
                    if 'recovery_selection' in compiled else {}),
@@ -3451,6 +3454,9 @@ class RelationalAdministration:
                 'database': database,
                 'options': copy.deepcopy(request.get('draft', {})),
                 'statements': [],
+                **({'availability_selection': firebird_availability.selection(
+                    operation, database, request.get('draft', {}))}
+                   if operation in firebird_availability.OPERATIONS else {}),
                 **({'restore_policy_requested': physical_restore_policy(
                     operation, request.get('draft', {}))}
                    if operation in {'restore_physical', 'fixup_database'}
