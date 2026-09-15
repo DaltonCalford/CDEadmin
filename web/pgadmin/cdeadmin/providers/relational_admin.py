@@ -47,6 +47,7 @@ from .firebird import object_privileges as firebird_object_privileges
 from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
 from .firebird import shadows as firebird_shadows
+from .firebird import database_storage as firebird_database_storage
 from .firebird.error_diagnostics import status_codes as firebird_status_codes
 from .firebird import tables as firebird_tables
 from .firebird import identity as firebird_identity
@@ -231,6 +232,20 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'database':
+                additions = firebird_database_storage.OPERATIONS & (
+                    self.dialect.supported.get(kind, frozenset()))
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] not in additions
+                ] + [{
+                    'operation_id': operation,
+                    'title': firebird_database_storage.form(
+                        operation, self._field)['title'],
+                    'mutation_class': 'admin',
+                    'target_required': True,
+                    'confirmation_required': True,
+                } for operation in sorted(additions)]
             if self.dialect.engine_id == 'firebird' and kind == 'shadow':
                 resource['operations'] = [{
                     'operation_id': operation,
@@ -480,6 +495,20 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'database' and
+                operation_id in firebird_database_storage.OPERATIONS):
+            try:
+                route = request.get('_provider_route')
+                firebird_database_storage.compile_operation(
+                    operation_id, draft,
+                    route.get('database') if isinstance(route, Mapping)
+                    else None)
+            except RelationalClientError as error:
+                errors.append({'field_id': None,
+                               'code': 'invalid_database_storage',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind == 'shadow' and operation_id != 'inspect'):
             try:
@@ -2760,6 +2789,10 @@ class RelationalAdministration:
             if borrowed_firebird:
                 task_savepoint = NativeTaskSavepoint(cursor)
                 task_savepoint.begin()
+            difference_path = compiled.get('firebird_difference_path')
+            if self.dialect.engine_id == 'firebird' and difference_path:
+                firebird_database_storage.verify_difference_path(
+                    cursor, **difference_path)
             shadow_drop = compiled.get('firebird_shadow_drop')
             if self.dialect.engine_id == 'firebird' and shadow_drop:
                 firebird_shadows.verify_drop(
@@ -3077,6 +3110,21 @@ class RelationalAdministration:
 
     def _compile(self, request):
         operation = request['operation_id']
+        if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'database' and
+                operation in firebird_database_storage.OPERATIONS):
+            statements = firebird_database_storage.compile_operation(
+                operation, request['draft'],
+                request['_provider_route'].get('database'))
+            return {'statements': [{'source': sql, 'parameters': ()}
+                                   for sql in statements],
+                    **({'firebird_difference_path': {
+                        'operation': operation,
+                        'filename': request['draft'].get('filename'),
+                    }} if operation in {
+                        'add_difference_file', 'begin_backup'} else {}),
+                    'warnings': [
+                        firebird_database_storage.WARNINGS[operation]]}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'shadow' and
                 operation in {'create', 'drop'}):
@@ -4186,6 +4234,9 @@ class RelationalAdministration:
             raise RelationalClientError('administration draft is invalid')
         value = copy.deepcopy(dict(draft))
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation in firebird_database_storage.OPERATIONS):
+            return value
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in {'backup_physical', 'restore_physical'}):
             value = normalize_physical_io(operation, value)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
@@ -4425,6 +4476,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'database' and
+                operation in firebird_database_storage.OPERATIONS):
+            return firebird_database_storage.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'shadow' and
                 operation in {'create', 'drop'}):
             return firebird_shadows.form(operation, self._field)

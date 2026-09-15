@@ -400,6 +400,8 @@ class ContextMenuTests(unittest.TestCase):
             'set_space_reservation', 'set_write_mode', 'set_access_mode',
             'set_sql_dialect', 'activate_shadow', 'remove_linger',
             'fixup_database', 'set_replica_mode', 'upgrade_database',
+            'add_files', 'add_difference_file', 'drop_difference_file',
+            'begin_backup', 'end_backup',
         }
         self.assertTrue(all(
             f'database.firebird.{operation}' in by_id

@@ -1146,6 +1146,128 @@ def supplement_shadows(document, evidence, digest, artifact):
     return value
 
 
+def supplement_database_storage(document, evidence, digest, artifact):
+    """Admit storage tasks only with native lifecycle and safety evidence."""
+    from pgadmin.cdeadmin.providers.firebird.database_storage import OPERATIONS
+    validate_dialect_contract(document, PROFILE)
+    layouts = {f'files-{multiple}-{explicit}'
+               for multiple in (False, True) for explicit in (False, True)}
+    backups = {'backup-False', 'backup-True'}
+    expected = layouts | backups | {
+        'database-alter-permission', 'busy-file-extension',
+        'difference-file-safety', 'repeated-extension-False',
+        'repeated-extension-True', 'backup-then-near-extension'}
+    tasks = {'visual_admin.database.' + operation for operation in OPERATIONS}
+    checks = evidence.get('checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-database-storage.v1' or
+            evidence.get('executor') != 'provider-native' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(expected) or
+            {item.get('case') for item in checks} != expected or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('Database storage native evidence is incomplete')
+    records = {item['case']: item for item in checks}
+    cleanup = evidence.get('database_cleanup', [])
+    if (len(cleanup) != len(expected) or
+            {item.get('case') for item in cleanup} != expected or
+            any(item.get('removed') is not True for item in cleanup)):
+        raise ValueError('Storage fixture cleanup proof missing')
+    for case in layouts:
+        if not all(records[case].get(key) is True for key in (
+                'rollback_verified', 'duplicate_rejected',
+                'data_access_verified', 'physical_files_verified')):
+            raise ValueError('Native database-file lifecycle proof missing')
+    for case in backups:
+        if not all(records[case].get(key) is True for key in (
+                'mode_rollback_verified', 'physical_delta_verified',
+                'delta_changes_retained')):
+            raise ValueError('Native backup-mode lifecycle proof missing')
+    permissions = records['database-alter-permission']
+    denials = permissions.get('permission_denials', [])
+    if (sorted(permissions.get('permission_admissions', [])) !=
+            sorted(OPERATIONS) or len(denials) != len(OPERATIONS) or
+            {item.get('operation') for item in denials} != OPERATIONS or
+            any(335544352 not in item.get('native_status_codes', [])
+                for item in denials)):
+        raise ValueError('Storage native permission proof missing')
+    busy = records['busy-file-extension']
+    if (335544453 not in busy.get('native_status_codes', []) or
+            not all(busy.get(key) is True for key in (
+                'other_attachment_preserved',
+                'explicit_maintenance_retry_passed'))):
+        raise ValueError('Storage attachment coordination proof missing')
+    if not all(records['difference-file-safety'].get(key) is True for key in (
+            'known_secondary_protected',
+            'existing_primary_collision_protected',
+            'caller_pending_work_preserved', 'caller_rollback_verified')):
+        raise ValueError('Difference-file safety proof missing')
+    if records['repeated-extension-False'].get(
+            'reopened_before_extension') is not True:
+        raise ValueError('Repeated native file extension proof missing')
+    defect = records['repeated-extension-True']
+    if (335545273 not in defect.get('native_status_codes', []) or
+            not all(defect.get(key) is True for key in (
+                'native_backup_extension_defect_reproduced',
+                'failure_retained_without_automatic_retry'))):
+        raise ValueError('Native multi-file backup safety proof missing')
+    if records['backup-then-near-extension'].get(
+            'backup_before_file_extension') is not True:
+        raise ValueError('Post-backup native file extension proof missing')
+    codes = {'duplicate-file-' + case.removeprefix('files-'): 336068774
+             for case in layouts}
+    codes.update({'duplicate-difference': 336068824,
+                  'remove-difference-during-backup': 335544832})
+    for suffix in ('False', 'True'):
+        codes.update({'already-in-backup-' + suffix: 336068825,
+                      'already-out-of-backup-' + suffix: 336068826,
+                      'missing-difference-' + suffix: 336068823})
+    denials = evidence.get('native_denials', [])
+    if (len(denials) != len(codes) or
+            {item.get('case') for item in denials} != set(codes) or
+            any(codes[item['case']] not in item.get('native_status_codes', [])
+                for item in denials)):
+        raise ValueError('Storage native rejection proof missing')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-database-storage-live'
+    parser_id = 'firebird-5.0.4-database-storage-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or not statements or
+                not all(isinstance(sql, str) and sql for sql in statements)):
+            raise ValueError('Storage task lacks native statements')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': '\n;\n'.join(statements),
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def _write_csv(path, document):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('w', encoding='utf-8', newline='') as output:
@@ -1176,7 +1298,7 @@ def main(argv=None):
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
-        'sequences', 'shadows'),
+        'sequences', 'shadows', 'database-storage'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1190,6 +1312,7 @@ def main(argv=None):
                       'packages': supplement_packages,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
+                      'database-storage': supplement_database_storage,
                       'columns': supplement_columns}[options.supplement]
         document = supplement(
             json.loads(options.existing_contract.read_text(encoding='utf-8')),

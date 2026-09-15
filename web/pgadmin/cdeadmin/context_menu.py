@@ -901,6 +901,17 @@ def database_target_context_actions(
              'action.settings', 'admin', 'availability'),
             ('upgrade_database', 'Upgrade database ODS...',
              'action.settings', 'destructive', 'maintenance'),
+            ('add_files', 'Add database files...',
+             'action.settings', 'admin', 'maintenance'),
+            ('add_difference_file', 'Define backup difference file...',
+             'action.settings', 'admin', 'backup'),
+            ('drop_difference_file',
+             'Remove backup difference-file definition...',
+             'action.settings', 'admin', 'backup'),
+            ('begin_backup', 'Begin physical backup mode...',
+             'action.backup', 'admin', 'backup'),
+            ('end_backup', 'End physical backup mode...',
+             'action.backup', 'admin', 'backup'),
         )
         for offset, (operation_id, label, icon, mutation, group) in enumerate(
                 tasks):

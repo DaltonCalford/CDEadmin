@@ -23,7 +23,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
-from . import blob_filters, object_privileges, shadows
+from . import blob_filters, object_privileges, shadows, database_storage
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
@@ -115,7 +115,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'set_space_reservation', 'set_write_mode', 'set_access_mode',
             'set_sql_dialect', 'activate_shadow', 'remove_linger',
             'fixup_database', 'set_replica_mode', 'upgrade_database',
-        }),
+        }) | database_storage.OPERATIONS,
         'table': frozenset({
             'inspect', 'create', 'alter', 'drop',
             'insert', 'update', 'delete', 'grant', 'revoke',
