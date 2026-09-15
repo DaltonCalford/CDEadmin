@@ -1978,6 +1978,135 @@ describe('ProviderWorkspaceContent', () => {
       expect(post).toHaveBeenCalledTimes(calls);
     });
 
+  it.each([
+    ['visual_admin_validate', 'target'], ['visual_admin_plan', 'target'],
+    ['visual_admin_validate', 'generation'], ['visual_admin_plan', 'generation'],
+    ['visual_admin_validate', 'transport'], ['visual_admin_plan', 'transport'],
+    ['visual_admin_validate', 'catalog'], ['visual_admin_plan', 'catalog'],
+  ])('discards delayed %s after %s changes', async (stage, change) => {
+    const first = {resource_id: 'sequence:A', resource_kind: 'sequence', display_name: 'A'};
+    const second = {...first, resource_id: 'sequence:B', display_name: 'B'};
+    const catalog = {objects: [{resource_kind: 'sequence', title: 'Sequence',
+      operations: [{operation_id: 'alter', title: 'Alter', target_required: true,
+        form: {fields: [{field_id: 'description', label: 'Comment', control: 'text'}]}}]}]};
+    let release;
+    let held = false;
+    const oldResponse = new Promise(resolve => { release = resolve; });
+    const ready = {plan_id: 'fresh-plan', plan_digest: 'fresh-digest',
+      state: 'ready', execution_available: true};
+    const post = jest.fn(async ({action, request}) => {
+      if (action === 'resource_inspect') return request.resource_id === first.resource_id ? first : second;
+      if (action === stage && !held) {
+        held = true;
+        return oldResponse;
+      }
+      if (action === 'visual_admin_validate') return {valid: true};
+      if (action === 'visual_admin_plan') return ready;
+      return {provider_result: {accepted: true}};
+    });
+    const props = {catalog, resources: [first, second], post, setError: jest.fn(),
+      initialOperationId: 'alter', initialResourceKind: 'sequence'};
+    const {rerender} = render(<VisualAdministration {...props}
+      selectedResource={first} resourceGeneration="g1" />);
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeEnabled());
+    fireEvent.change(screen.getByRole('textbox', {name: 'Comment'}), {target: {value: 'original draft'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(held).toBe(true));
+    const next = change === 'target' ? second : first;
+    rerender(<VisualAdministration {...props} selectedResource={next}
+      post={change === 'transport' ? (body) => post(body) : post}
+      catalog={change === 'catalog' ? {...catalog} : catalog}
+      resourceGeneration={change === 'generation' ? 'g2' : 'g1'} />);
+    await waitFor(() => expect(post.mock.calls.filter(([body]) =>
+      body.action === 'resource_inspect')).toHaveLength(change === 'catalog' ? 1 : 2));
+    await act(async () => {
+      release(stage === 'visual_admin_validate' ? {valid: true} :
+        {...ready, plan_id: 'obsolete-plan'});
+    });
+    expect(screen.queryByLabelText('Provider plan preview')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
+    if (stage === 'visual_admin_validate') {
+      expect(post.mock.calls.filter(([body]) => body.action === 'visual_admin_plan')).toHaveLength(0);
+    }
+    fireEvent.change(screen.getByRole('textbox', {name: 'Comment'}), {target: {value: 'new draft'}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeEnabled());
+    expect(post).toHaveBeenLastCalledWith({action: 'visual_admin_plan', request: {
+      resource_kind: 'sequence', operation_id: 'alter', target_resource: next,
+      draft: {description: 'new draft'},
+    }});
+  });
+
+  it.each(['target', 'generation', 'transport', 'catalog'])(
+    'retires an existing plan in the same render as a %s change', async (change) => {
+      const first = {resource_id: 'sequence:A', resource_kind: 'sequence', display_name: 'A'};
+      const second = {...first, resource_id: 'sequence:B', display_name: 'B'};
+      const catalog = {objects: [{resource_kind: 'sequence', title: 'Sequence',
+        operations: [{operation_id: 'alter', title: 'Alter', target_required: true,
+          form: {fields: []}}]}]};
+      const post = jest.fn(async ({action, request}) => {
+        if (action === 'resource_inspect') return request.resource_id === first.resource_id ? first : second;
+        if (action === 'visual_admin_validate') return {valid: true};
+        return {plan_id: 'old-plan', plan_digest: 'old-digest', state: 'ready', execution_available: true};
+      });
+      const snapshots = [];
+      const setError = jest.fn();
+      function Observe({changed}) {
+        useLayoutEffect(() => {
+          snapshots.push({preview: screen.queryByLabelText('Provider plan preview'),
+            disabled: screen.getByRole('button', {name: 'Apply provider plan'}).disabled});
+        }, [changed]);
+        return <VisualAdministration catalog={changed && change === 'catalog' ? {...catalog} : catalog}
+          resources={[first, second]} selectedResource={changed && change === 'target' ? second : first}
+          resourceGeneration={changed && change === 'generation' ? 'g2' : 'g1'}
+          post={changed && change === 'transport' ? (body) => post(body) : post}
+          setError={setError} />;
+      }
+      const {rerender} = render(<Observe changed={false} />);
+      await waitFor(() => expect(screen.getByRole('button', {name: 'Validate and preview'})).toBeEnabled());
+      await act(async () => {});
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      });
+      expect(setError.mock.calls).toEqual([[null]]);
+      expect(post.mock.calls.map(([body]) => body.action)).toEqual([
+        'resource_inspect', 'visual_admin_validate', 'visual_admin_plan']);
+      await waitFor(() => expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeEnabled());
+      await act(async () => { rerender(<Observe changed />); });
+      expect(snapshots.at(-1)).toEqual({preview: null, disabled: true});
+      fireEvent.click(screen.getByRole('button', {name: 'Apply provider plan'}));
+      expect(post.mock.calls.filter(([body]) => body.action === 'visual_admin_apply')).toHaveLength(0);
+    });
+
+  it.each(['invalid', 'validate-error', 'plan-error', 'unmounted'])(
+    'does not publish obsolete %s preview feedback', async (outcome) => {
+      const catalog = {objects: [{resource_kind: 'database', title: 'Database',
+        operations: [{operation_id: 'create', title: 'Create', target_required: false,
+          form: {fields: []}}]}]};
+      let release, reject;
+      const pending = new Promise((resolve, fail) => { release = resolve; reject = fail; });
+      const post = jest.fn(async ({action}) => {
+        if (action === 'visual_admin_validate' && outcome === 'plan-error') return {valid: true};
+        return pending;
+      });
+      const setError = jest.fn();
+      const {rerender, unmount} = render(<VisualAdministration catalog={catalog}
+        resources={[]} post={post} setError={setError} resourceGeneration="g1" />);
+      fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(outcome === 'plan-error' ? 2 : 1));
+      if (outcome === 'unmounted') unmount();
+      else rerender(<VisualAdministration catalog={catalog} resources={[]}
+        post={post} setError={setError} resourceGeneration="g2" />);
+      await act(async () => {
+        if (outcome.endsWith('-error')) reject(new Error('Obsolete failure'));
+        else release(outcome === 'unmounted' ? {valid: true} :
+          {valid: false, errors: [{message: 'Obsolete validation'}]});
+      });
+      expect(screen.queryByText('Obsolete validation')).not.toBeInTheDocument();
+      expect(setError).not.toHaveBeenCalledWith('Obsolete failure');
+      expect(post).toHaveBeenCalledTimes(outcome === 'plan-error' ? 2 : 1);
+    });
+
   it('requests credentials and reloads after a workspace 401', async () => {
     const onCredentialRequired = jest.fn();
     api.get

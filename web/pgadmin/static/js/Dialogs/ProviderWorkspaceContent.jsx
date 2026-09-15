@@ -8,7 +8,7 @@
 //////////////////////////////////////////////////////////////
 
 import {
-  Fragment, useCallback, useEffect, useId, useMemo, useRef, useState,
+  Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
 import PropTypes from 'prop-types';
 import gettext from 'sources/gettext';
@@ -1012,8 +1012,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [draft, setDraft] = useState({});
   const [baselineDraft, setBaselineDraft] = useState({});
   const [inspectionRevision, setInspectionRevision] = useState(0);
-  const [plan, setPlan] = useState(null);
-  const [validation, setValidation] = useState(null);
+  const [planned, setPlanned] = useState(null);
+  const [validated, setValidated] = useState(null);
   const [result, setResult] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
@@ -1067,6 +1067,25 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const targetResource = matchingResources.find(
     (item) => item.resource_id === targetId);
   const targetUnavailable = Boolean(operation?.target_required && !targetResource);
+  // A response belongs to the exact editor context that requested it. Hide
+  // obsolete previews during render, not only after a passive reset effect.
+  // Prefill can replace a draft with an equivalent object. That is not an
+  // edit and must not invalidate an otherwise current preview in flight.
+  const draftIdentity = JSON.stringify(draft);
+  const editorContext = useMemo(() => ({catalog, post,
+    resourceGeneration, resourceKind, operationId, targetResource,
+    selectedResource, inspectedResource, draftIdentity}), [catalog, post,
+    resourceGeneration, resourceKind, operationId, targetResource,
+    selectedResource, inspectedResource, draftIdentity]);
+  const currentEditorContext = useRef(editorContext);
+  useLayoutEffect(() => {
+    currentEditorContext.current = editorContext;
+    return () => { currentEditorContext.current = null; };
+  }, [editorContext]);
+  const plan = planned?.context === editorContext ? planned.value : null;
+  const validation = validated?.context === editorContext ? validated.value : null;
+  const setPlan = (value) => setPlanned(value ? {context: editorContext, value} : null);
+  const setValidation = (value) => setValidated(value ? {context: editorContext, value} : null);
   const graphicalContract = catalog?.graphical_interface;
   const groupedObjects = useMemo(() => {
     const declaredGroups = catalog?.navigator?.groups || [];
@@ -1207,7 +1226,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   });
 
   const preview = async () => {
-    if (operationInFlight.current || !operation || inspecting || targetUnavailable) return;
+    if (currentEditorContext.current !== editorContext ||
+        operationInFlight.current || !operation || inspecting || targetUnavailable) return;
     operationInFlight.current = true;
     setCloseBlocked(false);
     setWorking(true);
@@ -1218,13 +1238,18 @@ export function VisualAdministration({catalog, resources, selectedResource, post
       const checked = await post({
         action: 'visual_admin_validate', request: request(),
       });
+      if (currentEditorContext.current !== editorContext) return;
       setValidation(checked);
       if (!checked.valid) return;
-      setPlan(await post({
+      const previewed = await post({
         action: 'visual_admin_plan', request: request(),
-      }));
+      });
+      if (currentEditorContext.current !== editorContext) return;
+      setPlan(previewed);
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      if (currentEditorContext.current === editorContext) {
+        setError(errorMessage(requestError));
+      }
     } finally {
       operationInFlight.current = false;
       setWorking(false);
@@ -1233,7 +1258,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
 
   const apply = async () => {
     const submittedPlan = plan;
-    if (!submittedPlan || operationInFlight.current || inspecting || targetUnavailable) return;
+    if (currentEditorContext.current !== editorContext ||
+        !submittedPlan || operationInFlight.current || inspecting || targetUnavailable) return;
     operationInFlight.current = true;
     setCloseBlocked(false);
     setWorking(true);
