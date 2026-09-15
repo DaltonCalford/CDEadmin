@@ -6150,6 +6150,8 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
           ['role', gettext('Initial role')],
           ['charset', gettext('Connection character set')],
           ['session_time_zone', gettext('Session time zone')],
+          ['decfloat_round', gettext('Initial DECFLOAT rounding mode'),
+            (value) => value === 'NATIVE_DEFAULT' ? gettext('Native default') : value],
           ['no_gc', gettext('Disable cooperative garbage collection'),
             firebirdBoolean],
           ['no_db_triggers', gettext('Disable database triggers'),

@@ -25,6 +25,7 @@ import ProviderWorkspaceContent, {
   administrationResourceId,
 } from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
+import firebirdManifest from '../../../pgadmin/cdeadmin/providers/firebird/provider_manifest.json';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
 
@@ -1079,6 +1080,36 @@ describe('ProviderWorkspaceContent', () => {
     }));
   });
 
+  it.each(firebirdManifest.registration.connection_fields.find(
+    (field) => field.field_id === 'decfloat_round').options)(
+    'saves the declared Firebird endpoint rounding choice $label', async (option) => {
+      const field = firebirdManifest.registration.connection_fields.find(
+        (item) => item.field_id === 'decfloat_round');
+      const post = jest.fn().mockResolvedValue({display_name: 'Firebird lab'});
+      const setError = jest.fn();
+      render(<ServerProfileWorkspace registration={{
+        display_name: 'Firebird lab',
+        primary_route: {route_id: 'owned-rounding', configuration: {
+          decfloat_round: option.value === 'UP' ? 'DOWN' : 'UP',
+        }},
+        forms: {forms: {edit: {
+          form_id: 'cdeadmin.firebird-native.server.edit.v1',
+          operation_id: 'edit', title: 'Edit Firebird 5.0 server', fields: [field],
+        }}},
+      }} post={post} setError={setError} />);
+      fireEvent.mouseDown(screen.getByRole('combobox', {
+        name: 'Initial DECFLOAT rounding mode',
+      }));
+      fireEvent.click(await screen.findByRole('option', {name: option.label, exact: true}));
+      fireEvent.click(screen.getByRole('button', {name: 'Save endpoint profile'}));
+      await waitFor(() => expect(post).toHaveBeenCalledWith({
+        action: 'endpoint_profile_update', request: {decfloat_round: option.value},
+      }));
+      expect(await screen.findByText('Endpoint profile saved. Verify it before reconnecting.'))
+        .toBeInTheDocument();
+      expect(setError).toHaveBeenCalledWith(null);
+    });
+
   it('edits an explicit endpoint and reveals only the typed password', async () => {
     const post = jest.fn().mockResolvedValue({display_name: 'Firebird lab'});
     render(<ServerProfileWorkspace registration={{
@@ -1527,47 +1558,53 @@ describe('ProviderWorkspaceContent', () => {
       expect(screen.getByRole('button', {name: 'Apply provider plan'})).toBeDisabled();
     });
 
-  it('renders database and server observations on one properties task', async () => {
-    api.get.mockResolvedValue({data: {data: {
-      ...bootstrap,
-      endpoint: {
-        ...bootstrap.endpoint,
-        provider_id: 'org.cdeadmin.firebird',
-        verified_runtime_family: 'firebird',
-        verified_runtime_version: '5.0.4',
-      },
-      database_targets: {
-        targets: [{target_id: 'database-one', display_name: 'example.fdb',
-          database: '/firebird/data/example.fdb', active: true,
-          configuration: {charset: 'UTF8', transaction_isolation: 'SNAPSHOT'}}],
-      },
-      resource_page: {items: [{
-        resource_id: 'server:Firebird', resource_kind: 'server',
-        display_name: 'Firebird',
-        extensions: {firebird: {native: {architecture: 'Firebird/linux'}}},
-      }, {
-        resource_id: 'database:example.fdb', resource_kind: 'database',
-        display_name: 'example.fdb',
-        extensions: {firebird: {native: {page_size: '8192',
-          ods_major: '13', ods_minor: '1', sql_dialect: '3',
-          default_character_set: 'UTF8', forced_writes: '1'}}},
-      }]},
-    }}});
-    render(<ProviderWorkspaceContent closeModal={jest.fn()}
-      endpointUrl="/workspace/1" initialTab="properties"
-      initialContext={{resource_id: 'database-one'}} />);
-    expect(await screen.findByText('example.fdb — Firebird database properties'))
-      .toBeInTheDocument();
-    expect(screen.getByText('Firebird server observations')).toBeInTheDocument();
-    expect(screen.getByText('Firebird/linux')).toBeInTheDocument();
-    expect(screen.getByText('Firebird format and dialect')).toBeInTheDocument();
-    expect(screen.getByText('Firebird storage and durability')).toBeInTheDocument();
-    expect(screen.getByText('Firebird connection defaults')).toBeInTheDocument();
-    expect(screen.getByText('Database filename or alias')).toBeInTheDocument();
-    expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
-    expect(screen.getByText('8192')).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-  });
+  it.each(['CEILING', 'UP', 'HALF_UP', 'HALF_EVEN', 'HALF_DOWN', 'DOWN',
+    'FLOOR', 'REROUND', 'NATIVE_DEFAULT'])(
+    'renders database and server observations with rounding %s', async (rounding) => {
+      api.get.mockResolvedValue({data: {data: {
+        ...bootstrap,
+        endpoint: {
+          ...bootstrap.endpoint,
+          provider_id: 'org.cdeadmin.firebird',
+          verified_runtime_family: 'firebird',
+          verified_runtime_version: '5.0.4',
+        },
+        database_targets: {
+          targets: [{target_id: 'database-one', display_name: 'example.fdb',
+            database: '/firebird/data/example.fdb', active: true,
+            configuration: {charset: 'UTF8', transaction_isolation: 'SNAPSHOT',
+              decfloat_round: rounding}}],
+        },
+        resource_page: {items: [{
+          resource_id: 'server:Firebird', resource_kind: 'server',
+          display_name: 'Firebird',
+          extensions: {firebird: {native: {architecture: 'Firebird/linux'}}},
+        }, {
+          resource_id: 'database:example.fdb', resource_kind: 'database',
+          display_name: 'example.fdb',
+          extensions: {firebird: {native: {page_size: '8192',
+            ods_major: '13', ods_minor: '1', sql_dialect: '3',
+            default_character_set: 'UTF8', forced_writes: '1'}}},
+        }]},
+      }}});
+      render(<ProviderWorkspaceContent closeModal={jest.fn()}
+        endpointUrl="/workspace/1" initialTab="properties"
+        initialContext={{resource_id: 'database-one'}} />);
+      expect(await screen.findByText('example.fdb — Firebird database properties'))
+        .toBeInTheDocument();
+      expect(screen.getByText('Firebird server observations')).toBeInTheDocument();
+      expect(screen.getByText('Firebird/linux')).toBeInTheDocument();
+      expect(screen.getByText('Firebird format and dialect')).toBeInTheDocument();
+      expect(screen.getByText('Firebird storage and durability')).toBeInTheDocument();
+      expect(screen.getByText('Firebird connection defaults')).toBeInTheDocument();
+      expect(screen.getByText('Initial DECFLOAT rounding mode')).toBeInTheDocument();
+      expect(screen.getByText(rounding === 'NATIVE_DEFAULT' ? 'Native default' : rounding))
+        .toBeInTheDocument();
+      expect(screen.getByText('Database filename or alias')).toBeInTheDocument();
+      expect(screen.getByText('/firebird/data/example.fdb')).toBeInTheDocument();
+      expect(screen.getByText('8192')).toBeInTheDocument();
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    });
 
   it('does not call an engine-provided starter empty when there are no presets', async () => {
     api.get.mockResolvedValue({data: {data: {

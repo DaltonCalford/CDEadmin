@@ -24,6 +24,7 @@ import os
 import sys
 import traceback
 import uuid
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -38,6 +39,12 @@ from tools import cdeadmin_sqlite_database_lifecycle_ui_gate as shared  # noqa: 
 from tools.cdeadmin_firebird_ui_form_gate import (  # noqa: E402
     create_driver,
     evidence_variant,
+)
+from tools.cdeadmin_firebird_decfloat_attachment_gate import (  # noqa: E402
+    CONNECTION_ROUND_RESULTS,
+)
+from pgadmin.cdeadmin.providers.firebird.provider import (  # noqa: E402
+    _route_arguments, _initialize_connection,
 )
 
 
@@ -196,6 +203,45 @@ def _wait_target(wait, options, predicate, message):
         lambda: predicate(shared._target_rows(options.config_db)),
         message,
     )
+
+
+def _rounding_case(driver, wait, options, module, password, mode):
+    shared._refresh_tree(driver, wait, options, options.database)
+    shared._open_form(driver, wait, 'edit', options.database)
+    label = 'Native default' if mode == 'NATIVE_DEFAULT' else mode
+    shared.fill_fields(wait, ['Initial DECFLOAT rounding mode=' + label])
+    evidence = {'mode': mode}
+    capture = SimpleNamespace(**{
+        **vars(options),
+        'output_root': options.output_root / ('round-' + mode)})
+    shared._capture_completed(driver, capture, 'edit', evidence)
+    shared._submit_target_form(driver, wait, 'edit', {})
+    _wait_target(wait, options, lambda rows: any(
+        item['display_name'] == options.database and
+        item['configuration'].get('decfloat_round') == mode for item in rows
+    ), 'DECFLOAT rounding edit did not persist')
+    selected = next(item for item in shared._target_rows(options.config_db)
+                    if item['display_name'] == options.database)
+    route = {**selected['configuration'], 'host': options.host,
+             'port': options.firebird_port, 'user': options.user,
+             'database': selected['database']}
+    with module.connect(password=password,
+                        **_route_arguments(route, module)) as connection:
+        _initialize_connection(connection, route, module)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
+                "CAST('0.1' AS DECFLOAT(16))), "
+                "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
+                "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
+            observed = tuple(str(value) for value in cursor.fetchone())
+        if observed != CONNECTION_ROUND_RESULTS[mode]:
+            raise RuntimeError(
+                'Saved rounding did not reach native attachment')
+    evidence.update(saved_configuration_verified=True,
+                    native_rounding_values=observed)
+    shared._close(driver, wait)
+    return evidence
 
 
 def _complete_cases(driver, wait, options, module, password,
@@ -496,6 +542,7 @@ def run(options):
     wait = WebDriverWait(driver, options.timeout)
     rendered = []
     completed = []
+    rounding = []
     cleanup = {}
     failures = []
 
@@ -525,6 +572,12 @@ def run(options):
                             completed, cleanup)
         except Exception as exc:
             record_failure('execution', exc)
+        for mode in CONNECTION_ROUND_RESULTS:
+            try:
+                rounding.append(_rounding_case(
+                    driver, wait, options, module, password, mode))
+            except Exception as exc:
+                record_failure('rounding-' + mode, exc)
         for mode in RENDER_ORDER:
             try:
                 shared._refresh_tree(driver, wait, options, options.database)
@@ -555,6 +608,7 @@ def run(options):
         'evidence_variant': evidence_variant(options),
         'expected_modes': list(COMPLETION_ORDER),
         'rendered': rendered, 'completed': completed,
+        'rounding': rounding,
         'cleanup': cleanup,
         'cancelled_form_count': sum(
             item['cancellation']['dialog_dismissed'] for item in rendered
@@ -578,6 +632,8 @@ def run(options):
         'complete': (
             passed_modes == set(COMPLETION_ORDER) and
             completed_modes == set(COMPLETION_ORDER) and not failures and
+            {item['mode'] for item in rounding} ==
+            set(CONNECTION_ROUND_RESULTS) and
             not cleanup.get('unverified_paths')
         ),
     }

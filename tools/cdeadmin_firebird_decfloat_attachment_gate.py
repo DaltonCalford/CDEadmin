@@ -15,17 +15,22 @@ import uuid
 from pathlib import Path
 
 if __package__:
+    from .cdeadmin_firebird_external_functions_gate import browser_checks
     from .cdeadmin_firebird_logical_volumes_gate import (
         docker, published_port, remove_owned, OWNER,
-        _configure_client_library,
+        _configure_client_library, _route_arguments,
     )
 else:
+    from cdeadmin_firebird_external_functions_gate import browser_checks
     from cdeadmin_firebird_logical_volumes_gate import (
         docker, published_port, remove_owned, OWNER,
-        _configure_client_library,
+        _configure_client_library, _route_arguments,
     )
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.provider import (
+    _initialize_connection, _database_create_arguments,
+)
 
 
 ROUND_RESULTS = {
@@ -33,6 +38,10 @@ ROUND_RESULTS = {
     'HALF_UP': ('1.3', '-1.3'), 'HALF_EVEN': ('1.2', '-1.2'),
     'HALF_DOWN': ('1.2', '-1.2'), 'DOWN': ('1.2', '-1.2'),
     'FLOOR': ('1.2', '-1.3'), 'REROUND': ('1.2', '-1.2'),
+}
+# Firebird DecimalStatus initializes HALF_UP, not Python's HALF_EVEN.
+CONNECTION_ROUND_RESULTS = {
+    **ROUND_RESULTS, 'NATIVE_DEFAULT': ROUND_RESULTS['HALF_UP'],
 }
 
 TRAP_PROBES = {
@@ -47,7 +56,7 @@ TRAP_PROBES = {
 }
 
 
-def run(image):
+def run(image, provider_rounding=False, browser_options=None):
     import firebird.driver as native
     _configure_client_library(native)
     password = secrets.token_urlsafe(24)
@@ -55,6 +64,7 @@ def run(image):
     container = None
     result = {'complete': False, 'checks': [], 'failures': [],
               'provider_forms_qualified': False,
+              'provider_rounding_mapping': provider_rounding,
               'owned_container_removed': False}
 
     def failure(case, error):
@@ -63,13 +73,25 @@ def run(image):
             'native_status_codes': list(status_codes(error))})
 
     def connect(rounding=None, traps=None):
+        if provider_rounding and rounding is not None:
+            selected = {**route, 'decfloat_round': getattr(
+                rounding, 'name', rounding)}
+            handle = native.connect(password=password,
+                                    **_route_arguments(selected, native))
+            try:
+                _initialize_connection(handle, selected, native)
+            except Exception:
+                handle.close()
+                raise
+            return handle
         name = 'owned_decfloat_' + uuid.uuid4().hex
         config = native.driver_config.register_database(name)
         config.dsn.value = dsn
         config.user.value = None
         config.password.value = None
         config.charset.value = 'UTF8'
-        config.decfloat_round.value = rounding
+        config.decfloat_round.value = (
+            None if rounding == 'NATIVE_DEFAULT' else rounding)
         config.decfloat_traps.value = traps
         return native.connect(name, user='SYSDBA', password=password)
 
@@ -99,6 +121,9 @@ def run(image):
         if not re.fullmatch('[0-9a-f]{64}', container):
             raise ValueError('Owned container identity is invalid')
         dsn = f'127.0.0.1/{published_port(container)}:{database}'
+        route = {'host': '127.0.0.1', 'port': published_port(container),
+                 'database': database, 'user': 'SYSDBA',
+                 'auth_plugin_list': 'Srp256'}
         phase = 'readiness'
         deadline = time.monotonic() + 45
         while True:
@@ -114,20 +139,45 @@ def run(image):
                     raise
                 time.sleep(0.25)
         assert result['engine_version'] == '5.0.4'
-        for mode, expected in ROUND_RESULTS.items():
+        for mode, expected in CONNECTION_ROUND_RESULTS.items():
             phase = 'round-' + mode
             try:
-                with connect(native.DecfloatRound[mode]) as handle:
-                    with handle.cursor() as cursor:
-                        cursor.execute(
+                selected_rounding = (
+                    mode if mode == 'NATIVE_DEFAULT'
+                    else native.DecfloatRound[mode])
+                with connect(selected_rounding) as handle:
+                    expression = (
                             "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
                             "CAST('0.1' AS DECFLOAT(16))), "
                             "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
                             "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
+                    with handle.cursor() as cursor:
+                        cursor.execute(expression)
                         observed = tuple(str(value)
                                          for value in cursor.fetchone())
                     assert observed == expected
-                result['checks'].append({'case': phase, 'values': observed})
+                    handle.rollback()
+                    changed_mode = 'UP' if mode != 'UP' else 'DOWN'
+                    handle.execute_immediate(
+                        'SET DECFLOAT ROUND ' + changed_mode)
+                    with handle.cursor() as cursor:
+                        cursor.execute(expression)
+                        changed = tuple(str(v) for v in cursor.fetchone())
+                    assert changed == ROUND_RESULTS[changed_mode]
+                    handle.rollback()
+                    handle.execute_immediate('ALTER SESSION RESET')
+                    with handle.cursor() as cursor:
+                        cursor.execute(expression)
+                        reset = tuple(str(v) for v in cursor.fetchone())
+                    assert reset == expected
+                with connect(selected_rounding) as reopened:
+                    with reopened.cursor() as cursor:
+                        cursor.execute(expression)
+                        restored = tuple(str(v) for v in cursor.fetchone())
+                    assert restored == expected
+                result['checks'].append({
+                    'case': phase, 'values': observed, 'changed': changed,
+                    'reset': reset, 'reopened': restored})
             except Exception as error:
                 failure(phase, error)
         traps = list(native.DecfloatTraps)
@@ -176,6 +226,52 @@ def run(image):
                     'explicit_no_traps': untrapped, 'session_reset': reset})
             except Exception as error:
                 failure(phase, error)
+        if provider_rounding:
+            for mode, expected in CONNECTION_ROUND_RESULTS.items():
+                phase = 'create-round-' + mode
+                try:
+                    path = ('/var/lib/firebird/data/owned_decfloat_create_' +
+                            mode.lower() + '.fdb')
+                    target_dsn = f'127.0.0.1/{route["port"]}:{path}'
+                    selected = {**route, 'database': path,
+                                'decfloat_round': mode}
+                    arguments = _database_create_arguments(
+                        selected, target_dsn, {}, native)
+                    expression = (
+                        "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
+                        "CAST('0.1' AS DECFLOAT(16))), "
+                        "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
+                        "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
+                    with native.create_database(
+                            password=password, **arguments) as created:
+                        _initialize_connection(created, selected, native)
+                        with created.cursor() as cursor:
+                            cursor.execute(expression)
+                            observed = tuple(str(v) for v in cursor.fetchone())
+                        assert observed == expected
+                    with native.connect(
+                            target_dsn, user='SYSDBA', password=password,
+                            charset='UTF8') as unconfigured:
+                        with unconfigured.cursor() as cursor:
+                            cursor.execute(expression)
+                            default = tuple(str(v) for v in cursor.fetchone())
+                        assert default == CONNECTION_ROUND_RESULTS[
+                            'NATIVE_DEFAULT']
+                    result['checks'].append({
+                        'case': phase, 'creation_attachment': observed,
+                        'unconfigured_attachment': default,
+                        'stored_database_setting_changed': False})
+                except Exception as error:
+                    failure(phase, error)
+        if browser_options is not None:
+            result['browser_checks'] = browser_checks(
+                browser_options, route, password, container,
+                browser_options.build_root, gate_kind='lifecycle',
+                fixture_kind='firebird-decfloat-qualification')
+            if not result['browser_checks'] or not all(
+                    item['passed'] for item in result['browser_checks']):
+                failure('browser-qualification',
+                        RuntimeError('Lifecycle browser gate failed'))
     except Exception as error:
         failure(phase, error)
     finally:
@@ -185,7 +281,8 @@ def run(image):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    result['complete'] = (len(result['checks']) == 45 and
+    expected_count = 55 if provider_rounding else 46
+    result['complete'] = (len(result['checks']) == expected_count and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
@@ -195,10 +292,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--provider-rounding', action='store_true')
+    parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--build-root', type=Path)
+    parser.add_argument('--source-config-db', type=Path,
+                        default=Path('/var/lib/cdeadmin/cdeadmin.db'))
+    parser.add_argument('--desktop-user', default='dalton.calford@gmail.com')
+    parser.add_argument('--font-scale', type=int, action='append',
+                        choices=(100, 200, 300))
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    if options.browser:
+        if options.build_root is None or options.build_root.exists():
+            parser.error('Browser tests require a new --build-root directory')
+        options.build_root.mkdir(parents=True, exist_ok=False)
+    result = run(options.image, options.provider_rounding,
+                 options if options.browser else None)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1

@@ -454,32 +454,52 @@ def complete_endpoint_prompt(driver, password, timeout=5):
     return True
 
 
+def _context_pointer(wait, driver, supplied):
+    """Wait for a reachable tree row, not a synthetic event target."""
+    point = wait.until(lambda browser: browser.execute_script('''
+        const supplied = arguments[0];
+        const target = supplied?.closest('.file-entry') || supplied ||
+          document.querySelector('.file-entry[aria-selected="true"]');
+        if (!target?.isConnected) return null;
+        const bounds = target.getBoundingClientRect();
+        let left = Math.max(0, bounds.left);
+        let right = Math.min(innerWidth, bounds.right);
+        let top = Math.max(0, bounds.top);
+        let bottom = Math.min(innerHeight, bounds.bottom);
+        for (let parent = target.parentElement; parent;
+             parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          const clip = parent.getBoundingClientRect();
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+            left = Math.max(left, clip.left + parent.clientLeft);
+            right = Math.min(right,
+              clip.left + parent.clientLeft + parent.clientWidth);
+          }
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+            top = Math.max(top, clip.top + parent.clientTop);
+            bottom = Math.min(bottom,
+              clip.top + parent.clientTop + parent.clientHeight);
+          }
+        }
+        if (right - left < 2 || bottom - top < 2) return null;
+        const x = Math.floor(left + (right - left) / 2);
+        const y = Math.floor(top + (bottom - top) / 2);
+        const hit = document.elementFromPoint(x, y);
+        return hit && (hit === target || target.contains(hit)) ? {x, y} : null;
+    ''', supplied))
+    # Viewport-relative movement avoids WebDriver's implicit scroll-to-element.
+    # A real right click lets the navigator select the context row itself.
+    actions = ActionChains(driver)
+    actions.w3c_actions.pointer_action.move_to_location(point['x'], point['y'])
+    actions.context_click().perform()
+
+
 def invoke_context_action(
         wait, driver, database, labels, endpoint_password=None,
         endpoint_prompt_timeout=5):
     """Open a database context menu and traverse its visible label path."""
     def open_selected_context_menu(target=None):
-        driver.execute_script(
-            """
-            const supplied = arguments[0];
-            if (supplied) supplied.click();
-            // Selection from click can be queued by the double-click handler.
-            // A supplied target must never fall back to the previously
-            // selected server/database while that click is pending.
-            const target = supplied?.closest('.file-entry') || supplied ||
-              document.querySelector('.file-entry[aria-selected="true"]');
-            if (!target) throw new Error('selected tree row is unavailable');
-            const bounds = target.getBoundingClientRect();
-            target.dispatchEvent(new MouseEvent('contextmenu', {
-              bubbles: true,
-              cancelable: true,
-              view: window,
-              clientX: bounds.left + Math.min(24, bounds.width / 2),
-              clientY: bounds.top + Math.min(12, bounds.height / 2),
-            }));
-            """,
-            target,
-        )
+        _context_pointer(wait, driver, target)
 
     open_selected_context_menu(database)
     if complete_endpoint_prompt(

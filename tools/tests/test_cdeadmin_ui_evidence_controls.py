@@ -25,7 +25,8 @@ def test_context_command_scrolls_menu_and_requires_pointer_hit(
     item.is_enabled.return_value = True
     driver = Mock()
     driver.execute_script.side_effect = [
-        None, {'commands': []}, item, None, not obscured]
+        {'commands': []}, item, None, not obscured]
+    monkeypatch.setattr(evidence, '_context_pointer', Mock())
     monkeypatch.setattr(evidence, 'complete_endpoint_prompt',
                         Mock(return_value=False))
     monkeypatch.setattr(evidence, 'visible_menu_label',
@@ -49,6 +50,48 @@ def test_context_command_scrolls_menu_and_requires_pointer_hit(
     assert 'menu.scrollTop' in scripts[-2]
     assert 'scrollIntoView' not in scripts[-2]
     assert 'elementFromPoint' in scripts[-1]
+
+
+@pytest.mark.parametrize('reachable', [False, True])
+def test_context_pointer_waits_for_visible_hit_without_synthetic_click(
+        monkeypatch, reachable):
+    from tools import cdeadmin_ui_evidence as evidence
+    from selenium.common.exceptions import TimeoutException
+
+    driver = Mock()
+    driver.execute_script.return_value = (
+        {'x': 250, 'y': 90} if reachable else None)
+    actions = Mock()
+    actions.context_click.return_value = actions
+    factory = Mock(return_value=actions)
+    monkeypatch.setattr(evidence, 'ActionChains', factory)
+
+    def until(callback):
+        value = callback(driver)
+        if not value:
+            raise TimeoutException()
+        return value
+
+    target = object()
+    if reachable:
+        evidence._context_pointer(SimpleNamespace(until=until), driver, target)
+        movement = actions.w3c_actions.pointer_action.move_to_location
+        movement.assert_called_once_with(250, 90)
+        actions.context_click.assert_called_once_with()
+        actions.perform.assert_called_once_with()
+    else:
+        with pytest.raises(TimeoutException):
+            evidence._context_pointer(
+                SimpleNamespace(until=until), driver, target)
+        factory.assert_not_called()
+    script, supplied = driver.execute_script.call_args.args
+    assert supplied is target
+    for required in ('elementFromPoint', 'isConnected',
+                     'overflowX', 'overflowY'):
+        assert required in script
+    assert 'dispatchEvent' not in script
+    assert '.click()' not in script
+    assert 'scrollIntoView' not in script
 
 
 @pytest.mark.parametrize('value', ['{}', 'null', '[1]', '["A", "A"]'])

@@ -238,6 +238,16 @@ def _wire_configuration(route):
 
 
 def _route_arguments(route, module=None, *, creation=None):
+    rounding = route.get('decfloat_round')
+    if rounding == 'NATIVE_DEFAULT':
+        rounding = None
+    if rounding is not None and (
+        not isinstance(rounding, str) or rounding not in {
+            'CEILING', 'UP', 'HALF_UP', 'HALF_EVEN', 'HALF_DOWN',
+            'DOWN', 'FLOOR', 'REROUND',
+        }
+    ):
+        raise RelationalClientError('Firebird DECFLOAT rounding is invalid')
     allowed = {
         'database', 'user', 'role', 'charset', 'auth_plugin_list',
         'session_time_zone', 'no_gc', 'no_db_triggers',
@@ -264,7 +274,7 @@ def _route_arguments(route, module=None, *, creation=None):
         name in route for name in (
             'trusted_auth', 'timeout', 'protocol',
             'dummy_packet_interval', 'wire_config', 'wire_crypt',
-            'wire_compression', 'dbkey_scope',
+            'wire_compression', 'dbkey_scope', 'decfloat_round',
         )
     )
     if not configured or module is None:
@@ -278,7 +288,7 @@ def _route_arguments(route, module=None, *, creation=None):
             'host', 'port', 'database', 'user', 'auth_plugin_list',
             'trusted_auth', 'timeout',
             'protocol', 'dummy_packet_interval', 'wire_config',
-            'wire_crypt', 'wire_compression',
+            'wire_crypt', 'wire_compression', 'decfloat_round',
         )
     }
     if creation is not None:
@@ -335,6 +345,9 @@ def _route_arguments(route, module=None, *, creation=None):
                 'dummy_packet_interval'
             )
             config.config.value = wire_configuration
+            config.decfloat_round.value = (
+                module.DecfloatRound[rounding] if rounding is not None
+                else None)
     result['database'] = database_name
     if route.get('trusted_auth'):
         result.pop('user', None)
