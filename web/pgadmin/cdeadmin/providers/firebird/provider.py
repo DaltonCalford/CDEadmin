@@ -153,6 +153,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'function': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
+            'create_or_alter', 'recreate',
         }),
         'package': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',

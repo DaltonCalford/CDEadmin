@@ -926,6 +926,12 @@ def supplement_procedures(document, evidence, digest, artifact):
         ('P_BASE', 'P"東京'))
 
 
+def supplement_functions(document, evidence, digest, artifact):
+    return _supplement_named_replacement(
+        document, evidence, digest, artifact, 'function',
+        ('F_BASE', 'F"東京'))
+
+
 def _supplement_named_replacement(
         document, evidence, digest, artifact, kind, names):
     validate_dialect_contract(document, PROFILE)
@@ -944,8 +950,10 @@ def _supplement_named_replacement(
         raise ValueError(kind + ' native evidence is incomplete')
     by_case = {item['case']: item for item in checks}
     fields = ('rollback_commit_verified', 'grant_semantics_verified')
-    if kind == 'procedure':
+    if kind in {'procedure', 'function'}:
         fields += ('execution_and_security_verified',)
+    if kind == 'function':
+        fields += ('deterministic_verified',)
     for name in names:
         if any(by_case['lifecycle-' + name].get(field) is not True for field in
                fields):
@@ -1439,7 +1447,7 @@ def main(argv=None):
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
         'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
-        'procedures'),
+        'procedures', 'functions'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1454,6 +1462,7 @@ def main(argv=None):
                       'views': supplement_views,
                       'exceptions': supplement_exceptions,
                       'procedures': supplement_procedures,
+                      'functions': supplement_functions,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
                       'database-storage': supplement_database_storage,

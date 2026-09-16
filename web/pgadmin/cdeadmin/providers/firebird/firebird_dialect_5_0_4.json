@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 117,
+    "authoritative_task_count": 119,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -79,8 +79,10 @@
       "visual_admin.external-function.revoke",
       "visual_admin.function.alter",
       "visual_admin.function.create",
+      "visual_admin.function.create_or_alter",
       "visual_admin.function.drop",
       "visual_admin.function.grant",
+      "visual_admin.function.recreate",
       "visual_admin.function.revoke",
       "visual_admin.global-authentication-mapping.alter",
       "visual_admin.global-authentication-mapping.comment",
@@ -150,7 +152,7 @@
       "visual_admin.view.recreate",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 117,
+    "implemented_task_count": 119,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8916,6 +8918,7 @@
     "firebird-5.0.4-database-storage-live",
     "firebird-5.0.4-exceptions-live",
     "firebird-5.0.4-external-functions-live",
+    "firebird-5.0.4-functions-live",
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-object-privileges-live",
     "firebird-5.0.4-packages-live",
@@ -9260,6 +9263,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "30912c156a5740e0cdfb3fad942ccf8f5ba5c32314576c9b5ce86b1e4854a05a"
+    },
+    {
+      "artifact": "native-2.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-functions-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "2fa4096f1bc99711c13218959d8ee16fdbeebf4569d30f17e8f967169b0dc475"
+    },
+    {
+      "artifact": "native-2.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-functions-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "2fa4096f1bc99711c13218959d8ee16fdbeebf4569d30f17e8f967169b0dc475"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -10006,6 +10027,21 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-functions-parser",
+        "firebird-5.0.4-functions-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER FUNCTION \"F\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS INTEGER NOT DETERMINISTIC SQL SECURITY DEFINER AS BEGIN RETURN X + 2; END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER FUNCTION \"F\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS INTEGER NOT DETERMINISTIC SQL SECURITY DEFINER AS BEGIN RETURN X + 2; END"
+      ],
+      "task_id": "visual_admin.function.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
         "firebird-5.0.4-task-parser-acceptance",
         "firebird-5.0.4-task-live-execution"
       ],
@@ -10031,6 +10067,21 @@
         "GRANT EXECUTE ON FUNCTION \"F\" TO USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.function.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-functions-parser",
+        "firebird-5.0.4-functions-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE FUNCTION \"F\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS INTEGER NOT DETERMINISTIC SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE FUNCTION \"F\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS INTEGER NOT DETERMINISTIC SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END"
+      ],
+      "task_id": "visual_admin.function.recreate"
     },
     {
       "binding_style": "positional_question_mark",
