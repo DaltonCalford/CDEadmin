@@ -71,7 +71,8 @@ def test_probe_oracle_rejects_unknown_names(probe, active):
 
 
 @pytest.mark.parametrize('mode', ['', None, 'super', 'Unknown', True])
-def test_gate_rejects_unknown_modes_before_starting_a_fixture(monkeypatch, mode):
+def test_gate_rejects_unknown_modes_before_starting_a_fixture(
+        monkeypatch, mode):
     from tools import cdeadmin_firebird_decfloat_attachment_gate as gate
     docker = MagicMock()
     monkeypatch.setattr(gate, 'docker', docker)
