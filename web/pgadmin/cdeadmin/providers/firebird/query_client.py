@@ -34,6 +34,7 @@ class _AttachmentState:
     query: _Query | None = None
     cancellation_state_unknown: bool = False
     result_cleanup_failed: bool = False
+    worker_interrupted: bool = False
 
 
 class FirebirdQueryClient(RelationalDBAPIClient):
@@ -219,6 +220,10 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                 raise RelationalClientError(
                     'Firebird result cleanup failed; close this session '
                     'and explicitly reconnect')
+            if state.worker_interrupted and not closing:
+                raise RelationalClientError(
+                    'Firebird query worker was interrupted; close this '
+                    'session and explicitly reconnect')
             yield state
         finally:
             state.lock.release()
@@ -284,7 +289,30 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                     },
                 },
             }
+        except BaseException as interruption:
+            # This is the worker boundary, not a caller's synchronous frame.
+            # Publish a terminal observation so the dead worker cannot retain
+            # the session forever. No SQL outcome or rollback is inferred.
+            native = {
+                'result_kind': self.config.profile.result_kind,
+                'schema': {'columns': []}, 'complete': True,
+                'stream_reference': None,
+                'payload': {
+                    'rows': [], 'rowcount': None, 'execution_state': 'failed',
+                    'execution_outcome_unknown': True,
+                    'session_reuse_blocked': True,
+                    'session_reuse_blocked_reason': 'worker_interrupted',
+                    'error': {
+                        'message': 'Firebird query worker was interrupted. '
+                        'Do not replay the statement; close this session.',
+                        'error_type': type(interruption).__name__,
+                        'native_status_codes': [],
+                    },
+                },
+            }
         with state.lock:
+            if native['payload'].get('execution_outcome_unknown'):
+                state.worker_interrupted = True
             if state.result_cleanup_failed:
                 native['payload']['session_reuse_blocked'] = True
                 native['payload']['session_reuse_blocked_reason'] = (
@@ -298,7 +326,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                         self.module.CancelType.DISABLE)
                     query.handle._att.cancel_operation(
                         self.module.CancelType.ENABLE)
-                except Exception as exc:
+                except BaseException as exc:
                     state.cancellation_state_unknown = True
                     native['payload']['session_reuse_blocked'] = True
                     native['payload']['session_reuse_blocked_reason'] = (

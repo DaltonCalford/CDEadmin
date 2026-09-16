@@ -289,6 +289,54 @@ def opening_lifecycle_case(native, route, password):
     return cases
 
 
+def worker_interruption_case(native, route, password):
+    client = _create_client(SimpleNamespace(
+        acquire_secret=lambda *_args: SecretLease(password)))
+    query = None
+    native_execute = client._execute_sql
+
+    def interrupted(handle, request):
+        native_execute(handle, request)
+        raise KeyboardInterrupt('owned worker interruption')
+
+    try:
+        handle = client.open_session({'route': {
+            **route, 'credential_reference_id': 'owned-secret',
+            'principal_reference': 'owned-principal'}})
+        with patch.object(client, '_execute_sql', side_effect=interrupted):
+            query = client.submit_query(handle, {
+                'source': 'SELECT 1 FROM RDB$DATABASE'})
+            query.worker.join(10)
+            assert not query.worker.is_alive()
+        result = client.describe_result(query)
+        assert result['complete'] and result['payload'][
+            'execution_outcome_unknown']
+        try:
+            client.execute(handle, {'source': 'SELECT 2 FROM RDB$DATABASE'})
+        except RelationalClientError as caught:
+            assert 'interrupted' in str(caught)
+        else:
+            raise AssertionError('Interrupted session admitted reuse')
+        client.close_session(handle)
+        assert handle.is_closed()
+        assert not client._connections and not client._tokens
+    finally:
+        if query is not None and query.worker.is_alive():
+            client.cancel(query)
+            query.worker.join(10)
+        client.close()
+    with native.connect(**_route_arguments(route, native),
+                        password=password) as observer:
+        with observer.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM MON$ATTACHMENTS '
+                           'WHERE MON$SYSTEM_FLAG = 0')
+            assert cursor.fetchone()[0] == 1
+        observer.rollback()
+    return {'interruption_injected_after_native_select': True,
+            'terminal_unknown_outcome': True, 'reuse_refused': True,
+            'explicit_close_released': True}
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -299,6 +347,7 @@ def run(image):
               'failed_detach_release': None,
               'service_interruptions': [],
               'opening_lifecycle': [],
+              'worker_interruption': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -390,6 +439,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'worker-interruption'
+        try:
+            result['worker_interruption'] = worker_interruption_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
         phase = 'opening-lifecycle'
         try:
             result['opening_lifecycle'] = opening_lifecycle_case(
@@ -437,6 +492,7 @@ def run(image):
                           result['failed_detach_release'] is not None and
                           len(result['service_interruptions']) == 4 and
                           len(result['opening_lifecycle']) == 2 and
+                          result['worker_interruption'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result

@@ -589,6 +589,41 @@ def test_thread_start_failure_releases_submission_slot(rig):
     assert rig.client._state(rig.handle).query is None
 
 
+@pytest.mark.parametrize('interruption', [KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize('stage', ['execute', 'cancel_cleanup'])
+def test_worker_interruption_publishes_outcome_and_allows_close(
+        rig, interruption, stage):
+    error = interruption('private interruption detail')
+    if stage == 'execute':
+        rig.cursor.execute.side_effect = error
+    else:
+        rig.handle._att.cancel_operation.side_effect = [None, error]
+    query = rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+    if stage == 'cancel_cleanup':
+        assert rig.entered.wait(2)
+        assert rig.client.cancel(query)
+    rig.finish.set()
+    query.worker.join(5)
+    assert not query.worker.is_alive()
+    assert query.done
+    result = rig.client.describe_result(query)
+    assert result['complete']
+    assert result['payload']['session_reuse_blocked']
+    assert 'private interruption detail' not in str(result)
+    if stage == 'execute':
+        assert result['payload']['execution_state'] == 'failed'
+        assert result['payload']['error']['error_type'] == (
+            interruption.__name__)
+        assert result['payload']['execution_outcome_unknown']
+    else:
+        assert result['payload']['execution_state'] == 'succeeded'
+    with pytest.raises(RelationalClientError):
+        rig.client.execute(rig.handle, {'source': 'SELECT 2'})
+    rig.client.close_session(rig.handle)
+    assert rig.handle not in rig.client._connections
+    rig.handle.commit.assert_not_called()
+
+
 def test_other_attachment_is_usable_while_query_runs(rig):
     query = submit(rig)
     other = Mock()
