@@ -932,6 +932,48 @@ def supplement_functions(document, evidence, digest, artifact):
         ('F_BASE', 'F"東京'))
 
 
+def supplement_user_replacement(document, evidence, digest, artifact):
+    validate_dialect_contract(document, PROFILE)
+    checks = evidence.get('user_replacement_checks', [])
+    tasks = {'visual_admin.user.' + op
+             for op in ('create_or_alter', 'recreate')}
+    if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != 4 or
+            {item.get('case') for item in checks} != {
+                'creation', 'alteration', 'recreation',
+                'permission-denials'} or
+            set(evidence.get('user_replacement_task_evidence', {})) != tasks):
+        raise ValueError('user replacement native evidence is incomplete')
+    by_case = {item['case']: item for item in checks}
+    for case, field in (
+        ('creation', 'authentication_verified'),
+        ('alteration', 'rotation_state_admin_tags_verified'),
+        ('recreation', 'authentication_and_name_grants_verified'),
+    ):
+        if (by_case[case].get('rollback_commit_verified') is not True or
+                by_case[case].get(field) is not True):
+            raise ValueError('user replacement lifecycle proof missing')
+    permission = by_case['permission-denials']
+    denials = permission.get('denials', [])
+    if (permission.get('other_user_authentication_preserved') is not True or
+            len(denials) != 2 or
+            {item.get('operation') for item in denials} !=
+            {'create_or_alter', 'recreate'} or any(
+                335544352 not in item.get('native_status_codes', [])
+                for item in denials)):
+        raise ValueError('user replacement permission proof missing')
+    if any(record.get('credentials_redacted') is not True for record in
+           evidence['user_replacement_task_evidence'].values()):
+        raise ValueError('user replacement credential redaction proof missing')
+    return _supplement_replacement(
+        document, {**evidence, 'task_evidence':
+                   evidence['user_replacement_task_evidence']},
+        digest, artifact, tasks, 'user-replacement')
+
+
 def supplement_table_replacement(document, evidence, digest, artifact):
     validate_dialect_contract(document, PROFILE)
     checks = evidence.get('table_replacement_checks', [])
@@ -1519,7 +1561,8 @@ def main(argv=None):
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
         'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
-        'procedures', 'functions', 'triggers', 'table-replacement'),
+        'procedures', 'functions', 'triggers', 'table-replacement',
+        'user-replacement'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1537,6 +1580,7 @@ def main(argv=None):
                       'functions': supplement_functions,
                       'triggers': supplement_triggers,
                       'table-replacement': supplement_table_replacement,
+                      'user-replacement': supplement_user_replacement,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
                       'database-storage': supplement_database_storage,

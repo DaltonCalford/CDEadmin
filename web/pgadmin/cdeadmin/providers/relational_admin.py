@@ -51,6 +51,7 @@ from .firebird import exceptions as firebird_exceptions
 from .firebird import procedures as firebird_procedures
 from .firebird import functions as firebird_functions
 from .firebird import triggers as firebird_triggers
+from .firebird import users as firebird_users
 from .firebird import table_replacement as firebird_table_replacement
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
@@ -360,12 +361,13 @@ class RelationalAdministration:
                     }]
             if (self.dialect.engine_id == 'firebird' and
                     kind in {'view', 'exception', 'procedure', 'function',
-                             'trigger'}):
+                             'trigger', 'user'}):
                 module = {'view': firebird_views,
                           'exception': firebird_exceptions,
                           'procedure': firebird_procedures,
                           'function': firebird_functions,
-                          'trigger': firebird_triggers}[kind]
+                          'trigger': firebird_triggers,
+                          'user': firebird_users}[kind]
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
                     if item['operation_id'] not in module.OPERATIONS
@@ -574,12 +576,14 @@ class RelationalAdministration:
             return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind in {
-                    'view', 'exception', 'procedure', 'function', 'trigger'} and
+                    'view', 'exception', 'procedure', 'function', 'trigger',
+                    'user'} and
                 operation_id in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
                       'function': firebird_functions,
-                      'trigger': firebird_triggers}[resource_kind]
+                      'trigger': firebird_triggers,
+                      'user': firebird_users}[resource_kind]
             try:
                 module.compile_operation(
                     operation_id, draft, request.get('target_resource'))
@@ -3364,16 +3368,19 @@ class RelationalAdministration:
                     'warnings': [firebird_table_replacement.WARNING]}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in {
-                    'view', 'exception', 'procedure', 'function', 'trigger'} and
+                    'view', 'exception', 'procedure', 'function', 'trigger',
+                    'user'} and
                 operation in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
                       'function': firebird_functions,
-                      'trigger': firebird_triggers}[
+                      'trigger': firebird_triggers,
+                      'user': firebird_users}[
                           request['resource_kind']]
             statement = module.compile_operation(
                 operation, request['draft'], request.get('target_resource'))
-            return {'statements': [{'source': statement, 'parameters': ()}],
+            return {'statements': [statement if module is firebird_users else
+                                   {'source': statement, 'parameters': ()}],
                     'warnings': ([module.WARNING]
                                  if operation == 'recreate' else []) + (
                                      [module.NOTICE] if hasattr(module, 'NOTICE')
@@ -4773,12 +4780,13 @@ class RelationalAdministration:
             return firebird_table_replacement.form(self._field)
         if (self.dialect.engine_id == 'firebird' and
                 kind in {'view', 'exception', 'procedure', 'function',
-                         'trigger'} and
+                         'trigger', 'user'} and
                 operation in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
                       'function': firebird_functions,
-                      'trigger': firebird_triggers}[kind]
+                      'trigger': firebird_triggers,
+                      'user': firebird_users}[kind]
             return module.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_limbo.ATTACHMENT_OPERATIONS):

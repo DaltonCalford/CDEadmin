@@ -533,6 +533,12 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'user' and operation_id in {'create_or_alter', 'recreate'}:
+            return rendered({
+                'name': 'CDE_UI_USER', 'confirmation': str(name),
+                'password': 'preview-only-not-a-live-password', 'plugin': 'Srp',
+                'admin_role': 'REVOKE', 'active_state': 'ACTIVE', 'tags': [],
+            })
         if kind == 'table' and operation_id == 'recreate':
             return rendered({
                 'confirmation': str(name), 'table_type': 'PERSISTENT',

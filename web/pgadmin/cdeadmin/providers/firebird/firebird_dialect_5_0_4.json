@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 122,
+    "authoritative_task_count": 124,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -146,7 +146,9 @@
       "visual_admin.trigger.recreate",
       "visual_admin.user.alter",
       "visual_admin.user.create",
+      "visual_admin.user.create_or_alter",
       "visual_admin.user.drop",
+      "visual_admin.user.recreate",
       "visual_admin.view.alter",
       "visual_admin.view.create",
       "visual_admin.view.create_or_alter",
@@ -155,7 +157,7 @@
       "visual_admin.view.recreate",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 122,
+    "implemented_task_count": 124,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8932,6 +8934,7 @@
     "firebird-5.0.4-table-replacement-live",
     "firebird-5.0.4-task-live-execution",
     "firebird-5.0.4-triggers-live",
+    "firebird-5.0.4-user-replacement-live",
     "firebird-5.0.4-views-live"
   ],
   "profile_id": "firebird-native",
@@ -9322,6 +9325,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "8ec91f55075da20bee2e2a7521b53f4c1a6e6be957e96813080a6f02e02b1ca8"
+    },
+    {
+      "artifact": "native-3.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-user-replacement-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "00e93c4d070d7d824cc8eee510ad56fcccb15a1694fa5e5eff3df5ce313a4734"
+    },
+    {
+      "artifact": "native-3.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-user-replacement-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "00e93c4d070d7d824cc8eee510ad56fcccb15a1694fa5e5eff3df5ce313a4734"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -11062,6 +11083,21 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-user-replacement-parser",
+        "firebird-5.0.4-user-replacement-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER USER \"CDE_REPLACEMENT_USER\" ACTIVE USING PLUGIN \"Srp\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER USER \"CDE_REPLACEMENT_USER\" ACTIVE USING PLUGIN \"Srp\""
+      ],
+      "task_id": "visual_admin.user.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
         "firebird-5.0.4-task-parser-acceptance",
         "firebird-5.0.4-task-live-execution"
       ],
@@ -11072,6 +11108,21 @@
         "DROP USER \"CDE_EDITOR_USER\""
       ],
       "task_id": "visual_admin.user.drop"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-user-replacement-parser",
+        "firebird-5.0.4-user-replacement-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE USER \"CDE_REPLACEMENT_USER\" PASSWORD <redacted> USING PLUGIN \"Srp\"",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE USER \"CDE_REPLACEMENT_USER\" PASSWORD <redacted> USING PLUGIN \"Srp\""
+      ],
+      "task_id": "visual_admin.user.recreate"
     },
     {
       "binding_style": "positional_question_mark",
