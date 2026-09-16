@@ -146,6 +146,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'trigger': frozenset({
             'inspect', 'create', 'alter', 'drop',
+            'create_or_alter', 'recreate',
         }),
         'procedure': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',

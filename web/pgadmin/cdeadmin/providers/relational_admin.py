@@ -50,6 +50,7 @@ from .firebird import views as firebird_views
 from .firebird import exceptions as firebird_exceptions
 from .firebird import procedures as firebird_procedures
 from .firebird import functions as firebird_functions
+from .firebird import triggers as firebird_triggers
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
@@ -357,11 +358,13 @@ class RelationalAdministration:
                         'allow_system_target': True,
                     }]
             if (self.dialect.engine_id == 'firebird' and
-                    kind in {'view', 'exception', 'procedure', 'function'}):
+                    kind in {'view', 'exception', 'procedure', 'function',
+                             'trigger'}):
                 module = {'view': firebird_views,
                           'exception': firebird_exceptions,
                           'procedure': firebird_procedures,
-                          'function': firebird_functions}[kind]
+                          'function': firebird_functions,
+                          'trigger': firebird_triggers}[kind]
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
                     if item['operation_id'] not in module.OPERATIONS
@@ -553,11 +556,12 @@ class RelationalAdministration:
         draft = request.get('draft', {})
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind in {
-                    'view', 'exception', 'procedure', 'function'} and
+                    'view', 'exception', 'procedure', 'function', 'trigger'} and
                 operation_id in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
-                      'function': firebird_functions}[resource_kind]
+                      'function': firebird_functions,
+                      'trigger': firebird_triggers}[resource_kind]
             try:
                 module.compile_operation(
                     operation_id, draft, request.get('target_resource'))
@@ -3335,11 +3339,12 @@ class RelationalAdministration:
                         'by DROP remain on the server.']}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in {
-                    'view', 'exception', 'procedure', 'function'} and
+                    'view', 'exception', 'procedure', 'function', 'trigger'} and
                 operation in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
-                      'function': firebird_functions}[
+                      'function': firebird_functions,
+                      'trigger': firebird_triggers}[
                           request['resource_kind']]
             statement = module.compile_operation(
                 operation, request['draft'], request.get('target_resource'))
@@ -4739,11 +4744,13 @@ class RelationalAdministration:
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
         if (self.dialect.engine_id == 'firebird' and
-                kind in {'view', 'exception', 'procedure', 'function'} and
+                kind in {'view', 'exception', 'procedure', 'function',
+                         'trigger'} and
                 operation in firebird_views.OPERATIONS):
             module = {'view': firebird_views, 'exception': firebird_exceptions,
                       'procedure': firebird_procedures,
-                      'function': firebird_functions}[kind]
+                      'function': firebird_functions,
+                      'trigger': firebird_triggers}[kind]
             return module.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_limbo.ATTACHMENT_OPERATIONS):

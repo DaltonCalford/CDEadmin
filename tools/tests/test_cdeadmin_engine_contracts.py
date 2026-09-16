@@ -293,7 +293,7 @@ def test_firebird_exact_dialect_and_metric_inventories_are_activated():
         FIREBIRD_ADMINISTRATION.dialect_task_ids(),
     )
     assert len(checked_dialect['inventories']['lexical_rules']) == 518
-    assert len(checked_dialect['task_templates']) == 119
+    assert len(checked_dialect['task_templates']) == 121
 
     document = json.loads((
         WEB / 'pgadmin/cdeadmin/providers/firebird/'
