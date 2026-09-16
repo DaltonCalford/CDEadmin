@@ -5,6 +5,7 @@ import pytest
 from tools.tests.test_cdeadmin_visual_admin import (
     NativeAdapter, Permissions, context,
     ProviderVisualAdministration, VisualAdminAccessError,
+    VisualAdminExecutionError,
 )
 
 
@@ -76,3 +77,44 @@ def test_interruption_preserves_record_without_replay(
     if method == 'cancel_operation':
         assert provider.cancel_operation(request) == record
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize('failure', [
+    'none', 'list', 'text', 'copy-error', 'copy-interrupt',
+    'credential-marker'])
+def test_invalid_mutation_response_is_unknown_and_never_retryable(failure):
+    error = (KeyboardInterrupt('private-response-canary')
+             if failure == 'copy-interrupt' else
+             RuntimeError('private-response-canary'))
+    error.credential_required_before_dispatch = failure == 'credential-marker'
+
+    class Uncopyable:
+        def __deepcopy__(self, memo):
+            raise error
+
+    class Adapter(NativeAdapter):
+        def apply_admin_operation(self, request):
+            self.applied.append(request)
+            return {'none': None, 'list': [], 'text': 'not a response'}.get(
+                failure, {'value': Uncopyable()})
+
+    adapter = Adapter()
+    provider = ProviderVisualAdministration(
+        context(), Permissions(), 'mysql', '9.7.0', adapter)
+    plan = provider.plan({
+        'resource_kind': 'database', 'operation_id': 'create',
+        'draft': {'name': 'owned', 'options': {}},
+    })
+    request = {'plan_id': plan['plan_id'], 'plan_digest': plan['plan_digest']}
+    expected = (KeyboardInterrupt if failure == 'copy-interrupt'
+                else VisualAdminExecutionError)
+    with pytest.raises(expected):
+        provider.apply(request)
+    record, = provider.list_operations()['items']
+    assert record['stage'] == 'provider_response_unavailable'
+    assert record['unknown_outcome'] is True
+    assert record['provider_result'] is None
+    assert 'private-response-canary' not in repr(record)
+    with pytest.raises(VisualAdminAccessError):
+        provider.apply(request)
+    assert len(adapter.applied) == 1

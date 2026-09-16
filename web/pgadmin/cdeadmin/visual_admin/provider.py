@@ -517,6 +517,7 @@ class ProviderVisualAdministration:
                 plan=copy.deepcopy(presentation),
             )
             operation = self._admin_operations[operation_id]
+        response_received = False
         try:
             executor_request = {
                 'plan': copy.deepcopy(presentation),
@@ -529,9 +530,12 @@ class ProviderVisualAdministration:
                     execution_context['session_handle']
                 )
             result = executor(executor_request)
+            response_received = True
+            provider_result = _mapping(result, 'provider mutation response')
         except BaseException as exc:
-            if isinstance(exc, Exception) and getattr(
-                    exc, 'credential_required_before_dispatch', False):
+            if (not response_received and isinstance(exc, Exception) and
+                    getattr(exc, 'credential_required_before_dispatch',
+                            False)):
                 # Credential acquisition is part of connection setup and
                 # therefore precedes provider mutation dispatch. Restore the
                 # one-shot plan so the authenticated client may retry exactly
@@ -566,7 +570,6 @@ class ProviderVisualAdministration:
                 'unknown and the mutation will not be retried',
                 failed,
             ) from None
-        provider_result = copy.deepcopy(result)
         with self._lock:
             operation.provider_result = provider_result
             operation.public['provider_result'] = provider_result
@@ -581,7 +584,7 @@ class ProviderVisualAdministration:
             'engine_id': self.engine_id,
             'resource_kind': presentation['resource_kind'],
             'operation_id': presentation['operation_id'],
-            'provider_result': copy.deepcopy(result),
+            'provider_result': copy.deepcopy(provider_result),
             'transaction_finality_interpreted_by_common_code': False,
             'provider_finality_authority': True,
             'automatic_mutation_retry': False,
