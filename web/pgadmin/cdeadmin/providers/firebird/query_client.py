@@ -81,6 +81,13 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._connecting():
             return super()._connect(request)
 
+    def open_session(self, request):
+        # Retained-session initialization runs after _connect returns. Keep
+        # the opening admission until both stages publish or clean up the
+        # attachment; do not hold the lock during native driver work.
+        with self._connecting():
+            return super().open_session(request)
+
     def _connect_server(self, request):
         with self._connecting():
             handle = super()._connect_server(request)

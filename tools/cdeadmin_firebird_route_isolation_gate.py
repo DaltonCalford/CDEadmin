@@ -249,6 +249,46 @@ def service_interruption_case(native, route, password):
     return cases
 
 
+def opening_lifecycle_case(native, route, password):
+    cases = []
+    for stage in ('connection', 'retained'):
+        client = _create_client(SimpleNamespace(
+            acquire_secret=lambda *_args: SecretLease(password)))
+        seen = []
+
+        def initialize(handle, _route):
+            try:
+                client.close()
+            except RelationalClientError as caught:
+                assert 'still opening' in str(caught)
+            else:
+                raise AssertionError('Close admitted during initialization')
+            with handle.cursor() as cursor:
+                cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', "
+                               "'ENGINE_VERSION') FROM RDB$DATABASE")
+                assert cursor.fetchone()[0] == '5.0.4'
+            handle.rollback()
+            seen.append(handle)
+
+        client.config = replace(client.config, **{
+            'connection_initializer' if stage == 'connection' else
+            'session_initializer': initialize})
+        try:
+            handle = client.open_session({'route': {
+                **route, 'credential_reference_id': 'owned-secret',
+                'principal_reference': 'owned-principal'}})
+            assert seen == [handle]
+            assert client._opening == 0 and not handle.is_closed()
+            assert client.runtime_identity({}, handle)['version'] == '5.0.4'
+        finally:
+            client.close()
+        assert handle.is_closed() and not client._connections
+        cases.append({'stage': stage, 'close_refused_during_initialization':
+                      True, 'published_attachment_usable': True,
+                      'explicit_close_released': True})
+    return cases
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -258,6 +298,7 @@ def run(image):
               'combined_failure_release': None,
               'failed_detach_release': None,
               'service_interruptions': [],
+              'opening_lifecycle': [],
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -349,6 +390,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'opening-lifecycle'
+        try:
+            result['opening_lifecycle'] = opening_lifecycle_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
         phase = 'service-interruptions'
         try:
             result['service_interruptions'] = service_interruption_case(
@@ -389,6 +436,7 @@ def run(image):
                           result['combined_failure_release'] is not None and
                           result['failed_detach_release'] is not None and
                           len(result['service_interruptions']) == 4 and
+                          len(result['opening_lifecycle']) == 2 and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result
