@@ -389,6 +389,11 @@ class RelationalDBAPIClient:
                     f'{self.config.profile.engine_name} session '
                     'initialization failed', exc
                 ) from None
+            except BaseException:
+                # The caller has not received this handle. Release it on
+                # interruption too, without wrapping or swallowing shutdown.
+                self._forget_and_close(connection)
+                raise
         return connection
 
     def _uses_server_scope(self, request):
@@ -806,6 +811,9 @@ class RelationalDBAPIClient:
                 raise self._driver_failure(
                     'relational retained-session initialization failed', exc
                 ) from None
+            except BaseException:
+                self._forget_and_close(connection)
+                raise
         return connection
 
     def describe_transaction(self, handle):
