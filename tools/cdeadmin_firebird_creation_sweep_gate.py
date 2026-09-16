@@ -12,6 +12,9 @@ from pathlib import Path
 
 from tools import cdeadmin_firebird_creation_cache_gate as cache
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from pgadmin.cdeadmin.providers.firebird.database_creation import (
+    create_database,
+)
 
 
 INTERVALS = (None, -1, 0, 1, 20000, 50000, 2147483647)
@@ -56,7 +59,8 @@ def creation_case(native, container, port, password, mode, interval,
     assert interval != -1
     handle = None
     try:
-        handle = (native.create_database(**arguments, password=password)
+        handle = (create_database(native, native.core,
+                                  **arguments, password=password)
                   if provider else native.create_database(
                       name, user='SYSDBA', password=password, overwrite=False))
         expected = 20000 if interval is None else interval

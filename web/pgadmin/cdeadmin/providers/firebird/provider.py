@@ -48,6 +48,7 @@ from .query_values import normalize_value
 from .query_columns import describe_columns
 from .query_client import FirebirdQueryClient
 from .service_connection import connect_service, notify_attached
+from .database_creation import create_database as create_owned_database
 from .session_settings import initialize_timeouts
 from .transaction_state import observe_transaction, release_session
 from . import availability
@@ -369,6 +370,9 @@ def _route_arguments(route, module=None, *, creation=None):
                 [module.DecfloatTraps[name] for name in traps]
                 if traps is not None else None)
             config.cache_size.value = cache_pages
+            # No attachment-worker preference is exposed yet. Do not inherit
+            # an unrelated process-wide driver default in the new create DPB.
+            config.parallel_workers.value = None
             # jrd.cpp applies this DPB only when attaching to an existing
             # database, not to the initial creation attachment. Suppression
             # affects a shared live cache, never the stored LINGER setting.
@@ -3230,6 +3234,9 @@ def _create_client(permissions):
         database_create_arguments=lambda route, database, options: (
             _database_create_arguments(route, database, options, module)
         ),
+        database_creator=(
+            (lambda **kwargs: create_owned_database(module, core, **kwargs))
+            if module is not None else None),
         administration=ADMINISTRATION,
         server_route=_server_route,
         server_connector_name='connect_server',

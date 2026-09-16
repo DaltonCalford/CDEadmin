@@ -110,8 +110,8 @@ def test_sdk_create_does_not_merge_old_username_into_trusted_attachment():
         'host': 'localhost', 'port': 53050, 'user': 'not-selected',
         'trusted_auth': True, 'auth_plugin_list': 'Win_Sspi'},
         'create_options': {'page_size': 16384}}
-    with patch.object(driver, 'create_database',
-                      return_value=connection) as call:
+    with patch('pgadmin.cdeadmin.providers.firebird.provider.'
+               'create_owned_database', return_value=connection) as call:
         result = client.create_database(
             request, 'localhost/53050:/srv/new.fdb',
             'firebird-create-database')

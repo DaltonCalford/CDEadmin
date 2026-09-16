@@ -152,10 +152,14 @@ def run(image, provider_rounding=False, browser_options=None,
         expected = sorted(t.name for t in selected) if selected else sorted(
             DEFAULT_TRAPS)
         if provider_traps:
+            from pgadmin.cdeadmin.providers.firebird.database_creation import (
+                create_database,
+            )
             arguments = _database_create_arguments(
                 {**route, **trap_preferences(selected)}, config.dsn.value,
                 {}, native)
-            handle = native.create_database(password=password, **arguments)
+            handle = create_database(native, native.core,
+                                     password=password, **arguments)
         else:
             handle = native.create_database(
                 name, user='SYSDBA', password=password, overwrite=False)
@@ -401,6 +405,9 @@ def run(image, provider_rounding=False, browser_options=None,
             except Exception as error:
                 failure(phase, error)
         if provider_rounding:
+            from pgadmin.cdeadmin.providers.firebird.database_creation import (
+                create_database,
+            )
             for mode, expected in CONNECTION_ROUND_RESULTS.items():
                 phase = 'create-round-' + mode
                 try:
@@ -416,8 +423,9 @@ def run(image, provider_rounding=False, browser_options=None,
                         "CAST('0.1' AS DECFLOAT(16))), "
                         "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
                         "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
-                    with native.create_database(
-                            password=password, **arguments) as created:
+                    with create_database(
+                            native, native.core, password=password,
+                            **arguments) as created:
                         _initialize_connection(created, selected, native)
                         with created.cursor() as cursor:
                             cursor.execute(expression)

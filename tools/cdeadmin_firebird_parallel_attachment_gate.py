@@ -32,13 +32,79 @@ OBSERVE = ("SELECT RDB$GET_CONTEXT('SYSTEM', 'PARALLEL_WORKERS') "
            "FROM RDB$DATABASE")
 
 
-def run(image):
+def creation_ownership_case(native, port, password, *, fail_hook):
+    """Observe real driver hooks, pending DDL and attachment release."""
+    from firebird.base.hooks import hook_manager
+    from pgadmin.cdeadmin.providers.firebird.provider import (
+        _database_create_arguments, create_owned_database,
+    )
+    target = (f'127.0.0.1/{port}:/var/lib/firebird/data/owned_hook_' +
+              uuid.uuid4().hex + '.fdb')
+    args = _database_create_arguments(
+        {'host': '127.0.0.1', 'port': port}, target, {}, native)
+    seen = []
+    failure = RuntimeError('Owned attachment hook failure')
+
+    def attached(connection):
+        seen.append(connection)
+        connection.execute_immediate('CREATE TABLE OWNED_HOOK (ID INTEGER)')
+        if fail_hook:
+            raise failure
+
+    event = native.core.ConnectionHook.ATTACHED
+    owner = native.core.Connection
+    hook_manager.add_hook(event, owner, attached)
+    handle = None
+    try:
+        try:
+            handle = create_owned_database(
+                native, native.core, **args, user='SYSDBA', password=password)
+        except RuntimeError as error:
+            assert fail_hook and error is failure
+        else:
+            assert not fail_hook
+            assert handle.main_transaction.is_active()
+            handle.commit()
+    finally:
+        hook_manager.remove_hook(event, owner, attached)
+        if handle is not None:
+            handle.close()
+    assert len(seen) == 1 and seen[0].is_closed()
+    with native.connect(target, user='SYSDBA', password=password) as reopened:
+        with reopened.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM MON$ATTACHMENTS '
+                           'WHERE MON$SYSTEM_FLAG = 0')
+            assert cursor.fetchone()[0] == 1
+            cursor.execute('SELECT COUNT(*) FROM RDB$RELATIONS '
+                           "WHERE RDB$RELATION_NAME = 'OWNED_HOOK'")
+            assert cursor.fetchone()[0] == (0 if fail_hook else 1)
+        reopened.rollback()
+        reopened.drop_database()
+    return {'hook_failed': fail_hook, 'hook_called_once': True,
+            'initial_attachment_closed': True, 'reopened_attachments': 1,
+            'pending_ddl_rolled_back' if fail_hook else
+            'callback_ddl_committed_by_caller': True,
+            'database_preserved_after_callback': True,
+            'owned_database_dropped': True}
+
+
+def run(image, *, provider_creation=False, server_mode='Super',
+        creation_ownership=False):
+    if server_mode not in {'Super', 'SuperClassic', 'Classic'}:
+        raise ValueError('Invalid Firebird server mode')
+    if creation_ownership and not provider_creation:
+        raise ValueError('Creation ownership requires provider creation')
     import firebird.driver as native
     _configure_client_library(native)
     result = {'complete': False, 'checks': [], 'failures': [],
               'removed_policies': [], 'provider_forms_qualified': False,
               'driver_version': distribution_version('firebird-driver'),
-              'actual_task_worker_counts_qualified': False}
+              'actual_task_worker_counts_qualified': False,
+              'server_mode': server_mode, 'observed_server_modes': [],
+              'provider_creation': provider_creation,
+              'creation_ownership': creation_ownership}
+    operations = (('provider_create',) if provider_creation else
+                  ('attach', 'driver_create', 'native_create'))
 
     def failure(case, error):
         result['failures'].append({
@@ -61,11 +127,13 @@ def run(image):
                 '--env', 'FIREBIRD_ROOT_PASSWORD',
                 '--env', 'FIREBIRD_DATABASE',
                 '--env', 'FIREBIRD_CONF_ParallelWorkers',
-                '--env', 'FIREBIRD_CONF_MaxParallelWorkers', image,
+                '--env', 'FIREBIRD_CONF_MaxParallelWorkers',
+                '--env', 'FIREBIRD_CONF_ServerMode', image,
                 env=dict(os.environ, FIREBIRD_ROOT_PASSWORD=password,
                          FIREBIRD_DATABASE=path,
                          FIREBIRD_CONF_ParallelWorkers=str(default),
-                         FIREBIRD_CONF_MaxParallelWorkers=str(maximum))
+                         FIREBIRD_CONF_MaxParallelWorkers=str(maximum),
+                         FIREBIRD_CONF_ServerMode=server_mode)
             ).decode().strip()
             if not re.fullmatch('[0-9a-f]{64}', container):
                 raise ValueError('Owned container identity is invalid')
@@ -74,6 +142,21 @@ def run(image):
 
             def connect(request=None, operation='attach'):
                 create = operation != 'attach'
+                if operation == 'provider_create':
+                    from pgadmin.cdeadmin.providers.firebird.provider import (
+                        _database_create_arguments, create_owned_database,
+                    )
+                    target = (f'127.0.0.1/{port}:/var/lib/firebird/data/'
+                              + 'owned_' + uuid.uuid4().hex + '.fdb')
+                    arguments = _database_create_arguments(
+                        {'host': '127.0.0.1', 'port': port}, target, {},
+                        native)
+                    private = native.driver_config.get_database(
+                        arguments['database'])
+                    private.parallel_workers.value = request
+                    return create_owned_database(
+                        native, native.core, **arguments,
+                        user='SYSDBA', password=password)
                 name = 'owned_parallel_' + uuid.uuid4().hex
                 config = native.driver_config.register_database(name)
                 config.dsn.value = (dsn if not create else
@@ -107,13 +190,19 @@ def run(image):
                                 "SELECT RDB$GET_CONTEXT('SYSTEM', "
                                 "'ENGINE_VERSION') FROM RDB$DATABASE")
                             version = cursor.fetchone()[0]
+                            cursor.execute(
+                                'SELECT RDB$CONFIG_VALUE FROM RDB$CONFIG '
+                                "WHERE RDB$CONFIG_NAME = 'ServerMode'")
+                            actual_mode = cursor.fetchone()[0]
                     assert version == '5.0.4'
+                    assert actual_mode.lower() == server_mode.lower()
+                    result['observed_server_modes'].append(actual_mode)
                     break
                 except native.Error:
                     if time.monotonic() >= deadline:
                         raise
                     time.sleep(0.25)
-            for operation in ('attach', 'driver_create', 'native_create'):
+            for operation in operations:
                 for requested in REQUESTS:
                     phase = f'{policy}-{operation}-request-{requested}'
                     try:
@@ -142,6 +231,16 @@ def run(image):
                             'operation': operation, 'observed': observed})
                     except Exception as error:
                         failure(phase, error)
+            if creation_ownership:
+                for fail_hook in (False, True):
+                    phase = f'{policy}-creation-hook-fails-{fail_hook}'
+                    try:
+                        result['checks'].append(dict(
+                            creation_ownership_case(
+                                native, port, password, fail_hook=fail_hook),
+                            case=phase))
+                    except Exception as error:
+                        failure(phase, error)
         except Exception as error:
             failure(phase, error)
         finally:
@@ -151,8 +250,10 @@ def run(image):
                     result['removed_policies'].append(policy)
                 except Exception as error:
                     failure(policy + '-cleanup', error)
+    expected = len(POLICIES) * (len(REQUESTS) * len(operations) +
+                                (2 if creation_ownership else 0))
     result['complete'] = (
-        len(result['checks']) == len(POLICIES) * len(REQUESTS) * 3 and
+        len(result['checks']) == expected and
         not result['failures'] and len(result['removed_policies']) == 2)
     return result
 
@@ -161,10 +262,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--provider-creation', action='store_true')
+    parser.add_argument('--creation-ownership', action='store_true')
+    parser.add_argument('--server-mode', default='Super',
+                        choices=('Super', 'SuperClassic', 'Classic'))
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    result = run(options.image, provider_creation=options.provider_creation,
+                 server_mode=options.server_mode,
+                 creation_ownership=options.creation_ownership)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1

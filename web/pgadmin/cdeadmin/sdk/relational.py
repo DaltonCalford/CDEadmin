@@ -109,6 +109,8 @@ class RelationalClientConfig:
     database_create_arguments: Callable[
         [Mapping[str, Any], str, Mapping[str, Any]], Mapping[str, Any]
     ] | None = field(default=None, repr=False, compare=False)
+    database_creator: Callable[..., object] | None = field(
+        default=None, repr=False, compare=False)
     database_dropper: Callable[
         [Mapping[str, Any], str], Mapping[str, Any]
     ] | None = field(default=None, repr=False, compare=False)
@@ -266,6 +268,10 @@ class RelationalClientConfig:
             raise RelationalClientError(
                 'database_create_arguments must be callable'
             )
+        if self.database_creator is not None and not callable(
+            self.database_creator
+        ):
+            raise RelationalClientError('database_creator must be callable')
         if self.database_dropper is not None and not callable(
             self.database_dropper
         ):
@@ -512,7 +518,9 @@ class RelationalDBAPIClient:
     def create_database(self, request, database, driver_operation):
         connector_arguments = {'database': database}
         if driver_operation == 'firebird-create-database':
-            connector = getattr(self.module, 'create_database', None)
+            connector = self.config.database_creator
+            if connector is None:
+                connector = getattr(self.module, 'create_database', None)
             if not callable(connector):
                 raise RelationalDependencyError(
                     'Firebird driver has no create_database operation'

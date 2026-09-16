@@ -22,8 +22,11 @@ def test_interval_creation_and_reopen(monkeypatch, mode, interval, provider):
         cursor.fetchone.return_value = (expected,)
         cursor.fetchall.return_value = [(42,)]
     native = SimpleNamespace(driver_config=DriverConfig('owned-sweep-test'),
+                             core=object(),
                              create_database=Mock(return_value=handles[0]),
                              connect=Mock(return_value=handles[1]))
+    creator = Mock(return_value=handles[0])
+    monkeypatch.setattr(gate, 'create_database', creator)
     presence = Mock(return_value=False)
     monkeypatch.setattr(gate.cache, 'file_present', presence)
     result = gate.creation_case(
@@ -34,12 +37,17 @@ def test_interval_creation_and_reopen(monkeypatch, mode, interval, provider):
         stage = 'provider' if provider else 'driver'
         assert result['rejected_before_native_create_by_' + stage]
         native.create_database.assert_not_called()
+        creator.assert_not_called()
         native.connect.assert_not_called()
     else:
         assert result['created'] == result['reopened']
         assert result['created']['info_interval'] == expected
         assert result['committed_rows_preserved'] and result['dropped']
-        assert native.create_database.call_args.kwargs['overwrite'] is False
+        selected = creator if provider else native.create_database
+        assert selected.call_args.kwargs['overwrite'] is False
+        if provider:
+            native.create_database.assert_not_called()
+            assert selected.call_args.args == (native, native.core)
         handles[0].close.assert_called_once()
         handles[1].drop_database.assert_called_once()
         handles[1].close.assert_not_called()
