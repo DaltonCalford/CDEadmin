@@ -1037,7 +1037,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const [planned, setPlanned] = useState(null);
   const [validated, setValidated] = useState(null);
   const [outcome, setOutcome] = useState(null);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmedPlan, setConfirmedPlan] = useState(null);
   const [working, setWorking] = useState(false);
   const [closeBlocked, setCloseBlocked] = useState(false);
   // Set synchronously at admission, before React renders disabled controls.
@@ -1113,6 +1113,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   }, [editorContext]);
   const plan = planned?.context === editorContext ? planned.value : null;
   const validation = validated?.context === editorContext ? validated.value : null;
+  // Confirmation authorizes this preview instance only, even if a provider
+  // reuses the same plan ID, digest or response object on the next preview.
+  const confirmed = Boolean(plan && confirmedPlan === planned);
+  const setConfirmed = (value) => setConfirmedPlan(value && plan ? planned : null);
   const setPlan = (value) => setPlanned(value ? {context: editorContext, value} : null);
   const setValidation = (value) => setValidated(value ? {context: editorContext, value} : null);
   const graphicalContract = catalog?.graphical_interface;
@@ -1288,7 +1292,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const apply = async () => {
     const submittedPlan = plan;
     if (currentEditorContext.current !== editorContext ||
-        !submittedPlan || operationInFlight.current || inspecting || targetUnavailable) return;
+        !submittedPlan || submittedPlan.state !== 'ready' ||
+        !submittedPlan.execution_available ||
+        (operation?.confirmation_required && !confirmed) ||
+        operationInFlight.current || inspecting || targetUnavailable) return;
     operationInFlight.current = true;
     setCloseBlocked(false);
     setWorking(true);

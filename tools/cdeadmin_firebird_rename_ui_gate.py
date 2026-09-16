@@ -51,6 +51,30 @@ def array_seed(domain_mode, row):
             for outer in range(-2, 4)]
 
 
+def repreview_confirmation(browser, wait, operation, first_plan):
+    """Re-preview without touching draft fields or changing native policy."""
+    assert operation['confirmation_required'] is True
+    label = 'I confirm this provider-planned operation.'
+    confirmation = wait.until(lambda driver: visible_named_control(
+        driver, label))
+    button = visible_named_control(browser, 'Apply provider plan')
+    assert not confirmation.is_selected()
+    assert not button.is_enabled()
+    click_unobscured(browser, wait, confirmation)
+    assert confirmation.is_selected()
+    assert button.is_enabled()
+    # Passing no field values is essential: clearing/retyping even identical
+    # text would reset the old boolean and conceal the confirmation defect.
+    second_plan = plan_preview(browser, wait, operation, {})
+    confirmation = wait.until(lambda driver: visible_named_control(
+        driver, label))
+    assert not confirmation.is_selected()
+    assert not visible_named_control(
+        browser, 'Apply provider plan').is_enabled()
+    assert second_plan['command_preview'] == first_plan['command_preview']
+    return second_plan, confirmation
+
+
 def run(options, profiles):
     document = json.loads(profiles.read_text())
     route = next(dict(item) for item in document['profiles']
@@ -74,7 +98,8 @@ def run(options, profiles):
                  ('blob', 'BLOB SUB_TYPE TEXT', 'épreuve:blob%'),
                  ('array', 'INTEGER[-2:3,1:2]', 'Quote"Name')]
     kind = 'domain' if domain_mode else 'column'
-    result = {'passed': False, 'checks': [], 'failures': [],
+    result = {'passed': False, 'checks': [], 'confirmation_checks': [],
+              'failures': [],
               'fixtures_removed': False, 'credential_values_exported': False}
 
     def names(table):
@@ -105,6 +130,71 @@ def run(options, profiles):
             value = cursor.fetchone()[0]
         native.commit()
         return value
+
+    def table_exists(table):
+        with native.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM RDB$RELATIONS '
+                           'WHERE RDB$RELATION_NAME = ?', (table,))
+            count = cursor.fetchone()[0]
+        native.commit()
+        assert count in (0, 1)
+        return count == 1
+
+    def confirmation_drop(table, case):
+        print('confirmation drop: ' + case, flush=True)
+        current = forms._workspace_probe(browser, ['table'],
+                                         collect_context_commands=False)
+        operation = next(iter(forms._enumerate_operations(
+            current['catalog'], ['table'], ['drop'])))
+        assert operation['confirmation_required'] is True
+        target = next(item for item in current['resources'] if
+                      item['resource_kind'] == 'table' and
+                      item['display_name'] == table)
+        forms._open_focused_form(browser, operation, target,
+                                 current['database_target_id'])
+        forms._wait_for_operation(wait, operation)
+        label = next(field['label'] for field in operation['form']['fields']
+                     if field['field_id'] == 'confirmation')
+        first = plan_preview(browser, wait, operation, {label: table})
+        expected = 'DROP TABLE ' + identifier(table)
+        assert first['command_preview']['statements'][0]['source'] == expected
+        assert table_exists(table)
+        second, confirmation = repreview_confirmation(
+            browser, wait, operation, first)
+        assert table_exists(table)
+        browser.execute_script(
+            'arguments[0].scrollIntoView({block: "center"})', confirmation)
+        path = options.output_root / (case + '-repreview-unconfirmed.png')
+        digest = screenshot(browser, path, reset_scroll=False)
+        click_unobscured(browser, wait, confirmation)
+        button = wait.until(lambda driver: visible_named_control(
+            driver, 'Apply provider plan'))
+        wait.until(lambda _driver: button.is_enabled())
+        click_unobscured(browser, wait, button)
+        # A dropped target may disappear from selection, so inspect native
+        # absence and completed form work, not a transient result panel.
+        wait.until(lambda _driver: not table_exists(table))
+
+        def idle(driver):
+            field = visible_named_control(driver, label)
+            return field is not None and field.is_enabled()
+
+        wait.until(idle)
+        assert not visible_named_control(
+            browser, 'Apply provider plan').is_enabled()
+        assert not any(item.is_displayed() for item in browser.find_elements(
+            'css selector', '[role="alert"][class*="MuiAlert-standardError"]'))
+        assert 'Do not repeat the operation' not in browser.find_element(
+            'tag name', 'body').text
+        result['confirmation_checks'].append({
+            'case': case, 'resource_kind': 'table', 'operation_id': 'drop',
+            'first_plan_id': first['plan_id'],
+            'second_plan_id': second['plan_id'],
+            'same_draft_reconfirmed': True,
+            'native_object_present_before_explicit_apply': True,
+            'native_object_absent_after_explicit_apply': True,
+            'screenshot': str(path), 'sha256': digest})
+        close_workspace(browser, wait)
 
     try:
         for index, (_label, definition, _new) in enumerate(cases):
@@ -233,13 +323,15 @@ def run(options, profiles):
                         'form_screenshots': images, 'screenshot': str(path),
                         'sha256': screenshot(browser, path)})
                 close_workspace(browser, wait)
+                confirmation_drop(table, label)
             except Exception:
                 result['failures'].append({'case': label,
                                           'traceback': traceback.format_exc()})
                 path = options.output_root / (label + '-failure.png')
                 screenshot(browser, path)
                 close_workspace(browser, wait)
-        result['passed'] = len(result['checks']) == len(cases) * 2
+        result['passed'] = (len(result['checks']) == len(cases) * 2 and
+                            len(result['confirmation_checks']) == len(cases))
     except Exception:
         result['failures'].append({'traceback': traceback.format_exc()})
     finally:
