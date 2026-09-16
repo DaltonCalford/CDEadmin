@@ -15,6 +15,9 @@ import uuid
 from pathlib import Path
 
 if __package__:
+    from .cdeadmin_firebird_traps_oracle import (
+        DEFAULT_TRAPS, observe_traps, first_trapped_condition,
+    )
     from .cdeadmin_firebird_rounding_oracle import (
         expected_rounding, observe_rounding,
     )
@@ -24,6 +27,9 @@ if __package__:
         _configure_client_library, _route_arguments,
     )
 else:
+    from cdeadmin_firebird_traps_oracle import (
+        DEFAULT_TRAPS, observe_traps, first_trapped_condition,
+    )
     from cdeadmin_firebird_rounding_oracle import (
         expected_rounding, observe_rounding,
     )
@@ -62,13 +68,17 @@ TRAP_PROBES = {
 }
 
 
-def run(image, provider_rounding=False, browser_options=None):
+def run(image, provider_rounding=False, browser_options=None,
+        server_mode='Super'):
+    if server_mode not in ('Super', 'SuperClassic', 'Classic'):
+        raise ValueError('Unknown owned Firebird server mode')
     import firebird.driver as native
     _configure_client_library(native)
     password = secrets.token_urlsafe(24)
     database = '/var/lib/firebird/data/owned_decfloat.fdb'
     container = None
     result = {'complete': False, 'checks': [], 'failures': [],
+              'server_mode_requested': server_mode,
               'provider_forms_qualified': False,
               'provider_rounding_mapping': provider_rounding,
               'owned_container_removed': False}
@@ -101,6 +111,52 @@ def run(image, provider_rounding=False, browser_options=None):
         config.decfloat_traps.value = traps
         return native.connect(name, user='SYSDBA', password=password)
 
+    def creation_traps(selected):
+        name = 'owned_create_traps_' + uuid.uuid4().hex
+        config = native.driver_config.register_database(name)
+        config.dsn.value = (
+            f'127.0.0.1/{route["port"]}:/var/lib/firebird/data/{name}.fdb')
+        config.user.value = None
+        config.password.value = None
+        config.charset.value = 'UTF8'
+        config.decfloat_round.value = None
+        config.decfloat_traps.value = selected
+        expected = sorted(t.name for t in selected) if selected else sorted(
+            DEFAULT_TRAPS)
+        handle = native.create_database(
+            name, user='SYSDBA', password=password, overwrite=False)
+        try:
+            initial = observe_traps(handle)
+            assert initial == expected
+            probes = probe_all(handle, expected)
+            handle.rollback()
+            handle.execute_immediate('SET DECFLOAT TRAPS TO')
+            assert observe_traps(handle) == []
+            probe_all(handle, [])
+            handle.rollback()
+            handle.execute_immediate('ALTER SESSION RESET')
+            assert observe_traps(handle) == expected
+            assert probe_all(handle, expected) == probes
+            handle.close()
+            handle = None
+            # A fresh attachment without the creation DPB must use native
+            # defaults, proving that traps were not stored database settings.
+            config.decfloat_traps.value = None
+            handle = native.connect(name, user='SYSDBA', password=password)
+            reopened = observe_traps(handle)
+            assert reopened == sorted(DEFAULT_TRAPS)
+            probe_all(handle, reopened)
+            handle.rollback()
+            handle.drop_database()
+            handle = None
+            return {'creation_traps': initial, 'condition_probes': probes,
+                    'unconfigured_reopen': reopened,
+                    'session_reset_restored': True, 'owned_database_dropped':
+                    True, 'stored_database_setting_changed': False}
+        finally:
+            if handle is not None:
+                handle.close()
+
     def observe(connection, expression):
         try:
             with connection.cursor() as cursor:
@@ -114,16 +170,33 @@ def run(image, provider_rounding=False, browser_options=None):
     def divide(connection):
         return observe(connection, TRAP_PROBES['DIVISION_BY_ZERO'][0])
 
+    def probe_all(connection, active):
+        observations = {}
+        for name, (expression, _) in TRAP_PROBES.items():
+            observed = observe(connection, expression)
+            expected = first_trapped_condition(name, active)
+            if expected is None:
+                assert isinstance(observed, str), (name, active, observed)
+            else:
+                assert observed == {'native_status_codes': [
+                    TRAP_PROBES[expected][1]]}, (name, active, observed)
+            observations[name] = observed
+        return observations
+
     phase = 'create-owned-server'
     try:
         container = docker(
             'run', '--detach', '--name',
             'cdeadmin-decfloat-' + uuid.uuid4().hex[:16],
             '--label', 'cdeadmin-owned-gate=' + OWNER,
+            '--memory', '512m', '--memory-swap', '512m',
             '--publish', '127.0.0.1::3050', '--env', 'FIREBIRD_ROOT_PASSWORD',
-            '--env', 'FIREBIRD_DATABASE', image,
+            '--env', 'FIREBIRD_DATABASE', '--env', 'FIREBIRD_CONF_ServerMode',
+            '--env', 'FIREBIRD_CONF_DefaultDbCachePages', image,
             env=dict(os.environ, FIREBIRD_ROOT_PASSWORD=password,
-                     FIREBIRD_DATABASE=database)).decode().strip()
+                     FIREBIRD_DATABASE=database,
+                     FIREBIRD_CONF_ServerMode=server_mode,
+                     FIREBIRD_CONF_DefaultDbCachePages='128')).decode().strip()
         if not re.fullmatch('[0-9a-f]{64}', container):
             raise ValueError('Owned container identity is invalid')
         dsn = f'127.0.0.1/{published_port(container)}:{database}'
@@ -139,6 +212,7 @@ def run(image, provider_rounding=False, browser_options=None):
                         cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', "
                                        "'ENGINE_VERSION') FROM RDB$DATABASE")
                         result['engine_version'] = cursor.fetchone()[0]
+                    assert observe_traps(handle) == sorted(DEFAULT_TRAPS)
                 break
             except native.Error:
                 if time.monotonic() >= deadline:
@@ -207,6 +281,12 @@ def run(image, provider_rounding=False, browser_options=None):
                                     or 'empty')
                 try:
                     with connect(traps=list(selected)) as handle:
+                        expected_traps = sorted(
+                            t.name for t in selected) if selected else sorted(
+                                DEFAULT_TRAPS)
+                        attachment_traps = observe_traps(handle)
+                        assert attachment_traps == expected_traps
+                        attachment_probes = probe_all(handle, expected_traps)
                         before = divide(handle)
                         should_trap = (not selected or
                                        native.DecfloatTraps.DIVISION_BY_ZERO
@@ -216,15 +296,37 @@ def run(image, provider_rounding=False, browser_options=None):
                             assert before == 'Infinity'
                         handle.rollback()
                         handle.execute_immediate('SET DECFLOAT TRAPS TO')
+                        disabled_traps = observe_traps(handle)
+                        assert disabled_traps == []
+                        disabled_probes = probe_all(handle, [])
                         after = divide(handle)
                         assert after == 'Infinity'
                         handle.rollback()
                         handle.execute_immediate('ALTER SESSION RESET')
+                        reset_traps = observe_traps(handle)
+                        assert reset_traps == expected_traps
+                        reset_probes = probe_all(handle, expected_traps)
+                        assert reset_probes == attachment_probes
                         reset = divide(handle)
                         assert reset == before
+                    with connect(traps=list(selected)) as reopened:
+                        reopened_traps = observe_traps(reopened)
+                        assert reopened_traps == expected_traps
+                        reopened_probes = probe_all(reopened, expected_traps)
+                        assert reopened_probes == attachment_probes
                     result['checks'].append({
                         'case': phase, 'attachment': before,
-                        'explicit_no_traps': after, 'session_reset': reset})
+                        'explicit_no_traps': after, 'session_reset': reset,
+                        'trap_context': {
+                            'attachment': attachment_traps,
+                            'explicit_no_traps': disabled_traps,
+                            'session_reset': reset_traps,
+                            'reopened': reopened_traps},
+                        'condition_probes': {
+                            'attachment': attachment_probes,
+                            'explicit_no_traps': disabled_probes,
+                            'session_reset': reset_probes,
+                            'reopened': reopened_probes}})
                 except Exception as error:
                     failure(phase, error)
         for name, (expression, code) in TRAP_PROBES.items():
@@ -244,6 +346,19 @@ def run(image, provider_rounding=False, browser_options=None):
                 result['checks'].append({
                     'case': phase, 'attachment': trapped,
                     'explicit_no_traps': untrapped, 'session_reset': reset})
+            except Exception as error:
+                failure(phase, error)
+        selections = [None] + [list(selected)
+                               for count in range(len(traps) + 1)
+                               for selected in itertools.combinations(
+                                   traps, count)]
+        for selected in selections:
+            phase = 'create-traps-' + (
+                'omitted' if selected is None else
+                ('-'.join(t.name for t in selected) or 'empty'))
+            try:
+                result['checks'].append(dict(
+                    creation_traps(selected), case=phase))
             except Exception as error:
                 failure(phase, error)
         if provider_rounding:
@@ -337,7 +452,7 @@ def run(image, provider_rounding=False, browser_options=None):
                 result['owned_container_removed'] = True
             except Exception as error:
                 failure('remove-owned-server', error)
-    expected_count = 64 if provider_rounding else 55
+    expected_count = 97 if provider_rounding else 88
     result['complete'] = (len(result['checks']) == expected_count and
                           not result['failures'] and
                           result['owned_container_removed'])
@@ -349,6 +464,8 @@ def main():
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--provider-rounding', action='store_true')
+    parser.add_argument('--server-mode', default='Super',
+                        choices=('Super', 'SuperClassic', 'Classic'))
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--browser-scope', choices=('full', 'inheritance'),
                         default='full')
@@ -366,7 +483,7 @@ def main():
             parser.error('Browser tests require a new --build-root directory')
         options.build_root.mkdir(parents=True, exist_ok=False)
     result = run(options.image, options.provider_rounding,
-                 options if options.browser else None)
+                 options if options.browser else None, options.server_mode)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1
