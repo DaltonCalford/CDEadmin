@@ -155,6 +155,7 @@ class _RowIdentity:
     key_values: tuple[Any, ...]
     original: Mapping[str, Any]
     issued_at: float
+    session_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -3062,6 +3063,10 @@ class RelationalAdministration:
     def read_rows(self, client, request, connection=None):
         route = request.get('_provider_route')
         target = request.get('target_resource')
+        session_id = request.get('session_id')
+        if session_id is not None and (
+                not isinstance(session_id, str) or not session_id.strip()):
+            raise RelationalClientError('provider session identity is invalid')
         if not isinstance(route, Mapping) or not isinstance(target, Mapping):
             raise RelationalClientError(
                 'row paging requires a trusted route and table resource'
@@ -3151,6 +3156,7 @@ class RelationalAdministration:
                         tuple(values[key] for key in key_columns),
                         copy.deepcopy(values),
                         time.monotonic(),
+                        session_id=session_id,
                     )
                     with self._identity_lock:
                         while len(self._row_identities) >= 5000:
@@ -7025,6 +7031,9 @@ class RelationalAdministration:
             raise RelationalClientError(
                 'row identity token is stale or invalid'
             )
+        if identity.session_id != request.get('session_id'):
+            raise RelationalClientError(
+                'row identity belongs to another provider session')
         if time.monotonic() - identity.issued_at > 600:
             raise RelationalClientError('row identity token has expired')
         route = request.get('_provider_route')

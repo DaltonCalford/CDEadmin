@@ -24,6 +24,7 @@ else:
 from pgadmin.cdeadmin.providers.firebird.character_metadata import identifier
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
 from pgadmin.cdeadmin.providers.firebird.provider import _resources
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 def run(image='firebirdsql/firebird:5.0.4'):
@@ -247,6 +248,33 @@ def run(image='firebirdsql/firebird:5.0.4'):
         assert page['rows'][0]['values'] == {'ID': 1, 'V': 20}
         assert all(row['identity_token'] is None for row in page['rows'])
         assert all(column['editable'] is False for column in page['columns'])
+        table_target = {'resource_kind': 'table', 'display_name': table,
+                        'display_path': [table]}
+        for planned_session in ('session-b', None, 'session-a'):
+            table_page = ADMINISTRATION.read_rows(client, {
+                '_provider_route': route, 'target_resource': table_target,
+                'session_id': 'session-a'}, connection=connection)
+            token = table_page['rows'][0]['identity_token']
+            request = {
+                '_provider_route': route, 'target_resource': table_target,
+                'resource_kind': 'table', 'operation_id': 'update',
+                'session_id': planned_session,
+                'draft': {'selector': {'identity_token': token},
+                          'changes': {'V': 25}, 'concurrency_token': token}}
+            if planned_session != 'session-a':
+                try:
+                    ADMINISTRATION.plan(request)
+                except RelationalClientError as error:
+                    assert 'another provider session' in str(error)
+                else:
+                    raise AssertionError('Cross-session row identity admitted')
+                assert sql('SELECT V FROM ' + table) == [(20,)]
+            else:
+                receipt = ADMINISTRATION.apply(
+                    client, ADMINISTRATION.plan(request),
+                    connection=connection)
+                assert receipt['staged_in_provider_session'] is True
+                assert sql('SELECT V FROM ' + table) == [(25,)]
         rollback()
         assert sql('SELECT V FROM ' + table) == [(10,)]
         codes = []
@@ -264,6 +292,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
         rollback()
         assert sql('SELECT V FROM ' + table) == [(10,)]
         return {'kind': kind, 'grid_read_only_verified': True,
+                'row_session_boundary_verified': True,
                 'no_identity_tokens': True, 'pending_work_preserved': True,
                 'native_update_allowed': kind == 'simple',
                 'native_denial_codes': codes}

@@ -876,6 +876,7 @@ class ProviderVisualAdministration:
             callback_request['_provider_session_handle'] = (
                 execution_context['session_handle']
             )
+            callback_request['session_id'] = session_id
         result = callback(callback_request)
         return normalize_admin_page(
             _mapping(result, 'provider row page'), self.context,

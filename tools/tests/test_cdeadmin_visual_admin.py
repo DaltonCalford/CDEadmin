@@ -1138,6 +1138,27 @@ class VisualAdministrationCatalogTests(unittest.TestCase):
             page['grid']['grid_id'],
         )
 
+    def test_row_callback_receives_only_verified_session_identity(self):
+        adapter = OrderedKeyAdapter()
+        provider = ProviderVisualAdministration(
+            context('foundationdb'), Permissions(),
+            'foundationdb', '7.3.77', adapter)
+        payload = {
+            '_provider_route': {'route_id': 'bounded-test'},
+            'target_resource': {'resource_kind': 'key-range',
+                                'resource_id': 'owned-range'},
+            'session_id': 'session-a'}
+        handle = object()
+        with self.assertRaises(VisualAdminAccessError):
+            provider.read_rows(payload, execution_context={
+                'session_id': 'session-b', 'session_handle': handle})
+        self.assertEqual([], adapter.row_requests)
+        provider.read_rows(payload, execution_context={
+            'session_id': 'session-a', 'session_handle': handle})
+        self.assertEqual('session-a', adapter.row_requests[0]['session_id'])
+        self.assertIs(handle,
+                      adapter.row_requests[0]['_provider_session_handle'])
+
 
 if __name__ == '__main__':
     unittest.main()

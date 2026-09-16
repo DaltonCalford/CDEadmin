@@ -1040,6 +1040,51 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
         self.assertEqual('visible', page['rows'][0]['values']['name'])
         self.assertIsNone(page['rows'][0]['identity_token'])
 
+    def test_row_identity_is_bound_to_issuing_provider_session(self):
+        connection = sqlite3.connect(self.route['database'])
+        try:
+            connection.executescript(
+                'CREATE TABLE widgets(id INTEGER PRIMARY KEY, name TEXT);'
+                "INSERT INTO widgets VALUES (1, 'before');")
+            connection.commit()
+        finally:
+            connection.close()
+        for issued, planned, accepted in [
+                ('session-a', 'session-a', True),
+                ('session-a', 'session-b', False),
+                ('session-a', None, False),
+                (None, 'session-a', False), (None, None, True)]:
+            for operation in ('update', 'delete'):
+                with self.subTest(issued=issued, planned=planned,
+                                  operation=operation):
+                    page = self.admin.read_rows(self.client, {
+                        '_provider_route': self.route,
+                        'target_resource': self.target,
+                        'session_id': issued})
+                    token = page['rows'][0]['identity_token']
+                    draft = {'selector': {'identity_token': token},
+                             'concurrency_token': token,
+                             'changes': {'name': 'after'},
+                             'confirmation': 'provider-row-delete'}
+                    value = request(self.route, operation, draft, self.target)
+                    value['session_id'] = planned
+                    if accepted:
+                        self.admin.plan(value)
+                    else:
+                        with self.assertRaisesRegex(
+                                RelationalClientError, 'provider session'):
+                            self.admin.plan(value)
+
+    def test_invalid_row_session_identity_is_rejected_before_connection(self):
+        for session_id in ('', ' ', 1, False, [], {}):
+            with self.subTest(session_id=session_id):
+                with self.assertRaisesRegex(
+                        RelationalClientError, 'session identity is invalid'):
+                    self.admin.read_rows(None, {
+                        '_provider_route': self.route,
+                        'target_resource': self.target,
+                        'session_id': session_id})
+
     def test_structured_ddl_and_grid_crud_execute_without_raw_commands(self):
         created = self.admin.plan(request(
             self.route, 'create', {
