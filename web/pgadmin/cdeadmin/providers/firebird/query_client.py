@@ -36,6 +36,7 @@ class _AttachmentState:
     cancellation_state_unknown: bool = False
     result_cleanup_failed: bool = False
     worker_interrupted: bool = False
+    visual_task_state_unknown: bool = False
 
 
 class FirebirdQueryClient(RelationalDBAPIClient):
@@ -231,6 +232,10 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             if state.worker_interrupted and not closing:
                 raise RelationalClientError(
                     'Firebird query worker was interrupted; close this '
+                    'session and explicitly reconnect')
+            if state.visual_task_state_unknown and not closing:
+                raise RelationalClientError(
+                    'Firebird visual task state is unknown; close this '
                     'session and explicitly reconnect')
             yield state
         finally:
@@ -817,8 +822,16 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         if handle is None:
             with self._temporary_operation():
                 return super().apply_admin_operation(request)
-        with self._exclusive(handle):
-            return super().apply_admin_operation(request)
+        with self._exclusive(handle) as state:
+            try:
+                return super().apply_admin_operation(request)
+            except Exception as error:
+                if diagnostic_flag(error, 'task_rollback_unconfirmed'):
+                    state.visual_task_state_unknown = True
+                raise
+            except BaseException:
+                state.visual_task_state_unknown = True
+                raise
 
     def read_admin_rows(self, request):
         handle = request.get('_provider_session_handle')

@@ -138,6 +138,8 @@ def test_execution_and_task_rollback_preserve_structured_status_codes(
                 'parameters': (),
             }]}}}, connection=connection)
     assert caught.value.gds_codes == error.gds_codes
+    if native_error or rollback_fails:
+        assert caught.value.native_status_codes == error.gds_codes
     assert getattr(caught.value, 'task_rollback_unconfirmed', False) is (
         rollback_fails)
     assert 'private' not in str(caught.value)

@@ -2984,6 +2984,7 @@ class RelationalAdministration:
                         'verified; the transaction remains caller-owned'
                     )
                     failure.gds_codes = firebird_status_codes(exc)
+                    failure.native_status_codes = failure.gds_codes
                     failure.task_rollback_unconfirmed = True
                     raise failure from None
             else:

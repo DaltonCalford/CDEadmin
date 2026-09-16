@@ -68,6 +68,74 @@ def submit(rig):
     return query
 
 
+@pytest.mark.parametrize('outcome', [
+    'success', 'confirmed-failure', 'unconfirmed-rollback', 'interrupt'])
+def test_visual_task_uncertainty_requires_explicit_release(rig, outcome):
+    error = (KeyboardInterrupt('owned interruption') if outcome == 'interrupt'
+             else RelationalClientError('owned failure'))
+    error.task_rollback_unconfirmed = outcome == 'unconfirmed-rollback'
+    request = {'_provider_session_handle': rig.handle}
+    with patch.object(RelationalDBAPIClient, 'apply_admin_operation',
+                      return_value={'accepted': True}) as execute:
+        if outcome == 'success':
+            assert rig.client.apply_admin_operation(request)['accepted']
+        else:
+            execute.side_effect = error
+            with pytest.raises(type(error)) as caught:
+                rig.client.apply_admin_operation(request)
+            assert caught.value is error
+        assert execute.call_count == 1
+        uncertain = outcome in {'unconfirmed-rollback', 'interrupt'}
+        assert rig.client._state(rig.handle).visual_task_state_unknown is (
+            uncertain)
+        if uncertain:
+            for operation in (
+                    lambda: rig.client.apply_admin_operation(request),
+                    lambda: rig.client.read_admin_rows(request),
+                    lambda: rig.client.submit_query(rig.handle, {
+                        'source': 'SELECT 1 FROM RDB$DATABASE'})):
+                with pytest.raises(RelationalClientError,
+                                   match='visual task state is unknown'):
+                    operation()
+            assert execute.call_count == 1
+        else:
+            with rig.client._exclusive(rig.handle):
+                pass
+        other = Mock()
+        rig.client._connections.append(other)
+        with rig.client._exclusive(other):
+            pass
+        with rig.client._exclusive(rig.handle, closing=True):
+            pass
+        rig.handle.commit.assert_not_called()
+        rig.handle.rollback.assert_not_called()
+
+
+@pytest.mark.parametrize('release_fails', [False, True])
+def test_visual_task_quarantine_clears_only_after_release(rig, release_fails):
+    state = rig.client._state(rig.handle)
+    state.visual_task_state_unknown = True
+
+    def release(handle):
+        if release_fails:
+            raise RelationalClientError('owned detach failure')
+        rig.client._forget_connection(handle)
+        return {'connection_released': True}
+
+    with patch.object(rig.client, '_release_attachment', side_effect=release):
+        if release_fails:
+            with pytest.raises(RelationalClientError,
+                               match='owned detach failure'):
+                rig.client.close_session(rig.handle)
+            assert rig.client._state(rig.handle) is state
+            assert state.visual_task_state_unknown
+            assert rig.handle in rig.client._connections
+        else:
+            assert rig.client.close_session(rig.handle)['connection_released']
+            assert id(rig.handle) not in rig.client._attachment_states
+            assert rig.handle not in rig.client._connections
+
+
 def service_handle(rig):
     handle = SimpleNamespace(_svc=object())
     handle.close = Mock(side_effect=lambda: setattr(handle, '_svc', None))
