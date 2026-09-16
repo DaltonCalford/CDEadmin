@@ -46,6 +46,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         self._admission = threading.RLock()
         self._attachment_states = {}
         self._server_handles = set()
+        self._failed_initializations = set()
         self._queries = []
         self._closed = False
         self._opening = 0
@@ -98,6 +99,35 @@ class FirebirdQueryClient(RelationalDBAPIClient):
     def _forget_connection(self, handle):
         super()._forget_connection(handle)
         self._server_handles.discard(id(handle))
+        self._failed_initializations.discard(id(handle))
+
+    def _discard_failed_session(self, connection):
+        self._failed_initializations.add(id(connection))
+        try:
+            self._release_failed_initialization(connection)
+        except Exception:
+            # Preserve the initialization failure. Quarantined attachments
+            # remain owned but cannot execute queries or catalog operations.
+            pass
+
+    def _release_failed_initialization(self, connection):
+        failure = None
+        try:
+            self.config.failed_session_releaser(connection)
+        except Exception as exc:
+            failure = exc
+        if connection._att is not None:
+            error = RelationalClientError(
+                'Firebird failed-initialization attachment release '
+                'is unconfirmed')
+            error.gds_codes = status_codes(failure)
+            raise error from None
+        self._forget_connection(connection)
+        return {'connection_released': True,
+                'driver_observation_only': True,
+                'rollback_completion_confirmed': False,
+                'local_cleanup_error_type': (
+                    type(failure).__name__ if failure else None)}
 
     def _finish_temporary_attachment(self, connection, failure):
         try:
@@ -114,6 +144,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             }
 
     def _forget_and_close(self, handle):
+        if id(handle) in self._failed_initializations:
+            return self._release_failed_initialization(handle)
         if id(handle) in self._server_handles:
             return self._release_server(handle)
         if self.config.session_releaser is not None:
@@ -156,6 +188,9 @@ class FirebirdQueryClient(RelationalDBAPIClient):
 
     @contextmanager
     def _exclusive(self, handle, *, closing=False):
+        if id(handle) in self._failed_initializations and not closing:
+            raise RelationalClientError(
+                'Firebird initialization failed; attachment is cleanup-only')
         state = self._state(handle)
         if not state.lock.acquire(blocking=False):
             raise RelationalClientError('Firebird session is busy')
@@ -471,6 +506,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             return result
 
     def _release_attachment(self, handle):
+        if id(handle) in self._failed_initializations:
+            return self._release_failed_initialization(handle)
         if id(handle) in self._server_handles:
             return self._release_server(handle)
         try:

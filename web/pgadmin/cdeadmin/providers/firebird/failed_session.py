@@ -12,7 +12,7 @@ def discard_failed_session(connection):
         finally:
             connection._close_internals()
     finally:
-        try:
-            attachment.detach()
-        finally:
-            connection._att = None
+        # A failed detach does not confirm release. Keep the native reference
+        # so the provider can quarantine and explicitly retry this attachment.
+        attachment.detach()
+        connection._att = None

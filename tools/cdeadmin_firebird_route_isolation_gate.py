@@ -139,6 +139,65 @@ def temporary_retention_case(native, route, password, operation_failure=False):
             'operation_failure_preserved': operation_failure}
 
 
+def failed_detach_case(native, route, password):
+    client = _create_client(SimpleNamespace(
+        acquire_secret=lambda *_args: SecretLease(password)))
+    seen = []
+    release_attempts = 0
+    original = RelationalClientError('owned initialization failure')
+
+    def initialize(handle, _route):
+        seen.append(handle)
+        handle.execute_immediate('CREATE TABLE OWNED_DETACH_FAIL (ID INTEGER)')
+        raise original
+
+    def release(handle):
+        nonlocal release_attempts
+        release_attempts += 1
+        if release_attempts == 1:
+            with patch.object(type(handle._att), 'detach',
+                              side_effect=RuntimeError('injected detach')):
+                discard_failed_session(handle)
+        else:
+            discard_failed_session(handle)
+
+    client.config = replace(client.config, connection_initializer=initialize,
+                            failed_session_releaser=release)
+    try:
+        try:
+            client.open_session({'route': {
+                **route, 'credential_reference_id': 'owned-secret',
+                'principal_reference': 'owned-principal'}})
+        except RelationalClientError as caught:
+            assert caught is original
+        else:
+            raise AssertionError('Initialization unexpectedly succeeded')
+        assert client._connections == [seen[0]]
+        assert seen[0]._att is not None
+        try:
+            client.execute(seen[0], {'source': 'SELECT 1 FROM RDB$DATABASE'})
+        except RelationalClientError as caught:
+            assert 'cleanup-only' in str(caught)
+        else:
+            raise AssertionError('Failed attachment admitted a query')
+    finally:
+        client.close()
+    assert seen[0].is_closed() and not client._connections
+    with native.connect(**_route_arguments(route, native),
+                        password=password) as observer:
+        with observer.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM MON$ATTACHMENTS '
+                           'WHERE MON$SYSTEM_FLAG = 0')
+            assert cursor.fetchone()[0] == 1
+            cursor.execute('SELECT COUNT(*) FROM RDB$RELATIONS '
+                           "WHERE RDB$RELATION_NAME = 'OWNED_DETACH_FAIL'")
+            assert cursor.fetchone()[0] == 0
+        observer.rollback()
+    return {'injected_detach_failure': True, 'ownership_retained': True,
+            'query_refused': True, 'explicit_retry_detached': True,
+            'pending_ddl_rolled_back': True}
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -146,6 +205,7 @@ def run(image):
     result = {'complete': False, 'cases': [], 'failures': [],
               'failed_initializations': [], 'temporary_release': None,
               'combined_failure_release': None,
+              'failed_detach_release': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -237,6 +297,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'failed-detach-release'
+        try:
+            result['failed_detach_release'] = failed_detach_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
         phase = 'temporary-retention'
         try:
             result['temporary_release'] = temporary_retention_case(
@@ -263,6 +329,7 @@ def run(image):
                           len(result['failed_initializations']) == 4 and
                           result['temporary_release'] is not None and
                           result['combined_failure_release'] is not None and
+                          result['failed_detach_release'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result

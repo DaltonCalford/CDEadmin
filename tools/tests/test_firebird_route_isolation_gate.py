@@ -19,6 +19,8 @@ def test_gate_collects_failures_and_always_attempts_cleanup(
         return_value={'native_attachment_released': True}))
     monkeypatch.setattr(gate, 'temporary_retention_case', Mock(
         return_value={'explicit_retry_detached': True}))
+    monkeypatch.setattr(gate, 'failed_detach_case', Mock(
+        return_value={'explicit_retry_detached': True}))
     cleanup = Mock(side_effect=(
         RuntimeError('secret') if fault == 'cleanup' else None))
     monkeypatch.setattr(gate, 'remove_owned', cleanup)
