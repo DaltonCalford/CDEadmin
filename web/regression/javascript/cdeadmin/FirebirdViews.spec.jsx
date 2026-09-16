@@ -89,4 +89,17 @@ describe('Firebird view replacement forms', () => {
     expect((await preview(post)).sql).toBe(
       'RECREATE VIEW "Owned" ("B", "D") AS\nSELECT 1, 2 FROM RDB$DATABASE');
   });
+
+  it.each(['create_or_alter', 'recreate'])(
+    'retains native CHECK OPTION in the %s query editor', async (action) => {
+      const query = 'SELECT ID, V FROM OWNED_BASE WHERE V > 0 WITH CHECK OPTION';
+      const post = await mount(action, {definition: query,
+        view_columns: [{name: 'ID'}, {name: 'V'}]});
+      expect(screen.getByLabelText(/View query/)).toHaveValue(query);
+      change(action === 'recreate' ? /Confirm view name/ : /View name/, 'Owned');
+      const result = await preview(post);
+      expect(result.sql).toContain('("ID", "V") AS\n' + query);
+      expect(result.draft.definition).toBe(query);
+      expect(result.draft).not.toHaveProperty('cascade');
+    });
 });

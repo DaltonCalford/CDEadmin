@@ -33,6 +33,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
     container = connection = client = None
     result = {'schema': 'cdeadmin.firebird-views.v1', 'complete': False,
               'checks': [], 'failures': [], 'task_evidence': {},
+              'check_option_checks': [],
               'owned_container_removed': False}
 
     def failure(case, error):
@@ -222,6 +223,73 @@ def run(image='firebirdsql/firebird:5.0.4'):
                     'pending_work_preserved': True, 'rollback_verified': True}
         raise AssertionError('Invalid query admitted')
 
+    def check_option(mode):
+        suffix = mode.upper().replace('-', '_')
+        table = 'CO_BASE_' + suffix
+        view = 'CO_VIEW_' + suffix
+        sql('CREATE TABLE ' + table + ' (ID INTEGER PRIMARY KEY, V INTEGER)')
+        connection.commit()
+        query = 'SELECT ID, V FROM ' + table + ' WHERE V > 0'
+        names = [{'name': 'ID'}, {'name': 'V'}]
+        if mode in {'alter', 'recreate'}:
+            apply('create_or_alter', view, query, columns=names)
+            connection.commit()
+        apply('recreate' if mode == 'recreate' else 'create_or_alter',
+              view, query + ' WITH CHECK OPTION', columns=names)
+        connection.commit()
+        resource = next(r for r in _resources(connection, route)
+                        if r['resource_kind'] == 'view' and
+                        r['display_name'] == view)
+        ddl = resource['native']['ddl']
+        assert 'WITH CHECK OPTION' in ddl
+        rollback()
+        if mode == 'export':
+            sql('DROP VIEW ' + view)
+            connection.commit()
+            sql(ddl)
+            connection.commit()
+        denials = []
+        sql('INSERT INTO ' + view + ' VALUES (1, 10)')
+        for mutation in ('INSERT INTO ' + view + ' VALUES (2, -1)',
+                         'UPDATE ' + view + ' SET V = -1 WHERE ID = 1'):
+            try:
+                sql(mutation)
+            except native.Error as error:
+                codes = list(status_codes(error))
+                assert 335544558 in codes, codes
+                denials.append(codes)
+            else:
+                raise AssertionError('Native CHECK OPTION was not enforced')
+            assert sql('SELECT ID, V FROM ' + table) == [(1, 10)]
+        rollback()
+        assert sql('SELECT ID FROM ' + table) == []
+        sql('INSERT INTO ' + view + ' VALUES (1, 10)')
+        connection.commit()
+        sql('UPDATE ' + view + ' SET V = 20 WHERE ID = 1')
+        connection.commit()
+        assert sql('SELECT ID, V FROM ' + table) == [(1, 20)]
+        sql('DELETE FROM ' + view + ' WHERE ID = 1')
+        rollback()
+        assert sql('SELECT ID, V FROM ' + table) == [(1, 20)]
+        sql('DELETE FROM ' + view + ' WHERE ID = 1')
+        connection.commit()
+        assert sql('SELECT ID FROM ' + table) == []
+        rollback()
+        # The equivalent unchecked view permits a write outside its filter;
+        # the provider must not invent client-side predicate enforcement.
+        apply('create_or_alter', view, query, columns=names)
+        connection.commit()
+        sql('INSERT INTO ' + view + ' VALUES (2, -1)')
+        assert sql('SELECT ID, V FROM ' + table) == [(2, -1)]
+        assert sql('SELECT ID FROM ' + view) == []
+        rollback()
+        return {'mode': mode, 'native_denials': denials,
+                'pending_work_preserved': True,
+                'rollback_commit_verified': True,
+                'insert_update_delete_verified': True,
+                'check_option_in_export': True,
+                'unchecked_control_verified': True}
+
     try:
         container = docker(
             'create', '--name', 'cdeadmin-views-' + uuid.uuid4().hex[:16],
@@ -274,6 +342,13 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure(label, error)
             finally:
                 rollback()
+        for mode in ('create', 'alter', 'recreate', 'export'):
+            try:
+                result['check_option_checks'].append(check_option(mode))
+            except Exception as error:
+                failure('check-option-' + mode, error)
+            finally:
+                rollback()
     except Exception as error:
         failure('gate', error)
     finally:
@@ -295,6 +370,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
             except Exception as error:
                 failure('remove-owned-container', error)
     result['complete'] = (len(result['checks']) == 6 and
+                          len(result['check_option_checks']) == 4 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
@@ -310,6 +386,8 @@ def main():
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
                       'passed': len(result['checks']),
+                      'check_option_passed': len(
+                          result['check_option_checks']),
                       'failures': result['failures']}))
     return 0 if result['complete'] else 1
 
