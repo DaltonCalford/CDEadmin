@@ -27,6 +27,8 @@ def test_gate_collects_failures_and_always_attempts_cleanup(
         return_value=[{'explicit_close_released': True}] * 2))
     monkeypatch.setattr(gate, 'worker_interruption_case', Mock(
         return_value={'explicit_close_released': True}))
+    monkeypatch.setattr(gate, 'query_diagnostics_case', Mock(
+        return_value={'sqlstate_preserved': True}))
     cleanup = Mock(side_effect=(
         RuntimeError('secret') if fault == 'cleanup' else None))
     monkeypatch.setattr(gate, 'remove_owned', cleanup)

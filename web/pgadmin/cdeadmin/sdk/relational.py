@@ -1098,10 +1098,16 @@ class RelationalDBAPIClient:
             if cursor is not None and cursor is not handle:
                 self._close_failed_query_cursor(handle, cursor, exc)
             native_identity = []
-            for attribute in ('errno', 'sqlstate'):
-                value = getattr(exc, attribute, None)
-                if isinstance(value, (int, str)) and str(value).strip():
-                    native_identity.append(f'{attribute}={value}')
+            if self.config.profile.engine_id == 'firebird':
+                from ..providers.firebird.error_diagnostics import (
+                    execution_identity,
+                )
+                native_identity = execution_identity(exc)
+            else:
+                for attribute in ('errno', 'sqlstate'):
+                    value = getattr(exc, attribute, None)
+                    if isinstance(value, (int, str)) and str(value).strip():
+                        native_identity.append(f'{attribute}={value}')
             detail = (
                 '; ' + ', '.join(native_identity)
                 if native_identity else ''

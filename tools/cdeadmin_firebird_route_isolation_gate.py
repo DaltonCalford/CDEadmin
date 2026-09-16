@@ -337,6 +337,35 @@ def worker_interruption_case(native, route, password):
             'explicit_close_released': True}
 
 
+def query_diagnostics_case(native, route, password):
+    client = _create_client(SimpleNamespace(
+        acquire_secret=lambda *_args: SecretLease(password)))
+    try:
+        handle = client.open_session({'route': {
+            **route, 'credential_reference_id': 'owned-secret',
+            'principal_reference': 'owned-principal'}})
+        try:
+            client.execute(handle, {
+                'source': 'SELECT PRIVATE_ERROR_COLUMN FROM RDB$DATABASE'})
+        except RelationalClientError as caught:
+            codes = list(status_codes(caught))
+            assert codes
+            assert 'sqlstate=' in str(caught)
+            assert 'PRIVATE_ERROR_COLUMN' not in str(caught)
+            assert password not in str(caught)
+            assert route['database'] not in str(caught)
+        else:
+            raise AssertionError('Invalid query unexpectedly succeeded')
+        token = client.execute(
+            handle, {'source': 'SELECT 1 FROM RDB$DATABASE'})
+        assert client.describe_result(token)['payload']['rows'] == [(1,)]
+    finally:
+        client.close()
+    assert not client._connections
+    return {'native_status_codes': codes, 'sqlstate_preserved': True,
+            'private_text_absent': True, 'subsequent_query_succeeded': True}
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -348,6 +377,7 @@ def run(image):
               'service_interruptions': [],
               'opening_lifecycle': [],
               'worker_interruption': None,
+              'query_diagnostics': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -439,6 +469,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'query-diagnostics'
+        try:
+            result['query_diagnostics'] = query_diagnostics_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
         phase = 'worker-interruption'
         try:
             result['worker_interruption'] = worker_interruption_case(
@@ -493,6 +529,7 @@ def run(image):
                           len(result['service_interruptions']) == 4 and
                           len(result['opening_lifecycle']) == 2 and
                           result['worker_interruption'] is not None and
+                          result['query_diagnostics'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result
