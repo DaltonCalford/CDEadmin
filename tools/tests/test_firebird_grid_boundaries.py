@@ -101,7 +101,8 @@ def test_boundary_cannot_race_grid_operation(
             else:
                 provider.execute({'session_id': 'owned',
                                   'source': 'SELECT 1 FROM RDB$DATABASE'})
-        assert 'owned-token' in ADMINISTRATION._row_identities
+        assert ('owned-token' in ADMINISTRATION._row_identities) is (
+            method != 'apply_visual_admin')
         handle.commit.assert_not_called()
         provider.client.submit_query.assert_not_called()
     finally:
@@ -133,4 +134,42 @@ def test_query_submission_invalidates_without_parsing_source(
     else:
         result = provider.execute({'session_id': 'owned', 'source': source})
         assert provider._operations[result['operation_id']].token is marker
+    assert_invalidated(provider)
+
+
+@pytest.mark.parametrize('outcome', [
+    'success', 'failure', 'interrupt', 'credential-retry'])
+def test_selected_plan_survives_sibling_invalidation(
+        rig, monkeypatch, outcome):
+    provider, _handle = rig
+    selected = SimpleNamespace(presentation={'session_id': 'owned'})
+    provider._visual_admin._plans['selected'] = selected
+    calls = []
+
+    def apply(_self, request):
+        assert_invalidated(provider)
+        assert provider._visual_admin._plans['selected'] is selected
+        calls.append(request)
+        if outcome == 'credential-retry':
+            error = RuntimeError('credential required before dispatch')
+            error.credential_required_before_dispatch = True
+            raise error
+        provider._visual_admin._plans.pop('selected')
+        if outcome == 'failure':
+            raise RuntimeError('owned failure')
+        if outcome == 'interrupt':
+            raise KeyboardInterrupt('owned interruption')
+        return {'done': True}
+
+    monkeypatch.setattr(ActualEnginePilotProvider, 'apply_visual_admin', apply)
+    request = {'session_id': 'owned', 'plan_id': 'selected'}
+    if outcome == 'success':
+        assert provider.apply_visual_admin(request) == {'done': True}
+    else:
+        with pytest.raises(KeyboardInterrupt if outcome == 'interrupt'
+                           else RuntimeError):
+            provider.apply_visual_admin(request)
+    assert len(calls) == 1
+    assert ('selected' in provider._visual_admin._plans) is (
+        outcome == 'credential-retry')
     assert_invalidated(provider)

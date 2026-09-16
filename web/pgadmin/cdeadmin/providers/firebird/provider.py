@@ -208,12 +208,17 @@ class FirebirdProvider(ActualEnginePilotProvider):
             return super().plan_visual_admin(request)
 
     def apply_visual_admin(self, request):
+        request = _mapping(request)
         with self._grid_session_guard(request):
+            if request.get('session_id') is not None:
+                self._invalidate_grid_session(
+                    request['session_id'], keep_plan_id=request.get('plan_id'))
             return super().apply_visual_admin(request)
 
-    def _invalidate_grid_session(self, session_id):
+    def _invalidate_grid_session(self, session_id, *, keep_plan_id=None):
         ADMINISTRATION.invalidate_row_session(session_id)
-        self._visual_admin.invalidate_session_plans(session_id)
+        self._visual_admin.invalidate_session_plans(
+            session_id, keep_plan_id=keep_plan_id)
 
     def close_session(self, request):
         request = _mapping(request)

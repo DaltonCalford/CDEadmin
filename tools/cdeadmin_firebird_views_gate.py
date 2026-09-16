@@ -231,7 +231,9 @@ def run(image='firebirdsql/firebird:5.0.4'):
         from pgadmin.cdeadmin.providers.firebird.provider import (
             FirebirdProvider, PROFILE,
         )
-        from pgadmin.cdeadmin.visual_admin.provider import VisualAdminError
+        from pgadmin.cdeadmin.visual_admin.provider import (
+            VisualAdminError, VisualAdminExecutionError,
+        )
         from pgadmin.cdeadmin.sdk.actual_engine import PilotProviderError
         namespace = str(uuid.uuid4())
         context = EndpointContext(
@@ -239,6 +241,9 @@ def run(image='firebirdsql/firebird:5.0.4'):
             experience_family='firebird', provider_id=PROFILE.provider_id,
             provider_version='0.1.0', profile_id=PROFILE.profile_id,
             profile_version=PROFILE.exact_version,
+            runtime_verification_state='verified',
+            verified_runtime_family='firebird',
+            verified_runtime_version=result['engine_version'],
             target_adapter_id='firebird_wire-client',
             target_adapter_version='owned', pool_namespace=str(uuid.uuid4()),
             session_namespace=str(uuid.uuid4()),
@@ -250,7 +255,8 @@ def run(image='firebirdsql/firebird:5.0.4'):
         provider = FirebirdProvider(context, SimpleNamespace(
             require=lambda *_args, **_kwargs: None), client)
         table = 'BOUNDARY_' + action.upper().replace('-', '_')
-        sql('CREATE TABLE ' + table + ' (ID INTEGER PRIMARY KEY, V INTEGER)')
+        sql('CREATE TABLE ' + table +
+            ' (ID INTEGER PRIMARY KEY, V INTEGER CHECK (V < 40))')
         connection.commit()
         sql('INSERT INTO ' + table + ' VALUES (1, 10)')
         sql('INSERT INTO ' + table + ' VALUES (2, 10)')
@@ -273,6 +279,34 @@ def run(image='firebirdsql/firebird:5.0.4'):
             sql('UPDATE ' + table + ' SET V = 20 WHERE ID = 1', handle=handle)
             if action == 'close':
                 provider.close_session({'session_id': session_id})
+            elif action.startswith('admin-'):
+                current = provider.read_visual_admin_rows(request)
+                current_token = current['rows'][0]['identity_token']
+                selected = provider.plan_visual_admin({
+                    **request, 'resource_kind': 'table',
+                    'operation_id': 'update', 'draft': {
+                        'selector': {'identity_token': current_token},
+                        'changes': {'V': 50 if action == 'admin-fail' else 30},
+                        'concurrency_token': current_token}})
+                assert selected['state'] == 'ready'
+                try:
+                    applied = provider.apply_visual_admin({
+                        'session_id': session_id,
+                        'plan_id': selected['plan_id'],
+                        'plan_digest': selected['plan_digest'],
+                        'confirmed': True})
+                except VisualAdminExecutionError as error:
+                    if action != 'admin-fail':
+                        raise
+                    assert 335544558 in error.operation['native_status_codes']
+                else:
+                    assert action != 'admin-fail', 'Constraint not enforced'
+                    assert applied['provider_result'][
+                        'staged_in_provider_session'] is True
+                assert selected['plan_id'] not in provider._visual_admin._plans
+                assert sql('SELECT V FROM ' + table + ' WHERE ID = 1',
+                           handle=handle) == [
+                               (20 if action == 'admin-fail' else 30,)]
             elif action.startswith('sql-'):
                 source = {
                     'sql-select': 'SELECT V FROM ' + table,
@@ -555,7 +589,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 rollback()
         for action in ('commit', 'rollback', 'close', 'sql-select',
                        'sql-update', 'sql-commit', 'sql-rollback',
-                       'sql-invalid'):
+                       'sql-invalid', 'admin-update', 'admin-fail'):
             try:
                 result['grid_boundary_checks'].append(grid_boundary(action))
             except Exception as error:
@@ -585,7 +619,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
     result['complete'] = (len(result['checks']) == 6 and
                           len(result['check_option_checks']) == 4 and
                           len(result['view_grid_checks']) == 2 and
-                          len(result['grid_boundary_checks']) == 8 and
+                          len(result['grid_boundary_checks']) == 10 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result

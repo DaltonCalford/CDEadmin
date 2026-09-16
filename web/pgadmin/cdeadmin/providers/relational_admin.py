@@ -3020,6 +3020,7 @@ class RelationalAdministration:
                 f'({type(exc).__name__}){detail}'
             )
             failure.gds_codes = codes
+            failure.native_status_codes = codes
             failure.task_rollback_unconfirmed = task_rollback_failed
             raise failure from None
         finally:
