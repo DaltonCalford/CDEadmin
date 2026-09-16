@@ -1030,7 +1030,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
     initialResourceKind || objects[0]?.resource_kind || ''
   );
   const [operationId, setOperationId] = useState(objects[0]?.operations?.[0]?.operation_id || '');
-  const [targetId, setTargetId] = useState('');
+  const [targetSelection, setTargetSelection] = useState(null);
   const [draft, setDraft] = useState({});
   const [baselineDraft, setBaselineDraft] = useState({});
   const [inspectionRevision, setInspectionRevision] = useState(0);
@@ -1074,6 +1074,14 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const fields = allFields.filter((field) => fieldVisible(field, draft)).map(
     (field) => visibleFieldOptions(field, draft, inspectedResource));
   const targetKinds = operation?.target_resource_kinds || [resourceKind];
+  const targetKindsIdentity = JSON.stringify(targetKinds);
+  const targetScope = useMemo(() => ({post, resourceKind, targetKindsIdentity}),
+    [post, resourceKind, targetKindsIdentity]);
+  const scopedSelection = targetSelection?.scope === targetScope ? targetSelection : null;
+  const targetId = scopedSelection?.id || '';
+  const externalTargetId = selectedResource?.resource_id || null;
+  const setTargetId = (id) => setTargetSelection({scope: targetScope, id,
+    externalTargetId, initialized: true});
   const availableResources = [...(resources || [])];
   if (selectedResource && !availableResources.some((item) =>
     item.resource_id === selectedResource.resource_id)) {
@@ -1229,17 +1237,28 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   }, [draft, targetId]);
 
   useEffect(() => {
-    if (selectedResource && matchingResources.some((item) =>
-      item.resource_id === selectedResource.resource_id)) {
-      if (targetId !== selectedResource.resource_id) {
-        setTargetId(selectedResource.resource_id);
-      }
+    const externalTarget = matchingResources.find((item) =>
+      item.resource_id === externalTargetId);
+    if (!scopedSelection?.initialized) {
+      const first = externalTarget || matchingResources[0];
+      if (first) setTargetId(first.resource_id);
       return;
     }
-    if (!matchingResources.some((item) => item.resource_id === targetId)) {
-      setTargetId(matchingResources[0]?.resource_id || '');
+    if (externalTarget && targetId !== externalTarget.resource_id) {
+      // Focused object tasks remain pinned to their caller's selected object;
+      // its inspected defaults must not be applied to a different target.
+      setTargetId(externalTarget.resource_id);
+    } else if (scopedSelection.externalTargetId !== externalTargetId) {
+      // An explicit navigator selection may choose another object. Clearing
+      // selection after DROP is not permission to target its next neighbour.
+      setTargetId(externalTarget?.resource_id ||
+        (targetResource ? targetId : ''));
+    } else if (targetId && !targetResource) {
+      // Keep this scope initialized but unselected, even if a later page
+      // contains another object (or reuses the removed object's identifier).
+      setTargetId('');
     }
-  }, [matchingResources, selectedResource, targetId]);
+  }, [matchingResources, scopedSelection, externalTargetId, targetResource, targetId]);
 
   const request = () => ({
     resource_kind: resourceKind,
@@ -1469,6 +1488,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           </TextField>}
           {operation?.target_required && matchingResources.length === 0 &&
       <Alert severity="warning" sx={{mt: 2}}>{gettext('No discovered resource of this type is available. Refresh provider metadata or choose Create.')}</Alert>}
+          {targetUnavailable && scopedSelection?.initialized && matchingResources.length > 0 &&
+            <Alert severity="info" sx={{mt: 2}}>
+              {gettext('The previous target is no longer available. Select an object explicitly before preparing another operation.')}
+            </Alert>}
           <Box component="fieldset" disabled={working || inspecting}
             sx={{display: 'flex', flexDirection: 'column', gap: 2, mt: 2,
               p: 0, border: 0, minWidth: 0}}>

@@ -180,6 +180,11 @@ def run(options, profiles):
             return field is not None and field.is_enabled()
 
         wait.until(idle)
+        target_control = visible_named_control(browser, 'Target resource')
+        assert target_control is not None
+        assert not target_control.text.replace('\u200b', '').strip()
+        assert not visible_named_control(
+            browser, 'Validate and preview').is_enabled()
         assert not visible_named_control(
             browser, 'Apply provider plan').is_enabled()
         assert not any(item.is_displayed() for item in browser.find_elements(
@@ -191,6 +196,7 @@ def run(options, profiles):
             'first_plan_id': first['plan_id'],
             'second_plan_id': second['plan_id'],
             'same_draft_reconfirmed': True,
+            'no_automatic_replacement_target': True,
             'native_object_present_before_explicit_apply': True,
             'native_object_absent_after_explicit_apply': True,
             'screenshot': str(path), 'sha256': digest})
