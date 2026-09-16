@@ -196,6 +196,12 @@ def run(options, profiles):
         target_control = visible_named_control(browser, 'Target resource')
         if object_editor:
             assert target_control is None
+            assert visible_named_control(
+                browser, 'Refresh object properties') is None
+            assert not any(item.is_displayed() for item in
+                           browser.find_elements(
+                               'css selector',
+                               '[aria-label="Selected object operations"]'))
         else:
             assert target_control is not None
             assert not target_control.text.replace('\u200b', '').strip()
@@ -235,6 +241,23 @@ def run(options, profiles):
             'native_object_present_before_explicit_apply': True,
             'native_object_absent_after_explicit_apply': True,
             'screenshot': str(path), 'sha256': digest})
+        close_workspace(browser, wait)
+        # A stale navigator action must not substitute another table when
+        # the requested object has just been removed.
+        forms._open_focused_form(browser, operation, target,
+                                 current['database_target_id'])
+        wait.until(lambda driver:
+                   'The requested provider object is unavailable.' in
+                   driver.find_element('tag name', 'body').text)
+        assert visible_named_control(browser, 'Validate and preview') is None
+        assert visible_named_control(browser, 'Apply provider plan') is None
+        assert not table_exists(table)
+        stale_path = options.output_root / (case + '-stale-object-refused.png')
+        result['confirmation_checks'][-1].update({
+            'stale_object_reopen_refused': True,
+            'stale_object_screenshot': str(stale_path),
+            'stale_object_sha256': screenshot(browser, stale_path),
+            'empty_object_controls_retired': object_editor})
         close_workspace(browser, wait)
 
     try:

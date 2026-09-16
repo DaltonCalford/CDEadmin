@@ -1461,7 +1461,7 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           {' · '}{selectedResource?.display_path?.join(' › ') ||
             selectedResource?.display_name}
         </Box>}
-        {objectEditor && <Tabs value={operation?.operation_id || false}
+        {objectEditor && selectedResource && operations.length > 0 && <Tabs value={operation?.operation_id || false}
           variant="scrollable" scrollButtons="auto"
           aria-label={gettext('Selected object operations')}
           onChange={(_event, value) => setOperationId(value)}>
@@ -1478,14 +1478,14 @@ export function VisualAdministration({catalog, resources, selectedResource, post
           onRefresh={objectEditor && !working &&
             JSON.stringify(draft) === JSON.stringify(baselineDraft) ?
             () => setInspectionRevision((revision) => revision + 1) : undefined} />}
-        {objectEditor && operationId !== 'inspect' && !working &&
+        {objectEditor && selectedResource && operationId !== 'inspect' && !working &&
           JSON.stringify(draft) === JSON.stringify(baselineDraft) &&
           <Button size="small" disabled={inspecting}
             onClick={() => setInspectionRevision((revision) => revision + 1)}>
             {gettext('Refresh object properties')}</Button>}
         {(!objectEditor || operationId !== 'inspect') && <>
           <Box component="h2" sx={{mt: 0}}>
-            {focused ? (operation?.title || gettext('Provider task')) : <>
+            {detachedDrop ? outcome.operationTitle : focused ? (operation?.title || gettext('Provider task')) : <>
               {objectDescriptor?.title}
               {objectDescriptor?.title && operation?.title ? ' — ' : ''}
               {operation?.title || gettext('Provider task')}
@@ -6591,8 +6591,28 @@ export default function ProviderWorkspaceContent({
   onEndpointRemoved, onEndpointProfileSaved, onCredentialRequired,
 }) {
   const api = useMemo(() => getApiInstance(), []);
+  const queryDatabaseTargetId = initialContext.database_target_id || (
+    initialContext.resource_kind &&
+    initialContext.resource_kind !== 'database' ? null :
+      (initialContext.resource_id || null)
+  );
+  const [workspaceLoadGeneration, setWorkspaceLoadGeneration] = useState(0);
+  const workspaceContext = useMemo(() => ({api, endpointUrl, initialTab,
+    resourceId: initialContext.resource_id,
+    parentId: initialContext.parent_resource_id,
+    resourceKind: initialContext.resource_kind,
+    operationId: initialContext.operation_id,
+    queryDatabaseTargetId, onCredentialRequired, workspaceLoadGeneration}),
+  [api, endpointUrl, initialTab, initialContext.resource_id,
+    initialContext.parent_resource_id, initialContext.resource_kind,
+    initialContext.operation_id, queryDatabaseTargetId, onCredentialRequired,
+    workspaceLoadGeneration]);
   const [tab, setTab] = useState(initialTab);
-  const [workspace, setWorkspace] = useState(null);
+  const [loadedWorkspace, setLoadedWorkspace] = useState(null);
+  // Hide a previous context's actionable forms during render, before effects
+  // clear selection or a replacement bootstrap response arrives.
+  const workspace = loadedWorkspace?.context === workspaceContext ?
+    loadedWorkspace.value : null;
   const [source, setSource] = useState('');
   const [languageProfile, setLanguageProfile] = useState('');
   const [parameterSource, setParameterSource] = useState('{}');
@@ -6620,7 +6640,6 @@ export default function ProviderWorkspaceContent({
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
-  const [workspaceLoadGeneration, setWorkspaceLoadGeneration] = useState(0);
   const querySessionIdRef = useRef(null);
   useModalCloseGuard(async () => {
     if (occurrenceId || (busy && sessionId)) {
@@ -6644,18 +6663,21 @@ export default function ProviderWorkspaceContent({
       setBusy(false);
     }
   });
-  const queryDatabaseTargetId = initialContext.database_target_id || (
-    initialContext.resource_kind &&
-    initialContext.resource_kind !== 'database' ? null :
-      (initialContext.resource_id || null)
-  );
-
   useEffect(() => {
+    let active = true;
     setBusy(true);
     setError(null);
+    setLoadedWorkspace(null);
+    setResourcePage(null);
+    setSelectedResource(null);
+    selectedObservationRef.current = null;
+    setTab(initialTab);
+    setSelectedOperationId(initialContext.operation_id || '');
+    setSelectedResourceKind(initialContext.resource_kind || '');
     const requestedIdentity = initialContext.resource_id ||
       initialContext.parent_resource_id;
     api.get(endpointUrl).then(async (response) => {
+      if (!active) return;
       const workspaceValue = response.data.data;
       let page = workspaceValue?.resource_page || null;
       let resources = [...(page?.items || [])];
@@ -6673,6 +6695,7 @@ export default function ProviderWorkspaceContent({
             } : {}),
           },
         });
+        if (!active) return;
         const next = nextResponse.data.data;
         if (next.generation !== page.generation) {
           throw new Error(gettext(
@@ -6685,10 +6708,14 @@ export default function ProviderWorkspaceContent({
           (item) => item.resource_id === requestedIdentity
         );
       }
-      if (!requestedResource && initialContext.resource_id &&
-          initialContext.resource_kind) {
+      const registeredDatabaseTarget = (!initialContext.resource_kind ||
+        initialContext.resource_kind === 'database') &&
+        requestedIdentity === queryDatabaseTargetId &&
+        workspaceValue?.database_targets?.targets?.some((target) =>
+          target.target_id === requestedIdentity);
+      if (!requestedResource && requestedIdentity && registeredDatabaseTarget) {
         const kindMatches = resources.filter((item) =>
-          item.resource_kind === initialContext.resource_kind
+          item.resource_kind === 'database'
         );
         // A database-target UUID identifies the retained connection route,
         // not the provider-native database resource.  Resolve it only when
@@ -6696,7 +6723,14 @@ export default function ProviderWorkspaceContent({
         // requested by the provider context action.
         if (kindMatches.length === 1) [requestedResource] = kindMatches;
       }
-      setWorkspace(workspaceValue);
+      // Connection properties/query workspaces can address a registered
+      // database without requesting a native catalog object. That authority
+      // comes from the retained-target catalog, never another object kind.
+      if (requestedIdentity && !requestedResource &&
+          !(registeredDatabaseTarget && !initialContext.resource_kind)) {
+        throw new Error(gettext('The requested provider object is unavailable. Refresh the navigator and select it again.'));
+      }
+      setLoadedWorkspace({context: workspaceContext, value: workspaceValue});
       setResourcePage(page);
       if (requestedResource) setSelectedResource(requestedResource);
       const language = workspaceValue?.languages?.[0];
@@ -6705,6 +6739,7 @@ export default function ProviderWorkspaceContent({
       setParameterSource(defaultParameterSource(language));
       setBusy(false);
     }).catch((requestError) => {
+      if (!active) return;
       if (requestError?.response?.status === 401 &&
           typeof onCredentialRequired === 'function') {
         onCredentialRequired(() => {
@@ -6715,10 +6750,8 @@ export default function ProviderWorkspaceContent({
       setError(errorMessage(requestError));
       setBusy(false);
     });
-  }, [api, endpointUrl, initialContext.resource_id,
-    initialContext.parent_resource_id,
-    initialContext.resource_kind, onCredentialRequired,
-    workspaceLoadGeneration]);
+    return () => { active = false; };
+  }, [workspaceContext]);
 
   const post = useCallback((payload) => {
     const scopedPayload = queryDatabaseTargetId &&

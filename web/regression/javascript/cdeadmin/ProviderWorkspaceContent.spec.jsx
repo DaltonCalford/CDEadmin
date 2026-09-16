@@ -2295,6 +2295,8 @@ describe('ProviderWorkspaceContent', () => {
     };
     api.get.mockResolvedValue({data: {data: {
       ...bootstrap,
+      database_targets: {targets: [{target_id: 'retained-database-target-uuid',
+        database: '/owned/cdeadmin_demo.fdb'}]},
       endpoint: {
         provider_id: 'org.cdeadmin.firebird',
         verified_runtime_family: 'firebird',
@@ -2525,6 +2527,8 @@ describe('ProviderWorkspaceContent', () => {
     };
     api.get.mockResolvedValue({data: {data: {
       ...bootstrap,
+      database_targets: {targets: [{target_id: 'database-one',
+        database: '/owned/offline.fdb'}]},
       resource_page: {items: [{
         resource_id: 'database-service-target:database-one',
         resource_kind: 'database', display_name: 'offline.fdb',
@@ -2706,6 +2710,9 @@ describe('ProviderWorkspaceContent', () => {
   });
 
   it('opens a provider session, executes and renders rows', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap,
+      database_targets: {targets: [{target_id: 'database-one', database: 'example'}]},
+    }}});
     api.post.mockImplementation((_url, payload) => {
       const values = {
         open_session: {session_id: 'session-one'},
