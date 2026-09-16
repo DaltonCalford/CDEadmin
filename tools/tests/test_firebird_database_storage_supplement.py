@@ -73,7 +73,7 @@ def test_storage_supplement_is_idempotent_and_preserves_other_tasks():
     result = supplement_database_storage(
         document, evidence, 'a' * 64, 'x.json')
     assert document == before
-    assert len(result['task_templates']) == 111
+    assert len(result['task_templates']) == len(document['task_templates'])
     assert all(item in result['task_templates'] for item in
                document['task_templates'] if item['task_id'] not in
                evidence['task_evidence'])

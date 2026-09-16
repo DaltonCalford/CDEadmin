@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 111,
+    "authoritative_task_count": 113,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -140,11 +140,13 @@
       "visual_admin.user.drop",
       "visual_admin.view.alter",
       "visual_admin.view.create",
+      "visual_admin.view.create_or_alter",
       "visual_admin.view.drop",
       "visual_admin.view.grant",
+      "visual_admin.view.recreate",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 111,
+    "implemented_task_count": 113,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8915,7 +8917,8 @@
     "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-sequences-live",
     "firebird-5.0.4-shadows-live",
-    "firebird-5.0.4-task-live-execution"
+    "firebird-5.0.4-task-live-execution",
+    "firebird-5.0.4-views-live"
   ],
   "profile_id": "firebird-native",
   "proof_records": [
@@ -9197,6 +9200,24 @@
       "format": "cdeadmin.firebird-database-storage.v1",
       "license_id": "PostgreSQL",
       "sha256": "92b6519b4d6123dc6024da2d2aeea8471912546988847c97100dbdf9f83bf5b2"
+    },
+    {
+      "artifact": "native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-views-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "e04b202236e0708aa351b49c14c75e59ef6650c5918e47b47763d8df6c4a1710"
+    },
+    {
+      "artifact": "native-5.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-views-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "e04b202236e0708aa351b49c14c75e59ef6650c5918e47b47763d8df6c4a1710"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -10844,6 +10865,21 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-views-parser",
+        "firebird-5.0.4-views-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER VIEW \"V_ORDER\" (\"B\", \"A\"\"\u6771\u4eac\") AS\nWITH Q AS (SELECT 1 X FROM RDB$DATABASE) SELECT X, X + 10 FROM Q",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER VIEW \"V_ORDER\" (\"B\", \"A\"\"\u6771\u4eac\") AS\nWITH Q AS (SELECT 1 X FROM RDB$DATABASE) SELECT X, X + 10 FROM Q"
+      ],
+      "task_id": "visual_admin.view.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
         "firebird-5.0.4-task-parser-acceptance",
         "firebird-5.0.4-task-live-execution"
       ],
@@ -10869,6 +10905,21 @@
         "GRANT SELECT ON TABLE \"VW\" TO USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.view.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-views-parser",
+        "firebird-5.0.4-views-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE VIEW \"V_ORDER\" (\"B\", \"A\"\"\u6771\u4eac\") AS\nWITH Q AS (SELECT 2 X FROM RDB$DATABASE) SELECT X, X + 10 FROM Q",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE VIEW \"V_ORDER\" (\"B\", \"A\"\"\u6771\u4eac\") AS\nWITH Q AS (SELECT 2 X FROM RDB$DATABASE) SELECT X, X + 10 FROM Q"
+      ],
+      "task_id": "visual_admin.view.recreate"
     },
     {
       "binding_style": "positional_question_mark",

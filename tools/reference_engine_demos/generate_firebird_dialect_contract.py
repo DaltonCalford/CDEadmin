@@ -870,6 +870,85 @@ def supplement_object_privileges(document, evidence, digest, artifact):
     return value
 
 
+def supplement_views(document, evidence, digest, artifact):
+    """Require replacement, rollback, permission and dependency proof."""
+    validate_dialect_contract(document, PROFILE)
+    required = {
+        'lifecycle-V_BASE': ('rollback_commit_verified',
+                             'grant_semantics_verified',
+                             'catalog_columns_verified'),
+        'lifecycle-V"東京': ('rollback_commit_verified',
+                           'grant_semantics_verified',
+                           'catalog_columns_verified'),
+        'dependency-denial': ('original_and_dependent_preserved',),
+        'permission-denials': ('view_unchanged',),
+        'ordered-columns-cte': ('ordered_columns_verified', 'cte_verified'),
+        'invalid-query-pending-work': ('pending_work_preserved',
+                                       'rollback_verified'),
+    }
+    tasks = {'visual_admin.view.create_or_alter', 'visual_admin.view.recreate'}
+    checks = evidence.get('checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(required) or
+            {item.get('case') for item in checks} != set(required) or
+            set(evidence.get('task_evidence', {})) != tasks):
+        raise ValueError('View native evidence is incomplete')
+    by_case = {item['case']: item for item in checks}
+    for case, fields in required.items():
+        if any(by_case[case].get(field) is not True for field in fields):
+            raise ValueError('View lifecycle proof missing')
+    for case, code in [('dependency-denial', 335544630),
+                       ('invalid-query-pending-work', 335544569)]:
+        if code not in by_case[case].get('native_status_codes', []):
+            raise ValueError('View native denial proof missing')
+    denials = by_case['permission-denials'].get('denials', [])
+    if (len(denials) != 2 or {item.get('operation') for item in denials} !=
+            {'create_or_alter', 'recreate'} or any(
+                335544352 not in item.get('native_status_codes', [])
+                for item in denials)):
+        raise ValueError('View permission proof missing')
+    value = copy.deepcopy(document)
+    proof_id = 'firebird-5.0.4-views-live'
+    parser_id = 'firebird-5.0.4-views-parser'
+    value['proof_records'] = [item for item in value['proof_records']
+                              if item['evidence_id'] not in
+                              {proof_id, parser_id}]
+    for identity, kind in ((proof_id, 'live_execution'),
+                           (parser_id, 'parser_acceptance')):
+        value['proof_records'].append(_evidence(
+            identity, kind, 'Firebird 5.0.4 runtime', artifact, digest,
+            evidence['schema'], 'PostgreSQL'))
+    value['task_templates'] = [item for item in value['task_templates']
+                               if item['task_id'] not in tasks]
+    for task_id in sorted(tasks):
+        record = evidence['task_evidence'][task_id]
+        statements = record.get('statements')
+        if (record.get('live_execution') != 'passed' or
+                not isinstance(statements, list) or len(statements) != 1 or
+                not isinstance(statements[0], str) or not statements[0]):
+            raise ValueError('View task lacks a single native statement')
+        value['task_templates'].append({
+            'task_id': task_id, 'source': statements[0],
+            'source_format': 'ordered_native_statements',
+            'statements': statements, 'required_bindings': [],
+            'binding_style': 'positional_question_mark',
+            'proof_ids': ['firebird-5.0.4-grammar', parser_id, proof_id],
+        })
+    value['task_templates'].sort(key=lambda item: item['task_id'])
+    ids = [item['task_id'] for item in value['task_templates']]
+    value['coverage'].update(authoritative_task_ids=ids,
+                             authoritative_task_count=len(ids),
+                             implemented_task_count=len(ids))
+    value['live_evidence_ids'] = sorted(set(
+        value['live_evidence_ids'] + [proof_id]))
+    validate_dialect_contract(value, PROFILE,
+                              ADMINISTRATION.dialect_task_ids())
+    return value
+
+
 def supplement_packages(document, evidence, digest, artifact):
     """Require native header/body, transaction and dependency evidence."""
     from pgadmin.cdeadmin.providers.firebird import packages
@@ -1298,7 +1377,7 @@ def main(argv=None):
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
-        'sequences', 'shadows', 'database-storage'),
+        'sequences', 'shadows', 'database-storage', 'views'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1310,6 +1389,7 @@ def main(argv=None):
                       'blob-filters': supplement_blob_filters,
                       'object-privileges': supplement_object_privileges,
                       'packages': supplement_packages,
+                      'views': supplement_views,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
                       'database-storage': supplement_database_storage,

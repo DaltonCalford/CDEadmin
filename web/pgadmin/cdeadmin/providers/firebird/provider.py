@@ -131,7 +131,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'insert', 'update', 'delete', 'grant', 'revoke',
         }),
         'view': frozenset({'inspect', 'create', 'alter', 'drop',
-                           'grant', 'revoke'}),
+                           'grant', 'revoke', 'create_or_alter', 'recreate'}),
         'column': frozenset({'inspect', 'create', 'alter', 'comment',
                              'rename', 'drop', 'grant', 'revoke'}),
         'constraint': frozenset({'inspect', 'create', 'drop'}),
@@ -3142,6 +3142,12 @@ def _resources(connection, request):
                     f'Firebird driver information lookup for {name} failed.'
                     for name, observed in information_observations.items()
                     if not observed['available'])
+            elif item['resource_kind'] == 'view':
+                native = item.setdefault('native', {})
+                native['view_columns'] = [
+                    {'name': column['name']} for column in sorted(
+                        native.get('columns', []),
+                        key=lambda column: column.get('position', 0))]
         return list(resources.values())
     finally:
         cursor.close()

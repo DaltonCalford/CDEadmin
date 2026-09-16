@@ -533,6 +533,12 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'view' and operation_id in {'create_or_alter', 'recreate'}:
+            return rendered({
+                'name': 'CDE_UI_VIEW', 'confirmation': str(name),
+                'definition': 'SELECT 1 AS VALUE FROM RDB$DATABASE',
+                'columns': '[{"name": "VALUE"}]',
+            })
         if kind == 'shadow':
             return rendered({
                 'number': 7, 'mode': 'AUTO', 'conditional': False,
