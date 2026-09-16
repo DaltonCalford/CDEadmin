@@ -99,6 +99,20 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         super()._forget_connection(handle)
         self._server_handles.discard(id(handle))
 
+    def _finish_temporary_attachment(self, connection, failure):
+        try:
+            self._forget_and_close(connection)
+        except RelationalClientError as exc:
+            if failure is None:
+                raise
+            # Preserve the operation outcome, including interruptions. The
+            # attachment remains owned for explicit release; never replay it.
+            failure.attachment_release = {
+                'connection_released': False,
+                'driver_observation_only': True,
+                'native_status_codes': list(status_codes(exc)),
+            }
+
     def _forget_and_close(self, handle):
         if id(handle) in self._server_handles:
             return self._release_server(handle)

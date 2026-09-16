@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import copy
 import importlib
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Sequence
 
@@ -750,29 +751,46 @@ class RelationalDBAPIClient:
                 f'({type(exc).__name__})'
             ) from None
 
+    @contextmanager
+    def _temporary_attachment(self, connection, owned=True):
+        failure = None
+        try:
+            yield connection
+        except BaseException as exc:
+            failure = exc
+            raise
+        finally:
+            if owned:
+                self._finish_temporary_attachment(connection, failure)
+
+    def _finish_temporary_attachment(self, connection, failure):
+        self._forget_and_close(connection)
+
     def runtime_identity(self, request, handle=None):
         if handle is None and self._uses_server_scope(request):
             connection = self._connect_server(request)
-            try:
-                value = self.config.server_identity_reader(
-                    connection, request
-                )
-                if not isinstance(value, Mapping):
-                    raise RelationalClientError(
-                        'server identity reader must return a mapping'
-                    )
-                return copy.deepcopy(dict(value))
-            except RelationalClientError:
-                raise
-            except Exception as exc:
-                raise RelationalClientError(
-                    'relational server verification failed '
-                    f'({type(exc).__name__})'
-                ) from None
-            finally:
-                self._forget_and_close(connection)
+            with self._temporary_attachment(connection):
+                return self._server_runtime_identity(connection, request)
         temporary = handle is None
         connection = handle or self._connect(request)
+        with self._temporary_attachment(connection, temporary):
+            return self._database_runtime_identity(connection)
+
+    def _server_runtime_identity(self, connection, request):
+        try:
+            value = self.config.server_identity_reader(connection, request)
+            if not isinstance(value, Mapping):
+                raise RelationalClientError(
+                    'server identity reader must return a mapping')
+            return copy.deepcopy(dict(value))
+        except RelationalClientError:
+            raise
+        except Exception as exc:
+            raise RelationalClientError(
+                'relational server verification failed '
+                f'({type(exc).__name__})') from None
+
+    def _database_runtime_identity(self, connection):
         cursor = None
         try:
             cursor = connection.cursor()
@@ -795,8 +813,6 @@ class RelationalDBAPIClient:
         finally:
             if cursor is not None:
                 self._safe_close(cursor)
-            if temporary:
-                self._forget_and_close(connection)
 
     def open_session(self, request):
         if self._uses_server_scope(request):
@@ -885,7 +901,7 @@ class RelationalDBAPIClient:
     def list_resources(self, request):
         if self._uses_server_scope(request):
             connection = self._connect_server(request)
-            try:
+            with self._temporary_attachment(connection):
                 rows = self.config.server_metadata_reader(
                     connection, request
                 )
@@ -894,22 +910,17 @@ class RelationalDBAPIClient:
                         'server metadata reader must return a list'
                     )
                 return copy.deepcopy(rows)
-            finally:
-                self._forget_and_close(connection)
         connection = request.get('_provider_session_handle')
         owns_connection = connection is None
         if owns_connection:
             connection = self._connect(request)
-        try:
+        with self._temporary_attachment(connection, owns_connection):
             rows = self.config.metadata_reader(connection, request)
             if not isinstance(rows, list):
                 raise RelationalClientError(
                     'relational metadata reader must return a list'
                 )
             return copy.deepcopy(rows)
-        finally:
-            if owns_connection:
-                self._forget_and_close(connection)
 
     def inspect_resource(self, request):
         resource_id = request.get('resource_id')
@@ -1010,15 +1021,13 @@ class RelationalDBAPIClient:
                 'relational security reader is unavailable'
             )
         connection = self._connect(request)
-        try:
+        with self._temporary_attachment(connection):
             value = self.config.security_reader(connection, request)
             if not isinstance(value, Mapping):
                 raise RelationalClientError(
                     'relational security reader must return a mapping'
                 )
             return copy.deepcopy(dict(value))
-        finally:
-            self._forget_and_close(connection)
 
     def _fetch_query_rows(self, cursor, request):
         """Provider override point; ordinary DB-API behavior is unchanged."""

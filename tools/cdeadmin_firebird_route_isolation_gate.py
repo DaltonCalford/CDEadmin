@@ -92,10 +92,14 @@ def failed_initialization_case(native, route, password, retained, interrupted):
             'retention_hook_bypassed': True}
 
 
-def temporary_retention_case(native, route, password):
+def temporary_retention_case(native, route, password, operation_failure=False):
     from firebird.base.hooks import hook_manager
     client = _create_client(SimpleNamespace(
         acquire_secret=lambda *_args: SecretLease(password)))
+    if operation_failure:
+        client.config = replace(
+            client.config, version_query='SELECT OWNED_MISSING_COLUMN '
+            'FROM RDB$DATABASE')
     retained = []
 
     def retain(handle):
@@ -110,7 +114,10 @@ def temporary_retention_case(native, route, password):
             client.runtime_identity({'route': {
                 **route, 'credential_reference_id': 'owned-secret',
                 'principal_reference': 'owned-principal'}})
-        except RelationalClientError:
+        except RelationalClientError as caught:
+            if operation_failure:
+                assert 'profile verification failed' in str(caught)
+                assert not caught.attachment_release['connection_released']
             assert len(retained) == 1
             assert client._connections == retained
             assert not retained[0].is_closed()
@@ -128,7 +135,8 @@ def temporary_retention_case(native, route, password):
             assert cursor.fetchone()[0] == 1
         observer.rollback()
     return {'unconfirmed_release_refused': True, 'ownership_retained': True,
-            'explicit_retry_detached': True}
+            'explicit_retry_detached': True,
+            'operation_failure_preserved': operation_failure}
 
 
 def run(image):
@@ -137,6 +145,7 @@ def run(image):
     _configure_client_library(native)
     result = {'complete': False, 'cases': [], 'failures': [],
               'failed_initializations': [], 'temporary_release': None,
+              'combined_failure_release': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -234,6 +243,12 @@ def run(image):
                 native, route, password)
         except Exception as error:
             failure(error)
+        phase = 'temporary-combined-failure'
+        try:
+            result['combined_failure_release'] = temporary_retention_case(
+                native, route, password, operation_failure=True)
+        except Exception as error:
+            failure(error)
     except Exception as error:
         failure(error)
     finally:
@@ -247,6 +262,7 @@ def run(image):
     result['complete'] = (len(result['cases']) == 6 and
                           len(result['failed_initializations']) == 4 and
                           result['temporary_release'] is not None and
+                          result['combined_failure_release'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result
