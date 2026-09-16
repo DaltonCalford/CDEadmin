@@ -183,6 +183,14 @@ class FirebirdProvider(ActualEnginePilotProvider):
     def __init__(self, context, permissions, client):
         super().__init__(context, permissions, client, PROFILE)
 
+    def open_session(self, request):
+        if isinstance(self.client, FirebirdQueryClient):
+            # Initialization alone is not admission: identity verification,
+            # failed-open cleanup and publication must precede shutdown too.
+            with self.client._connecting():
+                return super().open_session(request)
+        return super().open_session(request)
+
     def _execute_query_token(self, handle, payload):
         if isinstance(self.client, FirebirdQueryClient):
             return self.client.submit_query(handle, payload)
