@@ -385,9 +385,9 @@ class RelationalDBAPIClient:
                 raise
             except Exception as exc:
                 self._forget_and_close(connection)
-                raise RelationalClientError(
+                raise self._driver_failure(
                     f'{self.config.profile.engine_name} session '
-                    f'initialization failed ({type(exc).__name__})'
+                    'initialization failed', exc
                 ) from None
         return connection
 
@@ -411,6 +411,20 @@ class RelationalDBAPIClient:
         self._connections.append(connection)
         self._connection_databases[id(connection)] = None
         return connection
+
+    def _driver_failure(self, message, exception):
+        """Keep only bounded native codes, never driver message arguments."""
+        message += f' ({type(exception).__name__})'
+        codes = ()
+        if self.config.profile.engine_id == 'firebird':
+            from ..providers.firebird.error_diagnostics import status_codes
+            codes = status_codes(exception)
+            if codes:
+                message += '; Firebird status codes: ' + ', '.join(
+                    str(code) for code in codes)
+        error = RelationalClientError(message)
+        error.gds_codes = codes
+        return error
 
     def _invoke_connector(
         self, request, connector, overrides=None, *,
@@ -499,20 +513,9 @@ class RelationalDBAPIClient:
         except RelationalClientError:
             raise
         except Exception as exc:
-            message = (
-                f'{self.config.profile.engine_name} connection failed '
-                f'({type(exc).__name__})'
-            )
-            codes = ()
-            if self.config.profile.engine_id == 'firebird':
-                from ..providers.firebird.error_diagnostics import status_codes
-                codes = status_codes(exc)
-                if codes:
-                    message += '; Firebird status codes: ' + ', '.join(
-                        str(code) for code in codes)
-            error = RelationalClientError(message)
-            error.gds_codes = codes
-            raise error from None
+            raise self._driver_failure(
+                f'{self.config.profile.engine_name} connection failed', exc
+            ) from None
         return connection
 
     def create_database(self, request, database, driver_operation):
@@ -800,9 +803,8 @@ class RelationalDBAPIClient:
                 raise
             except Exception as exc:
                 self._forget_and_close(connection)
-                raise RelationalClientError(
-                    'relational retained-session initialization failed '
-                    f'({type(exc).__name__})'
+                raise self._driver_failure(
+                    'relational retained-session initialization failed', exc
                 ) from None
         return connection
 
