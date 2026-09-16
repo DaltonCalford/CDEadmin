@@ -13,8 +13,10 @@ WARNING = (
     'permission checks apply. Confirm the exact procedure name.')
 NOTICE = (
     'Commit or roll back explicitly. After committing a replacement, verify '
-    'execution using a fresh connection: an existing attachment can retain '
-    'earlier compiled procedure code. No connection is automatically reset.')
+    'execution using a fresh connection, especially if a procedure was '
+    'executed '
+    'before rolling back its creation: Firebird 5.0.4 can retain earlier '
+    'procedure code on that attachment. No connection is automatically reset.')
 
 
 def compile_operation(operation, draft, target=None):
