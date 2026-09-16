@@ -216,6 +216,17 @@ _DATABASE_SPECS = {
                 'reserve_space', 'Reserve page space for record versions',
                 'boolean', default=True,
             ),
+            _field(
+                'stored_page_buffers', 'Stored database page buffers',
+                'number', integer=True, minimum=0, maximum=2147483646,
+                help=(
+                    'Optional persistent database-header override. Zero uses '
+                    'the server default; nonzero values must be at least 50 '
+                    'and take precedence over attachment cache requests. '
+                    '32-bit servers limit this to 131072; 64-bit servers to '
+                    '2147483646. Allocation also depends on available memory.'
+                ),
+            ),
         ),
         'drop_fields': (
             _field(

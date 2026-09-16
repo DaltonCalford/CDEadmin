@@ -100,7 +100,7 @@ def test_path_observation_is_exact(monkeypatch, observation):
 
 
 @pytest.mark.parametrize('provider,stored_boundaries', [
-    (False, False), (True, False), (False, True),
+    (False, False), (True, False), (False, True), (True, True),
 ])
 @pytest.mark.parametrize('fail_case', [False, True])
 def test_every_creation_case_runs_and_all_servers_are_cleaned(
@@ -131,7 +131,7 @@ def test_every_creation_case_runs_and_all_servers_are_cleaned(
     monkeypatch.setattr(gate, 'creation_case', check)
     result = gate.run('owned-test-image', provider=provider,
                       stored_boundaries=stored_boundaries)
-    total = 24 if stored_boundaries else 27 if provider else 81
+    total = 24 if stored_boundaries else 81
     assert len(seen) == total
     assert len(set(seen)) == total
     assert len(result['checks']) == total - int(fail_case)
@@ -162,12 +162,14 @@ def test_provider_creation_rejects_invalid_count_before_native_call(
     reopened.close.assert_not_called()
 
 
-@pytest.mark.parametrize('stored', [0, 64])
-def test_provider_creation_does_not_claim_persistent_buffer_control(stored):
+@pytest.mark.parametrize('stored', [-1, 1, 49, 2147483647])
+def test_provider_stored_invalid_refused_before_native(monkeypatch, stored):
     native, _created, _reopened = fake_native()
-    with pytest.raises(ValueError, match='does not set stored buffers'):
-        gate.creation_case(native, 'a' * 64, 50000, 'secret', 'Super',
-                           128, stored, provider=True)
+    monkeypatch.setattr(gate, 'file_present', Mock(return_value=False))
+    result = gate.creation_case(native, 'a' * 64, 50000, 'secret', 'Super',
+                                128, stored, provider=True)
+    assert result['rejected_before_native_create']
+    assert result['failed_creation_path_absent']
     native.create_database.assert_not_called()
     native.connect.assert_not_called()
 
@@ -195,9 +197,7 @@ def test_stored_boundaries_require_the_exact_native_range_error(
     native.connect.assert_not_called()
 
 
-def test_stored_matrix_cannot_be_misreported_as_provider_qualification():
-    with pytest.raises(ValueError, match='not implemented'):
-        gate.run('owned-test-image', provider=True, stored_boundaries=True)
+def test_stored_matrix_never_requests_dangerous_accepted_allocations():
     assert gate.STORED_BOUNDARIES == (
         None, 0, -1, 1, 49, 50, 64, 2147483647)
     assert all(value is None or value <= 64 or value == 2147483647

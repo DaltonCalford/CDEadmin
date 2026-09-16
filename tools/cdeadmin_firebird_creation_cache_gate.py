@@ -82,9 +82,6 @@ def observe(handle, native):
 
 def creation_case(native, container, port, password, mode, requested, stored,
                   *, provider=False):
-    if provider and stored is not None:
-        raise ValueError(
-            'Provider creation baseline does not set stored buffers')
     path = ('/var/lib/firebird/data/owned_creation_cache_' +
             uuid.uuid4().hex + '.fdb')
     assert not file_present(container, path)
@@ -114,13 +111,17 @@ def creation_case(native, container, port, password, mode, requested, stored,
                         'NATIVE_DEFAULT' if requested is None else 'CUSTOM'),
                     'attachment_cache_pages': requested,
                 }
-                arguments = _database_create_arguments(route, dsn, {}, native)
+                options = ({'stored_page_buffers': stored}
+                           if stored is not None else {})
+                arguments = _database_create_arguments(
+                    route, dsn, options, native)
                 handle = native.create_database(**arguments, password=password)
             else:
                 handle = native.create_database(
                     name, user='SYSDBA', password=password, overwrite=False)
         except RelationalClientError:
-            assert provider and requested is not None and requested < 25
+            assert provider and (stored_denied or (
+                requested is not None and requested < 25))
             assert not file_present(container, path)
             return dict(record, rejected=True,
                         rejected_before_native_create=True,
@@ -178,8 +179,6 @@ def creation_case(native, container, port, password, mode, requested, stored,
 
 
 def run(image, *, provider=False, stored_boundaries=False):
-    if provider and stored_boundaries:
-        raise ValueError('Stored creation controls are not implemented')
     import firebird.driver as native
     _configure_client_library(native)
     defaults = (native.driver_config.db_defaults.get_config(),
@@ -189,7 +188,7 @@ def run(image, *, provider=False, stored_boundaries=False):
               'provider_mapping_requested': provider,
               'stored_boundary_baseline': stored_boundaries}
     stored_requests = (STORED_BOUNDARIES if stored_boundaries else
-                       (None,) if provider else STORED_REQUESTS)
+                       STORED_REQUESTS)
     cache_requests = (None,) if stored_boundaries else CACHE_REQUESTS
 
     def failure(case, error):
@@ -279,8 +278,6 @@ def main():
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    if options.provider and options.stored_boundaries:
-        parser.error('Stored boundaries are a driver-only baseline')
     result = run(options.image, provider=options.provider,
                  stored_boundaries=options.stored_boundaries)
     options.output.write_text(json.dumps(result, indent=2) + '\n')

@@ -682,6 +682,7 @@ class RelationalVisualAdministrationTests(unittest.TestCase):
             [
                 'database_path', 'page_size', 'default_charset',
                 'sql_dialect', 'forced_writes', 'reserve_space',
+                'stored_page_buffers',
             ],
             [field['field_id'] for field in create['form']['fields']],
         )

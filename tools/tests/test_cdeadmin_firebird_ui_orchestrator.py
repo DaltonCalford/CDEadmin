@@ -158,6 +158,7 @@ def options(kind):
     ('lifecycle', None), ('rounding-inheritance', 'inheritance'),
     ('linger-preferences', None),
     ('cache-preferences', None),
+    ('creation-buffers-form', 'creation-form'),
 ])
 def test_inheritance_scope_requires_isolated_config_and_is_explicit(
         kind, scope):

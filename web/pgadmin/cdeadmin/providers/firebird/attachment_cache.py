@@ -30,3 +30,17 @@ def stored_page_buffers(info):
         raise RelationalClientError(
             'Firebird stored page-buffer observation is invalid')
     return value
+
+
+def creation_stored_pages(options):
+    """Validate the stored override; the native server owns its final limit."""
+    value = options.get('stored_page_buffers')
+    if value is None:
+        return None
+    if type(value) is not int or (
+            value != 0 and not 50 <= value <= MAX_REQUESTED_PAGES):
+        raise RelationalClientError(
+            'Firebird stored page buffers must be zero or an integer from '
+            f'50 to {MAX_REQUESTED_PAGES}; '
+            'the server may impose a lower limit')
+    return value

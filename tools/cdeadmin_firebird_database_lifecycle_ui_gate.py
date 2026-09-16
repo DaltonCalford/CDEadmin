@@ -97,7 +97,8 @@ def arguments(argv=None):
         '--font-scale', type=int, choices=(100, 150, 200, 300), default=100,
     )
     parser.add_argument('--timeout', type=int, default=90)
-    parser.add_argument('--scope', choices=('full', 'inheritance'),
+    parser.add_argument('--scope', choices=('full', 'inheritance',
+                                            'creation-form'),
                         default='full')
     return parser.parse_args(argv)
 
@@ -200,12 +201,78 @@ def _native_state(module, options, password, database):
             'sql_dialect': int(monitor[3]),
             'forced_writes': bool(monitor[4]),
             'reserve_space': bool(monitor[5]),
+            'stored_page_buffers': connection.info.get_info(
+                module.DbInfoCode.SET_PAGE_BUFFERS),
             'default_character_set': str(database_row[0]).strip(),
             'linger_seconds': database_row[1],
             'default_sql_security': database_row[2],
         }
     finally:
         connection.close()
+
+
+def creation_form_proof(options):
+    """Capture stored-buffer controls without creating databases."""
+    from tools.cdeadmin_firebird_linger_ui_gate import capture
+    password = os.environ.get(options.password_env)
+    if not password:
+        raise RuntimeError('Owned endpoint credential is missing')
+    options.endpoint_password_env = options.password_env
+    _configure_shared(password)
+    driver = create_driver(options)
+    result = {'complete': False, 'scope': 'creation-form', 'cases': [],
+              'failures': [], 'mutations_requested': False}
+    try:
+        before = shared._target_rows(options.config_db)
+        driver.set_script_timeout(max(120, options.timeout * 10))
+        wait = WebDriverWait(driver, options.timeout)
+        driver.get(options.url.rstrip('/') + '/browser/')
+        shared._prepare_tree(driver, wait, options, options.database)
+        for value in ('0', '64', '2147483646'):
+            try:
+                shared._open_form(driver, wait, 'create')
+                shared.fill_fields(wait, [
+                    'Stored database page buffers=' + value])
+                dialogs = [item for item in driver.find_elements(
+                    By.CSS_SELECTOR, '[role="dialog"]')
+                    if item.is_displayed()]
+                if len(dialogs) != 1:
+                    raise RuntimeError('Expected exactly one creation form')
+                control = shared.visible_named_control(
+                    dialogs[0], 'Stored database page buffers')
+                if control is None or control.get_attribute('value') != value:
+                    raise RuntimeError('Stored-buffer input differs')
+                proof = capture(
+                    driver, wait, options.output_root / ('stored-' + value),
+                    label='Stored database page buffers', scope=dialogs[0])
+                proof['form_pages'] = screenshot_form_pages(
+                    driver, options.output_root / ('form-' + value),
+                    selector='[role="dialog"] section')
+                shared._close_with_escape(driver, wait)
+                if before != shared._target_rows(options.config_db):
+                    raise RuntimeError('Cancelled form changed targets')
+                result['cases'].append({'value': value, 'proof': proof,
+                                        'cancelled_without_mutation': True})
+            except Exception as error:
+                result['failures'].append({'value': value,
+                                           'error_type': type(error).__name__})
+    except Exception as error:
+        result['failures'].append({'phase': 'setup',
+                                   'error_type': type(error).__name__,
+                                   'locations': [
+                                       {'file': Path(frame.filename).name,
+                                        'line': frame.lineno,
+                                        'function': frame.name}
+                                       for frame in traceback.extract_tb(
+                                           error.__traceback__)[-5:]]})
+    finally:
+        try:
+            driver.quit()
+        except Exception as error:
+            result['failures'].append({'phase': 'cleanup',
+                                       'error_type': type(error).__name__})
+    result['complete'] = len(result['cases']) == 3 and not result['failures']
+    return result
 
 
 def _wait_target(wait, options, predicate, message):
@@ -570,6 +637,7 @@ def _complete_cases(driver, wait, options, module, password,
                 'Page size': '16384',
                 'Default character set': 'UTF8',
                 'Database SQL dialect': '3',
+                'Stored database page buffers': '64',
             }
         )
         created_state = _native_state(module, options, password, created_path)
@@ -577,6 +645,7 @@ def _complete_cases(driver, wait, options, module, password,
             not created_state['engine_version'].startswith('5.0') or
             created_state['page_size'] != 16384 or
             created_state['sql_dialect'] != 3 or
+            created_state['stored_page_buffers'] != 64 or
             created_state['default_character_set'] != 'UTF8'
         ):
             raise RuntimeError(
@@ -701,6 +770,8 @@ def _install_menu_trace(driver):
 
 
 def run(options):
+    if getattr(options, 'scope', 'full') == 'creation-form':
+        return creation_form_proof(options)
     full_scope = getattr(options, 'scope', 'full') == 'full'
     expected_modes = set(COMPLETION_ORDER) if full_scope else set()
     rounding_modes = CONNECTION_ROUND_RESULTS if full_scope else {}
@@ -850,9 +921,12 @@ def main(argv=None):
     )
     print(json.dumps({
         'complete': result['complete'],
-        'rendered_modes': [item['mode'] for item in result['rendered']],
-        'completed_modes': [item['mode'] for item in result['completed']],
-        'failures': [item['error'] for item in result['failures']],
+        'rendered_modes': [item['mode'] for item in result.get(
+            'rendered', [])],
+        'completed_modes': [item['mode'] for item in result.get(
+            'completed', [])],
+        'failures': [item.get('error', item.get('error_type'))
+                     for item in result['failures']],
         'output': str(options.summary_output),
     }, indent=2, sort_keys=True))
     return 0 if result['complete'] else 1

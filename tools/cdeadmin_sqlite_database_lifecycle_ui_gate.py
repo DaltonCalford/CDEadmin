@@ -453,17 +453,24 @@ def _close(driver, wait):
     wait.until(expected.staleness_of(dialog))
 
 
-def _validation_observation(driver, wait, form, mode):
+def _validation_observation(driver, wait, form, mode, observed_fields):
+    observed = {item['field_id']: item for item in observed_fields}
+    if any(field['field_id'] not in observed for field in form['fields']):
+        raise RuntimeError('Validation requires observations of every field')
+    if any(type(observed[field['field_id']].get('visible')) is not bool
+           for field in form['fields']):
+        raise RuntimeError('Validation requires explicit field visibility')
     required = next((
         field for field in form['fields']
-        if field.get('required') and field.get('control') in {
+        if observed[field['field_id']].get('visible') is True and
+        field.get('required') and field.get('control') in {
             'text', 'file', 'code', 'json', 'number',
         }
     ), None)
     if required is None:
         return {
             'state': 'not_applicable',
-            'reason': 'form has no clearable required field',
+            'reason': 'form has no visible clearable required field',
         }
     control = wait.until(lambda value: visible_named_control(
         value, required['label']
@@ -526,8 +533,9 @@ def _render_case(driver, wait, options, forms, mode, database_label=None):
         raise RuntimeError(f'{mode} cancellation changed retained targets')
 
     _open_form(driver, wait, mode, database_label)
-    assert_form_controls(wait, form['fields'])
-    validation = _validation_observation(driver, wait, form, mode)
+    validation_controls = assert_form_controls(wait, form['fields'])
+    validation = _validation_observation(
+        driver, wait, form, mode, validation_controls)
     validation_layout = None
     validation_path = None
     validation_digest = None
