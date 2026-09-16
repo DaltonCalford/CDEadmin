@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pgadmin.cdeadmin.sdk.relational import (
     RelationalClientError, RelationalDBAPIClient, _ResultToken,
 )
-from .error_diagnostics import status_codes
+from .error_diagnostics import diagnostic_flag, status_codes
 from . import limbo
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
@@ -265,7 +265,10 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             native = self._describe_native_token(token)
             native['payload']['execution_state'] = 'succeeded'
         except Exception as exc:
-            codes = tuple(getattr(exc, 'gds_codes', ()))
+            codes = status_codes(exc)
+            execution_completed = diagnostic_flag(
+                exc, 'native_execution_completed')
+            cleanup_failed = diagnostic_flag(exc, 'cursor_cleanup_failed')
             native = {
                 'result_kind': self.config.profile.result_kind,
                 'schema': {'columns': []}, 'complete': True,
@@ -278,22 +281,18 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                         'message': (
                             'Firebird query executed, but result cleanup '
                             'failed. Do not replay the statement.'
-                            if getattr(exc, 'native_execution_completed',
-                                       False)
+                            if execution_completed
                             else ('Firebird query failed and cursor cleanup '
                                   'did not complete. Do not replay the '
                                   'statement; close this session.'
-                                  if getattr(exc, 'cursor_cleanup_failed',
-                                             False)
+                                  if cleanup_failed
                                   else 'Firebird query did not complete.')),
                         'error_type': type(exc).__name__,
                         'native_status_codes': list(codes),
-                        'native_execution_completed': bool(getattr(
-                            exc, 'native_execution_completed', False)),
-                        'cursor_cleanup_failed': bool(getattr(
-                            exc, 'cursor_cleanup_failed', False)),
-                        'cleanup_status_codes': list(getattr(
-                            exc, 'cleanup_gds_codes', ())),
+                        'native_execution_completed': execution_completed,
+                        'cursor_cleanup_failed': cleanup_failed,
+                        'cleanup_status_codes': list(status_codes(
+                            exc, 'cleanup_gds_codes')),
                     },
                 },
             }

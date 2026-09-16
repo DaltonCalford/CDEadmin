@@ -652,6 +652,60 @@ def test_worker_interruption_publishes_outcome_and_allows_close(
     rig.handle.commit.assert_not_called()
 
 
+@pytest.mark.parametrize('attribute', ['gds_codes', 'cleanup_gds_codes'])
+@pytest.mark.parametrize('value,expected', [
+    ((335544794,), [335544794]), ([335544569], [335544569]),
+    (None, []), ('private code', []), (['private code'], []),
+    ([True], []), ([0], []), ([2147483648], []), (list(range(1, 34)), []),
+])
+def test_async_error_codes_are_bounded(rig, attribute, value, expected):
+    error = RelationalClientError('private message')
+    setattr(error, attribute, value)
+    with patch.object(rig.client, '_execute_sql', side_effect=error):
+        query = rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+        result = complete(rig, query)
+    diagnostic = result['payload']['error']
+    field = ('native_status_codes' if attribute == 'gds_codes' else
+             'cleanup_status_codes')
+    assert diagnostic[field] == expected
+    assert result['payload']['execution_state'] == (
+        'cancelled' if attribute == 'gds_codes' and 335544794 in expected
+        else 'failed')
+    assert 'private' not in str(result)
+    assert query.done and rig.client._state(rig.handle).query is None
+
+
+@pytest.mark.parametrize('attribute', [
+    'gds_codes', 'cleanup_gds_codes', 'native_execution_completed',
+    'cursor_cleanup_failed'])
+def test_async_broken_diagnostic_getter_does_not_strand_worker(rig, attribute):
+    def broken(_self):
+        raise ValueError('private getter failure')
+
+    error_type = type('DiagnosticError', (RelationalClientError,), {
+        attribute: property(broken)})
+    with patch.object(rig.client, '_execute_sql',
+                      side_effect=error_type('private message')):
+        query = rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+        result = complete(rig, query)
+    assert result['complete'] and query.done
+    assert result['payload']['execution_state'] == 'failed'
+    assert 'private' not in str(result)
+
+
+@pytest.mark.parametrize('attribute', [
+    'native_execution_completed', 'cursor_cleanup_failed'])
+@pytest.mark.parametrize('value', [True, False, 1, 'private flag', [], None])
+def test_async_diagnostic_flags_require_actual_true(rig, attribute, value):
+    error = RelationalClientError('private message')
+    setattr(error, attribute, value)
+    with patch.object(rig.client, '_execute_sql', side_effect=error):
+        query = rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+        result = complete(rig, query)
+    assert result['payload']['error'][attribute] is (value is True)
+    assert 'private' not in str(result)
+
+
 def test_other_attachment_is_usable_while_query_runs(rig):
     query = submit(rig)
     other = Mock()

@@ -340,6 +340,7 @@ def worker_interruption_case(native, route, password):
 def query_diagnostics_case(native, route, password):
     client = _create_client(SimpleNamespace(
         acquire_secret=lambda *_args: SecretLease(password)))
+    query = None
     try:
         handle = client.open_session({'route': {
             **route, 'credential_reference_id': 'owned-secret',
@@ -356,13 +357,28 @@ def query_diagnostics_case(native, route, password):
             assert route['database'] not in str(caught)
         else:
             raise AssertionError('Invalid query unexpectedly succeeded')
+        query = client.submit_query(handle, {
+            'source': 'SELECT PRIVATE_ERROR_COLUMN FROM RDB$DATABASE'})
+        query.worker.join(10)
+        assert not query.worker.is_alive()
+        result = client.describe_result(query)
+        assert result['complete']
+        assert result['payload']['execution_state'] == 'failed'
+        assert result['payload']['error']['native_status_codes'] == codes
+        assert 'PRIVATE_ERROR_COLUMN' not in str(result)
+        assert password not in str(result)
+        assert route['database'] not in str(result)
         token = client.execute(
             handle, {'source': 'SELECT 1 FROM RDB$DATABASE'})
         assert client.describe_result(token)['payload']['rows'] == [(1,)]
     finally:
+        if query is not None and query.worker.is_alive():
+            client.cancel(query)
+            query.worker.join(10)
         client.close()
     assert not client._connections
     return {'native_status_codes': codes, 'sqlstate_preserved': True,
+            'async_failure_published': True,
             'private_text_absent': True, 'subsequent_query_succeeded': True}
 
 
