@@ -529,8 +529,8 @@ class ProviderVisualAdministration:
                     execution_context['session_handle']
                 )
             result = executor(executor_request)
-        except Exception as exc:
-            if getattr(
+        except BaseException as exc:
+            if isinstance(exc, Exception) and getattr(
                     exc, 'credential_required_before_dispatch', False):
                 # Credential acquisition is part of connection setup and
                 # therefore precedes provider mutation dispatch. Restore the
@@ -559,6 +559,8 @@ class ProviderVisualAdministration:
                     },
                 )
                 failed = copy.deepcopy(operation.public)
+            if not isinstance(exc, Exception):
+                raise
             raise VisualAdminExecutionError(
                 'provider mutation response is unavailable; the outcome is '
                 'unknown and the mutation will not be retried',
@@ -636,7 +638,7 @@ class ProviderVisualAdministration:
         try:
             observed = _mapping(
                 callback(callback_request), 'provider operation observation')
-        except Exception as exc:
+        except BaseException as exc:
             with self._lock:
                 stored.public['unknown_outcome'] = True
                 stored.public['stage'] = 'observation_response_unavailable'
@@ -650,6 +652,8 @@ class ProviderVisualAdministration:
                     },
                 )
                 failed = copy.deepcopy(stored.public)
+            if not isinstance(exc, Exception):
+                raise
             raise VisualAdminExecutionError(
                 'provider operation observation is unavailable; no action '
                 'was retried', failed,
@@ -695,7 +699,7 @@ class ProviderVisualAdministration:
         try:
             response = _mapping(
                 callback(callback_request), 'provider cancellation response')
-        except Exception as exc:
+        except BaseException as exc:
             with self._lock:
                 stored.public['unknown_outcome'] = True
                 stored.public['stage'] = 'cancel_response_unavailable'
@@ -709,6 +713,8 @@ class ProviderVisualAdministration:
                     },
                 )
                 failed = copy.deepcopy(stored.public)
+            if not isinstance(exc, Exception):
+                raise
             raise VisualAdminExecutionError(
                 'provider cancellation response is unavailable; the cancel '
                 'request will not be retried', failed,
@@ -739,8 +745,9 @@ class ProviderVisualAdministration:
                 observed = _mapping(
                     callback(callback_request),
                     'provider post-state observation')
-            except Exception as exc:
+            except BaseException as exc:
                 with self._lock:
+                    stored.public['unknown_outcome'] = True
                     stored.public['stage'] = (
                         'post_state_response_unavailable'
                     )
@@ -753,6 +760,8 @@ class ProviderVisualAdministration:
                         },
                     )
                     failed = copy.deepcopy(stored.public)
+                if not isinstance(exc, Exception):
+                    raise
                 raise VisualAdminExecutionError(
                     'provider post-state observation is unavailable; no '
                     'action was retried', failed,
