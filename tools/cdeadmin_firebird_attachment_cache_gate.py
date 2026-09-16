@@ -32,7 +32,8 @@ def run(image, *, provider=False, browser_options=None):
     browser_gate = getattr(
         browser_options, 'browser_gate', 'cache-preferences')
     if browser_gate not in ('cache-preferences', 'properties', 'lifecycle',
-                            'creation-buffers-form'):
+                            'creation-buffers-form', 'creation-sweep-form',
+                            'creation-lifecycle'):
         raise ValueError('Unknown cache browser gate')
     if browser_options is not None:
         if not provider or not browser_options.build_root:
@@ -198,7 +199,8 @@ def main():
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--browser-gate',
                         choices=('cache-preferences', 'properties',
-                                 'lifecycle', 'creation-buffers-form'),
+                                 'lifecycle', 'creation-buffers-form',
+                                 'creation-sweep-form', 'creation-lifecycle'),
                         default='cache-preferences')
     parser.add_argument('--build-root', type=Path)
     parser.add_argument('--source-config-db', type=Path,

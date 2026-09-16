@@ -724,12 +724,21 @@ class RelationalAdministration:
         ):
             page_size = draft.get('page_size', '8192')
             from .firebird.attachment_cache import creation_stored_pages
+            from .firebird.creation_options import creation_sweep_interval
             try:
                 creation_stored_pages(draft)
             except RelationalClientError as error:
                 errors.append({
                     'field_id': 'stored_page_buffers',
                     'code': 'invalid_firebird_stored_page_buffers',
+                    'message': str(error),
+                })
+            try:
+                creation_sweep_interval(draft)
+            except RelationalClientError as error:
+                errors.append({
+                    'field_id': 'sweep_interval',
+                    'code': 'invalid_firebird_sweep_interval',
                     'message': str(error),
                 })
             if page_size not in {'4096', '8192', '16384', '32768'}:
@@ -4328,7 +4337,9 @@ class RelationalAdministration:
             driver_operation = 'embedded-create-database'
         elif mode == 'firebird-driver':
             from .firebird.attachment_cache import creation_stored_pages
+            from .firebird.creation_options import creation_sweep_interval
             creation_stored_pages(request['draft'])
+            creation_sweep_interval(request['draft'])
             root_path = posixpath.normpath(root)
             if not posixpath.isabs(root_path):
                 raise RelationalClientError(
@@ -4382,6 +4393,9 @@ class RelationalAdministration:
                     **({'stored_page_buffers':
                         request['draft']['stored_page_buffers']}
                        if request['draft'].get('stored_page_buffers')
+                       is not None else {}),
+                    **({'sweep_interval': request['draft']['sweep_interval']}
+                       if request['draft'].get('sweep_interval')
                        is not None else {}),
                 } if mode == 'firebird-driver' else {
                     **copy.deepcopy(request['draft'].get('options', {})),

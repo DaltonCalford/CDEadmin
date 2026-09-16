@@ -17,11 +17,13 @@ def test_native_lifecycle_observation_reads_stored_buffers(
     connection = Mock()
     connection.cursor.return_value = cursor
     connection.info.engine_version = '5.0.4'
+    connection.info.sweep_interval = 50000
     connection.info.get_info.return_value = stored
     monkeypatch.setattr(gate, '_connect', Mock(return_value=connection))
     native = SimpleNamespace(DbInfoCode=SimpleNamespace(SET_PAGE_BUFFERS=61))
     result = gate._native_state(native, object(), 'owned-secret', '/owned.fdb')
     assert result['stored_page_buffers'] == stored
+    assert result['sweep_interval'] == 50000
     connection.info.get_info.assert_called_once_with(61)
     assert result['page_size'] == 16384
     assert result['default_character_set'] == 'UTF8'

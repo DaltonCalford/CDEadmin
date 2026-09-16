@@ -12,7 +12,8 @@ from tools import cdeadmin_firebird_creation_sweep_gate as gate
 
 @pytest.mark.parametrize('mode', gate.cache.SERVER_MODES)
 @pytest.mark.parametrize('interval', gate.INTERVALS)
-def test_interval_creation_and_reopen(monkeypatch, mode, interval):
+@pytest.mark.parametrize('provider', [False, True])
+def test_interval_creation_and_reopen(monkeypatch, mode, interval, provider):
     handles = [MagicMock(), MagicMock()]
     expected = 20000 if interval is None else interval
     for handle in handles:
@@ -26,10 +27,12 @@ def test_interval_creation_and_reopen(monkeypatch, mode, interval):
     presence = Mock(return_value=False)
     monkeypatch.setattr(gate.cache, 'file_present', presence)
     result = gate.creation_case(
-        native, 'a' * 64, 50000, 'owned-secret', mode, interval)
+        native, 'a' * 64, 50000, 'owned-secret', mode, interval,
+        provider=provider)
     assert presence.call_count == 2
     if interval == -1:
-        assert result['rejected_before_native_create_by_driver']
+        stage = 'provider' if provider else 'driver'
+        assert result['rejected_before_native_create_by_' + stage]
         native.create_database.assert_not_called()
         native.connect.assert_not_called()
     else:
@@ -59,8 +62,9 @@ def test_observation_mismatch_closes_handle_and_fails(monkeypatch, bad_source):
 
 @pytest.mark.parametrize('case_fails', [False, True])
 @pytest.mark.parametrize('cleanup_fails', [False, True])
+@pytest.mark.parametrize('provider', [False, True])
 def test_full_failure_inventory_and_owned_cleanup(
-        monkeypatch, case_fails, cleanup_fails):
+        monkeypatch, case_fails, cleanup_fails, provider):
     import firebird.driver as native
     monkeypatch.setattr(native, 'driver_config', DriverConfig('owned-sweep'))
     handle = MagicMock()
@@ -78,13 +82,17 @@ def test_full_failure_inventory_and_owned_cleanup(
     cases = Mock(side_effect=RuntimeError('secret-canary')
                  if case_fails else None, return_value={'observed': True})
     monkeypatch.setattr(gate, 'creation_case', cases)
-    result = gate.run('owned-test-image')
+    result = gate.run('owned-test-image', provider=provider)
     assert cases.call_count == 21
     assert cleanup.call_count == 3
     assert len(result['failures']) == 21 * case_fails + 3 * cleanup_fails
     assert result['complete'] is (not case_fails and not cleanup_fails)
     assert result['driver_defaults_unchanged']
     assert result['provider_qualified'] is False
+    assert result['provider_mapping_qualified'] is (
+        provider and not case_fails and not cleanup_fails)
+    assert all(call.kwargs['provider'] is provider
+               for call in cases.call_args_list)
     assert 'secret-canary' not in json.dumps(result)
     for call in start.call_args_list:
         args = call.args

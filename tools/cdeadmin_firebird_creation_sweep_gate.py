@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 
 from tools import cdeadmin_firebird_creation_cache_gate as cache
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 INTERVALS = (None, -1, 0, 1, 20000, 50000, 2147483647)
@@ -24,26 +25,40 @@ def observation(handle):
             'monitor_interval': monitor}
 
 
-def creation_case(native, container, port, password, mode, interval):
+def creation_case(native, container, port, password, mode, interval,
+                  *, provider=False):
     path = ('/var/lib/firebird/data/owned_creation_cache_' +
             uuid.uuid4().hex + '.fdb')
     assert not cache.file_present(container, path)
     dsn = f'127.0.0.1/{port}:{path}'
-    name = cache.private_configuration(native, dsn)
-    config = native.driver_config.get_database(name)
     record = {'mode': mode, 'requested_interval': interval}
     try:
-        config.sweep_interval.value = interval
+        if provider:
+            options = ({} if interval is None else {
+                'sweep_interval': interval})
+            arguments = cache._database_create_arguments(
+                {'host': '127.0.0.1', 'port': port, 'user': 'SYSDBA'},
+                dsn, options, native)
+        else:
+            name = cache.private_configuration(native, dsn)
+            config = native.driver_config.get_database(name)
+            config.sweep_interval.value = interval
+    except RelationalClientError:
+        assert provider and interval == -1
+        assert not cache.file_present(container, path)
+        return dict(record, rejected_before_native_create_by_provider=True,
+                    failed_creation_path_absent=True)
     except ValueError:
-        assert interval == -1
+        assert not provider and interval == -1
         assert not cache.file_present(container, path)
         return dict(record, rejected_before_native_create_by_driver=True,
                     failed_creation_path_absent=True)
     assert interval != -1
     handle = None
     try:
-        handle = native.create_database(
-            name, user='SYSDBA', password=password, overwrite=False)
+        handle = (native.create_database(**arguments, password=password)
+                  if provider else native.create_database(
+                      name, user='SYSDBA', password=password, overwrite=False))
         expected = 20000 if interval is None else interval
         first = observation(handle)
         assert first == {'info_interval': expected,
@@ -75,13 +90,14 @@ def creation_case(native, container, port, password, mode, interval):
             handle.close()
 
 
-def run(image):
+def run(image, *, provider=False):
     import firebird.driver as native
     cache._configure_client_library(native)
     defaults = (native.driver_config.db_defaults.get_config(),
                 native.driver_config.server_defaults.get_config())
     result = {'complete': False, 'checks': [], 'failures': [],
-              'removed_server_modes': [], 'provider_qualified': False}
+              'removed_server_modes': [], 'provider_qualified': False,
+              'provider_mapping_requested': provider}
 
     def failure(phase, error):
         result['failures'].append({
@@ -133,7 +149,8 @@ def run(image):
                 phase = f'{mode}-interval-{interval}'
                 try:
                     result['checks'].append(creation_case(
-                        native, container, port, password, mode, interval))
+                        native, container, port, password, mode, interval,
+                        provider=provider))
                 except Exception as error:
                     failure(phase, error)
         except Exception as error:
@@ -152,6 +169,7 @@ def run(image):
         len(result['checks']) == len(cache.SERVER_MODES) * len(INTERVALS) and
         not result['failures'] and result['driver_defaults_unchanged'] and
         result['removed_server_modes'] == list(cache.SERVER_MODES))
+    result['provider_mapping_qualified'] = provider and result['complete']
     return result
 
 
@@ -159,10 +177,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--provider', action='store_true')
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    result = run(options.image, provider=options.provider)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     return 0 if result['complete'] else 1
 

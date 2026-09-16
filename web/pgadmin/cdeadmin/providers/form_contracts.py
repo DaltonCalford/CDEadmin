@@ -227,6 +227,18 @@ _DATABASE_SPECS = {
                     '2147483646. Allocation also depends on available memory.'
                 ),
             ),
+            _field(
+                'sweep_interval',
+                'Automatic sweep interval (transaction gap)',
+                'number', integer=True, minimum=0, maximum=2147483647,
+                help=(
+                    'Optional stored threshold in transaction numbers. '
+                    'Omission keeps the native default; zero disables '
+                    'automatic threshold-triggered sweeps, not manual sweep '
+                    'or garbage collection. Applies to the database being '
+                    'created.'
+                ),
+            ),
         ),
         'drop_fields': (
             _field(

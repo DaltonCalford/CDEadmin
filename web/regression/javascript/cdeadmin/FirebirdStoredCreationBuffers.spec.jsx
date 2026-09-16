@@ -76,3 +76,40 @@ describe('Firebird persistent creation buffers', () => {
     expect(post.mock.calls.some(([body]) => body.action === 'visual_admin_apply')).toBe(false);
   });
 });
+
+describe('Firebird creation sweep threshold', () => {
+  const label = 'Automatic sweep interval (transaction gap)';
+
+  it('omits an untouched sweep interval rather than inventing a default', async () => {
+    const post = await mount();
+    expect(screen.getByLabelText(label)).toHaveValue(null);
+    expect((await preview(post)).create_options).not.toHaveProperty('sweep_interval');
+  });
+
+  it.each([0, 1, 20000, 50000, 2147483647])('preserves exact interval %s through planning', async (value) => {
+    const post = await mount();
+    fireEvent.change(screen.getByLabelText(label), {target: {value: String(value)}});
+    fireEvent.change(screen.getByLabelText('Stored database page buffers'), {target: {value: '64'}});
+    const options = (await preview(post)).create_options;
+    expect(options.sweep_interval).toBe(value);
+    expect(options.stored_page_buffers).toBe(64);
+    expect(options).not.toHaveProperty('attachment_cache_pages');
+  });
+
+  it('clearing an explicit zero restores native omission', async () => {
+    const post = await mount();
+    const input = screen.getByLabelText(label);
+    fireEvent.change(input, {target: {value: '0'}});
+    fireEvent.change(input, {target: {value: ''}});
+    expect((await preview(post)).create_options).not.toHaveProperty('sweep_interval');
+  });
+
+  it.each([-1, 1.5, 2147483648])('refuses interval %s before planning or execution', async (value) => {
+    const post = await mount();
+    fireEvent.change(screen.getByLabelText(label), {target: {value: String(value)}});
+    fireEvent.click(screen.getByRole('button', {name: 'Validate and preview'}));
+    await screen.findByText(/Firebird sweep interval must be an integer/);
+    expect(post.mock.calls.some(([body]) => body.action === 'visual_admin_plan')).toBe(false);
+    expect(post.mock.calls.some(([body]) => body.action === 'visual_admin_apply')).toBe(false);
+  });
+});

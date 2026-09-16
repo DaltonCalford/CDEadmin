@@ -345,6 +345,7 @@ def _route_arguments(route, module=None, *, creation=None):
                 config.forced_writes.value = options.get('forced_writes', True)
                 config.reserve_space.value = options.get('reserve_space', True)
                 config.db_cache_size.value = options.get('stored_page_buffers')
+                config.sweep_interval.value = options.get('sweep_interval')
             elif inet6:
                 config.dsn.value = database_dsn(path, host, port, 'INET6')
             elif route.get('protocol'):
@@ -380,12 +381,15 @@ def _route_arguments(route, module=None, *, creation=None):
 def _database_create_arguments(route, database, options, module):
     """Use the selected connection DPB, never shared driver defaults."""
     supported = {'page_size', 'default_charset', 'sql_dialect',
-                 'forced_writes', 'reserve_space', 'stored_page_buffers'}
+                 'forced_writes', 'reserve_space', 'stored_page_buffers',
+                 'sweep_interval'}
     if not isinstance(options, dict) or set(options).difference(supported):
         raise RelationalClientError(
             'Firebird database creation options are unsupported')
     from .attachment_cache import creation_stored_pages
+    from .creation_options import creation_sweep_interval
     creation_stored_pages(options)
+    creation_sweep_interval(options)
     return _route_arguments(route, module, creation={
         'database': database, 'options': dict(options)})
 

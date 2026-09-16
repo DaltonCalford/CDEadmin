@@ -12,8 +12,9 @@ from tools import cdeadmin_firebird_linger_ui_gate as linger
 @pytest.mark.parametrize('dialog_count', [0, 1, 2])
 @pytest.mark.parametrize('capture_fails', [False, True])
 @pytest.mark.parametrize('quit_fails', [False, True])
+@pytest.mark.parametrize('scope', ['creation-form', 'creation-sweep-form'])
 def test_proof_requires_one_dialog_and_collects_every_value(
-        monkeypatch, tmp_path, dialog_count, capture_fails, quit_fails):
+        monkeypatch, tmp_path, dialog_count, capture_fails, quit_fails, scope):
     monkeypatch.setenv('OWNED_FORM_SECRET', 'test-secret')
     monkeypatch.setattr(gate, '_configure_shared', Mock())
     driver = Mock()
@@ -39,7 +40,7 @@ def test_proof_requires_one_dialog_and_collects_every_value(
     options = SimpleNamespace(
         password_env='OWNED_FORM_SECRET', timeout=1, config_db='owned.db',
         database='owned.fdb', url='http://127.0.0.1:50000',
-        output_root=tmp_path)
+        output_root=tmp_path, scope=scope)
     result = gate.creation_form_proof(options)
     assert options.endpoint_password_env == 'OWNED_FORM_SECRET'
     driver.set_script_timeout.assert_called_once_with(120)
@@ -52,10 +53,28 @@ def test_proof_requires_one_dialog_and_collects_every_value(
         assert capture.call_count == 3
         for call in capture.call_args_list:
             assert call.kwargs['scope'] is dialog
-            assert call.kwargs['label'] == 'Stored database page buffers'
+            assert call.kwargs['label'] == (
+                'Automatic sweep interval (transaction gap)'
+                if scope == 'creation-sweep-form' else
+                'Stored database page buffers')
     else:
         capture.assert_not_called()
     driver.quit.assert_called_once()
+
+
+@pytest.mark.parametrize('scope,expected', [
+    ('full', (True, True, True)),
+    ('lifecycle', (True, False, False)),
+    ('inheritance', (False, True, False)),
+])
+def test_lifecycle_scope_does_not_claim_unrequested_families(scope, expected):
+    assert gate._scope_flags(scope) == expected
+
+
+@pytest.mark.parametrize('scope', ['', None, 'all', 'creation-form'])
+def test_unknown_lifecycle_scope_is_refused(scope):
+    with pytest.raises(ValueError, match='qualification scope'):
+        gate._scope_flags(scope)
 
 
 def test_configuration_read_failure_still_closes_browser(monkeypatch):

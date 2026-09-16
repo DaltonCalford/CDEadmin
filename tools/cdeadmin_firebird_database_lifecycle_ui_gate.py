@@ -97,9 +97,10 @@ def arguments(argv=None):
         '--font-scale', type=int, choices=(100, 150, 200, 300), default=100,
     )
     parser.add_argument('--timeout', type=int, default=90)
-    parser.add_argument('--scope', choices=('full', 'inheritance',
-                                            'creation-form'),
-                        default='full')
+    parser.add_argument(
+        '--scope', choices=('full', 'inheritance', 'lifecycle',
+                            'creation-form', 'creation-sweep-form'),
+        default='full')
     return parser.parse_args(argv)
 
 
@@ -203,6 +204,7 @@ def _native_state(module, options, password, database):
             'reserve_space': bool(monitor[5]),
             'stored_page_buffers': connection.info.get_info(
                 module.DbInfoCode.SET_PAGE_BUFFERS),
+            'sweep_interval': connection.info.sweep_interval,
             'default_character_set': str(database_row[0]).strip(),
             'linger_seconds': database_row[1],
             'default_sql_security': database_row[2],
@@ -212,15 +214,24 @@ def _native_state(module, options, password, database):
 
 
 def creation_form_proof(options):
-    """Capture stored-buffer controls without creating databases."""
+    """Capture a native creation control without creating databases."""
     from tools.cdeadmin_firebird_linger_ui_gate import capture
+    scope = getattr(options, 'scope', 'creation-form')
+    if scope not in {'creation-form', 'creation-sweep-form'}:
+        raise ValueError('Unknown creation control proof scope')
     password = os.environ.get(options.password_env)
     if not password:
         raise RuntimeError('Owned endpoint credential is missing')
     options.endpoint_password_env = options.password_env
     _configure_shared(password)
     driver = create_driver(options)
-    result = {'complete': False, 'scope': 'creation-form', 'cases': [],
+    sweep = scope == 'creation-sweep-form'
+    label = ('Automatic sweep interval (transaction gap)' if sweep else
+             'Stored database page buffers')
+    values = (('0', '50000', '2147483647') if sweep else
+              ('0', '64', '2147483646'))
+    prefix = 'sweep-' if sweep else 'stored-'
+    result = {'complete': False, 'scope': scope, 'cases': [],
               'failures': [], 'mutations_requested': False}
     try:
         before = shared._target_rows(options.config_db)
@@ -228,23 +239,21 @@ def creation_form_proof(options):
         wait = WebDriverWait(driver, options.timeout)
         driver.get(options.url.rstrip('/') + '/browser/')
         shared._prepare_tree(driver, wait, options, options.database)
-        for value in ('0', '64', '2147483646'):
+        for value in values:
             try:
                 shared._open_form(driver, wait, 'create')
-                shared.fill_fields(wait, [
-                    'Stored database page buffers=' + value])
+                shared.fill_fields(wait, [label + '=' + value])
                 dialogs = [item for item in driver.find_elements(
                     By.CSS_SELECTOR, '[role="dialog"]')
                     if item.is_displayed()]
                 if len(dialogs) != 1:
                     raise RuntimeError('Expected exactly one creation form')
-                control = shared.visible_named_control(
-                    dialogs[0], 'Stored database page buffers')
+                control = shared.visible_named_control(dialogs[0], label)
                 if control is None or control.get_attribute('value') != value:
-                    raise RuntimeError('Stored-buffer input differs')
+                    raise RuntimeError('Creation input differs')
                 proof = capture(
-                    driver, wait, options.output_root / ('stored-' + value),
-                    label='Stored database page buffers', scope=dialogs[0])
+                    driver, wait, options.output_root / (prefix + value),
+                    label=label, scope=dialogs[0])
                 proof['form_pages'] = screenshot_form_pages(
                     driver, options.output_root / ('form-' + value),
                     selector='[role="dialog"] section')
@@ -638,6 +647,7 @@ def _complete_cases(driver, wait, options, module, password,
                 'Default character set': 'UTF8',
                 'Database SQL dialect': '3',
                 'Stored database page buffers': '64',
+                'Automatic sweep interval (transaction gap)': '50000',
             }
         )
         created_state = _native_state(module, options, password, created_path)
@@ -646,6 +656,7 @@ def _complete_cases(driver, wait, options, module, password,
             created_state['page_size'] != 16384 or
             created_state['sql_dialect'] != 3 or
             created_state['stored_page_buffers'] != 64 or
+            created_state['sweep_interval'] != 50000 or
             created_state['default_character_set'] != 'UTF8'
         ):
             raise RuntimeError(
@@ -769,11 +780,19 @@ def _install_menu_trace(driver):
     ''')
 
 
+def _scope_flags(scope):
+    if scope not in {'full', 'lifecycle', 'inheritance'}:
+        raise ValueError('Unknown lifecycle qualification scope')
+    return (scope in {'full', 'lifecycle'},
+            scope in {'full', 'inheritance'}, scope == 'full')
+
+
 def run(options):
-    if getattr(options, 'scope', 'full') == 'creation-form':
+    scope = getattr(options, 'scope', 'full')
+    if scope in {'creation-form', 'creation-sweep-form'}:
         return creation_form_proof(options)
-    full_scope = getattr(options, 'scope', 'full') == 'full'
-    expected_modes = set(COMPLETION_ORDER) if full_scope else set()
+    lifecycle_scope, inheritance_scope, full_scope = _scope_flags(scope)
+    expected_modes = set(COMPLETION_ORDER) if lifecycle_scope else set()
     rounding_modes = CONNECTION_ROUND_RESULTS if full_scope else {}
     password = os.environ.get(options.password_env)
     if not password:
@@ -822,7 +841,7 @@ def run(options):
         if forms.get('__error__'):
             raise RuntimeError(forms['__error__'])
         options.database_forms = forms
-        if full_scope:
+        if lifecycle_scope:
             try:
                 _complete_cases(driver, wait, options, module, password,
                                 completed, cleanup)
@@ -839,12 +858,13 @@ def run(options):
             except Exception as exc:
                 record_failure('rounding-' + mode, exc)
                 previous = None
-        try:
-            _inheritance_cases(
-                driver, wait, options, module, password, inheritance)
-        except Exception as exc:
-            record_failure('inheritance', exc)
-        for mode in (RENDER_ORDER if full_scope else ()):
+        if inheritance_scope:
+            try:
+                _inheritance_cases(
+                    driver, wait, options, module, password, inheritance)
+            except Exception as exc:
+                record_failure('inheritance', exc)
+        for mode in (RENDER_ORDER if lifecycle_scope else ()):
             try:
                 shared._refresh_tree(driver, wait, options, options.database)
                 database_label = (
@@ -865,9 +885,9 @@ def run(options):
     completed_modes = {item['mode'] for item in completed}
     return {
         'schema': ('cdeadmin.firebird-database-lifecycle-ui-gate.v1'
-                   if full_scope else
+                   if lifecycle_scope else
                    'cdeadmin.firebird-rounding-inheritance-ui-gate.v1'),
-        'scope': 'full' if full_scope else 'inheritance',
+        'scope': scope,
         'captured_at': datetime.now(timezone.utc).isoformat(),
         'engine_id': ENGINE_ID, 'interface_id': PROFILE_ID,
         'reference_version': REFERENCE_VERSION,
@@ -875,7 +895,7 @@ def run(options):
         'theme': options.theme,
         'font_scale': options.font_scale,
         'evidence_variant': evidence_variant(options),
-        'expected_modes': list(COMPLETION_ORDER) if full_scope else [],
+        'expected_modes': list(COMPLETION_ORDER) if lifecycle_scope else [],
         'rendered': rendered, 'completed': completed,
         'rounding': rounding,
         'inheritance': inheritance,
@@ -902,8 +922,9 @@ def run(options):
         'complete': (
             passed_modes == expected_modes and
             completed_modes == expected_modes and not failures and
-            len(inheritance.get('cases', [])) == 9 and
-            len(inheritance.get('target_setups', [])) == 3 and
+            (not inheritance_scope or (
+                len(inheritance.get('cases', [])) == 9 and
+                len(inheritance.get('target_setups', [])) == 3)) and
             {item['mode'] for item in rounding} ==
             set(rounding_modes) and
             not cleanup.get('unverified_paths')

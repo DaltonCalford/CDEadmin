@@ -293,7 +293,8 @@
         {"field_id": "sql_dialect", "label": "Database SQL dialect", "control": "select", "required": false, "default": "3", "options": [{"value": "1", "label": "1"}, {"value": "3", "label": "3"}]},
         {"field_id": "forced_writes", "label": "Force synchronous writes", "control": "boolean", "required": false, "default": true},
         {"field_id": "reserve_space", "label": "Reserve page space for record versions", "control": "boolean", "required": false, "default": true},
-        {"field_id": "stored_page_buffers", "label": "Stored database page buffers", "control": "number", "required": false, "integer": true, "minimum": 0, "maximum": 2147483646, "help": "Optional persistent database-header override. Zero uses the server default; nonzero values must be at least 50 and take precedence over attachment cache requests. 32-bit servers limit this to 131072; 64-bit servers to 2147483646. Allocation also depends on available memory."}
+        {"field_id": "stored_page_buffers", "label": "Stored database page buffers", "control": "number", "required": false, "integer": true, "minimum": 0, "maximum": 2147483646, "help": "Optional persistent database-header override. Zero uses the server default; nonzero values must be at least 50 and take precedence over attachment cache requests. 32-bit servers limit this to 131072; 64-bit servers to 2147483646. Allocation also depends on available memory."},
+        {"field_id": "sweep_interval", "label": "Automatic sweep interval (transaction gap)", "control": "number", "required": false, "integer": true, "minimum": 0, "maximum": 2147483647, "help": "Optional stored threshold in transaction numbers. Omission keeps the native default; zero disables automatic threshold-triggered sweeps, not manual sweep or garbage collection. Applies to the database being created."}
       ]
     },
     "firebird_database_alter": {
