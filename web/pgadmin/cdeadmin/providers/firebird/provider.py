@@ -35,6 +35,7 @@ from .encryption_info import read_encryption_text
 from .attachment_cache import requested_pages, stored_page_buffers
 from .decfloat_traps import requested_traps
 from .parallel_workers import requested_workers
+from .failed_session import discard_failed_session
 from .error_diagnostics import status_codes
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
@@ -3231,6 +3232,7 @@ def _create_client(permissions):
         connection_initializer=lambda connection, route: (
             _initialize_connection(connection, route, module)
         ),
+        failed_session_releaser=discard_failed_session,
         database_create_arguments=lambda route, database, options: (
             _database_create_arguments(route, database, options, module)
         ),

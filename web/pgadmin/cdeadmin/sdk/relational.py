@@ -100,6 +100,8 @@ class RelationalClientConfig:
     session_initializer: Callable[
         [object, Mapping[str, Any]], None
     ] | None = field(default=None, repr=False, compare=False)
+    failed_session_releaser: Callable[[object], None] | None = field(
+        default=None, repr=False, compare=False)
     transaction_controller: Callable[
         [object, str], None
     ] | None = field(default=None, repr=False, compare=False)
@@ -250,6 +252,10 @@ class RelationalClientConfig:
             raise RelationalClientError(
                 'session_initializer must be callable'
             )
+        if self.failed_session_releaser is not None and not callable(
+                self.failed_session_releaser):
+            raise RelationalClientError(
+                'failed_session_releaser must be callable')
         if self.transaction_controller is not None and not callable(
             self.transaction_controller
         ):
@@ -381,10 +387,10 @@ class RelationalDBAPIClient:
             try:
                 self.config.connection_initializer(connection, route)
             except RelationalClientError:
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise
             except Exception as exc:
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise self._driver_failure(
                     f'{self.config.profile.engine_name} session '
                     'initialization failed', exc
@@ -392,7 +398,7 @@ class RelationalDBAPIClient:
             except BaseException:
                 # The caller has not received this handle. Release it on
                 # interruption too, without wrapping or swallowing shutdown.
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise
         return connection
 
@@ -804,15 +810,15 @@ class RelationalDBAPIClient:
                     connection, self._route(request)
                 )
             except RelationalClientError:
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise
             except Exception as exc:
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise self._driver_failure(
                     'relational retained-session initialization failed', exc
                 ) from None
             except BaseException:
-                self._forget_and_close(connection)
+                self._discard_failed_session(connection)
                 raise
         return connection
 
@@ -1165,3 +1171,16 @@ class RelationalDBAPIClient:
     def _forget_and_close(self, connection):
         self._forget_connection(connection)
         self._safe_close(connection)
+
+    def _discard_failed_session(self, connection):
+        """Release a handle that initialization never published to a caller."""
+        self._forget_connection(connection)
+        release = getattr(self.config, 'failed_session_releaser', None)
+        if release is None:
+            self._safe_close(connection)
+        else:
+            try:
+                release(connection)
+            except Exception:
+                # Preserve the original initialization failure or interruption.
+                pass

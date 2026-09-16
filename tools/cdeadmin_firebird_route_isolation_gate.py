@@ -10,6 +10,8 @@ import time
 import uuid
 from pathlib import Path
 from unittest.mock import patch
+from dataclasses import replace
+from types import SimpleNamespace
 
 if __package__:
     from .cdeadmin_firebird_logical_volumes_gate import (
@@ -24,6 +26,70 @@ else:
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
 from pgadmin.cdeadmin.providers.firebird.provider import _server_arguments
+from pgadmin.cdeadmin.providers.firebird.provider import _create_client
+from pgadmin.cdeadmin.providers.firebird.failed_session import (
+    discard_failed_session,
+)
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from pgadmin.cdeadmin.security.secrets import SecretLease
+
+
+def failed_initialization_case(native, route, password, retained, interrupted):
+    from firebird.base.hooks import hook_manager
+    seen, retained_calls = [], []
+    client = _create_client(SimpleNamespace(
+        acquire_secret=lambda *_args: SecretLease(password)))
+    error = KeyboardInterrupt('owned cancellation') if interrupted else (
+        RuntimeError('owned initialization failure'))
+
+    def initialize(handle, _route):
+        seen.append(handle)
+        handle.execute_immediate('CREATE TABLE OWNED_FAILED_INIT (ID INTEGER)')
+        raise error
+
+    def retain(handle):
+        retained_calls.append(handle)
+        return True
+
+    client.config = replace(client.config, **{
+        'session_initializer' if retained else 'connection_initializer':
+        initialize})
+    event = native.core.ConnectionHook.DETACH_REQUEST
+    owner = native.core.Connection
+    hook_manager.add_hook(event, owner, retain)
+    try:
+        try:
+            client.open_session({'route': {
+                **route, 'credential_reference_id': 'owned-secret',
+                'principal_reference': 'owned-principal'}})
+        except KeyboardInterrupt as caught:
+            assert interrupted and caught is error
+        except RelationalClientError:
+            assert not interrupted
+        else:
+            raise AssertionError('Initialization unexpectedly succeeded')
+    finally:
+        hook_manager.remove_hook(event, owner, retain)
+        for handle in seen:
+            if not handle.is_closed():
+                discard_failed_session(handle)
+                raise AssertionError('Failed attachment was retained')
+    assert len(seen) == 1 and not retained_calls
+    assert not client._connections and not client._connection_databases
+    with native.connect(**_route_arguments(route, native),
+                        password=password) as observer:
+        with observer.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM MON$ATTACHMENTS '
+                           'WHERE MON$SYSTEM_FLAG = 0')
+            assert cursor.fetchone()[0] == 1
+            cursor.execute('SELECT COUNT(*) FROM RDB$RELATIONS '
+                           "WHERE RDB$RELATION_NAME = 'OWNED_FAILED_INIT'")
+            assert cursor.fetchone()[0] == 0
+        observer.rollback()
+    return {'retained_initializer': retained, 'interrupted': interrupted,
+            'native_attachment_released': True,
+            'pending_ddl_rolled_back': True,
+            'retention_hook_bypassed': True}
 
 
 def run(image):
@@ -31,6 +97,7 @@ def run(image):
     from firebird.driver.config import DriverConfig
     _configure_client_library(native)
     result = {'complete': False, 'cases': [], 'failures': [],
+              'failed_initializations': [],
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -113,6 +180,15 @@ def run(image):
                                             'INET', 'INET4')})
             except Exception as error:
                 failure(error)
+        for retained in (False, True):
+            for interrupted in (False, True):
+                phase = f'failed-init-{retained}-{interrupted}'
+                try:
+                    result['failed_initializations'].append(
+                        failed_initialization_case(
+                            native, route, password, retained, interrupted))
+                except Exception as error:
+                    failure(error)
     except Exception as error:
         failure(error)
     finally:
@@ -124,6 +200,7 @@ def run(image):
                 phase = 'cleanup'
                 failure(error)
     result['complete'] = (len(result['cases']) == 6 and
+                          len(result['failed_initializations']) == 4 and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result
