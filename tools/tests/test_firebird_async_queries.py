@@ -459,6 +459,73 @@ def test_synchronous_cursor_release_can_be_retried_without_execution(rig):
     rig.cursor.execute.assert_called_once()
 
 
+@pytest.mark.parametrize('operation', ['close_session', 'close', 'execute'])
+def test_result_release_excludes_competing_native_use(rig, operation):
+    rig.finish.set()
+    token = rig.client.execute(rig.handle, {'source': 'SELECT 42'})
+    entered, finish = threading.Event(), threading.Event()
+    results, failures = [], []
+
+    def close_cursor():
+        entered.set()
+        assert finish.wait(5), 'Cursor release was not resumed'
+
+    def describe():
+        try:
+            results.append(rig.client.describe_result(token))
+        except BaseException as exc:
+            failures.append(exc)
+
+    rig.cursor.close.side_effect = close_cursor
+    worker = threading.Thread(target=describe)
+    worker.start()
+    try:
+        assert entered.wait(5)
+        with pytest.raises(RelationalClientError, match='busy'):
+            if operation == 'close':
+                rig.client.close()
+            elif operation == 'close_session':
+                rig.client.close_session(rig.handle)
+            else:
+                rig.client.execute(rig.handle, {'source': 'SELECT 2'})
+        rig.handle.close.assert_not_called()
+        rig.cursor.execute.assert_called_once()
+    finally:
+        finish.set()
+        worker.join(5)
+        assert not worker.is_alive()
+        rig.cursor.close.side_effect = None
+    assert not failures
+    assert results[0]['payload']['rows'] == [(42,)]
+    rig.client.close_session(rig.handle)
+    with pytest.raises(RelationalClientError):
+        rig.client.describe_result(token)
+
+
+@pytest.mark.parametrize('token', [None, False, 'invalid', object()])
+def test_invalid_synchronous_result_token_is_rejected(rig, token):
+    with pytest.raises(RelationalClientError, match='token is invalid'):
+        rig.client.describe_result(token)
+    rig.cursor.close.assert_not_called()
+
+
+def test_async_result_rechecks_ownership_after_session_close(rig):
+    query = submit(rig)
+    complete(rig, query)
+    original_state = rig.client._state
+
+    def close_between_lookup_and_lock(handle):
+        state = original_state(handle)
+        with patch.object(rig.client, '_state', original_state):
+            rig.client.close_session(handle)
+        return state
+
+    with patch.object(rig.client, '_state', close_between_lookup_and_lock):
+        with pytest.raises(RelationalClientError,
+                           match='token is unavailable'):
+            rig.client.describe_result(query)
+
+
 def test_successful_database_drop_forgets_its_released_attachment(rig):
     with patch.object(rig.client, '_connect', return_value=rig.handle):
         receipt = rig.client.drop_database(

@@ -346,11 +346,21 @@ class FirebirdQueryClient(RelationalDBAPIClient):
 
     def describe_result(self, token):
         if not isinstance(token, _Query):
-            return self._describe_native_token(token)
+            if not isinstance(token, _ResultToken) or not any(
+                    item is token for item in self._tokens):
+                raise RelationalClientError(
+                    'relational result token is invalid')
+            # Result release may need retry after a cleanup failure. Permit
+            # that cleanup-only access, while excluding queries and detach.
+            with self._exclusive(token.connection, closing=True):
+                return self._describe_native_token(token)
         if token not in self._queries:
             raise RelationalClientError('Firebird query token is unavailable')
         state = self._state(token.handle)
         with state.lock:
+            if token not in self._queries:
+                raise RelationalClientError(
+                    'Firebird query token is unavailable')
             if token.done:
                 return copy.deepcopy(token.result)
             return {
