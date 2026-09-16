@@ -24,8 +24,7 @@ import { ModalContent, ModalFooter } from '../components/ModalContent';
 import ContextMenu from '../components/ContextMenu';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
 import ProviderTransactionObservation from './ProviderTransactionObservation';
-import FirebirdServiceObservation from './FirebirdServiceObservation';
-import FirebirdLimboObservation from './FirebirdLimboObservation';
+import ProviderAdministrationResult from './ProviderAdministrationResult';
 import {useModalCloseGuard} from '../helpers/ModalCloseGuard';
 import {providerConnectionFieldGridSx} from
   'sources/cdeadmin_ui/foundations/providerConnectionLayout';
@@ -1099,8 +1098,19 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   const targetUnavailable = Boolean(operation?.target_required && !targetResource);
   const outcomeContext = {post, operationId, resourceKind,
     targetResource: operation?.target_required === false ? null : targetResource};
-  const result = administrationOutcomeValue(outcome, outcomeContext);
+  // A completed DROP can leave no current object, including an object editor
+  // whose operation list disappears. Keep its explicitly labelled receipt,
+  // never a stale editable target or a plan that could be applied again.
+  const detachedDrop = outcome?.operationId === 'drop' &&
+    outcome.post === post && outcome.resourceKind === resourceKind &&
+    typeof outcome.targetResource?.resource_id === 'string' &&
+    Boolean(outcome.targetResource.resource_id) &&
+    !targetResource && !selectedResource &&
+    (operationId === 'drop' || (objectEditor && !operationId));
+  const result = administrationOutcomeValue(outcome, outcomeContext) ||
+    (detachedDrop ? outcome.value : null);
   const setResult = (value) => setOutcome(value ? {...outcomeContext, value,
+    operationTitle: operation?.title,
     targetResource: outcomeContext.targetResource ? {
       ...outcomeContext.targetResource,
     } : null} : null);
@@ -1226,7 +1236,9 @@ export function VisualAdministration({catalog, resources, selectedResource, post
   }, [operationId, resourceKind, inspectedResource]);
 
   useEffect(() => {
-    setResult(null);
+    setOutcome((current) => current?.operationId === 'drop' &&
+      current.post === post && current.resourceKind === resourceKind &&
+      objectEditor && !selectedResource && !operationId ? current : null);
   }, [operationId, resourceKind, post]);
 
   // A preview authorizes one exact draft and target, never later edits.
@@ -1419,6 +1431,10 @@ export function VisualAdministration({catalog, resources, selectedResource, post
         sx={{minWidth: 0, '& .MuiFormHelperText-root': {
           whiteSpace: 'normal', overflowWrap: 'anywhere',
         }}}>
+        {detachedDrop && <Alert severity="info" sx={{mb: 2}}
+          aria-label={gettext('Completed object task')}>
+          {gettext('The original object is no longer selected. This is its recorded response, not an editable object.')}
+        </Alert>}
         {objectEditor && definitionOwner?.resource_id &&
           typeof onOpenDefinitionOwner === 'function' &&
           operationId === 'inspect' && <Box sx={{mb: 1}}>
@@ -1520,33 +1536,8 @@ export function VisualAdministration({catalog, resources, selectedResource, post
             {' '}{plan.impact.data_movement_possible ?
               gettext('Data movement may occur.') : gettext('No data movement is expected.')}
           </Alert>}
-          {result && <>
-            {result.provider_result?.driver_observation?.service_release?.service_handle_released === false &&
-              <Alert severity="warning" sx={{mt: 2}}
-                aria-label={gettext('Firebird service cleanup required')}>
-                {gettext('Firebird service handle release is unconfirmed. Do not replay the operation. Review its returned outcome separately from cleanup, then explicitly close the provider connection to retry handle release.')}
-              </Alert>}
-            {(result.workspace_follow_up || []).filter((item) =>
-              item.state === 'failed' && typeof item.message === 'string'
-            ).map((item, index) => <Alert key={`${item.action}-${index}`}
-              severity="warning" sx={{mt: 2}}
-              aria-label={gettext('Connection registration follow-up required')}>
-              {item.message}
-            </Alert>)}
-            <Alert severity="info" sx={{mt: 2}}>
-              {gettext('The provider response was recorded. Finality remains provider-owned; review the returned state and any required post-state validation.')}
-            </Alert>
-            {result.provider_result?.driver_observation?.schema === 'cdeadmin.firebird-limbo-result.v1' ?
-              <FirebirdLimboObservation observation={result.provider_result.driver_observation} /> :
-              result.provider_result?.driver_observation?.schema === 'cdeadmin.firebird-service-result.v1' ?
-                <FirebirdServiceObservation title={operation?.title}
-                  observation={result.provider_result.driver_observation} /> :
-                <Box component="pre" aria-label={gettext('Provider operation result')}
-                  sx={{mt: 1, p: 1, overflow: 'auto', maxHeight: 320,
-                    bgcolor: 'background.default'}}>
-                  {JSON.stringify(result.provider_result ?? result, null, 2)}
-                </Box>}
-          </>}
+          <ProviderAdministrationResult result={result}
+            title={outcome?.operationTitle} target={outcome?.targetResource} />
           {operation?.confirmation_required && plan?.state === 'ready' &&
       <FormControlLabel control={<Checkbox checked={confirmed}
         onChange={(event) => setConfirmed(event.target.checked)} />}

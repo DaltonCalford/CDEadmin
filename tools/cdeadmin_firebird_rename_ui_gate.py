@@ -142,6 +142,7 @@ def run(options, profiles):
 
     def confirmation_drop(table, case):
         print('confirmation drop: ' + case, flush=True)
+        object_editor = case in ('array', 'identity')
         current = forms._workspace_probe(browser, ['table'],
                                          collect_context_commands=False)
         operation = next(iter(forms._enumerate_operations(
@@ -151,8 +152,15 @@ def run(options, profiles):
                       item['resource_kind'] == 'table' and
                       item['display_name'] == table)
         forms._open_focused_form(browser, operation, target,
-                                 current['database_target_id'])
+                                 current['database_target_id'],
+                                 workspace=('object' if object_editor else
+                                            'administration'))
         forms._wait_for_operation(wait, operation)
+        if object_editor:
+            wait.until(lambda driver: any(
+                item.is_displayed() for item in driver.find_elements(
+                    'css selector',
+                    '[aria-label="Selected object operations"]')))
         label = next(field['label'] for field in operation['form']['fields']
                      if field['field_id'] == 'confirmation')
         first = plan_preview(browser, wait, operation, {label: table})
@@ -176,13 +184,21 @@ def run(options, profiles):
         wait.until(lambda _driver: not table_exists(table))
 
         def idle(driver):
+            if object_editor:
+                return any(item.is_displayed() for item in
+                           driver.find_elements(
+                               'css selector',
+                               '[aria-label="Completed object task"]'))
             field = visible_named_control(driver, label)
             return field is not None and field.is_enabled()
 
         wait.until(idle)
         target_control = visible_named_control(browser, 'Target resource')
-        assert target_control is not None
-        assert not target_control.text.replace('\u200b', '').strip()
+        if object_editor:
+            assert target_control is None
+        else:
+            assert target_control is not None
+            assert not target_control.text.replace('\u200b', '').strip()
         assert not visible_named_control(
             browser, 'Validate and preview').is_enabled()
         assert not visible_named_control(
@@ -191,12 +207,31 @@ def run(options, profiles):
             'css selector', '[role="alert"][class*="MuiAlert-standardError"]'))
         assert 'Do not repeat the operation' not in browser.find_element(
             'tag name', 'body').text
+        output = wait.until(lambda driver: next((
+            item for item in driver.find_elements(
+                'css selector', '[aria-label="Provider operation result"]')
+            if item.is_displayed()), None))
+        response = json.loads(output.text)
+        assert response['accepted'] is True
+        assert response['commit_requested'] is True
+        assert response['transaction_finality_interpreted_by_common_code'] is (
+            False)
+        response_target = browser.find_element(
+            'css selector', '[aria-label="Provider response target"]')
+        assert table in response_target.text
+        assert target['resource_id'] in response_target.text
+        after_drop_images = screenshot_form_pages(
+            browser, options.output_root / (case + '-drop-result'))
         result['confirmation_checks'].append({
             'case': case, 'resource_kind': 'table', 'operation_id': 'drop',
+            'surface': 'object-editor' if object_editor else 'task-form',
             'first_plan_id': first['plan_id'],
             'second_plan_id': second['plan_id'],
             'same_draft_reconfirmed': True,
             'no_automatic_replacement_target': True,
+            'drop_receipt_visible_after_refresh': True,
+            'response_original_resource_id': target['resource_id'],
+            'after_drop_screenshots': after_drop_images,
             'native_object_present_before_explicit_apply': True,
             'native_object_absent_after_explicit_apply': True,
             'screenshot': str(path), 'sha256': digest})

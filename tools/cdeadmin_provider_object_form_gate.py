@@ -474,17 +474,21 @@ def _workspace_probe(driver, resource_kinds=None,
     )
 
 
-def _open_focused_form(driver, operation, target, database_target_id):
+def _open_focused_form(driver, operation, target, database_target_id, *,
+                       workspace='administration'):
+    if workspace not in ('administration', 'object'):
+        raise ValueError('Choose a task form or object editor workspace')
     driver.execute_script(
         """
         const operation = arguments[0];
         const target = arguments[1];
         const databaseTargetId = arguments[2];
+        const workspace = arguments[3];
         const app = window.pgAdmin;
         const item = window.__cdeadminQaEndpointItem;
         const node = app.Browser.Nodes.server;
         node.callbacks.open_cde_workspace.call(node, {item},
-          'administration', {
+          workspace, {
             resource_id: operation.resource_kind === 'database' ?
               databaseTargetId : target?.resource_id,
             database_target_id: databaseTargetId,
@@ -493,7 +497,7 @@ def _open_focused_form(driver, operation, target, database_target_id):
             task_title: operation.title,
           });
         """,
-        operation, target, database_target_id,
+        operation, target, database_target_id, workspace,
     )
 
 
