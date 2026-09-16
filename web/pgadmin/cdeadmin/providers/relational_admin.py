@@ -48,6 +48,7 @@ from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
 from .firebird import views as firebird_views
 from .firebird import exceptions as firebird_exceptions
+from .firebird import procedures as firebird_procedures
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
@@ -355,9 +356,10 @@ class RelationalAdministration:
                         'allow_system_target': True,
                     }]
             if (self.dialect.engine_id == 'firebird' and
-                    kind in {'view', 'exception'}):
-                module = (firebird_views if kind == 'view' else
-                          firebird_exceptions)
+                    kind in {'view', 'exception', 'procedure'}):
+                module = {'view': firebird_views,
+                          'exception': firebird_exceptions,
+                          'procedure': firebird_procedures}[kind]
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
                     if item['operation_id'] not in module.OPERATIONS
@@ -548,10 +550,10 @@ class RelationalAdministration:
             return {'errors': errors}
         draft = request.get('draft', {})
         if (self.dialect.engine_id == 'firebird' and
-                resource_kind in {'view', 'exception'} and
+                resource_kind in {'view', 'exception', 'procedure'} and
                 operation_id in firebird_views.OPERATIONS):
-            module = (firebird_views if resource_kind == 'view' else
-                      firebird_exceptions)
+            module = {'view': firebird_views, 'exception': firebird_exceptions,
+                      'procedure': firebird_procedures}[resource_kind]
             try:
                 module.compile_operation(
                     operation_id, draft, request.get('target_resource'))
@@ -3328,15 +3330,19 @@ class RelationalAdministration:
                         'native transaction completion; files preserved '
                         'by DROP remain on the server.']}
         if (self.dialect.engine_id == 'firebird' and
-                request['resource_kind'] in {'view', 'exception'} and
+                request['resource_kind'] in {
+                    'view', 'exception', 'procedure'} and
                 operation in firebird_views.OPERATIONS):
-            module = (firebird_views if request['resource_kind'] == 'view'
-                      else firebird_exceptions)
+            module = {'view': firebird_views, 'exception': firebird_exceptions,
+                      'procedure': firebird_procedures}[
+                          request['resource_kind']]
             statement = module.compile_operation(
                 operation, request['draft'], request.get('target_resource'))
             return {'statements': [{'source': statement, 'parameters': ()}],
-                    'warnings': [module.WARNING]
-                    if operation == 'recreate' else []}
+                    'warnings': ([module.WARNING]
+                                 if operation == 'recreate' else []) + (
+                                     [module.NOTICE] if hasattr(module, 'NOTICE')
+                                     else [])}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'sequence' and
                 operation in firebird_sequences.OPERATIONS - {'inspect'}):
@@ -4728,9 +4734,10 @@ class RelationalAdministration:
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
         if (self.dialect.engine_id == 'firebird' and
-                kind in {'view', 'exception'} and
+                kind in {'view', 'exception', 'procedure'} and
                 operation in firebird_views.OPERATIONS):
-            module = firebird_views if kind == 'view' else firebird_exceptions
+            module = {'view': firebird_views, 'exception': firebird_exceptions,
+                      'procedure': firebird_procedures}[kind]
             return module.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_limbo.ATTACHMENT_OPERATIONS):

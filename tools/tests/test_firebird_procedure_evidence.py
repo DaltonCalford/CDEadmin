@@ -1,0 +1,74 @@
+"""Procedure activation requires execution and security observations too."""
+import copy
+
+import pytest
+
+from tools.tests.test_firebird_exception_evidence import (
+    inputs as exception_inputs,
+)
+from tools.reference_engine_demos.generate_firebird_dialect_contract import (
+    supplement_procedures,
+)
+
+
+def inputs():
+    document, old = exception_inputs()
+    evidence = {key: value for key, value in old.items()
+                if not key.startswith('exception_')}
+    checks = copy.deepcopy(old['exception_checks'])
+    for index, name in enumerate(('P_BASE', 'P"東京')):
+        checks[index]['case'] = 'lifecycle-' + name
+        checks[index]['execution_and_security_verified'] = True
+    checks[-1]['procedure_unchanged'] = checks[-1].pop('exception_unchanged')
+    evidence['procedure_checks'] = checks
+    evidence['procedure_task_evidence'] = {
+        'visual_admin.procedure.' + op: {
+            'live_execution': 'passed', 'statements': [sql]}
+        for op, sql in (
+            ('create_or_alter', 'CREATE OR ALTER PROCEDURE P AS BEGIN END'),
+            ('recreate', 'RECREATE PROCEDURE P AS BEGIN END'))}
+    return document, evidence
+
+
+def test_merge_is_idempotent_and_nonmutating():
+    document, evidence = inputs()
+    original = copy.deepcopy(document)
+    result = supplement_procedures(document, evidence, 'b' * 64, 'owned.json')
+    assert document == original
+    assert result == supplement_procedures(
+        result, evidence, 'b' * 64, 'owned.json')
+
+
+@pytest.mark.parametrize('change', [
+    {'complete': False}, {'failures': ['failure']},
+    {'owned_container_removed': False}, {'engine_version': '5.0.3'},
+    {'procedure_checks': []}, {'procedure_task_evidence': {}},
+])
+def test_incomplete_native_evidence(change):
+    document, evidence = inputs()
+    evidence.update(change)
+    with pytest.raises(ValueError):
+        supplement_procedures(document, evidence, 'b' * 64, 'owned.json')
+
+
+@pytest.mark.parametrize('index', [0, 1])
+@pytest.mark.parametrize('field', [
+    'rollback_commit_verified', 'grant_semantics_verified',
+    'execution_and_security_verified'])
+def test_each_lifecycle_observation_required(index, field):
+    document, evidence = inputs()
+    evidence['procedure_checks'][index][field] = False
+    with pytest.raises(ValueError, match='lifecycle'):
+        supplement_procedures(document, evidence, 'b' * 64, 'owned.json')
+
+
+@pytest.mark.parametrize('index,field,value', [
+    (2, 'native_status_codes', []),
+    (2, 'original_and_dependent_preserved', False),
+    (3, 'procedure_unchanged', False), (3, 'denials', []),
+])
+def test_denial_proof_required(index, field, value):
+    document, evidence = inputs()
+    evidence['procedure_checks'][index][field] = value
+    with pytest.raises(ValueError):
+        supplement_procedures(document, evidence, 'b' * 64, 'owned.json')

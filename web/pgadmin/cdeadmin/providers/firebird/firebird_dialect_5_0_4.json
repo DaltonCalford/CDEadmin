@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 115,
+    "authoritative_task_count": 117,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -105,8 +105,10 @@
       "visual_admin.privilege.revoke",
       "visual_admin.procedure.alter",
       "visual_admin.procedure.create",
+      "visual_admin.procedure.create_or_alter",
       "visual_admin.procedure.drop",
       "visual_admin.procedure.grant",
+      "visual_admin.procedure.recreate",
       "visual_admin.procedure.revoke",
       "visual_admin.publication.alter",
       "visual_admin.role.alter",
@@ -148,7 +150,7 @@
       "visual_admin.view.recreate",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 115,
+    "implemented_task_count": 117,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8917,6 +8919,7 @@
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-object-privileges-live",
     "firebird-5.0.4-packages-live",
+    "firebird-5.0.4-procedures-live",
     "firebird-5.0.4-role-membership-live-execution",
     "firebird-5.0.4-sequences-live",
     "firebird-5.0.4-shadows-live",
@@ -9239,6 +9242,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "9a5141ca6e6993ed265b55226362cbb95eb04a8f871e0d995c9ad172a2600dde"
+    },
+    {
+      "artifact": "native-6.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-procedures-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "30912c156a5740e0cdfb3fad942ccf8f5ba5c32314576c9b5ce86b1e4854a05a"
+    },
+    {
+      "artifact": "native-6.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-procedures-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "30912c156a5740e0cdfb3fad942ccf8f5ba5c32314576c9b5ce86b1e4854a05a"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -10368,6 +10389,21 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-procedures-parser",
+        "firebird-5.0.4-procedures-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER PROCEDURE \"P\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS (Y INTEGER) SQL SECURITY DEFINER AS BEGIN Y = X + 2; END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER PROCEDURE \"P\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS (Y INTEGER) SQL SECURITY DEFINER AS BEGIN Y = X + 2; END"
+      ],
+      "task_id": "visual_admin.procedure.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
         "firebird-5.0.4-task-parser-acceptance",
         "firebird-5.0.4-task-live-execution"
       ],
@@ -10393,6 +10429,21 @@
         "GRANT EXECUTE ON PROCEDURE \"P\" TO USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.procedure.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-procedures-parser",
+        "firebird-5.0.4-procedures-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE PROCEDURE \"P\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS (Y INTEGER) SQL SECURITY INVOKER AS BEGIN Y = X + 3; END",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE PROCEDURE \"P\"\"\u6771\u4eac\"\n(X INTEGER = 2) RETURNS (Y INTEGER) SQL SECURITY INVOKER AS BEGIN Y = X + 3; END"
+      ],
+      "task_id": "visual_admin.procedure.recreate"
     },
     {
       "binding_style": "positional_question_mark",

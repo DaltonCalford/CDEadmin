@@ -533,6 +533,12 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'procedure' and operation_id in {'create_or_alter',
+                                                   'recreate'}:
+            return rendered({
+                'name': 'CDE_UI_PROCEDURE', 'confirmation': str(name),
+                'declaration': 'AS BEGIN END',
+            })
         if kind == 'exception' and operation_id in {'create_or_alter',
                                                    'recreate'}:
             return rendered({

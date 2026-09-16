@@ -915,42 +915,58 @@ def supplement_views(document, evidence, digest, artifact):
 
 
 def supplement_exceptions(document, evidence, digest, artifact):
+    return _supplement_named_replacement(
+        document, evidence, digest, artifact, 'exception',
+        ('EX_BASE', 'EX"東京'))
+
+
+def supplement_procedures(document, evidence, digest, artifact):
+    return _supplement_named_replacement(
+        document, evidence, digest, artifact, 'procedure',
+        ('P_BASE', 'P"東京'))
+
+
+def _supplement_named_replacement(
+        document, evidence, digest, artifact, kind, names):
     validate_dialect_contract(document, PROFILE)
-    checks = evidence.get('exception_checks', [])
-    required = {'lifecycle-EX_BASE', 'lifecycle-EX"東京',
+    checks = evidence.get(kind + '_checks', [])
+    required = {'lifecycle-' + names[0], 'lifecycle-' + names[1],
                 'dependency-denial', 'permission-denials'}
-    tasks = {'visual_admin.exception.create_or_alter',
-             'visual_admin.exception.recreate'}
+    tasks = {'visual_admin.' + kind + '.' + operation
+             for operation in ('create_or_alter', 'recreate')}
     if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
             evidence.get('engine_version') != '5.0.4' or
             evidence.get('complete') is not True or
             evidence.get('owned_container_removed') is not True or
             evidence.get('failures') != [] or len(checks) != 4 or
             {item.get('case') for item in checks} != required or
-            set(evidence.get('exception_task_evidence', {})) != tasks):
-        raise ValueError('Exception native evidence is incomplete')
+            set(evidence.get(kind + '_task_evidence', {})) != tasks):
+        raise ValueError(kind + ' native evidence is incomplete')
     by_case = {item['case']: item for item in checks}
-    for name in ('EX_BASE', 'EX"東京'):
+    fields = ('rollback_commit_verified', 'grant_semantics_verified')
+    if kind == 'procedure':
+        fields += ('execution_and_security_verified',)
+    for name in names:
         if any(by_case['lifecycle-' + name].get(field) is not True for field in
-               ('rollback_commit_verified', 'grant_semantics_verified')):
-            raise ValueError('Exception lifecycle proof missing')
+               fields):
+            raise ValueError(kind + ' lifecycle proof missing')
     dependency = by_case['dependency-denial']
     if (dependency.get('original_and_dependent_preserved') is not True or
             335544630 not in dependency.get('native_status_codes', [])):
-        raise ValueError('Exception dependency proof missing')
+        raise ValueError(kind + ' dependency proof missing')
     permission = by_case['permission-denials']
     denials = permission.get('denials', [])
-    if (permission.get('exception_unchanged') is not True or
+    if (permission.get(kind + '_unchanged') is not True or
             len(denials) != 2 or
             {item.get('operation') for item in denials} !=
             {'create_or_alter', 'recreate'} or any(
                 335544352 not in item.get('native_status_codes', [])
                 for item in denials)):
-        raise ValueError('Exception permission proof missing')
+        raise ValueError(kind + ' permission proof missing')
     normalized = {**evidence,
-                  'task_evidence': evidence['exception_task_evidence']}
+                  'task_evidence': evidence[kind + '_task_evidence']}
     return _supplement_replacement(
-        document, normalized, digest, artifact, tasks, 'exceptions')
+        document, normalized, digest, artifact, tasks, kind + 's')
 
 
 def _supplement_replacement(
@@ -1422,7 +1438,8 @@ def main(argv=None):
     parser.add_argument('--supplement', choices=(
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
-        'sequences', 'shadows', 'database-storage', 'views', 'exceptions'),
+        'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
+        'procedures'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1436,6 +1453,7 @@ def main(argv=None):
                       'packages': supplement_packages,
                       'views': supplement_views,
                       'exceptions': supplement_exceptions,
+                      'procedures': supplement_procedures,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
                       'database-storage': supplement_database_storage,
