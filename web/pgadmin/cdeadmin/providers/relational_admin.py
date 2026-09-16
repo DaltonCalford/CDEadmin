@@ -51,6 +51,7 @@ from .firebird import exceptions as firebird_exceptions
 from .firebird import procedures as firebird_procedures
 from .firebird import functions as firebird_functions
 from .firebird import triggers as firebird_triggers
+from .firebird import table_replacement as firebird_table_replacement
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
@@ -377,6 +378,13 @@ class RelationalAdministration:
                     'target_required': operation == 'recreate',
                     'confirmation_required': True,
                 } for operation in sorted(module.OPERATIONS)]
+            if self.dialect.engine_id == 'firebird' and kind == 'table':
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] != 'recreate'
+                ] + [{'operation_id': 'recreate', 'title': 'Recreate table',
+                      'mutation_class': 'destructive', 'target_required': True,
+                      'confirmation_required': True}]
             if (self.dialect.engine_id == 'firebird' and
                     kind in {'package', 'sequence'}):
                 module = (firebird_packages if kind == 'package' else
@@ -554,6 +562,16 @@ class RelationalAdministration:
             })
             return {'errors': errors}
         draft = request.get('draft', {})
+        if (self.dialect.engine_id == 'firebird' and
+                resource_kind == 'table' and operation_id == 'recreate'):
+            try:
+                firebird_table_replacement.compile_operation(
+                    draft, request.get('target_resource'),
+                    self._column_definition, self._constraint_definition)
+            except RelationalClientError as error:
+                errors.append({'field_id': None, 'code': 'invalid_table',
+                               'message': str(error)})
+            return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
                 resource_kind in {
                     'view', 'exception', 'procedure', 'function', 'trigger'} and
@@ -3338,6 +3356,13 @@ class RelationalAdministration:
                         'native transaction completion; files preserved '
                         'by DROP remain on the server.']}
         if (self.dialect.engine_id == 'firebird' and
+                request['resource_kind'] == 'table' and operation == 'recreate'):
+            statement = firebird_table_replacement.compile_operation(
+                request['draft'], request.get('target_resource'),
+                self._column_definition, self._constraint_definition)
+            return {'statements': [{'source': statement, 'parameters': ()}],
+                    'warnings': [firebird_table_replacement.WARNING]}
+        if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] in {
                     'view', 'exception', 'procedure', 'function', 'trigger'} and
                 operation in firebird_views.OPERATIONS):
@@ -4743,6 +4768,9 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
+        if (self.dialect.engine_id == 'firebird' and kind == 'table' and
+                operation == 'recreate'):
+            return firebird_table_replacement.form(self._field)
         if (self.dialect.engine_id == 'firebird' and
                 kind in {'view', 'exception', 'procedure', 'function',
                          'trigger'} and

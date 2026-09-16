@@ -128,7 +128,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
             'fixup_database', 'set_replica_mode', 'upgrade_database',
         }) | database_storage.OPERATIONS | limbo.ATTACHMENT_OPERATIONS,
         'table': frozenset({
-            'inspect', 'create', 'alter', 'drop',
+            'inspect', 'create', 'alter', 'drop', 'recreate',
             'insert', 'update', 'delete', 'grant', 'revoke',
         }),
         'view': frozenset({'inspect', 'create', 'alter', 'drop',

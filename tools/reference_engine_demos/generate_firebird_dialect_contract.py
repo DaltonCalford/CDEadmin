@@ -932,6 +932,41 @@ def supplement_functions(document, evidence, digest, artifact):
         ('F_BASE', 'F"東京'))
 
 
+def supplement_table_replacement(document, evidence, digest, artifact):
+    validate_dialect_contract(document, PROFILE)
+    checks = evidence.get('table_replacement_checks', [])
+    lifecycle = {'lifecycle-PERSISTENT-None',
+                 'lifecycle-GLOBAL TEMPORARY-DELETE ROWS',
+                 'lifecycle-GLOBAL TEMPORARY-PRESERVE ROWS'}
+    tasks = {'visual_admin.table.recreate'}
+    if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != 5 or
+            {item.get('case') for item in checks} != lifecycle | {
+                'dependency-denial', 'permission-denial'} or
+            set(evidence.get('table_replacement_task_evidence', {})) != tasks):
+        raise ValueError('table recreation native evidence is incomplete')
+    by_case = {item['case']: item for item in checks}
+    for case in lifecycle:
+        if any(by_case[case].get(field) is not True for field in (
+                'rollback_commit_verified', 'data_and_retention_verified',
+                'metadata_and_grants_verified')):
+            raise ValueError('table recreation lifecycle proof missing')
+    for case, field, code in (
+        ('dependency-denial', 'original_and_dependent_preserved', 335544630),
+        ('permission-denial', 'table_unchanged', 335544352),
+    ):
+        if (by_case[case].get(field) is not True or
+                code not in by_case[case].get('native_status_codes', [])):
+            raise ValueError('table recreation denial proof missing')
+    return _supplement_replacement(
+        document, {**evidence, 'task_evidence':
+                   evidence['table_replacement_task_evidence']},
+        digest, artifact, tasks, 'table-replacement')
+
+
 def supplement_triggers(document, evidence, digest, artifact):
     validate_dialect_contract(document, PROFILE)
     checks = evidence.get('trigger_checks', [])
@@ -1484,7 +1519,7 @@ def main(argv=None):
         'roles', 'admin-mapping', 'mappings', 'columns', 'character-metadata',
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
         'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
-        'procedures', 'functions', 'triggers'),
+        'procedures', 'functions', 'triggers', 'table-replacement'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
@@ -1501,6 +1536,7 @@ def main(argv=None):
                       'procedures': supplement_procedures,
                       'functions': supplement_functions,
                       'triggers': supplement_triggers,
+                      'table-replacement': supplement_table_replacement,
                       'sequences': supplement_sequences,
                       'shadows': supplement_shadows,
                       'database-storage': supplement_database_storage,
