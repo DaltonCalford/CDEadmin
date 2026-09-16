@@ -612,16 +612,58 @@ def test_native_error_is_terminal_and_preserves_status_identity(rig):
     rig.handle.rollback.assert_not_called()
 
 
-def test_cancel_delivery_error_is_not_finality_and_cleanup_still_runs(rig):
+@pytest.mark.parametrize('codes,expected', [
+    ((335544721,), (335544721,)), (['private-code'], ()),
+    (None, ()), ((True,), ()), (tuple(range(1, 34)), ()),
+])
+def test_cancel_delivery_error_is_not_finality_and_cleanup_still_runs(
+        rig, codes, expected):
     query = submit(rig)
-    rig.handle._att.cancel_operation.side_effect = [RuntimeError('secret'),
-                                                    None, None]
+    error = RuntimeError('secret')
+    error.gds_codes = codes
+    rig.handle._att.cancel_operation.side_effect = [error, None, None]
     with pytest.raises(RelationalClientError, match='unknown') as caught:
         rig.client.cancel(query)
     assert 'secret' not in str(caught.value)
+    assert caught.value.gds_codes == expected
     assert not rig.client.describe_result(query)['complete']
     assert complete(rig, query)['payload']['execution_state'] == 'succeeded'
     assert not rig.client._state(rig.handle).cancellation_state_unknown
+
+
+@pytest.mark.parametrize('token', [None, False, 'invalid', object()])
+def test_cancel_rejects_invalid_tokens_without_native_dispatch(rig, token):
+    with pytest.raises(RelationalClientError, match='token is invalid'):
+        rig.client.cancel(token)
+    rig.handle._att.cancel_operation.assert_not_called()
+
+
+def test_cancel_completed_sync_result_checks_ownership(rig):
+    rig.finish.set()
+    token = rig.client.execute(rig.handle, {'source': 'SELECT 1'})
+    assert rig.client.cancel(token) is False
+    rig.client.close_session(rig.handle)
+    with pytest.raises(RelationalClientError, match='token is invalid'):
+        rig.client.cancel(token)
+    rig.handle._att.cancel_operation.assert_not_called()
+
+
+def test_cancel_rechecks_ownership_after_session_close(rig):
+    query = submit(rig)
+    complete(rig, query)
+    original_state = rig.client._state
+
+    def close_between_lookup_and_lock(handle):
+        state = original_state(handle)
+        with patch.object(rig.client, '_state', original_state):
+            rig.client.close_session(handle)
+        return state
+
+    with patch.object(rig.client, '_state', close_between_lookup_and_lock):
+        with pytest.raises(RelationalClientError,
+                           match='token is unavailable'):
+            rig.client.cancel(query)
+    rig.handle._att.cancel_operation.assert_not_called()
 
 
 def test_failed_cancel_cleanup_blocks_reuse_but_allows_explicit_close(rig):

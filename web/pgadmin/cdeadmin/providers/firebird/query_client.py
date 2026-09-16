@@ -373,11 +373,18 @@ class FirebirdQueryClient(RelationalDBAPIClient):
 
     def cancel(self, token):
         if not isinstance(token, _Query):
+            if not isinstance(token, _ResultToken) or not any(
+                    item is token for item in self._tokens):
+                raise RelationalClientError(
+                    'relational result token is invalid')
             return False  # Synchronous results have already completed.
         if token not in self._queries:
             raise RelationalClientError('Firebird query token is unavailable')
         state = self._state(token.handle)
         with state.lock:
+            if token not in self._queries:
+                raise RelationalClientError(
+                    'Firebird query token is unavailable')
             if token.done or state.query is not token:
                 return False
             token.cancellation_attempted = True
@@ -385,9 +392,11 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                 token.handle._att.cancel_operation(
                     self.module.CancelType.RAISE)
             except Exception as exc:
-                raise RelationalClientError(
+                error = RelationalClientError(
                     'Firebird cancellation request outcome is unknown (' +
-                    type(exc).__name__ + ')') from None
+                    type(exc).__name__ + ')')
+                error.gds_codes = status_codes(exc)
+                raise error from None
             return True  # Delivery accepted, NOT an observed final outcome.
 
     def execute(self, handle, request):

@@ -371,14 +371,24 @@ def query_diagnostics_case(native, route, password):
         token = client.execute(
             handle, {'source': 'SELECT 1 FROM RDB$DATABASE'})
         assert client.describe_result(token)['payload']['rows'] == [(1,)]
+        assert client.cancel(token) is False
+        assert client.cancel(query) is False
     finally:
         if query is not None and query.worker.is_alive():
             client.cancel(query)
             query.worker.join(10)
         client.close()
     assert not client._connections
+    for closed_token in (token, query):
+        try:
+            client.cancel(closed_token)
+        except RelationalClientError:
+            pass
+        else:
+            raise AssertionError('Closed result admitted cancellation')
     return {'native_status_codes': codes, 'sqlstate_preserved': True,
             'async_failure_published': True,
+            'completed_cancel_refused': True, 'closed_tokens_rejected': True,
             'private_text_absent': True, 'subsequent_query_succeeded': True}
 
 
