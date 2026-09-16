@@ -674,11 +674,15 @@ def provider_route_options(profile, data, existing=None):
     for field in profile.get('connection_fields', []):
         if not _field_is_visible(field, profile, data, route):
             continue
-        if field.get('required') and not route.get(field['route_key']):
+        value = route.get(field['route_key'])
+        present = bool(value) or (
+            field['control'] == 'number' and type(value) in (int, float)
+            and value == 0)
+        if field.get('required') and not present:
             raise EndpointRegistrationError(
                 f"{field['label']} is required"
             )
-        if not route.get(field['route_key']):
+        if not present:
             continue
         missing = [
             item for item in field.get('requires_fields', [])

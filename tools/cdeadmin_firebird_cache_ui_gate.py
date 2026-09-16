@@ -110,7 +110,14 @@ def active_form(driver):
     return forms[0]
 
 
-def run(options):
+def run(options, *, preferences=None):
+    prefs = preferences or SimpleNamespace(
+        policy_key='attachment_cache_policy',
+        value_key='attachment_cache_pages',
+        label=LABEL, value_label=PAGES, labels=LABELS, custom_value=512,
+        parent_values=[('NATIVE_DEFAULT', None), ('CUSTOM', 128),
+                       ('CUSTOM', 256)],
+        fill=fill, capture=capture, observe=observe, record_key='pages')
     profile = owned_profile(options)
     password = os.environ.get(options.password_env)
     if not password:
@@ -148,27 +155,26 @@ def run(options):
         driver.get(options.url.rstrip('/') + '/browser/')
         shared._prepare_tree(driver, wait, options, options.database)
         options.database_forms = shared._catalog_forms(driver)
-        for choice in LABELS:
+        for choice in prefs.labels:
             phase = 'target-' + choice
             try:
                 shared._open_form(driver, wait, 'edit', options.database)
-                fill(wait, choice, 512)
+                prefs.fill(wait, choice, prefs.custom_value)
                 shared._submit_target_form(driver, wait, 'edit', {})
                 wait.until(lambda _driver: target()['configuration'].get(
-                    'attachment_cache_policy') == choice)
+                    prefs.policy_key) == choice)
                 result['target_setups'].append({
-                    'choice': choice, **capture(
+                    'choice': choice, **prefs.capture(
                         driver, wait, options.output_root / phase)})
                 shared._close(driver, wait)
             except Exception as error:
                 failure(phase, error)
                 continue
-            for parent, pages in [('NATIVE_DEFAULT', None), ('CUSTOM', 128),
-                                  ('CUSTOM', 256)]:
+            for parent, pages in prefs.parent_values:
                 phase = choice + '-parent-' + parent + '-' + str(pages)
                 try:
                     shared._open_form(driver, wait, 'server_edit')
-                    fill(wait, parent, pages)
+                    prefs.fill(wait, parent, pages)
                     wait.until(lambda value: shared.visible_named_control(
                         value, 'Save endpoint profile')).click()
                     wait.until(lambda value: any(
@@ -178,41 +184,46 @@ def run(options):
                             By.CSS_SELECTOR, '[role="alert"]')))
                     saved = json.loads(lifecycle._saved_route(
                         options, target()['target_id'])[0].configuration)
-                    if (saved.get('attachment_cache_policy') != parent or
+                    if (saved.get(prefs.policy_key) != parent or
                             (parent == 'CUSTOM' and saved.get(
-                                'attachment_cache_pages') != pages)):
-                        raise RuntimeError('Server cache policy not saved')
-                    server_proof = capture(
+                                prefs.value_key) != pages)):
+                        raise RuntimeError('Server preference not saved')
+                    server_proof = prefs.capture(
                         driver, wait,
                         options.output_root / ('server-' + phase))
                     shared._close(driver, wait)
                     shared._open_form(driver, wait, 'edit', options.database)
                     field = wait.until(lambda value:
                                        shared.visible_named_control(
-                                           value, LABEL))
-                    if ' '.join(field.text.split()) != LABELS[choice]:
+                                           value, prefs.label))
+                    if ' '.join(field.text.split()) != prefs.labels[choice]:
                         raise RuntimeError('Reopened target policy differs')
                     control = shared.visible_named_control(
-                        active_form(driver), PAGES)
+                        active_form(driver), prefs.value_label)
                     if choice == 'CUSTOM':
                         if (not control or
-                                control.get_attribute('value') != '512'):
-                            raise RuntimeError('Target page count differs')
+                                control.get_attribute('value') != str(
+                                    prefs.custom_value)):
+                            raise RuntimeError(
+                                'Target requested count differs')
                     elif control:
-                        raise RuntimeError('Inactive page count is visible')
-                    proof = capture(driver, wait, options.output_root / phase)
+                        raise RuntimeError('Inactive count is visible')
+                    proof = prefs.capture(
+                        driver, wait, options.output_root / phase)
                     selected = target()
                     if selected['configuration'].get(
-                            'attachment_cache_policy') != choice:
+                            prefs.policy_key) != choice:
                         raise RuntimeError('Parent edit rewrote target')
                     shared._close(driver, wait)
                     expected = (pages if choice == 'SERVER_DEFAULT' else
-                                512 if choice == 'CUSTOM' else None)
+                                prefs.custom_value if choice == 'CUSTOM'
+                                else None)
                     result['cases'].append({
-                        'choice': choice, 'parent': parent, 'pages': pages,
+                        'choice': choice, 'parent': parent,
+                        prefs.record_key: pages,
                         'server': server_proof, 'reopened': proof,
-                        'native': observe(options, module, password,
-                                          selected, profile, expected)})
+                        'native': prefs.observe(options, module, password,
+                                                selected, profile, expected)})
                 except Exception as error:
                     failure(phase, error)
                     try:
@@ -226,9 +237,10 @@ def run(options):
             driver.quit()
         except Exception as error:
             failure('browser-cleanup', error)
-    result['complete'] = (len(result['cases']) == 9 and
-                          len(result['target_setups']) == 3 and
-                          not result['failures'])
+    result['complete'] = (len(result['cases']) == (
+        len(prefs.labels) * len(prefs.parent_values)) and
+        len(result['target_setups']) == len(prefs.labels) and
+        not result['failures'])
     return result
 
 

@@ -338,6 +338,31 @@ _DATABASE_SPECS = {
                        'buffers take precedence. Server architecture and '
                        'available memory can reduce allocation. Read actual '
                        'allocation in database properties.')),
+            _field('parallel_workers_policy', 'Initial parallel-worker policy',
+                   'select', default='SERVER_DEFAULT',
+                   inherit_server_value='SERVER_DEFAULT',
+                   inherit_server_fields=['parallel_workers'], options=(
+                       {'value': 'SERVER_DEFAULT',
+                        'label': 'Use server preference'},
+                       {'value': 'NATIVE_DEFAULT', 'label': 'Native default'},
+                       {'value': 'CUSTOM', 'label': 'Request parallel workers'},
+                   ), help=(
+                       'Use server preference inherits policy and count '
+                       'together. Native default uses the server\'s '
+                       'ParallelWorkers configuration. Applies to new '
+                       'attachments, including creation, and survives ALTER '
+                       'SESSION RESET. Existing sessions and stored database '
+                       'settings are unchanged.')),
+            _field('parallel_workers', 'Requested parallel workers',
+                   'number', default=1, required=True, integer=True,
+                   minimum=0, maximum=32767,
+                   visible_when={'field_id': 'parallel_workers_policy',
+                                 'equals': 'CUSTOM'}, help=(
+                       'Zero is an explicit zero request, not the native '
+                       'default. Positive requests are capped by the '
+                       'server\'s MaxParallelWorkers configuration. This is '
+                       'an attachment preference, not a count of workers '
+                       'executing a task or a backup/restore service setting.')),
             _field('no_gc', 'Disable cooperative garbage collection',
                    'boolean', default=False),
             _field('no_db_triggers', 'Disable database triggers', 'boolean',

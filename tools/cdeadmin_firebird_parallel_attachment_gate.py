@@ -103,7 +103,8 @@ def run(image, *, provider_creation=False, server_mode='Super',
               'server_mode': server_mode, 'observed_server_modes': [],
               'provider_creation': provider_creation,
               'creation_ownership': creation_ownership}
-    operations = (('provider_create',) if provider_creation else
+    operations = (('provider_attach', 'provider_create')
+                  if provider_creation else
                   ('attach', 'driver_create', 'native_create'))
 
     def failure(case, error):
@@ -141,19 +142,26 @@ def run(image, *, provider_creation=False, server_mode='Super',
             dsn = f'127.0.0.1/{port}:{path}'
 
             def connect(request=None, operation='attach'):
-                create = operation != 'attach'
-                if operation == 'provider_create':
+                create = operation not in ('attach', 'provider_attach')
+                if operation in ('provider_create', 'provider_attach'):
                     from pgadmin.cdeadmin.providers.firebird.provider import (
                         _database_create_arguments, create_owned_database,
+                        _route_arguments,
                     )
+                    selected = {
+                        'host': '127.0.0.1', 'port': port, 'database': path,
+                        'parallel_workers_policy': (
+                            'NATIVE_DEFAULT' if request is None else 'CUSTOM'),
+                        'parallel_workers': request,
+                    }
+                    if not create:
+                        return native.connect(
+                            **_route_arguments(selected, native),
+                            user='SYSDBA', password=password)
                     target = (f'127.0.0.1/{port}:/var/lib/firebird/data/'
                               + 'owned_' + uuid.uuid4().hex + '.fdb')
                     arguments = _database_create_arguments(
-                        {'host': '127.0.0.1', 'port': port}, target, {},
-                        native)
-                    private = native.driver_config.get_database(
-                        arguments['database'])
-                    private.parallel_workers.value = request
+                        selected, target, {}, native)
                     return create_owned_database(
                         native, native.core, **arguments,
                         user='SYSDBA', password=password)

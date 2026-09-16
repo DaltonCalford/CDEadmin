@@ -34,6 +34,7 @@ from .restore_files import logical_restore_files, start_logical_restore
 from .encryption_info import read_encryption_text
 from .attachment_cache import requested_pages, stored_page_buffers
 from .decfloat_traps import requested_traps
+from .parallel_workers import requested_workers
 from .error_diagnostics import status_codes
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
@@ -243,6 +244,7 @@ def _wire_configuration(route):
 def _route_arguments(route, module=None, *, creation=None):
     cache_pages = requested_pages(route)
     traps = requested_traps(route)
+    workers = requested_workers(route)
     linger_policy = route.get('no_linger')
     if linger_policy is not None and (
         not isinstance(linger_policy, str) or
@@ -289,6 +291,7 @@ def _route_arguments(route, module=None, *, creation=None):
             'wire_compression', 'dbkey_scope', 'decfloat_round', 'no_linger',
             'attachment_cache_policy', 'attachment_cache_pages',
             'decfloat_traps_policy',
+            'parallel_workers_policy', 'parallel_workers',
         )
     )
     if not configured or module is None:
@@ -309,6 +312,7 @@ def _route_arguments(route, module=None, *, creation=None):
         material['creation'] = creation
     material['attachment_cache_pages'] = cache_pages
     material['decfloat_traps'] = traps
+    material['parallel_workers'] = workers
     digest = hashlib.sha256(json.dumps(
         material, sort_keys=True, separators=(',', ':'),
     ).encode('utf-8')).hexdigest()[:24]
@@ -370,9 +374,7 @@ def _route_arguments(route, module=None, *, creation=None):
                 [module.DecfloatTraps[name] for name in traps]
                 if traps is not None else None)
             config.cache_size.value = cache_pages
-            # No attachment-worker preference is exposed yet. Do not inherit
-            # an unrelated process-wide driver default in the new create DPB.
-            config.parallel_workers.value = None
+            config.parallel_workers.value = workers
             # jrd.cpp applies this DPB only when attaching to an existing
             # database, not to the initial creation attachment. Suppression
             # affects a shared live cache, never the stored LINGER setting.

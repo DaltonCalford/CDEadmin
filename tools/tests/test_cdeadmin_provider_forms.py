@@ -253,6 +253,7 @@ class ProviderFormContractTests(unittest.TestCase):
             'decfloat_traps_policy': 'SERVER_DEFAULT',
             'no_linger': 'SERVER_DEFAULT',
             'attachment_cache_policy': 'SERVER_DEFAULT',
+            'parallel_workers_policy': 'SERVER_DEFAULT',
             'dbkey_scope': 'TRANSACTION',
             'no_db_triggers': False,
             'no_gc': False,

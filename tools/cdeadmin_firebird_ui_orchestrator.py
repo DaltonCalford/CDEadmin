@@ -77,6 +77,7 @@ GATE_SCRIPTS = {
     'linger-preferences': 'cdeadmin_firebird_linger_ui_gate.py',
     'cache-preferences': 'cdeadmin_firebird_cache_ui_gate.py',
     'trap-preferences': 'cdeadmin_firebird_traps_ui_gate.py',
+    'parallel-preferences': 'cdeadmin_firebird_parallel_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
 
@@ -185,6 +186,7 @@ def gate_command(options, url, database_label, config_database=None):
     elif options.gate_kind in {
             'lifecycle', 'inspector-tabs', 'rounding-inheritance',
             'linger-preferences', 'cache-preferences', 'trap-preferences',
+            'parallel-preferences',
             'creation-buffers-form', 'creation-sweep-form',
             'creation-lifecycle'}:
         if config_database is None:
@@ -209,7 +211,8 @@ def gate_command(options, url, database_label, config_database=None):
         if options.gate_kind == 'creation-lifecycle':
             command.extend(['--scope', 'lifecycle'])
         if options.gate_kind in {
-                'linger-preferences', 'cache-preferences', 'trap-preferences'}:
+                'linger-preferences', 'cache-preferences', 'trap-preferences',
+                'parallel-preferences'}:
             command.extend(['--profiles', str(options.profiles)])
     elif options.gate_kind == 'properties':
         command.extend([
