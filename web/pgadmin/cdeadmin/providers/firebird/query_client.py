@@ -122,6 +122,13 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             # remain owned but cannot execute queries or catalog operations.
             pass
 
+    def discard_unverified_session(self, handle):
+        with self._exclusive(handle, closing=True):
+            self._discard_failed_session(handle)
+            if not any(item is handle for item in self._connections):
+                with self._admission:
+                    self._attachment_states.pop(id(handle), None)
+
     def _release_failed_initialization(self, connection):
         failure = None
         try:

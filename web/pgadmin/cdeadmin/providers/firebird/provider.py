@@ -188,6 +188,11 @@ class FirebirdProvider(ActualEnginePilotProvider):
             return self.client.submit_query(handle, payload)
         return super()._execute_query_token(handle, payload)
 
+    def _discard_unverified_session(self, handle):
+        if isinstance(self.client, FirebirdQueryClient):
+            return self.client.discard_unverified_session(handle)
+        return super()._discard_unverified_session(handle)
+
     def release_for_profile_change(self):
         """Do not replace credentials or routing beneath an owned session."""
         if not isinstance(self.client, FirebirdQueryClient):

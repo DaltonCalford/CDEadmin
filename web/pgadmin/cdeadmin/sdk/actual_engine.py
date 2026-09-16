@@ -945,10 +945,13 @@ class ActualEnginePilotProvider:
         handle = self.client.open_session(payload)
         try:
             self._runtime_identity(payload, handle)
-        except Exception:
-            close = getattr(handle, 'close', None)
-            if callable(close):
-                close()
+        except BaseException:
+            try:
+                self._discard_unverified_session(handle)
+            except Exception:
+                # Cleanup must not replace the original verification failure.
+                # Providers retain ownership when release is unconfirmed.
+                pass
             raise
         session_id = str(uuid.uuid4())
         route_id = str(payload.get('route', {}).get('route_id', 'direct'))
@@ -968,6 +971,12 @@ class ActualEnginePilotProvider:
             'limits': {},
             'extensions': self._extension({'provider_owned': True}),
         }
+
+    def _discard_unverified_session(self, handle):
+        """Provider override point for handles not published as sessions."""
+        close = getattr(handle, 'close', None)
+        if callable(close):
+            close()
 
     def describe_transaction(self, request):
         payload = _mapping(request)

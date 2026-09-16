@@ -27,6 +27,49 @@ else:
 from pgadmin.cdeadmin.security.secrets import SecretLease
 
 
+def verify_identity_rejection(binding, request):
+    import firebird.driver as driver
+    from firebird.base.hooks import hook_manager
+    provider = binding.instance
+    verify = provider._runtime_identity
+    cases = []
+    for error_type in (RuntimeError, KeyboardInterrupt):
+        seen, retained = [], []
+        error = error_type('owned identity rejection')
+
+        def reject(payload, handle):
+            seen.append(handle)
+            verify(payload, handle)
+            raise error
+
+        def retain(handle):
+            retained.append(handle)
+            return True
+
+        event = driver.core.ConnectionHook.DETACH_REQUEST
+        owner = driver.core.Connection
+        hook_manager.add_hook(event, owner, retain)
+        try:
+            with patch.object(provider, '_runtime_identity',
+                              side_effect=reject):
+                try:
+                    provider.open_session(request)
+                except error_type as caught:
+                    assert caught is error
+                else:
+                    raise AssertionError('Unverified session was published')
+        finally:
+            hook_manager.remove_hook(event, owner, retain)
+        assert len(seen) == 1 and seen[0].is_closed()
+        assert not retained and not provider._sessions
+        assert not provider.client._connections
+        cases.append({'failure_type': error_type.__name__,
+                      'session_not_published': True,
+                      'native_attachment_released': True,
+                      'retention_hook_bypassed': True})
+    return cases
+
+
 def finish_case_transaction(client, handle, action, application_path,
                             binding=None, session_id=None):
     if binding is not None:
@@ -133,6 +176,8 @@ def run_document(document, container, application_path=False,
         ADMINISTRATION.apply(client, plan)
         request = {'route': {**route, 'database': path}}
         if binding is not None:
+            result['identity_rejection_cleanup'] = verify_identity_rejection(
+                binding, request)
             session = binding.instance.open_session(request)
             session_id = session['session_id']
             # Native oracle access only; user transaction actions below use
