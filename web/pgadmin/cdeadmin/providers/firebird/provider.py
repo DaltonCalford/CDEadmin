@@ -33,6 +33,7 @@ from .backup_volumes import logical_backup_volumes, start_logical_backup
 from .restore_files import logical_restore_files, start_logical_restore
 from .encryption_info import read_encryption_text
 from .attachment_cache import requested_pages, stored_page_buffers
+from .decfloat_traps import requested_traps
 from .error_diagnostics import status_codes
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
@@ -240,6 +241,7 @@ def _wire_configuration(route):
 
 def _route_arguments(route, module=None, *, creation=None):
     cache_pages = requested_pages(route)
+    traps = requested_traps(route)
     linger_policy = route.get('no_linger')
     if linger_policy is not None and (
         not isinstance(linger_policy, str) or
@@ -285,6 +287,7 @@ def _route_arguments(route, module=None, *, creation=None):
             'dummy_packet_interval', 'wire_config', 'wire_crypt',
             'wire_compression', 'dbkey_scope', 'decfloat_round', 'no_linger',
             'attachment_cache_policy', 'attachment_cache_pages',
+            'decfloat_traps_policy',
         )
     )
     if not configured or module is None:
@@ -304,6 +307,7 @@ def _route_arguments(route, module=None, *, creation=None):
     if creation is not None:
         material['creation'] = creation
     material['attachment_cache_pages'] = cache_pages
+    material['decfloat_traps'] = traps
     digest = hashlib.sha256(json.dumps(
         material, sort_keys=True, separators=(',', ':'),
     ).encode('utf-8')).hexdigest()[:24]
@@ -361,6 +365,9 @@ def _route_arguments(route, module=None, *, creation=None):
             config.decfloat_round.value = (
                 module.DecfloatRound[rounding] if rounding is not None
                 else None)
+            config.decfloat_traps.value = (
+                [module.DecfloatTraps[name] for name in traps]
+                if traps is not None else None)
             config.cache_size.value = cache_pages
             # jrd.cpp applies this DPB only when attaching to an existing
             # database, not to the initial creation attachment. Suppression

@@ -79,3 +79,26 @@ def test_gate_rejects_unknown_modes_before_starting_a_fixture(
     with pytest.raises(ValueError, match='Unknown owned Firebird server mode'):
         gate.run('firebirdsql/firebird:5.0.4', server_mode=mode)
     docker.assert_not_called()
+
+
+@pytest.mark.parametrize('expected', ['Super', 'SuperClassic', 'Classic'])
+@pytest.mark.parametrize('defect', [None, 'missing', 'duplicate', 'null',
+                                    'wrong_mode'])
+def test_observed_server_mode_must_match_fixture(expected, defect):
+    from tools.cdeadmin_firebird_decfloat_attachment_gate import (
+        server_mode_observation,
+    )
+    handle = MagicMock()
+    rows = {'missing': [], 'duplicate': [(expected,), (expected,)],
+            'null': [(None,)], 'wrong_mode': [('Other',)]}.get(
+                defect, [(expected,)])
+    cursor = handle.cursor.return_value.__enter__.return_value
+    cursor.fetchall.return_value = rows
+    if defect:
+        with pytest.raises(RuntimeError, match='server mode differs'):
+            server_mode_observation(handle, expected)
+    else:
+        assert server_mode_observation(handle, expected) == expected
+    handle.commit.assert_not_called()
+    handle.rollback.assert_not_called()
+    handle.close.assert_not_called()

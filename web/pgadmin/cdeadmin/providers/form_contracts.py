@@ -267,6 +267,35 @@ _DATABASE_SPECS = {
                        'to this attachment, including after '
                        'ALTER SESSION RESET. '
                        'It does not alter stored database values.')),
+            _field('decfloat_traps_policy', 'Initial DECFLOAT trap policy',
+                   'select', default='SERVER_DEFAULT',
+                   inherit_server_value='SERVER_DEFAULT',
+                   inherit_server_fields=[
+                       'trap_division_by_zero', 'trap_inexact',
+                       'trap_invalid_operation', 'trap_overflow',
+                       'trap_underflow'], options=(
+                       {'value': 'SERVER_DEFAULT',
+                        'label': 'Use server preference'},
+                       {'value': 'NATIVE_DEFAULT', 'label': 'Native default'},
+                       {'value': 'CUSTOM', 'label': 'Custom initial traps'},
+                   ), help=(
+                       'Inherits policy and selections together. Custom '
+                       'requires at least one trap: an empty attachment list '
+                       'means native defaults, not disable all traps. Applies '
+                       'to new attachments including creation and is restored '
+                       'by ALTER SESSION RESET. Not a stored database setting.'
+                   )),
+            *tuple(_field(
+                field_id, label, 'boolean', default=default,
+                visible_when={'field_id': 'decfloat_traps_policy',
+                              'equals': 'CUSTOM'},
+            ) for field_id, label, default in (
+                ('trap_division_by_zero', 'Trap division by zero', True),
+                ('trap_inexact', 'Trap inexact results', False),
+                ('trap_invalid_operation', 'Trap invalid operations', True),
+                ('trap_overflow', 'Trap overflow', True),
+                ('trap_underflow', 'Trap underflow', False),
+            )),
             _field('no_linger', 'Attachment linger policy', 'select',
                    default='SERVER_DEFAULT',
                    inherit_server_value='SERVER_DEFAULT', options=(

@@ -158,6 +158,7 @@ def options(kind):
     ('lifecycle', None), ('rounding-inheritance', 'inheritance'),
     ('linger-preferences', None),
     ('cache-preferences', None),
+    ('trap-preferences', None),
     ('creation-buffers-form', 'creation-form'),
     ('creation-sweep-form', 'creation-sweep-form'),
     ('creation-lifecycle', 'lifecycle'),
@@ -180,6 +181,9 @@ def test_inheritance_scope_requires_isolated_config_and_is_explicit(
         assert command[command.index('--profiles') + 1] == '/profiles.json'
     if kind == 'cache-preferences':
         assert command[1].endswith('cdeadmin_firebird_cache_ui_gate.py')
+        assert command[command.index('--profiles') + 1] == '/profiles.json'
+    if kind == 'trap-preferences':
+        assert command[1].endswith('cdeadmin_firebird_traps_ui_gate.py')
         assert command[command.index('--profiles') + 1] == '/profiles.json'
     if scope is None:
         assert '--scope' not in command

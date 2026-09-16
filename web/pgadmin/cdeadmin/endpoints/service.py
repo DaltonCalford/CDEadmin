@@ -77,6 +77,24 @@ def _form_field_is_visible(field, form, data):
     return 'visible_when' not in field or matches(field['visible_when'])
 
 
+def _validate_firebird_trap_selection(profile, values, *, inheritance=False):
+    """Keep invalid initial trap selections out of saved Firebird profiles."""
+    identity = profile.get('profile_id') or profile.get(
+        'form_contract', {}).get('profile_id')
+    if identity != 'firebird-native':
+        return
+    if inheritance and values.get('decfloat_traps_policy') == 'SERVER_DEFAULT':
+        return
+    from pgadmin.cdeadmin.providers.firebird.decfloat_traps import (
+        requested_traps,
+    )
+    from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+    try:
+        requested_traps(values)
+    except RelationalClientError as error:
+        raise EndpointRegistrationError(str(error)) from None
+
+
 VERIFY_PERMISSIONS = frozenset({'network', 'secret_read'})
 WORKSPACE_PERMISSIONS = frozenset({
     'network', 'secret_read', 'data_read', 'data_write', 'administer',
@@ -1204,6 +1222,7 @@ class EndpointService:
                     f'{field["label"]} is invalid'
                 )
             values[field_id] = value
+        _validate_firebird_trap_selection(profile, values, inheritance=True)
         return values
 
     @staticmethod
@@ -1283,6 +1302,7 @@ class EndpointService:
                     f'{field["label"]} is invalid'
                 )
             values[field_id] = value
+        _validate_firebird_trap_selection(profile, values)
         return values
 
     @classmethod
@@ -1401,6 +1421,7 @@ class EndpointService:
                 'endpoint route input cannot contain credentials'
             )
         result = provider_route_options(profile, data, existing)
+        _validate_firebird_trap_selection(profile, result)
         if profile.get('route_kind') == 'embedded_file':
             if not result.get('database') or not result.get(
                 'filesystem_root'

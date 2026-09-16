@@ -43,6 +43,7 @@ from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
 from pgadmin.cdeadmin.providers.firebird.provider import (
     _initialize_connection, _database_create_arguments,
 )
+from pgadmin.cdeadmin.providers.firebird.decfloat_traps import TRAP_FIELDS
 
 
 ROUND_RESULTS = {
@@ -68,8 +69,22 @@ TRAP_PROBES = {
 }
 
 
+def server_mode_observation(handle, expected):
+    """Confirm fixture configuration from Firebird, not Docker input alone."""
+    with handle.cursor() as cursor:
+        cursor.execute(
+            'SELECT RDB$CONFIG_VALUE FROM RDB$CONFIG '
+            'WHERE RDB$CONFIG_NAME = ?', ('ServerMode',))
+        rows = cursor.fetchall()
+    if (len(rows) != 1 or len(rows[0]) != 1 or
+            not isinstance(rows[0][0], str) or
+            rows[0][0].strip() != expected):
+        raise RuntimeError('Native server mode differs from owned fixture')
+    return rows[0][0].strip()
+
+
 def run(image, provider_rounding=False, browser_options=None,
-        server_mode='Super'):
+        server_mode='Super', provider_traps=False):
     if server_mode not in ('Super', 'SuperClassic', 'Classic'):
         raise ValueError('Unknown owned Firebird server mode')
     import firebird.driver as native
@@ -81,6 +96,7 @@ def run(image, provider_rounding=False, browser_options=None,
               'server_mode_requested': server_mode,
               'provider_forms_qualified': False,
               'provider_rounding_mapping': provider_rounding,
+              'provider_trap_mapping': provider_traps,
               'owned_container_removed': False}
 
     def failure(case, error):
@@ -88,10 +104,22 @@ def run(image, provider_rounding=False, browser_options=None,
             'case': case, 'error_type': type(error).__name__,
             'native_status_codes': list(status_codes(error))})
 
+    def trap_preferences(traps):
+        if not traps:
+            # The baseline's empty native DPB is equivalent to native default.
+            # It is never represented as an empty CUSTOM provider selection.
+            return {'decfloat_traps_policy': 'NATIVE_DEFAULT'}
+        names = {item.name for item in traps}
+        return {'decfloat_traps_policy': 'CUSTOM',
+                **{field: name in names
+                   for field, name in TRAP_FIELDS.items()}}
+
     def connect(rounding=None, traps=None):
-        if provider_rounding and rounding is not None:
+        if (provider_rounding and rounding is not None) or provider_traps:
             selected = {**route, 'decfloat_round': getattr(
-                rounding, 'name', rounding)}
+                rounding, 'name', rounding) or 'NATIVE_DEFAULT'}
+            if provider_traps:
+                selected.update(trap_preferences(traps))
             handle = native.connect(password=password,
                                     **_route_arguments(selected, native))
             try:
@@ -123,8 +151,14 @@ def run(image, provider_rounding=False, browser_options=None,
         config.decfloat_traps.value = selected
         expected = sorted(t.name for t in selected) if selected else sorted(
             DEFAULT_TRAPS)
-        handle = native.create_database(
-            name, user='SYSDBA', password=password, overwrite=False)
+        if provider_traps:
+            arguments = _database_create_arguments(
+                {**route, **trap_preferences(selected)}, config.dsn.value,
+                {}, native)
+            handle = native.create_database(password=password, **arguments)
+        else:
+            handle = native.create_database(
+                name, user='SYSDBA', password=password, overwrite=False)
         try:
             initial = observe_traps(handle)
             assert initial == expected
@@ -150,6 +184,9 @@ def run(image, provider_rounding=False, browser_options=None,
             handle.drop_database()
             handle = None
             return {'creation_traps': initial, 'condition_probes': probes,
+                    'provider_preferences': (
+                        trap_preferences(selected)
+                        if provider_traps else None),
                     'unconfigured_reopen': reopened,
                     'session_reset_restored': True, 'owned_database_dropped':
                     True, 'stored_database_setting_changed': False}
@@ -212,6 +249,8 @@ def run(image, provider_rounding=False, browser_options=None,
                         cursor.execute("SELECT RDB$GET_CONTEXT('SYSTEM', "
                                        "'ENGINE_VERSION') FROM RDB$DATABASE")
                         result['engine_version'] = cursor.fetchone()[0]
+                    result['server_mode_observed'] = server_mode_observation(
+                        handle, server_mode)
                     assert observe_traps(handle) == sorted(DEFAULT_TRAPS)
                 break
             except native.Error:
@@ -227,10 +266,10 @@ def run(image, provider_rounding=False, browser_options=None,
                     else native.DecfloatRound[mode])
                 with connect(selected_rounding) as handle:
                     expression = (
-                            "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
-                            "CAST('0.1' AS DECFLOAT(16))), "
-                            "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
-                            "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
+                        "SELECT QUANTIZE(CAST('1.25' AS DECFLOAT(16)), "
+                        "CAST('0.1' AS DECFLOAT(16))), "
+                        "QUANTIZE(CAST('-1.25' AS DECFLOAT(16)), "
+                        "CAST('0.1' AS DECFLOAT(16))) FROM RDB$DATABASE")
                     with handle.cursor() as cursor:
                         cursor.execute(expression)
                         observed = tuple(str(value)
@@ -464,6 +503,7 @@ def main():
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--provider-rounding', action='store_true')
+    parser.add_argument('--provider-traps', action='store_true')
     parser.add_argument('--server-mode', default='Super',
                         choices=('Super', 'SuperClassic', 'Classic'))
     parser.add_argument('--browser', action='store_true')
@@ -483,7 +523,8 @@ def main():
             parser.error('Browser tests require a new --build-root directory')
         options.build_root.mkdir(parents=True, exist_ok=False)
     result = run(options.image, options.provider_rounding,
-                 options if options.browser else None, options.server_mode)
+                 options if options.browser else None, options.server_mode,
+                 options.provider_traps)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1
