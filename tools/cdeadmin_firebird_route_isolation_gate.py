@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 from dataclasses import replace
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 if __package__:
@@ -198,6 +199,56 @@ def failed_detach_case(native, route, password):
             'pending_ddl_rolled_back': True}
 
 
+def service_interruption_case(native, route, password):
+    cases = []
+    for stage in ('hook', 'operation'):
+        for detach_failure in (False, True):
+            client = _create_client(SimpleNamespace(
+                acquire_secret=lambda *_args: SecretLease(password)))
+            seen = []
+            interruption = KeyboardInterrupt('owned service interruption')
+
+            def interrupt(server, *_args):
+                seen.append(server)
+                assert '5.0.4' in server.info.version
+                raise interruption
+
+            if stage == 'hook':
+                client._service_attached = interrupt
+            else:
+                client.config = replace(client.config,
+                                        server_operation_runner=interrupt)
+            request = {'route': {
+                **route, 'credential_reference_id': 'owned-secret',
+                'principal_reference': 'owned-principal'}}
+            try:
+                with (patch.object(native.core.Server, 'close',
+                                   side_effect=RuntimeError('injected close'))
+                      if detach_failure else nullcontext()):
+                    try:
+                        if stage == 'hook':
+                            client._connect_server(request)
+                        else:
+                            client.run_server_operation(
+                                request, 'database_statistics',
+                                route['database'], {})
+                    except KeyboardInterrupt as caught:
+                        assert caught is interruption
+                        assert caught.service_release[
+                            'service_handle_released'] is not detach_failure
+                    else:
+                        raise AssertionError('Interruption was lost')
+                assert len(seen) == 1
+                assert (seen[0] in client._connections) is detach_failure
+            finally:
+                client.close()
+            assert seen[0]._svc is None and not client._connections
+            cases.append({'stage': stage, 'injected_close_failure':
+                          detach_failure, 'interruption_preserved': True,
+                          'service_released': True})
+    return cases
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -206,6 +257,7 @@ def run(image):
               'failed_initializations': [], 'temporary_release': None,
               'combined_failure_release': None,
               'failed_detach_release': None,
+              'service_interruptions': [],
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -297,6 +349,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'service-interruptions'
+        try:
+            result['service_interruptions'] = service_interruption_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
         phase = 'failed-detach-release'
         try:
             result['failed_detach_release'] = failed_detach_case(
@@ -330,6 +388,7 @@ def run(image):
                           result['temporary_release'] is not None and
                           result['combined_failure_release'] is not None and
                           result['failed_detach_release'] is not None and
+                          len(result['service_interruptions']) == 4 and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result

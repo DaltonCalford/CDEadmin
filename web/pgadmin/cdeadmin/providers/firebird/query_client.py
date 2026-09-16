@@ -94,6 +94,9 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                         type(exc).__name__ + ')')
                     self._finish_server_operation(handle, None, failure)
                     raise failure from None
+                except BaseException as interruption:
+                    self._finish_server_operation(handle, None, interruption)
+                    raise
             return handle
 
     def _forget_connection(self, handle):

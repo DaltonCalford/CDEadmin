@@ -712,6 +712,9 @@ class RelationalDBAPIClient:
         except Exception as exc:
             failure = self._server_operation_error(exc)
             raise failure from None
+        except BaseException as interruption:
+            failure = interruption
+            raise
         finally:
             self._finish_server_operation(server, result, failure)
 

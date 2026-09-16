@@ -298,6 +298,45 @@ def test_attachment_hooks_run_after_ownership_and_failure_stays_owned(
     handle.close.side_effect = lambda: setattr(handle, '_svc', None)
 
 
+@pytest.mark.parametrize('stage', ['hook', 'operation'])
+@pytest.mark.parametrize('interruption', [KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize('detach_failure', [False, True])
+def test_service_interruption_preserves_identity_and_cleans_up(
+        rig, stage, interruption, detach_failure):
+    handle = SimpleNamespace(_svc=object())
+    handle.close = Mock(side_effect=(RuntimeError('private detach detail')
+                        if detach_failure else
+                        lambda: setattr(handle, '_svc', None)))
+    error = interruption('owned cancellation')
+    callback = Mock(side_effect=error)
+    rig.client._server_connector = Mock()
+    if stage == 'hook':
+        rig.client._service_attached = callback
+    else:
+        rig.client.config = replace(rig.client.config,
+                                    server_operation_runner=callback)
+    with patch.object(rig.client, '_invoke_connector', return_value=handle):
+        with pytest.raises(interruption) as caught:
+            if stage == 'hook':
+                rig.client._connect_server({'route': {}})
+            else:
+                rig.client.run_server_operation(
+                    {'route': {}}, 'database_statistics', 'owned', {})
+    assert caught.value is error
+    assert error.service_release['service_handle_released'] is (
+        not detach_failure)
+    assert 'private detach detail' not in str(error.service_release)
+    assert (handle in rig.client._connections) is detach_failure
+    assert (id(handle) in rig.client._server_handles) is detach_failure
+    assert rig.client._opening == rig.client._native_operations == 0
+    callback.assert_called_once()
+    handle.close.assert_called_once_with()
+    handle.close.side_effect = lambda: setattr(handle, '_svc', None)
+    if detach_failure:
+        rig.client._forget_and_close(handle)
+    assert handle not in rig.client._connections
+
+
 @pytest.mark.parametrize('detach_failure', [False, True])
 @pytest.mark.parametrize('outcome', [
     'returned', 'native_error', 'driver_error', 'foreign_error', 'invalid'])
