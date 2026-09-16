@@ -25,16 +25,19 @@ def test_gate_collects_failures_and_always_attempts_cleanup(
     manager = MagicMock()
     manager.__enter__.return_value = handle
     connect = Mock(side_effect=[manager] + [
-        RuntimeError('secret') if fault == 'connect' else manager] * 4)
+        RuntimeError('secret') if fault == 'connect' else manager] * 6)
     monkeypatch.setattr(native, 'connect', connect)
+    service = MagicMock()
+    service.__enter__().info.version = '5.0.4'
+    monkeypatch.setattr(native, 'connect_server', Mock(return_value=service))
     original = native.driver_config
     result = gate.run('owned-image')
     cleanup.assert_called_once_with(container)
-    assert connect.call_count == 5
+    assert connect.call_count == 7
     assert native.driver_config is original
     assert result['complete'] is (fault is None)
     assert len(result['failures']) == (
-        4 if fault in ('identity', 'connect') else
+        6 if fault in ('identity', 'connect') else
         1 if fault == 'cleanup' else 0)
     assert 'secret' not in str(result)
     assert result['owned_container_removed'] is (fault != 'cleanup')

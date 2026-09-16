@@ -23,6 +23,7 @@ else:
     )
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.provider import _server_arguments
 
 
 def run(image):
@@ -67,7 +68,7 @@ def run(image):
                 if time.monotonic() >= deadline:
                     raise
                 time.sleep(0.25)
-        for phase in ('dsn', 'host', 'named', 'session'):
+        for phase in ('dsn', 'host', 'named', 'session', 'INET', 'INET4'):
             try:
                 registry = DriverConfig('owned-isolation-' + phase)
                 # Invalid local destinations cannot escape this test server.
@@ -79,13 +80,16 @@ def run(image):
                 elif phase == 'named':
                     registry.register_database(
                         f'127.0.0.1/{port}:{path}').database.value = 'missing'
-                else:
+                elif phase == 'session':
                     registry.db_defaults.role.value = 'UNSELECTED'
                     registry.db_defaults.session_time_zone.value = (
                         'Not/A/TimeZone')
                 with patch.object(native, 'driver_config', registry), \
                         patch.object(native.core, 'driver_config', registry):
-                    with native.connect(**_route_arguments(route, native),
+                    selected = dict(route)
+                    if phase in ('INET', 'INET4'):
+                        selected['protocol'] = phase
+                    with native.connect(**_route_arguments(selected, native),
                                         password=password) as handle:
                         with handle.cursor() as cursor:
                             cursor.execute(
@@ -98,8 +102,15 @@ def run(image):
                         assert role.strip() == 'NONE'
                         assert handle.info.name == path
                         handle.rollback()
+                    if phase in ('INET', 'INET4'):
+                        with native.connect_server(
+                                **_server_arguments(selected, native),
+                                password=password) as service:
+                            assert '5.0.4' in service.info.version
                 result['cases'].append({'case': phase, 'target_verified': True,
-                                        'identity_verified': True})
+                                        'identity_verified': True,
+                                        'service_verified': phase in (
+                                            'INET', 'INET4')})
             except Exception as error:
                 failure(error)
     except Exception as error:
@@ -112,7 +123,7 @@ def run(image):
             except Exception as error:
                 phase = 'cleanup'
                 failure(error)
-    result['complete'] = (len(result['cases']) == 4 and
+    result['complete'] = (len(result['cases']) == 6 and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result

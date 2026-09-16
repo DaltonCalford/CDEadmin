@@ -41,7 +41,7 @@ from .physical_io import normalize_physical_io
 from .column_type_metadata import type_editor_values
 from .catalog_reader import CatalogReader
 from .connection_strings import (
-    database_dsn, server_host, service_dsn, target_path,
+    database_dsn, server_host, service_dsn, target_path, validate_transport,
 )
 from .identity import catalog_resource_id as _catalog_resource_id
 from .query_parameters import normalize_parameters
@@ -242,6 +242,8 @@ def _wire_configuration(route):
 
 
 def _route_arguments(route, module=None, *, creation=None):
+    validate_transport(route.get('protocol'), route.get('host'),
+                       route.get('port'))
     cache_pages = requested_pages(route)
     traps = requested_traps(route)
     workers = requested_workers(route)
@@ -283,7 +285,7 @@ def _route_arguments(route, module=None, *, creation=None):
         protocol = route.get('protocol')
         result['database'] = database_dsn(
             path, host, port,
-            protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
+            protocol)
     # Even a minimal route needs a private configuration. Passing its DSN
     # directly to connect() activates process-wide driver defaults (or an
     # unrelated named configuration), which can change target/session options.
@@ -319,7 +321,8 @@ def _route_arguments(route, module=None, *, creation=None):
         # Use its documented DSN configuration with a hostless private server
         # configuration so driver defaults cannot add a second address.
         inet6 = route.get('protocol') == 'INET6'
-        explicit_dsn = inet6 or creation is not None
+        explicit_dsn = inet6 or route.get('protocol') == 'XNET' or (
+            creation is not None)
         server.host.value = None if explicit_dsn else host
         server.port.value = (
             str(route['port'])
@@ -348,8 +351,8 @@ def _route_arguments(route, module=None, *, creation=None):
                 config.reserve_space.value = options.get('reserve_space', True)
                 config.db_cache_size.value = options.get('stored_page_buffers')
                 config.sweep_interval.value = options.get('sweep_interval')
-            elif inet6:
-                config.dsn.value = database_dsn(path, host, port, 'INET6')
+            elif explicit_dsn:
+                config.dsn.value = database
             elif route.get('protocol'):
                 config.protocol.value = module.NetProtocol[
                     route['protocol']
@@ -408,6 +411,8 @@ def _server_route(route):
 
 def _server_arguments(route, module):
     """Build a Firebird service-manager attachment without a database."""
+    validate_transport(route.get('protocol'), route.get('host'),
+                       route.get('port'))
     expected_db = route.get('service_expected_database')
     if expected_db is not None:
         if not isinstance(expected_db, str) or '\x00' in expected_db:
@@ -434,7 +439,7 @@ def _server_arguments(route, module):
         protocol = route.get('protocol')
         server.host.value = service_dsn(
             route.get('host'), route.get('port'),
-            protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
+            protocol)
         server.port.value = None
         server.user.value = (
             None if route.get('trusted_auth') else route.get('user'))

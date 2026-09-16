@@ -6,8 +6,28 @@ No DNS lookup or client-side filesystem interpretation is used here.
 
 import ipaddress
 import re
+import sys
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+
+
+WINDOWS_CLIENT = sys.platform == 'win32'
+
+
+def validate_transport(protocol, host=None, port=None):
+    """Never substitute TCP for an invalid or platform-specific transport."""
+    if protocol is None:
+        return
+    if not isinstance(protocol, str) or protocol not in {
+            'INET', 'INET4', 'INET6', 'XNET'}:
+        raise RelationalClientError('Firebird network protocol is invalid')
+    if protocol == 'XNET':
+        if not WINDOWS_CLIENT:
+            raise RelationalClientError(
+                'Firebird XNET requires a Windows application host')
+        if host not in (None, '', 'localhost') or port is not None:
+            raise RelationalClientError(
+                'Firebird XNET requires a local target without a TCP port')
 
 
 def server_host(host):
@@ -87,12 +107,13 @@ def target_path(database, host=None, port=None):
 
 
 def database_dsn(database, host=None, port=None, protocol=None):
+    validate_transport(protocol, host, port)
+    if protocol == 'XNET':
+        return 'xnet://' + target_path(database, 'localhost')
     host = server_host(host)
     port = _port(port)
     path = target_path(database, host, port)
     if protocol is not None:
-        if protocol not in {'INET', 'INET4', 'INET6'}:
-            raise RelationalClientError('Firebird TCP protocol is invalid')
         address = host or ''
         if host and port:
             address += ':' + port

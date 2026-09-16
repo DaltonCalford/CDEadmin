@@ -4361,7 +4361,7 @@ class RelationalAdministration:
             protocol = route.get('protocol')
             database = database_dsn(
                 database_path, route.get('host'), route.get('port'),
-                protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
+                protocol)
             driver_operation = 'firebird-create-database'
         else:
             raise RelationalClientError(
