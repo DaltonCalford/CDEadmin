@@ -25,7 +25,7 @@ from ..relational_admin import (
 from . import columns, mappings, character_metadata, external_functions
 from . import (
     blob_filters, object_privileges, shadows, database_storage,
-    shadow_activation, limbo,
+    shadow_activation, limbo, views,
 )
 from .backup_guid import normalize_backup_guid
 from .backup_level import normalize_backup_level
@@ -2511,12 +2511,7 @@ def _resources(connection, request):
             kind = item['resource_kind']
             name = item['display_name']
             native = item.setdefault('native', {})
-            if kind == 'view' and native.get('definition'):
-                native['ddl'] = (
-                    f'CREATE VIEW {identifier(name)} AS\n'
-                    f'{str(native["definition"]).strip()};'
-                )
-            elif kind == 'role':
+            if kind == 'role':
                 if name == 'RDB$ADMIN':
                     native['auto_admin_mapping'] = _admin_mapping_state(cursor)
                 memberships = [grant for grant in native.get('privileges', [])
@@ -3144,10 +3139,20 @@ def _resources(connection, request):
                     if not observed['available'])
             elif item['resource_kind'] == 'view':
                 native = item.setdefault('native', {})
-                native['view_columns'] = [
-                    {'name': column['name']} for column in sorted(
-                        native.get('columns', []),
-                        key=lambda column: column.get('position', 0))]
+                try:
+                    native['view_columns'] = [
+                        {'name': column['name']} for column in
+                        views.catalog_columns(native.get('columns'))]
+                except RelationalClientError as error:
+                    native['view_columns'] = []
+                    native['view_columns_unavailable_reason'] = str(error)
+                try:
+                    native['ddl'] = views.recreation_sql(
+                        item['display_name'], native.get('definition'),
+                        native.get('columns'))
+                except RelationalClientError as error:
+                    native.pop('ddl', None)
+                    native['ddl_unavailable_reason'] = str(error)
         return list(resources.values())
     finally:
         cursor.close()

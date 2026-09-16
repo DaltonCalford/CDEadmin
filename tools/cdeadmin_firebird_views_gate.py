@@ -174,19 +174,37 @@ def run(image='firebirdsql/firebird:5.0.4'):
         return {'denials': denials, 'view_unchanged': True}
 
     def ordered_columns():
-        columns = [{'name': 'B'}, {'name': 'A"東京'}]
+        columns = [{'name': 'B'}, {'name': 'A"東京'}] + [
+            {'name': 'C' + str(i)} for i in range(2, 12)]
         for operation, value in (('create_or_alter', 1), ('recreate', 2)):
             apply(operation, 'V_ORDER',
                   f'WITH Q AS (SELECT {value} X FROM RDB$DATABASE) '
-                  'SELECT X, X + 10 FROM Q', columns=columns)
+                  'SELECT ' + ', '.join('X + ' + str(i * 10)
+                                        for i in range(12)) + ' FROM Q',
+                  columns=columns)
             connection.commit()
-            assert values('V_ORDER') == [(value, value + 10)]
+            expected = [tuple(value + i * 10 for i in range(12))]
+            assert values('V_ORDER') == expected
             resource = next(r for r in _resources(connection, route)
                             if r['resource_kind'] == 'view' and
                             r['display_name'] == 'V_ORDER')
             assert resource['native']['view_columns'] == columns
+            ddl = resource['native']['ddl']
+            assert '("B", "A""東京", "C2",' in ddl
             rollback()
-        return {'ordered_columns_verified': True, 'cte_verified': True}
+            sql('DROP VIEW "V_ORDER"')
+            connection.commit()
+            sql(ddl)
+            connection.commit()
+            assert values('V_ORDER') == expected
+            recreated = next(r for r in _resources(connection, route)
+                             if r['resource_kind'] == 'view' and
+                             r['display_name'] == 'V_ORDER')
+            assert recreated['native']['view_columns'] == columns
+            assert recreated['native']['ddl'] == ddl
+            rollback()
+        return {'ordered_columns_verified': True, 'cte_verified': True,
+                'metadata_recreation_roundtrip_verified': True}
 
     def invalid_query():
         sql('CREATE TABLE PENDING_VIEW_WORK (ID INTEGER)')

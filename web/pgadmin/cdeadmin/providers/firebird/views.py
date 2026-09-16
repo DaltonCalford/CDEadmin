@@ -14,6 +14,40 @@ WARNING = (
     'permission checks apply. Review the definition and ordered column names.')
 
 
+def catalog_columns(columns):
+    """Order catalog columns numerically, including text positions."""
+    if not isinstance(columns, list) or not columns:
+        raise RelationalClientError('View column metadata is unavailable')
+    normalized = []
+    for column in columns:
+        if not isinstance(column, Mapping):
+            raise RelationalClientError(
+                'View column positions are unavailable')
+        position = column.get('position')
+        if isinstance(position, str) and position.isascii() and (
+                position.isdigit()):
+            position = int(position)
+        if type(position) is not int:
+            raise RelationalClientError(
+                'View column positions are unavailable')
+        normalized.append({**column, 'position': position})
+    ordered = sorted(normalized, key=lambda column: column['position'])
+    if [column['position'] for column in ordered] != list(range(len(ordered))):
+        raise RelationalClientError('View column positions are incomplete')
+    names = [identifier(column.get('name')) for column in ordered]
+    if len(set(names)) != len(names):
+        raise RelationalClientError('Duplicate view column metadata')
+    return ordered
+
+
+def recreation_sql(name, definition, columns):
+    """Render column identity separately from the native query source."""
+    names = [identifier(column['name']) for column in catalog_columns(columns)]
+    # A newline before the terminator keeps it outside a trailing SQL comment.
+    return ('CREATE VIEW ' + identifier(name) + ' (' + ', '.join(names) +
+            ') AS\n' + source(definition, 'View query') + '\n;')
+
+
 def compile_operation(operation, draft, target=None):
     if (not isinstance(operation, str) or operation not in OPERATIONS or
             not isinstance(draft, Mapping)):
