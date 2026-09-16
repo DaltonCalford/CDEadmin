@@ -3438,7 +3438,12 @@ describe('ProviderWorkspaceContent', () => {
     expect(api.post.mock.calls[1][1].request.target_resource).toEqual(view);
     expect(api.post.mock.calls[1][1].request.database_target_id)
       .toBe('firebird-database-one');
-    expect(screen.getByText(/This view is read-only/)).toBeInTheDocument();
+    expect(screen.getByText(/This grid is read-only because CDEadmin/)).toBeInTheDocument();
+    expect(screen.getByText(/The engine may support writes/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('1001')).toBeDisabled();
+    expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+    expect(screen.getByRole('button', {name: 'Delete'})).toBeDisabled();
+    expect(screen.queryByRole('button', {name: 'Insert row'})).toBeNull();
   });
 
   it('loads and edits MongoDB documents through provider plans', async () => {

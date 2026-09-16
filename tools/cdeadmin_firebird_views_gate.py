@@ -34,6 +34,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
     result = {'schema': 'cdeadmin.firebird-views.v1', 'complete': False,
               'checks': [], 'failures': [], 'task_evidence': {},
               'check_option_checks': [],
+              'view_grid_checks': [],
               'owned_container_removed': False}
 
     def failure(case, error):
@@ -223,6 +224,50 @@ def run(image='firebirdsql/firebird:5.0.4'):
                     'pending_work_preserved': True, 'rollback_verified': True}
         raise AssertionError('Invalid query admitted')
 
+    def view_grid(kind):
+        table = 'GRID_BASE_' + kind.upper()
+        view = 'GRID_VIEW_' + kind.upper()
+        sql('CREATE TABLE ' + table + ' (ID INTEGER PRIMARY KEY, V INTEGER)')
+        connection.commit()
+        sql('INSERT INTO ' + table + ' VALUES (1, 10)')
+        connection.commit()
+        query = ('SELECT ID, V FROM ' + table if kind == 'simple' else
+                 'SELECT ID, SUM(V) AS V FROM ' + table + ' GROUP BY ID')
+        apply('create_or_alter', view, query,
+              columns=[{'name': 'ID'}, {'name': 'V'}])
+        connection.commit()
+        # A pending change must survive a grid read without being committed.
+        sql('UPDATE ' + table + ' SET V = 20 WHERE ID = 1')
+        page = ADMINISTRATION.read_rows(client, {
+            '_provider_route': route, 'target_resource': {
+                'resource_kind': 'view', 'display_name': view,
+                'display_path': [view]}, 'limit': 10}, connection=connection)
+        assert page['editable'] is False
+        assert page['identity_policy'] == 'read-only-view'
+        assert page['rows'][0]['values'] == {'ID': 1, 'V': 20}
+        assert all(row['identity_token'] is None for row in page['rows'])
+        assert all(column['editable'] is False for column in page['columns'])
+        rollback()
+        assert sql('SELECT V FROM ' + table) == [(10,)]
+        codes = []
+        if kind == 'simple':
+            sql('UPDATE ' + view + ' SET V = 30 WHERE ID = 1')
+            assert sql('SELECT V FROM ' + table) == [(30,)]
+        else:
+            try:
+                sql('UPDATE ' + view + ' SET V = 30 WHERE ID = 1')
+            except native.Error as error:
+                codes = list(status_codes(error))
+                assert 335544362 in codes, codes
+            else:
+                raise AssertionError('Aggregate view unexpectedly writable')
+        rollback()
+        assert sql('SELECT V FROM ' + table) == [(10,)]
+        return {'kind': kind, 'grid_read_only_verified': True,
+                'no_identity_tokens': True, 'pending_work_preserved': True,
+                'native_update_allowed': kind == 'simple',
+                'native_denial_codes': codes}
+
     def check_option(mode):
         suffix = mode.upper().replace('-', '_')
         table = 'CO_BASE_' + suffix
@@ -349,6 +394,13 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure('check-option-' + mode, error)
             finally:
                 rollback()
+        for kind in ('simple', 'aggregate'):
+            try:
+                result['view_grid_checks'].append(view_grid(kind))
+            except Exception as error:
+                failure('view-grid-' + kind, error)
+            finally:
+                rollback()
     except Exception as error:
         failure('gate', error)
     finally:
@@ -371,6 +423,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure('remove-owned-container', error)
     result['complete'] = (len(result['checks']) == 6 and
                           len(result['check_option_checks']) == 4 and
+                          len(result['view_grid_checks']) == 2 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
@@ -388,6 +441,7 @@ def main():
                       'passed': len(result['checks']),
                       'check_option_passed': len(
                           result['check_option_checks']),
+                      'view_grid_passed': len(result['view_grid_checks']),
                       'failures': result['failures']}))
     return 0 if result['complete'] else 1
 

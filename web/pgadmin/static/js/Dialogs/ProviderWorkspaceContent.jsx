@@ -2122,7 +2122,7 @@ function StructuredDataGrid({catalog, resources, post, setError,
             {gettext('Save')}</Button>
           <Button color="warning" disabled={working || !row.__identityToken ||
             !admitted('delete')} onClick={() => deleteRow(row.__providerRow)}>
-            {deleteCandidate === row.__identityToken ?
+            {deleteCandidate && deleteCandidate === row.__identityToken ?
               gettext('Confirm delete') : gettext('Delete')}</Button>
         </Box>,
     });
@@ -2168,7 +2168,7 @@ function StructuredDataGrid({catalog, resources, post, setError,
         {page.editable ? gettext('Edits use provider-issued native row identities.') :
           target?.resource_kind === 'table' ?
             gettext('This table is read-only because the provider did not admit a stable row identity.') :
-            gettext('This view is read-only; CDEadmin does not infer that a provider view is updatable.')}
+            gettext('This grid is read-only because CDEadmin has no admitted view row-mutation contract. The engine may support writes to this view through native commands; this message does not classify the view as read-only in the engine.')}
       </Alert>
       <ProviderDataGrid columns={gridColumns} rows={gridRows}
         contract={page.grid || {}}
