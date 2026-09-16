@@ -5730,7 +5730,9 @@ export function ServerProfileWorkspace({registration, post, setError,
     </Box>
     <Box sx={{display: 'flex', alignItems: 'center', gap: 1, mt: 2}}>
       <Button variant="contained" color={removing ? 'error' : 'primary'}
-        disabled={working || (removing &&
+        disabled={working || (form.fields || []).some((field) =>
+          fieldVisible(field, draft) && field.required &&
+          (draft[field.field_id] === '' || draft[field.field_id] == null)) || (removing &&
           draft.confirmation !== registration?.display_name)} onClick={save}>
         {removing ? gettext('Remove endpoint registration') :
           gettext('Save endpoint profile')}
@@ -5948,8 +5950,8 @@ export function DatabaseTargetWorkspace({initialCatalog, visualCatalog,
     {gettext('This provider has no engine-owned database form contract. The generic database form is intentionally unavailable.')}
   </Alert>;
   const targetSubmitDisabled = working || !activeForm ||
-    (activeForm.fields || []).some((field) => field.required &&
-      (draft[field.field_id] === '' || draft[field.field_id] === undefined));
+    (activeForm.fields || []).some((field) => fieldVisible(field, draft) && field.required &&
+      (draft[field.field_id] === '' || draft[field.field_id] == null));
   return <Box component="section" aria-label={gettext('Engine database form')}
     data-form-id={activeForm?.form_id}
     sx={{p: 2, borderBottom: focused ? 0 : 1,
@@ -6100,23 +6102,31 @@ function parseCsv(source) {
   )));
 }
 
+export const providerPropertyGridSx = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 22.5rem), 1fr))',
+  gap: 2,
+};
+
 function PropertyGroup({title, value}) {
   const rows = Object.entries(value || {}).filter(([, item]) =>
     item !== undefined);
-  return <Box component="section" sx={{minWidth: 0}}>
+  return <Box component="section" sx={{minWidth: 0, containerType: 'inline-size'}}>
     <Box component="h3" sx={{mt: 0}}>{title}</Box>
     {rows.length === 0 && <Alert severity="info">
       {gettext('The provider reported no properties for this scope.')}
     </Alert>}
     {rows.length > 0 && <Box component="dl" sx={{m: 0, display: 'grid',
-      gridTemplateColumns: 'minmax(180px, 0.35fr) minmax(240px, 1fr)',
+      gridTemplateColumns: 'minmax(11.25rem, 0.35fr) minmax(15rem, 1fr)',
+      '@container (max-width: 28rem)': {gridTemplateColumns: 'minmax(0, 1fr)'},
       border: 1, borderColor: 'divider'}}>
       {rows.map(([name, item]) => <Fragment key={name}>
-        <Box component="dt" sx={{m: 0, p: 1, fontWeight: 600,
+        <Box component="dt" sx={{m: 0, p: 1, fontWeight: 600, minWidth: 0,
+          overflowWrap: 'anywhere',
           borderBottom: 1, borderColor: 'divider'}}>
           {name.replaceAll('_', ' ')}
         </Box>
-        <Box component="dd" sx={{m: 0, p: 1, overflowWrap: 'anywhere',
+        <Box component="dd" sx={{m: 0, p: 1, minWidth: 0, overflowWrap: 'anywhere',
           borderBottom: 1, borderColor: 'divider'}}>
           {typeof item === 'object' ? JSON.stringify(item) : String(item)}
         </Box>
@@ -6155,7 +6165,8 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
     ['pages_used', gettext('Used pages')],
     ['pages_free', gettext('Free pages')],
     ['page_cache_size', gettext('Page cache size (pages)')],
-    ['page_buffers', gettext('Configured page buffers')],
+    ['page_buffers', gettext('Monitoring page cache allocation (pages)')],
+    ['stored_page_buffers', gettext('Stored page-buffer override (0 uses server default)')],
     ['current_memory', gettext('Current attachment memory (bytes)')],
     ['max_memory', gettext('Maximum attachment memory (bytes)')],
     ['cache_hit_ratio', gettext('Cache hit ratio')],
@@ -6174,8 +6185,7 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
     <Alert severity="info" sx={{mb: 2}}>
       {gettext('This page combines live Firebird database, attachment, and service-manager observations with saved connection defaults. Saved defaults are not the current state of an already-open query session. Values unavailable from Firebird are omitted rather than inferred.')}
     </Alert>
-    <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+    <Box sx={providerPropertyGridSx}>
       <PropertyGroup title={gettext('Firebird database identity')}
         value={{
           ...selectedProperties(target, [
@@ -6246,6 +6256,13 @@ function FirebirdDatabaseProperties({endpoint, target, server, database}) {
             (value) => ({NATIVE_DEFAULT: gettext('Native default'),
               SERVER_DEFAULT: gettext('Use server preference'),
               SUPPRESS: gettext('Suppress current cache linger (SuperServer)')})[value] || value],
+          ['attachment_cache_policy', gettext('Attachment page-cache policy'),
+            (value) => ({NATIVE_DEFAULT: gettext('Native default'),
+              SERVER_DEFAULT: gettext('Use server preference'),
+              CUSTOM: gettext('Request cache pages')})[value] || value],
+          ...(targetOptions.attachment_cache_policy === 'CUSTOM' ? [
+            ['attachment_cache_pages', gettext('Requested attachment cache pages')],
+          ] : []),
           ['no_gc', gettext('Disable cooperative garbage collection'),
             firebirdBoolean],
           ['no_db_triggers', gettext('Disable database triggers'),
@@ -6304,8 +6321,7 @@ function MariaDBDatabaseProperties({endpoint, target, server, database}) {
     <Alert severity="info" sx={{mb: 2}}>
       {gettext('These are live MariaDB 12.2 database, server, session, and replication observations. Values unavailable from MariaDB are omitted rather than inferred.')}
     </Alert>
-    <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+    <Box sx={providerPropertyGridSx}>
       <PropertyGroup title={gettext('MariaDB database identity')}
         value={selectedProperties(target, [
           ['display_name', gettext('Navigator name')],
@@ -6408,8 +6424,7 @@ function DatabasePropertiesWorkspace({endpoint, databaseTargets, resources,
     <Alert severity="info" sx={{mb: 2}}>
       {gettext('These properties are reported by the selected provider and exact connected runtime. Server observations are included here because they qualify this database; they are not a separate database object.')}
     </Alert>
-    <Box sx={{display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 2}}>
+    <Box sx={providerPropertyGridSx}>
       <PropertyGroup title={gettext('Connection target')} value={target || {}} />
       <PropertyGroup title={gettext('Verified engine interface')}
         value={endpoint || {}} />

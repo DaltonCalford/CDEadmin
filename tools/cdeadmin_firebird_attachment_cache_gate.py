@@ -20,17 +20,30 @@ else:
     )
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.provider import _route_arguments
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 SERVER_MODES = ('Super', 'SuperClassic', 'Classic')
 CACHE_REQUESTS = (None, 0, 1, 24, 25, 49, 50, 128, 256)
 
 
-def run(image):
+def run(image, *, provider=False, browser_options=None):
+    browser_gate = getattr(
+        browser_options, 'browser_gate', 'cache-preferences')
+    if browser_gate not in ('cache-preferences', 'properties'):
+        raise ValueError('Unknown cache browser gate')
+    if browser_options is not None:
+        if not provider or not browser_options.build_root:
+            raise ValueError(
+                'Browser requires provider mapping and build root')
+        browser_options.build_root.mkdir(parents=True, exist_ok=False)
     import firebird.driver as native
     _configure_client_library(native)
     result = {'complete': False, 'checks': [], 'failures': [],
-              'removed_server_modes': [], 'provider_forms_qualified': False}
+              'removed_server_modes': [], 'provider_forms_qualified': False,
+              'provider_mapping_requested': provider, 'browser_checks': [],
+              'browser_gate': browser_gate if browser_options else None}
 
     def failure(case, error):
         result['failures'].append({
@@ -63,6 +76,15 @@ def run(image):
             dsn = f'127.0.0.1/{port}:{path}'
 
             def connect(request=None):
+                if provider:
+                    arguments = _route_arguments({
+                        'host': '127.0.0.1', 'port': port, 'database': path,
+                        'user': 'SYSDBA',
+                        'attachment_cache_policy': (
+                            'NATIVE_DEFAULT' if request is None else 'CUSTOM'),
+                        'attachment_cache_pages': request,
+                    }, native)
+                    return native.connect(**arguments, password=password)
                 name = 'owned_cache_' + uuid.uuid4().hex
                 config = native.driver_config.register_database(name)
                 config.dsn.value = dsn
@@ -102,6 +124,14 @@ def run(image):
                         try:
                             with connect(requested) as handle:
                                 observed = handle.info.page_cache_size
+                        except RelationalClientError:
+                            assert provider and requested is not None
+                            assert requested < 25
+                            result['checks'].append({
+                                'case': phase, 'requested': requested,
+                                'stored': stored,
+                                'rejected_before_native_connect': True})
+                            continue
                         except native.DatabaseError as error:
                             codes = list(status_codes(error))
                             assert denied
@@ -121,6 +151,25 @@ def run(image):
                             'observed_cache_pages': observed})
                     except Exception as error:
                         failure(phase, error)
+            if browser_options is not None and mode == 'SuperClassic':
+                from tools.cdeadmin_firebird_external_functions_gate import (
+                    browser_checks,
+                )
+                phase = 'browser-qualification'
+                with native.connect_server(
+                        f'127.0.0.1/{port}', user='SYSDBA',
+                        password=password) as server:
+                    server.database.set_default_cache_size(
+                        database=path, size=0)
+                result['browser_checks'] = browser_checks(
+                    browser_options,
+                    {'host': '127.0.0.1', 'port': port, 'database': path,
+                     'user': 'SYSDBA'}, password, container,
+                    browser_options.build_root, gate_kind=browser_gate,
+                    fixture_kind='firebird-cache-qualification')
+                if not result['browser_checks'] or not all(
+                        item['passed'] for item in result['browser_checks']):
+                    raise RuntimeError('Browser cache qualification failed')
         except Exception as error:
             failure(phase, error)
         finally:
@@ -133,6 +182,10 @@ def run(image):
     result['complete'] = (
         len(result['checks']) == 54 and not result['failures'] and
         result['removed_server_modes'] == list(SERVER_MODES))
+    result['provider_mapping_qualified'] = provider and result['complete']
+    result['provider_forms_qualified'] = (
+        browser_options is not None and browser_gate == 'cache-preferences'
+        and result['complete'])
     return result
 
 
@@ -140,10 +193,25 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--provider', action='store_true')
+    parser.add_argument('--browser', action='store_true')
+    parser.add_argument('--browser-gate',
+                        choices=('cache-preferences', 'properties'),
+                        default='cache-preferences')
+    parser.add_argument('--build-root', type=Path)
+    parser.add_argument('--source-config-db', type=Path,
+                        default=Path('/var/lib/cdeadmin/cdeadmin.db'))
+    parser.add_argument('--desktop-user')
+    parser.add_argument('--font-scale', type=int, action='append',
+                        choices=(100, 200, 300))
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    if options.browser and (not options.provider or not options.build_root or
+                            not options.desktop_user):
+        parser.error('Browser requires provider, build root and desktop user')
+    result = run(options.image, provider=options.provider,
+                 browser_options=options if options.browser else None)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1

@@ -149,6 +149,8 @@ def _native(options, password):
             'engine_version': str(info.engine_version),
             'server_build': str(info.server_version),
             'server_site': str(info.site),
+            'stored_page_buffers': str(info.get_info(
+                driver.DbInfoCode.SET_PAGE_BUFFERS)),
         }
     finally:
         connection.close()
@@ -172,6 +174,8 @@ def _expected(native, options):
         },
         'Firebird storage and durability': {
             'Page size (bytes)': native['page_size'],
+            'Stored page-buffer override (0 uses server default)':
+                native['stored_page_buffers'],
             'Forced writes': boolean(native['forced_writes']),
             'Reserve page space': boolean(native['reserve_space']),
             'Read only': boolean(native['read_only']),
@@ -201,6 +205,34 @@ def _is_json_collection(value):
     except (TypeError, ValueError):
         return False
     return isinstance(decoded, (dict, list))
+
+
+def cache_row_evidence(driver, options):
+    evidence = []
+    for index, label in enumerate((
+            'Page cache size (pages)',
+            'Monitoring page cache allocation (pages)',
+            'Stored page-buffer override (0 uses server default)')):
+        term = driver.find_element(
+            By.XPATH, '//dt[normalize-space(.)="' + label + '"]')
+        driver.execute_script(
+            'arguments[0].scrollIntoView({block:"center",inline:"nearest"})',
+            term)
+        measured = driver.execute_script('''
+          return [arguments[0], arguments[0].nextElementSibling].map(el => ({
+            width:el.clientWidth, content_width:el.scrollWidth,
+            height:el.clientHeight, content_height:el.scrollHeight
+          }));
+        ''', term)
+        path = options.output_root / f'cache-property-{index}.png'
+        digest = screenshot(driver, path, reset_scroll=False)
+        evidence.append({'label': label, 'layout': measured,
+                         'path': str(path), 'sha256': digest,
+                         'no_text_overflow': all(
+                             item['content_width'] <= item['width'] + 1 and
+                             item['content_height'] <= item['height'] + 1
+                             for item in measured)})
+    return evidence
 
 
 def run(options):
@@ -275,6 +307,7 @@ def run(options):
             f'{evidence_variant(options)}.png'
         )
         digest = screenshot(driver, output)
+        cache_rows = cache_row_evidence(driver, options)
         return {
             'schema': 'cdeadmin.firebird-properties-ui-gate.v1',
             'captured_at': datetime.now(timezone.utc).isoformat(),
@@ -296,7 +329,8 @@ def run(options):
             'credential_values_exported': False,
             'layout': layout,
             'screenshot': {'path': str(output), 'sha256': digest},
-            'passed': True,
+            'cache_rows': cache_rows,
+            'passed': all(item['no_text_overflow'] for item in cache_rows),
         }
     finally:
         driver.quit()
@@ -316,7 +350,7 @@ def main(argv=None):
         'property_group_count': result['property_group_count'],
         'rendered_property_count': result['rendered_property_count'],
     }, indent=2, sort_keys=True))
-    return 0
+    return 0 if result['passed'] else 1
 
 
 if __name__ == '__main__':

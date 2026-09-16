@@ -42,6 +42,41 @@ from .routing import RouteHealthRegistry, RouteSelectionError
 
 APP_EXTENSION_KEY = 'cdeadmin_endpoint_service'
 RESOLVER_ID = 'cdeadmin.protected-column'
+
+
+def _form_field_is_visible(field, form, data):
+    """Evaluate provider form conditions using submitted/default values."""
+    fields = {item['field_id']: item for item in form['fields']}
+
+    def matches(condition):
+        if not isinstance(condition, dict):
+            raise EndpointRegistrationError(
+                'provider form condition is invalid')
+        if 'all' in condition:
+            children = condition['all']
+            if not isinstance(children, list) or not children:
+                raise EndpointRegistrationError(
+                    'provider form condition is invalid')
+            return all(matches(child) for child in children)
+        dependency = fields.get(condition.get('field_id'))
+        if dependency is None:
+            raise EndpointRegistrationError(
+                'provider form condition field is unavailable')
+        actual = data.get(dependency['field_id'], dependency.get('default'))
+
+        def same(expected):
+            return (isinstance(actual, bool) == isinstance(expected, bool)
+                    and actual == expected)
+
+        if 'equals' in condition:
+            return same(condition['equals'])
+        if isinstance(condition.get('in'), list):
+            return any(same(value) for value in condition['in'])
+        raise EndpointRegistrationError('provider form condition is invalid')
+
+    return 'visible_when' not in field or matches(field['visible_when'])
+
+
 VERIFY_PERMISSIONS = frozenset({'network', 'secret_read'})
 WORKSPACE_PERMISSIONS = frozenset({
     'network', 'secret_read', 'data_read', 'data_write', 'administer',
@@ -1112,6 +1147,11 @@ class EndpointService:
             )
         values = {}
         for field_id, field in fields.items():
+            if not _form_field_is_visible(field, form, data):
+                if data.get(field_id) not in (None, ''):
+                    raise EndpointRegistrationError(
+                        f'{field["label"]} is unavailable for this selection')
+                continue
             value = data.get(field_id, field.get('default'))
             if field.get('required') and value in (None, ''):
                 raise EndpointRegistrationError(
@@ -1131,6 +1171,11 @@ class EndpointService:
                     f'{field["label"]} must be a number'
                 )
             if control == 'number':
+                if field.get('integer') is True:
+                    if isinstance(value, float) and not value.is_integer():
+                        raise EndpointRegistrationError(
+                            f'{field["label"]} must be an integer')
+                    value = int(value)
                 minimum = field.get('minimum')
                 maximum = field.get('maximum')
                 if (
@@ -1182,6 +1227,11 @@ class EndpointService:
             )
         values = {}
         for field_id, field in fields.items():
+            if not _form_field_is_visible(field, form, data):
+                if data.get(field_id) not in (None, ''):
+                    raise EndpointRegistrationError(
+                        f'{field["label"]} is unavailable for this selection')
+                continue
             value = data.get(field_id, field.get('default'))
             if field.get('required') and value in (None, ''):
                 raise EndpointRegistrationError(
@@ -1200,6 +1250,11 @@ class EndpointService:
                 raise EndpointRegistrationError(
                     f'{field["label"]} must be a number'
                 )
+            if control == 'number' and field.get('integer') is True:
+                if isinstance(value, float) and not value.is_integer():
+                    raise EndpointRegistrationError(
+                        f'{field["label"]} must be an integer')
+                value = int(value)
             if control == 'number' and (
                 (field.get('minimum') is not None and
                  value < field['minimum']) or
@@ -1492,13 +1547,23 @@ class EndpointService:
         fields = (profile.get('form_contract', {}).get('database', {}).get(
             'forms', {}).get('connect', {}).get('fields', [])
             if isinstance(profile, dict) else [])
-        inherited = {
-            field['field_id']: field['inherit_server_value']
-            for field in fields if field.get('inherit_server_value')
-        }
+        inherited = set()
+        field_ids = {field['field_id'] for field in fields}
+        for field in fields:
+            marker = field.get('inherit_server_value')
+            group = field.get('inherit_server_fields', [])
+            if not isinstance(group, list) or any(
+                    not isinstance(name, str) or name not in field_ids
+                    for name in group):
+                raise EndpointRegistrationError(
+                    'provider form inheritance group is invalid')
+            if marker is not None and configuration.get(
+                    field['field_id'], field.get('default')) == marker:
+                inherited.add(field['field_id'])
+                inherited.update(group)
         return {
             key: value for key, value in configuration.items()
-            if key not in inherited or value != inherited[key]
+            if key not in inherited
         }
 
     def _route_and_reference(

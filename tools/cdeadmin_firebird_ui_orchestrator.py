@@ -72,6 +72,7 @@ GATE_SCRIPTS = {
     'lifecycle': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'rounding-inheritance': 'cdeadmin_firebird_database_lifecycle_ui_gate.py',
     'linger-preferences': 'cdeadmin_firebird_linger_ui_gate.py',
+    'cache-preferences': 'cdeadmin_firebird_cache_ui_gate.py',
     'properties': 'cdeadmin_firebird_properties_ui_gate.py',
 }
 
@@ -179,7 +180,7 @@ def gate_command(options, url, database_label, config_database=None):
         ])
     elif options.gate_kind in {
             'lifecycle', 'inspector-tabs', 'rounding-inheritance',
-            'linger-preferences'}:
+            'linger-preferences', 'cache-preferences'}:
         if config_database is None:
             raise RuntimeError(
                 'lifecycle gate requires an isolated configuration database'
@@ -195,7 +196,7 @@ def gate_command(options, url, database_label, config_database=None):
         ])
         if options.gate_kind == 'rounding-inheritance':
             command.extend(['--scope', 'inheritance'])
-        if options.gate_kind == 'linger-preferences':
+        if options.gate_kind in {'linger-preferences', 'cache-preferences'}:
             command.extend(['--profiles', str(options.profiles)])
     elif options.gate_kind == 'properties':
         command.extend([

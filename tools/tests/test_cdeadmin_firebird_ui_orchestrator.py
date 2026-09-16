@@ -157,6 +157,7 @@ def options(kind):
 @pytest.mark.parametrize('kind,scope', [
     ('lifecycle', None), ('rounding-inheritance', 'inheritance'),
     ('linger-preferences', None),
+    ('cache-preferences', None),
 ])
 def test_inheritance_scope_requires_isolated_config_and_is_explicit(
         kind, scope):
@@ -173,6 +174,9 @@ def test_inheritance_scope_requires_isolated_config_and_is_explicit(
     assert command[command.index('--config-db') + 1] == '/owned/isolated.db'
     if kind == 'linger-preferences':
         assert command[1].endswith('cdeadmin_firebird_linger_ui_gate.py')
+        assert command[command.index('--profiles') + 1] == '/profiles.json'
+    if kind == 'cache-preferences':
+        assert command[1].endswith('cdeadmin_firebird_cache_ui_gate.py')
         assert command[command.index('--profiles') + 1] == '/profiles.json'
     if scope is None:
         assert '--scope' not in command

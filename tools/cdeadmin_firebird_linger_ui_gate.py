@@ -138,10 +138,11 @@ def observe_saved_policy(options, module, password, selected, profile,
             'stored_linger': 600, 'native_dpb_verified': True}
 
 
-def capture(driver, wait, folder):
+def capture(driver, wait, folder, *, label=LABEL, scope=None):
     folder.mkdir(parents=True, exist_ok=False)
     field = wait.until(
-        lambda value: shared.visible_named_control(value, LABEL))
+        lambda value: shared.visible_named_control(
+            scope if scope is not None else value, label))
     driver.execute_script(
         'arguments[0].scrollIntoView({block:"center",inline:"nearest"})',
         field)

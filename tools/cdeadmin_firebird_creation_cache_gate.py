@@ -22,9 +22,14 @@ else:
     )
 
 from pgadmin.cdeadmin.providers.firebird.error_diagnostics import status_codes
+from pgadmin.cdeadmin.providers.firebird.provider import (
+    _route_arguments, _database_create_arguments,
+)
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 STORED_REQUESTS = (None, 0, 64)
+STORED_BOUNDARIES = (None, 0, -1, 1, 49, 50, 64, 2147483647)
 
 
 def private_configuration(native, dsn, requested=None, stored=None):
@@ -75,26 +80,59 @@ def observe(handle, native):
                 native.DbInfoCode.SET_PAGE_BUFFERS)}
 
 
-def creation_case(native, container, port, password, mode, requested, stored):
+def creation_case(native, container, port, password, mode, requested, stored,
+                  *, provider=False):
+    if provider and stored is not None:
+        raise ValueError(
+            'Provider creation baseline does not set stored buffers')
     path = ('/var/lib/firebird/data/owned_creation_cache_' +
             uuid.uuid4().hex + '.fdb')
     assert not file_present(container, path)
     dsn = f'127.0.0.1/{port}:{path}'
-    name = private_configuration(native, dsn, requested, stored)
-    denied = mode != 'Super' and requested is not None and requested < 25
     record = {'mode': mode, 'requested': requested, 'stored_request': stored}
+    try:
+        name = None if provider else private_configuration(
+            native, dsn, requested, stored)
+    except ValueError:
+        if provider or stored is None or stored >= 0:
+            raise
+        assert not file_present(container, path)
+        return dict(record, rejected=True,
+                    rejected_before_native_create_by_driver=True,
+                    failed_creation_path_absent=True)
+    denied = mode != 'Super' and requested is not None and requested < 25
+    stored_denied = (stored is not None and stored != 0 and
+                     not 50 <= stored <= 2147483646)
     handle = None
     try:
         try:
-            handle = native.create_database(name, user='SYSDBA',
-                                            password=password, overwrite=False)
+            if provider:
+                route = {
+                    'host': '127.0.0.1', 'port': port, 'database': path,
+                    'user': 'SYSDBA',
+                    'attachment_cache_policy': (
+                        'NATIVE_DEFAULT' if requested is None else 'CUSTOM'),
+                    'attachment_cache_pages': requested,
+                }
+                arguments = _database_create_arguments(route, dsn, {}, native)
+                handle = native.create_database(**arguments, password=password)
+            else:
+                handle = native.create_database(
+                    name, user='SYSDBA', password=password, overwrite=False)
+        except RelationalClientError:
+            assert provider and requested is not None and requested < 25
+            assert not file_present(container, path)
+            return dict(record, rejected=True,
+                        rejected_before_native_create=True,
+                        failed_creation_path_absent=True)
         except native.DatabaseError as error:
             codes = list(status_codes(error))
-            assert denied and 335545087 in codes
+            assert (stored_denied and 335545086 in codes) or (
+                denied and 335545087 in codes)
             assert not file_present(container, path)
             return dict(record, rejected=True, native_status_codes=codes,
                         failed_creation_path_absent=True)
-        assert not denied
+        assert not denied and not stored_denied
         initial = observe(handle, native)
         expected = stored or (128 if mode == 'Super' or requested is None
                               else max(50, requested))
@@ -113,9 +151,14 @@ def creation_case(native, container, port, password, mode, requested, stored):
         handle.commit()
         handle.close()
         handle = None
-        reopened_name = private_configuration(native, dsn)
-        handle = native.connect(
-            reopened_name, user='SYSDBA', password=password)
+        if provider:
+            arguments = _route_arguments({
+                **route, 'attachment_cache_policy': 'NATIVE_DEFAULT'}, native)
+            handle = native.connect(**arguments, password=password)
+        else:
+            reopened_name = private_configuration(native, dsn)
+            handle = native.connect(
+                reopened_name, user='SYSDBA', password=password)
         reopened = observe(handle, native)
         assert reopened == {'allocated_pages': stored or 128,
                             'monitor_pages': stored or 128,
@@ -134,13 +177,20 @@ def creation_case(native, container, port, password, mode, requested, stored):
             handle.close()
 
 
-def run(image):
+def run(image, *, provider=False, stored_boundaries=False):
+    if provider and stored_boundaries:
+        raise ValueError('Stored creation controls are not implemented')
     import firebird.driver as native
     _configure_client_library(native)
     defaults = (native.driver_config.db_defaults.get_config(),
                 native.driver_config.server_defaults.get_config())
     result = {'complete': False, 'checks': [], 'failures': [],
-              'removed_server_modes': [], 'provider_forms_qualified': False}
+              'removed_server_modes': [], 'provider_forms_qualified': False,
+              'provider_mapping_requested': provider,
+              'stored_boundary_baseline': stored_boundaries}
+    stored_requests = (STORED_BOUNDARIES if stored_boundaries else
+                       (None,) if provider else STORED_REQUESTS)
+    cache_requests = (None,) if stored_boundaries else CACHE_REQUESTS
 
     def failure(case, error):
         result['failures'].append({
@@ -189,13 +239,14 @@ def run(image):
                     if time.monotonic() >= deadline:
                         raise
                     time.sleep(0.25)
-            for stored in STORED_REQUESTS:
-                for requested in CACHE_REQUESTS:
+            for stored in stored_requests:
+                for requested in cache_requests:
                     phase = f'{mode}-stored-{stored}-requested-{requested}'
                     try:
+                        arguments = {'provider': True} if provider else {}
                         result['checks'].append(creation_case(
                             native, container, port, password, mode,
-                            requested, stored))
+                            requested, stored, **arguments))
                     except Exception as error:
                         failure(phase, error)
         except Exception as error:
@@ -211,9 +262,11 @@ def run(image):
         native.driver_config.db_defaults.get_config(),
         native.driver_config.server_defaults.get_config())
     result['complete'] = (
-        len(result['checks']) == 81 and not result['failures'] and
+        len(result['checks']) == len(SERVER_MODES) * len(stored_requests) *
+        len(cache_requests) and not result['failures'] and
         result['driver_defaults_unchanged'] and
         result['removed_server_modes'] == list(SERVER_MODES))
+    result['provider_mapping_qualified'] = provider and result['complete']
     return result
 
 
@@ -221,10 +274,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', default='firebirdsql/firebird:5.0.4')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--provider', action='store_true')
+    parser.add_argument('--stored-boundaries', action='store_true')
     options = parser.parse_args()
     if options.output.exists():
         parser.error('Use a new evidence file')
-    result = run(options.image)
+    if options.provider and options.stored_boundaries:
+        parser.error('Stored boundaries are a driver-only baseline')
+    result = run(options.image, provider=options.provider,
+                 stored_boundaries=options.stored_boundaries)
     options.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result))
     return 0 if result['complete'] else 1

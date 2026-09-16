@@ -260,6 +260,32 @@ _DATABASE_SPECS = {
                        'SuperClassic or Classic. Native default sends no '
                        'override and does not restore a timer already '
                        'suppressed.')),
+            _field('attachment_cache_policy', 'Attachment page-cache policy',
+                   'select', default='SERVER_DEFAULT',
+                   inherit_server_value='SERVER_DEFAULT',
+                   inherit_server_fields=['attachment_cache_pages'], options=(
+                       {'value': 'SERVER_DEFAULT',
+                        'label': 'Use server preference'},
+                       {'value': 'NATIVE_DEFAULT', 'label': 'Native default'},
+                       {'value': 'CUSTOM', 'label': 'Request cache pages'},
+                   ), help=(
+                       'Use server preference inherits policy and page count '
+                       'together. Native default sends no attachment '
+                       'override. '
+                       'New attachments, including database creation, use '
+                       'this preference; existing sessions are unchanged.')),
+            _field('attachment_cache_pages',
+                   'Requested attachment cache pages',
+                   'number', default=128, required=True, integer=True,
+                   minimum=25, maximum=2147483646,
+                   visible_when={'field_id': 'attachment_cache_policy',
+                                 'equals': 'CUSTOM'}, help=(
+                       'This request does not change stored database buffers. '
+                       'SuperServer ignores it. SuperClassic/Classic use a '
+                       'minimum allocation of 50 pages, and stored nonzero '
+                       'buffers take precedence. Server architecture and '
+                       'available memory can reduce allocation. Read actual '
+                       'allocation in database properties.')),
             _field('no_gc', 'Disable cooperative garbage collection',
                    'boolean', default=False),
             _field('no_db_triggers', 'Disable database triggers', 'boolean',

@@ -99,9 +99,12 @@ def test_path_observation_is_exact(monkeypatch, observation):
         assert gate.file_present('b' * 64, path) == (observation == 'present')
 
 
+@pytest.mark.parametrize('provider,stored_boundaries', [
+    (False, False), (True, False), (False, True),
+])
 @pytest.mark.parametrize('fail_case', [False, True])
-def test_every_creation_case_runs_and_all_servers_are_cleaned(monkeypatch,
-                                                              fail_case):
+def test_every_creation_case_runs_and_all_servers_are_cleaned(
+        monkeypatch, fail_case, provider, stored_boundaries):
     import firebird.driver as native
     monkeypatch.setattr(native, 'driver_config', DriverConfig('owned-test'))
     handle = MagicMock()
@@ -117,23 +120,102 @@ def test_every_creation_case_runs_and_all_servers_are_cleaned(monkeypatch,
     monkeypatch.setattr(gate, 'remove_owned', cleanup)
     seen = []
 
-    def check(_native, _container, _port, _password, mode, requested, stored):
+    def check(_native, _container, _port, _password, mode, requested, stored,
+              **options):
+        assert options == ({'provider': True} if provider else {})
         seen.append((mode, requested, stored))
         if fail_case and len(seen) == 1:
             raise RuntimeError('secret-canary-not-for-evidence')
         return {'mode': mode, 'requested': requested, 'stored_request': stored}
 
     monkeypatch.setattr(gate, 'creation_case', check)
-    result = gate.run('owned-test-image')
-    assert len(seen) == 81
-    assert len(set(seen)) == 81
-    assert len(result['checks']) == (80 if fail_case else 81)
+    result = gate.run('owned-test-image', provider=provider,
+                      stored_boundaries=stored_boundaries)
+    total = 24 if stored_boundaries else 27 if provider else 81
+    assert len(seen) == total
+    assert len(set(seen)) == total
+    assert len(result['checks']) == total - int(fail_case)
     assert len(result['failures']) == int(fail_case)
     assert result['complete'] is not fail_case
+    assert result['provider_mapping_qualified'] is (provider and not fail_case)
     assert result['removed_server_modes'] == list(gate.SERVER_MODES)
     assert result['driver_defaults_unchanged']
     assert cleanup.call_count == 3
     assert 'secret-canary' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('mode', gate.SERVER_MODES)
+@pytest.mark.parametrize('requested', [0, 1, 24])
+def test_provider_creation_rejects_invalid_count_before_native_call(
+        monkeypatch, mode, requested):
+    native, created, reopened = fake_native()
+    presence = Mock(return_value=False)
+    monkeypatch.setattr(gate, 'file_present', presence)
+    result = gate.creation_case(native, 'a' * 64, 50000, 'secret', mode,
+                                requested, None, provider=True)
+    assert result['rejected_before_native_create']
+    assert result['failed_creation_path_absent']
+    assert presence.call_count == 2
+    native.create_database.assert_not_called()
+    native.connect.assert_not_called()
+    created.close.assert_not_called()
+    reopened.close.assert_not_called()
+
+
+@pytest.mark.parametrize('stored', [0, 64])
+def test_provider_creation_does_not_claim_persistent_buffer_control(stored):
+    native, _created, _reopened = fake_native()
+    with pytest.raises(ValueError, match='does not set stored buffers'):
+        gate.creation_case(native, 'a' * 64, 50000, 'secret', 'Super',
+                           128, stored, provider=True)
+    native.create_database.assert_not_called()
+    native.connect.assert_not_called()
+
+
+@pytest.mark.parametrize('mode', gate.SERVER_MODES)
+@pytest.mark.parametrize('stored', [1, 49, 2147483647])
+@pytest.mark.parametrize('wrong_code', [False, True])
+def test_stored_boundaries_require_the_exact_native_range_error(
+        monkeypatch, mode, stored, wrong_code):
+    native, _created, _reopened = fake_native()
+    native.create_database.side_effect = native.DatabaseError('owned-secret')
+    monkeypatch.setattr(gate, 'status_codes', lambda _error: (
+        335545087 if wrong_code else 335545086,))
+    monkeypatch.setattr(gate, 'file_present', Mock(return_value=False))
+    if wrong_code:
+        with pytest.raises(AssertionError):
+            gate.creation_case(native, 'a' * 64, 50000, 'secret', mode,
+                               None, stored)
+    else:
+        result = gate.creation_case(native, 'a' * 64, 50000, 'secret', mode,
+                                    None, stored)
+        assert result['rejected']
+        assert result['failed_creation_path_absent']
+        assert result['native_status_codes'] == [335545086]
+    native.connect.assert_not_called()
+
+
+def test_stored_matrix_cannot_be_misreported_as_provider_qualification():
+    with pytest.raises(ValueError, match='not implemented'):
+        gate.run('owned-test-image', provider=True, stored_boundaries=True)
+    assert gate.STORED_BOUNDARIES == (
+        None, 0, -1, 1, 49, 50, 64, 2147483647)
+    assert all(value is None or value <= 64 or value == 2147483647
+               for value in gate.STORED_BOUNDARIES)
+
+
+@pytest.mark.parametrize('mode', gate.SERVER_MODES)
+def test_negative_stored_value_is_driver_rejection_not_native_error(
+        monkeypatch, mode):
+    native, _created, _reopened = fake_native()
+    monkeypatch.setattr(gate, 'file_present', Mock(return_value=False))
+    result = gate.creation_case(native, 'a' * 64, 50000, 'secret', mode,
+                                None, -1)
+    assert result['rejected_before_native_create_by_driver']
+    assert result['failed_creation_path_absent']
+    assert 'native_status_codes' not in result
+    native.create_database.assert_not_called()
+    native.connect.assert_not_called()
 
 
 def test_native_matrix_stays_small_and_covers_omission_zero_and_precedence():

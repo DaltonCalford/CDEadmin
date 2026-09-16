@@ -32,6 +32,7 @@ from .backup_level import normalize_backup_level
 from .backup_volumes import logical_backup_volumes, start_logical_backup
 from .restore_files import logical_restore_files, start_logical_restore
 from .encryption_info import read_encryption_text
+from .attachment_cache import requested_pages, stored_page_buffers
 from .error_diagnostics import status_codes
 from .restore_policy import physical_restore_policy
 from .physical_io import normalize_physical_io
@@ -238,6 +239,7 @@ def _wire_configuration(route):
 
 
 def _route_arguments(route, module=None, *, creation=None):
+    cache_pages = requested_pages(route)
     linger_policy = route.get('no_linger')
     if linger_policy is not None and (
         not isinstance(linger_policy, str) or
@@ -282,6 +284,7 @@ def _route_arguments(route, module=None, *, creation=None):
             'trusted_auth', 'timeout', 'protocol',
             'dummy_packet_interval', 'wire_config', 'wire_crypt',
             'wire_compression', 'dbkey_scope', 'decfloat_round', 'no_linger',
+            'attachment_cache_policy', 'attachment_cache_pages',
         )
     )
     if not configured or module is None:
@@ -300,6 +303,7 @@ def _route_arguments(route, module=None, *, creation=None):
     }
     if creation is not None:
         material['creation'] = creation
+    material['attachment_cache_pages'] = cache_pages
     digest = hashlib.sha256(json.dumps(
         material, sort_keys=True, separators=(',', ':'),
     ).encode('utf-8')).hexdigest()[:24]
@@ -355,6 +359,7 @@ def _route_arguments(route, module=None, *, creation=None):
             config.decfloat_round.value = (
                 module.DecfloatRound[rounding] if rounding is not None
                 else None)
+            config.cache_size.value = cache_pages
             # jrd.cpp applies this DPB only when attaching to an existing
             # database, not to the initial creation attachment. Suppression
             # affects a shared live cache, never the stored LINGER setting.
@@ -1173,6 +1178,16 @@ def _resources(connection, request):
                 )
             },
         }
+        try:
+            database_native['stored_page_buffers'] = stored_page_buffers(info)
+            information_observations['stored_page_buffers'] = {
+                'available': True}
+        except Exception as error:
+            database_native['stored_page_buffers'] = None
+            information_observations['stored_page_buffers'] = {
+                'available': False, 'error_type': type(error).__name__,
+                'native_status_codes': list(status_codes(error)),
+            }
         database_rows = catalog_rows(
             'SELECT MON$DATABASE_NAME, MON$PAGE_SIZE, MON$ODS_MAJOR, '
             'MON$ODS_MINOR, MON$SQL_DIALECT, '
