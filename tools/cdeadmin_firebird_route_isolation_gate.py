@@ -92,12 +92,51 @@ def failed_initialization_case(native, route, password, retained, interrupted):
             'retention_hook_bypassed': True}
 
 
+def temporary_retention_case(native, route, password):
+    from firebird.base.hooks import hook_manager
+    client = _create_client(SimpleNamespace(
+        acquire_secret=lambda *_args: SecretLease(password)))
+    retained = []
+
+    def retain(handle):
+        retained.append(handle)
+        return True
+
+    event = native.core.ConnectionHook.DETACH_REQUEST
+    owner = native.core.Connection
+    hook_manager.add_hook(event, owner, retain)
+    try:
+        try:
+            client.runtime_identity({'route': {
+                **route, 'credential_reference_id': 'owned-secret',
+                'principal_reference': 'owned-principal'}})
+        except RelationalClientError:
+            assert len(retained) == 1
+            assert client._connections == retained
+            assert not retained[0].is_closed()
+        else:
+            raise AssertionError('Unconfirmed release reported success')
+    finally:
+        hook_manager.remove_hook(event, owner, retain)
+        client.close()
+    assert retained[0].is_closed() and not client._connections
+    with native.connect(**_route_arguments(route, native),
+                        password=password) as observer:
+        with observer.cursor() as cursor:
+            cursor.execute('SELECT COUNT(*) FROM MON$ATTACHMENTS '
+                           'WHERE MON$SYSTEM_FLAG = 0')
+            assert cursor.fetchone()[0] == 1
+        observer.rollback()
+    return {'unconfirmed_release_refused': True, 'ownership_retained': True,
+            'explicit_retry_detached': True}
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
     _configure_client_library(native)
     result = {'complete': False, 'cases': [], 'failures': [],
-              'failed_initializations': [],
+              'failed_initializations': [], 'temporary_release': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -189,6 +228,12 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'temporary-retention'
+        try:
+            result['temporary_release'] = temporary_retention_case(
+                native, route, password)
+        except Exception as error:
+            failure(error)
     except Exception as error:
         failure(error)
     finally:
@@ -201,6 +246,7 @@ def run(image):
                 failure(error)
     result['complete'] = (len(result['cases']) == 6 and
                           len(result['failed_initializations']) == 4 and
+                          result['temporary_release'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result

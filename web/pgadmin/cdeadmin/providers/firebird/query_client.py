@@ -102,6 +102,12 @@ class FirebirdQueryClient(RelationalDBAPIClient):
     def _forget_and_close(self, handle):
         if id(handle) in self._server_handles:
             return self._release_server(handle)
+        if self.config.session_releaser is not None:
+            # Temporary catalog/identity attachments need the same closure
+            # confirmation as retained sessions. Keep ownership on failure.
+            self.config.session_releaser(handle)
+            self._forget_connection(handle)
+            return
         return super()._forget_and_close(handle)
 
     def _release_server(self, handle):
