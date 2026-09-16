@@ -6,6 +6,7 @@ import json
 import os
 import re
 import threading
+from contextlib import nullcontext
 from enum import Enum
 from importlib import resources as package_resources
 
@@ -191,6 +192,37 @@ class FirebirdProvider(ActualEnginePilotProvider):
                 return super().open_session(request)
         return super().open_session(request)
 
+    def _grid_session_guard(self, request, *, closing=False):
+        context = self._visual_admin_session_context(_mapping(request))
+        if context and isinstance(self.client, FirebirdQueryClient):
+            return self.client._exclusive(
+                context['session_handle'], closing=closing)
+        return nullcontext()
+
+    def read_visual_admin_rows(self, request):
+        with self._grid_session_guard(request):
+            return super().read_visual_admin_rows(request)
+
+    def plan_visual_admin(self, request):
+        with self._grid_session_guard(request):
+            return super().plan_visual_admin(request)
+
+    def apply_visual_admin(self, request):
+        with self._grid_session_guard(request):
+            return super().apply_visual_admin(request)
+
+    def _invalidate_grid_session(self, session_id):
+        ADMINISTRATION.invalidate_row_session(session_id)
+        self._visual_admin.invalidate_session_plans(session_id)
+
+    def close_session(self, request):
+        request = _mapping(request)
+        with self._grid_session_guard(request, closing=True):
+            session_id = request.get('session_id')
+            if session_id in self._sessions:
+                self._invalidate_grid_session(session_id)
+            return super().close_session(request)
+
     def _execute_query_token(self, handle, payload):
         if isinstance(self.client, FirebirdQueryClient):
             return self.client.submit_query(handle, payload)
@@ -227,6 +259,8 @@ class FirebirdProvider(ActualEnginePilotProvider):
             # Keep the explicit action and following native observation in
             # one ownership interval; a new query must not slip between them.
             with self.client._exclusive(session.handle):
+                if request.get('action') in self.client.transaction_actions:
+                    self._invalidate_grid_session(request['session_id'])
                 return super().control_transaction(request)
         return super().control_transaction(request)
 

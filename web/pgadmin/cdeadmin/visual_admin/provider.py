@@ -117,6 +117,13 @@ class ProviderVisualAdministration:
         self._admin_operations: dict[str, _StoredAdminOperation] = {}
         self._lock = threading.RLock()
 
+    def invalidate_session_plans(self, session_id):
+        """Discard previews at a provider-owned session boundary."""
+        with self._lock:
+            self._plans = {
+                key: value for key, value in self._plans.items()
+                if value.presentation.get('session_id') != session_id}
+
     def descriptor(self) -> dict[str, Any]:
         catalog = self._catalog()
         planner = self._planner_callback()

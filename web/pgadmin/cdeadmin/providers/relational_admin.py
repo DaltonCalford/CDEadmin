@@ -165,6 +165,7 @@ class _RowContinuation:
     offset: int
     limit: int
     issued_at: float
+    session_id: str | None = None
 
 
 class RelationalAdministration:
@@ -3096,6 +3097,7 @@ class RelationalAdministration:
             if retained is None or (
                     retained.route_fingerprint != fingerprint or
                     retained.target_path != path or
+                    retained.session_id != session_id or
                     retained.limit != limit):
                 raise RelationalClientError(
                     'row continuation token is unavailable or mismatched'
@@ -3172,7 +3174,7 @@ class RelationalAdministration:
                 next_continuation = str(uuid.uuid4())
                 retained = _RowContinuation(
                     fingerprint, path, offset + limit, limit,
-                    time.monotonic(),
+                    time.monotonic(), session_id=session_id,
                 )
                 with self._identity_lock:
                     while len(self._row_continuations) >= 1000:
@@ -3214,6 +3216,18 @@ class RelationalAdministration:
                 client._safe_close(cursor)
             if owns_connection:
                 client._forget_and_close(connection)
+
+    def invalidate_row_session(self, session_id):
+        """Forget transaction-bound grid state without inferring finality."""
+        if not isinstance(session_id, str) or not session_id:
+            raise RelationalClientError('provider session identity is invalid')
+        with self._identity_lock:
+            self._row_identities = {
+                token: value for token, value in self._row_identities.items()
+                if value.session_id != session_id}
+            self._row_continuations = {
+                token: value for token, value in self._row_continuations.items()
+                if value.session_id != session_id}
 
     def cancel_rows(self, request):
         """Release one provider-issued relational row continuation."""

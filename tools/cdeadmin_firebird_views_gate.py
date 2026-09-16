@@ -36,6 +36,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
               'checks': [], 'failures': [], 'task_evidence': {},
               'check_option_checks': [],
               'view_grid_checks': [],
+              'grid_boundary_checks': [],
               'owned_container_removed': False}
 
     def failure(case, error):
@@ -224,6 +225,97 @@ def run(image='firebirdsql/firebird:5.0.4'):
             return {'native_status_codes': codes,
                     'pending_work_preserved': True, 'rollback_verified': True}
         raise AssertionError('Invalid query admitted')
+
+    def grid_boundary(action):
+        from pgadmin.cdeadmin.core import EndpointContext
+        from pgadmin.cdeadmin.providers.firebird.provider import (
+            FirebirdProvider, PROFILE,
+        )
+        from pgadmin.cdeadmin.visual_admin.provider import VisualAdminError
+        from pgadmin.cdeadmin.sdk.actual_engine import PilotProviderError
+        namespace = str(uuid.uuid4())
+        context = EndpointContext(
+            endpoint_id=namespace, mode='legacy_native',
+            experience_family='firebird', provider_id=PROFILE.provider_id,
+            provider_version='0.1.0', profile_id=PROFILE.profile_id,
+            profile_version=PROFILE.exact_version,
+            target_adapter_id='firebird_wire-client',
+            target_adapter_version='owned', pool_namespace=str(uuid.uuid4()),
+            session_namespace=str(uuid.uuid4()),
+            cache_namespace=str(uuid.uuid4()),
+            diagnostic_namespace=str(uuid.uuid4()),
+            effective_permissions=frozenset({
+                'network', 'secret_read', 'data_read', 'data_write',
+                'administer', 'execute'}))
+        provider = FirebirdProvider(context, SimpleNamespace(
+            require=lambda *_args, **_kwargs: None), client)
+        table = 'BOUNDARY_' + action.upper()
+        sql('CREATE TABLE ' + table + ' (ID INTEGER PRIMARY KEY, V INTEGER)')
+        connection.commit()
+        sql('INSERT INTO ' + table + ' VALUES (1, 10)')
+        sql('INSERT INTO ' + table + ' VALUES (2, 10)')
+        connection.commit()
+        target = {'resource_kind': 'table', 'resource_id': 'table:' + table,
+                  'display_name': table, 'display_path': [table]}
+        session_id = provider.open_session({'route': route})['session_id']
+        request = {'_provider_route': route, 'target_resource': target,
+                   'session_id': session_id, 'limit': 1}
+        try:
+            page = provider.read_visual_admin_rows(request)
+            spare = provider.read_visual_admin_rows(request)
+            token = page['rows'][0]['identity_token']
+            plan = provider.plan_visual_admin({
+                **request, 'resource_kind': 'table', 'operation_id': 'update',
+                'draft': {'selector': {'identity_token': token},
+                          'changes': {'V': 99}, 'concurrency_token': token}})
+            assert plan['state'] == 'ready'
+            handle = provider._sessions[session_id].handle
+            sql('UPDATE ' + table + ' SET V = 20 WHERE ID = 1', handle=handle)
+            if action == 'close':
+                provider.close_session({'session_id': session_id})
+            else:
+                provider.control_transaction({
+                    'session_id': session_id, 'action': action})
+            assert sql('SELECT V FROM ' + table + ' WHERE ID = 1') == [
+                (20 if action == 'commit' else 10,)]
+            rollback()
+            try:
+                provider.apply_visual_admin({
+                    'session_id': session_id, 'plan_id': plan['plan_id'],
+                    'plan_digest': plan['plan_digest'], 'confirmed': True})
+            except (VisualAdminError, PilotProviderError):
+                pass
+            else:
+                raise AssertionError('Old plan survived native boundary')
+            spare_token = spare['rows'][0]['identity_token']
+            assert spare_token not in ADMINISTRATION._row_identities
+            assert page['continuation'] not in (
+                ADMINISTRATION._row_continuations)
+            if action != 'close':
+                fresh = provider.read_visual_admin_rows(request)
+                assert fresh['rows'][0]['identity_token']
+            else:
+                old_session = session_id
+                session_id = provider.open_session({'route': route})[
+                    'session_id']
+                assert session_id != old_session
+                fresh = provider.read_visual_admin_rows({
+                    **request, 'session_id': session_id})
+                assert fresh['rows'][0]['identity_token']
+                try:
+                    provider.apply_visual_admin({
+                        'session_id': session_id, 'plan_id': plan['plan_id'],
+                        'plan_digest': plan['plan_digest'], 'confirmed': True})
+                except VisualAdminError:
+                    pass
+                else:
+                    raise AssertionError('Old plan survived reconnection')
+        finally:
+            if session_id in provider._sessions:
+                provider.close_session({'session_id': session_id})
+        return {'action': action, 'old_plan_rejected': True,
+                'tokens_and_pages_invalidated': True,
+                'native_finality_observed': True}
 
     def view_grid(kind):
         table = 'GRID_BASE_' + kind.upper()
@@ -430,6 +522,13 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure('view-grid-' + kind, error)
             finally:
                 rollback()
+        for action in ('commit', 'rollback', 'close'):
+            try:
+                result['grid_boundary_checks'].append(grid_boundary(action))
+            except Exception as error:
+                failure('grid-boundary-' + action, error)
+            finally:
+                rollback()
     except Exception as error:
         failure('gate', error)
     finally:
@@ -453,6 +552,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
     result['complete'] = (len(result['checks']) == 6 and
                           len(result['check_option_checks']) == 4 and
                           len(result['view_grid_checks']) == 2 and
+                          len(result['grid_boundary_checks']) == 3 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result
@@ -471,6 +571,8 @@ def main():
                       'check_option_passed': len(
                           result['check_option_checks']),
                       'view_grid_passed': len(result['view_grid_checks']),
+                      'grid_boundaries_passed': len(
+                          result['grid_boundary_checks']),
                       'failures': result['failures']}))
     return 0 if result['complete'] else 1
 
