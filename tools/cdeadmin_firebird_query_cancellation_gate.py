@@ -27,6 +27,22 @@ else:
 from pgadmin.cdeadmin.security.secrets import SecretLease
 
 
+def finish_case_transaction(client, handle, action, application_path,
+                            binding=None, session_id=None):
+    if binding is not None:
+        result = binding.instance.control_transaction({
+            'session_id': session_id, 'action': action})
+        observation = result['provider_payload']
+        assert observation['driver_observation_only'] is True
+        assert observation['finality_interpreted_by_common_code'] is False
+        return 'registered-provider'
+    if application_path:
+        client.control_transaction(handle, action)
+        return 'provider-client'
+    getattr(handle, action)()
+    return 'native-driver'
+
+
 def run(profiles, container, application_path=False, registry_path=False):
     return run_document(json.loads(profiles.read_text()), container,
                         application_path, registry_path)
@@ -91,6 +107,7 @@ def run_document(document, container, application_path=False,
                 manifest, 'pgadmin.cdeadmin.providers.firebird.provider')
             binding = registry.resolve(context)
     handle = observer = worker = None
+    session_id = None
     requested = False
 
     def exists():
@@ -114,7 +131,15 @@ def run_document(document, container, application_path=False,
             'draft': {'database_path': path}})
         requested = True
         ADMINISTRATION.apply(client, plan)
-        handle = client.open_session({'route': {**route, 'database': path}})
+        request = {'route': {**route, 'database': path}}
+        if binding is not None:
+            session = binding.instance.open_session(request)
+            session_id = session['session_id']
+            # Native oracle access only; user transaction actions below use
+            # the registered provider's public session identifier.
+            handle = binding.instance._sessions[session_id].handle
+        else:
+            handle = client.open_session(request)
         observer = driver.connect(password=password, **_route_arguments(
             {**route, 'database': path}, driver))
         rows(handle, 'CREATE TABLE MARKERS (ID INTEGER PRIMARY KEY)')
@@ -171,7 +196,9 @@ def run_document(document, container, application_path=False,
                 worker = query.worker
                 assert not client.describe_result(query)['complete']
                 try:
-                    client.control_transaction(handle, 'commit')
+                    finish_case_transaction(
+                        client, handle, 'commit', application_path,
+                        binding, session_id)
                 except Exception as exc:
                     assert 'running' in str(exc)
                 else:
@@ -241,7 +268,8 @@ def run_document(document, container, application_path=False,
             assert rows(handle, 'SELECT ID FROM MARKERS') == [(number,)]
             observer.rollback()
             assert rows(observer, 'SELECT ID FROM MARKERS') == []
-            getattr(handle, action)()
+            transaction_control_path = finish_case_transaction(
+                client, handle, action, application_path, binding, session_id)
             observer.rollback()
             assert rows(observer, 'SELECT ID FROM MARKERS') == (
                 [(number,)] if action == 'commit' else [])
@@ -252,6 +280,7 @@ def run_document(document, container, application_path=False,
                 'busy_registry_release_retains_ownership': registry_path,
                 'profile_change_preserves_pending_work': registry_path,
                 'caller_transaction_preserved': True,
+                'transaction_control_path': transaction_control_path,
                 'explicit_finality_verified': True})
     except Exception as exc:
         result['failures'].append({'case': 'native-cancellation',
@@ -267,7 +296,13 @@ def run_document(document, container, application_path=False,
         for name, connection in (('observer', observer), ('query', handle)):
             if connection is not None and not (name == 'query' and running):
                 try:
-                    connection.close()
+                    if name == 'query' and session_id is not None:
+                        binding.instance.close_session({
+                            'session_id': session_id})
+                        assert session_id not in binding.instance._sessions
+                        result['provider_session_closed'] = True
+                    else:
+                        connection.close()
                 except Exception as exc:
                     result['failures'].append({
                         'case': 'close-' + name,

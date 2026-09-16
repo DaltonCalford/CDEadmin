@@ -86,3 +86,45 @@ def test_cancellation_file_entry_point_preserves_options(monkeypatch):
         'complete': False}
     runner.assert_called_once_with({'profiles': []}, 'owned-container',
                                    True, True)
+
+
+@pytest.mark.parametrize('action', ['rollback', 'commit'])
+@pytest.mark.parametrize('path', ['registered-provider', 'provider-client',
+                                  'native-driver'])
+def test_cancellation_finality_uses_selected_public_path(action, path):
+    from tools import cdeadmin_firebird_query_cancellation_gate as cancellation
+    client, handle, binding = Mock(), Mock(), Mock()
+    binding.instance.control_transaction.return_value = {'provider_payload': {
+        'driver_observation_only': True,
+        'finality_interpreted_by_common_code': False}}
+    result = cancellation.finish_case_transaction(
+        client, handle, action, path != 'native-driver',
+        binding if path == 'registered-provider' else None, 'owned-session')
+    assert result == path
+    if path == 'registered-provider':
+        binding.instance.control_transaction.assert_called_once_with({
+            'session_id': 'owned-session', 'action': action})
+        client.control_transaction.assert_not_called()
+        assert not handle.mock_calls
+    elif path == 'provider-client':
+        client.control_transaction.assert_called_once_with(handle, action)
+        assert not handle.mock_calls
+    else:
+        getattr(handle, action).assert_called_once_with()
+        client.control_transaction.assert_not_called()
+
+
+@pytest.mark.parametrize('observation', [
+    {'driver_observation_only': False,
+     'finality_interpreted_by_common_code': False},
+    {'driver_observation_only': True,
+     'finality_interpreted_by_common_code': True},
+])
+def test_cancellation_gate_refuses_common_finality_claims(observation):
+    from tools import cdeadmin_firebird_query_cancellation_gate as cancellation
+    binding = Mock()
+    binding.instance.control_transaction.return_value = {
+        'provider_payload': observation}
+    with pytest.raises(AssertionError):
+        cancellation.finish_case_transaction(
+            Mock(), Mock(), 'commit', True, binding, 'owned-session')
