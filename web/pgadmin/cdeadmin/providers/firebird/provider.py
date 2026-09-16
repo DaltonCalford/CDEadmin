@@ -160,6 +160,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'exception': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',
+            'create_or_alter', 'recreate',
         }),
         'role': frozenset({
             'inspect', 'create', 'alter', 'drop', 'grant', 'revoke',

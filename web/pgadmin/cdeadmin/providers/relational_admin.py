@@ -47,6 +47,7 @@ from .firebird import object_privileges as firebird_object_privileges
 from .firebird import packages as firebird_packages
 from .firebird import sequences as firebird_sequences
 from .firebird import views as firebird_views
+from .firebird import exceptions as firebird_exceptions
 from .firebird import shadows as firebird_shadows
 from .firebird import database_storage as firebird_database_storage
 from .firebird import limbo as firebird_limbo
@@ -353,19 +354,22 @@ class RelationalAdministration:
                         'target_resource_names': ['RDB$ADMIN'],
                         'allow_system_target': True,
                     }]
-            if self.dialect.engine_id == 'firebird' and kind == 'view':
+            if (self.dialect.engine_id == 'firebird' and
+                    kind in {'view', 'exception'}):
+                module = (firebird_views if kind == 'view' else
+                          firebird_exceptions)
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
-                    if item['operation_id'] not in firebird_views.OPERATIONS
+                    if item['operation_id'] not in module.OPERATIONS
                 ] + [{
                     'operation_id': operation,
-                    'title': firebird_views.form(
+                    'title': module.form(
                         operation, self._field)['title'],
                     'mutation_class': ('destructive' if operation ==
                                        'recreate' else 'admin'),
                     'target_required': operation == 'recreate',
                     'confirmation_required': True,
-                } for operation in sorted(firebird_views.OPERATIONS)]
+                } for operation in sorted(module.OPERATIONS)]
             if (self.dialect.engine_id == 'firebird' and
                     kind in {'package', 'sequence'}):
                 module = (firebird_packages if kind == 'package' else
@@ -544,13 +548,16 @@ class RelationalAdministration:
             return {'errors': errors}
         draft = request.get('draft', {})
         if (self.dialect.engine_id == 'firebird' and
-                resource_kind == 'view' and
+                resource_kind in {'view', 'exception'} and
                 operation_id in firebird_views.OPERATIONS):
+            module = (firebird_views if resource_kind == 'view' else
+                      firebird_exceptions)
             try:
-                firebird_views.compile_operation(
+                module.compile_operation(
                     operation_id, draft, request.get('target_resource'))
             except RelationalClientError as error:
-                errors.append({'field_id': None, 'code': 'invalid_view',
+                errors.append({'field_id': None,
+                               'code': 'invalid_' + resource_kind,
                                'message': str(error)})
             return {'errors': errors}
         if (self.dialect.engine_id == 'firebird' and
@@ -3321,12 +3328,14 @@ class RelationalAdministration:
                         'native transaction completion; files preserved '
                         'by DROP remain on the server.']}
         if (self.dialect.engine_id == 'firebird' and
-                request['resource_kind'] == 'view' and
+                request['resource_kind'] in {'view', 'exception'} and
                 operation in firebird_views.OPERATIONS):
-            statement = firebird_views.compile_operation(
+            module = (firebird_views if request['resource_kind'] == 'view'
+                      else firebird_exceptions)
+            statement = module.compile_operation(
                 operation, request['draft'], request.get('target_resource'))
             return {'statements': [{'source': statement, 'parameters': ()}],
-                    'warnings': [firebird_views.WARNING]
+                    'warnings': [module.WARNING]
                     if operation == 'recreate' else []}
         if (self.dialect.engine_id == 'firebird' and
                 request['resource_kind'] == 'sequence' and
@@ -4718,9 +4727,11 @@ class RelationalAdministration:
 
     def _form(self, kind, operation):
         title = operation.replace('_', ' ').title()
-        if (self.dialect.engine_id == 'firebird' and kind == 'view' and
+        if (self.dialect.engine_id == 'firebird' and
+                kind in {'view', 'exception'} and
                 operation in firebird_views.OPERATIONS):
-            return firebird_views.form(operation, self._field)
+            module = firebird_views if kind == 'view' else firebird_exceptions
+            return module.form(operation, self._field)
         if (self.dialect.engine_id == 'firebird' and kind == 'database' and
                 operation in firebird_limbo.ATTACHMENT_OPERATIONS):
             return firebird_limbo.form(operation, self._field)

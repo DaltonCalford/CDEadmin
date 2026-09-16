@@ -27,7 +27,8 @@ from pgadmin.cdeadmin.providers.firebird.provider import _resources
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
-def run(image='firebirdsql/firebird:5.0.4'):
+def run(image='firebirdsql/firebird:5.0.4', *, extra_checks=None,
+        run_grid_boundaries=True):
     import firebird.driver as native
     _configure_client_library(native)
     password = secrets.token_urlsafe(24)
@@ -587,15 +588,18 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure('view-grid-' + kind, error)
             finally:
                 rollback()
-        for action in ('commit', 'rollback', 'close', 'sql-select',
-                       'sql-update', 'sql-commit', 'sql-rollback',
-                       'sql-invalid', 'admin-update', 'admin-fail'):
+        boundaries = ('commit', 'rollback', 'close', 'sql-select',
+                      'sql-update', 'sql-commit', 'sql-rollback',
+                      'sql-invalid', 'admin-update', 'admin-fail')
+        for action in boundaries if run_grid_boundaries else ():
             try:
                 result['grid_boundary_checks'].append(grid_boundary(action))
             except Exception as error:
                 failure('grid-boundary-' + action, error)
             finally:
                 rollback()
+        if extra_checks is not None:
+            extra_checks(connection, client, route, password, result)
     except Exception as error:
         failure('gate', error)
     finally:
@@ -619,7 +623,8 @@ def run(image='firebirdsql/firebird:5.0.4'):
     result['complete'] = (len(result['checks']) == 6 and
                           len(result['check_option_checks']) == 4 and
                           len(result['view_grid_checks']) == 2 and
-                          len(result['grid_boundary_checks']) == 10 and
+                          len(result['grid_boundary_checks']) == (
+                              10 if run_grid_boundaries else 0) and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result

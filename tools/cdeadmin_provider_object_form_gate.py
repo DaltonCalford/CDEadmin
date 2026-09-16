@@ -533,6 +533,12 @@ def _preview_values(kind, operation, target, engine_id):
 
     name = _native_name(target)
     if engine_id == 'firebird':
+        if kind == 'exception' and operation_id in {'create_or_alter',
+                                                   'recreate'}:
+            return rendered({
+                'name': 'CDE_UI_EXCEPTION', 'confirmation': str(name),
+                'message': 'Exception preview message @1',
+            })
         if kind == 'view' and operation_id in {'create_or_alter', 'recreate'}:
             return rendered({
                 'name': 'CDE_UI_VIEW', 'confirmation': str(name),

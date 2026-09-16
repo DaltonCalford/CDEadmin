@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 113,
+    "authoritative_task_count": 115,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -66,8 +66,10 @@
       "visual_admin.domain.rename",
       "visual_admin.exception.alter",
       "visual_admin.exception.create",
+      "visual_admin.exception.create_or_alter",
       "visual_admin.exception.drop",
       "visual_admin.exception.grant",
+      "visual_admin.exception.recreate",
       "visual_admin.exception.revoke",
       "visual_admin.external-function.alter",
       "visual_admin.external-function.comment",
@@ -146,7 +148,7 @@
       "visual_admin.view.recreate",
       "visual_admin.view.revoke"
     ],
-    "implemented_task_count": 113,
+    "implemented_task_count": 115,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8910,6 +8912,7 @@
     "firebird-5.0.4-character-metadata-live",
     "firebird-5.0.4-column-alterations-live",
     "firebird-5.0.4-database-storage-live",
+    "firebird-5.0.4-exceptions-live",
     "firebird-5.0.4-external-functions-live",
     "firebird-5.0.4-local-admin-mapping-live",
     "firebird-5.0.4-object-privileges-live",
@@ -9218,6 +9221,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "e04b202236e0708aa351b49c14c75e59ef6650c5918e47b47763d8df6c4a1710"
+    },
+    {
+      "artifact": "native-4.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-exceptions-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "9a5141ca6e6993ed265b55226362cbb95eb04a8f871e0d995c9ad172a2600dde"
+    },
+    {
+      "artifact": "native-4.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-exceptions-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "9a5141ca6e6993ed265b55226362cbb95eb04a8f871e0d995c9ad172a2600dde"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -9772,6 +9793,21 @@
     {
       "binding_style": "positional_question_mark",
       "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-exceptions-parser",
+        "firebird-5.0.4-exceptions-live"
+      ],
+      "required_bindings": [],
+      "source": "CREATE OR ALTER EXCEPTION \"EX\"\"\u6771\u4eac\" 'replacement'",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "CREATE OR ALTER EXCEPTION \"EX\"\"\u6771\u4eac\" 'replacement'"
+      ],
+      "task_id": "visual_admin.exception.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
         "firebird-5.0.4-task-parser-acceptance",
         "firebird-5.0.4-task-live-execution"
       ],
@@ -9797,6 +9833,21 @@
         "GRANT USAGE ON EXCEPTION \"E\" TO USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.exception.grant"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-exceptions-parser",
+        "firebird-5.0.4-exceptions-live"
+      ],
+      "required_bindings": [],
+      "source": "RECREATE EXCEPTION \"EX\"\"\u6771\u4eac\" 'recreated'",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "RECREATE EXCEPTION \"EX\"\"\u6771\u4eac\" 'recreated'"
+      ],
+      "task_id": "visual_admin.exception.recreate"
     },
     {
       "binding_style": "positional_question_mark",
