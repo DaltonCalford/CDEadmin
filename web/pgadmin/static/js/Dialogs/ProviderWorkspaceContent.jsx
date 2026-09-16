@@ -1363,7 +1363,9 @@ export function VisualAdministration({catalog, resources, selectedResource, post
         setInspectionRevision((revision) => revision + 1);
       }
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      if (currentEditorContext.current === editorContext) {
+        setError(errorMessage(requestError));
+      }
     } finally {
       operationInFlight.current = false;
       setWorking(false);
@@ -6607,6 +6609,12 @@ export default function ProviderWorkspaceContent({
     initialContext.parent_resource_id, initialContext.resource_kind,
     initialContext.operation_id, queryDatabaseTargetId, onCredentialRequired,
     workspaceLoadGeneration]);
+  const currentWorkspaceContext = useRef(workspaceContext);
+  const currentCatalogRequest = useRef(null);
+  useLayoutEffect(() => {
+    currentWorkspaceContext.current = workspaceContext;
+    return () => { currentWorkspaceContext.current = null; };
+  }, [workspaceContext]);
   const [tab, setTab] = useState(initialTab);
   const [loadedWorkspace, setLoadedWorkspace] = useState(null);
   // Hide a previous context's actionable forms during render, before effects
@@ -6669,6 +6677,7 @@ export default function ProviderWorkspaceContent({
     setError(null);
     setLoadedWorkspace(null);
     setResourcePage(null);
+    setLoadingMore(false);
     setSelectedResource(null);
     selectedObservationRef.current = null;
     setTab(initialTab);
@@ -6807,10 +6816,22 @@ export default function ProviderWorkspaceContent({
     }
   }, [resourcePage, selectedResource]);
 
-  const loadMoreResources = async () => {
-    if (!resourcePage?.next_cursor) return;
+  const beginCatalogRequest = () => {
+    if (currentWorkspaceContext.current !== workspaceContext) return null;
+    const request = {context: workspaceContext};
+    currentCatalogRequest.current = request;
     setLoadingMore(true);
     setError(null);
+    return request;
+  };
+  const isCurrentCatalogRequest = (request) => request &&
+    currentWorkspaceContext.current === request.context &&
+    currentCatalogRequest.current === request;
+
+  const loadMoreResources = async () => {
+    if (!resourcePage?.next_cursor) return;
+    const request = beginCatalogRequest();
+    if (!request) return;
     try {
       const next = await post({
         action: 'resource_page', request: {
@@ -6818,6 +6839,7 @@ export default function ProviderWorkspaceContent({
           generation: resourcePage.generation,
         },
       });
+      if (!isCurrentCatalogRequest(request)) return;
       if (next.generation !== resourcePage.generation) {
         throw new Error(gettext(
           'Provider objects changed while paging. Reopen the workspace.'
@@ -6828,75 +6850,90 @@ export default function ProviderWorkspaceContent({
         items: [...(resourcePage.items || []), ...(next.items || [])],
       });
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      if (isCurrentCatalogRequest(request)) setError(errorMessage(requestError));
     } finally {
-      setLoadingMore(false);
+      if (isCurrentCatalogRequest(request)) setLoadingMore(false);
     }
   };
 
   const refreshResources = async () => {
     if (!resourcePage?.generation) return;
-    setLoadingMore(true);
-    setError(null);
+    const request = beginCatalogRequest();
+    if (!request) return;
     try {
       const refreshed = await post({
         action: 'resource_refresh', request: {
           generation: resourcePage.generation,
         },
       });
+      if (!isCurrentCatalogRequest(request)) return;
       setResourcePage(refreshed);
       setSelectedResource(null);
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      if (isCurrentCatalogRequest(request)) setError(errorMessage(requestError));
     } finally {
-      setLoadingMore(false);
+      if (isCurrentCatalogRequest(request)) setLoadingMore(false);
     }
   };
 
   const reloadResources = async () => {
-    setLoadingMore(true);
-    setError(null);
+    const request = beginCatalogRequest();
+    if (!request) return;
     try {
       const refreshed = await post({
         action: 'resource_page', request: {},
       });
+      if (!isCurrentCatalogRequest(request)) return;
       setResourcePage(refreshed);
       setSelectedResource(null);
     } catch (requestError) {
-      setError(errorMessage(requestError));
+      if (isCurrentCatalogRequest(request)) setError(errorMessage(requestError));
     } finally {
-      setLoadingMore(false);
+      if (isCurrentCatalogRequest(request)) setLoadingMore(false);
     }
   };
 
   const reloadAfterAdministration = async ({targetResource, operationId, result}) => {
     if (targetResource?.extensions?.cdeadmin?.service_scope_only) return;
     if (result?.provider_result?.staged_in_provider_session === true) return;
+    const request = beginCatalogRequest();
+    if (!request) return;
     const resourceId = administrationResourceId(targetResource, result);
-    const refreshed = await post({action: 'resource_page', request: {}});
-    if (!refreshed?.generation || !Array.isArray(refreshed.items)) {
-      throw new Error(gettext('The refreshed provider catalog is unavailable.'));
-    }
-    // Applying invalidates the old generation. Never refresh/inspect against it.
-    let nextSelected = null;
     try {
-      if (targetResource && operationId !== 'drop') {
-        nextSelected = refreshed.items.find((item) =>
-          item.resource_id === resourceId);
-        if (!nextSelected) {
-          // The provider cache includes objects outside the first visible page.
-          nextSelected = await post({action: 'resource_inspect', request: {
-            resource_id: resourceId,
-            generation: refreshed.generation,
-          }});
+      const refreshed = await post({action: 'resource_page', request: {}});
+      if (!isCurrentCatalogRequest(request)) return;
+      if (!refreshed?.generation || !Array.isArray(refreshed.items)) {
+        throw new Error(gettext('The refreshed provider catalog is unavailable.'));
+      }
+      // Applying invalidates the old generation. Never refresh/inspect against it.
+      let nextSelected = null;
+      try {
+        if (targetResource && operationId !== 'drop') {
+          nextSelected = refreshed.items.find((item) =>
+            item.resource_id === resourceId);
+          if (!nextSelected) {
+            // The provider cache includes objects outside the first visible page.
+            nextSelected = await post({action: 'resource_inspect', request: {
+              resource_id: resourceId,
+              generation: refreshed.generation,
+            }});
+          }
+        }
+      } finally {
+        if (isCurrentCatalogRequest(request)) {
+          selectedObservationRef.current = nextSelected ? {
+            resourceId: nextSelected.resource_id, generation: refreshed.generation,
+          } : null;
+          setResourcePage(refreshed);
+          setSelectedResource(nextSelected);
         }
       }
+    } catch (requestError) {
+      // Discard obsolete UI work, not the original native operation. Current
+      // reload failures still reach the owning editor's no-replay warning.
+      if (isCurrentCatalogRequest(request)) throw requestError;
     } finally {
-      selectedObservationRef.current = nextSelected ? {
-        resourceId: nextSelected.resource_id, generation: refreshed.generation,
-      } : null;
-      setResourcePage(refreshed);
-      setSelectedResource(nextSelected);
+      if (isCurrentCatalogRequest(request)) setLoadingMore(false);
     }
   };
 
