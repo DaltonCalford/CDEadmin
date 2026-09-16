@@ -8,7 +8,8 @@ import firebird.driver as native
 from tools import cdeadmin_firebird_route_isolation_gate as gate
 
 
-@pytest.mark.parametrize('fault', [None, 'connect', 'identity', 'cleanup'])
+@pytest.mark.parametrize('fault', [
+    None, 'connect', 'identity', 'cleanup', 'cancellation'])
 def test_gate_collects_failures_and_always_attempts_cleanup(
         monkeypatch, fault):
     container = 'a' * 64
@@ -29,6 +30,8 @@ def test_gate_collects_failures_and_always_attempts_cleanup(
         return_value={'explicit_close_released': True}))
     monkeypatch.setattr(gate, 'query_diagnostics_case', Mock(
         return_value={'sqlstate_preserved': True}))
+    monkeypatch.setattr(gate, 'native_cancellation_case', Mock(
+        return_value={'complete': fault != 'cancellation'}))
     cleanup = Mock(side_effect=(
         RuntimeError('secret') if fault == 'cleanup' else None))
     monkeypatch.setattr(gate, 'remove_owned', cleanup)
@@ -52,6 +55,34 @@ def test_gate_collects_failures_and_always_attempts_cleanup(
     assert result['complete'] is (fault is None)
     assert len(result['failures']) == (
         6 if fault in ('identity', 'connect') else
-        1 if fault == 'cleanup' else 0)
+        1 if fault in ('cleanup', 'cancellation') else 0)
     assert 'secret' not in str(result)
     assert result['owned_container_removed'] is (fault != 'cleanup')
+
+
+def test_native_cancellation_uses_only_owned_in_memory_profile(monkeypatch):
+    from tools import cdeadmin_firebird_query_cancellation_gate as cancellation
+    runner = Mock(return_value={'complete': True})
+    monkeypatch.setattr(cancellation, 'run_document', runner)
+    route = {'host': '127.0.0.1', 'port': 55555, 'database': '/owned.fdb',
+             'user': 'SYSDBA'}
+    original = dict(route)
+    result = gate.native_cancellation_case(route, 'private-password', 'a' * 64)
+    runner.assert_called_once_with(
+        {'profiles': [{**route, 'engine': 'firebird',
+                       'password': 'private-password'}]},
+        'a' * 64, application_path=True, registry_path=True)
+    assert route == original and result == {'complete': True}
+    assert 'private-password' not in str(result)
+
+
+def test_cancellation_file_entry_point_preserves_options(monkeypatch):
+    from tools import cdeadmin_firebird_query_cancellation_gate as cancellation
+    profiles = Mock()
+    profiles.read_text.return_value = '{"profiles": []}'
+    runner = Mock(return_value={'complete': False})
+    monkeypatch.setattr(cancellation, 'run_document', runner)
+    assert cancellation.run(profiles, 'owned-container', True, True) == {
+        'complete': False}
+    runner.assert_called_once_with({'profiles': []}, 'owned-container',
+                                   True, True)

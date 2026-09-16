@@ -16,15 +16,26 @@ from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from cdeadmin_firebird_admin_mapping_gate import (
-    ADMINISTRATION, _create_client, _route_arguments,
-)
+if __package__:
+    from .cdeadmin_firebird_admin_mapping_gate import (
+        ADMINISTRATION, _create_client, _route_arguments,
+    )
+else:
+    from cdeadmin_firebird_admin_mapping_gate import (
+        ADMINISTRATION, _create_client, _route_arguments,
+    )
 from pgadmin.cdeadmin.security.secrets import SecretLease
 
 
 def run(profiles, container, application_path=False, registry_path=False):
+    return run_document(json.loads(profiles.read_text()), container,
+                        application_path, registry_path)
+
+
+def run_document(document, container, application_path=False,
+                 registry_path=False):
+    """Run with an in-memory profile; no credential file is required."""
     import firebird.driver as driver
-    document = json.loads(profiles.read_text())
     route = next(dict(item) for item in document['profiles']
                  if item['engine'] == 'firebird')
     route.setdefault('host', document.get('host', '127.0.0.1'))

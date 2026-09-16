@@ -392,6 +392,16 @@ def query_diagnostics_case(native, route, password):
             'private_text_absent': True, 'subsequent_query_succeeded': True}
 
 
+def native_cancellation_case(route, password, container):
+    if __package__:
+        from .cdeadmin_firebird_query_cancellation_gate import run_document
+    else:
+        from cdeadmin_firebird_query_cancellation_gate import run_document
+    return run_document(
+        {'profiles': [{**route, 'engine': 'firebird', 'password': password}]},
+        container, application_path=True, registry_path=True)
+
+
 def run(image):
     import firebird.driver as native
     from firebird.driver.config import DriverConfig
@@ -404,6 +414,7 @@ def run(image):
               'opening_lifecycle': [],
               'worker_interruption': None,
               'query_diagnostics': None,
+              'native_cancellation': None,
               'owned_container_removed': False}
     container = None
     password = secrets.token_urlsafe(24)
@@ -495,6 +506,14 @@ def run(image):
                             native, route, password, retained, interrupted))
                 except Exception as error:
                     failure(error)
+        phase = 'native-cancellation'
+        try:
+            result['native_cancellation'] = native_cancellation_case(
+                route, password, container)
+            if not result['native_cancellation']['complete']:
+                raise RuntimeError('Native cancellation gate incomplete')
+        except Exception as error:
+            failure(error)
         phase = 'query-diagnostics'
         try:
             result['query_diagnostics'] = query_diagnostics_case(
@@ -556,6 +575,7 @@ def run(image):
                           len(result['opening_lifecycle']) == 2 and
                           result['worker_interruption'] is not None and
                           result['query_diagnostics'] is not None and
+                          result['native_cancellation'] is not None and
                           result['owned_container_removed'] and
                           not result['failures'])
     return result
