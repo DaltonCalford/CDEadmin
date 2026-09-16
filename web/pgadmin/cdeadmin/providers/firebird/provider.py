@@ -284,17 +284,10 @@ def _route_arguments(route, module=None, *, creation=None):
         result['database'] = database_dsn(
             path, host, port,
             protocol if protocol in {'INET', 'INET4', 'INET6'} else None)
-    configured = creation is not None or any(
-        name in route for name in (
-            'trusted_auth', 'timeout', 'protocol',
-            'dummy_packet_interval', 'wire_config', 'wire_crypt',
-            'wire_compression', 'dbkey_scope', 'decfloat_round', 'no_linger',
-            'attachment_cache_policy', 'attachment_cache_pages',
-            'decfloat_traps_policy',
-            'parallel_workers_policy', 'parallel_workers',
-        )
-    )
-    if not configured or module is None:
+    # Even a minimal route needs a private configuration. Passing its DSN
+    # directly to connect() activates process-wide driver defaults (or an
+    # unrelated named configuration), which can change target/session options.
+    if module is None:
         return result
     database = result.pop('database', None)
     if not database:
