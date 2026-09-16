@@ -581,12 +581,40 @@ def test_invalid_submission_does_not_start_worker(rig, payload):
     assert not rig.entered.is_set()
 
 
-def test_thread_start_failure_releases_submission_slot(rig):
-    with patch.object(threading.Thread, 'start', side_effect=RuntimeError):
-        with pytest.raises(RuntimeError):
-            rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+@pytest.mark.parametrize('failure', [
+    RuntimeError, KeyboardInterrupt, SystemExit])
+@pytest.mark.parametrize('stage', ['construct', 'before_start', 'after_start'])
+def test_thread_start_failure_releases_submission_slot(rig, failure, stage):
+    original_start = threading.Thread.start
+    started = []
+    error = failure('owned startup failure')
+
+    def start(worker):
+        if stage == 'after_start':
+            original_start(worker)
+            started.append(worker)
+        raise error
+
+    target = ('pgadmin.cdeadmin.providers.firebird.query_client.'
+              'threading.Thread' if stage == 'construct' else
+              'threading.Thread.start')
+    rig.finish.set()
+    startup_patch = (patch(target, side_effect=error) if stage == 'construct'
+                     else patch(target, new=start))
+    try:
+        with startup_patch:
+            with pytest.raises(failure) as caught:
+                rig.client.submit_query(rig.handle, {'source': 'SELECT 1'})
+        assert caught.value is error
+    finally:
+        for worker in started:
+            worker.join(5)
+            assert not worker.is_alive()
     assert not rig.client._queries
     assert rig.client._state(rig.handle).query is None
+    rig.cursor.execute.assert_not_called()
+    token = rig.client.execute(rig.handle, {'source': 'SELECT 2'})
+    assert rig.client.describe_result(token)['complete']
 
 
 @pytest.mark.parametrize('interruption', [KeyboardInterrupt, SystemExit])

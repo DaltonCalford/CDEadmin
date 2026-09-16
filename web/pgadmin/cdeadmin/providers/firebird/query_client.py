@@ -26,6 +26,7 @@ class _Query:
     cancellation_attempted: bool = False
     done: bool = False
     worker: object = None
+    dispatch_allowed: bool = False
 
 
 @dataclass
@@ -238,20 +239,27 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         query_row_limit(payload)
         with self._exclusive(handle) as state:
             query = _Query(handle)
-            state.query = query
-            self._queries.append(query)
             query.worker = threading.Thread(
                 target=self._run_query, args=(query, state, payload),
                 name='cdeadmin-firebird-query', daemon=True)
+            state.query = query
+            self._queries.append(query)
             try:
                 query.worker.start()
-            except Exception:
+                query.dispatch_allowed = True
+            except BaseException:
+                # start() may have launched the worker before raising. Its
+                # dispatch gate is still closed under this attachment lock.
+                query.dispatch_allowed = False
                 state.query = None
                 self._queries.remove(query)
                 raise
             return query
 
     def _run_query(self, query, state, request):
+        with state.lock:
+            if not query.dispatch_allowed or state.query is not query:
+                return
         try:
             token = self._execute_sql(query.handle, request)
             native = self._describe_native_token(token)
