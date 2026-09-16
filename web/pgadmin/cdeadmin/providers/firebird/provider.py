@@ -225,7 +225,14 @@ class FirebirdProvider(ActualEnginePilotProvider):
 
     def _execute_query_token(self, handle, payload):
         if isinstance(self.client, FirebirdQueryClient):
-            return self.client.submit_query(handle, payload)
+            # Arbitrary native source may change data, metadata or transaction
+            # state. Do not classify it with a client-side SQL prefix parser.
+            # Claim query ownership before releasing the grid boundary lock.
+            with self.client._exclusive(handle):
+                for session_id, session in tuple(self._sessions.items()):
+                    if session.handle is handle:
+                        self._invalidate_grid_session(session_id)
+                return self.client.submit_query(handle, payload)
         return super()._execute_query_token(handle, payload)
 
     def _discard_unverified_session(self, handle):

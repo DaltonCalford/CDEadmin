@@ -249,7 +249,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 'administer', 'execute'}))
         provider = FirebirdProvider(context, SimpleNamespace(
             require=lambda *_args, **_kwargs: None), client)
-        table = 'BOUNDARY_' + action.upper()
+        table = 'BOUNDARY_' + action.upper().replace('-', '_')
         sql('CREATE TABLE ' + table + ' (ID INTEGER PRIMARY KEY, V INTEGER)')
         connection.commit()
         sql('INSERT INTO ' + table + ' VALUES (1, 10)')
@@ -273,11 +273,42 @@ def run(image='firebirdsql/firebird:5.0.4'):
             sql('UPDATE ' + table + ' SET V = 20 WHERE ID = 1', handle=handle)
             if action == 'close':
                 provider.close_session({'session_id': session_id})
+            elif action.startswith('sql-'):
+                source = {
+                    'sql-select': 'SELECT V FROM ' + table,
+                    'sql-update': ('UPDATE ' + table +
+                                   ' SET V = 30 WHERE ID = 1'),
+                    'sql-commit': 'COMMIT',
+                    'sql-rollback': 'ROLLBACK',
+                    'sql-invalid': 'SELECT FROM',
+                }[action]
+                operation = provider.execute({
+                    'session_id': session_id, 'source': source})
+                deadline = time.monotonic() + 15
+                while True:
+                    observed = provider.describe_result({
+                        'operation_id': operation['operation_id']})
+                    if observed['complete']:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise AssertionError('Native query did not finish')
+                    time.sleep(0.02)
+                observation = next(iter(observed['extensions'].values()))[
+                    'payload']
+                assert observation['execution_state'] == (
+                    'failed' if action == 'sql-invalid' else 'succeeded'), (
+                        observation)
+                expected_value = {
+                    'sql-select': 20, 'sql-update': 30, 'sql-commit': 20,
+                    'sql-rollback': 10, 'sql-invalid': 20,
+                }[action]
+                assert sql('SELECT V FROM ' + table + ' WHERE ID = 1',
+                           handle=handle) == [(expected_value,)]
             else:
                 provider.control_transaction({
                     'session_id': session_id, 'action': action})
             assert sql('SELECT V FROM ' + table + ' WHERE ID = 1') == [
-                (20 if action == 'commit' else 10,)]
+                (20 if action in {'commit', 'sql-commit'} else 10,)]
             rollback()
             try:
                 provider.apply_visual_admin({
@@ -522,7 +553,9 @@ def run(image='firebirdsql/firebird:5.0.4'):
                 failure('view-grid-' + kind, error)
             finally:
                 rollback()
-        for action in ('commit', 'rollback', 'close'):
+        for action in ('commit', 'rollback', 'close', 'sql-select',
+                       'sql-update', 'sql-commit', 'sql-rollback',
+                       'sql-invalid'):
             try:
                 result['grid_boundary_checks'].append(grid_boundary(action))
             except Exception as error:
@@ -552,7 +585,7 @@ def run(image='firebirdsql/firebird:5.0.4'):
     result['complete'] = (len(result['checks']) == 6 and
                           len(result['check_option_checks']) == 4 and
                           len(result['view_grid_checks']) == 2 and
-                          len(result['grid_boundary_checks']) == 3 and
+                          len(result['grid_boundary_checks']) == 8 and
                           not result['failures'] and
                           result['owned_container_removed'])
     return result

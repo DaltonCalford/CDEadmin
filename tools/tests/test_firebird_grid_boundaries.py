@@ -70,10 +70,13 @@ def test_boundary_forgets_only_its_session_even_on_failure(
 
 @pytest.mark.parametrize('method', [
     'read_visual_admin_rows', 'plan_visual_admin', 'apply_visual_admin'])
-def test_boundary_cannot_race_grid_operation(rig, monkeypatch, method):
+@pytest.mark.parametrize('boundary', ['commit', 'query'])
+def test_boundary_cannot_race_grid_operation(
+        rig, monkeypatch, method, boundary):
     provider, handle = rig
     entered, finish = threading.Event(), threading.Event()
     errors = []
+    provider.client.submit_query = Mock()
 
     def operation(_self, _request):
         entered.set()
@@ -92,11 +95,42 @@ def test_boundary_cannot_race_grid_operation(rig, monkeypatch, method):
     try:
         assert entered.wait(5)
         with pytest.raises(RelationalClientError, match='busy'):
-            provider.control_transaction(
-                {'session_id': 'owned', 'action': 'commit'})
+            if boundary == 'commit':
+                provider.control_transaction(
+                    {'session_id': 'owned', 'action': 'commit'})
+            else:
+                provider.execute({'session_id': 'owned',
+                                  'source': 'SELECT 1 FROM RDB$DATABASE'})
         assert 'owned-token' in ADMINISTRATION._row_identities
         handle.commit.assert_not_called()
+        provider.client.submit_query.assert_not_called()
     finally:
         finish.set()
         worker.join(5)
     assert not worker.is_alive() and not errors
+
+
+@pytest.mark.parametrize('source', [
+    'SELECT 1 FROM RDB$DATABASE', 'COMMIT', 'ROLLBACK',
+    'EXECUTE PROCEDURE OWNED_PROCEDURE', 'invalid native source'])
+@pytest.mark.parametrize('failure', [None, RuntimeError, KeyboardInterrupt])
+def test_query_submission_invalidates_without_parsing_source(
+        rig, source, failure):
+    provider, handle = rig
+    marker = object()
+
+    def submit(actual_handle, payload):
+        assert actual_handle is handle and payload['source'] == source
+        assert_invalidated(provider)
+        if failure:
+            raise failure('owned dispatch failure')
+        return marker
+
+    provider.client.submit_query = Mock(side_effect=submit)
+    if failure:
+        with pytest.raises(failure):
+            provider.execute({'session_id': 'owned', 'source': source})
+    else:
+        result = provider.execute({'session_id': 'owned', 'source': source})
+        assert provider._operations[result['operation_id']].token is marker
+    assert_invalidated(provider)
