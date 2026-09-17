@@ -829,6 +829,42 @@ describe('ProviderWorkspaceContent', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
   });
 
+  it('runs confirmed trap control on the existing session without editor parameters or a new attachment', async () => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
+      open_session: {session_id: 'firebird-session'},
+      transaction: {provider_payload: {state: 'idle'}},
+      execute: {occurrence_id: 'firebird-occurrence'},
+      poll: {occurrence: {operation: {terminal: true}}, rendered_result: null},
+    }[payload.action]}}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio"
+      initialContext={{database_target_id: 'firebird-target'}} />);
+    expect(await screen.findByRole('button', {name: 'Disable all DECFLOAT traps'})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', {name: 'Provider transaction state'}));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Inspect DECFLOAT traps'})).toBeEnabled());
+    fireEvent.change(screen.getByLabelText('Query parameters (JSON array)'), {target: {value: 'invalid json'}});
+    fireEvent.change(screen.getByLabelText('Maximum fetched rows'), {target: {value: '-1'}});
+    fireEvent.click(screen.getByRole('checkbox', {name: 'Confirm disabling all DECFLOAT traps in this session'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Disable all DECFLOAT traps'}));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
+      action: 'execute', session_id: 'firebird-session', source: 'SET DECFLOAT TRAPS TO',
+      parameters: [], database_target_id: 'firebird-target',
+    }));
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Inspect DECFLOAT traps'})).toBeEnabled());
+    expect(api.post.mock.calls.filter(([, value]) => value.action === 'open_session')).toHaveLength(1);
+    expect(screen.getByRole('button', {name: 'Disable all DECFLOAT traps'})).toBeDisabled();
+    expect(screen.getByLabelText('Query parameters (JSON array)')).toHaveValue('invalid json');
+    fireEvent.click(screen.getByRole('button', {name: 'Inspect DECFLOAT traps'}));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', expect.objectContaining({
+      action: 'execute', session_id: 'firebird-session', parameters: [],
+      source: 'SELECT RDB$GET_CONTEXT(\'SYSTEM\', \'DECFLOAT_TRAPS\') AS DECFLOAT_TRAPS FROM RDB$DATABASE',
+    })));
+  });
+
   it.each(['', '-1', '1.5', '1000001'])('rejects invalid Firebird row bound %s before opening a session', async (value) => {
     api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
       language_profile: 'firebird-sql', title: 'Firebird SQL',

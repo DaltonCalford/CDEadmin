@@ -24,6 +24,7 @@ import { ModalContent, ModalFooter } from '../components/ModalContent';
 import ContextMenu from '../components/ContextMenu';
 import DataGrid from 'sources/cdeadmin_ui/data/DataGrid';
 import ProviderTransactionObservation from './ProviderTransactionObservation';
+import FirebirdSessionTraps from './FirebirdSessionTraps';
 import ProviderAdministrationResult from './ProviderAdministrationResult';
 import {useModalCloseGuard} from '../helpers/ModalCloseGuard';
 import {providerConnectionFieldGridSx} from
@@ -7011,8 +7012,9 @@ export default function ProviderWorkspaceContent({
     return () => clearTimeout(timer);
   }, [languageProfile, occurrenceId, busy, queryPollingPaused, poll]);
 
-  const execute = async (executionSource=source, presentation='native') => {
+  const execute = async (executionSource=source, presentation='native', sessionCommand=false) => {
     if (querySessionBlocked) return;
+    if (sessionCommand && (languageProfile !== 'firebird-sql' || !sessionId || busy || occurrenceId)) return;
     setBusy(true);
     setError(null);
     setRendered(null);
@@ -7020,22 +7022,22 @@ export default function ProviderWorkspaceContent({
     setResultPresentation(presentation);
     try {
       let rowPolicy = {};
-      if (languageProfile === 'firebird-sql') {
+      if (languageProfile === 'firebird-sql' && !sessionCommand) {
         if (!/^\d+$/.test(maximumRows) || Number(maximumRows) > 1000000) {
           throw new Error(gettext('Maximum fetched rows must be an integer from 0 to 1000000.'));
         }
         rowPolicy = {max_rows: Number(maximumRows) || null};
       }
-      const parameters = JSON.parse(
+      const parameters = sessionCommand ? [] : JSON.parse(
         parameterSource || defaultParameterSource(activeLanguage));
-      const expectsArray = activeLanguage?.parameter_shape === 'array';
+      const expectsArray = sessionCommand || activeLanguage?.parameter_shape === 'array';
       if(expectsArray ? !Array.isArray(parameters) :
         (!parameters || typeof parameters !== 'object' || Array.isArray(parameters))) {
         throw new Error(expectsArray ?
           gettext('This provider requires an ordered JSON parameter array.') :
           gettext('This provider requires a JSON parameter object.'));
       }
-      const activeSession = await ensureSession();
+      const activeSession = sessionCommand ? sessionId : await ensureSession();
       // A previous observation is no longer current once execution begins.
       setTransaction(null);
       const occurrence = await post({
@@ -7356,6 +7358,10 @@ export default function ProviderWorkspaceContent({
             {gettext('Close query session')}</Button>
           {busy && <CircularProgress size={24} />}
         </Box>
+        {languageProfile === 'firebird-sql' && <FirebirdSessionTraps
+          key={sessionId || 'no-session'} sessionId={sessionId}
+          disabled={busy || querySessionBlocked || !!occurrenceId}
+          onExecute={(command) => execute(command, 'native', true)} />}
         {occurrenceId && <Alert severity="info" sx={{mt: 1}} role="status">
           {gettext('Waiting for provider query completion. A cancellation request does not confirm commit or rollback.')}
         </Alert>}
