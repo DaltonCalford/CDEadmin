@@ -14,6 +14,74 @@ WARNING = (
     'permission checks apply. Review the definition and ordered column names.')
 
 
+def grid_update_identity(connection, name):
+    """Admit direct PK-preserving views; prepare, never execute, probes.
+
+    This is deliberately not a general native updatability classifier. Joins,
+    nested views and trigger-backed views need separate row identity contracts.
+    Return the exposed key aliases and columns admitted by native preparation.
+    The caller must retain this connection/transaction for subsequent updates.
+    """
+    import firebird.driver as native
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT TRIM(V.RDB$RELATION_NAME), V.RDB$VIEW_CONTEXT '
+            'FROM RDB$VIEW_RELATIONS V JOIN RDB$RELATIONS R ON '
+            'R.RDB$RELATION_NAME = V.RDB$RELATION_NAME '
+            'WHERE V.RDB$VIEW_NAME = ?', (name,))
+        sources = cursor.fetchall()
+        if len(sources) != 1:
+            return (), ()
+        base, context = sources[0]
+        cursor.execute('SELECT RDB$VIEW_BLR, RDB$RELATION_TYPE FROM '
+                       'RDB$RELATIONS WHERE RDB$RELATION_NAME = ?', (base,))
+        relation = cursor.fetchone()
+        if not relation or relation[0] is not None or relation[1] != 0:
+            return (), ()
+        cursor.execute('SELECT COUNT(*) FROM RDB$TRIGGERS WHERE '
+                       'RDB$RELATION_NAME = ? AND '
+                       'COALESCE(RDB$TRIGGER_INACTIVE, 0) = 0', (name,))
+        if cursor.fetchone()[0]:
+            return (), ()
+        cursor.execute('SELECT TRIM(S.RDB$FIELD_NAME) FROM '
+                       'RDB$RELATION_CONSTRAINTS C JOIN RDB$INDEX_SEGMENTS S '
+                       'ON S.RDB$INDEX_NAME = C.RDB$INDEX_NAME WHERE '
+                       "C.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY' AND "
+                       'C.RDB$RELATION_NAME = ? ORDER BY S.RDB$FIELD_POSITION',
+                       (base,))
+        primary = [row[0] for row in cursor.fetchall()]
+        if not primary:
+            return (), ()
+        cursor.execute('SELECT TRIM(RDB$FIELD_NAME), TRIM(RDB$BASE_FIELD), '
+                       'RDB$VIEW_CONTEXT FROM RDB$RELATION_FIELDS WHERE '
+                       'RDB$RELATION_NAME = ? ORDER BY RDB$FIELD_POSITION',
+                       (name,))
+        fields = cursor.fetchall()
+        keys = []
+        for key in primary:
+            aliases = [field for field, source, field_context in fields
+                       if source == key and field_context == context]
+            if len(aliases) != 1:
+                return (), ()
+            keys.append(aliases[0])
+        editable = []
+        for field, _source, _context in fields:
+            # Preparation invokes native shape, column and permission checks.
+            # No statement runs, even with an always-false predicate.
+            statement = None
+            try:
+                statement = cursor.prepare(
+                    f'UPDATE {identifier(name)} SET {identifier(field)} = ? '
+                    'WHERE 1 = 0')
+                editable.append(field)
+            except native.DatabaseError:
+                continue
+            finally:
+                if statement is not None:
+                    statement.free()
+        return (tuple(keys), tuple(editable)) if editable else ((), ())
+
+
 def metadata_warnings(columns):
     """Disclose observed noncanonical UTF8 CHAR lengths, not SQL guesses.
 

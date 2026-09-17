@@ -870,6 +870,36 @@ def supplement_object_privileges(document, evidence, digest, artifact):
     return value
 
 
+def supplement_view_grid(document, evidence, digest, artifact):
+    """Require native/provider and grid update transaction evidence."""
+    validate_dialect_contract(document, PROFILE)
+    expected = {f'{api}:{view}:{column}:{action}'
+                for view, column in (('VM_SIMPLE', 'V'),
+                                     ('VM_CALCULATED', 'V'),
+                                     ('VM_CALCULATED', 'DOUBLED'),
+                                     ('VM_AGGREGATE', 'V'),
+                                     ('VM_TRIGGERED', 'V'))
+                for api in ('native', 'provider')
+                for action in ('commit', 'rollback')}
+    expected |= {f'grid:{view}:{column}:{action}'
+                 for view, column in (('VM_SIMPLE', 'V'),
+                                      ('VM_CALCULATED', 'V'),
+                                      ('VM_CALCULATED', 'DOUBLED'))
+                 for action in ('commit', 'rollback')}
+    checks = evidence.get('view_mutability_checks', [])
+    if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(expected) or
+            {item.get('case') for item in checks} != expected or
+            any(item.get('passed') is not True for item in checks)):
+        raise ValueError('View grid evidence is incomplete')
+    return _supplement_replacement(
+        document, evidence, digest, artifact,
+        {'visual_admin.view.update'}, 'view-grid-update')
+
+
 def supplement_views(document, evidence, digest, artifact):
     """Require replacement, rollback, permission and dependency proof."""
     validate_dialect_contract(document, PROFILE)
@@ -1562,11 +1592,12 @@ def main(argv=None):
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
         'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
         'procedures', 'functions', 'triggers', 'table-replacement',
-        'user-replacement'),
+        'user-replacement', 'view-grid'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
         supplement = {'admin-mapping': supplement_admin_mapping,
+                      'view-grid': supplement_view_grid,
                       'roles': supplement_roles,
                       'mappings': supplement_mappings,
                       'character-metadata': supplement_character_metadata,

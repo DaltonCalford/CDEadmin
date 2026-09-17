@@ -1851,7 +1851,9 @@ function StructuredDataGrid({catalog, resources, post, setError,
     (item) => item.resource_kind === target?.resource_kind
   );
   const operations = targetDescriptor?.operations || [];
-  const admitted = (operationId) => target?.resource_kind === 'table' &&
+  const admitted = (operationId) =>
+    (target?.resource_kind === 'table' ||
+      (target?.resource_kind === 'view' && operationId === 'update' && page?.editable)) &&
     operations.some((item) => item.operation_id === operationId &&
       item.execution_available);
   const selectedDatabaseTargetId = resourceDatabaseTargetId(target) ||
@@ -1925,7 +1927,7 @@ function StructuredDataGrid({catalog, resources, post, setError,
   const mutate = async (operationId, draft, confirmed=false) => {
     const activeSession = await ensureSession();
     const request = {
-      resource_kind: 'table', operation_id: operationId,
+      resource_kind: target.resource_kind, operation_id: operationId,
       target_resource: target, draft, session_id: activeSession,
       database_target_id: selectedDatabaseTargetId,
     };

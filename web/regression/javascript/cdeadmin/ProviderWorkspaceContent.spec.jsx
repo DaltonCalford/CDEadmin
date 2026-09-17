@@ -3369,11 +3369,11 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByText(/provider-leader/)).toBeInTheDocument();
   });
 
-  it('edits rows through provider-issued identity plans', async () => {
+  it.each(['table', 'view'])('edits %s rows through provider-issued identity plans', async (kind) => {
     const gridBootstrap = {
       ...bootstrap,
       resource_page: {items: [{
-        resource_id: 'table:example:widgets', resource_kind: 'table',
+        resource_id: `${kind}:example:widgets`, resource_kind: kind,
         display_name: 'widgets', display_path: ['example', 'widgets'],
         authority_path: ['example', 'table', 'widgets'],
         extensions: {cdeadmin: {database_target_id: 'database-one'}},
@@ -3381,7 +3381,7 @@ describe('ProviderWorkspaceContent', () => {
       visual_admin: {
         ...bootstrap.visual_admin,
         objects: [{
-          resource_kind: 'table', title: 'Table', operations: [
+          resource_kind: kind, title: 'Relation', operations: [
             {operation_id: 'insert', execution_available: true},
             {operation_id: 'update', execution_available: true},
             {operation_id: 'delete', execution_available: true},
@@ -3426,8 +3426,13 @@ describe('ProviderWorkspaceContent', () => {
     fireEvent.click(await screen.findByText('Load rows'));
     const name = await screen.findByDisplayValue('first');
     expect(screen.getByRole('textbox', {name: 'name value'})).toBe(name);
-    expect(screen.getByRole('textbox', {name: 'name new value'}))
-      .toHaveAttribute('placeholder', 'New value');
+    if (kind === 'table') {
+      expect(screen.getByRole('textbox', {name: 'name new value'}))
+        .toHaveAttribute('placeholder', 'New value');
+    } else {
+      expect(screen.queryByRole('textbox', {name: 'name new value'})).toBeNull();
+      expect(screen.getByRole('button', {name: 'Delete'})).toBeDisabled();
+    }
     fireEvent.change(name, {target: {value: 'second'}});
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(6));
@@ -3440,6 +3445,7 @@ describe('ProviderWorkspaceContent', () => {
       changes: {name: 'second'},
       concurrency_token: 'row-one',
     });
+    expect(api.post.mock.calls[2][1].request.resource_kind).toBe(kind);
     expect(api.post.mock.calls[0][1]).toEqual({
       action: 'open_session', language_profile: 'mysql-sql',
       database_target_id: 'database-one',

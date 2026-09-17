@@ -860,8 +860,10 @@ class ProviderVisualAdministration:
             target.get('resource_kind'), 'target resource kind'
         )
         callback = self._callback('read_admin_rows')
-        if callback is None or not self._operation_supported(
-            resource_kind, 'insert'
+        if callback is None or not (
+            self._operation_supported(resource_kind, 'insert') or
+            (self.engine_id == 'firebird' and resource_kind == 'view' and
+             self._operation_supported(resource_kind, 'update'))
         ):
             raise VisualAdminAccessError(
                 'the target provider has no editable row-page contract'

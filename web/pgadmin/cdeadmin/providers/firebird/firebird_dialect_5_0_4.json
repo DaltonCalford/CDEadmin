@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 124,
+    "authoritative_task_count": 125,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -155,9 +155,10 @@
       "visual_admin.view.drop",
       "visual_admin.view.grant",
       "visual_admin.view.recreate",
-      "visual_admin.view.revoke"
+      "visual_admin.view.revoke",
+      "visual_admin.view.update"
     ],
-    "implemented_task_count": 124,
+    "implemented_task_count": 125,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8935,6 +8936,7 @@
     "firebird-5.0.4-task-live-execution",
     "firebird-5.0.4-triggers-live",
     "firebird-5.0.4-user-replacement-live",
+    "firebird-5.0.4-view-grid-update-live",
     "firebird-5.0.4-views-live"
   ],
   "profile_id": "firebird-native",
@@ -9343,6 +9345,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "00e93c4d070d7d824cc8eee510ad56fcccb15a1694fa5e5eff3df5ce313a4734"
+    },
+    {
+      "artifact": "native-final.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-view-grid-update-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "dfab9b441f1e6d26a4f8d85284d7cfc3ce1e37647e7bf02e1a400efea6611f32"
+    },
+    {
+      "artifact": "native-final.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-view-grid-update-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "dfab9b441f1e6d26a4f8d85284d7cfc3ce1e37647e7bf02e1a400efea6611f32"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -11225,6 +11245,21 @@
         "REVOKE SELECT ON TABLE \"VW\" FROM USER \"CDE_OBJECT_READER\""
       ],
       "task_id": "visual_admin.view.revoke"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-view-grid-update-parser",
+        "firebird-5.0.4-view-grid-update-live"
+      ],
+      "required_bindings": [],
+      "source": "UPDATE \"VM_CALCULATED\" SET \"V\" = ? WHERE \"ID\" = ? AND \"V\" = ? AND \"DOUBLED\" = ?",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "UPDATE \"VM_CALCULATED\" SET \"V\" = ? WHERE \"ID\" = ? AND \"V\" = ? AND \"DOUBLED\" = ?"
+      ],
+      "task_id": "visual_admin.view.update"
     }
   ]
 }

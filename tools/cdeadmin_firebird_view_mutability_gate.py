@@ -3,6 +3,8 @@
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
+import uuid
 
 if __package__:
     from . import cdeadmin_firebird_views_gate as base
@@ -10,11 +12,69 @@ else:
     import cdeadmin_firebird_views_gate as base
 
 
+def verify_provider_grid(client, route, result):
+    from pgadmin.cdeadmin.core import EndpointContext
+    from pgadmin.cdeadmin.providers.firebird.provider import (
+        FirebirdProvider, PROFILE,
+    )
+    identity = str(uuid.uuid4())
+    context = EndpointContext(
+        endpoint_id=identity, mode='legacy_native',
+        experience_family='firebird', provider_id=PROFILE.provider_id,
+        provider_version='0.1.0', profile_id=PROFILE.profile_id,
+        profile_version=PROFILE.exact_version,
+        runtime_verification_state='verified',
+        verified_runtime_family='firebird',
+        verified_runtime_version=result['engine_version'],
+        target_adapter_id='firebird_wire-client',
+        target_adapter_version='owned',
+        pool_namespace=str(uuid.uuid4()), session_namespace=str(uuid.uuid4()),
+        cache_namespace=str(uuid.uuid4()),
+        diagnostic_namespace=str(uuid.uuid4()),
+        effective_permissions=frozenset({
+            'network', 'secret_read', 'data_read', 'data_write',
+            'administer', 'execute'}))
+    provider = FirebirdProvider(context, SimpleNamespace(
+        require=lambda *_args, **_kwargs: None), client)
+    sid = provider.open_session({'route': route})['session_id']
+    original = None
+    try:
+        target = {'resource_kind': 'view', 'resource_id': 'view:VM_SIMPLE',
+                  'display_name': 'VM_SIMPLE', 'display_path': ['VM_SIMPLE']}
+        request = {'_provider_route': route, 'target_resource': target,
+                   'session_id': sid, 'limit': 1}
+        page = provider.read_visual_admin_rows(request)
+        original = page['rows'][0]['values']
+        token = page['rows'][0]['identity_token']
+        assert token and page['editable']
+        plan = provider.plan_visual_admin({
+            **request, 'resource_kind': 'view', 'operation_id': 'update',
+            'draft': {'selector': {'identity_token': token},
+                      'concurrency_token': token, 'changes': {'V': 31}}})
+        assert plan['state'] == 'ready', plan
+        receipt = provider.apply_visual_admin({
+            'session_id': sid, 'plan_id': plan['plan_id'],
+            'plan_digest': plan['plan_digest'], 'confirmed': True})
+        assert receipt['provider_result']['staged_in_provider_session']
+        result['provider_view_grid_passed'] = True
+    finally:
+        provider.close_session({'session_id': sid})
+    observer = client.open_session({'route': route})
+    try:
+        with observer.cursor() as cursor:
+            cursor.execute('SELECT V FROM VM_BASE WHERE ID = ?',
+                           (original['ID'],))
+            assert cursor.fetchall() == [(original['V'],)]
+    finally:
+        client.close_session(observer)
+
+
 def verify(connection, client, route, password, result):
     import firebird.driver as native
     from pgadmin.cdeadmin.providers.firebird.error_diagnostics import (
         status_codes,
     )
+    from pgadmin.cdeadmin.sdk.relational import RelationalClientError
     checks = result['view_mutability_checks'] = []
 
     def sql(handle, source, parameters=()):
@@ -49,6 +109,8 @@ def verify(connection, client, route, password, result):
         executions = [(view, column, writable, api)
                       for view, column, writable in cases
                       for api in ('native', 'provider')]
+        executions += [(view, column, writable, 'grid')
+                       for view, column, writable in cases[:3]]
         for index, (view, column, writable, api) in enumerate(executions):
             for action in ('commit', 'rollback'):
                 key = index * 2 + (action == 'commit') + 1
@@ -67,6 +129,18 @@ def verify(connection, client, route, password, result):
                     assert page['editable'] is False
                     assert all(row['identity_token'] is None
                                for row in page['rows'])
+                    scoped = base.ADMINISTRATION.read_rows(client, {
+                        '_provider_route': route,
+                        'target_resource': {'resource_kind': 'view',
+                                            'display_path': [view]},
+                        'session_id': 'owned-grid',
+                    }, connection=handle)
+                    assert scoped['editable'] is (
+                        view in {'VM_SIMPLE', 'VM_CALCULATED'})
+                    if view == 'VM_CALCULATED':
+                        assert next(col for col in scoped['columns']
+                                    if col['name'] == 'DOUBLED')[
+                                        'editable'] is False
                     flags = sql(handle,
                                 'SELECT TRIM(RDB$FIELD_NAME), RDB$UPDATE_FLAG '
                                 'FROM RDB$RELATION_FIELDS WHERE '
@@ -82,7 +156,7 @@ def verify(connection, client, route, password, result):
                             codes = list(status_codes(exc))
                             if writable:
                                 raise
-                    else:
+                    elif api == 'provider':
                         token = client.submit_query(handle, {
                             'source': source, 'parameters': [key]})
                         token.worker.join(20)
@@ -94,8 +168,47 @@ def verify(connection, client, route, password, result):
                             'succeeded' if writable else 'failed')
                         if not writable:
                             codes = payload['error']['native_status_codes']
-                    assert bool(codes) is not writable
-                    if not writable:
+                    else:
+                        target = {'resource_kind': 'view',
+                                  'display_path': [view]}
+                        grid = base.ADMINISTRATION.read_rows(client, {
+                            '_provider_route': route,
+                            'target_resource': target,
+                            'session_id': 'owned-grid',
+                        }, connection=handle)
+                        assert grid['editable'] is True
+                        assert grid['identity_policy'] == (
+                            'provider-view-primary-key-and-original-values')
+                        row = next(row for row in grid['rows']
+                                   if row['values']['ID'] == key)
+                        identity = row['identity_token']
+                        request = {
+                            '_provider_route': route,
+                            'resource_kind': 'view', 'operation_id': 'update',
+                            'target_resource': target,
+                            'session_id': 'owned-grid',
+                            'draft': {'selector': {'identity_token': identity},
+                                      'concurrency_token': identity,
+                                      'changes': {column: 30}}}
+                        try:
+                            plan = base.ADMINISTRATION.plan(request)
+                            assert writable, 'Calculated column admitted'
+                            receipt = base.ADMINISTRATION.apply(
+                                client, plan, connection=handle)
+                            assert receipt['staged_in_provider_session']
+                            result['task_evidence'][
+                                'visual_admin.view.update'] = {
+                                    'live_execution': 'passed',
+                                    'statements': [item['source'] for item in
+                                                   plan['command_preview'][
+                                                       'statements']]}
+                        except RelationalClientError as exc:
+                            if writable:
+                                raise
+                            assert 'not admitted for editing' in str(exc)
+                    if api != 'grid':
+                        assert bool(codes) is not writable
+                    if not writable and api != 'grid':
                         expected_code = (335544359 if column == 'DOUBLED'
                                          else 335544362)
                         assert expected_code in codes, codes
@@ -133,7 +246,7 @@ def verify(connection, client, route, password, result):
                                    'native_writable': writable,
                                    'native_status_codes': codes,
                                    'catalog_update_flags': flags,
-                                   'grid_remains_read_only': True})
+                                   'grid_without_session_read_only': True})
                 except Exception as exc:
                     checks.append({'case': case, 'passed': False})
                     result['failures'].append({
@@ -141,6 +254,8 @@ def verify(connection, client, route, password, result):
                         'message': str(exc).replace(password, '<redacted>')})
                 finally:
                     client.close_session(handle)
+        if result.get('verify_provider_grid'):
+            verify_provider_grid(client, route, result)
     finally:
         client.close_session(admin)
 
@@ -148,13 +263,23 @@ def verify(connection, client, route, password, result):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--bootstrap-contract', action='store_true',
+                        help='Run native checks before contract activation')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('Refusing to overwrite evidence')
-    result = base.run(extra_checks=verify)
+
+    def checks(connection, client, route, password, result):
+        result['verify_provider_grid'] = not args.bootstrap_contract
+        verify(connection, client, route, password, result)
+
+    result = base.run(extra_checks=checks,
+                      run_grid_boundaries=not args.bootstrap_contract)
     checks = result.get('view_mutability_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 20 and
-                          all(check['passed'] for check in checks))
+    result['complete'] = (result['complete'] and len(checks) == 26 and
+                          all(check['passed'] for check in checks) and
+                          (args.bootstrap_contract or result.get(
+                              'provider_view_grid_passed') is True))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
                       'failures': result['failures']}))

@@ -318,7 +318,8 @@ def test_firebird_preview_values_cover_every_required_native_form_field():
         for operation in resource.get('operations', []):
             operation_id = operation['operation_id']
             if (kind, operation_id) in {
-                    ('table', 'update'), ('table', 'delete')}:
+                    ('table', 'update'), ('table', 'delete'),
+                    ('view', 'update')}:
                 continue
             values = _preview_values(
                 kind, {**operation, 'resource_kind': kind}, target,

@@ -162,6 +162,8 @@ class _RowIdentity:
     original: Mapping[str, Any]
     issued_at: float
     session_id: str | None = None
+    resource_kind: str = 'table'
+    writable_columns: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -250,6 +252,13 @@ class RelationalAdministration:
         value = copy.deepcopy(dict(catalog))
         for resource in value.get('objects', []):
             kind = resource['resource_kind']
+            if self.dialect.engine_id == 'firebird' and kind == 'view':
+                resource['operations'] = [
+                    item for item in resource.get('operations', [])
+                    if item['operation_id'] != 'update'
+                ] + [{'operation_id': 'update', 'title': 'Update view row',
+                      'mutation_class': 'write', 'target_required': True,
+                      'confirmation_required': False}]
             if self.dialect.engine_id == 'firebird' and kind == 'database':
                 additions = firebird_limbo.ATTACHMENT_OPERATIONS & (
                     self.dialect.supported.get(kind, frozenset()))
@@ -777,6 +786,8 @@ class RelationalAdministration:
             })
         if operation_id in {'insert', 'update', 'delete'} and (
             resource_kind != 'table'
+            and not (self.dialect.engine_id == 'firebird' and
+                     resource_kind == 'view' and operation_id == 'update')
         ):
             errors.append({
                 'field_id': None,
@@ -3152,14 +3163,19 @@ class RelationalAdministration:
         connection = connection or client._connect({'route': route})
         cursor = None
         try:
-            # Views are browsable relations, but CDEadmin must not infer that
-            # they are updatable or manufacture row identities for them.
-            # Provider-native view mutation belongs to a separate admitted
-            # operation contract.
+            # Views default to read-only. Firebird may admit a direct,
+            # PK-preserving view in a retained session using native preparation;
+            # never infer row identities for other view shapes or engines.
             key_columns = (
                 tuple(self._primary_key(connection, path))
                 if resource_kind == 'table' else ()
             )
+            writable_columns = None
+            if (self.dialect.engine_id == 'firebird' and
+                    resource_kind == 'view' and session_id and
+                    not owns_connection):
+                key_columns, writable_columns = (
+                    firebird_views.grid_update_identity(connection, path[-1]))
             cursor = (
                 connection if getattr(
                     getattr(client, 'config', None),
@@ -3204,6 +3220,8 @@ class RelationalAdministration:
                         copy.deepcopy(values),
                         time.monotonic(),
                         session_id=session_id,
+                        resource_kind=resource_kind,
+                        writable_columns=writable_columns,
                     )
                     with self._identity_lock:
                         while len(self._row_identities) >= 5000:
@@ -3233,14 +3251,18 @@ class RelationalAdministration:
                         'name': name,
                         'native_type': native_types[index],
                         'key': name in key_columns,
-                        'editable': bool(key_columns),
+                        'editable': bool(key_columns) and (
+                            writable_columns is None or
+                            name in writable_columns),
                     }
                     for index, name in enumerate(columns)
                 ],
                 'rows': result_rows,
                 'editable': bool(key_columns),
                 'identity_policy': (
-                    'provider-primary-key-and-original-values'
+                    ('provider-view-primary-key-and-original-values'
+                     if resource_kind == 'view' else
+                     'provider-primary-key-and-original-values')
                     if key_columns else
                     'read-only-view' if resource_kind != 'table' else
                     'read-only-no-primary-key'
@@ -7121,6 +7143,10 @@ class RelationalAdministration:
         if identity.session_id != request.get('session_id'):
             raise RelationalClientError(
                 'row identity belongs to another provider session')
+        if (identity.resource_kind != request['resource_kind'] or
+                identity.resource_kind != request['target_resource'].get(
+                    'resource_kind', 'table')):
+            raise RelationalClientError('row identity belongs to another kind')
         if time.monotonic() - identity.issued_at > 600:
             raise RelationalClientError('row identity token has expired')
         route = request.get('_provider_route')
@@ -7144,6 +7170,10 @@ class RelationalAdministration:
         changes = draft.get('changes')
         if not isinstance(changes, Mapping) or not changes:
             raise RelationalClientError('row update changes must be an object')
+        if identity.writable_columns is not None and any(
+                name not in identity.writable_columns for name in changes):
+            raise RelationalClientError(
+                'row update contains a column not admitted for editing')
         assignments = ', '.join(
             f'{self._quote(name)} = {self.dialect.parameter}'
             for name in changes
