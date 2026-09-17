@@ -130,6 +130,8 @@ export function showEndpointVerification(
   showSecretPrompt();
 }
 
+let providerWorkspaceSequence = 0;
+
 export function showProviderWorkspace(
   title, nodeObj, nodeData, itemNodeData, initialTab='resources',
   initialContext={}, onEndpointRemoved,
@@ -153,8 +155,15 @@ export function showProviderWorkspace(
   const endpointUrl = parameters.size ?
     `${generatedUrl}${generatedUrl.includes('?') ? '&' : '?'}${parameters}` :
     generatedUrl;
-  pgAdmin.Browser.notifier.showModal(title, (onClose) => (
-    <ProviderWorkspaceContent
+  const workspace = pgAdmin.Browser.docker.default_workspace;
+  const panelId = `id-provider-workspace-${++providerWorkspaceSequence}`;
+  const onClose = () => workspace.close(panelId);
+  workspace.openTab({
+    id: panelId,
+    title,
+    closable: true,
+    floatable: true,
+    content: <ErrorBoundary><ProviderWorkspaceContent
       closeModal={onClose}
       endpointUrl={endpointUrl}
       initialTab={initialTab}
@@ -169,16 +178,9 @@ export function showProviderWorkspace(
           onSuccess: retry,
         });
       }}
-    />
-  ), {
-    id: 'id-provider-workspace',
-    dialogWidth: 1100,
-    dialogHeight: 720,
-    minWidth: 760,
-    minHeight: 480,
-    isResizeable: true,
-    showFullScreen: true,
-  });
+    /></ErrorBoundary>,
+  }, BROWSER_PANELS.MAIN, 'middle');
+  return panelId;
 }
 
 function masterPassCallbacks(masterpass_callback_queue) {

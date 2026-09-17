@@ -12,6 +12,7 @@ import pgAdmin from 'sources/pgadmin';
 import getApiInstance from '../../../pgadmin/static/js/api_instance';
 import {showEndpointVerification, showProviderWorkspace} from
   '../../../pgadmin/static/js/Dialogs/index';
+import {BROWSER_PANELS} from '../../../pgadmin/browser/static/js/constants';
 
 jest.mock('../../../pgadmin/static/js/api_instance');
 
@@ -23,6 +24,9 @@ describe('provider endpoint verification', () => {
     api = {post: jest.fn().mockResolvedValue({data: {success: 1}})};
     getApiInstance.mockReturnValue(api);
     pgAdmin.Browser.notifier.showModal = jest.fn();
+    pgAdmin.Browser.docker = {default_workspace: {
+      openTab: jest.fn(), close: jest.fn(),
+    }};
     node = {generate_url: jest.fn().mockReturnValue('/verify/1')};
   });
 
@@ -57,8 +61,8 @@ describe('provider endpoint verification', () => {
         resource_kind: 'database', operation_id: 'activate_shadow',
         database_target_id: targetId,
       });
-      const content = pgAdmin.Browser.notifier.showModal.mock.calls[0][1](
-        jest.fn());
+      const content = pgAdmin.Browser.docker.default_workspace.openTab
+        .mock.calls[0][0].content.props.children;
       const url = new URL(content.props.endpointUrl, 'http://localhost');
       expect(url.searchParams.get('focused_operation_id'))
         .toBe('activate_shadow');
@@ -79,8 +83,8 @@ describe('provider endpoint verification', () => {
       showProviderWorkspace('Edit endpoint', node, data, item, 'connections', {
         server_mode: 'edit',
       });
-      const content = pgAdmin.Browser.notifier.showModal.mock.calls[0][1](
-        jest.fn());
+      const content = pgAdmin.Browser.docker.default_workspace.openTab
+        .mock.calls[0][0].content.props.children;
       expect(data.runtime_verification_state).toBe('verified');
       content.props.onEndpointProfileSaved({display_name: 'Owned Firebird'});
       expect(data.runtime_verification_state).toBe('stale');
@@ -93,4 +97,24 @@ describe('provider endpoint verification', () => {
       pgAdmin.Browser.tree = previousTree;
     }
   });
+
+  it.each(['table', 'view', 'procedure', 'function', 'sequence', 'collection'])(
+    'opens the %s editor in the main dock with independent close ownership', (kind) => {
+      const workspace = pgAdmin.Browser.docker.default_workspace;
+      const context = {resource_kind: kind, resource_id: 'object-one',
+        database_target_id: 'database-one'};
+      const first = showProviderWorkspace('Editor', node, {}, {}, 'object', context);
+      const second = showProviderWorkspace('Editor', node, {}, {}, 'object', context);
+      expect(first).not.toBe(second);
+      expect(pgAdmin.Browser.notifier.showModal).not.toHaveBeenCalled();
+      expect(workspace.openTab).toHaveBeenNthCalledWith(1,
+        expect.objectContaining({id: first, title: 'Editor', closable: true,
+          floatable: true}), BROWSER_PANELS.MAIN, 'middle');
+      const content = workspace.openTab.mock.calls[0][0].content.props.children;
+      expect(content.props.initialContext).toBe(context);
+      expect(content.props.initialTab).toBe('object');
+      content.props.closeModal();
+      expect(workspace.close).toHaveBeenCalledWith(first);
+      expect(workspace.close).not.toHaveBeenCalledWith(second);
+    });
 });
