@@ -223,6 +223,7 @@ def metadata(kind, row):
         if comment:
             statements += compile_mapping(kind, 'comment', {
                 'description': comment}, {'display_name': name})
+        native['recreation_statements'] = statements
         native['ddl'] = ';\n'.join(statements) + ';'
     except RelationalClientError as error:
         native['ddl_unavailable_reason'] = str(error)

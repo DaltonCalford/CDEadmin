@@ -23,12 +23,17 @@ def text(value, label):
     return value
 
 
-def identifier(value):
+def metadata_name(value):
+    """Validate native name storage without applying SQL identifier syntax."""
     value = text(value, 'Firebird identifier')
     if not value or len(value) > 63:
         raise RelationalClientError(
             'Firebird identifiers require 1 to 63 characters')
-    return identifier_sql(value)
+    return value
+
+
+def identifier(value):
+    return identifier_sql(metadata_name(value))
 
 
 def literal(value):
@@ -104,7 +109,7 @@ def compile_operation(kind, operation, draft, target=None):
             raise RelationalClientError('Installed external name is required')
         # RDB$BASE_COLLATION_NAME is a native 63-character metadata name,
         # despite FROM EXTERNAL accepting a string literal in the grammar.
-        identifier(external)
+        metadata_name(external)
         source += ' FROM EXTERNAL (' + literal(external) + ')'
     for key, clauses in (
             ('padding', {'PAD_SPACE': 'PAD SPACE', 'NO_PAD': 'NO PAD'}),
@@ -217,7 +222,7 @@ def recreation(kind, name, native):
             native.get('character_set'))
         base = native.get('base_collation')
         if base:
-            identifier(base)
+            metadata_name(base)
             source += ' FROM EXTERNAL (' + literal(base) + ')'
         source += ' PAD SPACE' if attributes & 1 else ' NO PAD'
         source += ' CASE INSENSITIVE' if attributes & 2 else ' CASE SENSITIVE'

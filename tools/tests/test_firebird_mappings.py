@@ -13,6 +13,7 @@ import pytest
 
 from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION
 from pgadmin.cdeadmin.providers.firebird import mappings
+from pgadmin.cdeadmin.providers.firebird.ddl_dialect import generated_dialect
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 from pgadmin.cdeadmin.visual_admin.catalog import catalog_for_engine
 from tools.reference_engine_demos.generate_firebird_dialect_contract import (
@@ -78,6 +79,7 @@ def test_global_comment_projection_boundary_is_not_replayed_as_complete():
     assert native['description_completeness'] == (
         'unverified-at-native-projection-limit')
     assert 'ddl' not in native
+    assert 'recreation_statements' not in native
     assert '32767' in native['ddl_unavailable_reason']
     assert mappings.compile_mapping(mappings.KINDS[0], 'comment',
                                     {'description': 'a' * 40000}, target)
@@ -105,6 +107,21 @@ def test_metadata_retains_scope_definition_comment_and_editor_values():
         assert "IS '  comment\nwith whitespace  ';" in native['ddl']
         assert native['authentication_verified'] is False
         assert 'GRANT' not in native['ddl']
+
+
+@pytest.mark.parametrize('dialect', [1, 3])
+@pytest.mark.parametrize('kind', mappings.KINDS)
+def test_mapping_statement_boundaries_preserve_comment_literals(dialect, kind):
+    with generated_dialect(dialect):
+        native = mappings.metadata(kind, (
+            'M', 'P', None, None, 'USER', 'SOURCE', 0, 'DEST',
+            'A"B; it\'s preserved'))
+    statements = native['recreation_statements']
+    assert len(statements) == 2
+    assert native['ddl'] == ';\n'.join(statements) + ';'
+    assert statements[0].startswith('CREATE ')
+    assert statements[1].endswith("IS 'A\"B; it''s preserved'")
+    assert ('MAPPING M' if dialect == 1 else 'MAPPING "M"') in statements[0]
 
 
 def test_unknown_native_mode_is_not_recreated_as_another_mode():

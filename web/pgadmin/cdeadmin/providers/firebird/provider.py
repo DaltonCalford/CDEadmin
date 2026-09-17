@@ -6,7 +6,7 @@ import json
 import os
 import re
 import threading
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from enum import Enum
 from importlib import resources as package_resources
 
@@ -1177,6 +1177,7 @@ def _role_privileges(value):
 
 def _resources(connection, request):
     cursor = connection.cursor()
+    rendering = ExitStack()
     try:
         generation = str(request.get('capability_generation') or 'current')
         resources = {}
@@ -1205,17 +1206,6 @@ def _resources(connection, request):
         catalog_rows = catalog_reader.rows
 
         mapping_catalog = {}
-        for kind in mappings.KINDS:
-            try:
-                rows = list(mappings.catalog_rows(
-                    cursor, global_scope=kind == mappings.KINDS[1]))
-                for row in rows:
-                    add(kind, [], row[0], mappings.metadata(kind, row))
-                mapping_catalog[kind] = {'available': True, 'count': len(rows)}
-            except Exception as error:
-                mapping_catalog[kind] = {
-                    'available': False, 'error_type': type(error).__name__}
-
         info = connection.info
         information_observations = {}
 
@@ -1301,6 +1291,22 @@ def _resources(connection, request):
                 name: None if value is None else str(value).strip()
                 for name, value in zip(names, row)
             })
+        # Every generated metadata helper (not just table/view rendering)
+        # must use this catalog's observed stored dialect. The scope is local
+        # to this call and is released even on a failed read or interruption.
+        from .ddl_dialect import generated_dialect
+        rendering.enter_context(generated_dialect(
+            1 if str(database_native.get('sql_dialect')) == '1' else 3))
+        for kind in mappings.KINDS:
+            try:
+                rows = list(mappings.catalog_rows(
+                    cursor, global_scope=kind == mappings.KINDS[1]))
+                for row in rows:
+                    add(kind, [], row[0], mappings.metadata(kind, row))
+                mapping_catalog[kind] = {'available': True, 'count': len(rows)}
+            except Exception as error:
+                mapping_catalog[kind] = {
+                    'available': False, 'error_type': type(error).__name__}
         database_catalog_rows = catalog_rows(
             'SELECT TRIM(TRAILING FROM D.RDB$CHARACTER_SET_NAME), '
             'TRIM(TRAILING FROM C.RDB$DEFAULT_COLLATE_NAME), D.RDB$LINGER, '
@@ -2254,8 +2260,7 @@ def _resources(connection, request):
 
         def identifier(value):
             from .ddl_dialect import identifier_sql
-            return identifier_sql(str(value), database=(
-                1 if str(database_native.get('sql_dialect')) == '1' else 3))
+            return identifier_sql(str(value))
 
         def numeric(value, default=None):
             try:
@@ -3203,19 +3208,18 @@ def _resources(connection, request):
                     native['view_columns'] = []
                     native['view_columns_unavailable_reason'] = str(error)
                 try:
-                    from .ddl_dialect import generated_dialect
-                    with generated_dialect(
-                            1 if str(database_native.get('sql_dialect')) == '1'
-                            else 3):
-                        native['ddl'] = views.recreation_sql(
-                            item['display_name'], native.get('definition'),
-                            native.get('columns'))
+                    native['ddl'] = views.recreation_sql(
+                        item['display_name'], native.get('definition'),
+                        native.get('columns'))
                 except RelationalClientError as error:
                     native.pop('ddl', None)
                     native['ddl_unavailable_reason'] = str(error)
         return list(resources.values())
     finally:
-        cursor.close()
+        try:
+            cursor.close()
+        finally:
+            rendering.close()
 
 
 def _admin_mapping_state(cursor):
