@@ -1356,6 +1356,21 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByRole('alert').querySelector('script')).toBeNull();
   });
 
+  it('refreshes Firebird view length warnings without executing an operation', () => {
+    const onOperation = jest.fn();
+    const view = (warnings) => ({display_name: 'V', resource_kind: 'view',
+      extensions: {firebird: {native: {catalog_warnings: warnings}}}});
+    const warning = 'View column B has inconsistent or missing native UTF8 CHAR length metadata. Firebird may reject result fetching with string truncation.';
+    const {rerender} = render(<ObjectInspectorSection tabbed
+      resource={view([warning])} onOperation={onOperation} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(warning);
+    expect(onOperation).not.toHaveBeenCalled();
+    rerender(<ObjectInspectorSection tabbed
+      resource={view([])} onOperation={onOperation} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onOperation).not.toHaveBeenCalled();
+  });
+
   it('removes inapplicable multi-selection privileges after a target change', () => {
     const fields = [{field_id: 'privileges', control: 'multiselect', options: [
       {value: 'SELECT', visible_when: {field_id: 'kind', equals: 'TABLE'}},

@@ -14,6 +14,44 @@ WARNING = (
     'permission checks apply. Review the definition and ordered column names.')
 
 
+def metadata_warnings(columns):
+    """Disclose observed noncanonical UTF8 CHAR lengths, not SQL guesses.
+
+    Native UTF8 has a maximum width of four bytes per character. This checks
+    catalog geometry only; a canonical length cannot prove a view is readable.
+    In particular, a four-character literal incorrectly stored as CHAR(1)
+    has internally consistent lengths and cannot be diagnosed here.
+    """
+    warnings = []
+    if not isinstance(columns, list):
+        return warnings
+    for column in columns:
+        if not isinstance(column, Mapping):
+            continue
+        if (str(column.get('field_type')) != '14' or
+                column.get('character_set') != 'UTF8'):
+            continue
+        length = column.get('field_length')
+        characters = column.get('character_length')
+        if isinstance(length, str) and length.isascii() and length.isdigit():
+            length = int(length)
+        if (isinstance(characters, str) and characters.isascii() and
+                characters.isdigit()):
+            characters = int(characters)
+        if type(length) is not int or length <= 0:
+            continue
+        if (type(characters) is int and characters > 0 and
+                length == characters * 4):
+            continue
+        warnings.append(
+            f'View column {column.get("name", "(unknown)")} has inconsistent '
+            'or missing native UTF8 CHAR length metadata. Firebird may reject '
+            'result fetching with string truncation. Review the stored view '
+            'definition and native column properties; CDEadmin has not '
+            'rewritten the SQL or changed the database.')
+    return warnings
+
+
 def catalog_columns(columns):
     """Order catalog columns numerically, including text positions."""
     if not isinstance(columns, list) or not columns:

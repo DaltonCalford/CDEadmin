@@ -3193,6 +3193,8 @@ def _resources(connection, request):
                     if not observed['available'])
             elif item['resource_kind'] == 'view':
                 native = item.setdefault('native', {})
+                native.setdefault('catalog_warnings', []).extend(
+                    views.metadata_warnings(native.get('columns')))
                 try:
                     native['view_columns'] = [
                         {'name': column['name']} for column in
