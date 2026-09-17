@@ -95,3 +95,23 @@ def test_handled_error_blocks_are_not_split_or_rewritten(mode, operation):
         f'CREATE PACKAGE BODY "{name}" AS {BODY}')
     assert 'WHEN GDSCODE unique_key_violation DO' in BODY
     assert 'WHEN EXCEPTION WRITE_FAILURE DO' in BODY
+
+
+@pytest.mark.parametrize('operation', ['create_body', 'replace_body'])
+@pytest.mark.parametrize('dialect', [1, 3])
+def test_bare_rethrow_is_not_replaced_with_a_new_exception(operation, dialect):
+    request = {'resource_kind': 'package', 'operation_id': operation,
+               '_provider_route': {'database': 'owned'},
+               'target_resource': {'resource_kind': 'package',
+                                   'display_name': 'WRITE_INVOKER'},
+               'draft': {'body': BODY}}
+    with generated_dialect(dialect):
+        assert ADMINISTRATION.validate(request) == {'errors': []}
+        statements = ADMINISTRATION.plan(request)['command_preview'][
+            'statements']
+    assert len(statements) == 1
+    assert statements[0]['source'].endswith(' AS ' + BODY)
+    assert BODY.count('EXCEPTION; END END') == 2
+    for value in (13, 14):
+        assert (f'UPDATE WRITE_DATA SET V = {value} WHERE ID = :K; '
+                'EXCEPTION;') in statements[0]['source']

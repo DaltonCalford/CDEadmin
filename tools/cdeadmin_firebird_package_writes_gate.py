@@ -30,10 +30,18 @@ BODY = (
     'IF (OP = 7) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
     'EXCEPTION WRITE_FAILURE; WHEN EXCEPTION WRITE_FAILURE DO '
     'BEGIN UPDATE WRITE_DATA SET V = 12 WHERE ID = :K; END END '
+    'IF (OP = 8) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'INSERT INTO WRITE_DATA VALUES (:K, 10); '
+    'WHEN GDSCODE unique_key_violation DO BEGIN '
+    'UPDATE WRITE_DATA SET V = 13 WHERE ID = :K; EXCEPTION; END END '
+    'IF (OP = 9) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'EXCEPTION WRITE_FAILURE; WHEN EXCEPTION WRITE_FAILURE DO BEGIN '
+    'UPDATE WRITE_DATA SET V = 14 WHERE ID = :K; EXCEPTION; END END '
     'RETURN K; END '
     'PROCEDURE P(OP INTEGER, K INTEGER) AS DECLARE R INTEGER; BEGIN '
     'R = F(OP, K); END END')
 MODES = ('INHERIT', 'INVOKER', 'DEFINER')
+FAILING_OPS = (4, 5, 8, 9)
 
 
 def verify(connection, client, route, password, result):
@@ -102,7 +110,7 @@ def verify(connection, client, route, password, result):
                                      if operation == 'revoke' else {})}})
             for mode in MODES:
                 allowed = mode == 'DEFINER' or phase == 'dml-granted'
-                for op in (1, 2, 3, 4, 5, 6, 7):
+                for op in range(1, 10):
                     for entry in ('function', 'procedure'):
                         for action in ('commit', 'rollback'):
                             key += 1
@@ -119,7 +127,7 @@ def verify(connection, client, route, password, result):
                                 sql(handle, 'INSERT INTO WRITE_PENDING '
                                     'VALUES (?)', (key,))
                                 transaction = handle.main_transaction.info.id
-                                if op in (4, 5):
+                                if op in FAILING_OPS:
                                     writer.execute(handle, {
                                         'source': 'SAVEPOINT BEFORE_CALL'})
                                 name = 'WRITE_' + mode
@@ -134,7 +142,7 @@ def verify(connection, client, route, password, result):
                                 observed = writer.describe_result(token)
                                 assert observed['complete']
                                 payload = observed['payload']
-                                succeeds = allowed and op not in (4, 5)
+                                succeeds = allowed and op not in FAILING_OPS
                                 if succeeds:
                                     assert payload['execution_state'] == (
                                         'succeeded'), payload
@@ -144,7 +152,7 @@ def verify(connection, client, route, password, result):
                                     assert payload['execution_state'] == (
                                         'failed'), payload
                                     code = (335544352 if not allowed else
-                                            335544665 if op == 4 else
+                                            335544665 if op in (4, 8) else
                                             335544517)
                                     assert code in payload['error'][
                                         'native_status_codes'], payload
@@ -159,7 +167,7 @@ def verify(connection, client, route, password, result):
                                            'WRITE_PENDING WHERE ID = ?',
                                            (key,)) == [(key,)]
                                 assert observe(key) == (before, [])
-                                if op in (4, 5):
+                                if op in FAILING_OPS:
                                     assert writer.cancel(token) is False
                                     writer.execute(handle, {
                                         'source': 'ROLLBACK TO SAVEPOINT '
@@ -205,7 +213,7 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('package_write_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 252 and
+    result['complete'] = (result['complete'] and len(checks) == 324 and
                           all(check['passed'] for check in checks))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
