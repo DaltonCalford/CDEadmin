@@ -11,6 +11,28 @@ else:
     import cdeadmin_firebird_views_gate as base
 
 
+def udr_package_header():
+    return ('BEGIN FUNCTION F(A INTEGER, B INTEGER, C INTEGER) '
+            'RETURNS INTEGER; '
+            'FUNCTION G(X INTEGER) RETURNS INTEGER; '
+            'PROCEDURE Z(START_N INTEGER NOT NULL, END_N INTEGER NOT NULL) '
+            'RETURNS(N INTEGER NOT NULL); END')
+
+
+def udr_package_body(updated=False):
+    return (
+        'BEGIN FUNCTION H(A INTEGER, B INTEGER, C INTEGER) RETURNS INTEGER '
+        "EXTERNAL NAME 'udrcpp_example!sum_args' ENGINE UDR; "
+        'FUNCTION F(A INTEGER, B INTEGER, C INTEGER) RETURNS INTEGER '
+        "EXTERNAL NAME 'udrcpp_example!sum_args' ENGINE UDR "
+        "AS 'opaque ; it''s preserved'; "
+        'PROCEDURE Z(START_N INTEGER NOT NULL, END_N INTEGER NOT NULL) '
+        'RETURNS(N INTEGER NOT NULL) '
+        "EXTERNAL NAME 'udrcpp_example!gen_rows' ENGINE UDR; "
+        'FUNCTION G(X INTEGER) RETURNS INTEGER AS BEGIN RETURN H(X, ' +
+        ('4, 5' if updated else '2, 3') + '); END END')
+
+
 def cases():
     # Definitions are native input, not output from the renderer being tested.
     result = [
@@ -59,6 +81,12 @@ def cases():
             'CREATE PACKAGE PH SQL SECURITY DEFINER AS '
             'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; END'],
          'DROP PACKAGE PH', ('header_source', 'body_source', 'description',
+                             'sql_security', 'package_sql_security',
+                             'member_comments')),
+        ('package', 'PU', [
+            'CREATE PACKAGE PU AS ' + udr_package_header(),
+            'CREATE PACKAGE BODY PU AS ' + udr_package_body()],
+         'DROP PACKAGE PU', ('header_source', 'body_source', 'description',
                              'sql_security', 'package_sql_security',
                              'member_comments')),
         ('function', 'FUN', 'CREATE FUNCTION FUN(X INTEGER) RETURNS INTEGER '
@@ -148,6 +176,9 @@ def verify(connection, client, route, password, result):
                     {'kind': item['resource_kind'],
                      'name': item['display_name'],
                      'visibility': item['native'].get('member_visibility'),
+                     'engine_name': item['native'].get('engine_name'),
+                     'entrypoint': item['native'].get('entrypoint'),
+                     'source': item['native'].get('metadata_source'),
                      'description': item['native'].get('description'),
                      'parameters': [
                          {'name': p['name'],
@@ -160,6 +191,21 @@ def verify(connection, client, route, password, result):
             return detail
 
         def behavior(name):
+            if name == 'PU':
+                assert sql('SELECT PU.F(1, 2, 3), PU.G(5) '
+                           'FROM RDB$DATABASE') == [(6, 10)]
+                assert sql('SELECT N FROM PU.Z(2, 4)') == [(2,), (3,), (4,)]
+                try:
+                    sql('SELECT PU.H(1, 2, 3) FROM RDB$DATABASE')
+                except native.DatabaseError as exc:
+                    assert 335545018 in exc.gds_codes
+                    assert exc.sqlstate == '42000'
+                    result.setdefault('private_udr_denials', []).append({
+                        'dialect': dialect, 'codes': list(exc.gds_codes),
+                        'sqlstate': exc.sqlstate})
+                else:
+                    raise AssertionError(
+                        'Private UDR callable outside package')
             if name in {'UFN', 'UFS'}:
                 assert sql(f'SELECT {name}(2, 3, 4) FROM RDB$DATABASE') == [
                     (9,)]
@@ -227,6 +273,12 @@ def verify(connection, client, route, password, result):
                             targets.extend([
                                 ('FUNCTION', 'H', ('X',)),
                                 ('PROCEDURE', 'V', ('X', 'Y'))])
+                        elif name == 'PU':
+                            targets = [
+                                ('FUNCTION', 'F', ('A', 'B', 'C')),
+                                ('FUNCTION', 'G', ('X',)),
+                                ('FUNCTION', 'H', ('A', 'B', 'C')),
+                                ('PROCEDURE', 'Z', ('START_N', 'END_N', 'N'))]
                         for noun, member, parameters in targets:
                             sql(f'COMMENT ON {noun} {name}.{member} '
                                 "IS 'Member ; it''s preserved'")
@@ -264,8 +316,9 @@ def verify(connection, client, route, password, result):
                         check['observed_security'] = {
                             field: before.get(field) for field in
                             ('sql_security', 'package_sql_security')}
-                        assert before['package_sql_security'] == (
-                            'INVOKER' if name == 'P' else 'DEFINER'), check
+                        assert before['package_sql_security'] == {
+                            'P': 'INVOKER', 'PH': 'DEFINER', 'PU': 'INHERIT',
+                        }[name], check
                     behavior(name)
                     statements = before.get('recreation_statements') or [
                         before['ddl'].rstrip().rstrip(';')]
@@ -308,6 +361,51 @@ def verify(connection, client, route, password, result):
                         'actual': after_fields}
                     assert handle.sql_dialect == 3
                     assert handle.info.sql_dialect == dialect
+                    if name == 'PU':
+                        from pgadmin.cdeadmin.providers.firebird.provider \
+                            import ADMINISTRATION
+                        from pgadmin.cdeadmin.providers.firebird.ddl_dialect \
+                            import generated_dialect
+
+                        rollback()
+                        request = {
+                            'resource_kind': 'package',
+                            'operation_id': 'replace_body',
+                            '_provider_route': configured,
+                            'target_resource': {'resource_kind': 'package',
+                                                'display_name': 'PU'},
+                            'draft': {'body': udr_package_body(True)}}
+                        with generated_dialect(dialect):
+                            plan = ADMINISTRATION.plan(request)
+                        sql('INSERT INTO SENTINEL VALUES (81)')
+                        ADMINISTRATION.apply(client, plan, connection=handle)
+                        assert sql('SELECT X FROM SENTINEL') == [(81,)]
+                        rollback()
+                        restored = metadata(kind, name)
+                        assert comparable_fields(restored, fields) == expected
+                        assert sql('SELECT X FROM SENTINEL') == []
+                        rollback()
+                        ADMINISTRATION.apply(client, plan, connection=handle)
+                        handle.commit()
+                        replaced = metadata(kind, name)
+                        assert replaced['body_status']['validity'] == 'valid'
+                        assert replaced['body_source'] == (
+                            udr_package_body(True))
+                        fresh = client.open_session({'route': configured})
+                        try:
+                            with fresh.cursor() as cursor:
+                                cursor.execute('SELECT PU.F(1, 2, 3), PU.G(5) '
+                                               'FROM RDB$DATABASE')
+                                assert cursor.fetchall() == [(6, 14)]
+                                cursor.execute('SELECT N FROM PU.Z(2, 4)')
+                                assert cursor.fetchall() == [
+                                    (2,), (3,), (4,)]
+                        finally:
+                            client.close_session(fresh)
+                        check['package_udr_body_replacement'] = {
+                            'passed': True, 'rollback_restored_metadata': True,
+                            'pending_work_preserved': True,
+                            'fresh_committed_execution': True}
                     if name in {'UFN', 'UFS', 'UPN', 'UPS'}:
                         from pgadmin.cdeadmin.providers.firebird import (
                             functions, procedures,
@@ -510,7 +608,11 @@ def main():
     checks = result.get('catalog_dialect_checks', [])
     replacements = [replacement for check in checks for replacement in
                     check.get('replacement_checks', [])]
+    package_udr = [check['package_udr_body_replacement'] for check in checks
+                   if 'package_udr_body_replacement' in check]
     result['complete'] = (result['complete'] and
+                          len(package_udr) == 2 and
+                          all(check['passed'] for check in package_udr) and
                           len(replacements) == 16 and
                           all(check['passed'] for check in replacements) and
                           len(checks) == 2 * len(cases()) and
