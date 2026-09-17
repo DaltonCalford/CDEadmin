@@ -23,6 +23,13 @@ BODY = (
     'INSERT INTO WRITE_DATA VALUES (:K, 10); END '
     'IF (OP = 5) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
     'EXCEPTION WRITE_FAILURE; END '
+    'IF (OP = 6) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'INSERT INTO WRITE_DATA VALUES (:K, 10); '
+    'WHEN GDSCODE unique_key_violation DO '
+    'BEGIN UPDATE WRITE_DATA SET V = 11 WHERE ID = :K; END END '
+    'IF (OP = 7) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'EXCEPTION WRITE_FAILURE; WHEN EXCEPTION WRITE_FAILURE DO '
+    'BEGIN UPDATE WRITE_DATA SET V = 12 WHERE ID = :K; END END '
     'RETURN K; END '
     'PROCEDURE P(OP INTEGER, K INTEGER) AS DECLARE R INTEGER; BEGIN '
     'R = F(OP, K); END END')
@@ -95,14 +102,14 @@ def verify(connection, client, route, password, result):
                                      if operation == 'revoke' else {})}})
             for mode in MODES:
                 allowed = mode == 'DEFINER' or phase == 'dml-granted'
-                for op in (1, 2, 3, 4, 5):
+                for op in (1, 2, 3, 4, 5, 6, 7):
                     for entry in ('function', 'procedure'):
                         for action in ('commit', 'rollback'):
                             key += 1
                             handle = None
                             label = f'{phase}:{mode}:{op}:{entry}:{action}'
                             try:
-                                before = [] if op in (1, 4, 5) else [(3,)]
+                                before = [(3,)] if op in (2, 3) else []
                                 if before:
                                     sql(admin, 'INSERT INTO WRITE_DATA VALUES '
                                         '(?, 3)', (key,))
@@ -141,8 +148,9 @@ def verify(connection, client, route, password, result):
                                             335544517)
                                     assert code in payload['error'][
                                         'native_status_codes'], payload
-                                after = ([] if op == 3 else [(9,)]) if (
-                                    succeeds) else before
+                                changed = {1: [(9,)], 2: [(9,)], 3: [],
+                                           6: [(11,)], 7: [(12,)]}
+                                after = changed[op] if succeeds else before
                                 assert handle.main_transaction.info.id == (
                                     transaction)
                                 assert sql(handle, 'SELECT V FROM WRITE_DATA '
@@ -197,7 +205,7 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('package_write_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 180 and
+    result['complete'] = (result['complete'] and len(checks) == 252 and
                           all(check['passed'] for check in checks))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],

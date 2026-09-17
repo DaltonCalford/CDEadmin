@@ -76,3 +76,22 @@ def test_exception_usage_is_separate_from_table_write_rights(operation):
     assert [item['source'] for item in statements] == [
         f'{operation.upper()} USAGE ON EXCEPTION "WRITE_FAILURE" '
         f'{direction} USER "WRITE_READER"']
+
+
+@pytest.mark.parametrize('mode', MODES)
+@pytest.mark.parametrize('operation', ['create', 'recreate'])
+def test_handled_error_blocks_are_not_split_or_rewritten(mode, operation):
+    name = 'WRITE_' + mode
+    draft = {'header': HEADER, 'body': BODY, 'sql_security': mode,
+             'name' if operation == 'create' else 'confirmation': name}
+    request = {'resource_kind': 'package', 'operation_id': operation,
+               '_provider_route': {'database': 'owned'}, 'draft': draft,
+               'target_resource': {'resource_kind': 'package',
+                                   'display_name': name}}
+    assert ADMINISTRATION.validate(request) == {'errors': []}
+    statements = ADMINISTRATION.plan(request)['command_preview']['statements']
+    assert len(statements) == 2
+    assert statements[1]['source'] == (
+        f'CREATE PACKAGE BODY "{name}" AS {BODY}')
+    assert 'WHEN GDSCODE unique_key_violation DO' in BODY
+    assert 'WHEN EXCEPTION WRITE_FAILURE DO' in BODY
