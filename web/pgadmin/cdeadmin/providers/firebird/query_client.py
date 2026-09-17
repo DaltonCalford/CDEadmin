@@ -24,6 +24,10 @@ from .transaction_sql import (
 COMMIT_FAILURE_NOTICE = (
     'Commit was not confirmed. Inspect the transaction state before retrying; '
     'earlier savepoints may no longer exist.')
+QUERY_FAILURE_NOTICE = (
+    'A failed result does not confirm rollback. Earlier work or procedure '
+    'writes may remain pending; inspect the transaction before committing '
+    'or retrying.')
 
 
 @dataclass(eq=False)
@@ -307,7 +311,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
                                   'did not complete. Do not replay the '
                                   'statement; close this session.'
                                   if cleanup_failed
-                                  else 'Firebird query did not complete.')),
+                                  else 'Firebird query did not complete.')) +
+                        ' ' + QUERY_FAILURE_NOTICE,
                         'error_type': type(exc).__name__,
                         'native_status_codes': list(codes),
                         'native_execution_completed': execution_completed,

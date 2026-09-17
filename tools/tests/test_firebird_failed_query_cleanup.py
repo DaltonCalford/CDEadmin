@@ -7,6 +7,9 @@ import pytest
 
 from tools.tests.test_firebird_query_limits import client_fixture
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from pgadmin.cdeadmin.providers.firebird.query_client import (
+    QUERY_FAILURE_NOTICE,
+)
 
 
 @pytest.mark.parametrize('asynchronous', [False, True])
@@ -46,6 +49,7 @@ def test_failed_query_cleanup_controls_native_session_reuse(
         result = client.describe_result(token)['payload']
         assert result['execution_state'] == 'failed'
         assert result['error']['native_status_codes'] == [335544665]
+        assert QUERY_FAILURE_NOTICE in result['error']['message']
         assert result.get('session_reuse_blocked', False) is cleanup_fails
         if cleanup_fails:
             assert result['session_reuse_blocked_reason'] == (
