@@ -1587,7 +1587,8 @@ def _resources(connection, request):
              'RDB$DESCRIPTION, RDB$PROCEDURE_TYPE, '
              'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(TRAILING FROM '
              'RDB$ENTRYPOINT), '
-             'TRIM(TRAILING FROM RDB$ENGINE_NAME) FROM RDB$PROCEDURES WHERE '
+             'TRIM(TRAILING FROM RDB$ENGINE_NAME), RDB$PRIVATE_FLAG '
+             'FROM RDB$PROCEDURES WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 ORDER BY 1'),
             ('function', 'SELECT TRIM(TRAILING FROM RDB$FUNCTION_NAME), '
              'TRIM(TRAILING FROM RDB$PACKAGE_NAME), '
@@ -1596,7 +1597,8 @@ def _resources(connection, request):
              'RDB$VALID_BLR, RDB$SQL_SECURITY, TRIM(TRAILING FROM '
              'RDB$ENTRYPOINT), '
              'TRIM(TRAILING FROM RDB$ENGINE_NAME), RDB$DETERMINISTIC_FLAG, '
-             'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG FROM RDB$FUNCTIONS WHERE '
+             'RDB$RETURN_ARGUMENT, RDB$LEGACY_FLAG, RDB$PRIVATE_FLAG '
+             'FROM RDB$FUNCTIONS WHERE '
              'COALESCE(RDB$SYSTEM_FLAG, 0) = 0 AND '
              'RDB$MODULE_NAME IS NULL ORDER BY 1'),
             ('external-function', 'SELECT TRIM(TRAILING FROM '
@@ -1675,13 +1677,13 @@ def _resources(connection, request):
             'procedure': (
                 'package', 'metadata_source', 'description',
                 'procedure_type', 'valid_blr', 'sql_security', 'entrypoint',
-                'engine_name',
+                'engine_name', 'private_flag',
             ),
             'function': (
                 'package', 'metadata_source', 'description',
                 'function_type', 'valid_blr', 'sql_security', 'entrypoint',
                 'engine_name', 'deterministic', 'return_argument',
-                'legacy',
+                'legacy', 'private_flag',
             ),
             'external-function': (
                 'module_name', 'entrypoint', 'engine_name', 'package',
@@ -2265,6 +2267,10 @@ def _resources(connection, request):
             if item['resource_kind'] not in {'procedure', 'function'} or (
                     not package):
                 continue
+            flag = native.get('private_flag')
+            native['member_visibility'] = (
+                'private' if str(flag) == '1' else
+                'public' if str(flag) == '0' else 'unknown')
             owners = [value for value in objects_named(package)
                       if value['resource_kind'] == 'package']
             if len(owners) == 1:

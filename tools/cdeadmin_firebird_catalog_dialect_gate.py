@@ -44,10 +44,14 @@ def cases():
             'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; '
             'PROCEDURE Z(X INTEGER) RETURNS(Y INTEGER); END',
             'CREATE PACKAGE BODY P AS BEGIN '
+            'FUNCTION H(X INTEGER) RETURNS INTEGER AS '
+            'BEGIN RETURN X + 2; END '
+            'PROCEDURE V(X INTEGER) RETURNS(Y INTEGER) AS '
+            'BEGIN Y = X + 6; END '
             'FUNCTION F(X INTEGER) RETURNS INTEGER AS '
-            "BEGIN /* Keep ; and 'quotes' */ RETURN X + 2; END "
+            "BEGIN /* Keep ; and 'quotes' */ RETURN H(X); END "
             'PROCEDURE Z(X INTEGER) RETURNS(Y INTEGER) AS '
-            'BEGIN Y = X + 6; END END'],
+            'BEGIN EXECUTE PROCEDURE V(X) RETURNING_VALUES Y; END END'],
          'DROP PACKAGE P', ('header_source', 'body_source', 'description',
                             'sql_security', 'package_sql_security',
                             'member_comments')),
@@ -124,6 +128,7 @@ def verify(connection, client, route, password, result):
                 detail['member_comments'] = sorted([
                     {'kind': item['resource_kind'],
                      'name': item['display_name'],
+                     'visibility': item['native'].get('member_visibility'),
                      'description': item['native'].get('description'),
                      'parameters': [
                          {'name': p['name'],
@@ -146,6 +151,23 @@ def verify(connection, client, route, password, result):
                 assert sql(source) == [(expected,)]
             if name == 'P':
                 assert sql('EXECUTE PROCEDURE P.Z(5)') == [(11,)]
+                for source, code in (
+                        ('SELECT P.H(5) FROM RDB$DATABASE', 335545018),
+                        ('EXECUTE PROCEDURE P.V(5)', 335545019)):
+                    try:
+                        sql(source)
+                    except native.DatabaseError as exc:
+                        assert exc.sqlstate == '42000', str(exc)
+                        assert code in exc.gds_codes, str(exc)
+                        denials = result.setdefault(
+                            'private_member_denials', [])
+                        denials.append({
+                            'dialect': dialect, 'source': source,
+                            'sqlstate': exc.sqlstate,
+                            'native_codes': list(exc.gds_codes)})
+                    else:
+                        raise AssertionError('Private member callable outside '
+                                             'its package: ' + source)
 
         try:
             sql('CREATE TABLE SENTINEL (X INTEGER)')
@@ -175,6 +197,9 @@ def verify(connection, client, route, password, result):
                         targets = [('FUNCTION', 'F', ('X',))]
                         if name == 'P':
                             targets.append(('PROCEDURE', 'Z', ('X', 'Y')))
+                            targets.extend([
+                                ('FUNCTION', 'H', ('X',)),
+                                ('PROCEDURE', 'V', ('X', 'Y'))])
                         for noun, member, parameters in targets:
                             sql(f'COMMENT ON {noun} {name}.{member} '
                                 "IS 'Member ; it''s preserved'")
@@ -186,6 +211,9 @@ def verify(connection, client, route, password, result):
                         before = metadata(kind, name)
                         assert len(before['member_comments']) == len(targets)
                         for member in before['member_comments']:
+                            assert member['visibility'] == (
+                                'private' if member['name'] in {'H', 'V'}
+                                else 'public')
                             assert member['description'] == (
                                 "Member ; it's preserved")
                             for parameter in member['parameters']:

@@ -92,8 +92,9 @@ def test_sequence_comments_are_separate_without_changing_initial_values(
 @pytest.mark.parametrize('comment', [None, '', COMMENT])
 @pytest.mark.parametrize('kind', ['procedure', 'function'])
 @pytest.mark.parametrize('packaged', [False, True])
+@pytest.mark.parametrize('private_flag', [None, 0, 1])
 def test_parameter_comments_are_exported_after_routine(
-        dialect, comment, kind, packaged):
+        dialect, comment, kind, packaged, private_flag):
     cursor = Mock()
     rows = []
     source_body = 'BEGIN END' if kind == 'procedure' else (
@@ -111,11 +112,11 @@ def test_parameter_comments_are_exported_after_routine(
             if kind == 'procedure' and 'FROM RDB$PROCEDURES WHERE ' in source:
                 rows = [('P', package, source_body, member_comment, 2, 1,
                          False, None,
-                         None)]
+                         None, private_flag)]
             if kind == 'function' and 'FROM RDB$FUNCTIONS WHERE ' in source:
                 rows = [('P', package, source_body, member_comment, 0, 1,
                          False, None,
-                         None, 0, 0, 0)]
+                         None, 0, 0, 0, private_flag)]
             if rows and packaged and kind != 'package' and (
                     'FROM RDB$PROCEDURES WHERE ' in source or
                     'FROM RDB$FUNCTIONS WHERE ' in source):
@@ -142,6 +143,8 @@ def test_parameter_comments_are_exported_after_routine(
     named = next(p for p in native['parameters'] if p['name'])
     assert named['description'] == comment
     if packaged:
+        assert native['member_visibility'] == {
+            None: 'unknown', 0: 'public', 1: 'private'}[private_flag]
         assert 'recreation_statements' not in native
         native = next(item['native'] for item in resources if
                       item['resource_kind'] == 'package')
