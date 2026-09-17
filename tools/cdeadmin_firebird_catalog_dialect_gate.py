@@ -18,7 +18,7 @@ def cases():
          ('field_type', 'field_length', 'character_length', 'character_set',
           'default_source', 'not_null', 'validation_source', 'collation')),
         ('sequence', 'S', 'CREATE SEQUENCE S START WITH 7 INCREMENT BY 3',
-         'DROP SEQUENCE S', ('initial_value', 'increment')),
+         'DROP SEQUENCE S', ('initial_value', 'increment', 'description')),
         ('exception', 'E', "CREATE EXCEPTION E 'Exact A\"B; message'",
          'DROP EXCEPTION E', ('message',)),
         ('role', 'R', 'CREATE ROLE R', 'DROP ROLE R',
@@ -37,6 +37,31 @@ def cases():
           'description')),
         ('character-set', 'UTF8', None, None,
          ('default_collation', 'description', 'bytes_per_character')),
+        ('package', 'P', [
+            'CREATE PACKAGE P SQL SECURITY INVOKER AS '
+            'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; END',
+            'CREATE PACKAGE BODY P AS BEGIN '
+            'FUNCTION F(X INTEGER) RETURNS INTEGER AS '
+            "BEGIN /* Keep ; and 'quotes' */ RETURN X + 2; END END"],
+         'DROP PACKAGE P', ('header_source', 'body_source', 'description',
+                            'sql_security', 'package_sql_security')),
+        ('package', 'PH', [
+            'CREATE PACKAGE PH SQL SECURITY DEFINER AS '
+            'BEGIN FUNCTION F RETURNS INTEGER; END'],
+         'DROP PACKAGE PH', ('header_source', 'body_source', 'description',
+                             'sql_security', 'package_sql_security')),
+        ('function', 'FUN', 'CREATE FUNCTION FUN(X INTEGER) RETURNS INTEGER '
+         'SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END',
+         'DROP FUNCTION FUN', ('metadata_source', 'sql_security')),
+        ('procedure', 'PR', 'CREATE PROCEDURE PR(X INTEGER) '
+         'RETURNS(Y INTEGER) '
+         'SQL SECURITY INVOKER AS BEGIN Y = X + 4; END',
+         'DROP PROCEDURE PR', ('metadata_source', 'sql_security')),
+        ('trigger', 'TR', 'CREATE TRIGGER TR FOR SENTINEL INACTIVE '
+         'BEFORE UPDATE POSITION 0 SQL SECURITY INVOKER '
+         'AS BEGIN NEW.X = OLD.X; END',
+         'DROP TRIGGER TR', ('metadata_source', 'sql_security', 'inactive',
+                             'trigger_type', 'position')),
     ]
 
 
@@ -75,17 +100,31 @@ def verify(connection, client, route, password, result):
                 handle, {'route': configured}) if
                 item['resource_kind'] == kind and item['display_name'] == name)
 
+        def behavior(name):
+            sources = {
+                'P': ('SELECT P.F(5) FROM RDB$DATABASE', 7),
+                'FUN': ('SELECT FUN(5) FROM RDB$DATABASE', 8),
+                'PR': ('EXECUTE PROCEDURE PR(5)', 9),
+            }
+            if name in sources:
+                source, expected = sources[name]
+                assert sql(source) == [(expected,)]
+
         try:
             sql('CREATE TABLE SENTINEL (X INTEGER)')
             handle.commit()
             for kind, name, create, drop, fields in cases():
-                check = {'dialect': dialect, 'kind': kind, 'passed': False}
+                check = {'dialect': dialect, 'kind': kind, 'name': name,
+                         'passed': False}
                 checks.append(check)
                 try:
                     if create:
-                        sql(create)
+                        for statement in (create if isinstance(create, list)
+                                          else [create]):
+                            sql(statement)
                         handle.commit()
-                    if kind in {'role', 'collation', 'blob-filter',
+                    if kind in {'role', 'collation', 'blob-filter', 'sequence',
+                                'package',
                                 'authentication-mapping'}:
                         noun = {'blob-filter': 'FILTER',
                                 'authentication-mapping': 'MAPPING'}.get(
@@ -94,6 +133,13 @@ def verify(connection, client, route, password, result):
                             ' IS \'Exact A"B; it\'\'s preserved\'')
                         handle.commit()
                     before = metadata(kind, name)
+                    if kind == 'package':
+                        check['observed_security'] = {
+                            field: before.get(field) for field in
+                            ('sql_security', 'package_sql_security')}
+                        assert before['package_sql_security'] == (
+                            'INVOKER' if name == 'P' else 'DEFINER'), check
+                    behavior(name)
                     statements = before.get('recreation_statements') or [
                         before['ddl'].rstrip().rstrip(';')]
                     check['statements'] = statements
@@ -124,6 +170,7 @@ def verify(connection, client, route, password, result):
                         sql(statement)
                     handle.commit()
                     after = metadata(kind, name)
+                    behavior(name)
                     assert {field: after.get(field) for field in fields} == (
                         expected)
                     assert handle.sql_dialect == 3
@@ -133,7 +180,7 @@ def verify(connection, client, route, password, result):
                                  metadata_identity_verified=True)
                 except Exception as exc:
                     result['failures'].append({
-                        'case': f'catalog-{dialect}-{kind}',
+                        'case': f'catalog-{dialect}-{kind}-{name}',
                         'error_type': type(exc).__name__,
                         'message': str(exc).replace(password, '<redacted>')})
                 finally:
@@ -150,7 +197,8 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('catalog_dialect_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 16 and
+    result['complete'] = (result['complete'] and
+                          len(checks) == 2 * len(cases()) and
                           all(check['passed'] for check in checks))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],

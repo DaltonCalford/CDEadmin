@@ -2394,7 +2394,10 @@ def _resources(connection, request):
             return value
 
         def sql_security(value):
-            flag = numeric(value)
+            # Native BOOLEAN catalog values become text in simple metadata.
+            # Do not discard True/False as unknown or treat "False" as truthy.
+            flag = (value.upper() == 'TRUE' if isinstance(value, str) and
+                    value.upper() in {'TRUE', 'FALSE'} else numeric(value))
             if flag is None:
                 return None
             return 'SQL SECURITY DEFINER' if flag else 'SQL SECURITY INVOKER'
@@ -2641,14 +2644,16 @@ def _resources(connection, request):
                     clauses.append(f'START WITH {initial}')
                 if increment not in (None, ''):
                     clauses.append(f'INCREMENT BY {increment}')
-                native['ddl'] = ' '.join([
+                statements = [' '.join([
                     'CREATE SEQUENCE', identifier(name), *clauses,
-                ]) + ';'
+                ])]
                 if native.get('description') is not None:
                     comment = str(native['description']).replace("'", "''")
-                    native['ddl'] += (
-                        f'\nCOMMENT ON SEQUENCE {identifier(name)} '
-                        f"IS '{comment}';")
+                    statements.append(
+                        f'COMMENT ON SEQUENCE {identifier(name)} '
+                        f"IS '{comment}'")
+                native['recreation_statements'] = statements
+                native['ddl'] = ';\n'.join(statements) + ';'
                 # Only inspect the selected sequence, never consume a value
                 # or query every generator while expanding a catalog branch.
                 if request.get('resource_id') == item['resource_id']:
@@ -2661,8 +2666,7 @@ def _resources(connection, request):
             elif kind == 'package' and native.get('header_source'):
                 security = sql_security(native.get('sql_security'))
                 native['package_sql_security'] = (
-                    'INHERIT' if native.get('sql_security') is None else
-                    'DEFINER' if native['sql_security'] else 'INVOKER')
+                    security.rsplit(' ', 1)[-1] if security else 'INHERIT')
                 native['child_definition_tasks'] = {
                     member: {'operation_id': 'alter',
                              'label': f'New {member} in package header'}
@@ -2671,15 +2675,20 @@ def _resources(connection, request):
                 if security:
                     header += f' {security}'
                 header += (
-                    f' AS\n{str(native["header_source"]).strip()};'
+                    f' AS\n{str(native["header_source"]).strip()}'
                 )
+                statements = [header]
                 body = str(native.get('body_source') or '').strip()
                 if body:
-                    header += (
-                        f'\n\nCREATE PACKAGE BODY {identifier(name)} AS\n'
-                        f'{body};'
-                    )
-                native['ddl'] = header
+                    statements.append(
+                        f'CREATE PACKAGE BODY {identifier(name)} AS\n{body}')
+                if native.get('description') is not None:
+                    comment = str(native['description']).replace("'", "''")
+                    statements.append(
+                        f'COMMENT ON PACKAGE {identifier(name)} '
+                        f"IS '{comment}'")
+                native['recreation_statements'] = statements
+                native['ddl'] = ';\n\n'.join(statements) + ';'
             elif kind == 'domain':
                 rendered_type = data_type(native, include_domain=False)
                 if rendered_type is not None:
