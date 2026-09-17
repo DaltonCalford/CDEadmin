@@ -2242,6 +2242,23 @@ def _resources(connection, request):
                         'privileges', []
                     ).append(grant)
 
+        def routine_comments(kind, detail, qualified_name):
+            statements = []
+            if detail.get('description') is not None:
+                comment = str(detail['description']).replace("'", "''")
+                statements.append(
+                    f'COMMENT ON {kind.upper()} {qualified_name} '
+                    f"IS '{comment}'")
+            for parameter in detail.get('parameters', []):
+                if (parameter.get('name') and
+                        parameter.get('description') is not None):
+                    comment = str(parameter['description']).replace("'", "''")
+                    statements.append(
+                        f'COMMENT ON {kind.upper()} PARAMETER '
+                        f'{qualified_name}.{identifier(parameter["name"])} '
+                        f"IS '{comment}'")
+            return statements
+
         for item in resources.values():
             native = item.setdefault('native', {})
             package = native.get('package')
@@ -2688,6 +2705,18 @@ def _resources(connection, request):
                     statements.append(
                         f'COMMENT ON PACKAGE {identifier(name)} '
                         f"IS '{comment}'")
+                members = sorted((member for member in resources.values()
+                                  if member['resource_kind'] in {
+                                      'function', 'procedure'} and
+                                  member.get('native', {}).get('package') ==
+                                  name), key=lambda member: (
+                                      member['resource_kind'],
+                                      member['display_name']))
+                for member in members:
+                    statements.extend(routine_comments(
+                        member['resource_kind'], member['native'],
+                        f'{identifier(name)}.'
+                        f'{identifier(member["display_name"])}'))
                 native['recreation_statements'] = statements
                 native['ddl'] = ';\n\n'.join(statements) + ';'
             elif kind == 'domain':
@@ -2912,22 +2941,14 @@ def _resources(connection, request):
                 # These renderers append exactly one outer terminator. Keep
                 # PSQL bodies intact; never split a definition at semicolons.
                 statements = [native['ddl'][:-1]]
-                if native.get('description') is not None:
+                if kind in {'procedure', 'function'}:
+                    statements.extend(routine_comments(
+                        kind, native, identifier(name)))
+                elif native.get('description') is not None:
                     comment = str(native['description']).replace("'", "''")
                     statements.append(
                         f'COMMENT ON {kind.upper()} {identifier(name)} '
                         f"IS '{comment}'")
-                if kind in {'procedure', 'function'}:
-                    for parameter in native.get('parameters', []):
-                        if (parameter.get('name') and
-                                parameter.get('description') is not None):
-                            comment = str(parameter['description']).replace(
-                                "'", "''")
-                            statements.append(
-                                f'COMMENT ON {kind.upper()} PARAMETER '
-                                f'{identifier(name)}.'
-                                f'{identifier(parameter["name"])} '
-                                f"IS '{comment}'")
                 native['recreation_statements'] = statements
                 native['ddl'] = ';\n'.join(statements) + ';'
         primary_key_columns = {}

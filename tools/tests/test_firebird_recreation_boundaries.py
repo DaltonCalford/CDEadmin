@@ -91,30 +91,43 @@ def test_sequence_comments_are_separate_without_changing_initial_values(
 @pytest.mark.parametrize('dialect', [1, 3])
 @pytest.mark.parametrize('comment', [None, '', COMMENT])
 @pytest.mark.parametrize('kind', ['procedure', 'function'])
-def test_parameter_comments_are_exported_after_routine(dialect, comment, kind):
+@pytest.mark.parametrize('packaged', [False, True])
+def test_parameter_comments_are_exported_after_routine(
+        dialect, comment, kind, packaged):
     cursor = Mock()
     rows = []
     source_body = 'BEGIN END' if kind == 'procedure' else (
         'BEGIN RETURN X; END')
     parameter_name = 'X' if dialect == 1 else 'X"Y'
+    package = ('PKG' if dialect == 1 else 'Pk"G') if packaged else None
+    member_comment = COMMENT if packaged else None
 
     def execute(source):
         nonlocal rows
         rows = []
         if 'COALESCE(RDB$SYSTEM_FLAG, 0) = 0' in source:
+            if packaged and 'FROM RDB$PACKAGES WHERE ' in source:
+                rows = [(package, HEADER, None, None, 0, None)]
             if kind == 'procedure' and 'FROM RDB$PROCEDURES WHERE ' in source:
-                rows = [('P', None, source_body, None, 2, 1, False, None,
+                rows = [('P', package, source_body, member_comment, 2, 1,
+                         False, None,
                          None)]
             if kind == 'function' and 'FROM RDB$FUNCTIONS WHERE ' in source:
-                rows = [('P', None, source_body, None, 0, 1, False, None,
+                rows = [('P', package, source_body, member_comment, 0, 1,
+                         False, None,
                          None, 0, 0, 0)]
+            if rows and packaged and kind != 'package' and (
+                    'FROM RDB$PROCEDURES WHERE ' in source or
+                    'FROM RDB$FUNCTIONS WHERE ' in source):
+                rows.append((rows[0][0], 'OTHER', rows[0][2],
+                             'Do not leak', *rows[0][4:]))
         if kind == 'procedure' and 'RDB$PROCEDURE_PARAMETERS P ' in source:
-            rows = [('P', None, parameter_name, 0, 0, 'RDB$1', None, None,
+            rows = [('P', package, parameter_name, 0, 0, 'RDB$1', None, None,
                      comment, 0, 8, 0, 4, 0, 9, None, None, None, None,
                      None, None)]
         if kind == 'function' and 'RDB$FUNCTION_ARGUMENTS A ' in source:
             assert 'A.RDB$DESCRIPTION' in source
-            rows = [('P', None, name, position, 'RDB$1', None, None, 0, 0,
+            rows = [('P', package, name, position, 'RDB$1', None, None, 0, 0,
                      8, 0, 4, 0, 9, None, None, None, None, None, None,
                      description) for name, position, description in [
                          (None, 0, None), (parameter_name, 1, comment)]]
@@ -123,15 +136,26 @@ def test_parameter_comments_are_exported_after_routine(dialect, comment, kind):
     cursor.fetchall.side_effect = lambda: rows
     handle = SimpleNamespace(cursor=lambda: cursor,
                              info=SimpleNamespace(sql_dialect=dialect))
-    native = next(item['native'] for item in _resources(
-        handle, {'route': {'database': 'fixture'}}) if
-        item['resource_kind'] == kind)
+    resources = _resources(handle, {'route': {'database': 'fixture'}})
+    native = next(item['native'] for item in resources if
+                  item['resource_kind'] == kind)
     named = next(p for p in native['parameters'] if p['name'])
     assert named['description'] == comment
+    if packaged:
+        assert 'recreation_statements' not in native
+        native = next(item['native'] for item in resources if
+                      item['resource_kind'] == 'package')
     statements = native['recreation_statements']
-    assert len(statements) == 1 + (comment is not None)
+    assert len(statements) == 1 + int(packaged) + (comment is not None)
+    assert 'Do not leak' not in native['ddl']
+    prefix = ('PKG.' if dialect == 1 else '"Pk""G".') if packaged else ''
+    if packaged:
+        target = prefix + ('P' if dialect == 1 else '"P"')
+        assert statements[1] == (
+            f'COMMENT ON {kind.upper()} {target} IS ' +
+            "'" + COMMENT.replace("'", "''") + "'")
     if comment is not None:
-        target = 'P.X' if dialect == 1 else '"P"."X""Y"'
+        target = prefix + ('P.X' if dialect == 1 else '"P"."X""Y"')
         assert statements[-1] == (
             f'COMMENT ON {kind.upper()} PARAMETER {target} IS ' +
             "'" + comment.replace("'", "''") + "'")

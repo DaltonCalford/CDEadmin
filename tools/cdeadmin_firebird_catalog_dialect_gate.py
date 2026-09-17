@@ -41,17 +41,22 @@ def cases():
          ('default_collation', 'description', 'bytes_per_character')),
         ('package', 'P', [
             'CREATE PACKAGE P SQL SECURITY INVOKER AS '
-            'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; END',
+            'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; '
+            'PROCEDURE Z(X INTEGER) RETURNS(Y INTEGER); END',
             'CREATE PACKAGE BODY P AS BEGIN '
             'FUNCTION F(X INTEGER) RETURNS INTEGER AS '
-            "BEGIN /* Keep ; and 'quotes' */ RETURN X + 2; END END"],
+            "BEGIN /* Keep ; and 'quotes' */ RETURN X + 2; END "
+            'PROCEDURE Z(X INTEGER) RETURNS(Y INTEGER) AS '
+            'BEGIN Y = X + 6; END END'],
          'DROP PACKAGE P', ('header_source', 'body_source', 'description',
-                            'sql_security', 'package_sql_security')),
+                            'sql_security', 'package_sql_security',
+                            'member_comments')),
         ('package', 'PH', [
             'CREATE PACKAGE PH SQL SECURITY DEFINER AS '
-            'BEGIN FUNCTION F RETURNS INTEGER; END'],
+            'BEGIN FUNCTION F(X INTEGER) RETURNS INTEGER; END'],
          'DROP PACKAGE PH', ('header_source', 'body_source', 'description',
-                             'sql_security', 'package_sql_security')),
+                             'sql_security', 'package_sql_security',
+                             'member_comments')),
         ('function', 'FUN', 'CREATE FUNCTION FUN(X INTEGER) RETURNS INTEGER '
          'SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END',
          'DROP FUNCTION FUN', ('metadata_source', 'sql_security',
@@ -111,9 +116,24 @@ def verify(connection, client, route, password, result):
                 handle.rollback()
 
         def metadata(kind, name):
-            return next(item['native'] for item in _resources(
-                handle, {'route': configured}) if
-                item['resource_kind'] == kind and item['display_name'] == name)
+            resources = _resources(handle, {'route': configured})
+            detail = next(item['native'] for item in resources if
+                          item['resource_kind'] == kind and
+                          item['display_name'] == name)
+            if kind == 'package':
+                detail['member_comments'] = sorted([
+                    {'kind': item['resource_kind'],
+                     'name': item['display_name'],
+                     'description': item['native'].get('description'),
+                     'parameters': [
+                         {'name': p['name'],
+                          'description': p.get('description')}
+                         for p in item['native'].get('parameters', [])]}
+                    for item in resources if item['resource_kind'] in {
+                        'function', 'procedure'} and
+                    item['native'].get('package') == name],
+                    key=lambda member: (member['kind'], member['name']))
+            return detail
 
         def behavior(name):
             sources = {
@@ -124,6 +144,8 @@ def verify(connection, client, route, password, result):
             if name in sources:
                 source, expected = sources[name]
                 assert sql(source) == [(expected,)]
+            if name == 'P':
+                assert sql('EXECUTE PROCEDURE P.Z(5)') == [(11,)]
 
         try:
             sql('CREATE TABLE SENTINEL (X INTEGER)')
@@ -149,6 +171,27 @@ def verify(connection, client, route, password, result):
                             ' IS \'Exact A"B; it\'\'s preserved\'')
                         handle.commit()
                     before = metadata(kind, name)
+                    if kind == 'package':
+                        targets = [('FUNCTION', 'F', ('X',))]
+                        if name == 'P':
+                            targets.append(('PROCEDURE', 'Z', ('X', 'Y')))
+                        for noun, member, parameters in targets:
+                            sql(f'COMMENT ON {noun} {name}.{member} '
+                                "IS 'Member ; it''s preserved'")
+                            for parameter in parameters:
+                                sql(f'COMMENT ON {noun} PARAMETER '
+                                    f'{name}.{member}.{parameter} '
+                                    "IS 'Member parameter ; it''s preserved'")
+                        handle.commit()
+                        before = metadata(kind, name)
+                        assert len(before['member_comments']) == len(targets)
+                        for member in before['member_comments']:
+                            assert member['description'] == (
+                                "Member ; it's preserved")
+                            for parameter in member['parameters']:
+                                if parameter['name']:
+                                    assert parameter['description'] == (
+                                        "Member parameter ; it's preserved")
                     if kind in {'procedure', 'function'}:
                         parameter_names = ('X', 'Y') if kind == (
                             'procedure') else ('X',)
