@@ -40,3 +40,39 @@ def test_underlying_dml_rights_do_not_grant_package_execution(operation):
     assert [item['source'] for item in statements] == [
         f'{operation.upper()} INSERT, UPDATE, DELETE ON TABLE "WRITE_DATA" '
         f'{direction} USER "WRITE_READER"']
+
+
+@pytest.mark.parametrize('operation', ['create_body', 'replace_body'])
+@pytest.mark.parametrize('dialect', [1, 3])
+def test_failure_body_keeps_native_exception_and_statement_boundaries(
+        operation, dialect):
+    request = {'resource_kind': 'package', 'operation_id': operation,
+               '_provider_route': {'database': 'owned'},
+               'target_resource': {'resource_kind': 'package',
+                                   'display_name': 'WRITE_DEFINER'},
+               'draft': {'body': BODY}}
+    with generated_dialect(dialect):
+        assert ADMINISTRATION.validate(request) == {'errors': []}
+        statements = ADMINISTRATION.plan(request)['command_preview'][
+            'statements']
+    name = 'WRITE_DEFINER' if dialect == 1 else '"WRITE_DEFINER"'
+    prefix = 'CREATE' if operation == 'create_body' else 'RECREATE'
+    assert [item['source'] for item in statements] == [
+        f'{prefix} PACKAGE BODY {name} AS {BODY}']
+
+
+@pytest.mark.parametrize('operation', ['grant', 'revoke'])
+def test_exception_usage_is_separate_from_table_write_rights(operation):
+    draft = {'object_type': 'EXCEPTION', 'object_name': 'WRITE_FAILURE',
+             'privileges': ['USAGE'], 'principal_kind': 'USER',
+             'principal': 'WRITE_READER'}
+    if operation == 'revoke':
+        draft['confirmation'] = 'WRITE_READER'
+    request = {'resource_kind': 'privilege', 'operation_id': operation,
+               '_provider_route': {'database': 'owned'}, 'draft': draft}
+    assert ADMINISTRATION.validate(request) == {'errors': []}
+    statements = ADMINISTRATION.plan(request)['command_preview']['statements']
+    direction = 'TO' if operation == 'grant' else 'FROM'
+    assert [item['source'] for item in statements] == [
+        f'{operation.upper()} USAGE ON EXCEPTION "WRITE_FAILURE" '
+        f'{direction} USER "WRITE_READER"']

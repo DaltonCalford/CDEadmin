@@ -19,6 +19,10 @@ BODY = (
     'IF (OP = 1) THEN INSERT INTO WRITE_DATA VALUES (:K, 9); '
     'IF (OP = 2) THEN UPDATE WRITE_DATA SET V = 9 WHERE ID = :K; '
     'IF (OP = 3) THEN DELETE FROM WRITE_DATA WHERE ID = :K; '
+    'IF (OP = 4) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'INSERT INTO WRITE_DATA VALUES (:K, 10); END '
+    'IF (OP = 5) THEN BEGIN INSERT INTO WRITE_DATA VALUES (:K, 9); '
+    'EXCEPTION WRITE_FAILURE; END '
     'RETURN K; END '
     'PROCEDURE P(OP INTEGER, K INTEGER) AS DECLARE R INTEGER; BEGIN '
     'R = F(OP, K); END END')
@@ -63,8 +67,10 @@ def verify(connection, client, route, password, result):
                 'CREATE USER WRITE_READER PASSWORD ' + literal(secret),
                 'CREATE TABLE WRITE_DATA (ID INTEGER PRIMARY KEY, V INTEGER)',
                 'CREATE TABLE WRITE_PENDING (ID INTEGER PRIMARY KEY)',
+                "CREATE EXCEPTION WRITE_FAILURE 'Owned package failure'",
                 'ALTER DATABASE SET DEFAULT SQL SECURITY INVOKER',
                 'GRANT SELECT ON WRITE_DATA TO USER WRITE_READER',
+                'GRANT USAGE ON EXCEPTION WRITE_FAILURE TO USER WRITE_READER',
                 'GRANT SELECT, INSERT ON WRITE_PENDING TO USER WRITE_READER']:
             sql(admin, source)
             client.control_transaction(admin, 'commit')
@@ -89,14 +95,14 @@ def verify(connection, client, route, password, result):
                                      if operation == 'revoke' else {})}})
             for mode in MODES:
                 allowed = mode == 'DEFINER' or phase == 'dml-granted'
-                for op in (1, 2, 3):
+                for op in (1, 2, 3, 4, 5):
                     for entry in ('function', 'procedure'):
                         for action in ('commit', 'rollback'):
                             key += 1
                             handle = None
                             label = f'{phase}:{mode}:{op}:{entry}:{action}'
                             try:
-                                before = [] if op == 1 else [(3,)]
+                                before = [] if op in (1, 4, 5) else [(3,)]
                                 if before:
                                     sql(admin, 'INSERT INTO WRITE_DATA VALUES '
                                         '(?, 3)', (key,))
@@ -106,6 +112,9 @@ def verify(connection, client, route, password, result):
                                 sql(handle, 'INSERT INTO WRITE_PENDING '
                                     'VALUES (?)', (key,))
                                 transaction = handle.main_transaction.info.id
+                                if op in (4, 5):
+                                    writer.execute(handle, {
+                                        'source': 'SAVEPOINT BEFORE_CALL'})
                                 name = 'WRITE_' + mode
                                 source = (
                                     f'SELECT {name}.F(?, ?) FROM RDB$DATABASE'
@@ -118,7 +127,8 @@ def verify(connection, client, route, password, result):
                                 observed = writer.describe_result(token)
                                 assert observed['complete']
                                 payload = observed['payload']
-                                if allowed:
+                                succeeds = allowed and op not in (4, 5)
+                                if succeeds:
                                     assert payload['execution_state'] == (
                                         'succeeded'), payload
                                     if entry == 'function':
@@ -126,10 +136,13 @@ def verify(connection, client, route, password, result):
                                 else:
                                     assert payload['execution_state'] == (
                                         'failed'), payload
-                                    assert 335544352 in payload['error'][
+                                    code = (335544352 if not allowed else
+                                            335544665 if op == 4 else
+                                            335544517)
+                                    assert code in payload['error'][
                                         'native_status_codes'], payload
                                 after = ([] if op == 3 else [(9,)]) if (
-                                    allowed) else before
+                                    succeeds) else before
                                 assert handle.main_transaction.info.id == (
                                     transaction)
                                 assert sql(handle, 'SELECT V FROM WRITE_DATA '
@@ -138,12 +151,30 @@ def verify(connection, client, route, password, result):
                                            'WRITE_PENDING WHERE ID = ?',
                                            (key,)) == [(key,)]
                                 assert observe(key) == (before, [])
+                                if op in (4, 5):
+                                    assert writer.cancel(token) is False
+                                    writer.execute(handle, {
+                                        'source': 'ROLLBACK TO SAVEPOINT '
+                                        'BEFORE_CALL'})
+                                    assert sql(handle, 'SELECT V FROM '
+                                               'WRITE_DATA WHERE ID = ?',
+                                               (key,)) == before
+                                    assert sql(handle, 'SELECT ID FROM '
+                                               'WRITE_PENDING WHERE ID = ?',
+                                               (key,)) == [(key,)]
+                                    assert handle.main_transaction.info.id == (
+                                        transaction)
                                 writer.control_transaction(handle, action)
                                 expected = (after, [(key,)]) if (
                                     action == 'commit') else (before, [])
                                 assert observe(key) == expected
                                 checks.append({'case': label, 'passed': True,
-                                               'allowed': allowed})
+                                               'allowed': allowed,
+                                               'succeeded': succeeds,
+                                               'native_error_codes': (
+                                                   payload['error'][
+                                                       'native_status_codes']
+                                                   if not succeeds else [])})
                             except Exception as exc:
                                 result['failures'].append({
                                     'case': label,
@@ -166,7 +197,7 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('package_write_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 108 and
+    result['complete'] = (result['complete'] and len(checks) == 180 and
                           all(check['passed'] for check in checks))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
