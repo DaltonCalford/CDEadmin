@@ -164,6 +164,7 @@ class _RowIdentity:
     session_id: str | None = None
     resource_kind: str = 'table'
     writable_columns: tuple[str, ...] | None = None
+    delete_allowed: bool = True
 
 
 @dataclass(frozen=True)
@@ -255,10 +256,14 @@ class RelationalAdministration:
             if self.dialect.engine_id == 'firebird' and kind == 'view':
                 resource['operations'] = [
                     item for item in resource.get('operations', [])
-                    if item['operation_id'] != 'update'
-                ] + [{'operation_id': 'update', 'title': 'Update view row',
-                      'mutation_class': 'write', 'target_required': True,
-                      'confirmation_required': False}]
+                    if item['operation_id'] not in {'update', 'delete'}
+                ] + [{'operation_id': operation,
+                      'title': operation.title() + ' view row',
+                      'mutation_class': ('destructive' if operation ==
+                                         'delete' else 'write'),
+                      'target_required': True,
+                      'confirmation_required': operation == 'delete'}
+                     for operation in ('update', 'delete')]
             if self.dialect.engine_id == 'firebird' and kind == 'database':
                 additions = firebird_limbo.ATTACHMENT_OPERATIONS & (
                     self.dialect.supported.get(kind, frozenset()))
@@ -787,7 +792,8 @@ class RelationalAdministration:
         if operation_id in {'insert', 'update', 'delete'} and (
             resource_kind != 'table'
             and not (self.dialect.engine_id == 'firebird' and
-                     resource_kind == 'view' and operation_id == 'update')
+                     resource_kind == 'view' and operation_id in {
+                         'update', 'delete'})
         ):
             errors.append({
                 'field_id': None,
@@ -3171,11 +3177,16 @@ class RelationalAdministration:
                 if resource_kind == 'table' else ()
             )
             writable_columns = None
+            delete_allowed = resource_kind == 'table'
             if (self.dialect.engine_id == 'firebird' and
                     resource_kind == 'view' and session_id and
                     not owns_connection):
                 key_columns, writable_columns = (
                     firebird_views.grid_update_identity(connection, path[-1]))
+                delete_keys, _ = firebird_views.grid_update_identity(
+                    connection, path[-1], operation='delete')
+                delete_allowed = bool(delete_keys)
+                key_columns = key_columns or delete_keys
             cursor = (
                 connection if getattr(
                     getattr(client, 'config', None),
@@ -3222,6 +3233,7 @@ class RelationalAdministration:
                         session_id=session_id,
                         resource_kind=resource_kind,
                         writable_columns=writable_columns,
+                        delete_allowed=delete_allowed,
                     )
                     with self._identity_lock:
                         while len(self._row_identities) >= 5000:
@@ -3259,6 +3271,11 @@ class RelationalAdministration:
                 ],
                 'rows': result_rows,
                 'editable': bool(key_columns),
+                'row_operations': (
+                    (['update'] if writable_columns is None or
+                     writable_columns else []) +
+                    (['delete'] if delete_allowed else [])
+                ) if key_columns else [],
                 'identity_policy': (
                     ('provider-view-primary-key-and-original-values'
                      if resource_kind == 'view' else
@@ -7162,6 +7179,9 @@ class RelationalAdministration:
         where, parameters = self._identity_predicate(identity)
         target = self._qualified(target_path)
         if request['operation_id'] == 'delete':
+            if not identity.delete_allowed:
+                raise RelationalClientError(
+                    'row deletion was not admitted by the provider')
             source = f'DELETE FROM {target} WHERE {where}'
             return {
                 'source': source, 'parameters': parameters,

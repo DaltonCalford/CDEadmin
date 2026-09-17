@@ -43,7 +43,7 @@ class ProviderObjectCoverageGateTests(unittest.TestCase):
             result['native_graphical_operation_count'],
             result['graphical_operation_count'],
         )
-        self.assertEqual(2018, result['graphical_operation_count'])
+        self.assertEqual(2019, result['graphical_operation_count'])
         self.assertEqual(0, result['activation_permission_failure_count'])
         self.assertEqual(0, result['provider_identity_failure_count'])
         self.assertEqual(0, result['shared_semantics_failure_count'])

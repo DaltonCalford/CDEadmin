@@ -14,15 +14,18 @@ WARNING = (
     'permission checks apply. Review the definition and ordered column names.')
 
 
-def grid_update_identity(connection, name):
+def grid_update_identity(connection, name, *, operation='update'):
     """Admit direct PK-preserving views; prepare, never execute, probes.
 
     This is deliberately not a general native updatability classifier. Joins,
     nested views and trigger-backed views need separate row identity contracts.
-    Return the exposed key aliases and columns admitted by native preparation.
-    The caller must retain this connection/transaction for subsequent updates.
+    Return key aliases and writable columns (empty for DELETE). Prepare UPDATE
+    and DELETE independently; neither implies permission for the other.
+    Retain this connection/transaction for subsequent mutations.
     """
     import firebird.driver as native
+    if operation not in {'update', 'delete'}:
+        raise RelationalClientError('view row operation is unavailable')
     with connection.cursor() as cursor:
         cursor.execute(
             'SELECT TRIM(V.RDB$RELATION_NAME), V.RDB$VIEW_CONTEXT '
@@ -64,6 +67,17 @@ def grid_update_identity(connection, name):
             if len(aliases) != 1:
                 return (), ()
             keys.append(aliases[0])
+        if operation == 'delete':
+            statement = None
+            try:
+                statement = cursor.prepare(
+                    f'DELETE FROM {identifier(name)} WHERE 1 = 0')
+                return tuple(keys), ()
+            except native.DatabaseError:
+                return (), ()
+            finally:
+                if statement is not None:
+                    statement.free()
         editable = []
         for field, _source, _context in fields:
             # Preparation invokes native shape, column and permission checks.

@@ -3369,7 +3369,7 @@ describe('ProviderWorkspaceContent', () => {
     expect(screen.getByText(/provider-leader/)).toBeInTheDocument();
   });
 
-  it.each(['table', 'view'])('edits %s rows through provider-issued identity plans', async (kind) => {
+  it.each([['table', 'update'], ['view', 'update'], ['view', 'delete']])('runs %s %s through provider-issued identity plans', async (kind, operation) => {
     const gridBootstrap = {
       ...bootstrap,
       resource_page: {items: [{
@@ -3395,13 +3395,14 @@ describe('ProviderWorkspaceContent', () => {
         open_session: {session_id: 'grid-session'},
         visual_admin_rows: {
           columns: [
-            {name: 'id', key: true, editable: true},
-            {name: 'name', key: false, editable: true},
+            {name: 'id', key: true, editable: operation !== 'delete'},
+            {name: 'name', key: false, editable: operation !== 'delete'},
           ],
           rows: [{
             values: {id: 1, name: 'first'}, identity_token: 'row-one',
           }],
           editable: true,
+          row_operations: [operation],
         },
         visual_admin_validate: {valid: true, errors: []},
         visual_admin_plan: {
@@ -3431,10 +3432,20 @@ describe('ProviderWorkspaceContent', () => {
         .toHaveAttribute('placeholder', 'New value');
     } else {
       expect(screen.queryByRole('textbox', {name: 'name new value'})).toBeNull();
-      expect(screen.getByRole('button', {name: 'Delete'})).toBeDisabled();
+      if (operation === 'update') {
+        expect(screen.getByRole('button', {name: 'Delete'})).toBeDisabled();
+      }
     }
-    fireEvent.change(name, {target: {value: 'second'}});
-    fireEvent.click(screen.getByText('Save'));
+    if (operation === 'delete') {
+      expect(name).toBeDisabled();
+      expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', {name: 'Delete'}));
+      expect(api.post).toHaveBeenCalledTimes(2);
+      fireEvent.click(screen.getByRole('button', {name: 'Confirm delete'}));
+    } else {
+      fireEvent.change(name, {target: {value: 'second'}});
+      fireEvent.click(screen.getByText('Save'));
+    }
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(6));
     expect(api.post.mock.calls.map((call) => call[1].action)).toEqual([
       'open_session', 'visual_admin_rows', 'visual_admin_validate',
@@ -3442,10 +3453,12 @@ describe('ProviderWorkspaceContent', () => {
     ]);
     expect(api.post.mock.calls[2][1].request.draft).toEqual({
       selector: {identity_token: 'row-one'},
-      changes: {name: 'second'},
+      ...(operation === 'delete' ? {confirmation: 'provider-row-delete'} :
+        {changes: {name: 'second'}}),
       concurrency_token: 'row-one',
     });
     expect(api.post.mock.calls[2][1].request.resource_kind).toBe(kind);
+    expect(api.post.mock.calls[2][1].request.operation_id).toBe(operation);
     expect(api.post.mock.calls[0][1]).toEqual({
       action: 'open_session', language_profile: 'mysql-sql',
       database_target_id: 'database-one',

@@ -30,7 +30,7 @@
       "session_settings": 9,
       "statements": 31
     },
-    "authoritative_task_count": 125,
+    "authoritative_task_count": 126,
     "authoritative_task_ids": [
       "visual_admin.authentication-mapping.alter",
       "visual_admin.authentication-mapping.comment",
@@ -152,13 +152,14 @@
       "visual_admin.view.alter",
       "visual_admin.view.create",
       "visual_admin.view.create_or_alter",
+      "visual_admin.view.delete",
       "visual_admin.view.drop",
       "visual_admin.view.grant",
       "visual_admin.view.recreate",
       "visual_admin.view.revoke",
       "visual_admin.view.update"
     ],
-    "implemented_task_count": 125,
+    "implemented_task_count": 126,
     "language_acceptance_authority": "engine_parser",
     "scope": "cdeadmin_generated_tasks"
   },
@@ -8936,6 +8937,7 @@
     "firebird-5.0.4-task-live-execution",
     "firebird-5.0.4-triggers-live",
     "firebird-5.0.4-user-replacement-live",
+    "firebird-5.0.4-view-grid-delete-live",
     "firebird-5.0.4-view-grid-update-live",
     "firebird-5.0.4-views-live"
   ],
@@ -9363,6 +9365,24 @@
       "format": "cdeadmin.firebird-views.v1",
       "license_id": "PostgreSQL",
       "sha256": "dfab9b441f1e6d26a4f8d85284d7cfc3ce1e37647e7bf02e1a400efea6611f32"
+    },
+    {
+      "artifact": "native-confirmation-final.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-view-grid-delete-live",
+      "evidence_kind": "live_execution",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "74b56b7f42c3a57785cedf5f321dc25bd05a3b66fbe91b9a546e44bbb71c7ca1"
+    },
+    {
+      "artifact": "native-confirmation-final.json",
+      "authority": "Firebird 5.0.4 runtime",
+      "evidence_id": "firebird-5.0.4-view-grid-delete-parser",
+      "evidence_kind": "parser_acceptance",
+      "format": "cdeadmin.firebird-views.v1",
+      "license_id": "PostgreSQL",
+      "sha256": "74b56b7f42c3a57785cedf5f321dc25bd05a3b66fbe91b9a546e44bbb71c7ca1"
     }
   ],
   "provider_id": "org.cdeadmin.firebird",
@@ -11186,6 +11206,21 @@
         "CREATE OR ALTER VIEW \"V_ORDER\" (\"B\", \"A\"\"\u6771\u4eac\") AS\nWITH Q AS (SELECT 1 X FROM RDB$DATABASE) SELECT X, X + 10 FROM Q"
       ],
       "task_id": "visual_admin.view.create_or_alter"
+    },
+    {
+      "binding_style": "positional_question_mark",
+      "proof_ids": [
+        "firebird-5.0.4-grammar",
+        "firebird-5.0.4-view-grid-delete-parser",
+        "firebird-5.0.4-view-grid-delete-live"
+      ],
+      "required_bindings": [],
+      "source": "DELETE FROM \"VM_CALCULATED\" WHERE \"ID\" = ? AND \"V\" = ? AND \"DOUBLED\" = ?",
+      "source_format": "ordered_native_statements",
+      "statements": [
+        "DELETE FROM \"VM_CALCULATED\" WHERE \"ID\" = ? AND \"V\" = ? AND \"DOUBLED\" = ?"
+      ],
+      "task_id": "visual_admin.view.delete"
     },
     {
       "binding_style": "positional_question_mark",

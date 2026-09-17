@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import secrets
 from types import SimpleNamespace
 import uuid
 
@@ -12,11 +13,12 @@ else:
     import cdeadmin_firebird_views_gate as base
 
 
-def verify_provider_grid(client, route, result):
+def verify_provider_grid(client, route, result, operation='update'):
     from pgadmin.cdeadmin.core import EndpointContext
     from pgadmin.cdeadmin.providers.firebird.provider import (
         FirebirdProvider, PROFILE,
     )
+    from pgadmin.cdeadmin.visual_admin.provider import VisualAdminAccessError
     identity = str(uuid.uuid4())
     context = EndpointContext(
         endpoint_id=identity, mode='legacy_native',
@@ -47,16 +49,46 @@ def verify_provider_grid(client, route, result):
         original = page['rows'][0]['values']
         token = page['rows'][0]['identity_token']
         assert token and page['editable']
+        assert operation in page['row_operations']
         plan = provider.plan_visual_admin({
-            **request, 'resource_kind': 'view', 'operation_id': 'update',
+            **request, 'resource_kind': 'view', 'operation_id': operation,
             'draft': {'selector': {'identity_token': token},
-                      'concurrency_token': token, 'changes': {'V': 31}}})
+                      'concurrency_token': token,
+                      **({'changes': {'V': 31}} if operation == 'update' else
+                         {'confirmation': 'provider-row-delete'})}})
         assert plan['state'] == 'ready', plan
+        if operation == 'delete':
+            assert plan['confirmation_required'] is True
+            try:
+                provider.apply_visual_admin({
+                    'session_id': sid, 'plan_id': plan['plan_id'],
+                    'plan_digest': plan['plan_digest'], 'confirmed': False})
+            except VisualAdminAccessError as exc:
+                assert 'requires confirmation' in str(exc)
+            else:
+                raise AssertionError('Unconfirmed delete executed')
+            with provider._sessions[sid].handle.cursor() as cursor:
+                cursor.execute('SELECT V FROM VM_SIMPLE WHERE ID = ?',
+                               (original['ID'],))
+                assert cursor.fetchall() == [(original['V'],)]
+            result['unconfirmed_view_delete_denied'] = True
+            # An attempted apply consumes the plan even when confirmation
+            # is missing. Obtain a new identity and preview, never replay it.
+            page = provider.read_visual_admin_rows(request)
+            token = page['rows'][0]['identity_token']
+            plan = provider.plan_visual_admin({
+                **request, 'resource_kind': 'view', 'operation_id': 'delete',
+                'draft': {'selector': {'identity_token': token},
+                          'concurrency_token': token,
+                          'confirmation': 'provider-row-delete'}})
+            assert plan['state'] == 'ready'
         receipt = provider.apply_visual_admin({
             'session_id': sid, 'plan_id': plan['plan_id'],
             'plan_digest': plan['plan_digest'], 'confirmed': True})
         assert receipt['provider_result']['staged_in_provider_session']
         result['provider_view_grid_passed'] = True
+        if operation == 'delete':
+            result['provider_view_delete_passed'] = True
     finally:
         provider.close_session({'session_id': sid})
     observer = client.open_session({'route': route})
@@ -67,6 +99,75 @@ def verify_provider_grid(client, route, result):
             assert cursor.fetchall() == [(original['V'],)]
     finally:
         client.close_session(observer)
+
+
+def verify_delete_permissions(client, route, result):
+    from pgadmin.cdeadmin.providers.firebird.character_metadata import literal
+    secret = secrets.token_urlsafe(24)
+    reader = base._create_client(SimpleNamespace(
+        acquire_secret=lambda *_: base.SecretLease(secret)))
+    admin = client.open_session({'route': route})
+    checks = result['view_delete_permission_checks'] = []
+    try:
+        with admin.cursor() as cursor:
+            cursor.execute('CREATE USER VM_READER PASSWORD ' + literal(secret))
+            cursor.execute('GRANT SELECT ON VM_SIMPLE TO USER VM_READER')
+        client.control_transaction(admin, 'commit')
+        phases = [
+            ('select-only', None, []),
+            ('update-only', 'GRANT UPDATE(V) ON VM_SIMPLE TO USER VM_READER',
+             ['update']),
+            ('both', 'GRANT DELETE ON VM_SIMPLE TO USER VM_READER',
+             ['update', 'delete']),
+            ('delete-only', 'REVOKE UPDATE(V) ON VM_SIMPLE '
+             'FROM USER VM_READER',
+             ['delete']),
+            ('revoked', 'REVOKE DELETE ON VM_SIMPLE FROM USER VM_READER', []),
+        ]
+        for phase, command, expected in phases:
+            if command:
+                with admin.cursor() as cursor:
+                    cursor.execute(command)
+                client.control_transaction(admin, 'commit')
+            user_route = {**route, 'user': 'VM_READER'}
+            handle = reader.open_session({'route': user_route})
+            try:
+                target = {'resource_kind': 'view',
+                          'display_path': ['VM_SIMPLE']}
+                page = base.ADMINISTRATION.read_rows(reader, {
+                    '_provider_route': user_route, 'target_resource': target,
+                    'session_id': 'permission-session'}, connection=handle)
+                assert page['row_operations'] == expected, (
+                    phase, page['row_operations'])
+                assert not page['columns'][0]['editable']
+                if 'delete' in expected:
+                    token = page['rows'][0]['identity_token']
+                    plan = base.ADMINISTRATION.plan({
+                        '_provider_route': user_route,
+                        'resource_kind': 'view', 'operation_id': 'delete',
+                        'target_resource': target,
+                        'session_id': 'permission-session',
+                        'draft': {'selector': {'identity_token': token},
+                                  'concurrency_token': token,
+                                  'confirmation': 'provider-row-delete'}})
+                    receipt = base.ADMINISTRATION.apply(
+                        reader, plan, connection=handle)
+                    assert receipt['staged_in_provider_session']
+                    reader.control_transaction(handle, 'rollback')
+                    restored = base.ADMINISTRATION.read_rows(reader, {
+                        '_provider_route': user_route,
+                        'target_resource': target,
+                        'session_id': 'permission-session'}, connection=handle)
+                    assert [row['values'] for row in restored['rows']] == [
+                        row['values'] for row in page['rows']]
+                checks.append({'phase': phase, 'passed': True,
+                               'row_operations': expected})
+            finally:
+                reader.close_session(handle)
+    except Exception as exc:
+        raise RuntimeError(str(exc).replace(secret, '<redacted>')) from None
+    finally:
+        client.close_session(admin)
 
 
 def verify(connection, client, route, password, result):
@@ -254,8 +355,98 @@ def verify(connection, client, route, password, result):
                         'message': str(exc).replace(password, '<redacted>')})
                 finally:
                     client.close_session(handle)
+        delete_checks = result['view_delete_checks'] = []
+        for index, (view, action) in enumerate(
+                [(view, action) for view in ('VM_SIMPLE', 'VM_CALCULATED')
+                 for action in ('commit', 'rollback')] +
+                [('VM_SIMPLE', 'stale'), ('VM_SIMPLE', 'wrong-session')]):
+            key = 100 + index
+            sql(admin, 'INSERT INTO VM_BASE VALUES (?, 10)', (key,))
+            client.control_transaction(admin, 'commit')
+            handle = client.open_session({'route': route})
+            case = f'{view}:{action}'
+            try:
+                sql(handle, 'INSERT INTO VM_PENDING VALUES (?)', (key,))
+                transaction = handle.main_transaction.info.id
+                target = {'resource_kind': 'view', 'display_path': [view]}
+                page = base.ADMINISTRATION.read_rows(client, {
+                    '_provider_route': route, 'target_resource': target,
+                    'session_id': 'owned-delete'}, connection=handle)
+                assert 'delete' in page['row_operations']
+                token = next(row['identity_token'] for row in page['rows']
+                             if row['values']['ID'] == key)
+                request = {
+                    '_provider_route': route, 'resource_kind': 'view',
+                    'target_resource': target, 'operation_id': 'delete',
+                    'session_id': ('other' if action == 'wrong-session'
+                                   else 'owned-delete'),
+                    'draft': {'selector': {'identity_token': token},
+                              'concurrency_token': token,
+                              'confirmation': 'provider-row-delete'}}
+                if action == 'wrong-session':
+                    try:
+                        base.ADMINISTRATION.plan(request)
+                    except RelationalClientError as exc:
+                        assert 'another provider session' in str(exc)
+                    else:
+                        raise AssertionError('Cross-session delete admitted')
+                else:
+                    plan = base.ADMINISTRATION.plan(request)
+                    if action == 'stale':
+                        sql(handle, 'UPDATE VM_BASE SET V = 20 WHERE ID = ?',
+                            (key,))
+                    try:
+                        receipt = base.ADMINISTRATION.apply(
+                            client, plan, connection=handle)
+                        assert action != 'stale', 'Stale delete accepted'
+                        assert receipt['staged_in_provider_session']
+                        result['task_evidence']['visual_admin.view.delete'] = {
+                            'live_execution': 'passed',
+                            'statements': [item['source'] for item in
+                                           plan['command_preview'][
+                                               'statements']]}
+                    except RelationalClientError as exc:
+                        if action != 'stale':
+                            raise
+                        assert 'exactly one row' in str(exc)
+                assert handle.main_transaction.info.id == transaction
+                pending = sql(handle, 'SELECT V FROM VM_BASE WHERE ID = ?',
+                              (key,))
+                assert pending == ([(20,)] if action == 'stale' else
+                                   [(10,)] if action == 'wrong-session'
+                                   else [])
+                assert sql(handle, 'SELECT ID FROM VM_PENDING WHERE ID = ?',
+                           (key,)) == [(key,)]
+                observer = client.open_session({'route': route})
+                try:
+                    assert sql(observer, 'SELECT V FROM VM_BASE WHERE ID = ?',
+                               (key,)) == [(10,)]
+                finally:
+                    client.close_session(observer)
+                client.control_transaction(
+                    handle, 'commit' if action == 'commit' else 'rollback')
+                observer = client.open_session({'route': route})
+                try:
+                    assert sql(observer, 'SELECT V FROM VM_BASE WHERE ID = ?',
+                               (key,)) == ([] if action == 'commit' else
+                                           [(10,)])
+                    assert sql(observer, 'SELECT ID FROM VM_PENDING '
+                               'WHERE ID = ?', (key,)) == (
+                                   [(key,)] if action == 'commit' else [])
+                finally:
+                    client.close_session(observer)
+                delete_checks.append({'case': case, 'passed': True})
+            except Exception as exc:
+                delete_checks.append({'case': case, 'passed': False})
+                result['failures'].append({
+                    'case': case, 'error_type': type(exc).__name__,
+                    'message': str(exc).replace(password, '<redacted>')})
+            finally:
+                client.close_session(handle)
+        verify_delete_permissions(client, route, result)
         if result.get('verify_provider_grid'):
             verify_provider_grid(client, route, result)
+            verify_provider_grid(client, route, result, 'delete')
     finally:
         client.close_session(admin)
 
@@ -278,8 +469,17 @@ def main():
     checks = result.get('view_mutability_checks', [])
     result['complete'] = (result['complete'] and len(checks) == 26 and
                           all(check['passed'] for check in checks) and
+                          len(result.get('view_delete_checks', [])) == 6 and
+                          all(check['passed'] for check in
+                              result['view_delete_checks']) and
+                          len(result.get('view_delete_permission_checks', []))
+                          == 5 and
                           (args.bootstrap_contract or result.get(
-                              'provider_view_grid_passed') is True))
+                              'provider_view_grid_passed') is True) and
+                          (args.bootstrap_contract or result.get(
+                              'provider_view_delete_passed') is True) and
+                          (args.bootstrap_contract or result.get(
+                              'unconfirmed_view_delete_denied') is True))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
                       'failures': result['failures']}))

@@ -1,12 +1,16 @@
 """Fail-closed identity admission for direct Firebird views."""
 from unittest.mock import MagicMock
 import json
+import time
+import uuid
 
 import firebird.driver as native
 import pytest
 
 from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION
 from pgadmin.cdeadmin.providers.firebird.views import grid_update_identity
+from pgadmin.cdeadmin.providers.relational_admin import _RowIdentity
+from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
 def connection():
@@ -22,7 +26,7 @@ def connection():
 def test_prepare_only_and_release_statements():
     assert ADMINISTRATION.supports('view', 'update')
     assert not ADMINISTRATION.supports('view', 'insert')
-    assert not ADMINISTRATION.supports('view', 'delete')
+    assert ADMINISTRATION.supports('view', 'delete')
     handle, cursor = connection()
     first, second = MagicMock(), MagicMock()
     cursor.prepare.side_effect = [first, second,
@@ -83,6 +87,55 @@ def test_no_native_updatable_columns():
     assert grid_update_identity(handle, 'V') == ((), ())
 
 
+@pytest.mark.parametrize('denied', [False, True])
+def test_delete_has_independent_native_preparation(denied):
+    handle, cursor = connection()
+    statement = MagicMock()
+    cursor.prepare.return_value = statement
+    if denied:
+        cursor.prepare.side_effect = native.DatabaseError('denied')
+    assert grid_update_identity(handle, 'V', operation='delete') == (
+        ((), ()) if denied else (('KEY_ALIAS',), ()))
+    cursor.prepare.assert_called_once_with('DELETE FROM "V" WHERE 1 = 0')
+    assert all(call.args[0].startswith('SELECT')
+               for call in cursor.execute.call_args_list)
+    if not denied:
+        statement.free.assert_called_once_with()
+
+
+def test_unknown_view_operation_is_rejected():
+    handle, cursor = connection()
+    with pytest.raises(RelationalClientError,
+                       match='view row operation is unavailable'):
+        grid_update_identity(handle, 'V', operation='insert')
+    cursor.execute.assert_not_called()
+
+
+@pytest.mark.parametrize('allowed', [False, True])
+def test_view_delete_requires_issued_operation_authority(allowed):
+    token = str(uuid.uuid4())
+    route = {'database': 'owned'}
+    ADMINISTRATION._row_identities[token] = _RowIdentity(
+        ADMINISTRATION._route_fingerprint(route), ('V',), ('ID',), (1,),
+        {'ID': 1, 'VALUE': 2}, time.monotonic(), session_id='owned',
+        resource_kind='view', writable_columns=(), delete_allowed=allowed)
+    request = {'_provider_route': route, 'resource_kind': 'view',
+               'target_resource': {'resource_kind': 'view',
+                                   'display_path': ['V']},
+               'session_id': 'owned', 'operation_id': 'delete',
+               'draft': {'selector': {'identity_token': token}}}
+    if allowed:
+        statement = ADMINISTRATION._compile_identity_dml(request)
+        assert statement == {
+            'source': 'DELETE FROM "V" WHERE "ID" = ? AND "VALUE" = ?',
+            'parameters': (1, 2), 'expected_rowcount': 1}
+    else:
+        with pytest.raises(RelationalClientError, match='was not admitted'):
+            ADMINISTRATION._compile_identity_dml(request)
+    with pytest.raises(RelationalClientError, match='stale or invalid'):
+        ADMINISTRATION._compile_identity_dml(request)
+
+
 def test_composite_key_alias_order():
     handle, cursor = connection()
     cursor.fetchall.side_effect = [
@@ -136,3 +189,55 @@ def test_contract_requires_complete_native_evidence(change):
         assert result == supplement_view_grid(
             result, proof, 'a' * 64, 'owned.json')
         assert len(result['task_templates']) == len(document['task_templates'])
+
+
+@pytest.mark.parametrize('fault', [
+    None, 'checks', 'permissions', 'passed', 'operations', 'complete',
+    'cleanup', 'statement'])
+def test_delete_contract_requires_native_and_permission_proof(fault):
+    from tools.reference_engine_demos import generate_firebird_dialect_contract
+    module = generate_firebird_dialect_contract
+    document = json.loads((module.WEB / 'pgadmin/cdeadmin/providers/firebird/'
+                           'firebird_dialect_5_0_4.json').read_text())
+    proof = evidence()
+    proof['view_delete_checks'] = [
+        {'case': f'{view}:{action}', 'passed': True}
+        for view in ('VM_SIMPLE', 'VM_CALCULATED')
+        for action in ('commit', 'rollback')]
+    proof['view_delete_checks'] += [
+        {'case': 'VM_SIMPLE:' + action, 'passed': True}
+        for action in ('stale', 'wrong-session')]
+    proof['view_delete_permission_checks'] = [
+        {'phase': phase, 'passed': True, 'row_operations': operations}
+        for phase, operations in [('select-only', []),
+                                  ('update-only', ['update']),
+                                  ('both', ['update', 'delete']),
+                                  ('delete-only', ['delete']),
+                                  ('revoked', [])]]
+    proof['task_evidence']['visual_admin.view.delete'] = {
+        'live_execution': 'passed',
+        'statements': ['DELETE FROM "VM_SIMPLE" WHERE "ID" = ?']}
+    if fault == 'checks':
+        proof['view_delete_checks'].pop()
+    elif fault == 'permissions':
+        proof['view_delete_permission_checks'].pop()
+    elif fault == 'passed':
+        proof['view_delete_checks'][0]['passed'] = False
+    elif fault == 'operations':
+        proof['view_delete_permission_checks'][0]['row_operations'] = [
+            'delete']
+    elif fault == 'complete':
+        proof['complete'] = False
+    elif fault == 'cleanup':
+        proof['owned_container_removed'] = False
+    elif fault == 'statement':
+        proof['task_evidence']['visual_admin.view.delete']['statements'] = []
+    if fault:
+        with pytest.raises(ValueError):
+            module.supplement_view_delete(
+                document, proof, 'a' * 64, 'owned.json')
+    else:
+        result = module.supplement_view_delete(
+            document, proof, 'a' * 64, 'owned.json')
+        assert result == module.supplement_view_delete(
+            result, proof, 'a' * 64, 'owned.json')

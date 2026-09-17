@@ -134,7 +134,7 @@ ADMINISTRATION = RelationalAdministration(RelationalAdminDialect(
         }),
         'view': frozenset({'inspect', 'create', 'alter', 'drop',
                            'grant', 'revoke', 'create_or_alter', 'recreate',
-                           'update'}),
+                           'update', 'delete'}),
         'column': frozenset({'inspect', 'create', 'alter', 'comment',
                              'rename', 'drop', 'grant', 'revoke'}),
         'constraint': frozenset({'inspect', 'create', 'drop'}),

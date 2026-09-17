@@ -870,6 +870,36 @@ def supplement_object_privileges(document, evidence, digest, artifact):
     return value
 
 
+def supplement_view_delete(document, evidence, digest, artifact):
+    """Admit DELETE only with transaction and stale/session identity proof."""
+    validate_dialect_contract(document, PROFILE)
+    expected = {f'{view}:{action}' for view in ('VM_SIMPLE', 'VM_CALCULATED')
+                for action in ('commit', 'rollback')}
+    expected |= {'VM_SIMPLE:stale', 'VM_SIMPLE:wrong-session'}
+    checks = evidence.get('view_delete_checks', [])
+    permissions = evidence.get('view_delete_permission_checks', [])
+    required_permissions = {'select-only': [], 'update-only': ['update'],
+                            'both': ['update', 'delete'],
+                            'delete-only': ['delete'], 'revoked': []}
+    if (evidence.get('schema') != 'cdeadmin.firebird-views.v1' or
+            evidence.get('engine_version') != '5.0.4' or
+            evidence.get('complete') is not True or
+            evidence.get('owned_container_removed') is not True or
+            evidence.get('failures') != [] or len(checks) != len(expected) or
+            {item.get('case') for item in checks} != expected or
+            any(item.get('passed') is not True for item in checks)):
+        raise ValueError('View deletion evidence is incomplete')
+    if (len(permissions) != 5 or
+            {item.get('phase') for item in permissions} !=
+            set(required_permissions) or any(
+                item.get('passed') is not True or item.get('row_operations') !=
+                required_permissions[item['phase']] for item in permissions)):
+        raise ValueError('View deletion permission evidence is incomplete')
+    return _supplement_replacement(
+        document, evidence, digest, artifact,
+        {'visual_admin.view.delete'}, 'view-grid-delete')
+
+
 def supplement_view_grid(document, evidence, digest, artifact):
     """Require native/provider and grid update transaction evidence."""
     validate_dialect_contract(document, PROFILE)
@@ -1592,12 +1622,13 @@ def main(argv=None):
         'external-functions', 'blob-filters', 'object-privileges', 'packages',
         'sequences', 'shadows', 'database-storage', 'views', 'exceptions',
         'procedures', 'functions', 'triggers', 'table-replacement',
-        'user-replacement', 'view-grid'),
+        'user-replacement', 'view-grid', 'view-delete'),
                         default='roles')
     options = parser.parse_args(argv)
     if options.existing_contract:
         supplement = {'admin-mapping': supplement_admin_mapping,
                       'view-grid': supplement_view_grid,
+                      'view-delete': supplement_view_delete,
                       'roles': supplement_roles,
                       'mappings': supplement_mappings,
                       'character-metadata': supplement_character_metadata,

@@ -1853,7 +1853,8 @@ function StructuredDataGrid({catalog, resources, post, setError,
   const operations = targetDescriptor?.operations || [];
   const admitted = (operationId) =>
     (target?.resource_kind === 'table' ||
-      (target?.resource_kind === 'view' && operationId === 'update' && page?.editable)) &&
+      (target?.resource_kind === 'view' && page?.editable &&
+        page?.row_operations?.includes(operationId))) &&
     operations.some((item) => item.operation_id === operationId &&
       item.execution_available);
   const selectedDatabaseTargetId = resourceDatabaseTargetId(target) ||
