@@ -12,6 +12,55 @@ BODY = "BEGIN FUNCTION F RETURNS INTEGER AS BEGIN /* ; */ RETURN 2; END END"
 COMMENT = "Owner's ; notes\n東京"
 
 
+@pytest.mark.parametrize('dialect', [1, 3])
+@pytest.mark.parametrize('kind', ['procedure', 'function', 'trigger'])
+@pytest.mark.parametrize('source_body', [None, '', '  ', COMMENT])
+@pytest.mark.parametrize('entry', [None, "module!entry'point"])
+def test_external_routine_body_is_optional_quoted_text(
+        dialect, kind, source_body, entry):
+    cursor = Mock()
+    rows = []
+    fixtures = {
+        'procedure': ('RDB$PROCEDURES', (
+            'P', None, source_body, COMMENT, 2, 1, None, entry, 'UDR')),
+        'function': ('RDB$FUNCTIONS', (
+            'P', None, source_body, COMMENT, 0, 1, None, entry, 'UDR',
+            1, 0, 0)),
+        'trigger': ('RDB$TRIGGERS', (
+            'P', 'T', 1, 0, 0, source_body, COMMENT, None, entry, 'UDR')),
+    }
+    table, row = fixtures[kind]
+
+    def execute(source):
+        nonlocal rows
+        rows = ([row] if f'FROM {table} WHERE ' in source and
+                'COALESCE(RDB$SYSTEM_FLAG, 0) = 0' in source else [])
+        if kind == 'function' and 'RDB$FUNCTION_ARGUMENTS A ' in source:
+            rows = [('P', None, None, 0, 'RDB$1', None, None, 0, 0,
+                     8, 0, 4, 0, 9, None, None, None, None, None, None, None)]
+
+    cursor.execute.side_effect = execute
+    cursor.fetchall.side_effect = lambda: rows
+    handle = SimpleNamespace(cursor=lambda: cursor,
+                             info=SimpleNamespace(sql_dialect=dialect))
+    native = next(item['native'] for item in
+                  _resources(handle, {'route': {'database': 'fixture'}})
+                  if item['resource_kind'] == kind)
+    statements = native['recreation_statements']
+    assert len(statements) == 2
+    expected = 'EXTERNAL'
+    if entry:
+        expected += " NAME '" + entry.replace("'", "''") + "'"
+    expected += ' ENGINE ' + ('UDR' if dialect == 1 else '"UDR"')
+    if source_body is not None:
+        expected += "\nAS '" + source_body.replace("'", "''") + "'"
+    assert statements[0].endswith(expected)
+    assert 'SQL SECURITY' not in statements[0]
+    if kind == 'function':
+        assert 'DETERMINISTIC' in statements[0]
+    assert statements[1].endswith("'" + COMMENT.replace("'", "''") + "'")
+
+
 @pytest.mark.parametrize('flag,validity', [
     (None, 'unknown'), ('unexpected', 'unknown'), (1, 'valid'),
     (True, 'valid'), ('True', 'valid'), ('1', 'valid'), (0, 'invalid'),

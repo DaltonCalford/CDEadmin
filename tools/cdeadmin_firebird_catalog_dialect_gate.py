@@ -13,7 +13,7 @@ else:
 
 def cases():
     # Definitions are native input, not output from the renderer being tested.
-    return [
+    result = [
         ('domain', 'D', "CREATE DOMAIN D AS VARCHAR(20) DEFAULT 'A\"B' "
          'NOT NULL CHECK (CHAR_LENGTH(VALUE) > 0)', 'DROP DOMAIN D',
          ('field_type', 'field_length', 'character_length', 'character_set',
@@ -76,6 +76,25 @@ def cases():
          'DROP TRIGGER TR', ('metadata_source', 'sql_security', 'inactive',
                              'trigger_type', 'position', 'description')),
     ]
+    for suffix, body in (('N', ''), ('S', " AS '  body; it''s preserved  '")):
+        for kind, name, definition, entry in (
+                ('function', 'UF', '(A INTEGER, B INTEGER, C INTEGER) '
+                 'RETURNS INTEGER DETERMINISTIC', 'sum_args'),
+                ('procedure', 'UP', '(START_N INTEGER NOT NULL, '
+                 'END_N INTEGER NOT NULL) RETURNS (N INTEGER NOT NULL)',
+                 'gen_rows'),
+                ('trigger', 'UT', 'FOR SENTINEL INACTIVE AFTER INSERT '
+                 'POSITION 3', 'replicate!unused')):
+            name += suffix
+            result.append((
+                kind, name, f'CREATE {kind.upper()} {name} {definition} '
+                f"EXTERNAL NAME 'udrcpp_example!{entry}' ENGINE UDR" + body,
+                f'DROP {kind.upper()} {name}',
+                ('metadata_source', 'engine_name', 'entrypoint',
+                 'description', 'sql_security',
+                 'deterministic', 'trigger_type', 'inactive', 'position') +
+                (() if kind == 'trigger' else ('parameters',))))
+    return result
 
 
 def comparable_fields(native, fields):
@@ -141,6 +160,14 @@ def verify(connection, client, route, password, result):
             return detail
 
         def behavior(name):
+            if name in {'UFN', 'UFS'}:
+                assert sql(f'SELECT {name}(2, 3, 4) FROM RDB$DATABASE') == [
+                    (9,)]
+                assert sql(f'SELECT {name}(2, NULL, 4) FROM RDB$DATABASE') == [
+                    (None,)]
+            if name in {'UPN', 'UPS'}:
+                assert sql(f'SELECT N FROM {name}(2, 4)') == [(2,), (3,), (4,)]
+                assert sql(f'SELECT N FROM {name}(4, 2)') == []
             sources = {
                 'P': ('SELECT P.F(5) FROM RDB$DATABASE', 7),
                 'FUN': ('SELECT FUN(5) FROM RDB$DATABASE', 8),
@@ -221,8 +248,8 @@ def verify(connection, client, route, password, result):
                                     assert parameter['description'] == (
                                         "Member parameter ; it's preserved")
                     if kind in {'procedure', 'function'}:
-                        parameter_names = ('X', 'Y') if kind == (
-                            'procedure') else ('X',)
+                        parameter_names = [p['name'] for p in
+                                           before['parameters'] if p['name']]
                         for parameter_name in parameter_names:
                             sql(f'COMMENT ON {kind.upper()} PARAMETER '
                                 f'{name}.{parameter_name} '

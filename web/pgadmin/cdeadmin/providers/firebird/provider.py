@@ -1714,11 +1714,7 @@ def _resources(connection, request):
         }
 
         def detail_value(field, detail):
-            if detail is None:
-                return None
-            if field == 'description':
-                return _catalog_detail(field, detail)
-            return str(detail).rstrip(' ')
+            return _catalog_detail(field, detail)
 
         for kind, source in simple_queries:
             for row in catalog_rows(source, kind + ' objects',
@@ -2245,6 +2241,31 @@ def _resources(connection, request):
                         'privileges', []
                     ).append(grant)
 
+        def routine_body(detail, *, trigger=False):
+            # Firebird parse.y external_body_clause_opt is AS utf_string,
+            # not a PSQL block. External clauses do not accept SQL SECURITY.
+            engine = str(detail.get('engine_name') or '').rstrip(' ')
+            entrypoint = str(detail.get('entrypoint') or '')
+            source = detail.get('metadata_source')
+            if engine:
+                body = '\nEXTERNAL'
+                if entrypoint:
+                    body += " NAME '" + entrypoint.replace("'", "''") + "'"
+                body += f' ENGINE {identifier(engine)}'
+                if source is not None:
+                    body += "\nAS '" + str(source).replace("'", "''") + "'"
+                return body + ';'
+            if entrypoint or not source:
+                return None
+            source = str(source).strip()
+            if not source:
+                return None
+            security = sql_security(detail.get('sql_security'))
+            body = f'\n{security}' if security else ''
+            return body + (
+                f'\n{source};' if trigger and source.upper().startswith('AS ')
+                else f'\nAS\n{source};')
+
         def routine_comments(kind, detail, qualified_name):
             statements = []
             if detail.get('description') is not None:
@@ -2752,9 +2773,10 @@ def _resources(connection, request):
                     if collation:
                         definition += f' COLLATE {identifier(collation)}'
                     native['ddl'] = definition + ';'
-            elif kind == 'trigger' and native.get('metadata_source'):
+            elif kind == 'trigger':
                 action = trigger_action(native.get('trigger_type'))
-                if action:
+                body = routine_body(native, trigger=True)
+                if action and body:
                     definition = f'CREATE TRIGGER {identifier(name)}'
                     relation = str(native.get('relation') or '').rstrip(' ')
                     if relation:
@@ -2766,44 +2788,18 @@ def _resources(connection, request):
                         ) + f' {action} POSITION '
                         f'{numeric(native.get("position"), 0)}'
                     )
-                    security = sql_security(native.get('sql_security'))
-                    if security:
-                        definition += f'\n{security}'
-                    entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').rstrip(' ')
-                    if entrypoint:
-                        entrypoint = entrypoint.replace("'", "''")
-                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
-                    if engine:
-                        definition += f'\nENGINE {identifier(engine)}'
-                    source = str(native['metadata_source']).strip()
-                    definition += (
-                        f'\n{source};' if source.upper().startswith('AS ') else
-                        f'\nAS\n{source};'
-                    )
-                    native['ddl'] = definition
+                    native['ddl'] = definition + body
             elif kind == 'procedure' and not native.get('package'):
                 inputs = routine_parts(native, 'input')
                 outputs = routine_parts(native, 'output')
-                source = str(native.get('metadata_source') or '').strip()
-                if inputs is not None and outputs is not None and source:
+                body = routine_body(native)
+                if inputs is not None and outputs is not None and body:
                     definition = f'CREATE PROCEDURE {identifier(name)}'
                     if inputs:
                         definition += ' (' + ', '.join(inputs) + ')'
                     if outputs:
                         definition += ' RETURNS (' + ', '.join(outputs) + ')'
-                    entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').rstrip(' ')
-                    if entrypoint:
-                        entrypoint = entrypoint.replace("'", "''")
-                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
-                    security = sql_security(native.get('sql_security'))
-                    if security:
-                        definition += f'\n{security}'
-                    if engine:
-                        definition += f'\nENGINE {identifier(engine)}'
-                    definition += f'\nAS\n{source};'
-                    native['ddl'] = definition
+                    native['ddl'] = definition + body
             elif kind == 'function' and not native.get('package'):
                 parameters = sorted(
                     native.get('parameters', []),
@@ -2819,27 +2815,16 @@ def _resources(connection, request):
                     for parameter in parameters
                     if parameter.get('return_value')
                 ]
-                source = str(native.get('metadata_source') or '').strip()
+                body = routine_body(native)
                 if not any(value is None for value in inputs) and len(
-                        return_values) == 1 and return_values[0] and source:
+                        return_values) == 1 and return_values[0] and body:
                     definition = (
                         f'CREATE FUNCTION {identifier(name)} (' +
                         ', '.join(inputs) + ') RETURNS ' + return_values[0]
                     )
                     if str(native.get('deterministic')) == '1':
                         definition += '\nDETERMINISTIC'
-                    entrypoint = str(native.get('entrypoint') or '').strip()
-                    engine = str(native.get('engine_name') or '').rstrip(' ')
-                    if entrypoint:
-                        entrypoint = entrypoint.replace("'", "''")
-                        definition += f"\nEXTERNAL NAME '{entrypoint}'"
-                    security = sql_security(native.get('sql_security'))
-                    if security:
-                        definition += f'\n{security}'
-                    if engine:
-                        definition += f'\nENGINE {identifier(engine)}'
-                    definition += f'\nAS\n{source};'
-                    native['ddl'] = definition
+                    native['ddl'] = definition + body
             elif kind == 'external-function':
                 parameters = sorted(
                     native.get('parameters', []),
