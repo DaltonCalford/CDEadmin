@@ -308,6 +308,115 @@ def verify(connection, client, route, password, result):
                         'actual': after_fields}
                     assert handle.sql_dialect == 3
                     assert handle.info.sql_dialect == dialect
+                    if name in {'UFN', 'UFS', 'UPN', 'UPS'}:
+                        from pgadmin.cdeadmin.providers.firebird import (
+                            functions, procedures,
+                        )
+                        from pgadmin.cdeadmin.providers.firebird.ddl_dialect \
+                            import generated_dialect
+                        from pgadmin.cdeadmin.providers.firebird.\
+                            character_metadata import identifier
+
+                        compiler = (functions if kind == 'function'
+                                    else procedures)
+                        with generated_dialect(dialect):
+                            prefix = (f'CREATE {kind.upper()} ' +
+                                      identifier(name))
+                        assert statements[0].startswith(prefix)
+                        declaration = statements[0][len(prefix):].split(
+                            '\nEXTERNAL', 1)[0]
+                        entry = ('sum_args' if kind == 'function'
+                                 else 'gen_rows')
+                        declaration += (
+                            "\nEXTERNAL NAME 'udrcpp_example!" + entry +
+                            "' ENGINE UDR AS 'Updated ; it''s exact  '")
+                        target = {'resource_kind': kind, 'display_name': name}
+                        sql(f'GRANT EXECUTE ON {kind.upper()} '
+                            f'{name} TO ROLE R')
+                        handle.commit()
+                        grant_query = (
+                            'SELECT TRIM(RDB$PRIVILEGE) '
+                            'FROM RDB$USER_PRIVILEGES '
+                            f"WHERE RDB$RELATION_NAME = '{name}' "
+                            "AND RDB$USER = 'R' AND RDB$USER_TYPE = 13 "
+                            'AND RDB$OBJECT_TYPE = ' +
+                            ('15' if kind == 'function' else '5'))
+
+                        def check_grant(phase, expected):
+                            observed = sql(grant_query)
+                            assert observed == expected, {
+                                'phase': phase, 'expected': expected,
+                                'observed': observed}
+
+                        lifecycle = check['replacement_checks'] = []
+                        for operation in ('create_or_alter', 'recreate'):
+                            original = metadata(kind, name)
+                            check_grant(operation + '-before', [('X',)])
+                            rollback()
+                            draft = {'declaration': declaration}
+                            draft['name' if operation == 'create_or_alter'
+                                  else 'confirmation'] = name
+                            with generated_dialect(dialect):
+                                command = compiler.compile_operation(
+                                    operation, draft, target)
+                            sql('INSERT INTO SENTINEL VALUES (73)')
+                            sql(command)
+                            assert sql('SELECT X FROM SENTINEL') == [(73,)]
+                            rollback()
+                            restored = metadata(kind, name)
+                            assert comparable_fields(restored, fields) == (
+                                comparable_fields(original, fields))
+                            assert sql('SELECT X FROM SENTINEL') == []
+                            check_grant(operation + '-rollback', [('X',)])
+                            rollback()
+                            sql(command)
+                            handle.commit()
+                            changed = metadata(kind, name)
+                            assert changed['metadata_source'] == (
+                                "Updated ; it's exact  ")
+                            assert changed['engine_name'] == 'UDR'
+                            assert changed['entrypoint'] == (
+                                'udrcpp_example!' + entry)
+                            assert changed['description'] == (
+                                original['description'] if operation ==
+                                'create_or_alter' else None)
+                            check_grant(operation + '-commit',
+                                        [('X',)] if operation ==
+                                        'create_or_alter' else [])
+                            for parameter in changed['parameters']:
+                                if parameter['name']:
+                                    assert parameter['description'] == (
+                                        "Parameter ; it's preserved" if
+                                        operation == 'create_or_alter'
+                                        else None)
+                            # Observe execution from a new attachment after
+                            # commit; do not confuse warmed routine caches
+                            # with the durable replacement definition.
+                            fresh = client.open_session({'route': configured})
+                            try:
+                                with fresh.cursor() as cursor:
+                                    query = (
+                                        f'SELECT {name}(2, 3, 4) '
+                                        'FROM RDB$DATABASE' if kind ==
+                                        'function' else
+                                        f'SELECT N FROM {name}(2, 4)')
+                                    cursor.execute(query)
+                                    expected_rows = ([(9,)] if kind ==
+                                                     'function' else
+                                                     [(2,), (3,), (4,)])
+                                    assert cursor.fetchall() == expected_rows
+                            finally:
+                                client.close_session(fresh)
+                            lifecycle.append({
+                                'operation': operation, 'passed': True,
+                                'source': command,
+                                'rollback_restored_metadata': True,
+                                'pending_work_preserved': True,
+                                'comments_preserved': operation ==
+                                'create_or_alter',
+                                'execute_grant_preserved': operation ==
+                                'create_or_alter',
+                                'fresh_committed_execution': True})
                     check.update(passed=True, pending_work_preserved=True,
                                  rollback_commit_verified=True,
                                  metadata_identity_verified=True)
@@ -399,7 +508,11 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('catalog_dialect_checks', [])
+    replacements = [replacement for check in checks for replacement in
+                    check.get('replacement_checks', [])]
     result['complete'] = (result['complete'] and
+                          len(replacements) == 16 and
+                          all(check['passed'] for check in replacements) and
                           len(checks) == 2 * len(cases()) and
                           all(check['passed'] for check in checks) and
                           len(result.get('package_evolution_checks', [])) == 2
