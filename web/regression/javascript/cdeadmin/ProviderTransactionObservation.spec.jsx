@@ -68,4 +68,25 @@ describe('Native Firebird transaction presentation', () => {
     expect(screen.getByLabelText('Other transaction')).toHaveTextContent('in_transaction');
     expect(screen.queryByText('Firebird transaction')).not.toBeInTheDocument();
   });
+
+  it.each(['idle', 'active', 'closed', 'unknown'])('labels both dialect observations in %s state', (state) => {
+    const value = observation(state);
+    value.provider_payload.attachment_fields = {
+      client_sql_dialect: available(3), database_sql_dialect: available(1),
+    };
+    render(<Component transaction={value} />);
+    expect(screen.getByText('Client SQL dialect').nextElementSibling).toHaveTextContent('3');
+    expect(screen.getByText('Stored database SQL dialect').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText(/Client SQL dialect controls statement interpretation/)).toBeVisible();
+  });
+
+  it('does not infer an unavailable database dialect from the client dialect', () => {
+    const value = observation('idle');
+    value.provider_payload.attachment_fields = {
+      client_sql_dialect: available(3), database_sql_dialect: {available: false},
+    };
+    render(<Component transaction={value} />);
+    expect(screen.getByText('Client SQL dialect').nextElementSibling).toHaveTextContent('3');
+    expect(screen.getByText('Stored database SQL dialect').nextElementSibling).toHaveTextContent('Unavailable');
+  });
 });

@@ -30,6 +30,12 @@ export default function ProviderTransactionObservation({transaction, label}) {
   const entries = [
     [gettext('State'), state],
   ];
+  if(native.attachment_fields) {
+    entries.push(
+      [gettext('Client SQL dialect'), fieldValue(native.attachment_fields.client_sql_dialect)],
+      [gettext('Stored database SQL dialect'), fieldValue(native.attachment_fields.database_sql_dialect)],
+    );
+  }
   if(native.state === 'active') {
     entries.push(
       [gettext('Transaction ID'), fieldValue(fields.transaction_id)],
@@ -63,6 +69,9 @@ export default function ProviderTransactionObservation({transaction, label}) {
     <Box component="p">
       {gettext('Observed from the retained Firebird session. Inspection does not start, commit or roll back a transaction.')}
     </Box>
+    {native.attachment_fields && <Box component="p">
+      {gettext('Client SQL dialect controls statement interpretation; stored database SQL dialect is a separate database property. Inspection changes neither.')}
+    </Box>}
     <Box component="details">
       <Box component="summary">{gettext('Native observation details')}</Box>
       <Box component="pre" sx={{whiteSpace: 'pre-wrap', overflowWrap: 'anywhere'}}>

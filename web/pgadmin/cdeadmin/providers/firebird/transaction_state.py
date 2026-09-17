@@ -29,7 +29,24 @@ def observe_transaction(connection):
         'finality_interpreted_by_common_code': False,
         'native_observation': 'Firebird TransactionManager / transaction info',
         'fields': {},
+        'attachment_fields': {},
     }
+    # These are distinct native observations. Database dialect must never be
+    # used as a guess for the dialect used to prepare client SQL. Neither
+    # accessor executes SQL or starts the caller's transaction.
+    for name, read, supported in (
+        ('client_sql_dialect', lambda: connection.sql_dialect, (1, 2, 3)),
+        ('database_sql_dialect', lambda: connection.info.sql_dialect, (1, 3)),
+    ):
+        try:
+            value = read()
+            if type(value) is not int or value not in supported:
+                raise ValueError('Invalid native dialect observation')
+            result['attachment_fields'][name] = {
+                'available': True, 'value': value}
+        except Exception as exc:
+            result['attachment_fields'][name] = {
+                'available': False, 'error_type': type(exc).__name__}
     try:
         transaction = connection.main_transaction
         active = transaction.is_active()
