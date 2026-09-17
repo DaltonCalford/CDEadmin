@@ -13,6 +13,7 @@ from .error_diagnostics import diagnostic_flag, status_codes
 from . import limbo
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
+from .query_dialect import DialectCursor, requested_dialect
 from .service_connection import effective_service_role
 from .transaction_sql import (
     start_native_transaction, starts_transaction, transaction_command,
@@ -37,6 +38,7 @@ class _AttachmentState:
     result_cleanup_failed: bool = False
     worker_interrupted: bool = False
     visual_task_state_unknown: bool = False
+    failed_cursors: list = field(default_factory=list)
 
 
 class FirebirdQueryClient(RelationalDBAPIClient):
@@ -249,6 +251,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         payload = copy.deepcopy(dict(request))
         self.config.query_parameter_normalizer(payload.get('parameters', ()))
         query_row_limit(payload)
+        requested_dialect(payload)
         with self._exclusive(handle) as state:
             query = _Query(handle)
             query.worker = threading.Thread(
@@ -417,11 +420,14 @@ class FirebirdQueryClient(RelationalDBAPIClient):
 
     def _execute_sql(self, handle, request):
         limit = query_row_limit(request)
+        dialect = requested_dialect(request)
         if starts_transaction(request.get('source')):
             return self._start_transaction_sql(handle, request)
         command = transaction_command(request.get('source'))
         if command is None:
             token = super().execute(handle, request)
+            if dialect is not None:
+                token.firebird_statement_dialect = dialect
             if limit is not None and token.columns:
                 token.firebird_fetch_observation = {
                     'max_rows': limit,
@@ -441,8 +447,16 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         receipt = self._finish_transaction(handle, action, retaining)
         token = _ResultToken(None, handle, (), [], None, closed=True)
         token.firebird_transaction_receipt = receipt
+        if dialect is not None:
+            token.firebird_statement_dialect = dialect
         self._tokens.append(token)
         return token
+
+    def _query_cursor(self, handle, request):
+        dialect = requested_dialect(request)
+        if dialect is None or dialect == handle.sql_dialect:
+            return super()._query_cursor(handle, request)
+        return DialectCursor(handle, dialect)
 
     def _fetch_query_rows(self, cursor, request):
         limit = query_row_limit(request)
@@ -459,6 +473,7 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             state = self._state(handle)
             with state.lock:
                 state.result_cleanup_failed = True
+                state.failed_cursors.append(cursor)
             error = RelationalClientError(
                 'Firebird query failed and result cursor cleanup failed; '
                 'do not replay the statement. Close this session and '
@@ -481,7 +496,10 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             # Run its idle cleanup so a legacy API handle from the previous
             # transaction cannot be reused by array/event/native operations.
             handle.main_transaction._finish()
-            native = start_native_transaction(handle, request['source'])
+            dialect = requested_dialect(request)
+            native = (start_native_transaction(handle, request['source'])
+                      if dialect is None else start_native_transaction(
+                          handle, request['source'], dialect=dialect))
         except Exception as exc:
             error = RelationalClientError(
                 'Firebird SET TRANSACTION did not complete (' +
@@ -490,6 +508,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             raise error from None
         handle.main_transaction._tra = native
         token = _ResultToken(None, handle, (), [], None, closed=True)
+        if dialect is not None:
+            token.firebird_statement_dialect = dialect
         token.firebird_transaction_receipt = {
             'action': 'begin', 'native_call_made': True,
             'observation': 'Firebird returned a native transaction interface',
@@ -540,6 +560,9 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         observation = getattr(token, 'firebird_fetch_observation', None)
         if observation is not None:
             result['payload']['fetch_observation'] = copy.deepcopy(observation)
+        dialect = getattr(token, 'firebird_statement_dialect', None)
+        if dialect is not None:
+            result['payload']['statement_sql_dialect'] = dialect
         return result
 
     def runtime_identity(self, request, handle=None):

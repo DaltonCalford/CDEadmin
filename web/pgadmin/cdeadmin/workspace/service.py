@@ -1002,7 +1002,7 @@ class ProviderWorkspaceService:
 
     def execute(
         self, server, session_id, source, parameters=None,
-        database_target_id=Ellipsis, *, max_rows=None,
+        database_target_id=Ellipsis, *, max_rows=None, client_sql_dialect=None,
     ):
         context, _endpoint, _root = self.endpoint_service.workspace(
             server, database_target_id=database_target_id
@@ -1013,6 +1013,16 @@ class ProviderWorkspaceService:
             raise ProviderWorkspaceError(
                 'query parameters must be an object or array')
         policy = {'redact_keys': []}
+        if client_sql_dialect is not None:
+            if context.provider_id != 'org.cdeadmin.firebird':
+                raise ProviderWorkspaceError(
+                    'client SQL dialect selection is only admitted for '
+                    'Firebird')
+            if (type(client_sql_dialect) is not int or
+                    client_sql_dialect not in (1, 2, 3)):
+                raise ProviderWorkspaceError(
+                    'Firebird client SQL dialect must be integer 1, 2 or 3')
+            policy['client_sql_dialect'] = client_sql_dialect
         if max_rows is not None:
             if context.provider_id != 'org.cdeadmin.firebird':
                 raise ProviderWorkspaceError(

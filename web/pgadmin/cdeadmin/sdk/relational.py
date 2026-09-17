@@ -1040,6 +1040,9 @@ class RelationalDBAPIClient:
         """Keep default cleanup policy overridable by native session owners."""
         self._safe_close(cursor)
 
+    def _query_cursor(self, handle, request):
+        return handle if self.config.execute_on_connection else handle.cursor()
+
     def execute(self, handle, request):
         source = request.get('source')
         if not isinstance(source, str) or not source.strip():
@@ -1053,10 +1056,7 @@ class RelationalDBAPIClient:
             )
         cursor = None
         try:
-            cursor = (
-                handle if self.config.execute_on_connection
-                else handle.cursor()
-            )
+            cursor = self._query_cursor(handle, request)
             if parameters:
                 cursor.execute(source, parameters)
             else:

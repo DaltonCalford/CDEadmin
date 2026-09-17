@@ -48,7 +48,7 @@ def starts_transaction(source):
     return True
 
 
-def start_native_transaction(connection, source):
+def start_native_transaction(connection, source, *, dialect=None):
     """Execute SET TRANSACTION with a null transaction input, as the API needs.
 
     Driver 1.10.11's Attachment.execute wrapper assumes a preexisting Python
@@ -61,7 +61,8 @@ def start_native_transaction(connection, source):
     encoded = source.encode(attachment.encoding)
     result = attachment.vtable.execute(
         attachment, attachment.status, None, len(encoded), encoded,
-        connection.sql_dialect, None, None, None, None)
+        connection.sql_dialect if dialect is None else dialect,
+        None, None, None, None)
     attachment._check()
     if not result:
         raise RuntimeError('Firebird did not return a transaction interface')

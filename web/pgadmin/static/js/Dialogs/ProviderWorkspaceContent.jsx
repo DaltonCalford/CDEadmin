@@ -6641,6 +6641,7 @@ export default function ProviderWorkspaceContent({
   const [languageProfile, setLanguageProfile] = useState('');
   const [parameterSource, setParameterSource] = useState('{}');
   const [maximumRows, setMaximumRows] = useState('1000');
+  const [clientSqlDialect, setClientSqlDialect] = useState(3);
   const [fetchObservation, setFetchObservation] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [occurrenceId, setOccurrenceId] = useState(null);
@@ -7044,6 +7045,9 @@ export default function ProviderWorkspaceContent({
         action: 'execute', session_id: activeSession, source: executionSource,
         parameters,
         ...rowPolicy,
+        ...(languageProfile === 'firebird-sql' ? {
+          client_sql_dialect: sessionCommand ? 3 : clientSqlDialect,
+        } : {}),
         database_target_id: queryDatabaseTargetId,
       });
       setOccurrenceId(occurrence.occurrence_id);
@@ -7322,6 +7326,15 @@ export default function ProviderWorkspaceContent({
           helperText={activeLanguage?.parameter_hint ||
             gettext('Use a JSON object of parameter names and values.')}
           onChange={(event) => setParameterSource(event.target.value)} />
+        {languageProfile === 'firebird-sql' && <TextField select
+          size="small" sx={{mt: 1}} label={gettext('Statement SQL dialect')}
+          value={clientSqlDialect} disabled={busy || querySessionBlocked || !!occurrenceId}
+          onChange={(event) => setClientSqlDialect(Number(event.target.value))}
+          helperText={gettext('Applies to the next user-written statement only. Does not change the database dialect, attachment default, or pending transaction. Generated administration SQL keeps its own dialect.')}>
+          <MenuItem value={3}>{gettext('3 — modern SQL')}</MenuItem>
+          <MenuItem value={1}>{gettext('1 — legacy SQL')}</MenuItem>
+          <MenuItem value={2}>{gettext('2 — transition diagnostics')}</MenuItem>
+        </TextField>}
         {languageProfile === 'firebird-sql' && <TextField
           type="number" size="small" sx={{mt: 1}}
           label={gettext('Maximum fetched rows')} value={maximumRows}

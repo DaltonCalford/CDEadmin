@@ -824,7 +824,7 @@ describe('ProviderWorkspaceContent', () => {
       action: 'execute', session_id: 'firebird-session',
       source: 'SELECT CAST(? AS INTEGER) FROM RDB$DATABASE',
       parameters: [42, 'text', null], database_target_id: 'firebird-target',
-      max_rows: 1000,
+      max_rows: 1000, client_sql_dialect: 3,
     }));
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(3));
   });
@@ -848,11 +848,13 @@ describe('ProviderWorkspaceContent', () => {
     await waitFor(() => expect(screen.getByRole('button', {name: 'Inspect DECFLOAT traps'})).toBeEnabled());
     fireEvent.change(screen.getByLabelText('Query parameters (JSON array)'), {target: {value: 'invalid json'}});
     fireEvent.change(screen.getByLabelText('Maximum fetched rows'), {target: {value: '-1'}});
+    fireEvent.mouseDown(screen.getByLabelText('Statement SQL dialect'));
+    fireEvent.click(screen.getByRole('option', {name: '1 — legacy SQL'}));
     fireEvent.click(screen.getByRole('checkbox', {name: 'Confirm disabling all DECFLOAT traps in this session'}));
     fireEvent.click(screen.getByRole('button', {name: 'Disable all DECFLOAT traps'}));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
       action: 'execute', session_id: 'firebird-session', source: 'SET DECFLOAT TRAPS TO',
-      parameters: [], database_target_id: 'firebird-target',
+      parameters: [], database_target_id: 'firebird-target', client_sql_dialect: 3,
     }));
     await waitFor(() => expect(screen.getByRole('button', {name: 'Inspect DECFLOAT traps'})).toBeEnabled());
     expect(api.post.mock.calls.filter(([, value]) => value.action === 'open_session')).toHaveLength(1);
@@ -863,6 +865,28 @@ describe('ProviderWorkspaceContent', () => {
       action: 'execute', session_id: 'firebird-session', parameters: [],
       source: 'SELECT RDB$GET_CONTEXT(\'SYSTEM\', \'DECFLOAT_TRAPS\') AS DECFLOAT_TRAPS FROM RDB$DATABASE',
     })));
+  });
+
+  it.each([[1, '1 — legacy SQL'], [2, '2 — transition diagnostics'], [3, '3 — modern SQL']])('selects statement dialect %s without changing the session-opening request', async (dialect, label) => {
+    api.get.mockResolvedValue({data: {data: {...bootstrap, languages: [{
+      language_profile: 'firebird-sql', title: 'Firebird SQL',
+      starter_source: 'SELECT 1 FROM RDB$DATABASE', parameter_shape: 'array',
+    }]}}});
+    api.post.mockImplementation((_url, payload) => Promise.resolve({data: {data: {
+      open_session: {session_id: 'fb'}, execute: {occurrence_id: 'query'},
+      poll: {occurrence: {operation: {terminal: true}}, rendered_result: null},
+    }[payload.action]}}));
+    render(<ProviderWorkspaceContent closeModal={jest.fn()}
+      endpointUrl="/workspace/1" initialTab="studio" />);
+    fireEvent.mouseDown(await screen.findByLabelText('Statement SQL dialect'));
+    fireEvent.click(screen.getByRole('option', {name: label}));
+    fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', expect.objectContaining({
+      action: 'execute', client_sql_dialect: dialect, source: 'SELECT 1 FROM RDB$DATABASE',
+    })));
+    const opening = api.post.mock.calls.find(([, payload]) => payload.action === 'open_session')[1];
+    expect(opening).not.toHaveProperty('client_sql_dialect');
+    expect(api.post.mock.calls.some(([, payload]) => payload.action === 'transaction_control')).toBe(false);
   });
 
   it.each(['', '-1', '1.5', '1000001'])('rejects invalid Firebird row bound %s before opening a session', async (value) => {
