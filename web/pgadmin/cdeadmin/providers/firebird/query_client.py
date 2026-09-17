@@ -9,7 +9,9 @@ from dataclasses import dataclass, field
 from pgadmin.cdeadmin.sdk.relational import (
     RelationalClientError, RelationalDBAPIClient, _ResultToken,
 )
-from .error_diagnostics import diagnostic_flag, status_codes
+from .error_diagnostics import (
+    diagnostic_flag, execution_identity, status_codes,
+)
 from . import limbo
 from .query_parameters import normalize_parameters
 from .query_limits import query_row_limit
@@ -18,6 +20,10 @@ from .service_connection import effective_service_role
 from .transaction_sql import (
     start_native_transaction, starts_transaction, transaction_command,
 )
+
+COMMIT_FAILURE_NOTICE = (
+    'Commit was not confirmed. Inspect the transaction state before retrying; '
+    'earlier savepoints may no longer exist.')
 
 
 @dataclass(eq=False)
@@ -524,10 +530,18 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             if active:
                 getattr(handle, action)(retaining=retaining)
         except Exception as exc:
+            codes = status_codes(exc)
+            details = execution_identity(exc)
+            if codes:
+                details.append('Firebird status codes: ' +
+                               ', '.join(map(str, codes)))
+            suffix = '; ' + '; '.join(details) if details else ''
             error = RelationalClientError(
                 'Firebird transaction command outcome is unavailable (' +
-                type(exc).__name__ + ')')
-            error.gds_codes = status_codes(exc)
+                type(exc).__name__ + suffix + ')' +
+                (' ' + COMMIT_FAILURE_NOTICE if action == 'commit' else ''))
+            error.gds_codes = codes
+            error.native_status_codes = codes
             raise error from None
         return {
             'action': action, 'retaining_requested': retaining,
@@ -797,7 +811,8 @@ class FirebirdQueryClient(RelationalDBAPIClient):
             # Identity-backed row operations consume a one-use selector at
             # compilation. DML does not have the stored/client DDL dialect
             # ambiguity restriction and must never be compiled a second time.
-            if (request.get('operation_id') not in {'insert', 'update', 'delete'}
+            if (request.get('operation_id') not in
+                    {'insert', 'update', 'delete'}
                     and payload.get('compiled', {}).get('statements') and
                     payload.get('route', {}).get('database')):
                 from .ddl_dialect import generated_dialect, observed_dialects
