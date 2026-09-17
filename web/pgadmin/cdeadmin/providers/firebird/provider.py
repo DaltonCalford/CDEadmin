@@ -1867,7 +1867,7 @@ def _resources(connection, request):
             'TRIM(TRAILING FROM CS.RDB$CHARACTER_SET_NAME), '
             'TRIM(TRAILING FROM CO.RDB$COLLATION_NAME), TRIM(TRAILING '
             'FROM A.RDB$RELATION_NAME), '
-            'TRIM(TRAILING FROM A.RDB$FIELD_NAME) FROM '
+            'TRIM(TRAILING FROM A.RDB$FIELD_NAME), A.RDB$DESCRIPTION FROM '
             'RDB$FUNCTION_ARGUMENTS A '
             'LEFT JOIN RDB$FIELDS F ON F.RDB$FIELD_NAME = '
             'A.RDB$FIELD_SOURCE LEFT JOIN RDB$CHARACTER_SETS CS ON '
@@ -1883,13 +1883,14 @@ def _resources(connection, request):
                 default_source, mechanism, argument_mechanism, field_type, \
                 field_sub_type, field_length, field_scale, field_precision, \
                 character_length, segment_length, character_set, collation, \
-                relation_name, field_name = row
+                relation_name, field_name, description = row
             argument = {
                 'name': str(name or '').rstrip(' ') or None,
                 'position': position,
                 'domain': str(domain or '').rstrip(' ') or None,
                 'not_null': not_null,
                 'default_source': default_source,
+                'description': description,
                 'mechanism': mechanism,
                 'argument_mechanism': argument_mechanism,
                 'field_type': field_type,
@@ -2916,6 +2917,17 @@ def _resources(connection, request):
                     statements.append(
                         f'COMMENT ON {kind.upper()} {identifier(name)} '
                         f"IS '{comment}'")
+                if kind in {'procedure', 'function'}:
+                    for parameter in native.get('parameters', []):
+                        if (parameter.get('name') and
+                                parameter.get('description') is not None):
+                            comment = str(parameter['description']).replace(
+                                "'", "''")
+                            statements.append(
+                                f'COMMENT ON {kind.upper()} PARAMETER '
+                                f'{identifier(name)}.'
+                                f'{identifier(parameter["name"])} '
+                                f"IS '{comment}'")
                 native['recreation_statements'] = statements
                 native['ddl'] = ';\n'.join(statements) + ';'
         primary_key_columns = {}

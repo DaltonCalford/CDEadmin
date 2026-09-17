@@ -12,6 +12,19 @@ BODY = "BEGIN FUNCTION F RETURNS INTEGER AS BEGIN /* ; */ RETURN 2; END END"
 COMMENT = "Owner's ; notes\n東京"
 
 
+@pytest.mark.parametrize('domain', ['RDB$17', 'CUSTOM_DOMAIN', None, 'RDB$X'])
+def test_native_gate_normalizes_only_allocated_domain_numbers(domain):
+    from tools.cdeadmin_firebird_catalog_dialect_gate import comparable_fields
+    native = {'parameters': [{'domain': domain, 'description': COMMENT,
+                              'field_type': 8}]}
+    actual = comparable_fields(native, ['parameters'])['parameters'][0]
+    assert actual['domain'] == (
+        '<implicit-domain>' if domain == 'RDB$17' else domain)
+    assert actual['description'] == COMMENT
+    assert actual['field_type'] == 8
+    assert native['parameters'][0]['domain'] == domain
+
+
 def catalog(dialect, security, body, comment):
     cursor = Mock()
     rows = []
@@ -73,6 +86,55 @@ def test_sequence_comments_are_separate_without_changing_initial_values(
         assert statements[-1].endswith("IS '" +
                                        comment.replace("'", "''") + "'")
     assert native['ddl'] == ';\n'.join(statements) + ';'
+
+
+@pytest.mark.parametrize('dialect', [1, 3])
+@pytest.mark.parametrize('comment', [None, '', COMMENT])
+@pytest.mark.parametrize('kind', ['procedure', 'function'])
+def test_parameter_comments_are_exported_after_routine(dialect, comment, kind):
+    cursor = Mock()
+    rows = []
+    source_body = 'BEGIN END' if kind == 'procedure' else (
+        'BEGIN RETURN X; END')
+    parameter_name = 'X' if dialect == 1 else 'X"Y'
+
+    def execute(source):
+        nonlocal rows
+        rows = []
+        if 'COALESCE(RDB$SYSTEM_FLAG, 0) = 0' in source:
+            if kind == 'procedure' and 'FROM RDB$PROCEDURES WHERE ' in source:
+                rows = [('P', None, source_body, None, 2, 1, False, None,
+                         None)]
+            if kind == 'function' and 'FROM RDB$FUNCTIONS WHERE ' in source:
+                rows = [('P', None, source_body, None, 0, 1, False, None,
+                         None, 0, 0, 0)]
+        if kind == 'procedure' and 'RDB$PROCEDURE_PARAMETERS P ' in source:
+            rows = [('P', None, parameter_name, 0, 0, 'RDB$1', None, None,
+                     comment, 0, 8, 0, 4, 0, 9, None, None, None, None,
+                     None, None)]
+        if kind == 'function' and 'RDB$FUNCTION_ARGUMENTS A ' in source:
+            assert 'A.RDB$DESCRIPTION' in source
+            rows = [('P', None, name, position, 'RDB$1', None, None, 0, 0,
+                     8, 0, 4, 0, 9, None, None, None, None, None, None,
+                     description) for name, position, description in [
+                         (None, 0, None), (parameter_name, 1, comment)]]
+
+    cursor.execute.side_effect = execute
+    cursor.fetchall.side_effect = lambda: rows
+    handle = SimpleNamespace(cursor=lambda: cursor,
+                             info=SimpleNamespace(sql_dialect=dialect))
+    native = next(item['native'] for item in _resources(
+        handle, {'route': {'database': 'fixture'}}) if
+        item['resource_kind'] == kind)
+    named = next(p for p in native['parameters'] if p['name'])
+    assert named['description'] == comment
+    statements = native['recreation_statements']
+    assert len(statements) == 1 + (comment is not None)
+    if comment is not None:
+        target = 'P.X' if dialect == 1 else '"P"."X""Y"'
+        assert statements[-1] == (
+            f'COMMENT ON {kind.upper()} PARAMETER {target} IS ' +
+            "'" + comment.replace("'", "''") + "'")
 
 
 @pytest.mark.parametrize('dialect', [1, 3])

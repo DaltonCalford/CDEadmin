@@ -2,6 +2,7 @@
 """Round-trip non-table Firebird catalog DDL on stored dialects 1 and 3."""
 import argparse
 import json
+import re
 from pathlib import Path
 
 if __package__:
@@ -54,18 +55,29 @@ def cases():
         ('function', 'FUN', 'CREATE FUNCTION FUN(X INTEGER) RETURNS INTEGER '
          'SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END',
          'DROP FUNCTION FUN', ('metadata_source', 'sql_security',
-                               'description')),
+                               'description', 'parameters')),
         ('procedure', 'PR', 'CREATE PROCEDURE PR(X INTEGER) '
          'RETURNS(Y INTEGER) '
          'SQL SECURITY INVOKER AS BEGIN Y = X + 4; END',
          'DROP PROCEDURE PR', ('metadata_source', 'sql_security',
-                               'description')),
+                               'description', 'parameters')),
         ('trigger', 'TR', 'CREATE TRIGGER TR FOR SENTINEL INACTIVE '
          'BEFORE UPDATE POSITION 0 SQL SECURITY INVOKER '
          'AS BEGIN NEW.X = OLD.X; END',
          'DROP TRIGGER TR', ('metadata_source', 'sql_security', 'inactive',
                              'trigger_type', 'position', 'description')),
     ]
+
+
+def comparable_fields(native, fields):
+    """Ignore only engine-allocated implicit-domain sequence numbers."""
+    values = {field: native.get(field) for field in fields}
+    if 'parameters' in values:
+        values['parameters'] = [
+            {**parameter, 'domain': '<implicit-domain>'}
+            if re.fullmatch(r'RDB\$[0-9]+', parameter.get('domain') or '')
+            else dict(parameter) for parameter in values['parameters']]
+    return values
 
 
 def verify(connection, client, route, password, result):
@@ -137,6 +149,19 @@ def verify(connection, client, route, password, result):
                             ' IS \'Exact A"B; it\'\'s preserved\'')
                         handle.commit()
                     before = metadata(kind, name)
+                    if kind in {'procedure', 'function'}:
+                        parameter_names = ('X', 'Y') if kind == (
+                            'procedure') else ('X',)
+                        for parameter_name in parameter_names:
+                            sql(f'COMMENT ON {kind.upper()} PARAMETER '
+                                f'{name}.{parameter_name} '
+                                "IS 'Parameter ; it''s preserved'")
+                        handle.commit()
+                        before = metadata(kind, name)
+                        for parameter in before['parameters']:
+                            if parameter['name'] in parameter_names:
+                                assert parameter['description'] == (
+                                    "Parameter ; it's preserved")
                     if kind == 'package':
                         check['observed_security'] = {
                             field: before.get(field) for field in
@@ -147,8 +172,9 @@ def verify(connection, client, route, password, result):
                     statements = before.get('recreation_statements') or [
                         before['ddl'].rstrip().rstrip(';')]
                     check['statements'] = statements
-                    expected = {field: before.get(field) for field in fields}
-                    check['native_before'] = expected
+                    expected = comparable_fields(before, fields)
+                    check['native_before'] = {
+                        field: before.get(field) for field in fields}
                     rollback()
                     # Pending work is preserved by rendering and staging DDL.
                     sql('INSERT INTO SENTINEL VALUES (42)')
@@ -163,9 +189,10 @@ def verify(connection, client, route, password, result):
                     rollback()
                     assert sql('SELECT X FROM SENTINEL') == []
                     restored = metadata(kind, name)
-                    restored_fields = {
-                        field: restored.get(field) for field in fields}
-                    assert restored_fields == expected
+                    restored_fields = comparable_fields(restored, fields)
+                    assert restored_fields == expected, {
+                        'stage': 'rollback', 'expected': expected,
+                        'actual': restored_fields}
                     rollback()
                     if drop:
                         sql(drop)
@@ -175,8 +202,12 @@ def verify(connection, client, route, password, result):
                     handle.commit()
                     after = metadata(kind, name)
                     behavior(name)
-                    assert {field: after.get(field) for field in fields} == (
-                        expected)
+                    check['native_after'] = {
+                        field: after.get(field) for field in fields}
+                    after_fields = comparable_fields(after, fields)
+                    assert after_fields == expected, {
+                        'stage': 'committed-recreation', 'expected': expected,
+                        'actual': after_fields}
                     assert handle.sql_dialect == 3
                     assert handle.info.sql_dialect == dialect
                     check.update(passed=True, pending_work_preserved=True,
