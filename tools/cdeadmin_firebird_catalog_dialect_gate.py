@@ -16,11 +16,12 @@ def cases():
         ('domain', 'D', "CREATE DOMAIN D AS VARCHAR(20) DEFAULT 'A\"B' "
          'NOT NULL CHECK (CHAR_LENGTH(VALUE) > 0)', 'DROP DOMAIN D',
          ('field_type', 'field_length', 'character_length', 'character_set',
-          'default_source', 'not_null', 'validation_source', 'collation')),
+          'default_source', 'not_null', 'validation_source', 'collation',
+          'description')),
         ('sequence', 'S', 'CREATE SEQUENCE S START WITH 7 INCREMENT BY 3',
          'DROP SEQUENCE S', ('initial_value', 'increment', 'description')),
         ('exception', 'E', "CREATE EXCEPTION E 'Exact A\"B; message'",
-         'DROP EXCEPTION E', ('message',)),
+         'DROP EXCEPTION E', ('message', 'description')),
         ('role', 'R', 'CREATE ROLE R', 'DROP ROLE R',
          ('owner', 'system_privileges', 'description')),
         ('collation', 'C', 'CREATE COLLATION C FOR UTF8 FROM UNICODE '
@@ -52,16 +53,18 @@ def cases():
                              'sql_security', 'package_sql_security')),
         ('function', 'FUN', 'CREATE FUNCTION FUN(X INTEGER) RETURNS INTEGER '
          'SQL SECURITY INVOKER AS BEGIN RETURN X + 3; END',
-         'DROP FUNCTION FUN', ('metadata_source', 'sql_security')),
+         'DROP FUNCTION FUN', ('metadata_source', 'sql_security',
+                               'description')),
         ('procedure', 'PR', 'CREATE PROCEDURE PR(X INTEGER) '
          'RETURNS(Y INTEGER) '
          'SQL SECURITY INVOKER AS BEGIN Y = X + 4; END',
-         'DROP PROCEDURE PR', ('metadata_source', 'sql_security')),
+         'DROP PROCEDURE PR', ('metadata_source', 'sql_security',
+                               'description')),
         ('trigger', 'TR', 'CREATE TRIGGER TR FOR SENTINEL INACTIVE '
          'BEFORE UPDATE POSITION 0 SQL SECURITY INVOKER '
          'AS BEGIN NEW.X = OLD.X; END',
          'DROP TRIGGER TR', ('metadata_source', 'sql_security', 'inactive',
-                             'trigger_type', 'position')),
+                             'trigger_type', 'position', 'description')),
     ]
 
 
@@ -124,7 +127,8 @@ def verify(connection, client, route, password, result):
                             sql(statement)
                         handle.commit()
                     if kind in {'role', 'collation', 'blob-filter', 'sequence',
-                                'package',
+                                'package', 'domain', 'exception', 'function',
+                                'procedure', 'trigger',
                                 'authentication-mapping'}:
                         noun = {'blob-filter': 'FILTER',
                                 'authentication-mapping': 'MAPPING'}.get(

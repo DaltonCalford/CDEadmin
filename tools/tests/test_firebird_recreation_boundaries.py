@@ -73,3 +73,45 @@ def test_sequence_comments_are_separate_without_changing_initial_values(
         assert statements[-1].endswith("IS '" +
                                        comment.replace("'", "''") + "'")
     assert native['ddl'] == ';\n'.join(statements) + ';'
+
+
+@pytest.mark.parametrize('dialect', [1, 3])
+@pytest.mark.parametrize('comment', [None, '', COMMENT])
+@pytest.mark.parametrize('kind', ['exception', 'procedure', 'trigger'])
+def test_object_comments_preserve_statement_boundaries(dialect, comment, kind):
+    cursor = Mock()
+    rows = []
+    source_body = "BEGIN /* Preserve ; and 'quotes' */ END"
+    fixtures = {
+        'exception': ('RDB$EXCEPTIONS', ('E', "A;B's", comment)),
+        'procedure': ('RDB$PROCEDURES', (
+            'P', None, source_body, comment, 2, 1, False, None, None)),
+        'trigger': ('RDB$TRIGGERS', (
+            'TR', 'T', 1, 0, 0, source_body, comment, False, None, None)),
+    }
+    table, row = fixtures[kind]
+
+    def execute(source):
+        nonlocal rows
+        rows = ([row] if f'FROM {table} WHERE ' in source and
+                'COALESCE(RDB$SYSTEM_FLAG, 0) = 0' in source else [])
+
+    cursor.execute.side_effect = execute
+    cursor.fetchall.side_effect = lambda: rows
+    handle = SimpleNamespace(cursor=lambda: cursor,
+                             info=SimpleNamespace(sql_dialect=dialect))
+    objects = _resources(handle, {'route': {'database': 'fixture'}})
+    native = next(item['native'] for item in objects if
+                  item['resource_kind'] == kind)
+    statements = native['recreation_statements']
+    assert len(statements) == 1 + (comment is not None)
+    if kind != 'exception':
+        assert statements[0].endswith(source_body)
+    else:
+        assert statements[0].endswith("'A;B''s'")
+    if comment is not None:
+        name = row[0] if dialect == 1 else '"' + row[0] + '"'
+        assert statements[1] == (
+            f'COMMENT ON {kind.upper()} {name} IS ' +
+            "'" + comment.replace("'", "''") + "'")
+    assert native['ddl'] == ';\n'.join(statements) + ';'

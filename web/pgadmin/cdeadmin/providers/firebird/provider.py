@@ -2905,6 +2905,19 @@ def _resources(connection, request):
                         f'ALTER TABLE {identifier(item["display_path"][-2])} '
                         f'ADD {clause};'
                     )
+            if (kind in {'domain', 'exception', 'procedure', 'function',
+                         'trigger'} and native.get('ddl') and
+                    not native.get('package')):
+                # These renderers append exactly one outer terminator. Keep
+                # PSQL bodies intact; never split a definition at semicolons.
+                statements = [native['ddl'][:-1]]
+                if native.get('description') is not None:
+                    comment = str(native['description']).replace("'", "''")
+                    statements.append(
+                        f'COMMENT ON {kind.upper()} {identifier(name)} '
+                        f"IS '{comment}'")
+                native['recreation_statements'] = statements
+                native['ddl'] = ';\n'.join(statements) + ';'
         primary_key_columns = {}
         for candidate in resources.values():
             detail = candidate.get('native', {})
