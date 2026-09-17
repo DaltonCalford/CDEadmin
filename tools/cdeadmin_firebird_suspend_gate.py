@@ -10,11 +10,16 @@ else:
     import cdeadmin_firebird_views_gate as base
 
 
-HEADER = 'BEGIN PROCEDURE P(K INTEGER) RETURNS(N INTEGER); END'
+HEADER = ('BEGIN PROCEDURE P(K INTEGER) RETURNS(N INTEGER); '
+          'PROCEDURE Q(K INTEGER) RETURNS(N INTEGER); END')
 BODY = ('BEGIN PROCEDURE P(K INTEGER) RETURNS(N INTEGER) AS BEGIN '
         'INSERT INTO SUSPEND_DATA VALUES (:K, 1); N = 1; SUSPEND; '
         'INSERT INTO SUSPEND_DATA VALUES (:K, 2); '
-        'EXCEPTION SUSPEND_FAILURE; END END')
+        'EXCEPTION SUSPEND_FAILURE; END '
+        'PROCEDURE Q(K INTEGER) RETURNS(N INTEGER) AS BEGIN N = 1; '
+        'WHILE (N <= 5) DO BEGIN '
+        'INSERT INTO SUSPEND_DATA VALUES (:K, :N); SUSPEND; N = N + 1; END '
+        'INSERT INTO SUSPEND_DATA VALUES (:K, 6); END END')
 
 
 def verify(connection, client, route, password, result):
@@ -28,6 +33,7 @@ def verify(connection, client, route, password, result):
     )
     admin = client.open_session({'route': route})
     checks = result['suspend_checks'] = []
+    native_bounds = {}
 
     def sql(handle, source, params=()):
         with handle.cursor() as cursor:
@@ -57,7 +63,7 @@ def verify(connection, client, route, password, result):
         client.control_transaction(admin, 'commit')
         key = 0
         for api in ('native', 'provider'):
-            for invocation in ('select', 'execute'):
+            for invocation in ('select', 'execute', 'limit-1', 'limit-2'):
                 for action in ('commit', 'rollback'):
                     key += 1
                     handle = client.open_session({'route': route})
@@ -66,25 +72,32 @@ def verify(connection, client, route, password, result):
                         sql(handle, 'INSERT INTO SUSPEND_DATA VALUES (?, 0)',
                             (key,))
                         transaction = handle.main_transaction.info.id
+                        limit = (int(invocation[-1]) if invocation.startswith(
+                            'limit-') else None)
                         source = ('SELECT N FROM SUSPEND_PACKAGE.P(?)'
                                   if invocation == 'select' else
                                   'EXECUTE PROCEDURE SUSPEND_PACKAGE.P(?)')
+                        if limit:
+                            source = 'SELECT N FROM SUSPEND_PACKAGE.Q(?)'
                         codes = []
                         fetched = []
                         if api == 'native':
                             try:
                                 with handle.cursor() as cursor:
                                     cursor.execute(source, (key,))
-                                    while True:
+                                    while limit is None:
                                         row = cursor.fetchone()
                                         if row is None:
                                             break
                                         fetched.append(row)
+                                    if limit:
+                                        fetched = cursor.fetchmany(limit)
                             except native.DatabaseError as exc:
                                 codes = list(status_codes(exc))
                         else:
                             token = client.submit_query(handle, {
-                                'source': source, 'parameters': [key]})
+                                'source': source, 'parameters': [key],
+                                'output_policy': {'max_rows': limit}})
                             token.worker.join(20)
                             assert not token.worker.is_alive()
                             observed = client.describe_result(token)
@@ -100,15 +113,34 @@ def verify(connection, client, route, password, result):
                             else:
                                 assert payload['execution_state'] == (
                                     'succeeded')
+                            if limit:
+                                observation = payload['fetch_observation']
+                                assert observation['limit_reached'] is True
+                                assert observation[
+                                    'end_of_cursor_observed'] is False
+                                assert observation['total_rows'] is None
+                                assert observation['sql_rewritten'] is False
+                                assert observation[
+                                    'transaction_action_requested'] is False
                         if invocation == 'select':
                             assert 335544517 in codes, codes
                         else:
                             assert not codes
-                            assert fetched == [(1,)], fetched
+                            assert fetched == [
+                                (n,) for n in range(1, (limit or 1) + 1)]
                         assert handle.main_transaction.info.id == transaction
                         pending = sql(handle, 'SELECT N FROM SUSPEND_DATA '
                                       'WHERE K = ? ORDER BY N', (key,))
-                        assert pending == [(0,), (1,)], pending
+                        if limit:
+                            if api == 'native':
+                                native_bounds[(limit, action)] = pending
+                            else:
+                                baseline = native_bounds[(limit, action)]
+                                assert pending == baseline
+                            assert all((n,) in pending
+                                       for n in range(limit + 1))
+                        else:
+                            assert pending == [(0,), (1,)], pending
                         assert rows(key) == []
                         client.control_transaction(handle, action)
                         expected = pending if action == 'commit' else []
@@ -136,7 +168,7 @@ def main():
         parser.error('Refusing to overwrite evidence')
     result = base.run(extra_checks=verify)
     checks = result.get('suspend_checks', [])
-    result['complete'] = (result['complete'] and len(checks) == 8 and
+    result['complete'] = (result['complete'] and len(checks) == 16 and
                           all(check['passed'] for check in checks))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],

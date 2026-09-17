@@ -7341,11 +7341,11 @@ export default function ProviderWorkspaceContent({
           disabled={busy || !!occurrenceId}
           inputProps={{min: 0, max: 1000000, step: 1}}
           onChange={(event) => setMaximumRows(event.target.value)}
-          helperText={gettext('0 fetches all rows. Otherwise fetching stops and the cursor closes at this application limit. This does not limit modified rows or commit/roll back. A selectable procedure may not run to completion.')} />}
+          helperText={gettext('0 fetches all rows. Otherwise fetching stops and the cursor closes at this application limit. This does not limit modified rows or commit/roll back. A selectable procedure may not run to completion. Driver prefetch may execute more procedure work than the displayed rows.')} />}
         {fetchObservation && <Alert severity={fetchObservation.limit_reached ? 'warning' : 'info'}
           sx={{mt: 1}} aria-label={gettext('Firebird fetch observation')}>
           {fetchObservation.limit_reached ?
-            gettext('Fetch limit reached. Further rows may exist; the total was not counted. The cursor has been closed, without commit or rollback.') :
+            gettext('Fetch limit reached. Further rows may exist; the total was not counted. The cursor has been closed, without commit or rollback. Driver prefetch may execute more procedure work than the displayed rows.') :
             gettext('The end of this result cursor was observed. No commit or rollback was requested.')}
           {' '}{gettext('Rows returned:')} {fetchObservation.rows_returned}
         </Alert>}

@@ -818,6 +818,7 @@ describe('ProviderWorkspaceContent', () => {
     const input = await screen.findByLabelText('Query parameters (JSON array)');
     expect(input).toHaveValue('[]');
     expect(screen.getByText('Ordered ? placeholders')).toBeInTheDocument();
+    expect(screen.getByText(/Driver prefetch may execute more procedure work/)).toBeInTheDocument();
     fireEvent.change(input, {target: {value: '[42,"text",null]'}});
     fireEvent.click(screen.getByRole('button', {name: 'Run', exact: true}));
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workspace/1', {
@@ -924,6 +925,8 @@ describe('ProviderWorkspaceContent', () => {
     })));
     expect(await screen.findByLabelText('Firebird fetch observation'))
       .toHaveTextContent('Further rows may exist; the total was not counted.');
+    expect(screen.getByLabelText('Firebird fetch observation'))
+      .toHaveTextContent('Driver prefetch may execute more procedure work than the displayed rows.');
     expect(api.post.mock.calls.some(([, payload]) => payload.action === 'transaction_control')).toBe(false);
   });
 
