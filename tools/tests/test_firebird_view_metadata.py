@@ -3,6 +3,7 @@ import pytest
 
 from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION  # noqa
 from pgadmin.cdeadmin.providers.firebird.views import recreation_sql
+from pgadmin.cdeadmin.providers.firebird.ddl_dialect import generated_dialect
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
 
 
@@ -46,3 +47,26 @@ def test_text_positions_are_sorted_numerically_without_mutating_input():
     ordered = catalog_columns(columns)
     assert [c['name'] for c in ordered] == ['C' + str(i) for i in range(12)]
     assert columns[0]['position'] == '11'
+
+
+@pytest.mark.parametrize('dialect', [1, 3])
+@pytest.mark.parametrize('definition', [
+    "SELECT 'A\"B' FROM RDB$DATABASE -- exact source",
+    'WITH Q AS (SELECT 1 X FROM RDB$DATABASE) SELECT X FROM Q',
+    'SELECT X FROM T WHERE X > 0 WITH CHECK OPTION',
+])
+def test_dialect_changes_identifiers_not_view_source(dialect, definition):
+    with generated_dialect(dialect):
+        ddl = recreation_sql('V', definition, [{'name': 'X', 'position': 0}])
+    prefix = 'CREATE VIEW V (X)' if dialect == 1 else 'CREATE VIEW "V" ("X")'
+    assert ddl == prefix + ' AS\n' + definition + '\n;'
+    assert recreation_sql('V', definition, [{'name': 'X', 'position': 0}]) == (
+        'CREATE VIEW "V" ("X") AS\n' + definition + '\n;')
+
+
+@pytest.mark.parametrize('name,column', [('Mixed', 'X'), ('V', 'Mixed')])
+def test_legacy_unrepresentable_names_are_not_silently_renamed(name, column):
+    with generated_dialect(1):
+        with pytest.raises(RelationalClientError, match='uppercase'):
+            recreation_sql(name, 'SELECT 1 FROM RDB$DATABASE',
+                           [{'name': column, 'position': 0}])

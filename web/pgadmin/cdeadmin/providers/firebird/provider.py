@@ -3201,9 +3201,13 @@ def _resources(connection, request):
                     native['view_columns'] = []
                     native['view_columns_unavailable_reason'] = str(error)
                 try:
-                    native['ddl'] = views.recreation_sql(
-                        item['display_name'], native.get('definition'),
-                        native.get('columns'))
+                    from .ddl_dialect import generated_dialect
+                    with generated_dialect(
+                            1 if str(database_native.get('sql_dialect')) == '1'
+                            else 3):
+                        native['ddl'] = views.recreation_sql(
+                            item['display_name'], native.get('definition'),
+                            native.get('columns'))
                 except RelationalClientError as error:
                     native.pop('ddl', None)
                     native['ddl_unavailable_reason'] = str(error)
