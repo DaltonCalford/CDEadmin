@@ -794,6 +794,25 @@ class FirebirdQueryClient(RelationalDBAPIClient):
         with self._temporary_operation():
             plan = super().plan_admin_operation(request)
             payload = plan.get('provider_payload', {})
+            # Identity-backed row operations consume a one-use selector at
+            # compilation. DML does not have the stored/client DDL dialect
+            # ambiguity restriction and must never be compiled a second time.
+            if (request.get('operation_id') not in {'insert', 'update', 'delete'}
+                    and payload.get('compiled', {}).get('statements') and
+                    payload.get('route', {}).get('database')):
+                from .ddl_dialect import generated_dialect, observed_dialects
+                connection = self._connect({'route': payload['route']})
+                try:
+                    binding = observed_dialects(connection)
+                finally:
+                    self._forget_and_close(connection)
+                if binding['database_sql_dialect'] == 1:
+                    with generated_dialect(1):
+                        plan = super().plan_admin_operation(request)
+                payload = plan['provider_payload']
+                payload['firebird_dialect_binding'] = binding
+                plan['command_preview']['firebird_dialect_binding'] = dict(
+                    binding)
             if payload.get('compiled', {}).get('driver_operation') == (
                     'firebird-limbo'):
                 compiled = payload['compiled']

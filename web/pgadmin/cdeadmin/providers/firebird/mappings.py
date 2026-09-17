@@ -7,6 +7,7 @@
 """Firebird 5 mapping DDL and scope-specific native catalog projection."""
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from .ddl_dialect import identifier_sql
 
 KINDS = ('authentication-mapping', 'global-authentication-mapping')
 MODES = ('PLUGIN', 'ANY_PLUGIN', 'SERVERWIDE', 'MAPPING', 'ANY')
@@ -21,7 +22,7 @@ def identifier(value):
     if len(value) > 63:
         raise RelationalClientError('Firebird identifiers have at most 63 '
                                     'characters')
-    return '"' + value.replace('"', '""') + '"'
+    return identifier_sql(value)
 
 
 def literal(value):

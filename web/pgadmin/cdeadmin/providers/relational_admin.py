@@ -2942,6 +2942,10 @@ class RelationalAdministration:
         results = []
         identity_change = None
         try:
+            if (self.dialect.engine_id == 'firebird' and
+                    'firebird_dialect_binding' in payload):
+                from .firebird.ddl_dialect import verify_binding
+                verify_binding(connection, payload['firebird_dialect_binding'])
             cursor = (
                 connection if getattr(
                     getattr(client, 'config', None),
@@ -3028,7 +3032,7 @@ class RelationalAdministration:
                     raise failure from None
             else:
                 rollback = getattr(connection, 'rollback', None)
-                if callable(rollback):
+                if callable(rollback) and cursor is not None:
                     rollback_requested = True
                     rollback()
             raise
@@ -8080,6 +8084,9 @@ class RelationalAdministration:
 
     def _quote(self, value):
         value = self._identifier(value)
+        if self.dialect.engine_id == 'firebird':
+            from .firebird.ddl_dialect import identifier_sql
+            return identifier_sql(value)
         escaped = value.replace(
             self.dialect.quote_close, self.dialect.quote_close * 2
         )

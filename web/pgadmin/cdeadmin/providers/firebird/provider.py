@@ -1252,6 +1252,7 @@ def _resources(connection, request):
             **{
                 name: info_value(name) for name in (
                     'name', 'creation_date', 'ods', 'page_cache_size',
+                    'sql_dialect',
                     'size_in_pages', 'pages_allocated', 'pages_used',
                     'pages_free', 'current_memory', 'max_memory',
                     'cache_hit_ratio', 'oit', 'oat', 'ost',
@@ -2252,7 +2253,9 @@ def _resources(connection, request):
                 }
 
         def identifier(value):
-            return '"' + str(value).replace('"', '""') + '"'
+            from .ddl_dialect import identifier_sql
+            return identifier_sql(str(value), database=(
+                1 if str(database_native.get('sql_dialect')) == '1' else 3))
 
         def numeric(value, default=None):
             try:

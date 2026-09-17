@@ -4,6 +4,7 @@ import re
 from collections.abc import Mapping
 
 from pgadmin.cdeadmin.sdk.relational import RelationalClientError
+from .ddl_dialect import identifier_sql
 
 
 OPERATIONS = {
@@ -27,7 +28,7 @@ def identifier(value):
     if not value or len(value) > 63:
         raise RelationalClientError(
             'Firebird identifiers require 1 to 63 characters')
-    return '"' + value.replace('"', '""') + '"'
+    return identifier_sql(value)
 
 
 def literal(value):

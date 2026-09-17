@@ -97,7 +97,7 @@ def verify(connection, client, route, password, result):
                                            'display_name': name,
                                            'display_path': [name]}}
             assert base.ADMINISTRATION.validate(request) == {'errors': []}
-            plan = base.ADMINISTRATION.plan(request)
+            plan = client.plan_admin_operation(request)
             if operation == 'create' and name == 'T':
                 observation['generated_source'] = [
                     s['source'] for s in plan['command_preview']['statements']]
@@ -193,9 +193,12 @@ def verify(connection, client, route, password, result):
                     ddl = next(item['native']['ddl'] for item in resources if
                                item['resource_kind'] == 'table' and
                                item['display_path'] == ['T'])
-                    assert ddl.startswith('CREATE TABLE "T"'), ddl
-                    replay = ddl.replace('CREATE TABLE "T"',
-                                         'CREATE TABLE "U"', 1)
+                    prefix = ('CREATE TABLE T' if dialect == 1 else
+                              'CREATE TABLE "T"')
+                    replacement = ('CREATE TABLE U' if dialect == 1 else
+                                   'CREATE TABLE "U"')
+                    assert ddl.startswith(prefix), ddl
+                    replay = ddl.replace(prefix, replacement, 1)
                     sql(replay.rstrip().rstrip(';'))
                     handle.commit()
                     assert signature(field(catalog(), 'U')) == signature(
