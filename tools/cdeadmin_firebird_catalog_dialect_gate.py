@@ -291,6 +291,75 @@ def verify(connection, client, route, password, result):
                         'message': str(exc).replace(password, '<redacted>')})
                 finally:
                     rollback()
+            evolution = {'dialect': dialect, 'passed': False, 'states': []}
+            result.setdefault('package_evolution_checks', []).append(evolution)
+            try:
+                from pgadmin.cdeadmin.providers.firebird import packages
+                from pgadmin.cdeadmin.providers.firebird.ddl_dialect import (
+                    generated_dialect,
+                )
+                original = metadata('package', 'P')
+                rollback()
+
+                def observe(phase, validity, source_available=True):
+                    observed = metadata('package', 'P')
+                    state = observed['body_status']
+                    evolution['states'].append({
+                        'phase': phase, 'body_status': state,
+                        'raw_flag': observed['valid_body'],
+                        'warnings': observed.get('catalog_warnings', [])})
+                    assert state == {'validity': validity,
+                                     'source_available': source_available}
+                    assert (packages.INVALID_BODY_WARNING in observed.get(
+                        'catalog_warnings', [])) == (validity == 'invalid')
+
+                def task(operation, draft):
+                    with generated_dialect(dialect):
+                        statements = packages.compile_operation(
+                            operation, draft,
+                            {'resource_kind': 'package', 'display_name': 'P'})
+                    for statement in statements:
+                        sql(statement)
+
+                header = {'header': original['header_source'],
+                          'sql_security': 'INVOKER'}
+                body = {'body': original['body_source']}
+                observe('initial', 'valid')
+                rollback()
+                sql('INSERT INTO SENTINEL VALUES (99)')
+                task('alter', header)
+                observe('staged-header', 'invalid')
+                assert sql('SELECT X FROM SENTINEL') == [(99,)]
+                rollback()
+                observe('header-rollback', 'valid')
+                assert sql('SELECT X FROM SENTINEL') == []
+                rollback()
+                task('alter', header)
+                handle.commit()
+                observe('committed-header', 'invalid')
+                rollback()
+                task('replace_body', body)
+                observe('staged-body', 'valid')
+                rollback()
+                observe('body-rollback', 'invalid')
+                rollback()
+                task('replace_body', body)
+                handle.commit()
+                observe('committed-body', 'valid')
+                behavior('P')
+                rollback()
+                task('drop_body', {'confirmation': 'P'})
+                observe('staged-drop-body', 'unknown', False)
+                rollback()
+                observe('drop-body-rollback', 'valid')
+                evolution['passed'] = True
+            except Exception as exc:
+                result['failures'].append({
+                    'case': f'package-evolution-{dialect}',
+                    'error_type': type(exc).__name__,
+                    'message': str(exc).replace(password, '<redacted>')})
+            finally:
+                rollback()
         finally:
             client.close_session(handle)
 
@@ -305,7 +374,10 @@ def main():
     checks = result.get('catalog_dialect_checks', [])
     result['complete'] = (result['complete'] and
                           len(checks) == 2 * len(cases()) and
-                          all(check['passed'] for check in checks))
+                          all(check['passed'] for check in checks) and
+                          len(result.get('package_evolution_checks', [])) == 2
+                          and all(check['passed'] for check in
+                                  result['package_evolution_checks']))
     args.output.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps({'complete': result['complete'],
                       'failures': result['failures']}))

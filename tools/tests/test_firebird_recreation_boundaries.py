@@ -12,6 +12,19 @@ BODY = "BEGIN FUNCTION F RETURNS INTEGER AS BEGIN /* ; */ RETURN 2; END END"
 COMMENT = "Owner's ; notes\n東京"
 
 
+@pytest.mark.parametrize('flag,validity', [
+    (None, 'unknown'), ('unexpected', 'unknown'), (1, 'valid'),
+    (True, 'valid'), ('True', 'valid'), ('1', 'valid'), (0, 'invalid'),
+    (False, 'invalid'), ('False', 'invalid'), ('0', 'invalid')])
+@pytest.mark.parametrize('body', [None, BODY])
+def test_package_body_validity_is_observed_not_inferred(flag, validity, body):
+    from pgadmin.cdeadmin.providers.firebird import packages
+    observed = packages.body_metadata({
+        'valid_body': flag, 'body_source': body})
+    assert observed == {
+        'validity': validity, 'source_available': bool(body)}
+
+
 @pytest.mark.parametrize('domain', ['RDB$17', 'CUSTOM_DOMAIN', None, 'RDB$X'])
 def test_native_gate_normalizes_only_allocated_domain_numbers(domain):
     from tools.cdeadmin_firebird_catalog_dialect_gate import comparable_fields

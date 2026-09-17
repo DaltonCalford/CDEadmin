@@ -1,7 +1,7 @@
 import {execFileSync} from 'child_process';
 import path from 'path';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
-import {VisualAdministration} from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
+import {ObjectInspectorSection, VisualAdministration} from '../../../pgadmin/static/js/Dialogs/ProviderWorkspaceContent';
 
 const cwd = path.resolve(__dirname, '../../../..');
 const forms = JSON.parse(execFileSync('python3', ['-c',
@@ -35,6 +35,23 @@ async function memberEditor(onOpenDefinitionOwner) {
 }
 
 describe('Firebird package definitions', () => {
+  it('shows and clears the native invalid-body warning when metadata changes', () => {
+    const warning = execFileSync('python3', ['-c',
+      'from tools.cdeadmin_firebird_admin_mapping_gate import ADMINISTRATION; ' +
+      'from pgadmin.cdeadmin.providers.firebird.packages import INVALID_BODY_WARNING; ' +
+      'print(INVALID_BODY_WARNING)',
+    ], {cwd, encoding: 'utf8'}).trim();
+    const resource = (invalid) => ({...owner, extensions: {firebird: {native: {
+      body_status: {validity: invalid ? 'invalid' : 'valid', source_available: true},
+      catalog_warnings: invalid ? [warning] : [],
+      property_sections: ['properties'],
+    }}}});
+    const {rerender} = render(<ObjectInspectorSection resource={resource(true)} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(warning);
+    rerender(<ObjectInspectorSection resource={resource(false)} />);
+    expect(screen.queryByText(warning)).toBeNull();
+  });
+
   it('submits an unchanged displayed body when recreating the package', async () => {
     const header = 'BEGIN FUNCTION F RETURNS INTEGER; END';
     const body = 'BEGIN FUNCTION F RETURNS INTEGER AS BEGIN RETURN 1; END END';

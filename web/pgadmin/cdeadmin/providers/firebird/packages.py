@@ -20,6 +20,20 @@ BODY_WARNING = (
     'declarations and routine implementations. This changes the package '
     'body, not its public header. Do not include CREATE, AS or SET TERM.')
 
+INVALID_BODY_WARNING = (
+    'Firebird marks this package body invalid. Review the public header and '
+    'recreate the body before relying on its routines. Stored body source '
+    'does not prove that the body is executable.')
+
+
+def body_metadata(native):
+    """Report the observed validity flag, never infer it from source text."""
+    flag = str(native.get('valid_body')).upper()
+    validity = ('valid' if flag in {'1', 'TRUE'} else
+                'invalid' if flag in {'0', 'FALSE'} else 'unknown')
+    return {'validity': validity,
+            'source_available': bool(native.get('body_source'))}
+
 
 def validate_member_operation(kind, operation, target):
     """A routine inside a package is not a standalone ALTER/DROP target."""

@@ -24,6 +24,7 @@ from ..relational_admin import (
     RelationalAdminDialect,
 )
 from . import columns, mappings, character_metadata, external_functions
+from . import packages
 from . import (
     blob_filters, object_privileges, shadows, database_storage,
     shadow_activation, limbo, views,
@@ -2688,6 +2689,10 @@ def _resources(connection, request):
                     f"CREATE EXCEPTION {identifier(name)} '{message}';"
                 )
             elif kind == 'package' and native.get('header_source'):
+                native['body_status'] = packages.body_metadata(native)
+                if native['body_status']['validity'] == 'invalid':
+                    native.setdefault('catalog_warnings', []).append(
+                        packages.INVALID_BODY_WARNING)
                 security = sql_security(native.get('sql_security'))
                 native['package_sql_security'] = (
                     security.rsplit(' ', 1)[-1] if security else 'INHERIT')
